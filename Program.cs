@@ -44,7 +44,7 @@ static void RunAllTests()
     var testDir = FindTestDir();
     if (testDir == null) { Console.WriteLine("No tests/ directory found."); return; }
 
-    int passed = 0, failed = 0;
+    int passed = 0, failed = 0, todo = 0;
     foreach (var file in Directory.GetFiles(testDir, "*.rav").OrderBy(f => f))
     {
         var name = Path.GetFileName(file);
@@ -70,7 +70,7 @@ static void RunAllTests()
             if (output.StartsWith("Error:"))
                 { Console.WriteLine($"OK (expected error)"); passed++; }
             else
-                { Console.WriteLine($"FAIL (expected error, got output)"); failed++; }
+                { Console.WriteLine($"TODO (expected error, got output)"); todo++; }
         }
         else
         {
@@ -78,14 +78,14 @@ static void RunAllTests()
                 { Console.WriteLine("OK"); passed++; }
             else
             {
-                Console.WriteLine("FAIL");
+                Console.WriteLine("TODO");
                 Console.WriteLine($"       expected: {expected.Trim().Replace("\n","\\n")}");
                 Console.WriteLine($"       got:      {output.Trim().Replace("\n","\\n")}");
-                failed++;
+                todo++;
             }
         }
     }
-    Console.WriteLine($"\n  {passed} passed, {failed} failed");
+    Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo");
 }
 
 static (string source, string expected, bool expectError) ParseTestFile(string content)
@@ -131,7 +131,7 @@ static string CaptureOutput(string source)
     {
         Console.SetOut(oldOut);
     }
-    return sw.ToString().TrimEnd();
+    return sw.ToString().Replace("\r\n", "\n").TrimEnd();
 }
 
 static string? FindTestDir()

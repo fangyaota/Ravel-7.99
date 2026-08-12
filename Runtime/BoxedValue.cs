@@ -49,7 +49,7 @@ public class BoxedValue
                     return Interpreter.Then(step, v => {
                         pThis.Assign(savedThis);
                         if (pInit.Scope != null) pInit.Scope = savedScope;
-                        return Interpreter.D(v);
+                        return Interpreter.ToDone(v);
                     });
                 }));
             }

@@ -7,37 +7,6 @@ public partial class Interpreter
     // ======================== 内置 ========================
     private void RegisterBuiltins()
     {
-        var T = RuntimeValue.FunctionVal.FromTrampolined;
-        var D2 = RuntimeValue.FunctionVal.FromDirect;
-
-        var clsCs = new Scope(_global);
-        var clsInit = RuntimeValue.FunctionVal.FromTrampolined(ia => {
-            if(ia.Length!=2) return new Error("class init expects (parent, block)");
-            var pt = ia[0] is RuntimeValue.TypeVal tv ? tv.Value : RuntimeType.Object;
-            var bd = ia[1] is RuntimeValue.BlockVal bv ? bv : throw new RuntimeException("class init expects block");
-            return EvalClassCore(pt, null, bd);
-        });
-        clsCs.Define("<init>",RuntimeType.Function,clsInit).SetAttr("init");
-        RuntimeType.Class.Rebuild(clsCs);
-
-        // Object 默认 init
-        var objCs = new Scope(_global);
-        var objInit = RuntimeValue.FunctionVal.FromTrampolined(_ => D(RuntimeValue.VoidVal.Instance));
-        objCs.Define("<init>", RuntimeType.Function, objInit).SetAttr("init");
-        RuntimeType.Object.Rebuild(objCs);
-        RuntimeType.Object.DefineMethod("init", (s, a) => {
-            return RuntimeValue.FunctionVal.FromDirect(_ => RuntimeValue.VoidVal.Instance);
-        });
-        RuntimeType.Class.DefineMethod("init",(s,a)=>{
-            if(a.Length!=1 || a[0] is not RuntimeValue.TypeVal pt) throw new RuntimeException("class.init expects type");
-            return RuntimeValue.FunctionVal.FromDirect(ba=>{
-                if(ba.Length!=1 || ba[0] is not RuntimeValue.BlockVal bd) throw new RuntimeException("class.init expects block");
-                // 从 Interpreter 字段读当前 metaType（metaclass 注入）
-                var mt = Interpreter.Current?._currentMetaType;
-                return Step.Run(EvalClassCore(pt.Value, null, bd, metaType:mt));
-            });
-        });
-
         // Class 类型注册默认 init（支持 class 作为父类）
 
 
@@ -266,13 +235,13 @@ public partial class Interpreter
         sysMod.ModuleScope.Define("ValueTypeVal",RuntimeType.Type,new RuntimeValue.TypeVal(RuntimeType.ValueType));
         sysMod.ModuleScope.Define("TypeOf",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
             if(a.Length!=1) throw new RuntimeException("typeof expects 1 arg");
-            return D(new RuntimeValue.TypeVal(a[0].Type));
+            return ToDone(new RuntimeValue.TypeVal(a[0].Type));
         }));
         sysMod.ModuleScope.Define("RandInt",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
             if(a.Length!=1||a[0] is not RuntimeValue.IntVal lo) throw new RuntimeException("randint expects int (min)");
-            return D(RuntimeValue.FunctionVal.FromTrampolined(b=>{
+            return ToDone(RuntimeValue.FunctionVal.FromTrampolined(b=>{
                 if(b.Length!=1||b[0] is not RuntimeValue.IntVal hi) throw new RuntimeException("randint expects int (max)");
-                return D(new RuntimeValue.IntVal(Random.Shared.Next(lo.Value,hi.Value)));
+                return ToDone(new RuntimeValue.IntVal(Random.Shared.Next(lo.Value,hi.Value)));
             }));
         }));
         sysMod.ModuleScope.Define("With",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
@@ -285,7 +254,7 @@ public partial class Interpreter
                 RuntimeValue.DictVal dv=>new RuntimeValue.DictVal(new Dictionary<string,RuntimeValue>(dv.Entries)),
                 _=>obj
             };
-            return D(RuntimeValue.FunctionVal.FromTrampolined(ba=>{
+            return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ba=>{
                 var block=ExpectBlock(ba[0],"with body");
                 var saved=CurrentScope;
                 if(copy is RuntimeValue.ObjectVal ov2&&ov2.InstanceScope!=null)
@@ -294,7 +263,7 @@ public partial class Interpreter
                     CurrentScope=saved;
                     if(copy is RuntimeValue.ObjectVal ov3&&ov3.InstanceScope!=null)
                         SyncScopeToFields(ov3.InstanceScope,ov3);
-                    return D(copy);
+                    return ToDone(copy);
                 });
             }));
         }));
@@ -319,7 +288,7 @@ public partial class Interpreter
             if(full==null) return ThrowRavel("Cannot find file: "+path);
             full=Path.GetFullPath(full);
             if(_loading.Contains(full)) return ThrowRavel("Circular reference detected: "+path);
-            if(_loaded.Contains(full)) return D(RuntimeValue.VoidVal.Instance);
+            if(_loaded.Contains(full)) return ToDone(RuntimeValue.VoidVal.Instance);
             _loaded.Add(full);
             _loading.Push(full);
             var src=File.ReadAllText(full);
@@ -448,15 +417,15 @@ public partial class Interpreter
         sysMod.ModuleScope.Define("Foreach",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
             if(a.Length!=1||a[0] is not RuntimeValue.ListVal lst)
                 throw new RuntimeException("Foreach expects a list");
-            return D(RuntimeValue.FunctionVal.FromTrampolined(b=>{
+            return ToDone(RuntimeValue.FunctionVal.FromTrampolined(b=>{
                 if(b.Length!=1||b[0] is not RuntimeValue.FunctionVal fn)
                     throw new RuntimeException("Foreach expects a function");
                 RuntimeValue last=RuntimeValue.VoidVal.Instance;
                 foreach(var item in lst.Elements){
-                    var s=fn.Trampolined!=null?fn.Trampolined(new[]{item}):D(fn.Direct!(new[]{item}));
+                    var s=fn.Trampolined!=null?fn.Trampolined(new[]{item}):ToDone(fn.Direct!(new[]{item}));
                     last=Step.Run(s);
                 }
-                return D(last);
+                return ToDone(last);
             }));
         }));
         sysMod.ModuleScope.Define("currentScope",RuntimeType.Function,RuntimeValue.FunctionVal.FromDirect(_=>
@@ -471,7 +440,7 @@ public partial class Interpreter
             if(a.Length!=1||a[0] is not RuntimeValue.BoolVal cond)
                 return ThrowRavel("assert expects bool");
             var ok=cond.Value;
-            return D(RuntimeValue.FunctionVal.FromDirect(ma=>{
+            return ToDone(RuntimeValue.FunctionVal.FromDirect(ma=>{
                 var msg=ma.Length>0&&ma[0] is RuntimeValue.StringVal s?s.Value:"assertion failed: "+Show(cond);
                 if(!ok) throw new RuntimeException(msg);
                 return RuntimeValue.VoidVal.Instance;

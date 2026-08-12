@@ -42,8 +42,4 @@ unsafe := System.unsafe
 currentScope := System.currentScope
 property := System.property
 
-using "std.rav"
-
-interface := Interface
-
 using "try.rav"

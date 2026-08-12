@@ -5,7 +5,13 @@
       "Bash(git checkout *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(code --help)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet tool *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet run *)",
+      "Bash(git commit -m 'refactor: 移除自定义类/元类创建系统 *)"
     ]
   }
 }

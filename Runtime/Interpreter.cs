@@ -20,7 +20,6 @@ public partial class Interpreter
     readonly HashSet<string> _loaded=new();
     readonly Stack<string> _loading=new();
     internal bool _callccActive;
-    internal RuntimeType? _currentMetaType;
     internal int _unsafeDepth;
     internal readonly List<RuntimeType> _allTypes = new();
 
@@ -38,8 +37,8 @@ public partial class Interpreter
     public void Interpret(Program p) { foreach(var s in p.Statements) Step.Run(EvalStmt(s)); }
 
     // ======================== CPS 基础 ========================
-    internal static Step D(RuntimeValue v) => new Done(v);
-    internal static Step M(Func<Step> f) => new More(f);
+    internal static Step ToDone(RuntimeValue v) => new Done(v);
+    internal static Step ToMore(Func<Step> f) => new More(f);
     internal static Step Then(Step first, Func<RuntimeValue, Step> onDone)
     {
         if (first is CallCC cc)
@@ -64,11 +63,11 @@ public partial class Interpreter
                     return Then(step, _ =>
                     {
                         Current.CurrentScope = saved;
-                        return D(r);
+                        return ToDone(r);
                     });
                 }
             });
-            return M(() =>
+            return ToMore(() =>
             {
                 var savedOuter = Current!.CurrentScope;
                 var s = cc.Fn.Trampolined!([k]);
@@ -83,13 +82,13 @@ public partial class Interpreter
         if (first is Error err) return err;
         if (first is Done d) return onDone(d.Value);
         var m = (More)first;
-        return M(() => Then(m.Next(), onDone));
+        return ToMore(() => Then(m.Next(), onDone));
     }
     internal static Step OrElse(Step first, Func<Error, Step> onError){
         if(first is Escape e) return e;
         if(first is Error err) return onError(err);
         if(first is Done d) return first;
-        var m=(More)first; return M(()=>OrElse(m.Next(),onError));
+        var m=(More)first; return ToMore(()=>OrElse(m.Next(),onError));
     }
     /// <summary>无论 Step 结果是 Done/Escape/Error，都执行 onFinally</summary>
     internal static Step Finally(Step first, Action onFinally)
@@ -98,29 +97,29 @@ public partial class Interpreter
         if (first is Error err) { onFinally(); return err; }
         if (first is Done d) { onFinally(); return d; }
         var m = (More)first;
-        return M(() => Finally(m.Next(), onFinally));
+        return ToMore(() => Finally(m.Next(), onFinally));
     }
 
 
     // ======================== 控制流 ========================
     Step EvalWhile(RuntimeValue[] a){
         var c=ExpectBlock(a[0],"while cond");
-        return D(RuntimeValue.FunctionVal.FromTrampolined(ba=>{
+        return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ba=>{
             var b=ExpectBlock(ba[0],"while body");
             return Loop(c,b,RuntimeValue.VoidVal.Instance);
         }));
     }
     Step Loop(RuntimeValue.BlockVal c,RuntimeValue.BlockVal b,RuntimeValue last)=>Then(c.Invoke(),cv=>{
         if(cv is not RuntimeValue.BoolVal bv) throw new RuntimeException("while condition must be bool");
-        if(!bv.Value) return D(last);
+        if(!bv.Value) return ToDone(last);
         return Then(b.Invoke(),bv2=>Loop(c,b,bv2));
     });
 
     Step EvalIf(RuntimeValue[] a){
         var c=ExpectBlock(a[0],"if cond");
-        return D(RuntimeValue.FunctionVal.FromTrampolined(ta=>{
+        return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ta=>{
             var t=ExpectBlock(ta[0],"if then");
-            return D(RuntimeValue.FunctionVal.FromTrampolined(ea=>{
+            return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ea=>{
                 var e=ExpectBlock(ea[0],"if else");
                 return Then(c.Invoke(),cv=>{
                     if(cv is not RuntimeValue.BoolVal b) throw new RuntimeException("if condition must be bool");
@@ -152,7 +151,7 @@ public partial class Interpreter
             if(v.Named && val is RuntimeValue.FunctionVal fn){ fn.Name=v.Name; if(fn.Meta!=null) fn.Meta.Type.Name=v.Name; }
             if(v.IsInit&&v.Name!="init") CurrentScope.DefineOrReplace("init",dt,val);
             if(v.IsOperator&&v.OperatorName!=null&&v.Name!=v.OperatorName) CurrentScope.DefineOrReplace(v.OperatorName,dt,val);
-            return D(RuntimeValue.VoidVal.Instance);
+            return ToDone(RuntimeValue.VoidVal.Instance);
         }),
         Assignment a=>Then(EvalExpr(a.Value),val=>{
             try{
@@ -162,26 +161,31 @@ public partial class Interpreter
                     var setter=new BoxedValue(prop).GetMember("set").Value;
                     if(setter is RuntimeValue.FunctionVal sf)
                         Step.Run(sf.Trampolined!(new RuntimeValue[]{val}));
-                    return D(val);
+                    return ToDone(val);
                 }
             }catch{}
-            CurrentScope.Assign(a.Name,val); return D(RuntimeValue.VoidVal.Instance);
+            CurrentScope.Assign(a.Name,val); return ToDone(RuntimeValue.VoidVal.Instance);
         }),
-        ExpressionStatement es=>Then(EvalExpr(es.Expr),v=>D(v)),
+        ExpressionStatement es=>Then(EvalExpr(es.Expr),v=>ToDone(v)),
         _=>throw new RuntimeException("Unknown statement")
     };
 
     // ==== Expr/Call → Interpreter.Expr.cs
     // ======================== 块/Lambda ========================
-    Step EvalBlock(BlockExpr block)=>D(new RuntimeValue.BlockVal(block,CurrentScope,this));
-    public Step EvalBlockExec(BlockExpr block)=>M(()=>{
+    Step EvalBlock(BlockExpr block)=>ToDone(new RuntimeValue.BlockVal(block,CurrentScope,this));
+    public Step EvalBlockExec(BlockExpr block)=>ToMore(()=>{
         CurrentScope=CurrentScope.Push();
         return EvalBlockStmts(block.Statements,0,RuntimeValue.VoidVal.Instance);
     });
     Step EvalBlockStmts(List<Statement> ss,int i,RuntimeValue last){
-        if(i>=ss.Count){ CurrentScope=CurrentScope.Parent!; return D(last); }
+        if(i>=ss.Count){ CurrentScope=CurrentScope.Parent!; return ToDone(last); }
         if(ss[i] is ExpressionStatement es) return Then(EvalExpr(es.Expr),v=>EvalBlockStmts(ss,i+1,v));
         return Then(EvalStmt(ss[i]),v=>EvalBlockStmts(ss,i+1,v));
+    }
+    internal Step EvalBlockStmtsDirect(List<Statement> ss,int i,RuntimeValue last,Action onDone){
+        if(i>=ss.Count){ onDone(); return ToDone(last); }
+        if(ss[i] is ExpressionStatement es) return Then(EvalExpr(es.Expr),v=>EvalBlockStmtsDirect(ss,i+1,v,onDone));
+        return Then(EvalStmt(ss[i]),v=>EvalBlockStmtsDirect(ss,i+1,v,onDone));
     }
 
     RuntimeValue EvalLambda(LambdaExpr lam){
@@ -193,7 +197,7 @@ public partial class Interpreter
             var ls=scope.Push(); ls.Define("self",RuntimeType.Function,self!);
             ls.Define(lam.Param.Name,pt,args[0]);
             var save=interp.CurrentScope; interp.CurrentScope=ls;
-            return M(()=>{ var bs=interp.EvalBlockExec(lam.Body); return Then(bs,v=>{ interp.CurrentScope=save; return D(v); }); });
+            return ToMore(()=>{ var bs=interp.EvalBlockExec(lam.Body); return Then(bs,v=>{ interp.CurrentScope=save; return ToDone(v); }); });
         });
         self=fn; return fn;
     }

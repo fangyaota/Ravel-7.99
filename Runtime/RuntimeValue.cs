@@ -141,7 +141,7 @@ public abstract record RuntimeValue
                     return Interpreter.Then(post, _ =>
                     {
                         Interpreter.Current.CurrentScope = saved;
-                        return Interpreter.D(result);
+                        return Interpreter.ToDone(result);
                     });
                 });
             });
