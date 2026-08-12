@@ -192,60 +192,16 @@ public partial class Interpreter
             if (bin.Op is "+=" or "-=" or "*=" or "/=" or "%=")
             {
                 var op = bin.Op[..1];
-                var fn = RuntimeType.GetBuiltinOperator(left.Type, op);
+                var fn = left.Type.TryLookupMethod(op);
                 if (fn == null) return ThrowRavel($"类型 {left.Type} 不支持运算符 '{op}'");
-                var r = fn(left, right);
+                var r = fn(left, [right]);
                 if (bin.Left is IdentifierExpr id) CurrentScope.Assign(id.Name, r);
                 else return ThrowRavel("复合赋值目标必须是变量");
                 return ToDone(r);
             }
 
-            var builtin = RuntimeType.GetBuiltinOperator(left.Type, bin.Op);
-            if (builtin != null) return ToDone(builtin(left, right));
-            // | 运算符：bool 逻辑或 / int 按位或 / 函数交替
-            if (bin.Op == "|")
-            {
-                return Then(EvalExpr(bin.Left), lv => Then(EvalExpr(bin.Right), rv =>
-                {
-                    if (lv is BoolVal lb && rv is BoolVal rb)
-                        return ToDone(new BoolVal(lb.Value || rb.Value));
-                    if (lv is IntVal li && rv is IntVal ri)
-                        return ToDone(new IntVal(li.Value | ri.Value));
-                    if (lv is FunctionVal lf && rv is FunctionVal rf)
-                        return ToDone(FunctionVal.FromTrampolined(ia =>
-                        {
-                            var step = lf.Trampolined(ia);
-                            return OrElse(step, _ => rf.Trampolined(ia));
-                        }));
-                    return ThrowRavel("| 两边必须是 bool、int 或函数");
-                }));
-            }
-
-            // & 运算符：bool 逻辑与 / int 按位与
-            if (bin.Op == "&")
-            {
-                return Then(EvalExpr(bin.Left), lv => Then(EvalExpr(bin.Right), rv =>
-                {
-                    if (lv is BoolVal lb && rv is BoolVal rb)
-                        return ToDone(new BoolVal(lb.Value && rb.Value));
-                    if (lv is IntVal li && rv is IntVal ri)
-                        return ToDone(new IntVal(li.Value & ri.Value));
-                    return ThrowRavel("& 两边必须是 bool 或 int");
-                }));
-            }
-
-            // ^ 运算符：bool 逻辑异或 / int 按位异或
-            if (bin.Op == "^")
-            {
-                return Then(EvalExpr(bin.Left), lv => Then(EvalExpr(bin.Right), rv =>
-                {
-                    if (lv is BoolVal lb && rv is BoolVal rb)
-                        return ToDone(new BoolVal(lb.Value ^ rb.Value));
-                    if (lv is IntVal li && rv is IntVal ri)
-                        return ToDone(new IntVal(li.Value ^ ri.Value));
-                    return ThrowRavel("^ 两边必须是 bool 或 int");
-                }));
-            }
+            var builtin = left.Type.TryLookupMethod(bin.Op);
+            if (builtin != null) return ToDone(builtin(left, [right]));
 
             return ThrowRavel($"未知的二元运算符: {bin.Op}");
         }));
@@ -324,12 +280,6 @@ public partial class Interpreter
 
         return ToDone(fv);
     });
-
-    /// <summary>从 operatorXxx 名字中提取运算符（如 operator+ → +）</summary>
-    private static string ExtractOp(string name)
-    {
-        return name.StartsWith("operator") ? name[8..] : name;
-    }
 
     /// <summary>求值管道表达式 fn &lt;| arg —— 将 arg 作为参数调用 fn</summary>
     private Step EvalPipe(PipeExpr p) => Then(EvalExpr(p.Right), right => Then(EvalExpr(p.Left), left =>

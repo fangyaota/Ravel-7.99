@@ -11,12 +11,12 @@ public class BoxedValue(RuntimeValue value)
         if (name.StartsWith("operator"))
         {
             var op = name[8..];
-            var builtin = RuntimeType.GetBuiltinOperator(Value.Type, op);
-            if (builtin != null)
+            var opMethod = Value.Type.TryLookupMethod(op);
+            if (opMethod != null)
             {
                 var captured = Value;
                 return new BoxedValue(FunctionVal.FromDirect(args =>
-                    builtin(captured, args[0])));
+                    opMethod(captured, args)));
             }
         }
 
