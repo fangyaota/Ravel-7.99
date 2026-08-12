@@ -1,5 +1,5 @@
 # 多发射续延：表达式上下文中的多发
-saved := (x: int) => { x }
+saved := (x: int) => { x; }
 r1 := 1 + callcc (k: function) => {
     saved = k
     k 2

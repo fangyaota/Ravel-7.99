@@ -1,5 +1,5 @@
 # 多参数 lambda：与 callcc 组合（多发射续延 + 多参数）
-saved := (x: int) => { x }
+saved := (x: int) => { x; }
 result := callcc (k: function) => {
     saved = k
     k 1

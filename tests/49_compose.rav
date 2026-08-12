@@ -5,8 +5,8 @@ compose := (f: function) => {
         }
     }
 }
-double := (x: int) => { x * 2 }
-addOne := (x: int) => { x + 1 }
+double := (x: int) => { x * 2; }
+addOne := (x: int) => { x + 1; }
 h := compose double addOne
 print (h 5)
 # --- expected ---

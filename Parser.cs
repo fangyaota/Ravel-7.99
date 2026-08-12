@@ -597,11 +597,13 @@ public class Parser(List<Token> tokens)
         return new DictLiteral(entries) { Line = line, Column = col };
     }
 
-    /// <summary>强制解析为代码块</summary>
+    /// <summary>强制解析为代码块——后面不是 block（单行无换行，即集合/字典）时报错</summary>
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
         Consume(TokenType.LeftBrace, $"需要 '{{' for {context}");
+        if (!HasNewlineBeforeClose(TokenType.RightBrace))
+            throw ParseError($"{context} 需要代码块（用换行或分号分隔）");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col };
     }

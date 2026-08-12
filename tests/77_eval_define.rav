@@ -1,4 +1,4 @@
-eval "F := (a: int) => { a * 2 }"
+eval "F := (a: int) => { a * 2; }"
 print (F 5)
 # --- expected ---
 # 10

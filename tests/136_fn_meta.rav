@@ -8,7 +8,7 @@ print (typeof f)
 
 # setScope
 C := class { init ctor := () => { 0; }; x: int = 99; }
-g := () => { x }
+g := () => { x; }
 proto := C.Proto ()
 g.setScope proto
 print (g ())

@@ -1,6 +1,6 @@
 # 多发射续延：生成器模式 — 每次调用产生下一个值
 current := 0
-next := (x: int) => { x }
+next := (x: int) => { x; }
 callcc (k: function) => {
     next = k
     k 1

@@ -1,5 +1,5 @@
 # 多发射续延：保存延续，在 callcc 外部多次调用
-saved := (x: function) => { x }
+saved := (x: function) => { x; }
 results := []
 first := callcc (k: function) => {
     saved = k

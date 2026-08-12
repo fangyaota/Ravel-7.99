@@ -1,6 +1,6 @@
 ravel "Math"
 pi := 3.14159
-square := (x: int) => { x * x }
+square := (x: int) => { x * x; }
 
 ravel ""
 print (Math.pi)
