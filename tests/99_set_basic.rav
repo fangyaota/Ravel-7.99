@@ -1,0 +1,7 @@
+# 集合字面量
+s := {1 2 3}
+print (s.Count ())
+print (typeof s)
+# --- expected ---
+# 3
+# Set

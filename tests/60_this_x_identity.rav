@@ -1,0 +1,34 @@
+C := class {
+    init ctor := () => { this.v = 0 }
+    v: int = 0
+    setDirect := () => { v = 42 }
+    setThis := () => { this.v = 99 }
+    get := () => { v }
+}
+c := C ()
+c.setDirect ()
+print (c.get ())
+c.setThis ()
+print (c.get ())
+
+# 继承
+Parent := class {
+    init ctor := () => { pv = 10 }
+    pv: int = 0
+}
+Child := class Parent {
+    init ctor := () => {
+        base.init ()
+        pv = 99
+        print pv
+        print (this.pv)
+    }
+}
+ch := Child ()
+print (ch.pv)
+# --- expected ---
+# 42
+# 99
+# 99
+# 99
+# 99

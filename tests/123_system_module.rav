@@ -1,0 +1,31 @@
+# System 模块 + PascalCase 类型名
+print "--- System 模块 ---"
+print (System.Integer)
+print (System.String)
+print (System.Bool)
+print (System.Float)
+print (System.List)
+
+print "--- 小写别名 ---"
+print (int.name)
+print (string.name)
+print (bool.name)
+print (float.name)
+
+print "--- 类型构造 ---"
+print (bool 1)
+print (System.String "")
+# --- expected ---
+# --- System 模块 ---
+# Integer
+# String
+# Bool
+# Float
+# List
+# --- 小写别名 ---
+# Integer
+# String
+# Bool
+# Float
+# --- 类型构造 ---
+# true

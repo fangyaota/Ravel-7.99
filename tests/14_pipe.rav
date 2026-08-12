@@ -1,0 +1,3 @@
+print <| 99
+# --- expected ---
+# 99

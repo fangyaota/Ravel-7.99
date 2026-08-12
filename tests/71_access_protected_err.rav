@@ -1,0 +1,7 @@
+# expect-error
+Base := class {
+    init ctor := () => { 0 }
+    protected val: int = 10
+}
+b := Base ()
+print (b.val)

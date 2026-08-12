@@ -1,0 +1,12 @@
+# 字典 Get / Set
+d := {x: 10 y: 20}
+print (d.Get "x")
+print (d.Get "y")
+d.Set "z" 30
+print (d.Get "z")
+print (d.Count ())
+# --- expected ---
+# 10
+# 20
+# 30
+# 3

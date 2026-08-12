@@ -1,0 +1,8 @@
+C := class {
+    init ctor := () => { 0 }
+    readonly x: int = 10
+}
+c := C ()
+print (c.x)
+# --- expected ---
+# 10

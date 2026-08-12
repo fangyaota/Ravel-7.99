@@ -1,0 +1,13 @@
+A := class {
+    init ctor := () => { this.n = 1 }
+    n: int = 0
+    operator+ add := (x: int) => { n + x }
+}
+a1 := A ()
+a2 := A ()
+a1.n = 100
+print (a1 + 0)
+print (a2 + 0)
+# --- expected ---
+# 100
+# 1

@@ -1,0 +1,21 @@
+X := [1 2 3 4 5]
+result := callcc (found: function) => {
+    i := 0
+    while {
+        i < X.Count ()
+    } {
+        val := X.At i
+        if {
+            val > 3
+        } {
+            found val
+        } {
+            0
+        }
+        i += 1
+    }
+    0
+}
+print result
+# --- expected ---
+# 4

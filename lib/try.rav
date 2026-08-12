@@ -1,0 +1,23 @@
+ravel "Ex"
+
+handlerStack: list = []
+
+throw := (e: Exception) => {
+    if { handlerStack.Count () == 0; } {
+        exit (e.ToString ())
+    } {
+        handlerStack.Remove 0 e
+    }
+}
+
+try := (body: function) => {
+    (handler: function) => {
+        result := callcc (ok: function) => {
+            handlerStack.Insert 0 (e: Exception) => {
+                ok (handler e)
+            }
+            ok (body ())
+        }
+        result
+    }
+}

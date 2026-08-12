@@ -1,0 +1,8 @@
+# | 位或 / 逻辑或
+print (3 | 1)        # bitwise: 11 | 01 = 11 → 3
+print (true | false) # logical
+print (false | false)
+# --- expected ---
+# 3
+# true
+# false

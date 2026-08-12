@@ -1,0 +1,7 @@
+references = ["/workspace/ravel/tests/"]
+print "mod start"
+z: int = 7
+print "mod end"
+# --- expected ---
+# mod start
+# mod end

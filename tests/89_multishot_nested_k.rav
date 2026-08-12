@@ -1,0 +1,7 @@
+# 多发射续延：在 callcc 体内多次调用 k（一发行为不变）
+result := callcc (k: function) => {
+    k (k 3)
+}
+print result
+# --- expected ---
+# 3

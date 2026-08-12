@@ -1,0 +1,5 @@
+X := 10
+X = 20
+print X
+# --- expected ---
+# 20

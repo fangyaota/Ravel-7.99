@@ -1,0 +1,47 @@
+# System 模块完整测试
+
+# ── 类型变量 ──
+print (System.Integer)
+print (System.String)
+print (System.Bool)
+print (System.Float)
+print (System.List)
+print (System.Set)
+print (System.Dict)
+print (System.Object)
+print (System.Class)
+print (System.Function)
+print (System.Type)
+print (System.Void)
+
+# ── 别名 ──
+print (int.name)
+print (string.name)
+
+# ── 函数 ──
+print (System.True)
+print (System.False)
+print (typeof System.Default)
+
+# ── 完毕 ──
+print 999
+
+# --- expected ---
+# Integer
+# String
+# Bool
+# Float
+# List
+# Set
+# Dict
+# Object
+# Class
+# Function
+# Type
+# Void
+# Integer
+# String
+# true
+# false
+# Every
+# 999

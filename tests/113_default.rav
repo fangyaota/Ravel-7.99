@@ -1,0 +1,14 @@
+# Every 底类型 + default 默认值
+print (typeof default)
+print (int default)
+print (bool default)
+print (list default)
+print (set default)
+print (float default)
+# --- expected ---
+# Every
+# 0
+# false
+# []
+# {}
+# 0

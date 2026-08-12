@@ -1,0 +1,16 @@
+F := (x: int) => {
+    callcc (return: function) => {
+        if {
+            x < 0
+        } {
+            return 0
+        } {
+            return x
+        }
+    }
+}
+print (F 10)
+print (F (-5))
+# --- expected ---
+# 10
+# 0

@@ -1,0 +1,10 @@
+using "try.rav"
+Ex.try {
+    Ex.throw (Exception "oops")
+} (e: Exception) => {
+    print "caught"
+}
+print "done"
+# --- expected ---
+# caught
+# done

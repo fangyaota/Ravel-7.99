@@ -1,0 +1,26 @@
+# _ 占位符：单 hole
+add1 := _ + 1
+print (add1 5)
+
+# _ 占位符：反向
+sub := 10 - _
+print (sub 3)
+
+# _ 占位符：双 hole
+both := _ + _
+print (both 1 2)
+
+# _ 占位符：调用
+call := print _
+call "hello"
+
+# _ 丢弃定义
+_ := 42
+_ : int = 99
+print "ok"
+# --- expected ---
+# 6
+# 7
+# 3
+# hello
+# ok

@@ -1,0 +1,15 @@
+Animal := class {
+    init ctor := () => { this.name = "?" }
+    name: string = ""
+    speak := () => { print name }
+}
+Dog := class Animal {
+    init ctor := () => {
+        base.init ()
+        name = "dog"
+    }
+}
+d := Dog ()
+d.speak ()
+# --- expected ---
+# dog

@@ -1,0 +1,19 @@
+xs := [1 2 3]
+xs.Add 4
+xs.Add 5
+print xs
+xs.Remove 1
+print xs
+xs.Insert 2 99
+print xs
+xs.Set 0 100
+print xs
+print (xs.Count ())
+print (xs.At 0)
+# --- expected ---
+# [1 2 3 4 5]
+# [1 3 4 5]
+# [1 3 99 4 5]
+# [100 3 99 4 5]
+# 5
+# 100

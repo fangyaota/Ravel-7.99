@@ -1,0 +1,8 @@
+X := {
+    A := 10
+    B := 20
+    A + B
+}
+print X
+# --- expected ---
+# <block>

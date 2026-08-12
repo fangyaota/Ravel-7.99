@@ -1,0 +1,4 @@
+ravel "Lib"
+public pub_x: int = 10
+private priv_y: int = 20
+z: int = 30

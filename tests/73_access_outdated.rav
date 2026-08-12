@@ -1,0 +1,8 @@
+C := class {
+    init ctor := () => { 0 }
+    outdated old: int = 77
+}
+c := C ()
+print (c.old)
+# --- expected ---
+# 77

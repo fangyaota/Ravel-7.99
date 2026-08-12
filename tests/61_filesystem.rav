@@ -1,0 +1,112 @@
+# ===== 文件系统 =====
+
+Node := class {
+    init ctor := () => {
+        this.name = ""
+        this.size = 0
+    }
+    name: string = ""
+    size: int = 0
+    getName := () => { name }
+    getSize := () => { size }
+    find := (target: string) => { File () }
+}
+
+File := class Node {
+    init ctor := () => {
+        base.init ()
+        content = ""
+    }
+    content: string = ""
+    read := () => { content }
+    write := (text: string) => {
+        content = text
+        size = text.Length ()
+    }
+    append := (text: string) => {
+        content = content + text
+        size = content.Length ()
+    }
+}
+
+Folder := class Node {
+    init ctor := () => {
+        base.init ()
+        children = []
+    }
+    children: list = []
+
+    add := (child: object) => { children.Add child }
+
+    find := (target: string) => {
+        callcc (found: function) => {
+            i := 0
+            while { i < children.Count (); } {
+                ch := children.At i
+                if { (ch.getName ()) == target; } { found ch; } { 0; }
+                i += 1
+            }
+            i = 0
+            while { i < children.Count (); } {
+                ch := children.At i
+                result := ch.find target
+                if { (result.getName ()) != ""; } { found result; } { 0; }
+                i += 1
+            }
+            found (File ())
+        }
+    }
+
+    list := () => {
+        i := 0
+        while { i < children.Count (); } {
+            ch := children.At i
+            print (ch.getName ())
+            i += 1
+        }
+    }
+}
+
+root := Folder ()
+root.name = "/"
+home := Folder ()
+home.name = "home"
+root.add home
+readme := File ()
+readme.name = "readme.txt"
+readme.write "hello world"
+home.add readme
+etc := Folder ()
+etc.name = "etc"
+root.add etc
+config := File ()
+config.name = "config.txt"
+config.write "dark mode"
+etc.add config
+
+print "=== find ==="
+r := home.find "readme.txt"
+print (r.getName ())
+print (r.read ())
+
+print "=== list root ==="
+root.list ()
+
+print "=== write ==="
+c := etc.find "config.txt"
+c.write "updated"
+print (c.read ())
+
+print "=== not found ==="
+nf := root.find "nope"
+print (nf.getName ())
+# --- expected ---
+# === find ===
+# readme.txt
+# hello world
+# === list root ===
+# home
+# etc
+# === write ===
+# updated
+# === not found ===

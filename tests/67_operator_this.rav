@@ -1,0 +1,17 @@
+B := class {
+    init ctor := () => { this.val = 10 }
+    val: int = 0
+    operator+ op1 := (x: int) => { val + x }
+    operator* op2 := (x: int) => { this.val * x }
+}
+b := B ()
+print (b + 5)
+print (b * 3)
+b.val = 50
+print (b + 5)
+print (b * 3)
+# --- expected ---
+# 15
+# 30
+# 55
+# 150

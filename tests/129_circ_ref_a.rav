@@ -1,0 +1,6 @@
+references = ["/workspace/ravel/tests/"]
+print "A start"
+x: int = 42
+using "130_circ_ref_b.rav"
+print "A end"
+# expect-error

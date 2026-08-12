@@ -1,0 +1,11 @@
+Base := class {
+    init ctor := () => { x = 5 }
+    x: int = 0
+}
+Child := class Base {
+    init ctor := () => { base.init () }
+}
+c := Child ()
+print (c.x)
+# --- expected ---
+# 5

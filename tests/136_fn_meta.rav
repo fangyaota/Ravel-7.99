@@ -1,0 +1,18 @@
+# fn.scope / fn.setScope / fn.setType
+f := () => { print "hi"; }
+sc := f.scope ()
+print (typeof sc)
+
+f.setType object
+print (typeof f)
+
+# setScope
+C := class { init ctor := () => { 0; }; x: int = 99; }
+g := () => { x }
+proto := C.Proto ()
+g.setScope proto
+print (g ())
+# --- expected ---
+# Scope
+# Class
+# 99

@@ -1,0 +1,13 @@
+C := class {
+    init ctor := () => { 0 }
+    private secret: int = 42
+    show := () => { print secret }
+    set := (v: int) => { secret = v }
+}
+c := C ()
+c.show ()
+c.set 99
+c.show ()
+# --- expected ---
+# 42
+# 99

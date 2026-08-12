@@ -1,0 +1,7 @@
+# foreach
+xs := [1 2 3]
+sum := 0
+foreach xs (x: int) => { sum = sum + x; }
+print sum
+# --- expected ---
+# 6

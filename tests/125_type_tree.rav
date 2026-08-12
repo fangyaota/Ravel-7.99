@@ -1,0 +1,57 @@
+# 递归类型树（带 [元类] 标注）
+print_tree := (t: object prefix: string) => {
+    subs := t.Subtypes ()
+    total := 0
+    j := 0
+    while { j < subs.Count (); } {
+        s := subs.At j
+        p := s.Parent ()
+        if { p.name == t.name && s.name != t.name; } { total += 1; } { 0; }
+        j += 1
+    }
+    k := 0
+    j := 0
+    while { j < subs.Count (); } {
+        s := subs.At j
+        p := s.Parent ()
+        if { p.name == t.name && s.name != t.name; } {
+            k += 1;
+            is_last := k == total;
+            m := s.Metaclass ()
+            label := s.name + " [" + m.name + "]"
+            if { is_last; } {
+                print (prefix + "└── " + label);
+                print_tree s (prefix + "    ");
+            } {
+                print (prefix + "├── " + label);
+                print_tree s (prefix + "│   ");
+            }
+        } { 0; }
+        j += 1
+    }
+}
+print "Object [Type]"
+print_tree object ""
+# --- expected ---
+# Object [Type]
+# ├── ValueType [Type]
+# │   ├── Integer [Type]
+# │   ├── Float [Type]
+# │   ├── Bool [Type]
+# │   ├── String [Type]
+# │   ├── BigInt [Type]
+# │   ├── Fraction [Type]
+# │   └── BigFraction [Type]
+# ├── Function [Type]
+# │   └── Type [Type]
+# │       └── Class [Class]
+# │           └── Interface [Class]
+# ├── List [Type]
+# ├── Set [Type]
+# ├── Dict [Type]
+# ├── Void [Type]
+# ├── Ravel [Type]
+# ├── Any [Type]
+# ├── Exception [Type]
+# ├── Scope [Type]
+# └── Property [Type]

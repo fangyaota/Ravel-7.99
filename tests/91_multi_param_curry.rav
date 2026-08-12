@@ -1,0 +1,11 @@
+# 多参数 lambda：三个参数，柯里化调用
+sum3 := (a: int b: int c: int) => {
+    a + b + c
+}
+print (sum3 1 2 3)
+# 也可以部分应用
+add5 := sum3 5
+print (add5 10 20)
+# --- expected ---
+# 6
+# 35

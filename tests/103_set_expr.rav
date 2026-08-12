@@ -1,0 +1,11 @@
+# 集合支持表达式元素
+a := 1
+b := 2
+s := {a b a + b}
+print (s.Count ())
+print (s.Contains 1)
+print (s.Contains 3)
+# --- expected ---
+# 3
+# true
+# true

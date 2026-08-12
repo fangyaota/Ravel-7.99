@@ -1,0 +1,11 @@
+# type.Instantiate
+T := type object { x: int = 42; y: string = "hi"; }
+sc := T.Proto ()
+inst := T.Instantiate sc
+print (typeof inst)
+print (inst.x)
+print (inst.y)
+# --- expected ---
+# <type>
+# 42
+# hi

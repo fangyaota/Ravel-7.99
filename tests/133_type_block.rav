@@ -1,0 +1,12 @@
+# type parent block
+T := type object { x: int = 42; }
+print (typeof T)
+sc := T.Proto ()
+print (typeof sc)
+vars := sc.Variables ()
+ks := vars.Keys ()
+print (ks.Count ())
+# --- expected ---
+# Type
+# Scope
+# 1

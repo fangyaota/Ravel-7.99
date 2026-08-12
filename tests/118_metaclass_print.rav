@@ -1,0 +1,19 @@
+# metaclass: init 用 base.init 创建类
+LoggingMeta ::= class class {
+    init new := (parent: type block: function) => {
+        print "meta: creating..."
+        base.init parent block
+        print "meta: done"
+        this
+    }
+}
+M2 := LoggingMeta object {
+    init ctor := () => { 0; }
+    name: string = "hello"
+}
+m := M2 ()
+print (m.name)
+# --- expected ---
+# meta: creating...
+# meta: done
+# hello

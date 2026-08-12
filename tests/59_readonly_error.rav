@@ -1,0 +1,7 @@
+# expect-error
+C := class {
+    init ctor := () => { x = 99 }
+    readonly x: int = 10
+}
+c := C ()
+print (c.x)

@@ -1,0 +1,7 @@
+# expect-error
+C := class {
+    init ctor := () => { 0 }
+    private secret: int = 42
+}
+c := C ()
+print (c.secret)

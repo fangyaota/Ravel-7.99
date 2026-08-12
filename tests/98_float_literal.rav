@@ -1,0 +1,12 @@
+# 浮点数字面量正确解析为 FloatVal
+print (typeof 5)
+print (typeof 5.0)
+print (typeof 3.14)
+print (5.0 / 2)
+print (0.5 + 0.5)
+# --- expected ---
+# Integer
+# Float
+# Float
+# 2.5
+# 1

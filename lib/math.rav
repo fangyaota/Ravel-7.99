@@ -1,0 +1,7 @@
+ravel "Math"
+
+pi := 3.14159
+e := 2.71828
+
+square := (x: int) => { x * x }
+cube := (x: int) => { x * x * x }

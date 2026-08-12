@@ -1,0 +1,15 @@
+eval "xs := [1 2 3]"
+eval "xs.Add 4"
+eval "print xs"
+eval "
+    C := class {
+        init ctor := () => { this.n = 7 }
+        n: int = 0
+        get := () => { n }
+    }
+"
+c := C ()
+print (c.get ())
+# --- expected ---
+# [1 2 3 4]
+# 7

@@ -1,0 +1,49 @@
+references: list = []
+
+# ── 别名 ──
+int := System.Integer
+string := System.String
+bool := System.Bool
+float := System.Float
+bigint := System.BigInteger
+fraction := System.Fraction
+bigfraction := System.BigFraction
+list := System.List
+set := System.Set
+dict := System.Dict
+object := System.Object
+class := System.Class
+function := System.Function
+type := System.Type
+void := System.Void
+Any := System.AnyType
+Every := System.EveryType
+Exception := System.ExceptionType
+ValueType := System.ValueTypeVal
+
+print := System.WriteLine
+true := System.True
+false := System.False
+default := System.Default
+while := System.While
+if := System.If
+callcc := System.CallCC
+typeof := System.TypeOf
+assert := System.Assert
+eval := System.Eval
+randint := System.RandInt
+with := System.With
+ravel := System.RavelMod
+using := System.Using
+exit := System.Exit
+input := System.ReadLine
+foreach := System.Foreach
+unsafe := System.unsafe
+currentScope := System.currentScope
+property := System.property
+
+using "std.rav"
+
+interface := Interface
+
+using "try.rav"

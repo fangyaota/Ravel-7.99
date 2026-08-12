@@ -1,0 +1,13 @@
+# 集合操作：Add / Remove / Contains
+s := {1 2 3}
+s.Add 4
+print (s.Count ())
+s.Remove 2
+print (s.Count ())
+print (s.Contains 1)
+print (s.Contains 2)
+# --- expected ---
+# 4
+# 3
+# true
+# false

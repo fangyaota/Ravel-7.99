@@ -1,0 +1,14 @@
+using "try.rav"
+using "math.rav"
+
+print "=== Math ==="
+print (Math.pi)
+print (Math.square 5)
+
+print "=== Try ==="
+Ex.try {
+    Ex.throw (Exception "test error")
+} (e: Exception) => {
+    print "caught!"
+}
+print "done"

@@ -1,0 +1,13 @@
+# 多发射续延：保存延续，在 callcc 外部多次调用
+saved := (x: function) => { x }
+results := []
+first := callcc (k: function) => {
+    saved = k
+    k 1
+}
+results.Add first
+results.Add (saved 2)
+results.Add (saved 3)
+print results
+# --- expected ---
+# [1 2 3]

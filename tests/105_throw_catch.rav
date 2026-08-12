@@ -1,0 +1,11 @@
+# throw 无 handler → exit
+using "try.rav"
+Ex.try {
+    Ex.throw (Exception "boom")
+} (e: Exception) => {
+    print "caught"
+}
+print "done"
+# --- expected ---
+# caught
+# done

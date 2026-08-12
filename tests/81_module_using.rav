@@ -1,0 +1,6 @@
+using "math.rav"
+print (Math.pi)
+print (Math.square 6)
+# --- expected ---
+# 3.14159
+# 36

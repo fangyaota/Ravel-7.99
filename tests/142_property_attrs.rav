@@ -1,0 +1,8 @@
+# Property.Attrs
+C := class { init ctor := () => { 0; }; readonly x: int = 42; }
+sc := C.Proto ()
+p := sc.Lookup "x"
+attrs := p.Attrs ()
+print (attrs.Count ())
+# --- expected ---
+# 1

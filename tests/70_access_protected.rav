@@ -1,0 +1,15 @@
+Base := class {
+    init ctor := () => { 0 }
+    protected val: int = 10
+    show := () => { print val }
+}
+Child := class Base {
+    init ctor := () => { base.init () }
+    show2 := () => { print val }
+}
+c := Child ()
+c.show ()
+c.show2 ()
+# --- expected ---
+# 10
+# 10

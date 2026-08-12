@@ -1,0 +1,18 @@
+# metaclass: 添加默认方法
+HasDefaults ::= class class {
+    init ctor := (parent: type block: function) => {
+        c := base.init parent block
+        c
+    }
+}
+Person ::= HasDefaults {
+    init ctor := () => { name = "?"; age = 0; }
+    name: string = ""
+    age: int = 0
+}
+p := Person ()
+print (p.name)
+print (p.age)
+# --- expected ---
+# ?
+# 0

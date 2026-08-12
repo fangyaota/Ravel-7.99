@@ -1,0 +1,22 @@
+C := class {
+    init ctor := () => { 0 }
+    public    a: int = 1
+    private   b: int = 2
+    protected c: int = 3
+    outdated  d: int = 4
+    show := () => {
+        print a
+        print b
+        print c
+        print d
+    }
+}
+c := C ()
+print (c.a)
+c.show ()
+# --- expected ---
+# 1
+# 1
+# 2
+# 3
+# 4

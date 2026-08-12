@@ -1,0 +1,12 @@
+# currentScope
+C := class {
+    init ctor := () => { 0; }
+    check := () => {
+        s := currentScope ()
+        print (typeof s)
+    }
+}
+c := C ()
+c.check ()
+# --- expected ---
+# Scope

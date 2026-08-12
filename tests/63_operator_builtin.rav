@@ -1,0 +1,12 @@
+# ===== 内置类型运算符成员访问 =====
+print (2.operator* 7)
+print ("aaa".operator== "aaa")
+print ("aaa".operator== "bbb")
+print (3.operator+ 4)
+print (10.operator- 3)
+# --- expected ---
+# 14
+# true
+# false
+# 7
+# 7

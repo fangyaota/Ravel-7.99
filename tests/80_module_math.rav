@@ -1,0 +1,10 @@
+ravel "Math"
+pi := 3.14159
+square := (x: int) => { x * x }
+
+ravel ""
+print (Math.pi)
+print (Math.square 5)
+# --- expected ---
+# 3.14159
+# 25

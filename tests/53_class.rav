@@ -1,0 +1,18 @@
+C := class {
+    init myCtor := () => { this.n = 10 }
+    n: int = 0
+    operator+ add := (x: int) => { n + x }
+    setN := (v: int) => { n = v }
+    getN := () => { n }
+}
+c := C ()
+print (c.getN ())
+print (c + 5)
+c.setN 99
+print (c.getN ())
+print (c + 1)
+# --- expected ---
+# 10
+# 15
+# 99
+# 100
