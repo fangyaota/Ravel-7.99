@@ -67,51 +67,40 @@ public abstract record RuntimeValue
     /// <summary>函数值——Scope 绑定在实例上，可随时更换</summary>
     public record FunctionVal : RuntimeValue
     {
-        Scope _scope;
-        Func<Scope, RuntimeValue[], Step> _rawBody;
 
-        public Func<RuntimeValue[], RuntimeValue>? Direct { get; set; }
         public Func<RuntimeValue[], Step> Trampolined { get; set; }
         public ClassMeta? Meta { get; set; }
         public string? Name { get; set; }
 
-        public Scope Scope {
-            get => _scope;
-            set => _scope = value;
-        }
+        public Scope Scope { get; set; }
 
         public override RuntimeType Type => Meta?.MetaType ?? Meta?.Type ?? RuntimeType.Function;
-        public override string ToString() => Name!=null ? "<function "+Name+">" : "<function>";
+        public override string ToString() => Name != null ? "<function " + Name + ">" : "<function>";
 
         public FunctionVal(Scope scope, Func<Scope, RuntimeValue[], Step> rawBody)
         {
-            _scope = scope;
-            _rawBody = rawBody;
-            Trampolined = args => rawBody(_scope, args);
+            Scope = scope;
+            Trampolined = args => rawBody(Scope, args);
         }
 
-        public FunctionVal() { }
-
         public static FunctionVal FromDirect(Func<RuntimeValue[], RuntimeValue> f)
-            => new FunctionVal(null!, (_, args) => new Done(f(args)));
+            => new(null!, (_, args) => new Done(f(args)));
 
         public static FunctionVal FromTrampolined(Func<RuntimeValue[], Step> f, ClassMeta? meta = null)
         {
-            var fn = new FunctionVal(null!, (_, args) => f(args));
-            fn.Meta = meta;
+            var fn = new FunctionVal(null!, (_, args) => f(args))
+            {
+                Meta = meta
+            };
             return fn;
         }
 
-        public FunctionVal CloneWithScope(Scope newScope)
-        {
-            return new FunctionVal(newScope, _rawBody) { Meta = Meta, Direct = Direct };
-        }
 
         /// <summary>前置执行一个块，再执行本函数（参数原样转发）</summary>
         public FunctionVal Prepend(BlockVal prefix)
         {
             var original = this;
-            var bindScope = prefix.CaptureScope ?? Scope;
+            var bindScope = prefix.CaptureScope;
             return new FunctionVal(bindScope, (scope, args) =>
             {
                 var saved = Interpreter.Current!.CurrentScope;
@@ -129,7 +118,7 @@ public abstract record RuntimeValue
         public FunctionVal Append(BlockVal suffix)
         {
             var original = this;
-            var bindScope = suffix.CaptureScope ?? Scope;
+            var bindScope = suffix.CaptureScope;
             return new FunctionVal(bindScope, (scope, args) =>
             {
                 var saved = Interpreter.Current!.CurrentScope;
@@ -180,11 +169,11 @@ public abstract record RuntimeValue
         public Interpreter Interp { get; init; }
 
         public BlockVal(BlockExpr block, Scope captureScope, Interpreter interp)
+            : base(captureScope, (_, _) => new Error("BlockVal 未被正确初始化"))
         {
             Block = block;
             CaptureScope = captureScope;
             Interp = interp;
-            Scope = captureScope;
             Trampolined = _ => Invoke();
         }
 
@@ -198,23 +187,6 @@ public abstract record RuntimeValue
                 return new More(() => { Interp.CurrentScope = saved; return r; });
             });
         }
-
-        public BlockVal Prepend(BlockVal prefix)
-        {
-            var stmts = prefix.Block.Statements.Concat(this.Block.Statements).ToList();
-            return new BlockVal(
-                new BlockExpr(stmts) { Line = Block.Line, Column = Block.Column },
-                CaptureScope, Interp);
-        }
-
-        public BlockVal Append(BlockVal suffix)
-        {
-            var stmts = this.Block.Statements.Concat(suffix.Block.Statements).ToList();
-            return new BlockVal(
-                new BlockExpr(stmts) { Line = Block.Line, Column = Block.Column },
-                CaptureScope, Interp);
-        }
-
         public override string ToString() => "<block>";
     }
 
@@ -244,22 +216,10 @@ public abstract record RuntimeValue
     }
 
     /// <summary>Property = getter + setter 对</summary>
-    public record PropertyVal(FunctionVal Getter, FunctionVal Setter, List<string>? Attrs=null) : RuntimeValue
+    public record PropertyVal(FunctionVal Getter, FunctionVal Setter, List<string>? Attrs = null) : RuntimeValue
     {
         public override RuntimeType Type => RuntimeType.Property;
         public override string ToString() => "<property>";
-    }
-
-    public record BaseRef(ObjectVal Instance, ClassMeta ParentMeta) : RuntimeValue
-    {
-        public override RuntimeType Type => ParentMeta.Type;
-        public override string ToString() => $"<base:{ParentMeta.Type.Name}>";
-    }
-
-    public record ThisRef(RuntimeValue Value) : RuntimeValue
-    {
-        public override RuntimeType Type => Value.Type;
-        public override string ToString() => Value.ToString();
     }
 
     public record ObjectVal(RuntimeType ClassType, Dictionary<string, RuntimeValue> Fields, ObjectVal? Parent = null, ClassMeta? Meta = null, Scope? InstanceScope = null) : RuntimeValue
@@ -282,24 +242,10 @@ public abstract record RuntimeValue
         public override string ToString() => Value.Name;
     }
 
-    public bool HasType(RuntimeType expected)
-        => Type.IsAssignableTo(expected);
 
-    public RuntimeValue Expect(RuntimeType expected, string context)
-    {
-        if (!HasType(expected))
-            throw new RuntimeException($"{context} 类型错误: 期望 {expected}，实际 {Type}");
-        return this;
-    }
 }
 
-public class RuntimeException : Exception
-{
-    public RuntimeException(string message) : base(message) { }
-}
+public class RuntimeException(string message) : Exception(message);
 
 /// <summary>exit 专用异常——不被 EvalCall 捕获，直接向上抛出</summary>
-public class ExitException : Exception
-{
-    public ExitException(string message) : base(message) { }
-}
+public class ExitException(string message) : Exception(message);

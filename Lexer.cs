@@ -1,25 +1,16 @@
 namespace Ravel;
 
-public class Lexer
+public class Lexer(string source)
 {
-    private readonly string _source;
     private int _pos;
     private int _line = 1;
     private int _col = 1;
-
-    // Ravel 无关键字 — while/if 等是普通标识符，在运行时作为内置函数处理
-    private static readonly Dictionary<string, TokenType> Keywords = [];
-
-    public Lexer(string source)
-    {
-        _source = source;
-    }
 
     public List<Token> Tokenize()
     {
         var tokens = new List<Token>();
 
-        while (_pos < _source.Length)
+        while (_pos < source.Length)
         {
             char c = Peek();
 
@@ -33,7 +24,7 @@ public class Lexer
             // 换行 → Newline token
             if (c == '\n')
             {
-                while (_pos < _source.Length && _source[_pos] == '\n')
+                while (_pos < source.Length && source[_pos] == '\n')
                 {
                     Advance();
                     _line++;
@@ -55,7 +46,7 @@ public class Lexer
             // 注释 # 到行尾
             if (c == '#')
             {
-                while (_pos < _source.Length && _source[_pos] != '\n')
+                while (_pos < source.Length && source[_pos] != '\n')
                     _pos++;
                 _col++;
                 continue;
@@ -108,7 +99,7 @@ public class Lexer
                 _ => null,
             };
 
-            if (single is TokenType tt)
+            if (single is { } tt)
             {
                 int line = _line, col = _col;
                 Advance();
@@ -148,9 +139,9 @@ public class Lexer
 
     private bool TryMatch(string s, TokenType type, List<Token> tokens)
     {
-        if (_pos + s.Length > _source.Length) return false;
+        if (_pos + s.Length > source.Length) return false;
         for (int i = 0; i < s.Length; i++)
-            if (_source[_pos + i] != s[i])
+            if (source[_pos + i] != s[i])
                 return false;
 
         int line = _line, col = _col;
@@ -159,7 +150,7 @@ public class Lexer
         return true;
     }
 
-    private char Peek() => _source[_pos];
+    private char Peek() => source[_pos];
 
     private void Advance()
     {
@@ -170,15 +161,15 @@ public class Lexer
     private Token ReadNumber()
     {
         int start = _pos, line = _line, col = _col;
-        while (_pos < _source.Length && char.IsDigit(_source[_pos]))
+        while (_pos < source.Length && char.IsDigit(source[_pos]))
             _pos++;
-        if (_pos < _source.Length && _source[_pos] == '.' && _pos + 1 < _source.Length && char.IsDigit(_source[_pos + 1]))
+        if (_pos < source.Length && source[_pos] == '.' && _pos + 1 < source.Length && char.IsDigit(source[_pos + 1]))
         {
             _pos++;
-            while (_pos < _source.Length && char.IsDigit(_source[_pos]))
+            while (_pos < source.Length && char.IsDigit(source[_pos]))
                 _pos++;
         }
-        string num = _source[start.._pos];
+        string num = source[start.._pos];
         _col += (_pos - start);
         return new Token(TokenType.Number, num, line, col);
     }
@@ -188,13 +179,13 @@ public class Lexer
         int line = _line, col = _col;
         Advance(); // skip "
         int start = _pos;
-        while (_pos < _source.Length && _source[_pos] != '"')
+        while (_pos < source.Length && source[_pos] != '"')
         {
-            if (_source[_pos] == '\n') { _line++; _col = 1; }
+            if (source[_pos] == '\n') { _line++; _col = 1; }
             _pos++;
         }
-        string str = _source[start.._pos];
-        if (_pos < _source.Length) Advance(); // skip closing "
+        string str = source[start.._pos];
+        if (_pos < source.Length) Advance(); // skip closing "
         _col += (_pos - start) + 2;
         return new Token(TokenType.String, str, line, col);
     }
@@ -202,29 +193,29 @@ public class Lexer
     private Token ReadIdentifier()
     {
         int start = _pos, line = _line, col = _col;
-        while (_pos < _source.Length && (char.IsLetterOrDigit(_source[_pos]) || _source[_pos] == '_'))
+        while (_pos < source.Length && (char.IsLetterOrDigit(source[_pos]) || source[_pos] == '_'))
             _pos++;
-        string word = _source[start.._pos];
-        if (word == "operator" && _pos < _source.Length)
+        string word = source[start.._pos];
+        if (word == "operator" && _pos < source.Length)
         {
-            char nc = _source[_pos];
+            char nc = source[_pos];
             if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
             {
                 _pos++; _col++; word += nc;
             }
-            else if (nc == '=' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 _pos += 2; _col += 2; word += "==";
             }
-            else if (nc == '!' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 _pos += 2; _col += 2; word += "!=";
             }
-            else if (nc == '<' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 _pos += 2; _col += 2; word += "<=";
             }
-            else if (nc == '>' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 _pos += 2; _col += 2; word += ">=";
             }
@@ -238,26 +229,26 @@ public class Lexer
             }
         }
         // operator+ → 合并为一个标识符
-        if (word == "operator" && _pos < _source.Length)
+        if (word == "operator" && _pos < source.Length)
         {
-            char nc = _source[_pos];
+            char nc = source[_pos];
             if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
             {
                 Advance(); word += nc;
             }
-            else if (nc == '=' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 Advance(); Advance(); word += "==";
             }
-            else if (nc == '!' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 Advance(); Advance(); word += "!=";
             }
-            else if (nc == '<' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 Advance(); Advance(); word += "<=";
             }
-            else if (nc == '>' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
                 Advance(); Advance(); word += ">=";
             }
@@ -272,7 +263,6 @@ public class Lexer
         }
         _col += (_pos - start);
 
-        TokenType type = Keywords.TryGetValue(word, out var kw) ? kw : TokenType.Identifier;
-        return new Token(type, word, line, col);
+        return new Token(TokenType.Identifier, word, line, col);
     }
 }

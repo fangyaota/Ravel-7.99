@@ -7,7 +7,7 @@ public abstract record Step
         var s = start;
         while (s is More m) s = m.Next();
         if (s is Escape e) return e.Value;
-        if (s is Error err) { Interpreter.ThrowStatic(err.Message); return RuntimeValue.VoidVal.Instance; }
+        if (s is Error err) throw new ExitException(err.Message);
         return ((Done)s).Value;
     }
 }

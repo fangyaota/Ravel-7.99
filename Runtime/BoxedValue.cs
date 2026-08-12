@@ -1,10 +1,9 @@
 namespace Ravel.Runtime;
 
-public class BoxedValue
+public class BoxedValue(RuntimeValue value)
 {
-    public RuntimeValue Value { get; }
+    public RuntimeValue Value { get; } = value;
 
-    public BoxedValue(RuntimeValue value) { Value = value; }
 
     public BoxedValue GetMember(string name)
     {
@@ -20,47 +19,6 @@ public class BoxedValue
                     builtin(captured, args[0])));
             }
         }
-
-        // base 引用：init → 父类 init 绑定实例；其他 → 实例字段
-        if (Value is RuntimeValue.BaseRef br)
-        {
-            if (name == "init" && br.ParentMeta.Init is RuntimeValue.FunctionVal pInit)
-            {
-                var pThis = br.ParentMeta.ThisVar;
-                var inst = br.Instance;
-                return new BoxedValue(RuntimeValue.FunctionVal.FromTrampolined(pa =>
-                {
-                    var savedThis = pThis!.Value;
-                    var savedScope = pInit.Scope;
-                    pThis.Assign(inst);
-                    // 父 init 在子实例作用域执行，但 base 用 wrapper 保护
-                    if (pInit.Scope != null && inst.InstanceScope != null)
-                    {
-                        var wrapper = new Scope(inst.InstanceScope);
-                        if (br.ParentMeta.Parent != null)
-                            wrapper.Define("base", RuntimeType.Object,
-                                new RuntimeValue.BaseRef(inst, br.ParentMeta.Parent));
-                        else
-                            wrapper.Define("base", RuntimeType.Object,
-                                inst.InstanceScope.Lookup("base").Value);
-                        pInit.Scope = wrapper;
-                    }
-                    var step = pInit.Trampolined != null ? pInit.Trampolined(pa) : new Done(pInit.Direct!(pa));
-                    return Interpreter.Then(step, v => {
-                        pThis.Assign(savedThis);
-                        if (pInit.Scope != null) pInit.Scope = savedScope;
-                        return Interpreter.ToDone(v);
-                    });
-                }));
-            }
-            var cur = br.Instance is RuntimeValue.ObjectVal ov ? ov : throw new RuntimeException($"base.Instance 类型错误: {br.Instance.GetType().Name}");
-            while (cur != null)
-            {
-                if (cur.Fields.TryGetValue(name, out var f2)) return new BoxedValue(f2);
-                cur = cur.Parent;
-            }
-        }
-
 
         if (Value is RuntimeValue.PropertyVal pv)
         {
@@ -87,14 +45,14 @@ public class BoxedValue
                         cur = cur.Parent;
                     }
                     if (!ok)
-                        throw new RuntimeException($"变量 '{name}' 是{ (vr.HasAttr("private")?"私有的":"受保护的") }");
+                        throw new RuntimeException($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
                 }
                 if (vr.HasAttr("by"))
                 {
                     var prop = vr.Value;
                     var getter = new BoxedValue(prop).GetMember("get").Value;
                     if (getter is RuntimeValue.FunctionVal gf)
-                        return new BoxedValue(Step.Run(gf.Trampolined!(new RuntimeValue[] { RuntimeValue.VoidVal.Instance })));
+                        return new BoxedValue(Step.Run(gf.Trampolined([RuntimeValue.VoidVal.Instance])));
                 }
                 return new BoxedValue(vr.Value);
             }
@@ -121,20 +79,20 @@ public class BoxedValue
                         cur = cur.Parent;
                     }
                     if (!ok)
-                        throw new RuntimeException($"变量 '{name}' 是{ (vr.HasAttr("private")?"私有的":"受保护的") }");
-                    }
-                    if (vr.HasAttr("by"))
-                    {
-                        var prop = vr.Value;
-                        var getter = new BoxedValue(prop).GetMember("get").Value;
-                        if (getter is RuntimeValue.FunctionVal gf)
-                            return new BoxedValue(Step.Run(gf.Trampolined!(new RuntimeValue[] { RuntimeValue.VoidVal.Instance })));
-                    }
-                    return new BoxedValue(vr.Value);
+                        throw new RuntimeException($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
+                }
+                if (vr.HasAttr("by"))
+                {
+                    var prop = vr.Value;
+                    var getter = new BoxedValue(prop).GetMember("get").Value;
+                    if (getter is RuntimeValue.FunctionVal gf)
+                        return new BoxedValue(Step.Run(gf.Trampolined([RuntimeValue.VoidVal.Instance])));
+                }
+                return new BoxedValue(vr.Value);
             }
             // 实例字段
             if (obj.Fields.TryGetValue(name, out var field))
-                    return new BoxedValue(field);
+                return new BoxedValue(field);
             // 类定义字段（Meta 链）
             var m = obj.Meta;
             while (m != null)
@@ -149,10 +107,12 @@ public class BoxedValue
             }
         }
 
-        if(Value is RuntimeValue.FunctionVal fn && name=="name"){
-            return new BoxedValue(fn.Name!=null ? new RuntimeValue.StringVal(fn.Name) : RuntimeValue.VoidVal.Instance);
+        if (Value is RuntimeValue.FunctionVal fn && name == "name")
+        {
+            return new BoxedValue(fn.Name != null ? new RuntimeValue.StringVal(fn.Name) : RuntimeValue.VoidVal.Instance);
         }
-        if(Value is RuntimeValue.TypeVal tv && name=="name"){
+        if (Value is RuntimeValue.TypeVal tv && name == "name")
+        {
             return new BoxedValue(new RuntimeValue.StringVal(tv.Value.Name));
         }
 

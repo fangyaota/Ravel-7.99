@@ -13,12 +13,12 @@ public abstract record AstNode
 // --- 语句 ---
 public abstract record Statement : AstNode;
 
-public record VarDefinition(string Name, string? TypeAnnotation, Expression Value, List<string>? Attrs=null, bool Named=false) : Statement
+public record VarDefinition(string Name, string? TypeAnnotation, Expression Value, List<string>? Attrs = null, bool Named = false) : Statement
 {
-    public bool HasAttr(string a) => Attrs?.Contains(a)??false;
+    public bool HasAttr(string a) => Attrs?.Contains(a) ?? false;
     public bool IsInit => HasAttr("init");
-    public bool IsOperator => Attrs?.Any(a=>a.StartsWith("operator"))??false;
-    public string? OperatorName => Attrs?.FirstOrDefault(a=>a.StartsWith("operator"));
+    public bool IsOperator => Attrs?.Any(a => a.StartsWith("operator")) ?? false;
+    public string? OperatorName => Attrs?.FirstOrDefault(a => a.StartsWith("operator"));
     public bool IsReadonly => HasAttr("readonly");
     public bool IsOverride => HasAttr("override");
     public bool IsNew => HasAttr("new");

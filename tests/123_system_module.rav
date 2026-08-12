@@ -13,7 +13,7 @@ print (bool.name)
 print (float.name)
 
 print "--- 类型构造 ---"
-print (bool 1)
+print (bool true)
 print (System.String "")
 # --- expected ---
 # --- System 模块 ---

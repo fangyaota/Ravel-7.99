@@ -1,11 +1,10 @@
 namespace Ravel.Runtime;
 
-public class Scope
+public class Scope(Scope? parent = null)
 {
     private readonly Dictionary<string, Variable> _vars = [];
-    public Scope? Parent { get; }
+    public Scope? Parent { get; } = parent;
 
-    public Scope(Scope? parent = null) { Parent = parent; }
 
     public Variable Define(string name, RuntimeType typeConstraint, RuntimeValue initialValue)
     {
@@ -20,6 +19,14 @@ public class Scope
         if (_vars.TryGetValue(name, out var v)) return v;
         if (Parent != null) return Parent.Lookup(name);
         throw new RuntimeException($"未定义的变量 '{name}'");
+    }
+
+    /// <summary>查找变量，找不到返回 null（不抛异常）</summary>
+    public Variable? TryLookup(string name)
+    {
+        if (_vars.TryGetValue(name, out var v)) return v;
+        if (Parent != null) return Parent.TryLookup(name);
+        return null;
     }
 
     public Variable DefineOrReplace(string name, RuntimeType typeConstraint, RuntimeValue initialValue)

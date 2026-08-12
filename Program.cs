@@ -55,7 +55,7 @@ static void RunAllTests()
 
         Console.Write($"{name,-35} ");
 
-        var output = "";
+        string output;
         try
         {
             output = CaptureOutput(source);
@@ -68,9 +68,9 @@ static void RunAllTests()
         if (expectError)
         {
             if (output.StartsWith("Error:"))
-            { Console.WriteLine($"OK (expected error)"); passed++; }
+            { Console.WriteLine("OK (expected error)"); passed++; }
             else
-            { Console.WriteLine($"TODO (expected error, got output)"); todo++; }
+            { Console.WriteLine("TODO (expected error, got output)"); todo++; }
         }
         else
         {

@@ -2,15 +2,9 @@ namespace Ravel;
 
 using System.Linq;
 
-public class Parser
+public class Parser(List<Token> tokens)
 {
-    private readonly List<Token> _tokens;
     private int _pos;
-
-    public Parser(List<Token> tokens)
-    {
-        _tokens = tokens;
-    }
 
     private int _holeCount;
 
@@ -36,10 +30,10 @@ public class Parser
     //  语句
     // ========================================
 
-    static readonly HashSet<string> _modifiers = ["init", "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"];
-    static bool IsMod(string kw) => _modifiers.Contains(kw) || kw.StartsWith("operator");
+    private static readonly HashSet<string> Modifiers = ["init", "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"];
+    private static bool IsMod(string kw) => Modifiers.Contains(kw) || kw.StartsWith("operator");
     /// <summary>类机制内部词——禁止作为变量名（base/this 是类内可用变量，不禁）</summary>
-    static readonly HashSet<string> _reservedWords = ["init", "thistype", "block", "core"];
+    private static readonly HashSet<string> ReservedWords = ["init", "thistype", "block", "core"];
 
     private Statement ParseStatement()
     {
@@ -53,9 +47,9 @@ public class Parser
                 bool isMod = IsMod(kw);
                 if (!isMod) break;
                 // 下一个 token 是定义符 → 当前是名字，不是修饰符
-                if (_pos + 1 < _tokens.Count)
+                if (_pos + 1 < tokens.Count)
                 {
-                    var nt = _tokens[_pos + 1].Type;
+                    var nt = tokens[_pos + 1].Type;
                     if (nt == TokenType.ColonEqual || nt == TokenType.ColonColonEqual || nt == TokenType.ColonColon || nt == TokenType.Colon)
                         break;
                 }
@@ -94,7 +88,7 @@ public class Parser
     {
         string name;
         int line, col;
-        if (attrs != null && attrs.Count > 0)
+        if (attrs is { Count: > 0 })
         {
             if (Check(TokenType.Identifier))
             {
@@ -103,7 +97,7 @@ public class Parser
             }
             else
             {
-                name = attrs!.FirstOrDefault(a => a.StartsWith("operator")) ?? attrs[0];
+                name = attrs.FirstOrDefault(a => a.StartsWith("operator")) ?? attrs[0];
                 line = Previous().Line; col = Previous().Column;
             }
         }
@@ -116,7 +110,7 @@ public class Parser
         string? typeAnnotation = null;
         bool autoName = false;
 
-        if (_reservedWords.Contains(name))
+        if (ReservedWords.Contains(name))
             throw ParseError($"'{name}' 是保留字");
 
         if (Match(TokenType.ColonColonEqual))
@@ -447,7 +441,7 @@ public class Parser
             var @params = new List<Parameter>();
             while (Check(TokenType.Identifier) && CheckNext(TokenType.Colon))
             {
-                var pName = _tokens[_pos].Lexeme;
+                var pName = tokens[_pos].Lexeme;
                 _pos++; // IDENT
                 _pos++; // :
                 var pType = Consume(TokenType.Identifier, "参数需要类型名").Lexeme;
@@ -533,9 +527,9 @@ public class Parser
     private bool HasNewlineBeforeClose(TokenType closing)
     {
         int depth = 1;
-        for (int i = _pos; i < _tokens.Count; i++)
+        for (int i = _pos; i < tokens.Count; i++)
         {
-            var t = _tokens[i];
+            var t = tokens[i];
             if (t.Type == TokenType.Newline) return true;
             if (t.Type == TokenType.LeftBrace) depth++;
             if (t.Type == closing) { depth--; if (depth == 0) return false; }
@@ -545,27 +539,6 @@ public class Parser
     }
 
     /// <summary>前瞻：在匹配 closing 之前是否遇到运算符 token</summary>
-    private bool HasOperatorsBeforeClose(TokenType closing)
-    {
-        int depth = 1;
-        for (int i = _pos; i < _tokens.Count; i++)
-        {
-            var t = _tokens[i];
-            if (t.Type is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash
-                or TokenType.Percent or TokenType.Equal or TokenType.EqualEqual or TokenType.NotEqual
-                or TokenType.Less or TokenType.Greater or TokenType.LessEqual or TokenType.GreaterEqual
-                or TokenType.Bang or TokenType.AndAnd or TokenType.OrOr or TokenType.Pipe
-                or TokenType.PlusEqual or TokenType.MinusEqual or TokenType.StarEqual
-                or TokenType.SlashEqual or TokenType.PercentEqual
-                or TokenType.ColonEqual or TokenType.PipeLeft)
-                return true;
-            if (t.Type == TokenType.LeftBrace) depth++;
-            if (t.Type == closing) { depth--; if (depth == 0) return false; }
-            if (t.Type == TokenType.EndOfFile) return false;
-        }
-        return false;
-    }
-
     /// <summary>{ expr expr ... } → 集合</summary>
     private Expression ParseSet(int line, int col)
     {
@@ -573,7 +546,6 @@ public class Parser
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
             elements.Add(ParseExpression(allowCall: false));
-            if (Match(TokenType.Newline)) continue;
         }
         Consume(TokenType.RightBrace, "集合元素后需要 '}'");
         return new SetLiteral(elements) { Line = line, Column = col };
@@ -589,7 +561,6 @@ public class Parser
             Consume(TokenType.Colon, "字典键后需要 ':'");
             var value = ParseExpression(allowCall: false);
             entries.Add(new DictEntry(key, value));
-            if (Match(TokenType.Newline)) continue;
         }
         Consume(TokenType.RightBrace, "字典条目后需要 '}'");
         return new DictLiteral(entries) { Line = line, Column = col };
@@ -656,15 +627,15 @@ public class Parser
                             or TokenType.LeftBrace;
     }
 
-    private Token Peek() => _tokens[_pos];
-    private Token Previous() => _tokens[_pos - 1];
-    private bool IsAtEnd() => _pos >= _tokens.Count || _tokens[_pos].Type == TokenType.EndOfFile;
+    private Token Peek() => tokens[_pos];
+    private Token Previous() => tokens[_pos - 1];
+    private bool IsAtEnd() => _pos >= tokens.Count || tokens[_pos].Type == TokenType.EndOfFile;
 
     private bool Check(TokenType type) => !IsAtEnd() && Peek().Type == type;
     private bool CheckNext(TokenType type)
     {
-        if (_pos + 1 >= _tokens.Count) return false;
-        return _tokens[_pos + 1].Type == type;
+        if (_pos + 1 >= tokens.Count) return false;
+        return tokens[_pos + 1].Type == type;
     }
 
     private bool Match(TokenType type)
@@ -675,7 +646,7 @@ public class Parser
 
     private Token Consume(TokenType type, string errorMessage)
     {
-        if (Check(type)) return _tokens[_pos++];
+        if (Check(type)) return tokens[_pos++];
         throw ParseError(errorMessage);
     }
 
@@ -685,7 +656,7 @@ public class Parser
     //  _ 占位符消糖
     // ========================================
 
-    static bool HasHoles(Expression e) => e switch
+    private static bool HasHoles(Expression e) => e switch
     {
         HoleExpr => true,
         BinaryExpr b => HasHoles(b.Left) || HasHoles(b.Right),
@@ -697,7 +668,7 @@ public class Parser
         _ => false
     };
 
-    Expression DesugarHoles(Expression e)
+    private Expression DesugarHoles(Expression e)
     {
         if (!HasHoles(e)) return e;
         // 收集所有 hole 索引，按出现顺序
@@ -706,7 +677,7 @@ public class Parser
         // 去重保持顺序
         var uniq = holes.Distinct().ToList();
         // 替换 HoleExpr → IdentifierExpr
-        var body = ReplaceHoles(e, uniq.Count);
+        var body = ReplaceHoles(e);
         // 嵌套 lambda：最外层参数对应第一个 hole
         for (int i = uniq.Count - 1; i >= 0; i--)
         {
@@ -717,7 +688,7 @@ public class Parser
         return body;
     }
 
-    static void CollectHoles(Expression e, List<int> holes)
+    private static void CollectHoles(Expression e, List<int> holes)
     {
         switch (e)
         {
@@ -731,24 +702,24 @@ public class Parser
         }
     }
 
-    static Expression ReplaceHoles(Expression e, int count)
+    private static Expression ReplaceHoles(Expression e)
     {
         return e switch
         {
             HoleExpr h => new IdentifierExpr("_" + h.Index) { Line = e.Line, Column = e.Column },
-            BinaryExpr b => new BinaryExpr(ReplaceHoles(b.Left, count), b.Op, ReplaceHoles(b.Right, count)) { Line = e.Line, Column = e.Column },
-            UnaryExpr u => new UnaryExpr(u.Op, ReplaceHoles(u.Operand, count)) { Line = e.Line, Column = e.Column },
-            CallExpr c => new CallExpr(ReplaceHoles(c.Function, count), c.Arguments.Select(a => ReplaceHoles(a, count)).ToList()) { Line = e.Line, Column = e.Column },
-            MemberAccess m => new MemberAccess(ReplaceHoles(m.Object, count), m.Member) { Line = e.Line, Column = e.Column },
-            PipeExpr p => new PipeExpr(ReplaceHoles(p.Left, count), ReplaceHoles(p.Right, count)) { Line = e.Line, Column = e.Column },
-            ListLiteral l => new ListLiteral(l.Elements.Select(el => ReplaceHoles(el, count)).ToList()) { Line = e.Line, Column = e.Column },
+            BinaryExpr b => new BinaryExpr(ReplaceHoles(b.Left), b.Op, ReplaceHoles(b.Right)) { Line = e.Line, Column = e.Column },
+            UnaryExpr u => new UnaryExpr(u.Op, ReplaceHoles(u.Operand)) { Line = e.Line, Column = e.Column },
+            CallExpr c => new CallExpr(ReplaceHoles(c.Function), [.. c.Arguments.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
+            MemberAccess m => new MemberAccess(ReplaceHoles(m.Object), m.Member) { Line = e.Line, Column = e.Column },
+            PipeExpr p => new PipeExpr(ReplaceHoles(p.Left), ReplaceHoles(p.Right)) { Line = e.Line, Column = e.Column },
+            ListLiteral l => new ListLiteral([.. l.Elements.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
             _ => e
         };
     }
 
     private Exception ParseError(string message)
     {
-        var token = IsAtEnd() ? _tokens[^1] : Peek();
+        var token = IsAtEnd() ? tokens[^1] : Peek();
         return new Exception($"语法错误 {token.Line}:{token.Column}: {message}\n  附近: {token.Lexeme}");
     }
 }
