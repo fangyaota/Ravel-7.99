@@ -1,6 +1,5 @@
 namespace Ravel.Runtime;
 
-
 using System.IO;
 using System.Linq;
 
@@ -38,11 +37,16 @@ public partial class Interpreter
         _global.Define("System", systemModuleType, systemModule);
 
         // 注册所有内置类型
-        foreach (var t in new[]{RuntimeType.Object, RuntimeType.ValueType, RuntimeType.Int,
-            RuntimeType.Float, RuntimeType.Bool, RuntimeType.String, RuntimeType.BigInt,
-            RuntimeType.Fraction, RuntimeType.BigFraction, RuntimeType.Class, RuntimeType.Function, RuntimeType.Block,
-            RuntimeType.List, RuntimeType.Set, RuntimeType.Dict, RuntimeType.Void, RuntimeType.Type,
-            RuntimeType.Ravel, RuntimeType.Any, RuntimeType.Every, RuntimeType.Exception, RuntimeType.ScopeType, RuntimeType.Property})
+        foreach (var t in new[]
+                 {
+                     RuntimeType.Object, RuntimeType.ValueType, RuntimeType.Int,
+                     RuntimeType.Float, RuntimeType.Bool, RuntimeType.String, RuntimeType.BigInt,
+                     RuntimeType.Fraction, RuntimeType.BigFraction, RuntimeType.Class, RuntimeType.Function,
+                     RuntimeType.Block,
+                     RuntimeType.List, RuntimeType.Set, RuntimeType.Dict, RuntimeType.Void, RuntimeType.Type,
+                     RuntimeType.Ravel, RuntimeType.Any, RuntimeType.Every, RuntimeType.Exception,
+                     RuntimeType.ScopeType, RuntimeType.Property
+                 })
             AllTypes.Add(t);
         RuntimeType.Object.DefineMethod("ToString", (s, _) => new StringVal(Show(s)));
         RuntimeType.Object.DefineMethod("Copy", (s, _) =>
@@ -60,9 +64,9 @@ public partial class Interpreter
                 case SetVal v: return new SetVal([.. v.Elements]);
                 case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries));
                 case ObjectVal v:
-                    {
-                        return new ObjectVal(v.ClassType, CopyScope(v.Scope), v.Parent);
-                    }
+                {
+                    return new ObjectVal(v.ClassType, CopyScope(v.Scope), v.Parent);
+                }
                 default: return s;
             }
         });
@@ -75,10 +79,12 @@ public partial class Interpreter
             while (true)
             {
                 foreach (var n in t.MethodNames)
-                    if (seen.Add(n)) all.Add(new StringVal(n));
+                    if (seen.Add(n))
+                        all.Add(new StringVal(n));
                 if (t == t.Parent) break;
                 t = t.Parent;
             }
+
             return new ListVal(all);
         });
         RuntimeType.Int.DefineMethod("ToString", (s, _) => new StringVal(((IntVal)s).Value.ToString()));
@@ -87,7 +93,8 @@ public partial class Interpreter
         RuntimeType.List.DefineMethod("At", (s, a) =>
         {
             if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.At 需要 int 参数");
-            var lst = (ListVal)s; if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
+            var lst = (ListVal)s;
+            if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return lst.Elements[i.Value];
         });
         RuntimeType.List.DefineMethod("Add", (s, a) =>
@@ -99,29 +106,36 @@ public partial class Interpreter
         RuntimeType.List.DefineMethod("Remove", (s, a) =>
         {
             if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.Remove 需要 int 参数");
-            var lst = (ListVal)s; if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            var v = lst.Elements[i.Value]; lst.Elements.RemoveAt(i.Value); return v;
+            var lst = (ListVal)s;
+            if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
+            var v = lst.Elements[i.Value];
+            lst.Elements.RemoveAt(i.Value);
+            return v;
         });
         RuntimeType.List.DefineMethod("Insert", (s, a) =>
         {
             if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.Insert 需要 int 参数");
-            var lst = (ListVal)s; var idx = i.Value;
+            var lst = (ListVal)s;
+            var idx = i.Value;
             if (idx < 0 || idx > lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return FunctionVal.FromDirect(va =>
             {
                 if (va.Length != 1) throw new RuntimeException("list.Insert 需要值参数");
-                lst.Elements.Insert(idx, va[0]); return VoidVal.Instance;
+                lst.Elements.Insert(idx, va[0]);
+                return VoidVal.Instance;
             });
         });
         RuntimeType.List.DefineMethod("Set", (s, a) =>
         {
             if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.Set 需要 int 参数");
-            var lst = (ListVal)s; var idx = i.Value;
+            var lst = (ListVal)s;
+            var idx = i.Value;
             if (idx < 0 || idx >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return FunctionVal.FromDirect(va =>
             {
                 if (va.Length != 1) throw new RuntimeException("list.Set 需要值参数");
-                lst.Elements[idx] = va[0]; return VoidVal.Instance;
+                lst.Elements[idx] = va[0];
+                return VoidVal.Instance;
             });
         });
 
@@ -205,7 +219,12 @@ public partial class Interpreter
         RuntimeType.Function.DefineMethod("Name", (s, a) =>
         {
             var fn = (FunctionVal)s;
-            if (a.Length > 0 && a[0] is StringVal sv) { fn.Name = sv.Value; return VoidVal.Instance; }
+            if (a.Length > 0 && a[0] is StringVal sv)
+            {
+                fn.Name = sv.Value;
+                return VoidVal.Instance;
+            }
+
             return fn.Name != null ? new StringVal(fn.Name) : VoidVal.Instance;
         });
         RuntimeType.Type.DefineMethod("Subtypes", (s, _) =>
@@ -217,12 +236,22 @@ public partial class Interpreter
                 if (t != tv.Value && t.IsAssignableTo(tv.Value))
                     subs.Add(new TypeVal(t));
             }
+
             return new ListVal(subs);
         });
 
-        systemModule.ModuleScope.Define("WriteLine", RuntimeType.Function, FunctionVal.FromDirect(a => { Console.WriteLine(Show(a[0])); return VoidVal.Instance; }));
-        systemModule.ModuleScope.Define("Write", RuntimeType.Function, FunctionVal.FromDirect(a => { Console.Write(Show(a[0])); return VoidVal.Instance; }));
-        systemModule.ModuleScope.Define("ReadLine", RuntimeType.Function, FunctionVal.FromDirect(_ => new StringVal(Console.ReadLine() ?? "")));
+        systemModule.ModuleScope.Define("WriteLine", RuntimeType.Function, FunctionVal.FromDirect(a =>
+        {
+            Console.WriteLine(Show(a[0]));
+            return VoidVal.Instance;
+        }));
+        systemModule.ModuleScope.Define("Write", RuntimeType.Function, FunctionVal.FromDirect(a =>
+        {
+            Console.Write(Show(a[0]));
+            return VoidVal.Instance;
+        }));
+        systemModule.ModuleScope.Define("ReadLine", RuntimeType.Function,
+            FunctionVal.FromDirect(_ => new StringVal(Console.ReadLine() ?? "")));
         systemModule.ModuleScope.Define("True", RuntimeType.Bool, new BoolVal(true));
         systemModule.ModuleScope.Define("False", RuntimeType.Bool, new BoolVal(false));
         systemModule.ModuleScope.Define("Default", RuntimeType.Every, DefaultVal.Instance);
@@ -264,6 +293,7 @@ public partial class Interpreter
                 {
                     fn.Scope = ov2.Scope;
                 }
+
                 return Then(fn.Trampolined([VoidVal.Instance]), _ =>
                 {
                     fn.Scope = savedScope;
@@ -281,6 +311,7 @@ public partial class Interpreter
                 _modules[name] = mv;
                 _global.Define(name, mt, mv);
             }
+
             CurrentScope = mv.ModuleScope;
             return VoidVal.Instance;
         }));
@@ -291,8 +322,27 @@ public partial class Interpreter
             var rv = _global.TryLookup("references");
             if (rv?.Value is ListVal lv) refs = [.. lv.Elements.Select(e => ((StringVal)e).Value), .. refs];
             string? full = null;
-            foreach (var d in refs) { var p = Path.Combine(d, path); if (File.Exists(p)) { full = p; break; } }
-            if (full == null) foreach (var d in refs) { var p = Path.Combine(d, path + ".rav"); if (File.Exists(p)) { full = p; break; } }
+            foreach (var d in refs)
+            {
+                var p = Path.Combine(d, path);
+                if (File.Exists(p))
+                {
+                    full = p;
+                    break;
+                }
+            }
+
+            if (full == null)
+                foreach (var d in refs)
+                {
+                    var p = Path.Combine(d, path + ".rav");
+                    if (File.Exists(p))
+                    {
+                        full = p;
+                        break;
+                    }
+                }
+
             if (full == null) return ThrowRavel("找不到文件: " + path);
             full = Path.GetFullPath(full);
             if (_loading.Contains(full)) return ThrowRavel("检测到循环引用: " + path);
@@ -300,7 +350,9 @@ public partial class Interpreter
             _loaded.Add(full);
             _loading.Push(full);
             var src = File.ReadAllText(full);
-            var lexer = new Lexer(src); var parser = new Parser(lexer.Tokenize()); var ast = parser.Parse();
+            var lexer = new Lexer(src);
+            var parser = new Parser(lexer.Tokenize());
+            var ast = parser.Parse();
             var savedScope = CurrentScope;
             try
             {
@@ -340,7 +392,11 @@ public partial class Interpreter
             var vr = scope.Lookup(name.Value);
             return new PropertyVal(
                 FunctionVal.FromDirect(_ => vr.Value),
-                FunctionVal.FromDirect(args => { vr.Assign(args[0]); return VoidVal.Instance; }),
+                FunctionVal.FromDirect(args =>
+                {
+                    vr.Assign(args[0]);
+                    return VoidVal.Instance;
+                }),
                 [.. vr.Attrs]
             );
         });
@@ -353,9 +409,14 @@ public partial class Interpreter
                 if (kv.Key == "this" || kv.Key == "base" || kv.Key == "block" || kv.Key == "thistype") continue;
                 var vr = scope.Lookup(kv.Key);
                 var getter = FunctionVal.FromDirect(_ => vr.Value);
-                var setter = FunctionVal.FromDirect(a => { vr.Assign(a[0]); return VoidVal.Instance; });
+                var setter = FunctionVal.FromDirect(a =>
+                {
+                    vr.Assign(a[0]);
+                    return VoidVal.Instance;
+                });
                 d[kv.Key] = new PropertyVal(getter, setter, [.. kv.Value.Attrs]);
             }
+
             return new DictVal(d);
         });
 
@@ -427,6 +488,7 @@ public partial class Interpreter
                     var s = fn.Trampolined([item]);
                     last = Step.Run(s);
                 }
+
                 return ToDone(last);
             }));
         }));
@@ -435,8 +497,10 @@ public partial class Interpreter
         systemModule.ModuleScope.Define("Eval", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
         {
             if (a.Length != 1 || a[0] is not StringVal s) return ThrowRavel("eval expects string");
-            var lexer = new Lexer(s.Value); var tokens = lexer.Tokenize();
-            var parser = new Parser(tokens); var ast = parser.Parse();
+            var lexer = new Lexer(s.Value);
+            var tokens = lexer.Tokenize();
+            var parser = new Parser(tokens);
+            var ast = parser.Parse();
             return EvalBlockStmts(ast.Statements, 0, VoidVal.Instance, () => { });
         }));
         systemModule.ModuleScope.Define("Assert", RuntimeType.Function, FunctionVal.FromTrampolined(a =>

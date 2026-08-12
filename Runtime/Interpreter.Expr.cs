@@ -165,7 +165,9 @@ public partial class Interpreter
                 {
                     field = ov.Scope.Lookup(ma.Member);
                 }
-                if (field != null && field.HasAttr("by"))
+
+                if (field == null) return ThrowRavel($"对象没有字段 '{ma.Member}'");
+                if (field.HasAttr("by"))
                 {
                     return Then(EvalExpr(bin.Right), rv =>
                     {
@@ -179,14 +181,7 @@ public partial class Interpreter
 
                 return Then(EvalExpr(bin.Right), rv =>
                 {
-                    if (field != null)
-                    {
-                        field.Assign(rv);
-                    }
-                    else
-                    {
-                        ov.Scope.DefineOrReplace(ma.Member, RuntimeType.Any, rv);
-                    }
+                    field.Assign(rv);
                     return ToDone(rv);
                 });
             });

@@ -4,7 +4,7 @@ namespace Ravel.Runtime;
 public record TypeVal(RuntimeType Value) : FunctionVal(
     Value.Initializer?.Scope ?? null!,
     (_, args) => Value.Initializer?.Trampolined(args)
-        ?? throw new RuntimeException($"类型 {Value.Name} 不能作为构造器调用"))
+                 ?? throw new RuntimeException($"类型 {Value.Name} 不能作为构造器调用"))
 {
     public override RuntimeType Type => RuntimeType.Type;
     public override string ToString() => Value.Name;
