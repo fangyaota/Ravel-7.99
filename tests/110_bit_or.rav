@@ -4,8 +4,8 @@ print (true | false) # logical
 print (false | false)
 
 # 函数交替：左函数失败（类型不匹配）时回退到右函数
-f := (x: int) => { 1 }
-g := (x: Any) => { 2 }
+f := (x: int) => { 1; }
+g := (x: Any) => { 2; }
 h := f | g
 print (h 10)      # f(10) 成功 → 1
 print (h "str")   # f("str") 类型不匹配 → g("str") → 2
