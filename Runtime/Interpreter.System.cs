@@ -61,15 +61,7 @@ public partial class Interpreter
                 case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries));
                 case ObjectVal v:
                     {
-                        var newFields = new Dictionary<string, RuntimeValue>(v.Fields);
-                        Scope? newScope = null;
-                        if (v.InstanceScope != null)
-                        {
-                            newScope = new Scope(v.InstanceScope.Parent);
-                            foreach (var kv in v.InstanceScope.Variables)
-                                newScope.Define(kv.Key, kv.Value.TypeConstraint, kv.Value.Value);
-                        }
-                        return new ObjectVal(v.ClassType, newFields, v.Parent, newScope);
+                        return new ObjectVal(v.ClassType, CopyScope(v.Scope), v.Parent);
                     }
                 default: return s;
             }
@@ -258,7 +250,7 @@ public partial class Interpreter
             var obj = a[0];
             var copy = obj switch
             {
-                ObjectVal ov => new ObjectVal(ov.ClassType, new Dictionary<string, RuntimeValue>(ov.Fields), ov.Parent, CopyScope(ov.InstanceScope)),
+                ObjectVal ov => new ObjectVal(ov.ClassType, CopyScope(ov.Scope), ov.Parent),
                 ListVal lv => new ListVal([.. lv.Elements]),
                 SetVal sv => new SetVal([.. sv.Elements]),
                 DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries)),
@@ -267,7 +259,16 @@ public partial class Interpreter
             return ToDone(FunctionVal.FromTrampolined(ba =>
             {
                 var fn = ExpectFunc(ba[0], "with body");
-                return Then(fn.Trampolined([]), _ => ToDone(copy));
+                var savedScope = fn.Scope;
+                if (copy is ObjectVal ov2)
+                {
+                    fn.Scope = ov2.Scope;
+                }
+                return Then(fn.Trampolined([VoidVal.Instance]), _ =>
+                {
+                    fn.Scope = savedScope;
+                    return ToDone(copy);
+                });
             }));
         }));
         systemModule.ModuleScope.Define("RavelMod", RuntimeType.Function, FunctionVal.FromDirect(a =>
@@ -395,13 +396,7 @@ public partial class Interpreter
         {
             if (a.Length != 1 || a[0] is not ScopeVal sv) throw new RuntimeException("Instantiate 需要 Scope 参数");
             var rt = ((TypeVal)s).Value;
-            var fields = new Dictionary<string, RuntimeValue>();
-            foreach (var kv in sv.Scope.Variables)
-            {
-                if (kv.Key == "this" || kv.Key == "base" || kv.Key == "block" || kv.Key == "thistype") continue;
-                fields[kv.Key] = kv.Value.Value;
-            }
-            return new ObjectVal(rt, fields, null, sv.Scope);
+            return new ObjectVal(rt, sv.Scope, null);
         });
         // ---- 内置函数 ----
         systemModule.ModuleScope.Define("unsafe", RuntimeType.Function, FunctionVal.FromDirect(_ =>

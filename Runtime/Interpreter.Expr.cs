@@ -110,10 +110,9 @@ public partial class Interpreter
         return null;
     }
 
-    /// <summary>浅拷贝作用域（with 语句用）</summary>
-    private static Scope? CopyScope(Scope? src)
+    /// <summary>浅拷贝作用域（with / Copy 用）</summary>
+    private static Scope CopyScope(Scope src)
     {
-        if (src == null) return null;
         var dst = new Scope(src.Parent);
         foreach (var kv in src.Variables)
             dst.Define(kv.Key, kv.Value.TypeConstraint, kv.Value.Value);
@@ -161,12 +160,16 @@ public partial class Interpreter
 
                 if (obj is not ObjectVal ov) return ThrowRavel("无法给非对象设置字段");
 
-                var vr = ov.InstanceScope?.TryLookup(ma.Member);
-                if (vr != null && vr.HasAttr("by"))
+                Variable? field = null;
+                if (ov.Scope.Contains(ma.Member))
+                {
+                    field = ov.Scope.Lookup(ma.Member);
+                }
+                if (field != null && field.HasAttr("by"))
                 {
                     return Then(EvalExpr(bin.Right), rv =>
                     {
-                        var prop = vr.Value;
+                        var prop = field.Value;
                         var setter = new BoxedValue(prop).GetMember("set").Value;
                         if (setter is FunctionVal sf)
                             Step.Run(sf.Trampolined([rv]));
@@ -176,11 +179,14 @@ public partial class Interpreter
 
                 return Then(EvalExpr(bin.Right), rv =>
                 {
-                    ov.Fields[ma.Member] = rv;
-                    if (ov.InstanceScope == null) return ToDone(rv);
-                    var vr2 = ov.InstanceScope.TryLookup(ma.Member);
-                    vr2?.Assign(rv);
-
+                    if (field != null)
+                    {
+                        field.Assign(rv);
+                    }
+                    else
+                    {
+                        ov.Scope.DefineOrReplace(ma.Member, RuntimeType.Any, rv);
+                    }
                     return ToDone(rv);
                 });
             });

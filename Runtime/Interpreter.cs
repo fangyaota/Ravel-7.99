@@ -143,11 +143,11 @@ public partial class Interpreter
         }));
     }
     /// <summary>While 循环 CPS：重复调用条件，真则执行循环体，以 last 作为最终返回值</summary>
-    private Step Loop(FunctionVal c, FunctionVal b, RuntimeValue last) => Then(c.Trampolined([]), cv =>
+    private Step Loop(FunctionVal c, FunctionVal b, RuntimeValue last) => Then(c.Trampolined([VoidVal.Instance]), cv =>
     {
         if (cv is not BoolVal bv) return ThrowRavel("while 条件必须是 bool");
         if (!bv.Value) return ToDone(last);
-        return Then(b.Trampolined([]), bv2 => Loop(c, b, bv2));
+        return Then(b.Trampolined([VoidVal.Instance]), bv2 => Loop(c, b, bv2));
     });
 
     /// <summary>If 内置函数：If { 条件 } → 返回等待 then 的函数 → 返回等待 else 的函数</summary>
@@ -160,10 +160,11 @@ public partial class Interpreter
             return ToDone(FunctionVal.FromTrampolined(ea =>
             {
                 var e = ExpectFunc(ea[0], "if else");
-                return Then(c.Trampolined([]), cv =>
+                return Then(c.Trampolined([VoidVal.Instance]), cv =>
                 {
                     if (cv is not BoolVal b) return ThrowRavel("if 条件必须是 bool");
-                    return (b.Value ? t : e).Trampolined([]);
+                    if (b.Value) return t.Trampolined([VoidVal.Instance]);
+                    return e.Trampolined([VoidVal.Instance]);
                 });
             }));
         }));

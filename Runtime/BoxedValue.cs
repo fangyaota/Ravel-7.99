@@ -68,10 +68,9 @@ public class BoxedValue(RuntimeValue value)
 
         if (Value is ObjectVal obj)
         {
-            // 构造器运行时 InstanceScope 比 Fields 更新鲜
-            if (obj.InstanceScope != null && obj.InstanceScope.Contains(name))
+            if (obj.Scope.Contains(name))
             {
-                var vr = obj.InstanceScope.Lookup(name);
+                var vr = obj.Scope.Lookup(name);
                 if (vr.HasAttr("unreadable"))
                     throw new RuntimeException($"变量 '{name}' 不可读取");
                 if (vr.HasAttr("outdated"))
@@ -83,7 +82,7 @@ public class BoxedValue(RuntimeValue value)
                     bool ok = false;
                     while (cur != null)
                     {
-                        if (cur == obj.InstanceScope)
+                        if (cur == obj.Scope)
                         {
                             ok = true;
                             break;
@@ -106,10 +105,6 @@ public class BoxedValue(RuntimeValue value)
 
                 return new BoxedValue(vr.Value);
             }
-
-            // 实例字段
-            if (obj.Fields.TryGetValue(name, out var field))
-                return new BoxedValue(field);
         }
 
         if (Value is TypeVal tv && name == "name")
