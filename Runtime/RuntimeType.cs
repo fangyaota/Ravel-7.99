@@ -10,9 +10,12 @@ public partial class RuntimeType
 
     /// <summary>方法表：方法名 → 实现（self + args → result）</summary>
     private readonly Dictionary<string, Func<RuntimeValue, RuntimeValue[], RuntimeValue>> _methods = [];
+
     public IEnumerable<string> MethodNames => _methods.Keys;
+
     /// <summary>类型构造器/转换器——调用该类型时执行（如 int(x)）</summary>
     internal FunctionVal? Initializer { get; set; }
+
     private RuntimeType(string name, RuntimeType? parent)
     {
         Name = name;
@@ -53,6 +56,7 @@ public partial class RuntimeType
     // 底类型 — 不在继承树中，IsAssignableTo 全局特判
     // 底类型 — 为所有类的子类，default 是其唯一实例
     public static readonly RuntimeType Every;
+
     // 顶类型
     public static readonly RuntimeType Any;
     public static readonly RuntimeType Exception;
@@ -94,8 +98,8 @@ public partial class RuntimeType
         Void = new RuntimeType("Void", Object);
 
         // 元类型
-        Type = new RuntimeType("Type", Function);  // type 是函数，可作为构造器
-        Class.Parent = Type;  // class <: type <: function <: object
+        Type = new RuntimeType("Type", Function); // type 是函数，可作为构造器
+        Class.Parent = Type; // class <: type <: function <: object
 
         // 底类型
         Ravel = new RuntimeType("Ravel", Object);
@@ -134,6 +138,7 @@ public partial class RuntimeType
             if (current.Parent == current) break; // object reached
             current = current.Parent;
         }
+
         return null;
     }
 

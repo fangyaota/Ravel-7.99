@@ -215,15 +215,9 @@ public partial class Interpreter
 
     // ======================== 调用 ========================
 
-    /// <summary>求值函数调用：续延 / 类型构造 / 普通函数</summary>
+    /// <summary>求值函数调用：普通函数 / 续延 / 类型构造</summary>
     private Step EvalCall(CallExpr call) => Then(EvalExpr(call.Function), fv =>
     {
-        if (fv is ContinuationVal k)
-        {
-            if (call.Arguments.Count != 1) return ThrowRavel("续延需要 1 个参数");
-            return Then(EvalExpr(call.Arguments[0]), av => k.Impl(av));
-        }
-
         if (fv is not FunctionVal fn) return ThrowRavel("无法调用: " + fv.Type);
         return EvalArgs(call.Arguments, args =>
         {

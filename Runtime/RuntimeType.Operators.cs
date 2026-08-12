@@ -46,16 +46,22 @@ public partial class RuntimeType
         DefineOp(BigInt, "%", (a, b) => new BigIntVal(AsBigInt(a) % AsBigInt(b)));
 
         // Fraction 运算符
-        DefineOp(Fraction, "+", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db + nb * da, da * db)));
-        DefineOp(Fraction, "-", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db - nb * da, da * db)));
+        DefineOp(Fraction, "+",
+            (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db + nb * da, da * db)));
+        DefineOp(Fraction, "-",
+            (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db - nb * da, da * db)));
         DefineOp(Fraction, "*", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * nb, da * db)));
         DefineOp(Fraction, "/", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db, da * nb)));
 
         // BigFraction 运算符
-        DefineOp(BigFraction, "+", (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db + nb * da, da * db)));
-        DefineOp(BigFraction, "-", (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db - nb * da, da * db)));
-        DefineOp(BigFraction, "*", (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * nb, da * db)));
-        DefineOp(BigFraction, "/", (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db, da * nb)));
+        DefineOp(BigFraction, "+",
+            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db + nb * da, da * db)));
+        DefineOp(BigFraction, "-",
+            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db - nb * da, da * db)));
+        DefineOp(BigFraction, "*",
+            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * nb, da * db)));
+        DefineOp(BigFraction, "/",
+            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db, da * nb)));
 
         // 比较运算符 — 数字
         foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })
@@ -67,6 +73,7 @@ public partial class RuntimeType
             DefineOp(t, "<=", (a, b) => new BoolVal(AsDouble(a) <= AsDouble(b)));
             DefineOp(t, ">=", (a, b) => new BoolVal(AsDouble(a) >= AsDouble(b)));
         }
+
         // bool 比较
         DefineOp(Bool, "==", (a, b) => new BoolVal(((BoolVal)a).Value == ((BoolVal)b).Value));
         DefineOp(Bool, "!=", (a, b) => new BoolVal(((BoolVal)a).Value != ((BoolVal)b).Value));
@@ -105,18 +112,21 @@ public partial class RuntimeType
         BigFractionVal bf => (double)bf.Num / (double)bf.Den,
         _ => throw new RuntimeException("需要数值类型")
     };
+
     private static float AsFloat(RuntimeValue v) => v switch
     {
         IntVal i => i.Value,
         FloatVal f => (float)f.Value,
         _ => throw new RuntimeException("需要数值类型")
     };
+
     private static System.Numerics.BigInteger AsBigInt(RuntimeValue v) => v switch
     {
         IntVal i => i.Value,
         BigIntVal bi => bi.Value,
         _ => throw new RuntimeException("需要 bigint 类型")
     };
+
     private static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<int, int, int, int, RuntimeValue> f)
     {
         int na = a is FractionVal fa ? fa.Num : ((IntVal)a).Value;
@@ -125,7 +135,10 @@ public partial class RuntimeType
         int db = b is FractionVal fb2 ? fb2.Den : 1;
         return f(na, da, nb, db);
     }
-    private static RuntimeValue BigFractionBinOp(RuntimeValue a, RuntimeValue b, Func<System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger, RuntimeValue> f)
+
+    private static RuntimeValue BigFractionBinOp(RuntimeValue a, RuntimeValue b,
+        Func<System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger,
+            System.Numerics.BigInteger, RuntimeValue> f)
     {
         var na = a is BigFractionVal bfa ? bfa.Num : a is BigIntVal bia ? bia.Value : ((IntVal)a).Value;
         var da = a is BigFractionVal bfa2 ? bfa2.Den : 1;

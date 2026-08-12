@@ -46,6 +46,7 @@ public partial class RuntimeType
             if (int.TryParse(s.Value, out var n)) return new Done(new IntVal(n));
             throw new RuntimeException("无法将字符串转换为 int");
         }
+
         if (val is BoolVal b) return new Done(new IntVal(b.Value ? 1 : 0));
         if (val is FloatVal f) return new Done(new IntVal((int)f.Value));
         if (val is BigIntVal bi) return new Done(new IntVal((int)bi.Value));
@@ -64,6 +65,7 @@ public partial class RuntimeType
             if (double.TryParse(s.Value, out var n)) return new Done(new FloatVal(n));
             throw new RuntimeException("无法将字符串转换为 float");
         }
+
         throw new RuntimeException($"无法将 {val.Type} 转换为 float");
     }
 
@@ -89,6 +91,7 @@ public partial class RuntimeType
             if (System.Numerics.BigInteger.TryParse(s.Value, out var n)) return new Done(new BigIntVal(n));
             throw new RuntimeException("无法将字符串转换为 bigint");
         }
+
         if (val is FloatVal f) return new Done(new BigIntVal((System.Numerics.BigInteger)f.Value));
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigint");
     }
@@ -110,6 +113,7 @@ public partial class RuntimeType
                 return new Done(new FractionVal(n, d));
             throw new RuntimeException("无效的分数字符串");
         }
+
         throw new RuntimeException($"无法将 {val.Type} 转换为 fraction");
     }
 
@@ -150,6 +154,7 @@ public partial class RuntimeType
             if (target == Function) return FunctionVal.FromDirect(_ => VoidVal.Instance);
             return val;
         }
+
         if (target == Int)
             return val is IntVal i ? i :
                 val is FloatVal f ? new IntVal((int)f.Value) :
