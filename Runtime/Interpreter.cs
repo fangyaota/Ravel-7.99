@@ -48,9 +48,6 @@ public partial class Interpreter
     internal bool CallccActive;
     internal int UnsafeDepth;
 
-    /// <summary>所有已注册类型（内置 + 用户定义）</summary>
-    internal readonly List<RuntimeType> AllTypes = [];
-
     /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）</summary>
     private void LoadPredefined()
     {

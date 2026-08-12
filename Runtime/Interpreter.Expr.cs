@@ -110,15 +110,6 @@ public partial class Interpreter
         return null;
     }
 
-    /// <summary>浅拷贝作用域（with / Copy 用）</summary>
-    private static Scope CopyScope(Scope src)
-    {
-        var dst = new Scope(src.Parent);
-        foreach (var kv in src.Variables)
-            dst.Define(kv.Key, kv.Value.TypeConstraint, kv.Value.Value);
-        return dst;
-    }
-
     // ======================== 二元运算符 ========================
 
     /// <summary>求值二元表达式：短路逻辑 / 赋值 / 复合赋值 / 自定义运算符 / 内置运算符 / 位/逻辑</summary>
