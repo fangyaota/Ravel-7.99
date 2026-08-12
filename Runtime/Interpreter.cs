@@ -33,7 +33,7 @@ public partial class Interpreter
 
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>
     public Interpreter() { _global = new Scope(); CurrentScope = _global; RegisterBuiltins(); Current = this; LoadPredefined(); }
-    private readonly Dictionary<string, RuntimeValue.ModuleVal> _modules = [];
+    private readonly Dictionary<string, ModuleVal> _modules = [];
     private readonly HashSet<string> _loaded = [];
     private readonly Stack<string> _loading = new();
     internal bool CallccActive;
@@ -51,7 +51,7 @@ public partial class Interpreter
             {
                 var src = File.ReadAllText(p);
                 var lexer = new Lexer(src); var parser = new Parser(lexer.Tokenize()); var ast = parser.Parse();
-                Step.Run(EvalBlockStmts(ast.Statements, 0, RuntimeValue.VoidVal.Instance, () => { }));
+                Step.Run(EvalBlockStmts(ast.Statements, 0, VoidVal.Instance, () => { }));
                 return;
             }
         }
@@ -74,7 +74,7 @@ public partial class Interpreter
             var capturedScope = Current!.CurrentScope;
             var contRef = new Ref<Func<RuntimeValue, Step>>(onDone);
             Current.CallccActive = true;
-            var k = new RuntimeValue.ContinuationVal(r =>
+            var k = new ContinuationVal(r =>
             {
                 if (Current.CallccActive)
                 {
@@ -136,16 +136,16 @@ public partial class Interpreter
     private Step EvalWhile(RuntimeValue[] a)
     {
         var c = ExpectBlock(a[0], "while cond");
-        return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ba =>
+        return ToDone(FunctionVal.FromTrampolined(ba =>
         {
             var b = ExpectBlock(ba[0], "while body");
-            return Loop(c, b, RuntimeValue.VoidVal.Instance);
+            return Loop(c, b, VoidVal.Instance);
         }));
     }
     /// <summary>While 循环 CPS：重复调用条件块，真则执行体块，以 last 作为最终返回值</summary>
-    private Step Loop(RuntimeValue.BlockVal c, RuntimeValue.BlockVal b, RuntimeValue last) => Then(c.Invoke(), cv =>
+    private Step Loop(BlockVal c, BlockVal b, RuntimeValue last) => Then(c.Invoke(), cv =>
     {
-        if (cv is not RuntimeValue.BoolVal bv) return ThrowRavel("while 条件必须是 bool");
+        if (cv is not BoolVal bv) return ThrowRavel("while 条件必须是 bool");
         if (!bv.Value) return ToDone(last);
         return Then(b.Invoke(), bv2 => Loop(c, b, bv2));
     });
@@ -154,15 +154,15 @@ public partial class Interpreter
     private Step EvalIf(RuntimeValue[] a)
     {
         var c = ExpectBlock(a[0], "if cond");
-        return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ta =>
+        return ToDone(FunctionVal.FromTrampolined(ta =>
         {
             var t = ExpectBlock(ta[0], "if then");
-            return ToDone(RuntimeValue.FunctionVal.FromTrampolined(ea =>
+            return ToDone(FunctionVal.FromTrampolined(ea =>
             {
                 var e = ExpectBlock(ea[0], "if else");
                 return Then(c.Invoke(), cv =>
                 {
-                    if (cv is not RuntimeValue.BoolVal b) return ThrowRavel("if 条件必须是 bool");
+                    if (cv is not BoolVal b) return ThrowRavel("if 条件必须是 bool");
                     return (b.Value ? t : e).Invoke();
                 });
             }));
@@ -174,7 +174,7 @@ public partial class Interpreter
     /// <summary>CallCC 内置函数：callcc fn —— 捕获当前续延 k，调用 fn(k)。k 支持多发</summary>
     private Step EvalCallCC(RuntimeValue[] a)
     {
-        if (a.Length != 1 || a[0] is not RuntimeValue.FunctionVal fn) return ThrowRavel("callcc 需要 1 个函数参数");
+        if (a.Length != 1 || a[0] is not FunctionVal fn) return ThrowRavel("callcc 需要 1 个函数参数");
         // 返回 CallCC——Then 在此捕获 continuation 并创建多发续延
         return new CallCC(fn);
     }
@@ -196,10 +196,10 @@ public partial class Interpreter
             }
             var vr = CurrentScope.DefineOrReplace(v.Name, dt, val);
             if (v.Attrs != null) foreach (var a in v.Attrs) vr.SetAttr(a);
-            if (v.Named && val is RuntimeValue.FunctionVal fn) { fn.Name = v.Name; if (fn.Meta != null) fn.Meta.Type.Name = v.Name; }
+            if (v.Named && val is FunctionVal fn) { fn.Name = v.Name; }
             if (v.IsInit && v.Name != "init") CurrentScope.DefineOrReplace("init", dt, val);
             if (v is { IsOperator: true, OperatorName: not null } && v.Name != v.OperatorName) CurrentScope.DefineOrReplace(v.OperatorName, dt, val);
-            return ToDone(RuntimeValue.VoidVal.Instance);
+            return ToDone(VoidVal.Instance);
         }),
         Assignment a => Then(EvalExpr(a.Value), val =>
         {
@@ -208,11 +208,11 @@ public partial class Interpreter
             {
                 var prop = vr.Value;
                 var setter = new BoxedValue(prop).GetMember("set").Value;
-                if (setter is RuntimeValue.FunctionVal sf)
+                if (setter is FunctionVal sf)
                     Step.Run(sf.Trampolined([val]));
                 return ToDone(val);
             }
-            CurrentScope.Assign(a.Name, val); return ToDone(RuntimeValue.VoidVal.Instance);
+            CurrentScope.Assign(a.Name, val); return ToDone(VoidVal.Instance);
         }),
         ExpressionStatement es => Then(EvalExpr(es.Expr), ToDone),
         _ => ThrowRavel("未知的语句类型")
@@ -222,12 +222,12 @@ public partial class Interpreter
     // ======================== 块/Lambda ========================
 
     /// <summary>将代码块 AST 包装为 BlockVal 值（惰性，不立即执行）</summary>
-    private Step EvalBlock(BlockExpr block) => ToDone(new RuntimeValue.BlockVal(block, CurrentScope, this));
+    private Step EvalBlock(BlockExpr block) => ToDone(new BlockVal(block, CurrentScope, this));
     /// <summary>立即执行代码块：压入新作用域，执行完后弹出</summary>
     public Step EvalBlockExec(BlockExpr block) => ToMore(() =>
     {
         CurrentScope = CurrentScope.Push();
-        return EvalBlockStmts(block.Statements, 0, RuntimeValue.VoidVal.Instance,
+        return EvalBlockStmts(block.Statements, 0, VoidVal.Instance,
             () => { CurrentScope = CurrentScope.Parent!; });
     });
     /// <summary>递归执行块内语句列表，执行完后回调 onDone（不碰作用域）</summary>
@@ -242,9 +242,9 @@ public partial class Interpreter
     private RuntimeValue EvalLambda(LambdaExpr lam)
     {
         var pt = ResolveType(lam.Param.TypeName, CurrentScope);
-        RuntimeValue.FunctionVal? self = null;
+        FunctionVal? self = null;
 
-        self = new RuntimeValue.FunctionVal(CurrentScope, (scope, args) =>
+        self = new FunctionVal(CurrentScope, (scope, args) =>
         {
             if (args.Length != 1)
                 return new Error("Lambda 需要 1 个参数");
@@ -274,19 +274,19 @@ public partial class Interpreter
 
 
     /// <summary>断言值是 BlockVal，否则抛异常</summary>
-    private static RuntimeValue.BlockVal ExpectBlock(RuntimeValue v, string r) => v as RuntimeValue.BlockVal ?? throw new RuntimeException($"{r} 必须是代码块");
+    private static BlockVal ExpectBlock(RuntimeValue v, string r) => v as BlockVal ?? throw new RuntimeException($"{r} 必须是代码块");
     /// <summary>按名称解析类型：先查类型注册表，再查当前作用域</summary>
     private RuntimeType ResolveType(string n, Scope? extra = null)
     {
         if (extra != null)
         {
             var v = extra.TryLookup(n);
-            if (v?.Value is RuntimeValue.TypeVal tv) return tv.Value;
+            if (v?.Value is TypeVal tv) return tv.Value;
         }
 
         if (TypeRegistry.TryGetValue(n, out var t)) return t;
         var v2 = CurrentScope.TryLookup(n);
-        if (v2?.Value is RuntimeValue.TypeVal tv2) return tv2.Value;
+        if (v2?.Value is TypeVal tv2) return tv2.Value;
         throw new RuntimeException($"未知的类型: {n}");
     }
     /// <summary>统一错误处理：通过 Ex.throw 抛出 Ravel 异常，找不到则直接 exit</summary>
@@ -295,17 +295,17 @@ public partial class Interpreter
         if (_modules.TryGetValue("Ex", out var exMod))
         {
             var throwVar = exMod.ModuleScope.TryLookup("throw");
-            if (throwVar?.Value is RuntimeValue.FunctionVal tf)
+            if (throwVar?.Value is FunctionVal tf)
             {
-                var exVal = new RuntimeValue.ExceptionVal(msg);
+                var exVal = new ExceptionVal(msg);
                 return tf.Trampolined([exVal]);
             }
         }
         // Ex 模块未加载 → 直接 exit
         var exitVar = _global.TryLookup("exit");
-        if (exitVar?.Value is RuntimeValue.FunctionVal ef)
+        if (exitVar?.Value is FunctionVal ef)
         {
-            Step.Run(ef.Trampolined([new RuntimeValue.StringVal(msg)]));
+            Step.Run(ef.Trampolined([new StringVal(msg)]));
         }
         throw new ExitException(msg);
     }

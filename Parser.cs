@@ -30,8 +30,13 @@ public class Parser(List<Token> tokens)
     //  语句
     // ========================================
 
-    private static readonly HashSet<string> Modifiers = ["init", "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"];
+    private static readonly HashSet<string> Modifiers =
+    [
+        "init", "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"
+    ];
+
     private static bool IsMod(string kw) => Modifiers.Contains(kw) || kw.StartsWith("operator");
+
     /// <summary>类机制内部词——禁止作为变量名（base/this 是类内可用变量，不禁）</summary>
     private static readonly HashSet<string> ReservedWords = ["init", "thistype", "block", "core"];
 
@@ -50,21 +55,29 @@ public class Parser(List<Token> tokens)
                 if (_pos + 1 < tokens.Count)
                 {
                     var nt = tokens[_pos + 1].Type;
-                    if (nt == TokenType.ColonEqual || nt == TokenType.ColonColonEqual || nt == TokenType.ColonColon || nt == TokenType.Colon)
+                    if (nt == TokenType.ColonEqual || nt == TokenType.ColonColonEqual || nt == TokenType.ColonColon ||
+                        nt == TokenType.Colon)
                         break;
                 }
-                _pos++; attrs.Add(kw);
+
+                _pos++;
+                attrs.Add(kw);
             }
             else break;
         }
+
         if (attrs.Count > 0)
         {
-            if (Check(TokenType.Identifier) && (CheckNext(TokenType.ColonEqual) || CheckNext(TokenType.Colon) || CheckNext(TokenType.ColonColonEqual) || CheckNext(TokenType.ColonColon)))
+            if (Check(TokenType.Identifier) && (CheckNext(TokenType.ColonEqual) || CheckNext(TokenType.Colon) ||
+                                                CheckNext(TokenType.ColonColonEqual) ||
+                                                CheckNext(TokenType.ColonColon)))
                 return ParseDefinition(attrs);
-            if (Check(TokenType.ColonEqual) || Check(TokenType.Colon) || Check(TokenType.ColonColonEqual) || Check(TokenType.ColonColon))
+            if (Check(TokenType.ColonEqual) || Check(TokenType.Colon) || Check(TokenType.ColonColonEqual) ||
+                Check(TokenType.ColonColon))
                 return ParseDefinition(attrs);
             throw ParseError("修饰符后需要 ':='");
         }
+
         // 普通定义：IDENT := expr 或 IDENT : type = expr
         // 普通定义：IDENT := expr 或 IDENT : type = expr
         if (Check(TokenType.Identifier) &&
@@ -93,18 +106,23 @@ public class Parser(List<Token> tokens)
             if (Check(TokenType.Identifier))
             {
                 var n = Consume(TokenType.Identifier, "需要变量名");
-                name = n.Lexeme; line = n.Line; col = n.Column;
+                name = n.Lexeme;
+                line = n.Line;
+                col = n.Column;
             }
             else
             {
                 name = attrs.FirstOrDefault(a => a.StartsWith("operator")) ?? attrs[0];
-                line = Previous().Line; col = Previous().Column;
+                line = Previous().Line;
+                col = Previous().Column;
             }
         }
         else
         {
             var nameToken = Consume(TokenType.Identifier, "需要变量名");
-            name = nameToken.Lexeme; line = nameToken.Line; col = nameToken.Column;
+            name = nameToken.Lexeme;
+            line = nameToken.Line;
+            col = nameToken.Column;
         }
 
         string? typeAnnotation = null;
@@ -358,6 +376,7 @@ public class Parser(List<Token> tokens)
                 var mem = Consume(TokenType.Identifier, "'.' 后需要成员名");
                 arg = new MemberAccess(arg, mem.Lexeme) { Line = arg.Line, Column = arg.Column };
             }
+
             expr = new CallExpr(expr, [arg])
             {
                 Line = expr.Line,
@@ -379,12 +398,12 @@ public class Parser(List<Token> tokens)
             var lexeme = Previous().Lexeme;
             var isFloat = lexeme.Contains('.');
             return new NumberLiteral(double.Parse(lexeme), isFloat)
-            { Line = Previous().Line, Column = Previous().Column };
+                { Line = Previous().Line, Column = Previous().Column };
         }
 
         if (Match(TokenType.String))
             return new StringLiteral(Previous().Lexeme)
-            { Line = Previous().Line, Column = Previous().Column };
+                { Line = Previous().Line, Column = Previous().Column };
 
         if (Match(TokenType.Identifier))
         {
@@ -394,8 +413,9 @@ public class Parser(List<Token> tokens)
                 _holeCount++;
                 return new HoleExpr(_holeCount - 1) { Line = Previous().Line, Column = Previous().Column };
             }
+
             return new IdentifierExpr(lexeme)
-            { Line = Previous().Line, Column = Previous().Column };
+                { Line = Previous().Line, Column = Previous().Column };
         }
 
         if (Match(TokenType.LeftParen))
@@ -431,6 +451,7 @@ public class Parser(List<Token> tokens)
                 var body = ParseMandatoryBlock("lambda body");
                 return new LambdaExpr(new Parameter("_", "void"), body) { Line = line, Column = col };
             }
+
             // () 独立 → void 字面量
             return new VoidLiteral { Line = line, Column = col };
         }
@@ -478,6 +499,7 @@ public class Parser(List<Token> tokens)
                     result = new LambdaExpr(@params[i], block) { Line = line, Column = col };
                 }
             }
+
             return result;
         }
 
@@ -519,6 +541,7 @@ public class Parser(List<Token> tokens)
                 }
             }
         }
+
         _pos = saved;
         return ParseSet(line, col);
     }
@@ -532,9 +555,15 @@ public class Parser(List<Token> tokens)
             var t = tokens[i];
             if (t.Type == TokenType.Newline) return true;
             if (t.Type == TokenType.LeftBrace) depth++;
-            if (t.Type == closing) { depth--; if (depth == 0) return false; }
+            if (t.Type == closing)
+            {
+                depth--;
+                if (depth == 0) return false;
+            }
+
             if (t.Type == TokenType.EndOfFile) return false;
         }
+
         return false;
     }
 
@@ -547,6 +576,7 @@ public class Parser(List<Token> tokens)
         {
             elements.Add(ParseExpression(allowCall: false));
         }
+
         Consume(TokenType.RightBrace, "集合元素后需要 '}'");
         return new SetLiteral(elements) { Line = line, Column = col };
     }
@@ -562,6 +592,7 @@ public class Parser(List<Token> tokens)
             var value = ParseExpression(allowCall: false);
             entries.Add(new DictEntry(key, value));
         }
+
         Consume(TokenType.RightBrace, "字典条目后需要 '}'");
         return new DictLiteral(entries) { Line = line, Column = col };
     }
@@ -623,8 +654,8 @@ public class Parser(List<Token> tokens)
     {
         if (IsAtEnd()) return false;
         return Peek().Type is TokenType.Number or TokenType.String or TokenType.Identifier
-                            or TokenType.LeftParen or TokenType.LeftBracket
-                            or TokenType.LeftBrace;
+            or TokenType.LeftParen or TokenType.LeftBracket
+            or TokenType.LeftBrace;
     }
 
     private Token Peek() => tokens[_pos];
@@ -632,6 +663,7 @@ public class Parser(List<Token> tokens)
     private bool IsAtEnd() => _pos >= tokens.Count || tokens[_pos].Type == TokenType.EndOfFile;
 
     private bool Check(TokenType type) => !IsAtEnd() && Peek().Type == type;
+
     private bool CheckNext(TokenType type)
     {
         if (_pos + 1 >= tokens.Count) return false;
@@ -640,7 +672,12 @@ public class Parser(List<Token> tokens)
 
     private bool Match(TokenType type)
     {
-        if (Check(type)) { _pos++; return true; }
+        if (Check(type))
+        {
+            _pos++;
+            return true;
+        }
+
         return false;
     }
 
@@ -650,7 +687,12 @@ public class Parser(List<Token> tokens)
         throw ParseError(errorMessage);
     }
 
-    private void SkipNewlines() { while (Match(TokenType.Newline)) { } }
+    private void SkipNewlines()
+    {
+        while (Match(TokenType.Newline))
+        {
+        }
+    }
 
     // ========================================
     //  _ 占位符消糖
@@ -682,9 +724,10 @@ public class Parser(List<Token> tokens)
         for (int i = uniq.Count - 1; i >= 0; i--)
         {
             var block = new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
-            { Line = body.Line, Column = body.Column };
+                { Line = body.Line, Column = body.Column };
             body = new LambdaExpr(new Parameter("_" + i, "object"), block) { Line = body.Line, Column = body.Column };
         }
+
         return body;
     }
 
@@ -693,12 +736,23 @@ public class Parser(List<Token> tokens)
         switch (e)
         {
             case HoleExpr h: holes.Add(h.Index); break;
-            case BinaryExpr b: CollectHoles(b.Left, holes); CollectHoles(b.Right, holes); break;
+            case BinaryExpr b:
+                CollectHoles(b.Left, holes);
+                CollectHoles(b.Right, holes);
+                break;
             case UnaryExpr u: CollectHoles(u.Operand, holes); break;
-            case CallExpr c: CollectHoles(c.Function, holes); foreach (var a in c.Arguments) CollectHoles(a, holes); break;
+            case CallExpr c:
+                CollectHoles(c.Function, holes);
+                foreach (var a in c.Arguments) CollectHoles(a, holes);
+                break;
             case MemberAccess m: CollectHoles(m.Object, holes); break;
-            case PipeExpr p: CollectHoles(p.Left, holes); CollectHoles(p.Right, holes); break;
-            case ListLiteral l: foreach (var el in l.Elements) CollectHoles(el, holes); break;
+            case PipeExpr p:
+                CollectHoles(p.Left, holes);
+                CollectHoles(p.Right, holes);
+                break;
+            case ListLiteral l:
+                foreach (var el in l.Elements) CollectHoles(el, holes);
+                break;
         }
     }
 
@@ -707,11 +761,14 @@ public class Parser(List<Token> tokens)
         return e switch
         {
             HoleExpr h => new IdentifierExpr("_" + h.Index) { Line = e.Line, Column = e.Column },
-            BinaryExpr b => new BinaryExpr(ReplaceHoles(b.Left), b.Op, ReplaceHoles(b.Right)) { Line = e.Line, Column = e.Column },
+            BinaryExpr b => new BinaryExpr(ReplaceHoles(b.Left), b.Op, ReplaceHoles(b.Right))
+                { Line = e.Line, Column = e.Column },
             UnaryExpr u => new UnaryExpr(u.Op, ReplaceHoles(u.Operand)) { Line = e.Line, Column = e.Column },
-            CallExpr c => new CallExpr(ReplaceHoles(c.Function), [.. c.Arguments.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
+            CallExpr c => new CallExpr(ReplaceHoles(c.Function), [.. c.Arguments.Select(ReplaceHoles)])
+                { Line = e.Line, Column = e.Column },
             MemberAccess m => new MemberAccess(ReplaceHoles(m.Object), m.Member) { Line = e.Line, Column = e.Column },
-            PipeExpr p => new PipeExpr(ReplaceHoles(p.Left), ReplaceHoles(p.Right)) { Line = e.Line, Column = e.Column },
+            PipeExpr p => new PipeExpr(ReplaceHoles(p.Left), ReplaceHoles(p.Right))
+                { Line = e.Line, Column = e.Column },
             ListLiteral l => new ListLiteral([.. l.Elements.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
             _ => e
         };

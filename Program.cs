@@ -25,6 +25,7 @@ static void RunFile(string path)
     {
         Console.WriteLine($"Error: {ex.Message}");
     }
+
     Console.WriteLine();
 }
 
@@ -42,7 +43,11 @@ static Ravel.Program Parse(string source)
 static void RunAllTests()
 {
     var testDir = FindTestDir();
-    if (testDir == null) { Console.WriteLine("No tests/ directory found."); return; }
+    if (testDir == null)
+    {
+        Console.WriteLine("No tests/ directory found.");
+        return;
+    }
 
     int passed = 0, failed = 0, todo = 0;
     foreach (var file in Directory.GetFiles(testDir, "*.rav").OrderBy(f => f))
@@ -68,14 +73,23 @@ static void RunAllTests()
         if (expectError)
         {
             if (output.StartsWith("Error:"))
-            { Console.WriteLine("OK (expected error)"); passed++; }
+            {
+                Console.WriteLine("OK (expected error)");
+                passed++;
+            }
             else
-            { Console.WriteLine("TODO (expected error, got output)"); todo++; }
+            {
+                Console.WriteLine("TODO (expected error, got output)");
+                todo++;
+            }
         }
         else
         {
             if (output.Trim() == expected.Trim())
-            { Console.WriteLine("OK"); passed++; }
+            {
+                Console.WriteLine("OK");
+                passed++;
+            }
             else
             {
                 Console.WriteLine("TODO");
@@ -85,6 +99,7 @@ static void RunAllTests()
             }
         }
     }
+
     Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo");
 }
 
@@ -103,11 +118,13 @@ static (string source, string expected, bool expectError) ParseTestFile(string c
             expectError = true;
             continue;
         }
+
         if (line.TrimStart() == "# --- expected ---")
         {
             inExpected = true;
             continue;
         }
+
         if (inExpected)
             expectedLines.Add(line.TrimStart().StartsWith("# ") ? line.TrimStart()[2..] : line);
         else
@@ -131,12 +148,14 @@ static string CaptureOutput(string source)
     {
         Console.SetOut(oldOut);
     }
+
     return sw.ToString().Replace("\r\n", "\n").TrimEnd();
 }
 
 static string? FindTestDir()
 {
-    var bases = new[] {
+    var bases = new[]
+    {
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "tests"),
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tests"),
         "tests",

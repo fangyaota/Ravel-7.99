@@ -17,4 +17,4 @@ public record More(Func<Step> Next) : Step;
 public record Escape(RuntimeValue Value) : Step;
 public record Error(string Message) : Step;
 /// <summary>callcc 标记——Then 在此处捕获 continuation 实现多发续延</summary>
-public record CallCC(RuntimeValue.FunctionVal Fn) : Step;
+public record CallCC(FunctionVal Fn) : Step;

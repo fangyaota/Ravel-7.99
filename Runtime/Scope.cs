@@ -38,8 +38,18 @@ public class Scope(Scope? parent = null)
 
     public void Assign(string name, RuntimeValue value)
     {
-        if (_vars.TryGetValue(name, out var v)) { v.Assign(value); return; }
-        if (Parent != null) { Parent.Assign(name, value); return; }
+        if (_vars.TryGetValue(name, out var v))
+        {
+            v.Assign(value);
+            return;
+        }
+
+        if (Parent != null)
+        {
+            Parent.Assign(name, value);
+            return;
+        }
+
         throw new RuntimeException($"无法给未定义变量 '{name}' 赋值");
     }
 

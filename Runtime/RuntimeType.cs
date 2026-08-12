@@ -98,11 +98,12 @@ public class RuntimeType
         ScopeType = new RuntimeType("Scope", Object);
         Property = new RuntimeType("Property", Object);
         Exception = new RuntimeType("Exception", Object);
-        // 底类型 — default 的类型
+        // 底类型 — default 的类型，自引用（无父）
         Every = new RuntimeType("Every", null);
-        // 顶类型
-        // 顶类型 — 任何类型都可赋值给它，Any 类型变量跳过类型检查
-        Any = new RuntimeType("Any", Object);
+        Every.Parent = Every;
+        // 顶类型 — 任何类型都可赋值给它，Any 类型变量跳过类型检查，自引用（无父）
+        Any = new RuntimeType("Any", null);
+        Any.Parent = Any;
 
         // ---- 注册内置运算符 ----
         RegisterBuiltinOps();
@@ -113,118 +114,118 @@ public class RuntimeType
         // int 运算符
         BuiltinOps[(Int, "+")] = (a, b) =>
         {
-            if (b is RuntimeValue.FloatVal fb) return new RuntimeValue.FloatVal(((RuntimeValue.IntVal)a).Value + fb.Value);
-            return new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value + ((RuntimeValue.IntVal)b).Value);
+            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value + fb.Value);
+            return new IntVal(((IntVal)a).Value + ((IntVal)b).Value);
         };
         BuiltinOps[(Int, "-")] = (a, b) =>
         {
-            if (b is RuntimeValue.FloatVal fb) return new RuntimeValue.FloatVal(((RuntimeValue.IntVal)a).Value - fb.Value);
-            return new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value - ((RuntimeValue.IntVal)b).Value);
+            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value - fb.Value);
+            return new IntVal(((IntVal)a).Value - ((IntVal)b).Value);
         };
         BuiltinOps[(Int, "*")] = (a, b) =>
         {
-            if (b is RuntimeValue.FloatVal fb) return new RuntimeValue.FloatVal(((RuntimeValue.IntVal)a).Value * fb.Value);
-            return new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value * ((RuntimeValue.IntVal)b).Value);
+            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value * fb.Value);
+            return new IntVal(((IntVal)a).Value * ((IntVal)b).Value);
         };
         BuiltinOps[(Int, "/")] = (a, b) =>
         {
-            if (b is RuntimeValue.FloatVal fb) return new RuntimeValue.FloatVal(((RuntimeValue.IntVal)a).Value / fb.Value);
-            return new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value / ((RuntimeValue.IntVal)b).Value);
+            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value / fb.Value);
+            return new IntVal(((IntVal)a).Value / ((IntVal)b).Value);
         };
-        BuiltinOps[(Int, "%")] = (a, b) => new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value % ((RuntimeValue.IntVal)b).Value);
+        BuiltinOps[(Int, "%")] = (a, b) => new IntVal(((IntVal)a).Value % ((IntVal)b).Value);
 
         // float 运算符
-        BuiltinOps[(Float, "+")] = (a, b) => new RuntimeValue.FloatVal(AsFloat(a) + AsFloat(b));
-        BuiltinOps[(Float, "-")] = (a, b) => new RuntimeValue.FloatVal(AsFloat(a) - AsFloat(b));
-        BuiltinOps[(Float, "*")] = (a, b) => new RuntimeValue.FloatVal(AsFloat(a) * AsFloat(b));
-        BuiltinOps[(Float, "/")] = (a, b) => new RuntimeValue.FloatVal(AsFloat(a) / AsFloat(b));
-        BuiltinOps[(Float, "%")] = (a, b) => new RuntimeValue.FloatVal(AsFloat(a) % AsFloat(b));
+        BuiltinOps[(Float, "+")] = (a, b) => new FloatVal(AsFloat(a) + AsFloat(b));
+        BuiltinOps[(Float, "-")] = (a, b) => new FloatVal(AsFloat(a) - AsFloat(b));
+        BuiltinOps[(Float, "*")] = (a, b) => new FloatVal(AsFloat(a) * AsFloat(b));
+        BuiltinOps[(Float, "/")] = (a, b) => new FloatVal(AsFloat(a) / AsFloat(b));
+        BuiltinOps[(Float, "%")] = (a, b) => new FloatVal(AsFloat(a) % AsFloat(b));
 
         // BigInt 运算符
-        BuiltinOps[(BigInt, "+")] = (a, b) => new RuntimeValue.BigIntVal(AsBigInt(a) + AsBigInt(b));
-        BuiltinOps[(BigInt, "-")] = (a, b) => new RuntimeValue.BigIntVal(AsBigInt(a) - AsBigInt(b));
-        BuiltinOps[(BigInt, "*")] = (a, b) => new RuntimeValue.BigIntVal(AsBigInt(a) * AsBigInt(b));
-        BuiltinOps[(BigInt, "/")] = (a, b) => new RuntimeValue.BigIntVal(AsBigInt(a) / AsBigInt(b));
-        BuiltinOps[(BigInt, "%")] = (a, b) => new RuntimeValue.BigIntVal(AsBigInt(a) % AsBigInt(b));
+        BuiltinOps[(BigInt, "+")] = (a, b) => new BigIntVal(AsBigInt(a) + AsBigInt(b));
+        BuiltinOps[(BigInt, "-")] = (a, b) => new BigIntVal(AsBigInt(a) - AsBigInt(b));
+        BuiltinOps[(BigInt, "*")] = (a, b) => new BigIntVal(AsBigInt(a) * AsBigInt(b));
+        BuiltinOps[(BigInt, "/")] = (a, b) => new BigIntVal(AsBigInt(a) / AsBigInt(b));
+        BuiltinOps[(BigInt, "%")] = (a, b) => new BigIntVal(AsBigInt(a) % AsBigInt(b));
 
         // Fraction 运算符
-        BuiltinOps[(Fraction, "+")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.FractionVal(na * db + nb * da, da * db));
-        BuiltinOps[(Fraction, "-")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.FractionVal(na * db - nb * da, da * db));
-        BuiltinOps[(Fraction, "*")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.FractionVal(na * nb, da * db));
-        BuiltinOps[(Fraction, "/")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.FractionVal(na * db, da * nb));
+        BuiltinOps[(Fraction, "+")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db + nb * da, da * db));
+        BuiltinOps[(Fraction, "-")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db - nb * da, da * db));
+        BuiltinOps[(Fraction, "*")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * nb, da * db));
+        BuiltinOps[(Fraction, "/")] = (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db, da * nb));
 
         // BigFraction 运算符
-        BuiltinOps[(BigFraction, "+")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.BigFractionVal(na * db + nb * da, da * db));
-        BuiltinOps[(BigFraction, "-")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.BigFractionVal(na * db - nb * da, da * db));
-        BuiltinOps[(BigFraction, "*")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.BigFractionVal(na * nb, da * db));
-        BuiltinOps[(BigFraction, "/")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new RuntimeValue.BigFractionVal(na * db, da * nb));
+        BuiltinOps[(BigFraction, "+")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db + nb * da, da * db));
+        BuiltinOps[(BigFraction, "-")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db - nb * da, da * db));
+        BuiltinOps[(BigFraction, "*")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * nb, da * db));
+        BuiltinOps[(BigFraction, "/")] = (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db, da * nb));
 
         // 比较运算符 — 数字
         foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })
         {
-            BuiltinOps[(t, "==")] = (a, b) => new RuntimeValue.BoolVal(AsDouble(a) == AsDouble(b));
-            BuiltinOps[(t, "!=")] = (a, b) => new RuntimeValue.BoolVal(AsDouble(a) != AsDouble(b));
-            BuiltinOps[(t, "<")] = (a, b) => new RuntimeValue.BoolVal(AsDouble(a) < AsDouble(b));
-            BuiltinOps[(t, ">")] = (a, b) => new RuntimeValue.BoolVal(AsDouble(a) > AsDouble(b));
-            BuiltinOps[(t, "<=")] = (a, b) => new RuntimeValue.BoolVal(AsDouble(a) <= AsDouble(b));
-            BuiltinOps[(t, ">=")] = (a, b) => new RuntimeValue.BoolVal(AsDouble(a) >= AsDouble(b));
+            BuiltinOps[(t, "==")] = (a, b) => new BoolVal(AsDouble(a) == AsDouble(b));
+            BuiltinOps[(t, "!=")] = (a, b) => new BoolVal(AsDouble(a) != AsDouble(b));
+            BuiltinOps[(t, "<")] = (a, b) => new BoolVal(AsDouble(a) < AsDouble(b));
+            BuiltinOps[(t, ">")] = (a, b) => new BoolVal(AsDouble(a) > AsDouble(b));
+            BuiltinOps[(t, "<=")] = (a, b) => new BoolVal(AsDouble(a) <= AsDouble(b));
+            BuiltinOps[(t, ">=")] = (a, b) => new BoolVal(AsDouble(a) >= AsDouble(b));
         }
         // bool 比较
-        BuiltinOps[(Bool, "==")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.BoolVal)a).Value == ((RuntimeValue.BoolVal)b).Value);
-        BuiltinOps[(Bool, "!=")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.BoolVal)a).Value != ((RuntimeValue.BoolVal)b).Value);
+        BuiltinOps[(Bool, "==")] = (a, b) => new BoolVal(((BoolVal)a).Value == ((BoolVal)b).Value);
+        BuiltinOps[(Bool, "!=")] = (a, b) => new BoolVal(((BoolVal)a).Value != ((BoolVal)b).Value);
         // string 比较
-        BuiltinOps[(String, "==")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.StringVal)a).Value == ((RuntimeValue.StringVal)b).Value);
-        BuiltinOps[(String, "!=")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.StringVal)a).Value != ((RuntimeValue.StringVal)b).Value);
+        BuiltinOps[(String, "==")] = (a, b) => new BoolVal(((StringVal)a).Value == ((StringVal)b).Value);
+        BuiltinOps[(String, "!=")] = (a, b) => new BoolVal(((StringVal)a).Value != ((StringVal)b).Value);
         // string 拼接
-        BuiltinOps[(String, "+")] = (a, b) => new RuntimeValue.StringVal(((RuntimeValue.StringVal)a).Value + ((RuntimeValue.StringVal)b).Value);
-        BuiltinOps[(Type, "==")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.TypeVal)a).Value == ((RuntimeValue.TypeVal)b).Value);
-        BuiltinOps[(Type, "!=")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.TypeVal)a).Value != ((RuntimeValue.TypeVal)b).Value);
+        BuiltinOps[(String, "+")] = (a, b) => new StringVal(((StringVal)a).Value + ((StringVal)b).Value);
+        BuiltinOps[(Type, "==")] = (a, b) => new BoolVal(((TypeVal)a).Value == ((TypeVal)b).Value);
+        BuiltinOps[(Type, "!=")] = (a, b) => new BoolVal(((TypeVal)a).Value != ((TypeVal)b).Value);
 
         // bool 逻辑运算符
-        BuiltinOps[(Bool, "&")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.BoolVal)a).Value && ((RuntimeValue.BoolVal)b).Value);
-        BuiltinOps[(Bool, "|")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.BoolVal)a).Value || ((RuntimeValue.BoolVal)b).Value);
-        BuiltinOps[(Bool, "^")] = (a, b) => new RuntimeValue.BoolVal(((RuntimeValue.BoolVal)a).Value ^ ((RuntimeValue.BoolVal)b).Value);
+        BuiltinOps[(Bool, "&")] = (a, b) => new BoolVal(((BoolVal)a).Value && ((BoolVal)b).Value);
+        BuiltinOps[(Bool, "|")] = (a, b) => new BoolVal(((BoolVal)a).Value || ((BoolVal)b).Value);
+        BuiltinOps[(Bool, "^")] = (a, b) => new BoolVal(((BoolVal)a).Value ^ ((BoolVal)b).Value);
         // int 位运算符
-        BuiltinOps[(Int, "&")] = (a, b) => new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value & ((RuntimeValue.IntVal)b).Value);
-        BuiltinOps[(Int, "|")] = (a, b) => new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value | ((RuntimeValue.IntVal)b).Value);
-        BuiltinOps[(Int, "^")] = (a, b) => new RuntimeValue.IntVal(((RuntimeValue.IntVal)a).Value ^ ((RuntimeValue.IntVal)b).Value);
+        BuiltinOps[(Int, "&")] = (a, b) => new IntVal(((IntVal)a).Value & ((IntVal)b).Value);
+        BuiltinOps[(Int, "|")] = (a, b) => new IntVal(((IntVal)a).Value | ((IntVal)b).Value);
+        BuiltinOps[(Int, "^")] = (a, b) => new IntVal(((IntVal)a).Value ^ ((IntVal)b).Value);
     }
 
     private static double AsDouble(RuntimeValue v) => v switch
     {
-        RuntimeValue.IntVal i => i.Value,
-        RuntimeValue.FloatVal f => f.Value,
-        RuntimeValue.BigIntVal bi => (double)bi.Value,
-        RuntimeValue.FractionVal fr => (double)fr.Num / fr.Den,
-        RuntimeValue.BigFractionVal bf => (double)bf.Num / (double)bf.Den,
+        IntVal i => i.Value,
+        FloatVal f => f.Value,
+        BigIntVal bi => (double)bi.Value,
+        FractionVal fr => (double)fr.Num / fr.Den,
+        BigFractionVal bf => (double)bf.Num / (double)bf.Den,
         _ => throw new RuntimeException("需要数值类型")
     };
     private static float AsFloat(RuntimeValue v) => v switch
     {
-        RuntimeValue.IntVal i => i.Value,
-        RuntimeValue.FloatVal f => (float)f.Value,
+        IntVal i => i.Value,
+        FloatVal f => (float)f.Value,
         _ => throw new RuntimeException("需要数值类型")
     };
     private static System.Numerics.BigInteger AsBigInt(RuntimeValue v) => v switch
     {
-        RuntimeValue.IntVal i => i.Value,
-        RuntimeValue.BigIntVal bi => bi.Value,
+        IntVal i => i.Value,
+        BigIntVal bi => bi.Value,
         _ => throw new RuntimeException("需要 bigint 类型")
     };
     private static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<int, int, int, int, RuntimeValue> f)
     {
-        int na = a is RuntimeValue.FractionVal fa ? fa.Num : ((RuntimeValue.IntVal)a).Value;
-        int da = a is RuntimeValue.FractionVal fa2 ? fa2.Den : 1;
-        int nb = b is RuntimeValue.FractionVal fb ? fb.Num : ((RuntimeValue.IntVal)b).Value;
-        int db = b is RuntimeValue.FractionVal fb2 ? fb2.Den : 1;
+        int na = a is FractionVal fa ? fa.Num : ((IntVal)a).Value;
+        int da = a is FractionVal fa2 ? fa2.Den : 1;
+        int nb = b is FractionVal fb ? fb.Num : ((IntVal)b).Value;
+        int db = b is FractionVal fb2 ? fb2.Den : 1;
         return f(na, da, nb, db);
     }
     private static RuntimeValue BigFractionBinOp(RuntimeValue a, RuntimeValue b, Func<System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger, RuntimeValue> f)
     {
-        var na = a is RuntimeValue.BigFractionVal bfa ? bfa.Num : a is RuntimeValue.BigIntVal bia ? bia.Value : ((RuntimeValue.IntVal)a).Value;
-        var da = a is RuntimeValue.BigFractionVal bfa2 ? bfa2.Den : 1;
-        var nb = b is RuntimeValue.BigFractionVal bfb ? bfb.Num : b is RuntimeValue.BigIntVal bib ? bib.Value : ((RuntimeValue.IntVal)b).Value;
-        var db = b is RuntimeValue.BigFractionVal bfb2 ? bfb2.Den : 1;
+        var na = a is BigFractionVal bfa ? bfa.Num : a is BigIntVal bia ? bia.Value : ((IntVal)a).Value;
+        var da = a is BigFractionVal bfa2 ? bfa2.Den : 1;
+        var nb = b is BigFractionVal bfb ? bfb.Num : b is BigIntVal bib ? bib.Value : ((IntVal)b).Value;
+        var db = b is BigFractionVal bfb2 ? bfb2.Den : 1;
         return f(na, da, nb, db);
     }
 

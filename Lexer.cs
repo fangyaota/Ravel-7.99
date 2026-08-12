@@ -30,6 +30,7 @@ public class Lexer(string source)
                     _line++;
                     _col = 1;
                 }
+
                 tokens.Add(new Token(TokenType.Newline, "\\n", _line - 1, 1));
                 continue;
             }
@@ -169,6 +170,7 @@ public class Lexer(string source)
             while (_pos < source.Length && char.IsDigit(source[_pos]))
                 _pos++;
         }
+
         string num = source[start.._pos];
         _col += (_pos - start);
         return new Token(TokenType.Number, num, line, col);
@@ -181,9 +183,15 @@ public class Lexer(string source)
         int start = _pos;
         while (_pos < source.Length && source[_pos] != '"')
         {
-            if (source[_pos] == '\n') { _line++; _col = 1; }
+            if (source[_pos] == '\n')
+            {
+                _line++;
+                _col = 1;
+            }
+
             _pos++;
         }
+
         string str = source[start.._pos];
         if (_pos < source.Length) Advance(); // skip closing "
         _col += (_pos - start) + 2;
@@ -201,66 +209,93 @@ public class Lexer(string source)
             char nc = source[_pos];
             if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
             {
-                _pos++; _col++; word += nc;
+                _pos++;
+                _col++;
+                word += nc;
             }
             else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                _pos += 2; _col += 2; word += "==";
+                _pos += 2;
+                _col += 2;
+                word += "==";
             }
             else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                _pos += 2; _col += 2; word += "!=";
+                _pos += 2;
+                _col += 2;
+                word += "!=";
             }
             else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                _pos += 2; _col += 2; word += "<=";
+                _pos += 2;
+                _col += 2;
+                word += "<=";
             }
             else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                _pos += 2; _col += 2; word += ">=";
+                _pos += 2;
+                _col += 2;
+                word += ">=";
             }
             else if (nc == '<' || nc == '>')
             {
-                _pos++; _col++; word += nc;
+                _pos++;
+                _col++;
+                word += nc;
             }
             else if (nc == '&' || nc == '|' || nc == '^')
             {
-                _pos++; _col++; word += nc;
+                _pos++;
+                _col++;
+                word += nc;
             }
         }
+
         // operator+ → 合并为一个标识符
         if (word == "operator" && _pos < source.Length)
         {
             char nc = source[_pos];
             if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
             {
-                Advance(); word += nc;
+                Advance();
+                word += nc;
             }
             else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance(); Advance(); word += "==";
+                Advance();
+                Advance();
+                word += "==";
             }
             else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance(); Advance(); word += "!=";
+                Advance();
+                Advance();
+                word += "!=";
             }
             else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance(); Advance(); word += "<=";
+                Advance();
+                Advance();
+                word += "<=";
             }
             else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance(); Advance(); word += ">=";
+                Advance();
+                Advance();
+                word += ">=";
             }
             else if (nc == '<' || nc == '>')
             {
-                Advance(); word += nc;
+                Advance();
+                word += nc;
             }
             else if (nc == '&' || nc == '|' || nc == '^')
             {
-                Advance(); word += nc;
+                Advance();
+                word += nc;
             }
         }
+
         _col += (_pos - start);
 
         return new Token(TokenType.Identifier, word, line, col);
