@@ -40,7 +40,7 @@ public partial class Interpreter
         // 注册所有内置类型
         foreach (var t in new[]{RuntimeType.Object, RuntimeType.ValueType, RuntimeType.Int,
             RuntimeType.Float, RuntimeType.Bool, RuntimeType.String, RuntimeType.BigInt,
-            RuntimeType.Fraction, RuntimeType.BigFraction, RuntimeType.Class, RuntimeType.Function,
+            RuntimeType.Fraction, RuntimeType.BigFraction, RuntimeType.Class, RuntimeType.Function, RuntimeType.Block,
             RuntimeType.List, RuntimeType.Set, RuntimeType.Dict, RuntimeType.Void, RuntimeType.Type,
             RuntimeType.Ravel, RuntimeType.Any, RuntimeType.Every, RuntimeType.Exception, RuntimeType.ScopeType, RuntimeType.Property})
             AllTypes.Add(t);
@@ -208,7 +208,7 @@ public partial class Interpreter
         RuntimeType.Type.DefineMethod("Default", (s, _) =>
         {
             var tv = (TypeVal)s;
-            return EvalTypeCastDirect(tv, DefaultVal.Instance);
+            return RuntimeType.ConvertDirect(tv.Value, DefaultVal.Instance);
         });
         RuntimeType.Function.DefineMethod("Name", (s, a) =>
         {
@@ -266,17 +266,8 @@ public partial class Interpreter
             };
             return ToDone(FunctionVal.FromTrampolined(ba =>
             {
-                var block = ExpectBlock(ba[0], "with body");
-                var saved = CurrentScope;
-                if (copy is ObjectVal { InstanceScope: not null } ov2)
-                    CurrentScope = ov2.InstanceScope;
-                return Then(EvalBlockExec(block.Block), _ =>
-                {
-                    CurrentScope = saved;
-                    if (copy is ObjectVal { InstanceScope: not null } ov3)
-                        SyncScopeToFields(ov3.InstanceScope, ov3);
-                    return ToDone(copy);
-                });
+                var fn = ExpectFunc(ba[0], "with body");
+                return Then(fn.Trampolined([]), _ => ToDone(copy));
             }));
         }));
         systemModule.ModuleScope.Define("RavelMod", RuntimeType.Function, FunctionVal.FromDirect(a =>
@@ -380,7 +371,7 @@ public partial class Interpreter
         RuntimeType.Function.DefineMethod("scope", (s, _) =>
         {
             var fn = (FunctionVal)s;
-            return new ScopeVal(fn.Scope);
+            return new ScopeVal(fn.Scope ?? new Scope());
         });
         RuntimeType.Function.DefineMethod("setScope", (s, a) =>
         {

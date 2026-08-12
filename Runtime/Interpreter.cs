@@ -135,35 +135,35 @@ public partial class Interpreter
     /// <summary>While 内置函数：While { 条件 } → 返回等待 body 的函数</summary>
     private Step EvalWhile(RuntimeValue[] a)
     {
-        var c = ExpectBlock(a[0], "while cond");
+        var c = ExpectFunc(a[0], "while 条件");
         return ToDone(FunctionVal.FromTrampolined(ba =>
         {
-            var b = ExpectBlock(ba[0], "while body");
+            var b = ExpectFunc(ba[0], "while 循环体");
             return Loop(c, b, VoidVal.Instance);
         }));
     }
-    /// <summary>While 循环 CPS：重复调用条件块，真则执行体块，以 last 作为最终返回值</summary>
-    private Step Loop(BlockVal c, BlockVal b, RuntimeValue last) => Then(c.Invoke(), cv =>
+    /// <summary>While 循环 CPS：重复调用条件，真则执行循环体，以 last 作为最终返回值</summary>
+    private Step Loop(FunctionVal c, FunctionVal b, RuntimeValue last) => Then(c.Trampolined([]), cv =>
     {
         if (cv is not BoolVal bv) return ThrowRavel("while 条件必须是 bool");
         if (!bv.Value) return ToDone(last);
-        return Then(b.Invoke(), bv2 => Loop(c, b, bv2));
+        return Then(b.Trampolined([]), bv2 => Loop(c, b, bv2));
     });
 
     /// <summary>If 内置函数：If { 条件 } → 返回等待 then 的函数 → 返回等待 else 的函数</summary>
     private Step EvalIf(RuntimeValue[] a)
     {
-        var c = ExpectBlock(a[0], "if cond");
+        var c = ExpectFunc(a[0], "if 条件");
         return ToDone(FunctionVal.FromTrampolined(ta =>
         {
-            var t = ExpectBlock(ta[0], "if then");
+            var t = ExpectFunc(ta[0], "if then");
             return ToDone(FunctionVal.FromTrampolined(ea =>
             {
-                var e = ExpectBlock(ea[0], "if else");
-                return Then(c.Invoke(), cv =>
+                var e = ExpectFunc(ea[0], "if else");
+                return Then(c.Trampolined([]), cv =>
                 {
                     if (cv is not BoolVal b) return ThrowRavel("if 条件必须是 bool");
-                    return (b.Value ? t : e).Invoke();
+                    return (b.Value ? t : e).Trampolined([]);
                 });
             }));
         }));
@@ -222,7 +222,7 @@ public partial class Interpreter
     // ======================== 块/Lambda ========================
 
     /// <summary>将代码块 AST 包装为 BlockVal 值（惰性，不立即执行）</summary>
-    private Step EvalBlock(BlockExpr block) => ToDone(new BlockVal(block, CurrentScope, this));
+    private Step EvalBlock(BlockExpr block) => ToDone(new BlockVal(block, CurrentScope));
     /// <summary>立即执行代码块：压入新作用域，执行完后弹出</summary>
     public Step EvalBlockExec(BlockExpr block) => ToMore(() =>
     {
@@ -274,7 +274,7 @@ public partial class Interpreter
 
 
     /// <summary>断言值是 BlockVal，否则抛异常</summary>
-    private static BlockVal ExpectBlock(RuntimeValue v, string r) => v as BlockVal ?? throw new RuntimeException($"{r} 必须是代码块");
+    private static FunctionVal ExpectFunc(RuntimeValue v, string r) => v as FunctionVal ?? throw new RuntimeException($"{r} 必须是函数");
     /// <summary>按名称解析类型：先查类型注册表，再查当前作用域</summary>
     private RuntimeType ResolveType(string n, Scope? extra = null)
     {

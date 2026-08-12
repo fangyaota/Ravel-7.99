@@ -99,7 +99,7 @@ public partial class Interpreter
         {
             try
             {
-                return EvalTypeCastDirect(new TypeVal(target), val);
+                return RuntimeType.ConvertDirect(target, val);
             }
             catch
             {
@@ -108,54 +108,6 @@ public partial class Interpreter
         }
 
         return null;
-    }
-
-    /// <summary>直接类型转换（同步）：TypeVal → 对应 RuntimeValue，含 DefaultVal 默认值处理</summary>
-    private static RuntimeValue EvalTypeCastDirect(TypeVal tv, RuntimeValue val)
-    {
-        if (val is DefaultVal)
-        {
-            if (tv.Value == RuntimeType.Int) return new IntVal(0);
-            if (tv.Value == RuntimeType.Float) return new FloatVal(0);
-            if (tv.Value == RuntimeType.Bool) return new BoolVal(false);
-            if (tv.Value == RuntimeType.String) return new StringVal("");
-            if (tv.Value == RuntimeType.List) return new ListVal([]);
-            if (tv.Value == RuntimeType.Set) return new SetVal([]);
-            if (tv.Value == RuntimeType.Dict) return new DictVal([]);
-            if (tv.Value == RuntimeType.BigInt) return new BigIntVal(0);
-            if (tv.Value == RuntimeType.Fraction) return new FractionVal(0, 1);
-            if (tv.Value == RuntimeType.BigFraction) return new BigFractionVal(0, 1);
-            if (tv.Value == RuntimeType.Function)
-                return FunctionVal.FromDirect(_ => VoidVal.Instance);
-            return val;
-        }
-
-        if (tv.Value == RuntimeType.Int)
-            return val is IntVal i ? i :
-                val is FloatVal f ? new IntVal((int)f.Value) :
-                val is StringVal s ? new IntVal(int.Parse(s.Value)) :
-                val is BoolVal b ? new IntVal(b.Value ? 1 : 0) :
-                throw new RuntimeException("无法转换为 int");
-        if (tv.Value == RuntimeType.Float)
-            return val is IntVal i2 ? new FloatVal(i2.Value) :
-                val is FloatVal f2 ? f2 : throw new RuntimeException("无法转换为 float");
-        if (tv.Value == RuntimeType.String)
-            return val is StringVal sv ? sv : new StringVal(Show(val));
-        if (tv.Value == RuntimeType.Bool)
-            return val is BoolVal b3 ? b3 : throw new RuntimeException("无法转换为 bool");
-        throw new RuntimeException("无法转换类型");
-    }
-
-    /// <summary>将作用域变量同步回对象字段（with 语句结束时调用）</summary>
-    private static void SyncScopeToFields(Scope scope, ObjectVal inst)
-    {
-        var s = scope;
-        while (s != null)
-        {
-            foreach (var kv in s.Variables)
-                inst.Fields[kv.Key] = kv.Value.Value;
-            s = s.Parent;
-        }
     }
 
     /// <summary>浅拷贝作用域（with 语句用）</summary>
@@ -324,7 +276,6 @@ public partial class Interpreter
             return Then(EvalExpr(call.Arguments[0]), av => k.Impl(av));
         }
 
-        if (fv is TypeVal tv) return EvalTypeCast(tv, call.Arguments);
         if (fv is not FunctionVal fn) return ThrowRavel("无法调用: " + fv.Type);
         return EvalArgs(call.Arguments, args =>
         {
@@ -339,156 +290,6 @@ public partial class Interpreter
         });
     });
 
-    /// <summary>类型构造 / 类型转换：int(x) / string(x) / Exception(msg) 等</summary>
-    private Step EvalTypeCast(TypeVal tv, List<Expression> args)
-    {
-        if (args.Count != 1) return ThrowRavel("类型转换需要 1 个参数");
-        return Then(EvalExpr(args[0]), val =>
-        {
-            if (val is DefaultVal) return ToDone(EvalTypeCastDirect(tv, val));
-            if (tv.Value == RuntimeType.Int)
-            {
-                if (val is IntVal i) return ToDone(i);
-                if (val is StringVal s)
-                {
-                    if (int.TryParse(s.Value, out var n)) return ToDone(new IntVal(n));
-                    return ThrowRavel("无法将字符串转换为 int");
-                }
-
-                if (val is BoolVal b) return ToDone(new IntVal(b.Value ? 1 : 0));
-                if (val is FloatVal f) return ToDone(new IntVal((int)f.Value));
-                if (val is BigIntVal bi) return ToDone(new IntVal((int)bi.Value));
-                if (val is FractionVal fr1) return ToDone(new IntVal(fr1.Num / fr1.Den));
-                if (val is BigFractionVal bfr)
-                    return ToDone(new IntVal((int)(bfr.Num / bfr.Den)));
-                return ThrowRavel($"无法将 {val.Type} 转换为 int");
-            }
-
-            if (tv.Value == RuntimeType.Float)
-            {
-                if (val is IntVal i) return ToDone(new FloatVal(i.Value));
-                if (val is FloatVal f) return ToDone(f);
-                if (val is StringVal s)
-                {
-                    if (double.TryParse(s.Value, out var n)) return ToDone(new FloatVal(n));
-                    return ThrowRavel("无法将字符串转换为 float");
-                }
-
-                return ThrowRavel("无法将 {val.Type} 转换为 float");
-            }
-
-            if (tv.Value == RuntimeType.BigInt)
-            {
-                if (val is IntVal i) return ToDone(new BigIntVal(i.Value));
-                if (val is BigIntVal bi) return ToDone(bi);
-                if (val is StringVal s)
-                {
-                    if (BigInteger.TryParse(s.Value, out var n))
-                        return ToDone(new BigIntVal(n));
-                    return ThrowRavel("无法将字符串转换为 bigint");
-                }
-
-                if (val is FloatVal ff)
-                    return ToDone(new BigIntVal((BigInteger)ff.Value));
-                return ThrowRavel("无法将 {val.Type} 转换为 bigint");
-            }
-
-            if (tv.Value == RuntimeType.Float)
-            {
-                if (val is IntVal i) return ToDone(new FloatVal(i.Value));
-                if (val is FloatVal f) return ToDone(f);
-                if (val is StringVal s)
-                {
-                    if (double.TryParse(s.Value, out var n)) return ToDone(new FloatVal(n));
-                    return ThrowRavel("无法将字符串转换为 float");
-                }
-
-                return ThrowRavel("无法将 {val.Type} 转换为 float");
-            }
-
-            if (tv.Value == RuntimeType.BigInt)
-            {
-                if (val is IntVal i) return ToDone(new BigIntVal(i.Value));
-                if (val is BigIntVal bi) return ToDone(bi);
-                if (val is StringVal s)
-                {
-                    if (BigInteger.TryParse(s.Value, out var n))
-                        return ToDone(new BigIntVal(n));
-                    return ThrowRavel("无法将字符串转换为 bigint");
-                }
-
-                if (val is FloatVal ff)
-                    return ToDone(new BigIntVal((BigInteger)ff.Value));
-                return ThrowRavel("无法将 {val.Type} 转换为 bigint");
-            }
-
-            if (tv.Value == RuntimeType.Fraction)
-            {
-                if (val is IntVal i)
-                    return ToDone(FunctionVal.FromTrampolined(da =>
-                    {
-                        if (da.Length != 1 || da[0] is not IntVal d) return ThrowRavel("分数需要 int 分母");
-                        return ToDone(new FractionVal(i.Value, d.Value));
-                    }));
-                if (val is FractionVal f) return ToDone(f);
-                if (val is StringVal s)
-                {
-                    var p = s.Value.Split('/');
-                    if (p.Length == 2)
-                    {
-                        if (int.TryParse(p[0], out var n) && int.TryParse(p[1], out var d) && d != 0)
-                            return ToDone(new FractionVal(n, d));
-                    }
-
-                    return ThrowRavel("无效的分数字符串");
-                }
-
-                return ThrowRavel($"无法将 {val.Type} 转换为 fraction");
-            }
-
-            if (tv.Value == RuntimeType.BigFraction)
-            {
-                BigInteger GetBi(RuntimeValue v) =>
-                    v is IntVal i2 ? i2.Value : ((BigIntVal)v).Value;
-
-                switch (val)
-                {
-                    case IntVal:
-                    case BigIntVal:
-
-                        return ToDone(FunctionVal.FromTrampolined(da =>
-
-                        {
-                            if (da.Length != 1 ||
-                                (da[0] is not IntVal && da[0] is not BigIntVal))
-
-                                return ThrowRavel("大分数需要整数分母");
-
-                            return ToDone(new BigFractionVal(GetBi(val), GetBi(da[0])));
-                        }));
-
-                    case FractionVal fr:
-                        return ToDone(new BigFractionVal(fr.Num, fr.Den));
-                    case BigFractionVal bf:
-                        return ToDone(bf);
-                    default:
-                        return ThrowRavel($"无法将 {val.Type} 转换为 bigfraction");
-                }
-            }
-
-            if (tv.Value == RuntimeType.String) return ToDone(EvalTypeCastDirect(tv, val));
-            if (tv.Value == RuntimeType.Bool) return ToDone(EvalTypeCastDirect(tv, val));
-            if (tv.Value == RuntimeType.Exception)
-            {
-                if (args.Count != 1) return ThrowRavel("Exception 构造器需要 1 个参数");
-                return Then(EvalExpr(args[0]), val => ToDone(new ExceptionVal(Show(val))));
-            }
-
-            if (tv.Value == RuntimeType.Bool) return ToDone(EvalTypeCastDirect(tv, val));
-            if (tv.Value == RuntimeType.String) return ToDone(EvalTypeCastDirect(tv, val));
-            return ThrowRavel($"类型 {tv.Value.Name} 不能作为构造器调用");
-        });
-    }
 
     /// <summary>求值参数列表，结果放入数组后调用回调 k</summary>
     private Step EvalArgs(List<Expression> es, Func<RuntimeValue[], Step> k)
@@ -503,7 +304,7 @@ public partial class Interpreter
         if (i >= es.Count) return k(r);
         if (es[i] is BlockExpr b)
         {
-            r[i] = new BlockVal(b, CurrentScope, this);
+            r[i] = new BlockVal(b, CurrentScope);
             return EvalArgsRec(es, i + 1, r, k);
         }
 

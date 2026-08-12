@@ -26,7 +26,7 @@ public record FunctionVal : RuntimeValue
     public FunctionVal Prepend(BlockVal prefix)
     {
         var original = this;
-        var bindScope = prefix.CaptureScope;
+        var bindScope = prefix.Scope;
         return new FunctionVal(bindScope, (scope, args) =>
         {
             var saved = Interpreter.Current!.CurrentScope;
@@ -44,7 +44,7 @@ public record FunctionVal : RuntimeValue
     public FunctionVal Append(BlockVal suffix)
     {
         var original = this;
-        var bindScope = suffix.CaptureScope;
+        var bindScope = suffix.Scope;
         return new FunctionVal(bindScope, (scope, args) =>
         {
             var saved = Interpreter.Current!.CurrentScope;
