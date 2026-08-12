@@ -68,19 +68,19 @@ static void RunAllTests()
         if (expectError)
         {
             if (output.StartsWith("Error:"))
-                { Console.WriteLine($"OK (expected error)"); passed++; }
+            { Console.WriteLine($"OK (expected error)"); passed++; }
             else
-                { Console.WriteLine($"TODO (expected error, got output)"); todo++; }
+            { Console.WriteLine($"TODO (expected error, got output)"); todo++; }
         }
         else
         {
             if (output.Trim() == expected.Trim())
-                { Console.WriteLine("OK"); passed++; }
+            { Console.WriteLine("OK"); passed++; }
             else
             {
                 Console.WriteLine("TODO");
-                Console.WriteLine($"       expected: {expected.Trim().Replace("\n","\\n")}");
-                Console.WriteLine($"       got:      {output.Trim().Replace("\n","\\n")}");
+                Console.WriteLine($"       expected: {expected.Trim().Replace("\n", "\\n")}");
+                Console.WriteLine($"       got:      {output.Trim().Replace("\n", "\\n")}");
                 todo++;
             }
         }

@@ -53,7 +53,7 @@ public class BoxedValue
                     });
                 }));
             }
-            var cur = br.Instance is RuntimeValue.ObjectVal ov ? ov : throw new RuntimeException($"base.Instance is {br.Instance.GetType().Name}");
+            var cur = br.Instance is RuntimeValue.ObjectVal ov ? ov : throw new RuntimeException($"base.Instance 类型错误: {br.Instance.GetType().Name}");
             while (cur != null)
             {
                 if (cur.Fields.TryGetValue(name, out var f2)) return new BoxedValue(f2);
@@ -74,7 +74,7 @@ public class BoxedValue
             {
                 var vr = mv.ModuleScope.Lookup(name);
                 if (vr.HasAttr("unreadable"))
-                    throw new RuntimeException($"Variable '{name}' is unreadable");
+                    throw new RuntimeException($"变量 '{name}' 不可读取");
                 if (vr.HasAttr("outdated"))
                     Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
                 if (vr.HasAttr("private") || vr.HasAttr("protected"))
@@ -87,7 +87,7 @@ public class BoxedValue
                         cur = cur.Parent;
                     }
                     if (!ok)
-                        throw new RuntimeException($"Variable '{name}' is { (vr.HasAttr("private")?"private":"protected") }");
+                        throw new RuntimeException($"变量 '{name}' 是{ (vr.HasAttr("private")?"私有的":"受保护的") }");
                 }
                 if (vr.HasAttr("by"))
                 {
@@ -107,7 +107,7 @@ public class BoxedValue
             {
                 var vr = obj.InstanceScope.Lookup(name);
                 if (vr.HasAttr("unreadable"))
-                    throw new RuntimeException($"Variable '{name}' is unreadable");
+                    throw new RuntimeException($"变量 '{name}' 不可读取");
                 if (vr.HasAttr("outdated"))
                     Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
                 // 访问控制
@@ -121,7 +121,7 @@ public class BoxedValue
                         cur = cur.Parent;
                     }
                     if (!ok)
-                        throw new RuntimeException($"Variable '{name}' is { (vr.HasAttr("private")?"private":"protected") }");
+                        throw new RuntimeException($"变量 '{name}' 是{ (vr.HasAttr("private")?"私有的":"受保护的") }");
                     }
                     if (vr.HasAttr("by"))
                     {

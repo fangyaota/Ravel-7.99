@@ -5,6 +5,7 @@ using System.Linq;
 public partial class Interpreter
 {
     // ======================== 内置 ========================
+    /// <summary>注册所有内置类型、方法、运算符和 System 模块（While/If/CallCC/Eval/Using 等核心函数）</summary>
     private void RegisterBuiltins()
     {
         // Class 类型注册默认 init（支持 class 作为父类）
@@ -103,35 +104,35 @@ public partial class Interpreter
         RuntimeType.String.DefineMethod("Length",(s,_)=>new RuntimeValue.IntVal(((RuntimeValue.StringVal)s).Value.Length));
         RuntimeType.List.DefineMethod("Count",(s,_)=>new RuntimeValue.IntVal(((RuntimeValue.ListVal)s).Elements.Count));
         RuntimeType.List.DefineMethod("At",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.At expects int");
-            var lst=(RuntimeValue.ListVal)s; if(i.Value<0||i.Value>=lst.Elements.Count) throw new RuntimeException("Index out of range");
+            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.At 需要 int 参数");
+            var lst=(RuntimeValue.ListVal)s; if(i.Value<0||i.Value>=lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return lst.Elements[i.Value];
         });
         RuntimeType.List.DefineMethod("Add",(s,a)=>{
-            if(a.Length!=1) throw new RuntimeException("list.Add expects 1 arg");
+            if(a.Length!=1) throw new RuntimeException("list.Add 需要 1 个参数");
             ((RuntimeValue.ListVal)s).Elements.Add(a[0]);
             return RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.List.DefineMethod("Remove",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.Remove expects int");
-            var lst=(RuntimeValue.ListVal)s; if(i.Value<0||i.Value>=lst.Elements.Count) throw new RuntimeException("Index out of range");
+            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.Remove 需要 int 参数");
+            var lst=(RuntimeValue.ListVal)s; if(i.Value<0||i.Value>=lst.Elements.Count) throw new RuntimeException("索引超出范围");
             var v=lst.Elements[i.Value]; lst.Elements.RemoveAt(i.Value); return v;
         });
         RuntimeType.List.DefineMethod("Insert",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.Insert expects int");
+            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.Insert 需要 int 参数");
             var lst=(RuntimeValue.ListVal)s; var idx=i.Value;
-            if(idx<0||idx>lst.Elements.Count) throw new RuntimeException("Index out of range");
+            if(idx<0||idx>lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return RuntimeValue.FunctionVal.FromDirect(va=>{
-                if(va.Length!=1) throw new RuntimeException("list.Insert expects value");
+                if(va.Length!=1) throw new RuntimeException("list.Insert 需要值参数");
                 lst.Elements.Insert(idx,va[0]); return RuntimeValue.VoidVal.Instance;
             });
         });
         RuntimeType.List.DefineMethod("Set",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.Set expects int");
+            if(a.Length!=1||a[0] is not RuntimeValue.IntVal i) throw new RuntimeException("list.Set 需要 int 参数");
             var lst=(RuntimeValue.ListVal)s; var idx=i.Value;
-            if(idx<0||idx>=lst.Elements.Count) throw new RuntimeException("Index out of range");
+            if(idx<0||idx>=lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return RuntimeValue.FunctionVal.FromDirect(va=>{
-                if(va.Length!=1) throw new RuntimeException("list.Set expects value");
+                if(va.Length!=1) throw new RuntimeException("list.Set 需要值参数");
                 lst.Elements[idx]=va[0]; return RuntimeValue.VoidVal.Instance;
             });
         });
@@ -139,38 +140,38 @@ public partial class Interpreter
         // ---- Set 方法 ----
         RuntimeType.Set.DefineMethod("Count",(s,_)=>new RuntimeValue.IntVal(((RuntimeValue.SetVal)s).Elements.Count));
         RuntimeType.Set.DefineMethod("Add",(s,a)=>{
-            if(a.Length!=1) throw new RuntimeException("set.Add expects 1 arg");
+            if(a.Length!=1) throw new RuntimeException("set.Add 需要 1 个参数");
             ((RuntimeValue.SetVal)s).Elements.Add(a[0]);
             return RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Set.DefineMethod("Remove",(s,a)=>{
-            if(a.Length!=1) throw new RuntimeException("set.Remove expects 1 arg");
+            if(a.Length!=1) throw new RuntimeException("set.Remove 需要 1 个参数");
             ((RuntimeValue.SetVal)s).Elements.Remove(a[0]);
             return RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Set.DefineMethod("Contains",(s,a)=>{
-            if(a.Length!=1) throw new RuntimeException("set.Contains expects 1 arg");
+            if(a.Length!=1) throw new RuntimeException("set.Contains 需要 1 个参数");
             return new RuntimeValue.BoolVal(((RuntimeValue.SetVal)s).Elements.Contains(a[0]));
         });
 
         // ---- Dict 方法 ----
         RuntimeType.Dict.DefineMethod("Count",(s,_)=>new RuntimeValue.IntVal(((RuntimeValue.DictVal)s).Entries.Count));
         RuntimeType.Dict.DefineMethod("Get",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.StringVal key) throw new RuntimeException("dict.Get expects string");
+            if(a.Length!=1||a[0] is not RuntimeValue.StringVal key) throw new RuntimeException("dict.Get 需要 string 参数");
             var d=(RuntimeValue.DictVal)s;
             if(d.Entries.TryGetValue(key.Value,out var v)) return v;
-            throw new RuntimeException($"Key not found: {key.Value}");
+            throw new RuntimeException($"键不存在: {key.Value}");
         });
         RuntimeType.Dict.DefineMethod("Set",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.StringVal key) throw new RuntimeException("dict.Set expects string key");
+            if(a.Length!=1||a[0] is not RuntimeValue.StringVal key) throw new RuntimeException("dict.Set 需要 string 键");
             return RuntimeValue.FunctionVal.FromDirect(va=>{
-                if(va.Length!=1) throw new RuntimeException("dict.Set expects value");
+                if(va.Length!=1) throw new RuntimeException("dict.Set 需要值参数");
                 ((RuntimeValue.DictVal)s).Entries[key.Value]=va[0];
                 return RuntimeValue.VoidVal.Instance;
             });
         });
         RuntimeType.Dict.DefineMethod("Has",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.StringVal key) throw new RuntimeException("dict.Has expects string");
+            if(a.Length!=1||a[0] is not RuntimeValue.StringVal key) throw new RuntimeException("dict.Has 需要 string 参数");
             return new RuntimeValue.BoolVal(((RuntimeValue.DictVal)s).Entries.ContainsKey(key.Value));
         });
         RuntimeType.Dict.DefineMethod("Keys",(s,_)=>{
@@ -195,7 +196,7 @@ public partial class Interpreter
             return new RuntimeValue.TypeVal(p);
         });
         RuntimeType.Type.DefineMethod("Is",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.TypeVal other) throw new RuntimeException("type.Is expects type");
+            if(a.Length!=1||a[0] is not RuntimeValue.TypeVal other) throw new RuntimeException("type.Is 需要 type 参数");
             return new RuntimeValue.BoolVal(((RuntimeValue.TypeVal)s).Value.IsAssignableTo(other.Value));
         });
         RuntimeType.Type.DefineMethod("Default",(s,_)=>{
@@ -234,13 +235,13 @@ public partial class Interpreter
         sysMod.ModuleScope.Define("CallCC",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>EvalCallCC(a)));
         sysMod.ModuleScope.Define("ValueTypeVal",RuntimeType.Type,new RuntimeValue.TypeVal(RuntimeType.ValueType));
         sysMod.ModuleScope.Define("TypeOf",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
-            if(a.Length!=1) throw new RuntimeException("typeof expects 1 arg");
+            if(a.Length!=1) throw new RuntimeException("typeof 需要 1 个参数");
             return ToDone(new RuntimeValue.TypeVal(a[0].Type));
         }));
         sysMod.ModuleScope.Define("RandInt",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.IntVal lo) throw new RuntimeException("randint expects int (min)");
+            if(a.Length!=1||a[0] is not RuntimeValue.IntVal lo) throw new RuntimeException("randint 需要 int 参数(最小值)");
             return ToDone(RuntimeValue.FunctionVal.FromTrampolined(b=>{
-                if(b.Length!=1||b[0] is not RuntimeValue.IntVal hi) throw new RuntimeException("randint expects int (max)");
+                if(b.Length!=1||b[0] is not RuntimeValue.IntVal hi) throw new RuntimeException("randint 需要 int 参数(最大值)");
                 return ToDone(new RuntimeValue.IntVal(Random.Shared.Next(lo.Value,hi.Value)));
             }));
         }));
@@ -285,7 +286,7 @@ public partial class Interpreter
             string? full=null;
             foreach(var d in refs){ var p=System.IO.Path.Combine(d,path); if(File.Exists(p)){full=p;break;} }
             if(full==null) foreach(var d in refs){ var p=System.IO.Path.Combine(d,path+".rav"); if(File.Exists(p)){full=p;break;} }
-            if(full==null) return ThrowRavel("Cannot find file: "+path);
+            if(full==null) return ThrowRavel("找不到文件: "+path);
             full=Path.GetFullPath(full);
             if(_loading.Contains(full)) return ThrowRavel("Circular reference detected: "+path);
             if(_loaded.Contains(full)) return ToDone(RuntimeValue.VoidVal.Instance);
@@ -309,18 +310,18 @@ public partial class Interpreter
         });
         RuntimeType.ScopeType.DefineMethod("Define",(s,a)=>{
             if(a.Length!=1||a[0] is not RuntimeValue.StringVal name)
-                throw new RuntimeException("scope.Define expects a name string");
+                throw new RuntimeException("scope.Define 需要字符串名称");
             var scope=((RuntimeValue.ScopeVal)s).Scope;
             return RuntimeValue.FunctionVal.FromDirect(b=>{
                 if(b.Length!=1||b[0] is not RuntimeValue.TypeVal tv)
-                    throw new RuntimeException("scope.Define expects a type");
+                    throw new RuntimeException("scope.Define 需要 type 参数");
                 scope.Define(name.Value,tv.Value,RuntimeValue.VoidVal.Instance);
                 return RuntimeValue.VoidVal.Instance;
             });
         });
         RuntimeType.ScopeType.DefineMethod("Lookup",(s,a)=>{
             if(a.Length!=1||a[0] is not RuntimeValue.StringVal name)
-                throw new RuntimeException("scope.Lookup expects a string");
+                throw new RuntimeException("scope.Lookup 需要字符串参数");
             var scope=((RuntimeValue.ScopeVal)s).Scope;
             var vr=scope.Lookup(name.Value);
             return new RuntimeValue.PropertyVal(
@@ -347,7 +348,7 @@ public partial class Interpreter
             var pv=(RuntimeValue.PropertyVal)s;
             return pv.Attrs!=null
                 ?new RuntimeValue.ListVal(pv.Attrs.Select(a=>new RuntimeValue.StringVal(a)).Cast<RuntimeValue>().ToList())
-                :new RuntimeValue.ListVal(new List<RuntimeValue>());
+                :new RuntimeValue.ListVal([]);
         });
 
         // ---- Function 方法 ----
@@ -356,22 +357,22 @@ public partial class Interpreter
             return fn.Scope!=null?new RuntimeValue.ScopeVal(fn.Scope):RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Function.DefineMethod("setScope",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.ScopeVal sv) throw new RuntimeException("setScope expects a Scope");
+            if(a.Length!=1||a[0] is not RuntimeValue.ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
             ((RuntimeValue.FunctionVal)s).Scope=sv.Scope;
             return RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Function.DefineMethod("setType",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.TypeVal tv) throw new RuntimeException("setType expects a type");
+            if(a.Length!=1||a[0] is not RuntimeValue.TypeVal tv) throw new RuntimeException("setType 需要 type 参数");
             var fn=(RuntimeValue.FunctionVal)s;
             fn.Meta=new RuntimeValue.ClassMeta(Type:tv.Value,Init:fn,Fields:new string[0],MetaType:RuntimeType.Class);
             return RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Function.DefineMethod("prepend",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.BlockVal p) throw new RuntimeException("prepend expects a block");
+            if(a.Length!=1||a[0] is not RuntimeValue.BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
             return ((RuntimeValue.FunctionVal)s).Prepend(p);
         });
         RuntimeType.Function.DefineMethod("append",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.BlockVal p) throw new RuntimeException("append expects a block");
+            if(a.Length!=1||a[0] is not RuntimeValue.BlockVal p) throw new RuntimeException("append 需要代码块参数");
             return ((RuntimeValue.FunctionVal)s).Append(p);
         });
 
@@ -379,11 +380,11 @@ public partial class Interpreter
         RuntimeType.Type.DefineMethod("Proto",(s,_)=>{
             var rt=s is RuntimeValue.TypeVal tv?tv.Value
                 :s is RuntimeValue.FunctionVal fn&&fn.Meta!=null?fn.Meta.Type
-                :throw new RuntimeException("Proto expects a type or class");
+                :throw new RuntimeException("Proto 需要 type 或 class");
             return rt.Proto!=null?new RuntimeValue.ScopeVal(rt.Proto):RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Type.DefineMethod("Instantiate",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.ScopeVal sv) throw new RuntimeException("Instantiate expects a Scope");
+            if(a.Length!=1||a[0] is not RuntimeValue.ScopeVal sv) throw new RuntimeException("Instantiate 需要 Scope 参数");
             var rt=((RuntimeValue.TypeVal)s).Value;
             var fields=new Dictionary<string,RuntimeValue>();
             foreach(var kv in sv.Scope.Variables){
@@ -397,7 +398,7 @@ public partial class Interpreter
             return rt.Initializer!=null?rt.Initializer:RuntimeValue.VoidVal.Instance;
         });
         RuntimeType.Type.DefineMethod("setInitializer",(s,a)=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.FunctionVal fn) throw new RuntimeException("setInitializer expects a function");
+            if(a.Length!=1||a[0] is not RuntimeValue.FunctionVal fn) throw new RuntimeException("setInitializer 需要函数参数");
             ((RuntimeValue.TypeVal)s).Value.Initializer=fn;
             return RuntimeValue.VoidVal.Instance;
         });
@@ -408,18 +409,18 @@ public partial class Interpreter
             return RuntimeValue.VoidVal.Instance;
         }));
         sysMod.ModuleScope.Define("property",RuntimeType.Function,RuntimeValue.FunctionVal.FromDirect(a=>{
-            if(a.Length!=1||a[0] is not RuntimeValue.FunctionVal g) throw new RuntimeException("property expects getter");
+            if(a.Length!=1||a[0] is not RuntimeValue.FunctionVal g) throw new RuntimeException("property 需要 getter 函数");
             return RuntimeValue.FunctionVal.FromDirect(b=>{
-                if(b.Length!=1||b[0] is not RuntimeValue.FunctionVal s) throw new RuntimeException("property expects setter");
+                if(b.Length!=1||b[0] is not RuntimeValue.FunctionVal s) throw new RuntimeException("property 需要 setter 函数");
                 return new RuntimeValue.PropertyVal(g,s);
             });
         }));
         sysMod.ModuleScope.Define("Foreach",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
             if(a.Length!=1||a[0] is not RuntimeValue.ListVal lst)
-                throw new RuntimeException("Foreach expects a list");
+                throw new RuntimeException("Foreach 需要 list 参数");
             return ToDone(RuntimeValue.FunctionVal.FromTrampolined(b=>{
                 if(b.Length!=1||b[0] is not RuntimeValue.FunctionVal fn)
-                    throw new RuntimeException("Foreach expects a function");
+                    throw new RuntimeException("Foreach 需要函数参数");
                 RuntimeValue last=RuntimeValue.VoidVal.Instance;
                 foreach(var item in lst.Elements){
                     var s=fn.Trampolined!=null?fn.Trampolined(new[]{item}):ToDone(fn.Direct!(new[]{item}));
@@ -438,7 +439,7 @@ public partial class Interpreter
         }));
         sysMod.ModuleScope.Define("Assert",RuntimeType.Function,RuntimeValue.FunctionVal.FromTrampolined(a=>{
             if(a.Length!=1||a[0] is not RuntimeValue.BoolVal cond)
-                return ThrowRavel("assert expects bool");
+                return ThrowRavel("assert 需要 bool 参数");
             var ok=cond.Value;
             return ToDone(RuntimeValue.FunctionVal.FromDirect(ma=>{
                 var msg=ma.Length>0&&ma[0] is RuntimeValue.StringVal s?s.Value:"assertion failed: "+Show(cond);

@@ -8,9 +8,7 @@ public class Lexer
     private int _col = 1;
 
     // Ravel 无关键字 — while/if 等是普通标识符，在运行时作为内置函数处理
-    private static readonly Dictionary<string, TokenType> Keywords = new()
-    {
-    };
+    private static readonly Dictionary<string, TokenType> Keywords = [];
 
     public Lexer(string source)
     {
@@ -107,7 +105,7 @@ public class Lexer
                 ',' => TokenType.Comma,
                 '.' => TokenType.Dot,
                 '|' => TokenType.Pipe,
-                _   => null,
+                _ => null,
             };
 
             if (single is TokenType tt)
@@ -139,7 +137,7 @@ public class Lexer
                 continue;
             }
 
-            throw new Exception($"Unexpected character '{c}' at {_line}:{_col}");
+            throw new Exception($"未预期的字符 '{c}'，位置 {_line}:{_col}");
         }
 
         tokens.Add(new Token(TokenType.EndOfFile, "", _line, _col));
@@ -207,41 +205,69 @@ public class Lexer
         while (_pos < _source.Length && (char.IsLetterOrDigit(_source[_pos]) || _source[_pos] == '_'))
             _pos++;
         string word = _source[start.._pos];
-        if(word=="operator"&&_pos<_source.Length){
-            char nc=_source[_pos];
-            if(nc=='+'||nc=='-'||nc=='*'||nc=='/'||nc=='%'){
-                _pos++; _col++; word+=nc;
-            }else if(nc=='='&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                _pos+=2; _col+=2; word+="==";
-            }else if(nc=='!'&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                _pos+=2; _col+=2; word+="!=";
-            }else if(nc=='<'&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                _pos+=2; _col+=2; word+="<=";
-            }else if(nc=='>'&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                _pos+=2; _col+=2; word+=">=";
-            }else if(nc=='<'||nc=='>'){
-                _pos++; _col++; word+=nc;
-            }else if(nc=='&'||nc=='|'||nc=='^'){
-                _pos++; _col++; word+=nc;
+        if (word == "operator" && _pos < _source.Length)
+        {
+            char nc = _source[_pos];
+            if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
+            {
+                _pos++; _col++; word += nc;
+            }
+            else if (nc == '=' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                _pos += 2; _col += 2; word += "==";
+            }
+            else if (nc == '!' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                _pos += 2; _col += 2; word += "!=";
+            }
+            else if (nc == '<' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                _pos += 2; _col += 2; word += "<=";
+            }
+            else if (nc == '>' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                _pos += 2; _col += 2; word += ">=";
+            }
+            else if (nc == '<' || nc == '>')
+            {
+                _pos++; _col++; word += nc;
+            }
+            else if (nc == '&' || nc == '|' || nc == '^')
+            {
+                _pos++; _col++; word += nc;
             }
         }
         // operator+ → 合并为一个标识符
-        if(word=="operator"&&_pos<_source.Length){
-            char nc=_source[_pos];
-            if(nc=='+'||nc=='-'||nc=='*'||nc=='/'||nc=='%'){
-                Advance(); word+=nc;
-            }else if(nc=='='&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                Advance();Advance(); word+="==";
-            }else if(nc=='!'&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                Advance();Advance(); word+="!=";
-            }else if(nc=='<'&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                Advance();Advance(); word+="<=";
-            }else if(nc=='>'&&_pos+1<_source.Length&&_source[_pos+1]=='='){
-                Advance();Advance(); word+=">=";
-            }else if(nc=='<'||nc=='>'){
-                Advance(); word+=nc;
-            }else if(nc=='&'||nc=='|'||nc=='^'){
-                Advance(); word+=nc;
+        if (word == "operator" && _pos < _source.Length)
+        {
+            char nc = _source[_pos];
+            if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
+            {
+                Advance(); word += nc;
+            }
+            else if (nc == '=' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                Advance(); Advance(); word += "==";
+            }
+            else if (nc == '!' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                Advance(); Advance(); word += "!=";
+            }
+            else if (nc == '<' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                Advance(); Advance(); word += "<=";
+            }
+            else if (nc == '>' && _pos + 1 < _source.Length && _source[_pos + 1] == '=')
+            {
+                Advance(); Advance(); word += ">=";
+            }
+            else if (nc == '<' || nc == '>')
+            {
+                Advance(); word += nc;
+            }
+            else if (nc == '&' || nc == '|' || nc == '^')
+            {
+                Advance(); word += nc;
             }
         }
         _col += (_pos - start);

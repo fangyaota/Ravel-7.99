@@ -9,9 +9,9 @@ public class RuntimeType
     public RuntimeType Parent { get; private set; }
 
     /// <summary>操作符表：op → FunctionVal（CPS 兼容）</summary>
-    public readonly Dictionary<string, RuntimeValue.FunctionVal> Operators = new();
+    public readonly Dictionary<string, RuntimeValue.FunctionVal> Operators = [];
     /// <summary>方法表：方法名 → 实现（self + args → result）</summary>
-    private readonly Dictionary<string, Func<RuntimeValue, RuntimeValue[], RuntimeValue>> _methods = new();
+    private readonly Dictionary<string, Func<RuntimeValue, RuntimeValue[], RuntimeValue>> _methods = [];
     public IEnumerable<string> MethodNames => _methods.Keys;
     /// <summary>原型 scope：类定义时 block 执行结果</summary>
     public Scope? Proto { get; set; }
@@ -65,7 +65,7 @@ public class RuntimeType
         public static readonly RuntimeType Property;
 
     // 内置运算符表：(类型, 运算符) → 实现
-    private static readonly Dictionary<(RuntimeType, string), Func<RuntimeValue, RuntimeValue, RuntimeValue>> _builtinOps = new();
+    private static readonly Dictionary<(RuntimeType, string), Func<RuntimeValue, RuntimeValue, RuntimeValue>> _builtinOps = [];
 
     // 静态初始化 — 先创建所有 null，再通过反射赋值 Parent
     static RuntimeType()
@@ -198,17 +198,17 @@ public class RuntimeType
         RuntimeValue.BigIntVal bi => (double)bi.Value,
         RuntimeValue.FractionVal fr => (double)fr.Num / fr.Den,
         RuntimeValue.BigFractionVal bf => (double)bf.Num / (double)bf.Den,
-        _ => throw new RuntimeException("expected numeric")
+        _ => throw new RuntimeException("需要数值类型")
     };
     static float AsFloat(RuntimeValue v) => v switch {
         RuntimeValue.IntVal i => i.Value,
         RuntimeValue.FloatVal f => (float)f.Value,
-        _ => throw new RuntimeException("expected numeric")
+        _ => throw new RuntimeException("需要数值类型")
     };
     static System.Numerics.BigInteger AsBigInt(RuntimeValue v) => v switch {
         RuntimeValue.IntVal i => i.Value,
         RuntimeValue.BigIntVal bi => bi.Value,
-        _ => throw new RuntimeException("expected bigint")
+        _ => throw new RuntimeException("需要 bigint 类型")
     };
     static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<int,int,int,int,RuntimeValue> f){
         int na=a is RuntimeValue.FractionVal fa?fa.Num:((RuntimeValue.IntVal)a).Value;
@@ -255,7 +255,7 @@ public class RuntimeType
             if (current.Parent == current) break; // object reached
             current = current.Parent;
         }
-        throw new RuntimeException($"Type '{Name}' has no method '{name}'");
+        throw new RuntimeException($"类型 '{Name}' 没有方法 '{name}'");
     }
 
     // ============================================================

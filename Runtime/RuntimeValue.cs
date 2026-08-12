@@ -288,7 +288,7 @@ public abstract record RuntimeValue
     public RuntimeValue Expect(RuntimeType expected, string context)
     {
         if (!HasType(expected))
-            throw new RuntimeException($"Type error in {context}: expected {expected}, got {Type}");
+            throw new RuntimeException($"{context} 类型错误: 期望 {expected}，实际 {Type}");
         return this;
     }
 }

@@ -5,7 +5,7 @@ public class Variable
     public string Name { get; }
     public RuntimeType TypeConstraint { get; private set; }
     public RuntimeValue Value { get; private set; }
-    readonly HashSet<string> _attrs = new();
+    readonly HashSet<string> _attrs = [];
 
     public Variable(string name, RuntimeType typeConstraint, RuntimeValue initialValue)
     { Name = name; TypeConstraint = typeConstraint; Value = initialValue; }
@@ -25,12 +25,12 @@ public class Variable
 
     public void Assign(RuntimeValue newValue)
     {
-        if(IsReadonly) throw new RuntimeException("Cannot assign to readonly variable '" + Name + "'");
-        if(TypeConstraint != RuntimeType.Any && !newValue.Type.IsAssignableTo(TypeConstraint))
-            throw new RuntimeException("Type error: cannot assign " + newValue.Type + " to '" + Name + "' (declared " + TypeConstraint + ")");
+        if (IsReadonly) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
+        if (TypeConstraint != RuntimeType.Any && !newValue.Type.IsAssignableTo(TypeConstraint))
+            throw new RuntimeException("类型错误: 无法将 " + newValue.Type + " 赋值给 '" + Name + "' (声明为 " + TypeConstraint + ")");
         Value = newValue;
     }
 
-    public void Update(RuntimeValue newValue, RuntimeType? newType) { Value = newValue; if(newType!=null) TypeConstraint = newType; }
+    public void Update(RuntimeValue newValue, RuntimeType? newType) { Value = newValue; if (newType != null) TypeConstraint = newType; }
     public override string ToString() => Name + ": " + TypeConstraint + " = " + Value;
 }

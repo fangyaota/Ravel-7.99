@@ -1,4 +1,5 @@
 namespace Ravel;
+
 using System.Linq;
 
 public class Parser
@@ -35,35 +36,40 @@ public class Parser
     //  语句
     // ========================================
 
-    static readonly HashSet<string> _modifiers = new(){"init","readonly","override","new","public","private","protected","outdated","unreadable","by","core"};
+    static readonly HashSet<string> _modifiers = ["init", "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"];
     static bool IsMod(string kw) => _modifiers.Contains(kw) || kw.StartsWith("operator");
     /// <summary>类机制内部词——禁止作为变量名（base/this 是类内可用变量，不禁）</summary>
-    static readonly HashSet<string> _reservedWords = new(){"init","thistype","block","core"};
+    static readonly HashSet<string> _reservedWords = ["init", "thistype", "block", "core"];
 
     private Statement ParseStatement()
     {
         // 修饰符
-        var attrs=new List<string>();
-        while(true){
-            if(Check(TokenType.Identifier)){
-                var kw=Peek().Lexeme;
-                bool isMod=IsMod(kw);
-                if(!isMod) break;
+        var attrs = new List<string>();
+        while (true)
+        {
+            if (Check(TokenType.Identifier))
+            {
+                var kw = Peek().Lexeme;
+                bool isMod = IsMod(kw);
+                if (!isMod) break;
                 // 下一个 token 是定义符 → 当前是名字，不是修饰符
-                if(_pos+1<_tokens.Count){
-                    var nt=_tokens[_pos+1].Type;
-                    if(nt==TokenType.ColonEqual||nt==TokenType.ColonColonEqual||nt==TokenType.ColonColon||nt==TokenType.Colon)
+                if (_pos + 1 < _tokens.Count)
+                {
+                    var nt = _tokens[_pos + 1].Type;
+                    if (nt == TokenType.ColonEqual || nt == TokenType.ColonColonEqual || nt == TokenType.ColonColon || nt == TokenType.Colon)
                         break;
                 }
                 _pos++; attrs.Add(kw);
-            }else break;
+            }
+            else break;
         }
-        if(attrs.Count>0){
-            if(Check(TokenType.Identifier)&&(CheckNext(TokenType.ColonEqual)||CheckNext(TokenType.Colon)||CheckNext(TokenType.ColonColonEqual)||CheckNext(TokenType.ColonColon)))
+        if (attrs.Count > 0)
+        {
+            if (Check(TokenType.Identifier) && (CheckNext(TokenType.ColonEqual) || CheckNext(TokenType.Colon) || CheckNext(TokenType.ColonColonEqual) || CheckNext(TokenType.ColonColon)))
                 return ParseDefinition(attrs);
-            if(Check(TokenType.ColonEqual)||Check(TokenType.Colon)||Check(TokenType.ColonColonEqual)||Check(TokenType.ColonColon))
+            if (Check(TokenType.ColonEqual) || Check(TokenType.Colon) || Check(TokenType.ColonColonEqual) || Check(TokenType.ColonColon))
                 return ParseDefinition(attrs);
-            throw ParseError("Expected ':=' after modifier");
+            throw ParseError("修饰符后需要 ':='");
         }
         // 普通定义：IDENT := expr 或 IDENT : type = expr
         // 普通定义：IDENT := expr 或 IDENT : type = expr
@@ -84,28 +90,34 @@ public class Parser
     }
 
     /// <summary>name := expr  |  name: Type = expr</summary>
-    private Statement ParseDefinition(List<string>? attrs=null)
+    private Statement ParseDefinition(List<string>? attrs = null)
     {
         string name;
         int line, col;
-        if(attrs!=null&&attrs.Count>0){
-            if(Check(TokenType.Identifier)){
-                var n=Consume(TokenType.Identifier,"Expected variable name");
-                name=n.Lexeme; line=n.Line; col=n.Column;
-            }else{
-                name=attrs!.FirstOrDefault(a=>a.StartsWith("operator"))??attrs[0];
-                line=Previous().Line; col=Previous().Column;
+        if (attrs != null && attrs.Count > 0)
+        {
+            if (Check(TokenType.Identifier))
+            {
+                var n = Consume(TokenType.Identifier, "需要变量名");
+                name = n.Lexeme; line = n.Line; col = n.Column;
             }
-        }else{
-            var nameToken=Consume(TokenType.Identifier,"Expected variable name");
-            name=nameToken.Lexeme; line=nameToken.Line; col=nameToken.Column;
+            else
+            {
+                name = attrs!.FirstOrDefault(a => a.StartsWith("operator")) ?? attrs[0];
+                line = Previous().Line; col = Previous().Column;
+            }
+        }
+        else
+        {
+            var nameToken = Consume(TokenType.Identifier, "需要变量名");
+            name = nameToken.Lexeme; line = nameToken.Line; col = nameToken.Column;
         }
 
         string? typeAnnotation = null;
         bool autoName = false;
 
         if (_reservedWords.Contains(name))
-            throw ParseError($"'{name}' is a reserved word");
+            throw ParseError($"'{name}' 是保留字");
 
         if (Match(TokenType.ColonColonEqual))
         {
@@ -114,9 +126,9 @@ public class Parser
         else if (Match(TokenType.ColonColon))
         {
             autoName = true;
-            var typeToken = Consume(TokenType.Identifier, "Expected type name after '::'");
+            var typeToken = Consume(TokenType.Identifier, "'::' 后需要类型名");
             typeAnnotation = typeToken.Lexeme;
-            Consume(TokenType.Equal, "Expected '=' after type annotation");
+            Consume(TokenType.Equal, "类型注解后需要 '='");
         }
         else if (Match(TokenType.ColonEqual))
         {
@@ -124,13 +136,13 @@ public class Parser
         }
         else if (Match(TokenType.Colon))
         {
-            var typeToken = Consume(TokenType.Identifier, "Expected type name after ':'");
+            var typeToken = Consume(TokenType.Identifier, "':' 后需要类型名");
             typeAnnotation = typeToken.Lexeme;
-            Consume(TokenType.Equal, "Expected '=' after type annotation");
+            Consume(TokenType.Equal, "类型注解后需要 '='");
         }
         else
         {
-            throw ParseError("Expected ':=', '::=', ': type =', or ':: type =' for variable definition");
+            throw ParseError("变量定义需要 ':='、'::='、': type =' 或 ':: type ='");
         }
 
         _holeCount = 0;
@@ -144,7 +156,8 @@ public class Parser
 
         var result = new VarDefinition(name, typeAnnotation, value, attrs, autoName)
         {
-            Line = line, Column = col,
+            Line = line,
+            Column = col,
         };
         if (autoName)
             return result; // 标记由 EvalStmt 处理
@@ -153,8 +166,8 @@ public class Parser
 
     private Statement ParseAssignment()
     {
-        var nameToken = Consume(TokenType.Identifier, "Expected variable name");
-        Consume(TokenType.Equal, "Expected '='");
+        var nameToken = Consume(TokenType.Identifier, "需要变量名");
+        Consume(TokenType.Equal, "需要 '='");
         _holeCount = 0;
         var value = ParseExpression();
         SkipNewlines();
@@ -164,7 +177,8 @@ public class Parser
 
         return new Assignment(nameToken.Lexeme, value)
         {
-            Line = nameToken.Line, Column = nameToken.Column,
+            Line = nameToken.Line,
+            Column = nameToken.Column,
         };
     }
 
@@ -335,7 +349,7 @@ public class Parser
         // .成员访问  — 在空格调用之前处理
         while (Match(TokenType.Dot))
         {
-            var member = Consume(TokenType.Identifier, "Expected member name after '.'");
+            var member = Consume(TokenType.Identifier, "'.' 后需要成员名");
             expr = new MemberAccess(expr, member.Lexeme) { Line = expr.Line, Column = expr.Column };
         }
 
@@ -347,12 +361,13 @@ public class Parser
             var arg = ParsePrimary();
             while (Match(TokenType.Dot))
             {
-                var mem = Consume(TokenType.Identifier, "Expected member name after '.'");
+                var mem = Consume(TokenType.Identifier, "'.' 后需要成员名");
                 arg = new MemberAccess(arg, mem.Lexeme) { Line = arg.Line, Column = arg.Column };
             }
-            expr = new CallExpr(expr, new List<Expression> { arg })
+            expr = new CallExpr(expr, [arg])
             {
-                Line = expr.Line, Column = expr.Column,
+                Line = expr.Line,
+                Column = expr.Column,
             };
         }
 
@@ -370,12 +385,12 @@ public class Parser
             var lexeme = Previous().Lexeme;
             var isFloat = lexeme.Contains('.');
             return new NumberLiteral(double.Parse(lexeme), isFloat)
-                { Line = Previous().Line, Column = Previous().Column };
+            { Line = Previous().Line, Column = Previous().Column };
         }
 
         if (Match(TokenType.String))
             return new StringLiteral(Previous().Lexeme)
-                { Line = Previous().Line, Column = Previous().Column };
+            { Line = Previous().Line, Column = Previous().Column };
 
         if (Match(TokenType.Identifier))
         {
@@ -386,7 +401,7 @@ public class Parser
                 return new HoleExpr(_holeCount - 1) { Line = Previous().Line, Column = Previous().Column };
             }
             return new IdentifierExpr(lexeme)
-                { Line = Previous().Line, Column = Previous().Column };
+            { Line = Previous().Line, Column = Previous().Column };
         }
 
         if (Match(TokenType.LeftParen))
@@ -402,7 +417,7 @@ public class Parser
         if (Match(TokenType.LeftBrace))
             return ParseBrace();
 
-        throw ParseError($"Expected expression, got {Peek()}");
+        throw ParseError($"需要表达式，但得到 {Peek()}");
     }
 
     // ========================================
@@ -435,13 +450,13 @@ public class Parser
                 var pName = _tokens[_pos].Lexeme;
                 _pos++; // IDENT
                 _pos++; // :
-                var pType = Consume(TokenType.Identifier, "Expected type name in parameter").Lexeme;
+                var pType = Consume(TokenType.Identifier, "参数需要类型名").Lexeme;
                 @params.Add(new Parameter(pName, pType));
                 SkipNewlines();
             }
 
-            Consume(TokenType.RightParen, "Expected ')' after lambda parameters");
-            Consume(TokenType.Arrow, "Expected '=>' after lambda parameters");
+            Consume(TokenType.RightParen, "lambda 参数后需要 ')'");
+            Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
             var body = ParseMandatoryBlock("lambda body");
 
             // 单参数：直接返回（兼容原有行为）
@@ -476,7 +491,7 @@ public class Parser
         // (f a b)  →  f(a)(b)
         // (a)      →  a
         var inner = ParseExpression(allowCall: true);
-        Consume(TokenType.RightParen, "Expected ')' after expression");
+        Consume(TokenType.RightParen, "表达式后需要 ')'");
         return inner;
     }
 
@@ -486,7 +501,7 @@ public class Parser
         int line = Previous().Line, col = Previous().Column;
 
         if (Match(TokenType.RightBrace))
-            throw ParseError("Empty '{ }' is not allowed");
+            throw ParseError("不允许空的 '{ }'");
 
         // 含 Newline（; 也算）→ 代码块，否则 → 集合或字典
         if (HasNewlineBeforeClose(TokenType.RightBrace))
@@ -560,7 +575,7 @@ public class Parser
             elements.Add(ParseExpression(allowCall: false));
             if (Match(TokenType.Newline)) continue;
         }
-        Consume(TokenType.RightBrace, "Expected '}' after set elements");
+        Consume(TokenType.RightBrace, "集合元素后需要 '}'");
         return new SetLiteral(elements) { Line = line, Column = col };
     }
 
@@ -570,13 +585,13 @@ public class Parser
         var entries = new List<DictEntry>();
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
-            var key = Consume(TokenType.Identifier, "Expected dict key").Lexeme;
-            Consume(TokenType.Colon, "Expected ':' after dict key");
+            var key = Consume(TokenType.Identifier, "需要字典键").Lexeme;
+            Consume(TokenType.Colon, "字典键后需要 ':'");
             var value = ParseExpression(allowCall: false);
             entries.Add(new DictEntry(key, value));
             if (Match(TokenType.Newline)) continue;
         }
-        Consume(TokenType.RightBrace, "Expected '}' after dict entries");
+        Consume(TokenType.RightBrace, "字典条目后需要 '}'");
         return new DictLiteral(entries) { Line = line, Column = col };
     }
 
@@ -584,7 +599,7 @@ public class Parser
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
-        Consume(TokenType.LeftBrace, $"Expected '{{' for {context}");
+        Consume(TokenType.LeftBrace, $"需要 '{{' for {context}");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col };
     }
@@ -603,10 +618,10 @@ public class Parser
             list.Add(ParseExpression(allowCall: false));
             if (Match(closing)) return list;
             if (Check(TokenType.Comma))
-                throw ParseError("Unexpected ',' — use spaces, not commas");
+                throw ParseError("不允许 ',' —— 请用空格代替逗号");
             if (Match(TokenType.Newline)) continue;
             if (IsAtEnd())
-                throw ParseError($"Expected '{closingName}' after expression list");
+                throw ParseError($"需要 '{closingName}' after expression list");
         }
     }
 
@@ -622,7 +637,7 @@ public class Parser
             SkipNewlines();
         }
 
-        Consume(TokenType.RightBrace, "Expected '}' at end of block");
+        Consume(TokenType.RightBrace, "代码块末尾需要 '}'");
 
         if (list.Count == 0)
             throw ParseError("Empty block '{ }' is not allowed");
@@ -695,8 +710,8 @@ public class Parser
         // 嵌套 lambda：最外层参数对应第一个 hole
         for (int i = uniq.Count - 1; i >= 0; i--)
         {
-            var block = new BlockExpr(new List<Statement> { new ExpressionStatement(body) { Line = body.Line, Column = body.Column } })
-                { Line = body.Line, Column = body.Column };
+            var block = new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
+            { Line = body.Line, Column = body.Column };
             body = new LambdaExpr(new Parameter("_" + i, "object"), block) { Line = body.Line, Column = body.Column };
         }
         return body;
@@ -734,6 +749,6 @@ public class Parser
     private Exception ParseError(string message)
     {
         var token = IsAtEnd() ? _tokens[^1] : Peek();
-        return new Exception($"Parse error at {token.Line}:{token.Column}: {message}\n  near: {token.Lexeme}");
+        return new Exception($"语法错误 {token.Line}:{token.Column}: {message}\n  附近: {token.Lexeme}");
     }
 }
