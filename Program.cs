@@ -1,13 +1,17 @@
 using Ravel;
 using Ravel.Runtime;
 
-if (args.Length > 0)
+if (args.Length == 0)
 {
-    RunFile(args[0]);
+    new NeoInteractor(new Interpreter()).Run();
+}
+else if (args[0] == "test")
+{
+    RunAllTests();
 }
 else
 {
-    RunAllTests();
+    RunFile(args[0]);
 }
 
 static void RunFile(string path)

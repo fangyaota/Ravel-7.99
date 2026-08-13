@@ -66,10 +66,13 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>执行一个程序的全部语句</summary>
-    public void Interpret(Program p)
+    /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
+    public RuntimeValue Interpret(Program p)
     {
-        foreach (var s in p.Statements) Step.Run(EvalStmt(s));
+        RuntimeValue last = VoidVal.Instance;
+        foreach (var s in p.Statements)
+            last = Step.Run(EvalStmt(s));
+        return last;
     }
 
     // ======================== CPS 基础 ========================
