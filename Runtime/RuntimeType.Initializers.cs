@@ -20,6 +20,7 @@ public partial class RuntimeType
         List.Initializer = MakeDefaultCaster(List);
         Set.Initializer = MakeDefaultCaster(Set);
         Dict.Initializer = MakeDefaultCaster(Dict);
+        Class.Initializer = MakeClassInitializer();
     }
 
     /// <summary>包装转换函数为单参构造器（含参数个数检查）</summary>
@@ -170,4 +171,78 @@ public partial class RuntimeType
             return val is BoolVal b3 ? b3 : throw new RuntimeException("无法转换为 bool");
         throw new RuntimeException("无法转换类型");
     }
+
+    /// <summary>class 构造器：class block（默认父类 object）或 class parent block（柯里化）</summary>
+    private static FunctionVal MakeClassInitializer()
+        => FunctionVal.FromTrampolined(args =>
+        {
+            if (args.Length != 1) throw new RuntimeException("class 需要参数");
+            if (args[0] is BlockVal block)
+                return new Done(CreateClass(Object, block));
+            if (args[0] is TypeVal parent)
+                return new Done(FunctionVal.FromTrampolined(ba =>
+                {
+                    if (ba.Length != 1 || ba[0] is not BlockVal b)
+                        throw new RuntimeException("class 需要代码块参数");
+                    return new Done(CreateClass(parent.Value, b));
+                }));
+            throw new RuntimeException("class 参数必须是类型或代码块");
+        });
+
+    /// <summary>创建类：建 RuntimeType，存 body，配实例化器</summary>
+    private static TypeVal CreateClass(RuntimeType parent, BlockVal block)
+    {
+        var newType = Define("", parent);
+        newType.Metaclass = Class;
+        newType.Body = block;
+        newType.Initializer = MakeInstanceInitializer(newType, block);
+        return new TypeVal(newType);
+    }
+
+    /// <summary>实例化器：执行类体 block 收集字段，打包 ObjectVal，绑定 this，调用 init</summary>
+    private static FunctionVal MakeInstanceInitializer(RuntimeType type, BlockVal body)
+        => FunctionVal.FromTrampolined(args =>
+        {
+            var interp = Interpreter.Current!;
+            var saved = interp.CurrentScope;
+            var instanceScope = new Scope(body.Scope);
+            interp.CurrentScope = instanceScope;
+            return Interpreter.Finally(
+                Interpreter.Then(
+                    interp.EvalBlockStmts(body.Block.Statements, 0, VoidVal.Instance, () => { }),
+                    _ =>
+                    {
+                        var obj = new ObjectVal(type, instanceScope);
+                        instanceScope.Define("this", type, obj);
+                        var init = CollectInit(instanceScope);
+                        if (init != null)
+                            return Interpreter.Then(init.Trampolined(args), _ => new Done(obj));
+                        return new Done(obj);
+                    }),
+                () => interp.CurrentScope = saved);
+        });
+
+    /// <summary>收集带 init 属性的构造器，用 | 组合（参数不匹配自动试下一个）</summary>
+    private static FunctionVal? CollectInit(Scope scope)
+    {
+        FunctionVal? result = null;
+        foreach (var kv in scope.Variables)
+        {
+            if (!kv.Value.HasAttr("init") || kv.Value.Value is not FunctionVal fn)
+                continue;
+            if (result == null)
+            {
+                result = fn;
+            }
+            else
+            {
+                result = CombineInit(result, fn);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>函数交替组合：左失败（返回 Error）则右</summary>
+    private static FunctionVal CombineInit(FunctionVal left, FunctionVal right)
+        => FunctionVal.FromTrampolined(ia => Interpreter.OrElse(left.Trampolined(ia), _ => right.Trampolined(ia)));
 }

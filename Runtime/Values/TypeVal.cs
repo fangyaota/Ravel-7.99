@@ -6,7 +6,7 @@ public record TypeVal(RuntimeType Value) : FunctionVal(
     (_, args) => Value.Initializer?.Trampolined(args)
                  ?? throw new RuntimeException($"类型 {Value.Name} 不能作为构造器调用"))
 {
-    public override RuntimeType Type => RuntimeType.Type;
+    public override RuntimeType Type => Value.Metaclass ?? RuntimeType.Type;
     /// <summary>类型名——代理 RuntimeType.Name，::= 命名时直接落到类型描述符上</summary>
     public override string? Name
     {

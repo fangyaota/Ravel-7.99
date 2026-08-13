@@ -15,6 +15,10 @@ public partial class RuntimeType
 
     /// <summary>类型构造器/转换器——调用该类型时执行（如 int(x)）</summary>
     internal FunctionVal? Initializer { get; set; }
+    /// <summary>元类——创建本类型的构造器对应的类型；null 表示默认 Type</summary>
+    internal RuntimeType? Metaclass { get; set; }
+    /// <summary>类体——class 创建时的 block，实例化时执行</summary>
+    internal BlockVal? Body { get; set; }
 
     private RuntimeType(string name, RuntimeType? parent)
     {
