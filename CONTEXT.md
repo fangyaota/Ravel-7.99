@@ -75,49 +75,15 @@ Object (parent=self)
 
 其他所有变量通过 `predefined.rav` 别名定义（`int := System.Integer` 等）。
 
-## metaclass
+## 类型创建（class）
 
-### 架构
+设计见 [ADR-0001](adr/0001-class-and-type-system.md)。
 
-所有类创建统一走 init——普通类和 metaclass 同一条线：
-
-```
-class { body }     → Class.init(parent, block)     → EvalClassCore
-MyMeta { body }    → MyMeta.init(parent, block)    → base.init → Class.init → EvalClassCore
-Interface { body } → Interface.init(parent, block)  → base.init → Class.init → EvalClassCore
-```
-
-入口：`EvalMetaclass`（在 `Interpreter.Classes.cs`）。
-
-### 类创建流程
-
-1. `EvalClassCore` 扫描 `cs.Variables`，`HasAttr("init")` 收集构造器
-2. 多个 init 用 `CombineInits` 以 `|` 组合（参数不匹配自动试下一个）
-3. `MakeClassConstructor` 创建实例化闭包
-4. **包装代码**（`metaCtor != null` 时）：`Step.Run(classCtor)` → 创建类构造器 → 设 `this` → 调 `Meta.Init(parent, block)` → 返回 `this`
-5. 无 metaCtor（普通 class）：直接返回 `classCtor`
-
-### 无 init
-
-`inits.Count == 0` → `ctor = FromTrampolined(_ => Error("No constructor"))`。普通类和 metaclass 同一条报错。
-
-### MetaType
-
-`ClassMeta.MetaType` 存 metaclass 类型。`FunctionVal.Type` 返回 `Meta?.MetaType`。`typeof MyClass` = metaclass 类型。`RuntimeType.MetaClass` 字段供 `Metaclass()` 方法查询。
-
-不沿父类继承链传播——谁创建就是谁的 metaclass。
-
-### base.init
-
-`BoxedValue` 中 `br.ParentMeta.Init` 直接拿 FunctionVal，不走名字匹配。`_currentMetaType` 在包装代码中设置，`Class.DefineMethod("init")` 读取，传给 `EvalClassCore`。
-
-### init 继承
-
-不继承。子类无 init = 报 `No constructor`。必须显式 `init ctor := () => { base.init () }`。
-
-### 关键文件
-
-`Interpreter.Classes.cs` — EvalMetaclass, EvalClassCore, CombineInits, MakeClassConstructor
+- `class Parent { fields + init }` 是**唯一**用户类型构造器，产物是 `ObjectVal`。
+- `type` 禁止创建类型，退化为元类型（`typeof` 结果、类型注解、类型值）。
+- 内置类型是 C# 硬编码（元类 `type`），实例是 C# record，不走字段 shape。
+- **元类 = 创建者**：`Type` 自指；`Class` 的元类是 `Type`；`class` 建的类元类是 `Class`；用户元类 M 建的类元类是 M。
+- 字段存 `RuntimeType.FieldShape`（字段名 → 类型约束 + 默认值），实例化时复制到 `ObjectVal.Scope`。
 
 ## by 属性
 

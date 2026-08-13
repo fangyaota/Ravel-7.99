@@ -4,7 +4,7 @@ namespace Ravel.Runtime;
 public record FunctionVal : RuntimeValue
 {
     public Func<RuntimeValue[], Step> Trampolined { get; set; }
-    public string? Name { get; set; }
+    public virtual string? Name { get; set; }
     public Scope Scope { get; set; }
 
     public override RuntimeType Type => RuntimeType.Function;
