@@ -91,6 +91,8 @@ public partial class Interpreter
                 DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries)),
                 _ => obj
             };
+            if (copy is ObjectVal copyObj)
+                copyObj.Scope.DefineOrReplace("this", copyObj.ClassType, copyObj);
             return ToDone(FunctionVal.FromTrampolined(ba =>
             {
                 var fn = ExpectFunc(ba[0], "with body");

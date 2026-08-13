@@ -11,7 +11,8 @@ public partial class Interpreter
     /// <summary>求值标识符：查作用域获取变量值，处理 by 属性 / unreadable / outdated</summary>
     private Step EvalIdent(IdentifierExpr id)
     {
-        var v = CurrentScope.Lookup(id.Name);
+        var v = CurrentScope.LookupVar(id.Name);
+        if (v == null) return ThrowRavel("未定义的变量 '" + id.Name + "'");
         if (v.HasAttr("unreadable")) return ThrowRavel("变量 '" + id.Name + "' 不可读取");
         if (v.HasAttr("outdated")) Console.Error.WriteLine("[outdated] " + id.Name);
         if (v.HasAttr("by"))
@@ -151,9 +152,10 @@ public partial class Interpreter
 
                 if (obj is not ObjectVal ov) return ThrowRavel("无法给非对象设置字段");
 
-                var field = ov.Scope.TryLookup(ma.Member);
+                var field = ov.Scope.LookupField(ma.Member);
 
                 if (field == null) return ThrowRavel($"对象没有字段 '{ma.Member}'");
+                if (field.HasAttr("core") && Current!.UnsafeDepth == 0) return ThrowRavel($"字段 '{ma.Member}' 是核心字段，需要 unsafe");
                 if (field.HasAttr("by"))
                 {
                     return Then(EvalExpr(bin.Right), rv =>

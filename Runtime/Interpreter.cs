@@ -247,14 +247,23 @@ public partial class Interpreter
         }),
         Assignment a => Then(EvalExpr(a.Value), val =>
         {
-            var vr = CurrentScope.TryLookup(a.Name);
-            if (vr != null && vr.HasAttr("by"))
+            var field = CurrentScope.LookupVar(a.Name);
+
+            if (field != null)
             {
-                var prop = vr.Value;
-                var setter = new BoxedValue(prop).GetMember("set").Value;
-                if (setter is FunctionVal sf)
-                    Step.Run(sf.Trampolined([val]));
-                return ToDone(val);
+                if (field.HasAttr("core") && Current!.UnsafeDepth == 0)
+                    return ThrowRavel($"字段 '{a.Name}' 是核心字段，需要 unsafe");
+                if (field.HasAttr("by"))
+                {
+                    var prop = field.Value;
+                    var setter = new BoxedValue(prop).GetMember("set").Value;
+                    if (setter is FunctionVal sf)
+                        Step.Run(sf.Trampolined([val]));
+                    return ToDone(val);
+                }
+
+                field.Assign(val);
+                return ToDone(VoidVal.Instance);
             }
 
             CurrentScope.Assign(a.Name, val);

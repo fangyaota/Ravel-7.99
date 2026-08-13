@@ -68,11 +68,13 @@ public class BoxedValue(RuntimeValue value)
 
         if (Value is ObjectVal obj)
         {
-            var vr = obj.Scope.TryLookup(name);
+            var vr = obj.Scope.LookupField(name);
             if (vr != null)
             {
                 if (vr.HasAttr("unreadable"))
                     throw new RuntimeException($"变量 '{name}' 不可读取");
+                if (vr.HasAttr("core") && Interpreter.Current!.UnsafeDepth == 0)
+                    throw new RuntimeException($"变量 '{name}' 是核心字段，需要 unsafe");
                 if (vr.HasAttr("outdated"))
                     Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
                 // 访问控制

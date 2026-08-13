@@ -27,7 +27,7 @@ Animal := class {
 }
 Dog := class Animal {
     init ctor := () => {
-        base.init ()
+        base = Animal ()
         breed = ""
     }
     breed: string = ""

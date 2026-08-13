@@ -247,23 +247,23 @@ public partial class RuntimeType
     private static FunctionVal CombineInit(FunctionVal left, FunctionVal right)
         => FunctionVal.FromTrampolined(ia => Interpreter.OrElse(left.Trampolined(ia), _ => right.Trampolined(ia)));
 
-    /// <summary>定义 base（by property）：getter 返回父类实例，setter 链接父类 Scope 到 instanceScope.Parent</summary>
+    /// <summary>定义 base（by property）：getter 读 parent 字段，setter 存父类实例到 parent 字段（带 withDeep）</summary>
     private static void DefineBase(Scope scope, RuntimeType type)
     {
-        RuntimeValue? parentObj = null;
         var baseProp = new PropertyVal(
             FunctionVal.FromTrampolined(_ =>
             {
-                if (parentObj == null)
+                if (!scope.Contains("parent"))
                     return Interpreter.Current!.ThrowRavel("base 未定义");
-                return new Done(parentObj);
+                return new Done(scope.Lookup("parent").Value);
             }),
             FunctionVal.FromTrampolined(v =>
             {
                 if (v.Length != 1 || v[0] is not ObjectVal parentInstance || !parentInstance.ClassType.IsAssignableTo(type.Parent))
                     return Interpreter.Current!.ThrowRavel($"base 需要 {type.Parent} 类型的父类实例");
-                parentObj = parentInstance;
-                scope.Parent = parentInstance.Scope;
+                var parentVar = scope.DefineOrReplace("parent", Object, parentInstance);
+                parentVar.SetAttr("withDeep");
+                parentVar.SetAttr("core");
                 return new Done(VoidVal.Instance);
             })
         );

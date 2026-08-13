@@ -295,12 +295,17 @@ public partial class RuntimeType
         });
     }
 
-    /// <summary>浅拷贝作用域（with / Copy 用）</summary>
+    /// <summary>拷贝作用域（with / Copy 用）：带 withDeep 属性的父类实例递归深拷贝</summary>
     internal static Scope CopyScope(Scope src)
     {
         var dst = new Scope(src.Parent);
         foreach (var kv in src.Variables)
-            dst.Define(kv.Key, kv.Value.TypeConstraint, kv.Value.Value);
+        {
+            var value = kv.Value.Value;
+            if (kv.Value.HasAttr("withDeep") && value is ObjectVal obj)
+                value = new ObjectVal(obj.ClassType, CopyScope(obj.Scope));
+            dst.Define(kv.Key, kv.Value.TypeConstraint, value);
+        }
         return dst;
     }
 }

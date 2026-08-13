@@ -11,7 +11,8 @@
       "Bash(dotnet tool *)",
       "Bash(dotnet build *)",
       "Bash(dotnet run *)",
-      "Bash(git commit -m 'refactor: 移除自定义类/元类创建系统 *)"
+      "Bash(git commit -m 'refactor: 移除自定义类/元类创建系统 *)",
+      "Bash(git commit -m 'refactor: 继承字段链（parent 字段）+ with 深拷贝 + LookupVar 统一裸变量查找 *)"
     ]
   }
 }
