@@ -68,9 +68,9 @@ public class BoxedValue(RuntimeValue value)
 
         if (Value is ObjectVal obj)
         {
-            if (obj.Scope.Contains(name))
+            var vr = obj.Scope.TryLookup(name);
+            if (vr != null)
             {
-                var vr = obj.Scope.Lookup(name);
                 if (vr.HasAttr("unreadable"))
                     throw new RuntimeException($"变量 '{name}' 不可读取");
                 if (vr.HasAttr("outdated"))

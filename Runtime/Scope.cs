@@ -3,7 +3,7 @@ namespace Ravel.Runtime;
 public class Scope(Scope? parent = null)
 {
     private readonly Dictionary<string, Variable> _vars = [];
-    public Scope? Parent { get; } = parent;
+    public Scope? Parent { get; set; } = parent;
 
 
     public Variable Define(string name, RuntimeType typeConstraint, RuntimeValue initialValue)

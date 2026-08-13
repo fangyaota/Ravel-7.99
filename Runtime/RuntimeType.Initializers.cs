@@ -214,6 +214,7 @@ public partial class RuntimeType
                     {
                         var obj = new ObjectVal(type, instanceScope);
                         instanceScope.Define("this", type, obj);
+                        DefineBase(instanceScope, type);
                         var init = CollectInit(instanceScope);
                         if (init != null)
                             return Interpreter.Then(init.Trampolined(args), _ => new Done(obj));
@@ -245,4 +246,28 @@ public partial class RuntimeType
     /// <summary>函数交替组合：左失败（返回 Error）则右</summary>
     private static FunctionVal CombineInit(FunctionVal left, FunctionVal right)
         => FunctionVal.FromTrampolined(ia => Interpreter.OrElse(left.Trampolined(ia), _ => right.Trampolined(ia)));
+
+    /// <summary>定义 base（by property）：getter 返回父类实例，setter 链接父类 Scope 到 instanceScope.Parent</summary>
+    private static void DefineBase(Scope scope, RuntimeType type)
+    {
+        RuntimeValue? parentObj = null;
+        var baseProp = new PropertyVal(
+            FunctionVal.FromTrampolined(_ =>
+            {
+                if (parentObj == null)
+                    return Interpreter.Current!.ThrowRavel("base 未定义");
+                return new Done(parentObj);
+            }),
+            FunctionVal.FromTrampolined(v =>
+            {
+                if (v.Length != 1 || v[0] is not ObjectVal parentInstance || !parentInstance.ClassType.IsAssignableTo(type.Parent))
+                    return Interpreter.Current!.ThrowRavel($"base 需要 {type.Parent} 类型的父类实例");
+                parentObj = parentInstance;
+                scope.Parent = parentInstance.Scope;
+                return new Done(VoidVal.Instance);
+            })
+        );
+        var baseVar = scope.Define("base", Property, baseProp);
+        baseVar.SetAttr("by");
+    }
 }

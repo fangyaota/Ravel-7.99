@@ -85,7 +85,7 @@ public partial class Interpreter
             var obj = a[0];
             var copy = obj switch
             {
-                ObjectVal ov => new ObjectVal(ov.ClassType, RuntimeType.CopyScope(ov.Scope), ov.Parent),
+                ObjectVal ov => new ObjectVal(ov.ClassType, RuntimeType.CopyScope(ov.Scope)),
                 ListVal lv => new ListVal([.. lv.Elements]),
                 SetVal sv => new SetVal([.. sv.Elements]),
                 DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries)),

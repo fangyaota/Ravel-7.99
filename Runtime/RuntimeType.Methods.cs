@@ -24,7 +24,7 @@ public partial class RuntimeType
                 case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries));
                 case ObjectVal v:
                 {
-                    return new ObjectVal(v.ClassType, CopyScope(v.Scope), v.Parent);
+                    return new ObjectVal(v.ClassType, CopyScope(v.Scope));
                 }
                 default: return s;
             }
@@ -291,7 +291,7 @@ public partial class RuntimeType
         {
             if (a.Length != 1 || a[0] is not ScopeVal sv) throw new RuntimeException("Instantiate 需要 Scope 参数");
             var rt = ((TypeVal)s).Value;
-            return new ObjectVal(rt, sv.Scope, null);
+            return new ObjectVal(rt, sv.Scope);
         });
     }
 

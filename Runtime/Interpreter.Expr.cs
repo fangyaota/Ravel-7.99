@@ -151,11 +151,7 @@ public partial class Interpreter
 
                 if (obj is not ObjectVal ov) return ThrowRavel("无法给非对象设置字段");
 
-                Variable? field = null;
-                if (ov.Scope.Contains(ma.Member))
-                {
-                    field = ov.Scope.Lookup(ma.Member);
-                }
+                var field = ov.Scope.TryLookup(ma.Member);
 
                 if (field == null) return ThrowRavel($"对象没有字段 '{ma.Member}'");
                 if (field.HasAttr("by"))
