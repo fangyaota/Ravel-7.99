@@ -16,16 +16,26 @@ public class Scope(Scope? parent = null)
 
     public Variable Lookup(string name)
     {
-        if (_vars.TryGetValue(name, out var v)) return v;
-        if (Parent != null) return Parent.Lookup(name);
+        var current = this;
+        while (current != null)
+        {
+            if (current._vars.TryGetValue(name, out var v)) return v;
+            current = current.Parent;
+        }
+
         throw new RuntimeException($"未定义的变量 '{name}'");
     }
 
     /// <summary>查找变量，找不到返回 null（不抛异常）</summary>
     public Variable? TryLookup(string name)
     {
-        if (_vars.TryGetValue(name, out var v)) return v;
-        if (Parent != null) return Parent.TryLookup(name);
+        var current = this;
+        while (current != null)
+        {
+            if (current._vars.TryGetValue(name, out var v)) return v;
+            current = current.Parent;
+        }
+
         return null;
     }
 
@@ -38,16 +48,16 @@ public class Scope(Scope? parent = null)
 
     public void Assign(string name, RuntimeValue value)
     {
-        if (_vars.TryGetValue(name, out var v))
+        var current = this;
+        while (current != null)
         {
-            v.Assign(value);
-            return;
-        }
+            if (current._vars.TryGetValue(name, out var v))
+            {
+                v.Assign(value);
+                return;
+            }
 
-        if (Parent != null)
-        {
-            Parent.Assign(name, value);
-            return;
+            current = current.Parent;
         }
 
         throw new RuntimeException($"无法给未定义变量 '{name}' 赋值");

@@ -23,11 +23,11 @@ public record FunctionVal : RuntimeValue
         => new(null!, (_, a) => f(a));
 
     /// <summary>把二元内置函数包装成可柯里化调用的 FunctionVal（f a b ≡ (f a) b）</summary>
-    public static FunctionVal Curried(Func<RuntimeValue, RuntimeValue, Step> f)
+    public static FunctionVal FromTrampolined2(Func<RuntimeValue, RuntimeValue, Step> f)
         => FromTrampolined(a1 => Interpreter.ToDone(FromTrampolined(a2 => f(a1, a2))));
 
     /// <summary>三元版（if 用：if {c} {t} {e} ≡ ((if c) t) e）</summary>
-    public static FunctionVal Curried3(Func<RuntimeValue, RuntimeValue, RuntimeValue, Step> f)
+    public static FunctionVal FromTrampolined3(Func<RuntimeValue, RuntimeValue, RuntimeValue, Step> f)
         => FromTrampolined(a1 => Interpreter.ToDone(
             FromTrampolined(a2 => Interpreter.ToDone(
                 FromTrampolined(a3 => f(a1, a2, a3))))));

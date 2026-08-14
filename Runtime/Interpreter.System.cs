@@ -48,19 +48,19 @@ public partial class Interpreter
         systemModule.ModuleScope.Define("True", RuntimeType.Bool, new BoolVal(true));
         systemModule.ModuleScope.Define("False", RuntimeType.Bool, new BoolVal(false));
         systemModule.ModuleScope.Define("Default", RuntimeType.Every, DefaultVal.Instance);
-        systemModule.ModuleScope.Define("While", RuntimeType.Function, FunctionVal.Curried(EvalWhile));
-        systemModule.ModuleScope.Define("If", RuntimeType.Function, FunctionVal.Curried3(EvalIf));
+        systemModule.ModuleScope.Define("While", RuntimeType.Function, FunctionVal.FromTrampolined2(EvalWhile));
+        systemModule.ModuleScope.Define("If", RuntimeType.Function, FunctionVal.FromTrampolined3(EvalIf));
         systemModule.ModuleScope.Define("CallCC", RuntimeType.Function, FunctionVal.FromTrampolined(EvalCallCC));
         systemModule.ModuleScope.Define("ValueTypeVal", RuntimeType.Type, new TypeVal(RuntimeType.ValueType));
         systemModule.ModuleScope.Define("TypeOf", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
             ToDone(new TypeVal(a.Type))));
-        systemModule.ModuleScope.Define("RandInt", RuntimeType.Function, FunctionVal.Curried((lo, hi) =>
+        systemModule.ModuleScope.Define("RandInt", RuntimeType.Function, FunctionVal.FromTrampolined2((lo, hi) =>
         {
             if (lo is not IntVal l) throw new RuntimeException("randint 需要 int 参数(最小值)");
             if (hi is not IntVal h) throw new RuntimeException("randint 需要 int 参数(最大值)");
             return ToDone(new IntVal(Random.Shared.Next(l.Value, h.Value)));
         }));
-        systemModule.ModuleScope.Define("With", RuntimeType.Function, FunctionVal.Curried((obj, body) =>
+        systemModule.ModuleScope.Define("With", RuntimeType.Function, FunctionVal.FromTrampolined2((obj, body) =>
         {
             var copy = obj switch
             {
@@ -155,13 +155,13 @@ public partial class Interpreter
             Current!.UnsafeDepth++;
             return VoidVal.Instance;
         }));
-        systemModule.ModuleScope.Define("property", RuntimeType.Function, FunctionVal.Curried((g, s) =>
+        systemModule.ModuleScope.Define("property", RuntimeType.Function, FunctionVal.FromTrampolined2((g, s) =>
         {
             if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数");
             if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数");
             return ToDone(new PropertyVal(gf, sf));
         }));
-        systemModule.ModuleScope.Define("Foreach", RuntimeType.Function, FunctionVal.Curried((lstV, fnV) =>
+        systemModule.ModuleScope.Define("Foreach", RuntimeType.Function, FunctionVal.FromTrampolined2((lstV, fnV) =>
         {
             if (lstV is not ListVal lst) throw new RuntimeException("Foreach 需要 list 参数");
             if (fnV is not FunctionVal fn) throw new RuntimeException("Foreach 需要函数参数");
@@ -184,7 +184,7 @@ public partial class Interpreter
             var ast = parser.Parse();
             return EvalBlockStmts(ast.Statements, 0, VoidVal.Instance, () => { });
         }));
-        systemModule.ModuleScope.Define("Assert", RuntimeType.Function, FunctionVal.Curried((cond, msg) =>
+        systemModule.ModuleScope.Define("Assert", RuntimeType.Function, FunctionVal.FromTrampolined2((cond, msg) =>
         {
             if (cond is not BoolVal b) return ThrowRavel("assert 需要 bool 参数");
             var ok = b.Value;

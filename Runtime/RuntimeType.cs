@@ -138,7 +138,7 @@ public partial class RuntimeType
     /// <summary>注册方法（在该类型上）：包装成 Curried(self, arg) 的方法值，访问时绑定 self</summary>
     public void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
     {
-        _methods[name] = FunctionVal.Curried((self, arg) => new Done(impl(self, arg)));
+        _methods[name] = FunctionVal.FromTrampolined2((self, arg) => new Done(impl(self, arg)));
     }
 
     /// <summary>沿继承链查找方法，找不到返回 null</summary>
