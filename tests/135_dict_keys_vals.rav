@@ -1,9 +1,0 @@
-# dict.Keys / dict.Values
-d := {a: 1 b: 2}
-ks := d.Keys ()
-vs := d.Values ()
-print (ks.Count ())
-print (vs.Count ())
-# --- expected ---
-# 2
-# 2

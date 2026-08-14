@@ -1,7 +1,0 @@
-# block.prepend
-b := { print "world"; }
-c := b.prepend { print "hello"; }
-c ()
-# --- expected ---
-# hello
-# world

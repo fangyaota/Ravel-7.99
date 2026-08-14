@@ -1,0 +1,156 @@
+# callcc 单发/多发/生成器/try(合并 40/41/42/50/51/52/85/86/87/88/89/94)
+result := callcc (k: function) => {
+    k 42
+}
+print result
+result := callcc (k: function) => {
+    k (1 + 2)
+}
+print result
+F := (x: int) => {
+    callcc (return: function) => {
+        if {
+            x < 0
+        } {
+            return 0
+        } {
+            return x
+        }
+    }
+}
+print (F 10)
+print (F (-5))
+F := (x: int) => {
+    callcc (exit: function) => {
+        i := 1
+        while {
+            true
+        } {
+            if {
+                i > x
+            } {
+                exit i
+            } {
+                0
+            }
+            i += 1
+        }
+        0
+    }
+}
+print (F 5)
+X := [1 2 3 4 5]
+result := callcc (found: function) => {
+    i := 0
+    while {
+        i < X.Count ()
+    } {
+        val := X.At i
+        if {
+            val > 3
+        } {
+            found val
+        } {
+            0
+        }
+        i += 1
+    }
+    0
+}
+print result
+product := (list: list) => {
+    callcc (return: function) => {
+        result := 1
+        i := 0
+        while {
+            i < list.Count ()
+        } {
+            val := list.At i
+            if {
+                val == 0
+            } {
+                return 0
+            } {
+                0
+            }
+            result = result * val
+            i += 1
+        }
+        result
+    }
+}
+print (product [2 3 4])
+print (product [2 0 4])
+saved := (x: function) => { x; }
+results := []
+first := callcc (k: function) => {
+    saved = k
+    k 1
+}
+results.Add first
+results.Add (saved 2)
+results.Add (saved 3)
+print results
+saved := (x: int) => { x; }
+r1 := 1 + callcc (k: function) => {
+    saved = k
+    k 2
+}
+print r1
+print (1 + saved 10)
+print (1 + saved 100)
+current := 0
+next := (x: int) => { x; }
+callcc (k: function) => {
+    next = k
+    k 1
+}
+a := next 2
+b := next 3
+c := next 4
+print a
+print b
+print c
+using "try.rav"
+result := 0
+Ex.try {
+    Ex.throw (Exception "boom")
+    result = 1
+} (e: Exception) => {
+    result = 99
+}
+print result
+result := callcc (k: function) => {
+    k (k 3)
+}
+print result
+saved := (x: int) => { x; }
+result := callcc (k: function) => {
+    saved = k
+    k 1
+}
+doubler := (a: int b: int) => {
+    a * 2 + b
+}
+print (doubler result 3)
+print (doubler (saved 5) 3)
+# --- expected ---
+# 42
+# 3
+# 10
+# 0
+# 6
+# 4
+# 24
+# 0
+# [1 2 3]
+# 3
+# 11
+# 101
+# 2
+# 3
+# 4
+# 99
+# 3
+# 5
+# 13

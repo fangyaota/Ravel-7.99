@@ -1,0 +1,209 @@
+# 类型/反射/大数/作用域(合并 98/113/114/123/124/140/141/143/144/145/146/147/149/150/151)
+print (typeof 5)
+print (typeof 5.0)
+print (typeof 3.14)
+print (5.0 / 2)
+print (0.5 + 0.5)
+print (typeof default)
+print (int default)
+print (bool default)
+print (list default)
+print (set default)
+print (float default)
+print (int.name)
+print (int.Is ValueType)
+print (int.Is object)
+print (bool.Is string)
+print (int.Parent ())
+print (int.Default ())
+print (string.Default ())
+print "--- System 模块 ---"
+print (System.Integer)
+print (System.String)
+print (System.Bool)
+print (System.Float)
+print (System.List)
+print "--- 小写别名 ---"
+print (int.name)
+print (string.name)
+print (bool.name)
+print (float.name)
+print "--- 类型构造 ---"
+print (bool true)
+print (System.String "")
+print (System.Integer)
+print (System.String)
+print (System.Bool)
+print (System.Float)
+print (System.List)
+print (System.Set)
+print (System.Dict)
+print (System.Object)
+print (System.Class)
+print (System.Function)
+print (System.Type)
+print (System.Void)
+print (int.name)
+print (string.name)
+print (System.True)
+print (System.False)
+print (typeof System.Default)
+print 999
+print (bigint 100)
+print (bigint 1234567890 * bigint 1234567890)
+print (bigint 100 + bigint 200)
+print (bigint 7 < bigint 8)
+print (bigint default)
+print (typeof (bigint 5))
+print (fraction 1 2)
+print (fraction 1 2 + fraction 1 3)
+print (fraction 1 2 < fraction 2 3)
+print (fraction default)
+print (typeof (fraction 1 2))
+print (bigfraction 1 3 + bigfraction 2 5)
+print (bigfraction 1 2 * bigfraction 3 4)
+print (bigfraction default)
+print (typeof (bigfraction 1 3))
+C := class {
+    init ctor := () => { 0; }
+    x: int = 10
+}
+a := C ()
+b := a.Copy ()
+b.x = 99
+print (a.x)
+print (b.x)
+print (a.Fields ())
+using "math.rav"
+print (ValueType.Subtypes ())
+a: Any = 5
+print a
+a = "changed"
+print a
+print (Math.e)
+print (Math.cube 3)
+print ("abc" + "def")
+print ("abc" == "abc")
+print ("abc" != "abd")
+print (true == true)
+print (true != false)
+print (int == int)
+print (int != string)
+C := class {
+    init ctor := () => { 0; }
+    core secret: int = 99
+    show := () => { unsafe (); print secret; }
+}
+c := C ()
+c.show ()
+C := class {
+    init ctor := () => { 0; }
+    check := () => {
+        s := currentScope ()
+        print (typeof s)
+    }
+}
+c := C ()
+c.check ()
+s := currentScope ()
+s.Define "x" int
+p := s.Lookup "x"
+p.set 42
+print (p.get ())
+s2 := s.Push ()
+print (typeof s2)
+d := s.Variables ()
+print (d.Has "x")
+System.Write "ab"
+print "cd"
+r := randint 1 10
+assert (1 <= r && r <= 9) "randint out of range"
+print "range ok"
+# --- expected ---
+# Integer
+# Float
+# Float
+# 2.5
+# 1
+# Every
+# 0
+# false
+# []
+# {}
+# 0
+# Integer
+# true
+# true
+# false
+# ValueType
+# 0
+
+# --- System 模块 ---
+# Integer
+# String
+# Bool
+# Float
+# List
+# --- 小写别名 ---
+# Integer
+# String
+# Bool
+# Float
+# --- 类型构造 ---
+# true
+
+# Integer
+# String
+# Bool
+# Float
+# List
+# Set
+# Dict
+# Object
+# Class
+# Function
+# Type
+# Void
+# Integer
+# String
+# true
+# false
+# Every
+# 999
+# 100
+# 1524157875019052100
+# 300
+# true
+# 0
+# BigInt
+# 1/2
+# 5/6
+# true
+# 0/1
+# Fraction
+# 11/15
+# 3/8
+# 0/1
+# BigFraction
+# 10
+# 99
+# [ToString Copy Fields]
+# [Integer Float Bool String BigInt Fraction BigFraction Every]
+# 5
+# changed
+# 2.71828
+# 27
+# abcdef
+# true
+# true
+# true
+# true
+# true
+# true
+# 99
+# Scope
+# 42
+# Scope
+# true
+# abcd
+# range ok

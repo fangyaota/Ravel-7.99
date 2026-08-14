@@ -1,8 +1,0 @@
-# 类型方法:int.ToString / string.Length / bool.ToString(合并 35/36/39)
-print (42.ToString ())
-print ("hello".Length ())
-print (true.ToString ())
-# --- expected ---
-# 42
-# 5
-# true

@@ -1,0 +1,118 @@
+# 核心:定义/运算符/优先级/类型方法/列表/位运算/_占位符(合并 01-09/10/14/22-24/26-39/109-112)
+A := 1
+print A
+B: int = 42
+print B
+X := 10
+X = 20
+print X
+print (1 + 2 * 3)
+X := 1 + 2
+X += 3
+print X
+print (1 + 2 < 5)
+print (1 < 2 && 3 < 4)
+print (!false)
+print 42
+X := [1 2 3]
+print X
+X := [10 20 30]
+print (X.Count ())
+print (X.At 1)
+print <| 99
+print (-5)
+print (10 % 3)
+X := 10
+X %= 3
+print X
+print (1 + 2 * 3)
+print (1 * 2 + 3)
+print (1 + 2 < 5)
+print (1 < 3 && 2 > 0)
+print (1 < 3 || 2 > 0 && false)
+print (!false && false)
+print (-1 + 3)
+X := 3
+X = X + 1
+print X
+f := (x: int) => { x; }
+print (f 1 + 2)
+print (42.ToString ())
+print ("hello".Length ())
+print (true.ToString ())
+print (3 & 1)
+print (7 & 3)
+print (true & true)
+print (true & false)
+print (3 | 1)
+print (true | false)
+print (false | false)
+g := (x: int) => { 1; }
+h := (x: Any) => { 2; }
+alt := g | h
+print (alt 10)
+print (alt "str")
+print (3 ^ 1)
+print (5 ^ 3)
+print (true ^ true)
+print (true ^ false)
+print (false ^ false)
+add1 := _ + 1
+print (add1 5)
+sub := 10 - _
+print (sub 3)
+both := _ + _
+print (both 1 2)
+call := print _
+call "hello"
+_ := 42
+_ : int = 99
+print "ok"
+# --- expected ---
+# 1
+# 42
+# 20
+# 7
+# 6
+# true
+# true
+# true
+# 42
+# [1 2 3]
+# 3
+# 20
+# 99
+# -5
+# 1
+# 1
+# 7
+# 5
+# true
+# true
+# true
+# false
+# 2
+# 4
+# 3
+# 42
+# 5
+# true
+# 1
+# 3
+# true
+# false
+# 3
+# true
+# false
+# 1
+# 2
+# 2
+# 6
+# false
+# true
+# false
+# 6
+# 7
+# 3
+# hello
+# ok

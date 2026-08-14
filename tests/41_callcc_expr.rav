@@ -1,6 +1,0 @@
-result := callcc (k: function) => {
-    k (1 + 2)
-}
-print result
-# --- expected ---
-# 3

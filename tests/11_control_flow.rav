@@ -1,0 +1,65 @@
+# 控制流(合并 11/12/15/43/139/104)
+X := {
+    A := 10
+    B := 20
+    A + B
+}
+print X
+X := 0
+while {
+    X < 5
+} {
+    print X
+    X += 1
+}
+X := 10
+if {
+    X > 5
+} {
+    print X
+} {
+    print 0
+}
+i := 0
+while {
+    i < 3
+} {
+    j := 0
+    while {
+        j < 2
+    } {
+        print (i * 10 + j)
+        j += 1
+    }
+    i += 1
+}
+xs := [1 2 3]
+sum := 0
+foreach xs (x: int) => { sum = sum + x; }
+print sum
+s := {42}
+print (typeof s)
+print (s.Contains 42)
+x := 0
+while { x < 3; } {
+    x += 1
+}
+print x
+# --- expected ---
+# <block>
+# 0
+# 1
+# 2
+# 3
+# 4
+# 10
+# 0
+# 1
+# 10
+# 11
+# 20
+# 21
+# 6
+# Set
+# true
+# 3

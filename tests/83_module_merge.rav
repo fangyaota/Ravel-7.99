@@ -1,9 +1,0 @@
-using "math.rav"
-ravel "Math"
-tau := 6.28318
-ravel ""
-print (Math.pi)
-print (Math.tau)
-# --- expected ---
-# 3.14159
-# 6.28318

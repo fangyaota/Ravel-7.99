@@ -1,9 +1,0 @@
-# 多参数 lambda 基础：两个参数
-add := (a: int b: int) => {
-    a + b
-}
-print (add 3 4)
-print (add 10 20)
-# --- expected ---
-# 7
-# 30

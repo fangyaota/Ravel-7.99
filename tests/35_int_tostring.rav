@@ -1,3 +1,0 @@
-print (42.ToString ())
-# --- expected ---
-# 42

@@ -1,7 +1,0 @@
-x := 10
-eval "print x"
-eval "y := 20"
-eval "print (x + y)"
-# --- expected ---
-# 10
-# 30

@@ -1,6 +1,0 @@
-F := (x: int) => {
-    x * 2
-}
-print (F 21)
-# --- expected ---
-# 42

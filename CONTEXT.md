@@ -39,7 +39,7 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    129 个 golden test(含 26 个 # todo;小测试已按特性合并)
+tests/                    49 个 golden test(7 合并普通 + 14 expect-error + 26 todo + 2 fixture)
 ```
 
 ## 求值器架构(显式帧栈)
@@ -155,4 +155,4 @@ using "file.rav"
 
 ## 测试
 
-129 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 103 passed / 0 failed / 26 todo。小测试已合并：`01_basics`/`10_list`/`14_operators`/`26_precedence`/`35_type_methods`/`147_reflection`。
+49 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 23 passed / 0 failed / 26 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。

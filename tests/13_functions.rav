@@ -1,0 +1,201 @@
+# 函数/闭包/递归/多参数(合并 13/16/18/19/20/21/44/45/46/47/48/49/90/91/92/93)
+F := (x: int) => {
+    x * 2
+}
+print (F 21)
+F := (x: int) => {
+    result := 1
+    while {
+        x > 0
+    } {
+        result = result * x
+        x -= 1
+    }
+    result
+}
+print (F 5)
+factorial := (x: int) => {
+    if {
+        x <= 1
+    } {
+        1
+    } {
+        x * (self (x - 1))
+    }
+}
+print (factorial 5)
+fib := (n: int) => {
+    if {
+        n <= 1
+    } {
+        n
+    } {
+        (self (n - 1)) + (self (n - 2))
+    }
+}
+print (fib 10)
+makeAdder := (x: int) => {
+    (y: int) => {
+        x + y
+    }
+}
+add5 := makeAdder 5
+print (add5 10)
+makeCounter := (init: int) => {
+    count := init
+    () => {
+        count = count + 1
+        count
+    }
+}
+counter := makeCounter 0
+print (counter ())
+print (counter ())
+print (counter ())
+F := (n: int) => {
+    a := 0
+    b := 1
+    i := 0
+    while {
+        i < n
+    } {
+        tmp := a + b
+        a = b
+        b = tmp
+        i += 1
+    }
+    a
+}
+print (F 10)
+isPrime := (n: int) => {
+    if {
+        n < 2
+    } {
+        false
+    } {
+        d := 2
+        result := true
+        while {
+            d * d <= n
+        } {
+            if {
+                n % d == 0
+            } {
+                result = false
+            } {
+                0
+            }
+            d += 1
+        }
+        result
+    }
+}
+print (isPrime 2)
+print (isPrime 7)
+print (isPrime 10)
+print (isPrime 97)
+rangeSum := (a: int) => {
+    (b: int) => {
+        sum := 0
+        i := a
+        while {
+            i <= b
+        } {
+            sum += i
+            i += 1
+        }
+        sum
+    }
+}
+print (rangeSum 1 10)
+makeAccum := (init: int) => {
+    total := init
+    (x: int) => {
+        total = total + x
+        total
+    }
+}
+acc := makeAccum 0
+print (acc 5)
+print (acc 3)
+print (acc 2)
+forEach := (list: list) => {
+    (f: function) => {
+        i := 0
+        while {
+            i < list.Count ()
+        } {
+            f (list.At i)
+            i += 1
+        }
+    }
+}
+myList := [10 20 30]
+forEach myList print
+compose := (f: function) => {
+    (g: function) => {
+        (x: int) => {
+            f (g x)
+        }
+    }
+}
+double := (x: int) => { x * 2; }
+addOne := (x: int) => { x + 1; }
+h := compose double addOne
+print (h 5)
+add := (a: int b: int) => {
+    a + b
+}
+print (add 3 4)
+print (add 10 20)
+sum3 := (a: int b: int c: int) => {
+    a + b + c
+}
+print (sum3 1 2 3)
+add5 := sum3 5
+print (add5 10 20)
+greet := (name: string times: int) => {
+    result := ""
+    while { times > 0; } {
+        result = result + name
+        times -= 1
+    }
+    result
+}
+print (greet "hi" 3)
+x := 10
+f := (a: int b: int) => {
+    a + b + x
+}
+print (f 1 2)
+x = 100
+print (f 1 2)
+# --- expected ---
+# 42
+# 120
+# 120
+# 55
+# 15
+# 1
+# 2
+# 3
+# 55
+# true
+# true
+# false
+# true
+# 55
+# 5
+# 8
+# 10
+# 10
+# 20
+# 30
+# 12
+# 7
+# 30
+# 6
+# 35
+# hihihi
+# 13
+# 103
