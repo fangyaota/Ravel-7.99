@@ -146,7 +146,15 @@ public partial class Interpreter
             return;
         }
 
-        Return(nf, new BoxedValue(nf.Result(0)).GetMember(ma.Member).Value);
+        var obj = nf.Result(0);
+        var byGetter = BoxedValue.TryGetByGetter(obj, ma.Member);
+        if (byGetter != null)
+        {
+            CallInto(nf.Parent!, byGetter, VoidVal.Instance);
+            return;
+        }
+
+        Return(nf, new BoxedValue(obj).GetMember(ma.Member).Value);
     }
 
     private void StepPipe(NodeFrame nf, PipeExpr pipe)
@@ -286,7 +294,12 @@ public partial class Interpreter
             if (field.HasAttr("by"))
             {
                 var setter = new BoxedValue(field.Value).GetMember("set").Value;
-                if (setter is FunctionVal sf) Step.Run(sf.Trampolined(val));
+                if (setter is FunctionVal sf)
+                {
+                    PushCallReturn(nf.Parent!, sf, val, val);
+                    return;
+                }
+
                 Return(nf, val);
                 return;
             }
@@ -446,7 +459,12 @@ public partial class Interpreter
         if (field2.HasAttr("by"))
         {
             var setter = new BoxedValue(field2.Value).GetMember("set").Value;
-            if (setter is FunctionVal sf) Step.Run(sf.Trampolined(rv));
+            if (setter is FunctionVal sf)
+            {
+                PushCallReturn(nf.Parent!, sf, rv, rv);
+                return;
+            }
+
             Return(nf, rv);
             return;
         }
@@ -563,6 +581,7 @@ public partial class Interpreter
             case ControlKind.Compose: StepCompose(cf); break;
             case ControlKind.ClassOp: StepClassOp(cf); break;
             case ControlKind.CallAssign: StepCallAssign(cf); break;
+            case ControlKind.CallReturn: StepCallReturn(cf); break;
         }
     }
 
@@ -859,6 +878,24 @@ public partial class Interpreter
 
         cf.Scope.Assign(((StringVal)cf.Args.At(2)).Value, cf.Result(0));
         Return(cf, cf.Result(0));
+    }
+
+    /// <summary>调用副作用函数(setter),完成后返回固定结果。Args=[fn, arg, result]</summary>
+    private void PushCallReturn(Frame parent, FunctionVal fn, RuntimeValue arg, RuntimeValue result)
+    {
+        var args = RList<RuntimeValue>.Empty.Add(fn).Add(arg).Add(result);
+        _top = new ControlFrame(ControlKind.CallReturn, args, VoidVal.Instance) { Parent = parent, Scope = parent.Scope };
+    }
+
+    private void StepCallReturn(ControlFrame cf)
+    {
+        if (cf.Count == 0)
+        {
+            CallInto(cf, cf.Args.At(0), cf.Args.At(1));
+            return;
+        }
+
+        Return(cf, cf.Args.At(2));
     }
 
     /// <summary>收集 scope 链(沿 parent 字段)上所有带 attr 的函数,用 | 交替组合(多 operatorX 重载自动试下一个)</summary>
