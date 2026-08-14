@@ -1,9 +1,8 @@
-# todo
 B := class {
-    init ctor := () => { this.val = 10 }
+    init ctor := () => { this.val = 10; }
     val: int = 0
-    operator+ op1 := (x: int) => { val + x }
-    operator* op2 := (x: int) => { this.val * x }
+    operator+ op1 := (x: int) => { val + x; }
+    operator* op2 := (x: int) => { this.val * x; }
 }
 b := B ()
 print (b + 5)

@@ -1,11 +1,10 @@
-# todo
 # ===== 多运算符 + 自定义名 =====
 Vec := class {
-    init ctor := () => { this.v = 10 }
+    init ctor := () => { this.v = 10; }
     v: int = 0
-    operator+ add := (x: int) => { v + x }
-    operator* mul := (x: int) => { v * x }
-    operator- sub := (x: int) => { v - x }
+    operator+ add := (x: int) => { v + x; }
+    operator* mul := (x: int) => { v * x; }
+    operator- sub := (x: int) => { v - x; }
 }
 a := Vec ()
 print (a + 5)

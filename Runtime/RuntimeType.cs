@@ -141,6 +141,12 @@ public partial class RuntimeType
         _methods[name] = FunctionVal.FromTrampolined2((self, arg) => new Done(impl(self, arg)));
     }
 
+    /// <summary>注册类运算符标记：op 为运算符符号（"+"），分派时推 ClassOp 控制帧动态找实例字段</summary>
+    public void DefineClassOperator(string op)
+    {
+        _methods[op] = new ClassOperatorVal(op);
+    }
+
     /// <summary>沿继承链查找方法，找不到返回 null</summary>
     public FunctionVal? TryLookupMethod(string name)
     {

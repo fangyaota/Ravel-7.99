@@ -379,6 +379,14 @@ public partial class Interpreter
             var op = bin.Op[..1];
             var fn = left.Type.TryLookupMethod(op);
             if (fn == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
+            if (fn is ClassOperatorVal cop)
+            {
+                var target = bin.Left is IdentifierExpr id2 ? id2.Name : null;
+                if (target == null) throw new RuntimeException("复合赋值目标必须是变量");
+                PushClassOp(nf.Parent!, cop.OpName, (ObjectVal)left, right, target);
+                return;
+            }
+
             var r = Step.Run(RuntimeType.BindMethod(fn, left).Trampolined(right));
             if (bin.Left is IdentifierExpr id) nf.Scope.Assign(id.Name, r);
             else throw new RuntimeException("复合赋值目标必须是变量");
@@ -388,6 +396,12 @@ public partial class Interpreter
 
         var builtin = left.Type.TryLookupMethod(bin.Op);
         if (builtin == null) throw new RuntimeException($"未知的二元运算符: {bin.Op}");
+        if (builtin is ClassOperatorVal cop2)
+        {
+            PushClassOp(nf.Parent!, cop2.OpName, (ObjectVal)left, right);
+            return;
+        }
+
         Return(nf, Step.Run(RuntimeType.BindMethod(builtin, left).Trampolined(right)));
     }
 
@@ -487,6 +501,9 @@ public partial class Interpreter
                 _top = new ControlFrame(ControlKind.Compose, cargs, VoidVal.Instance) { Parent = sink, Scope = sink.Scope };
                 break;
             }
+            case BoundClassOp bco:
+                PushClassOp(sink, bco.OpName, bco.Self, arg);
+                break;
             case ContinuationVal k:
                 if (CallccActive)
                 {
@@ -545,6 +562,7 @@ public partial class Interpreter
             case ControlKind.Alternate: StepAlternate(cf); break;
             case ControlKind.ClassInit: StepClassInit(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
+            case ControlKind.ClassOp: StepClassOp(cf); break;
         }
     }
 
@@ -798,6 +816,56 @@ public partial class Interpreter
         }
 
         Return(cf, cf.Result(0));
+    }
+
+    /// <summary>类运算符:动态找实例 operatorX 字段(沿 parent 链)并成 | 交替,调并函数</summary>
+    private void StepClassOp(ControlFrame cf)
+    {
+        var self = (ObjectVal)cf.Args.At(0);
+        var arg = cf.Args.At(1);
+        var op = ((StringVal)cf.Args.At(2)).Value;
+        if (cf.Count == 0)
+        {
+            var ops = CollectOperators(self.Scope, op);
+            if (ops == null) throw new RuntimeException($"对象没有运算符 '{op[8..]}'");
+            CallInto(cf, ops, arg);
+            return;
+        }
+
+        // count 1:结果已到;复合赋值目标先赋回
+        if (cf.Args.Count > 3 && cf.Args.At(3) is StringVal target)
+            cf.Scope.Assign(target.Value, cf.Result(0));
+        Return(cf, cf.Result(0));
+    }
+
+    /// <summary>推 ClassOp 帧:动态找实例的 operatorX 字段并调,结果返回 parent 帧。op 为符号("+"),帧内存 attr("operator+")</summary>
+    private void PushClassOp(Frame parent, string op, ObjectVal self, RuntimeValue arg, string? assignTarget = null)
+    {
+        var args = RList<RuntimeValue>.Empty.Add(self).Add(arg).Add(new StringVal("operator" + op));
+        if (assignTarget != null) args = args.Add(new StringVal(assignTarget));
+        _top = new ControlFrame(ControlKind.ClassOp, args, VoidVal.Instance) { Parent = parent, Scope = _top.Scope };
+    }
+
+    /// <summary>收集 scope 链(沿 parent 字段)上所有带 attr 的函数,用 | 交替组合(多 operatorX 重载自动试下一个)</summary>
+    private static FunctionVal? CollectOperators(Scope scope, string attr)
+    {
+        FunctionVal? result = null;
+        var current = scope;
+        while (current != null)
+        {
+            foreach (var kv in current.Variables)
+            {
+                if (kv.Value.HasAttr(attr) && kv.Value.Value is FunctionVal fn)
+                    result = result == null
+                        ? fn
+                        : new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(result).Add(fn));
+            }
+
+            if (!current.Contains("parent") || current.Lookup("parent").Value is not ObjectVal obj) break;
+            current = obj.Scope;
+        }
+
+        return result;
     }
 
     /// <summary>加载模块文件,解析为 BlockExpr;找不到/循环/已加载时返回 null(已加载→返回空块)</summary>
