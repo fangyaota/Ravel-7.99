@@ -6,19 +6,10 @@ public record BlockVal : FunctionVal
     public BlockExpr Block { get; init; }
 
     public BlockVal(BlockExpr block, Scope captureScope)
-        : base(captureScope, (_, _) => new Error("BlockVal 未被正确初始化"))
+        : base(null!, (_, _) => new Done(VoidVal.Instance))
     {
         Block = block;
         Scope = captureScope;
-        Trampolined = _ => Invoke();
-    }
-
-    public Step Invoke()
-    {
-        var interp = Interpreter.Current!;
-        var saved = interp.CurrentScope;
-        interp.CurrentScope = Scope;
-        return Interpreter.Finally(interp.EvalBlockExec(Block), () => interp.CurrentScope = saved);
     }
 
     public override string ToString() => "<block>";

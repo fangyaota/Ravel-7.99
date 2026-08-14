@@ -94,13 +94,9 @@ public partial class RuntimeType
         DefineOp(Int, "|", (a, b) => new IntVal(((IntVal)a).Value | ((IntVal)b).Value));
         DefineOp(Int, "^", (a, b) => new IntVal(((IntVal)a).Value ^ ((IntVal)b).Value));
 
-        // 函数交替 |（左失败则右）
+        // 函数交替 |（左失败则右）→ Alternate 控制帧
         DefineOp(Function, "|", (a, b) =>
-        {
-            var lf = (FunctionVal)a;
-            var rf = (FunctionVal)b;
-            return FunctionVal.FromTrampolined(a => Interpreter.OrElse(lf.Trampolined(a), _ => rf.Trampolined(a)));
-        });
+            new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b)));
     }
 
     private static double AsDouble(RuntimeValue v) => v switch

@@ -178,42 +178,17 @@ public partial class RuntimeType
             throw new RuntimeException("class 参数必须是类型或代码块");
         });
 
-    /// <summary>创建类：建 RuntimeType，存 body，配实例化器</summary>
+    /// <summary>创建类：建 RuntimeType，存 body（实例化由 StepClassInit 控制帧驱动）</summary>
     private static TypeVal CreateClass(RuntimeType parent, BlockVal block)
     {
         var newType = Define("", parent);
         newType.Metaclass = Class;
         newType.Body = block;
-        newType.Initializer = MakeInstanceInitializer(newType, block);
         return new TypeVal(newType);
     }
 
-    /// <summary>实例化器：执行类体 block 收集字段，打包 ObjectVal，绑定 this，调用 init</summary>
-    private static FunctionVal MakeInstanceInitializer(RuntimeType type, BlockVal body)
-        => FunctionVal.FromTrampolined(arg =>
-        {
-            var interp = Interpreter.Current!;
-            var saved = interp.CurrentScope;
-            var instanceScope = new Scope(body.Scope);
-            interp.CurrentScope = instanceScope;
-            return Interpreter.Finally(
-                Interpreter.Then(
-                    interp.EvalBlockStmts(body.Block.Statements, 0, VoidVal.Instance, () => { }),
-                    _ =>
-                    {
-                        var obj = new ObjectVal(type, instanceScope);
-                        instanceScope.Define("this", type, obj);
-                        DefineBase(instanceScope, type);
-                        var init = CollectInit(instanceScope);
-                        if (init != null)
-                            return Interpreter.Then(init.Trampolined(arg), _ => new Done(obj));
-                        return new Error($"类型 {type.Name} 没有构造器（init）");
-                    }),
-                () => interp.CurrentScope = saved);
-        });
-
     /// <summary>收集带 init 属性的构造器，用 | 组合（参数不匹配自动试下一个）</summary>
-    private static FunctionVal? CollectInit(Scope scope)
+    internal static FunctionVal? CollectInit(Scope scope)
     {
         FunctionVal? result = null;
         foreach (var kv in scope.Variables)
@@ -232,24 +207,24 @@ public partial class RuntimeType
         return result;
     }
 
-    /// <summary>函数交替组合：左失败（返回 Error）则右</summary>
+    /// <summary>函数交替组合：左类型不匹配则右 → Alternate 控制帧</summary>
     private static FunctionVal CombineInit(FunctionVal left, FunctionVal right)
-        => FunctionVal.FromTrampolined(a => Interpreter.OrElse(left.Trampolined(a), _ => right.Trampolined(a)));
+        => new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(left).Add(right));
 
     /// <summary>定义 base（by property）：getter 读 parent 字段，setter 存父类实例到 parent 字段（带 withDeep）</summary>
-    private static void DefineBase(Scope scope, RuntimeType type)
+    internal static void DefineBase(Scope scope, RuntimeType type)
     {
         var baseProp = new PropertyVal(
             FunctionVal.FromTrampolined(_ =>
             {
                 if (!scope.Contains("parent"))
-                    return Interpreter.Current!.ThrowRavel("base 未定义");
+                    throw new RuntimeException("base 未定义");
                 return new Done(scope.Lookup("parent").Value);
             }),
             FunctionVal.FromTrampolined(v =>
             {
                 if (v is not ObjectVal parentInstance || !parentInstance.ClassType.IsAssignableTo(type.Parent))
-                    return Interpreter.Current!.ThrowRavel($"base 需要 {type.Parent} 类型的父类实例");
+                    throw new RuntimeException($"base 需要 {type.Parent} 类型的父类实例");
                 var parentVar = scope.DefineOrReplace("parent", Object, parentInstance);
                 parentVar.SetAttr("withDeep");
                 parentVar.SetAttr("core");

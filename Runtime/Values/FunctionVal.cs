@@ -32,43 +32,9 @@ public record FunctionVal : RuntimeValue
             FromTrampolined(a2 => Interpreter.ToDone(
                 FromTrampolined(a3 => f(a1, a2, a3))))));
 
-    /// <summary>前置执行一个块，再执行本函数（参数原样转发）</summary>
-    public FunctionVal Prepend(BlockVal prefix)
-    {
-        var original = this;
-        var bindScope = prefix.Scope;
-        return new FunctionVal(bindScope, (scope, a) =>
-        {
-            var saved = Interpreter.Current!.CurrentScope;
-            Interpreter.Current.CurrentScope = scope;
-            var pre = Interpreter.Current.EvalBlockExec(prefix.Block);
-            return Interpreter.Then(pre, _ =>
-            {
-                Interpreter.Current.CurrentScope = saved;
-                return original.Trampolined(a);
-            });
-        });
-    }
+    /// <summary>前置执行一个块，再执行本函数（参数原样转发）→ Compose 控制帧</summary>
+    public FunctionVal Prepend(BlockVal prefix) => new ComposeVal(this, prefix, true);
 
-    /// <summary>执行本函数后，追加执行一个块</summary>
-    public FunctionVal Append(BlockVal suffix)
-    {
-        var original = this;
-        var bindScope = suffix.Scope;
-        return new FunctionVal(bindScope, (scope, a) =>
-        {
-            var saved = Interpreter.Current!.CurrentScope;
-            Interpreter.Current.CurrentScope = scope;
-            var body = original.Trampolined(a);
-            return Interpreter.Then(body, result =>
-            {
-                var post = Interpreter.Current.EvalBlockExec(suffix.Block);
-                return Interpreter.Then(post, _ =>
-                {
-                    Interpreter.Current.CurrentScope = saved;
-                    return Interpreter.ToDone(result);
-                });
-            });
-        });
-    }
+    /// <summary>执行本函数后，追加执行一个块 → Compose 控制帧</summary>
+    public FunctionVal Append(BlockVal suffix) => new ComposeVal(this, suffix, false);
 }
