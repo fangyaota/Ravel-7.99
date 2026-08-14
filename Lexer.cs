@@ -188,13 +188,16 @@ public class Lexer(string source)
                 _line++;
                 _col = 1;
             }
+            else
+            {
+                _col++;
+            }
 
             _pos++;
         }
 
         string str = source[start.._pos];
         if (_pos < source.Length) Advance(); // skip closing "
-        _col += (_pos - start) + 2;
         return new Token(TokenType.String, str, line, col);
     }
 
@@ -204,94 +207,44 @@ public class Lexer(string source)
         while (_pos < source.Length && (char.IsLetterOrDigit(source[_pos]) || source[_pos] == '_'))
             _pos++;
         string word = source[start.._pos];
-        if (word == "operator" && _pos < source.Length)
-        {
-            char nc = source[_pos];
-            if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
-            {
-                _pos++;
-                _col++;
-                word += nc;
-            }
-            else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                _col += 2;
-                word += "==";
-            }
-            else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                _col += 2;
-                word += "!=";
-            }
-            else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                _col += 2;
-                word += "<=";
-            }
-            else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                _col += 2;
-                word += ">=";
-            }
-            else if (nc == '<' || nc == '>')
-            {
-                _pos++;
-                _col++;
-                word += nc;
-            }
-            else if (nc == '&' || nc == '|' || nc == '^')
-            {
-                _pos++;
-                _col++;
-                word += nc;
-            }
-        }
 
-        // operator+ → 合并为一个标识符
+        // operator+ / operator== 等 → 合并为一个标识符
         if (word == "operator" && _pos < source.Length)
         {
             char nc = source[_pos];
             if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
             {
-                Advance();
+                _pos++;
                 word += nc;
             }
             else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance();
-                Advance();
+                _pos += 2;
                 word += "==";
             }
             else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance();
-                Advance();
+                _pos += 2;
                 word += "!=";
             }
             else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance();
-                Advance();
+                _pos += 2;
                 word += "<=";
             }
             else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
             {
-                Advance();
-                Advance();
+                _pos += 2;
                 word += ">=";
             }
             else if (nc == '<' || nc == '>')
             {
-                Advance();
+                _pos++;
                 word += nc;
             }
             else if (nc == '&' || nc == '|' || nc == '^')
             {
-                Advance();
+                _pos++;
                 word += nc;
             }
         }
