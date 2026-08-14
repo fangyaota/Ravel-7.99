@@ -1,0 +1,3 @@
+print (ValueType.Subtypes ())
+# --- expected ---
+# [Integer Float Bool String BigInt Fraction BigFraction Every]

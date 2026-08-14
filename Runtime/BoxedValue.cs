@@ -116,9 +116,7 @@ public class BoxedValue(RuntimeValue value)
 
         if (Value is FunctionVal fn && name == "name")
         {
-            return new BoxedValue(fn.Name != null
-                ? new StringVal(fn.Name)
-                : VoidVal.Instance);
+            return new BoxedValue(new StringVal(fn.Name ?? ""));
         }
 
         var method = Value.Type.LookupMethod(name);

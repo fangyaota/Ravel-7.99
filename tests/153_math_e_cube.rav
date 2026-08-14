@@ -1,0 +1,6 @@
+using "math.rav"
+print (Math.e)
+print (Math.cube 3)
+# --- expected ---
+# 2.71828
+# 27

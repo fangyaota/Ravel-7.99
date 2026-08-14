@@ -1,0 +1,11 @@
+f := () => { print "hi"; }
+print ("[" + f.name + "]")
+f.name = "hello"
+print (f.name)
+g := f.append { print " there"; }
+g ()
+# --- expected ---
+# []
+# hello
+# hi
+#  there

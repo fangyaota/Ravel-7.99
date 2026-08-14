@@ -184,7 +184,7 @@ public partial class RuntimeType
                 return VoidVal.Instance;
             }
 
-            return fn.Name != null ? new StringVal(fn.Name) : VoidVal.Instance;
+            return new StringVal(fn.Name ?? "");
         });
         Type.DefineMethod("Subtypes", (s, _) =>
         {
@@ -284,14 +284,6 @@ public partial class RuntimeType
         {
             if (a.Length != 1 || a[0] is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
             return ((FunctionVal)s).Append(p);
-        });
-
-        // ---- Type 方法 ----
-        Type.DefineMethod("Instantiate", (s, a) =>
-        {
-            if (a.Length != 1 || a[0] is not ScopeVal sv) throw new RuntimeException("Instantiate 需要 Scope 参数");
-            var rt = ((TypeVal)s).Value;
-            return new ObjectVal(rt, sv.Scope);
         });
     }
 

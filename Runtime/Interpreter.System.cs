@@ -33,19 +33,6 @@ public partial class Interpreter
         _modules["System"] = systemModule;
         _global.Define("System", systemModuleType, systemModule);
 
-        // 注册所有内置类型
-        foreach (var t in new[]
-                 {
-                     RuntimeType.Object, RuntimeType.ValueType, RuntimeType.Int,
-                     RuntimeType.Float, RuntimeType.Bool, RuntimeType.String, RuntimeType.BigInt,
-                     RuntimeType.Fraction, RuntimeType.BigFraction, RuntimeType.Class, RuntimeType.Function,
-                     RuntimeType.Block,
-                     RuntimeType.List, RuntimeType.Set, RuntimeType.Dict, RuntimeType.Void, RuntimeType.Type,
-                     RuntimeType.Ravel, RuntimeType.Any, RuntimeType.Every, RuntimeType.Exception,
-                     RuntimeType.ScopeType, RuntimeType.Property
-                 })
-            RuntimeType.AllTypes.Add(t);
-
         systemModule.ModuleScope.Define("WriteLine", RuntimeType.Function, FunctionVal.FromDirect(a =>
         {
             Console.WriteLine(Show(a[0]));

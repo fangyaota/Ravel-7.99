@@ -1,0 +1,8 @@
+System.Write "ab"
+print "cd"
+r := randint 1 10
+assert (1 <= r && r <= 9) "randint out of range"
+print "range ok"
+# --- expected ---
+# abcd
+# range ok

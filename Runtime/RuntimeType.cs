@@ -123,6 +123,16 @@ public partial class RuntimeType
         RegisterMethods();
         // ---- 注册类型构造器 ----
         RegisterInitializers();
+
+        // ---- 收集所有内置类型（AllTypes，供 Subtypes 反射） ----
+        foreach (var t in new[]
+                 {
+                     Object, ValueType, Int, Float, Bool, String, BigInt,
+                     Fraction, BigFraction, Class, Function, Block,
+                     List, Set, Dict, Void, Type,
+                     Ravel, Any, Every, Exception, ScopeType, Property
+                 })
+            AllTypes.Add(t);
     }
 
     /// <summary>注册方法（在该类型上）</summary>
