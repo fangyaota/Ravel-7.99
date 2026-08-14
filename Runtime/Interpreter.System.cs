@@ -35,12 +35,12 @@ public partial class Interpreter
 
         systemModule.ModuleScope.Define("WriteLine", RuntimeType.Function, FunctionVal.FromDirect(a =>
         {
-            Console.WriteLine(Show(a[0]));
+            Console.WriteLine(Show(a));
             return VoidVal.Instance;
         }));
         systemModule.ModuleScope.Define("Write", RuntimeType.Function, FunctionVal.FromDirect(a =>
         {
-            Console.Write(Show(a[0]));
+            Console.Write(Show(a));
             return VoidVal.Instance;
         }));
         systemModule.ModuleScope.Define("ReadLine", RuntimeType.Function,
@@ -48,28 +48,20 @@ public partial class Interpreter
         systemModule.ModuleScope.Define("True", RuntimeType.Bool, new BoolVal(true));
         systemModule.ModuleScope.Define("False", RuntimeType.Bool, new BoolVal(false));
         systemModule.ModuleScope.Define("Default", RuntimeType.Every, DefaultVal.Instance);
-        systemModule.ModuleScope.Define("While", RuntimeType.Function, FunctionVal.FromTrampolined(EvalWhile));
-        systemModule.ModuleScope.Define("If", RuntimeType.Function, FunctionVal.FromTrampolined(EvalIf));
+        systemModule.ModuleScope.Define("While", RuntimeType.Function, FunctionVal.Curried(EvalWhile));
+        systemModule.ModuleScope.Define("If", RuntimeType.Function, FunctionVal.Curried3(EvalIf));
         systemModule.ModuleScope.Define("CallCC", RuntimeType.Function, FunctionVal.FromTrampolined(EvalCallCC));
         systemModule.ModuleScope.Define("ValueTypeVal", RuntimeType.Type, new TypeVal(RuntimeType.ValueType));
         systemModule.ModuleScope.Define("TypeOf", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
+            ToDone(new TypeVal(a.Type))));
+        systemModule.ModuleScope.Define("RandInt", RuntimeType.Function, FunctionVal.Curried((lo, hi) =>
         {
-            if (a.Length != 1) throw new RuntimeException("typeof 需要 1 个参数");
-            return ToDone(new TypeVal(a[0].Type));
+            if (lo is not IntVal l) throw new RuntimeException("randint 需要 int 参数(最小值)");
+            if (hi is not IntVal h) throw new RuntimeException("randint 需要 int 参数(最大值)");
+            return ToDone(new IntVal(Random.Shared.Next(l.Value, h.Value)));
         }));
-        systemModule.ModuleScope.Define("RandInt", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
+        systemModule.ModuleScope.Define("With", RuntimeType.Function, FunctionVal.Curried((obj, body) =>
         {
-            if (a.Length != 1 || a[0] is not IntVal lo) throw new RuntimeException("randint 需要 int 参数(最小值)");
-            return ToDone(FunctionVal.FromTrampolined(b =>
-            {
-                if (b.Length != 1 || b[0] is not IntVal hi) throw new RuntimeException("randint 需要 int 参数(最大值)");
-                return ToDone(new IntVal(Random.Shared.Next(lo.Value, hi.Value)));
-            }));
-        }));
-        systemModule.ModuleScope.Define("With", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
-        {
-            if (a.Length != 1) return ThrowRavel("with 需要 1 个参数");
-            var obj = a[0];
             var copy = obj switch
             {
                 ObjectVal ov => new ObjectVal(ov.ClassType, RuntimeType.CopyScope(ov.Scope)),
@@ -80,25 +72,22 @@ public partial class Interpreter
             };
             if (copy is ObjectVal copyObj)
                 copyObj.Scope.DefineOrReplace("this", copyObj.ClassType, copyObj);
-            return ToDone(FunctionVal.FromTrampolined(ba =>
+            var fn = ExpectFunc(body, "with body");
+            var savedScope = fn.Scope;
+            if (copy is ObjectVal ov2)
             {
-                var fn = ExpectFunc(ba[0], "with body");
-                var savedScope = fn.Scope;
-                if (copy is ObjectVal ov2)
-                {
-                    fn.Scope = ov2.Scope;
-                }
+                fn.Scope = ov2.Scope;
+            }
 
-                return Then(fn.Trampolined([VoidVal.Instance]), _ =>
-                {
-                    fn.Scope = savedScope;
-                    return ToDone(copy);
-                });
-            }));
+            return Then(fn.Trampolined(VoidVal.Instance), _ =>
+            {
+                fn.Scope = savedScope;
+                return ToDone(copy);
+            });
         }));
         systemModule.ModuleScope.Define("RavelMod", RuntimeType.Function, FunctionVal.FromDirect(a =>
         {
-            var name = ((StringVal)a[0]).Value;
+            var name = ((StringVal)a).Value;
             if (!_modules.TryGetValue(name, out var mv))
             {
                 var mt = RuntimeType.Define(name, RuntimeType.Ravel);
@@ -112,7 +101,7 @@ public partial class Interpreter
         }));
         systemModule.ModuleScope.Define("Using", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
         {
-            var path = ((StringVal)a[0]).Value;
+            var path = ((StringVal)a).Value;
             var refs = new List<string> { "/workspace/ravel/lib/", "/workspace/ravel/", "./", "lib/" };
             var rv = _global.TryLookup("references");
             if (rv?.Value is ListVal lv) refs = [.. lv.Elements.Select(e => ((StringVal)e).Value), .. refs];
@@ -166,59 +155,46 @@ public partial class Interpreter
             Current!.UnsafeDepth++;
             return VoidVal.Instance;
         }));
-        systemModule.ModuleScope.Define("property", RuntimeType.Function, FunctionVal.FromDirect(a =>
+        systemModule.ModuleScope.Define("property", RuntimeType.Function, FunctionVal.Curried((g, s) =>
         {
-            if (a.Length != 1 || a[0] is not FunctionVal g) throw new RuntimeException("property 需要 getter 函数");
-            return FunctionVal.FromDirect(b =>
-            {
-                if (b.Length != 1 || b[0] is not FunctionVal s) throw new RuntimeException("property 需要 setter 函数");
-                return new PropertyVal(g, s);
-            });
+            if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数");
+            if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数");
+            return ToDone(new PropertyVal(gf, sf));
         }));
-        systemModule.ModuleScope.Define("Foreach", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
+        systemModule.ModuleScope.Define("Foreach", RuntimeType.Function, FunctionVal.Curried((lstV, fnV) =>
         {
-            if (a.Length != 1 || a[0] is not ListVal lst)
-                throw new RuntimeException("Foreach 需要 list 参数");
-            return ToDone(FunctionVal.FromTrampolined(b =>
+            if (lstV is not ListVal lst) throw new RuntimeException("Foreach 需要 list 参数");
+            if (fnV is not FunctionVal fn) throw new RuntimeException("Foreach 需要函数参数");
+            RuntimeValue last = VoidVal.Instance;
+            foreach (var item in lst.Elements)
             {
-                if (b.Length != 1 || b[0] is not FunctionVal fn)
-                    throw new RuntimeException("Foreach 需要函数参数");
-                RuntimeValue last = VoidVal.Instance;
-                foreach (var item in lst.Elements)
-                {
-                    var s = fn.Trampolined([item]);
-                    last = Step.Run(s);
-                }
+                last = Step.Run(fn.Trampolined(item));
+            }
 
-                return ToDone(last);
-            }));
+            return ToDone(last);
         }));
         systemModule.ModuleScope.Define("currentScope", RuntimeType.Function, FunctionVal.FromDirect(_ =>
             new ScopeVal(Current!.CurrentScope)));
         systemModule.ModuleScope.Define("Eval", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
         {
-            if (a.Length != 1 || a[0] is not StringVal s) return ThrowRavel("eval expects string");
+            if (a is not StringVal s) return ThrowRavel("eval expects string");
             var lexer = new Lexer(s.Value);
             var tokens = lexer.Tokenize();
             var parser = new Parser(tokens);
             var ast = parser.Parse();
             return EvalBlockStmts(ast.Statements, 0, VoidVal.Instance, () => { });
         }));
-        systemModule.ModuleScope.Define("Assert", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
+        systemModule.ModuleScope.Define("Assert", RuntimeType.Function, FunctionVal.Curried((cond, msg) =>
         {
-            if (a.Length != 1 || a[0] is not BoolVal cond)
-                return ThrowRavel("assert 需要 bool 参数");
-            var ok = cond.Value;
-            return ToDone(FunctionVal.FromDirect(ma =>
-            {
-                var msg = ma.Length > 0 && ma[0] is StringVal s ? s.Value : "assertion failed: " + Show(cond);
-                if (!ok) throw new RuntimeException(msg);
-                return VoidVal.Instance;
-            }));
+            if (cond is not BoolVal b) return ThrowRavel("assert 需要 bool 参数");
+            var ok = b.Value;
+            var m = msg is StringVal s ? s.Value : "assertion failed: " + Show(cond);
+            if (!ok) throw new RuntimeException(m);
+            return ToDone(VoidVal.Instance);
         }));
         systemModule.ModuleScope.Define("Exit", RuntimeType.Function, FunctionVal.FromDirect(a =>
         {
-            var msg = a.Length > 0 ? ((StringVal)a[0]).Value : "";
+            var msg = a is StringVal s ? s.Value : "";
             throw new ExitException(msg);
         }));
     }

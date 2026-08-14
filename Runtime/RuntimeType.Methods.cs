@@ -51,20 +51,19 @@ public partial class RuntimeType
         List.DefineMethod("Count", (s, _) => new IntVal(((ListVal)s).Elements.Count));
         List.DefineMethod("At", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.At 需要 int 参数");
+            if (a is not IntVal i) throw new RuntimeException("list.At 需要 int 参数");
             var lst = (ListVal)s;
             if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
             return lst.Elements[i.Value];
         });
         List.DefineMethod("Add", (s, a) =>
         {
-            if (a.Length != 1) throw new RuntimeException("list.Add 需要 1 个参数");
-            ((ListVal)s).Elements.Add(a[0]);
+            ((ListVal)s).Elements.Add(a);
             return VoidVal.Instance;
         });
         List.DefineMethod("Remove", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.Remove 需要 int 参数");
+            if (a is not IntVal i) throw new RuntimeException("list.Remove 需要 int 参数");
             var lst = (ListVal)s;
             if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
             var v = lst.Elements[i.Value];
@@ -73,27 +72,25 @@ public partial class RuntimeType
         });
         List.DefineMethod("Insert", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.Insert 需要 int 参数");
+            if (a is not IntVal i) throw new RuntimeException("list.Insert 需要 int 参数");
             var lst = (ListVal)s;
             var idx = i.Value;
             if (idx < 0 || idx > lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            return FunctionVal.FromDirect(va =>
+            return FunctionVal.FromDirect(v =>
             {
-                if (va.Length != 1) throw new RuntimeException("list.Insert 需要值参数");
-                lst.Elements.Insert(idx, va[0]);
+                lst.Elements.Insert(idx, v);
                 return VoidVal.Instance;
             });
         });
         List.DefineMethod("Set", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not IntVal i) throw new RuntimeException("list.Set 需要 int 参数");
+            if (a is not IntVal i) throw new RuntimeException("list.Set 需要 int 参数");
             var lst = (ListVal)s;
             var idx = i.Value;
             if (idx < 0 || idx >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            return FunctionVal.FromDirect(va =>
+            return FunctionVal.FromDirect(v =>
             {
-                if (va.Length != 1) throw new RuntimeException("list.Set 需要值参数");
-                lst.Elements[idx] = va[0];
+                lst.Elements[idx] = v;
                 return VoidVal.Instance;
             });
         });
@@ -102,44 +99,38 @@ public partial class RuntimeType
         Set.DefineMethod("Count", (s, _) => new IntVal(((SetVal)s).Elements.Count));
         Set.DefineMethod("Add", (s, a) =>
         {
-            if (a.Length != 1) throw new RuntimeException("set.Add 需要 1 个参数");
-            ((SetVal)s).Elements.Add(a[0]);
+            ((SetVal)s).Elements.Add(a);
             return VoidVal.Instance;
         });
         Set.DefineMethod("Remove", (s, a) =>
         {
-            if (a.Length != 1) throw new RuntimeException("set.Remove 需要 1 个参数");
-            ((SetVal)s).Elements.Remove(a[0]);
+            ((SetVal)s).Elements.Remove(a);
             return VoidVal.Instance;
         });
         Set.DefineMethod("Contains", (s, a) =>
-        {
-            if (a.Length != 1) throw new RuntimeException("set.Contains 需要 1 个参数");
-            return new BoolVal(((SetVal)s).Elements.Contains(a[0]));
-        });
+            new BoolVal(((SetVal)s).Elements.Contains(a)));
 
         // ---- Dict 方法 ----
         Dict.DefineMethod("Count", (s, _) => new IntVal(((DictVal)s).Entries.Count));
         Dict.DefineMethod("Get", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not StringVal key) throw new RuntimeException("dict.Get 需要 string 参数");
+            if (a is not StringVal key) throw new RuntimeException("dict.Get 需要 string 参数");
             var d = (DictVal)s;
             if (d.Entries.TryGetValue(key.Value, out var v)) return v;
             throw new RuntimeException($"键不存在: {key.Value}");
         });
         Dict.DefineMethod("Set", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not StringVal key) throw new RuntimeException("dict.Set 需要 string 键");
-            return FunctionVal.FromDirect(va =>
+            if (a is not StringVal key) throw new RuntimeException("dict.Set 需要 string 键");
+            return FunctionVal.FromDirect(v =>
             {
-                if (va.Length != 1) throw new RuntimeException("dict.Set 需要值参数");
-                ((DictVal)s).Entries[key.Value] = va[0];
+                ((DictVal)s).Entries[key.Value] = v;
                 return VoidVal.Instance;
             });
         });
         Dict.DefineMethod("Has", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not StringVal key) throw new RuntimeException("dict.Has 需要 string 参数");
+            if (a is not StringVal key) throw new RuntimeException("dict.Has 需要 string 参数");
             return new BoolVal(((DictVal)s).Entries.ContainsKey(key.Value));
         });
         Dict.DefineMethod("Keys", (s, _) =>
@@ -167,7 +158,7 @@ public partial class RuntimeType
         });
         Type.DefineMethod("Is", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not TypeVal other) throw new RuntimeException("type.Is 需要 type 参数");
+            if (a is not TypeVal other) throw new RuntimeException("type.Is 需要 type 参数");
             return new BoolVal(((TypeVal)s).Value.IsAssignableTo(other.Value));
         });
         Type.DefineMethod("Default", (s, _) =>
@@ -178,7 +169,7 @@ public partial class RuntimeType
         Function.DefineMethod("Name", (s, a) =>
         {
             var fn = (FunctionVal)s;
-            if (a.Length > 0 && a[0] is StringVal sv)
+            if (a is StringVal sv)
             {
                 fn.Name = sv.Value;
                 return VoidVal.Instance;
@@ -207,28 +198,28 @@ public partial class RuntimeType
         });
         ScopeType.DefineMethod("Define", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not StringVal name)
+            if (a is not StringVal name)
                 throw new RuntimeException("scope.Define 需要字符串名称");
             var scope = ((ScopeVal)s).Scope;
-            return FunctionVal.FromDirect(b =>
+            return FunctionVal.FromDirect(tv =>
             {
-                if (b.Length != 1 || b[0] is not TypeVal tv)
+                if (tv is not TypeVal t)
                     throw new RuntimeException("scope.Define 需要 type 参数");
-                scope.Define(name.Value, tv.Value, VoidVal.Instance);
+                scope.Define(name.Value, t.Value, VoidVal.Instance);
                 return VoidVal.Instance;
             });
         });
         ScopeType.DefineMethod("Lookup", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not StringVal name)
+            if (a is not StringVal name)
                 throw new RuntimeException("scope.Lookup 需要字符串参数");
             var scope = ((ScopeVal)s).Scope;
             var vr = scope.Lookup(name.Value);
             return new PropertyVal(
                 FunctionVal.FromDirect(_ => vr.Value),
-                FunctionVal.FromDirect(args =>
+                FunctionVal.FromDirect(v =>
                 {
-                    vr.Assign(args[0]);
+                    vr.Assign(v);
                     return VoidVal.Instance;
                 }),
                 [.. vr.Attrs]
@@ -243,9 +234,9 @@ public partial class RuntimeType
                 if (kv.Key == "this" || kv.Key == "base" || kv.Key == "block" || kv.Key == "thistype") continue;
                 var vr = scope.Lookup(kv.Key);
                 var getter = FunctionVal.FromDirect(_ => vr.Value);
-                var setter = FunctionVal.FromDirect(a =>
+                var setter = FunctionVal.FromDirect(v =>
                 {
-                    vr.Assign(a[0]);
+                    vr.Assign(v);
                     return VoidVal.Instance;
                 });
                 d[kv.Key] = new PropertyVal(getter, setter, [.. kv.Value.Attrs]);
@@ -271,18 +262,18 @@ public partial class RuntimeType
         });
         Function.DefineMethod("setScope", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
+            if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
             ((FunctionVal)s).Scope = sv.Scope;
             return VoidVal.Instance;
         });
         Function.DefineMethod("prepend", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
+            if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
             return ((FunctionVal)s).Prepend(p);
         });
         Function.DefineMethod("append", (s, a) =>
         {
-            if (a.Length != 1 || a[0] is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
+            if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
             return ((FunctionVal)s).Append(p);
         });
     }

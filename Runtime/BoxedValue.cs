@@ -15,8 +15,8 @@ public class BoxedValue(RuntimeValue value)
             if (opMethod != null)
             {
                 var captured = Value;
-                return new BoxedValue(FunctionVal.FromDirect(args =>
-                    opMethod(captured, args)));
+                return new BoxedValue(FunctionVal.FromDirect(a =>
+                    opMethod(captured, a)));
             }
         }
 
@@ -59,7 +59,7 @@ public class BoxedValue(RuntimeValue value)
                     var prop = vr.Value;
                     var getter = new BoxedValue(prop).GetMember("get").Value;
                     if (getter is FunctionVal gf)
-                        return new BoxedValue(Step.Run(gf.Trampolined([VoidVal.Instance])));
+                        return new BoxedValue(Step.Run(gf.Trampolined(VoidVal.Instance)));
                 }
 
                 return new BoxedValue(vr.Value);
@@ -102,7 +102,7 @@ public class BoxedValue(RuntimeValue value)
                     var prop = vr.Value;
                     var getter = new BoxedValue(prop).GetMember("get").Value;
                     if (getter is FunctionVal gf)
-                        return new BoxedValue(Step.Run(gf.Trampolined([VoidVal.Instance])));
+                        return new BoxedValue(Step.Run(gf.Trampolined(VoidVal.Instance)));
                 }
 
                 return new BoxedValue(vr.Value);
@@ -121,7 +121,7 @@ public class BoxedValue(RuntimeValue value)
 
         var method = Value.Type.LookupMethod(name);
         var self = Value;
-        var bound = FunctionVal.FromDirect(args => method(self, args));
+        var bound = FunctionVal.FromDirect(a => method(self, a));
         return new BoxedValue(bound);
     }
 

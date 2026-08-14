@@ -8,8 +8,8 @@ public partial class RuntimeType
     public string Name { get; set; }
     public RuntimeType Parent { get; private set; }
 
-    /// <summary>方法表：方法名 → 实现（self + args → result）</summary>
-    private readonly Dictionary<string, Func<RuntimeValue, RuntimeValue[], RuntimeValue>> _methods = [];
+    /// <summary>方法表：方法名 → 实现（self + arg → result）</summary>
+    private readonly Dictionary<string, Func<RuntimeValue, RuntimeValue, RuntimeValue>> _methods = [];
 
     public IEnumerable<string> MethodNames => _methods.Keys;
 
@@ -136,13 +136,13 @@ public partial class RuntimeType
     }
 
     /// <summary>注册方法（在该类型上）</summary>
-    public void DefineMethod(string name, Func<RuntimeValue, RuntimeValue[], RuntimeValue> impl)
+    public void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
     {
         _methods[name] = impl;
     }
 
     /// <summary>沿继承链查找方法，找不到返回 null</summary>
-    public Func<RuntimeValue, RuntimeValue[], RuntimeValue>? TryLookupMethod(string name)
+    public Func<RuntimeValue, RuntimeValue, RuntimeValue>? TryLookupMethod(string name)
     {
         var current = this;
         while (true)
@@ -157,7 +157,7 @@ public partial class RuntimeType
     }
 
     /// <summary>沿继承链查找方法，找不到抛异常</summary>
-    public Func<RuntimeValue, RuntimeValue[], RuntimeValue> LookupMethod(string name)
+    public Func<RuntimeValue, RuntimeValue, RuntimeValue> LookupMethod(string name)
         => TryLookupMethod(name) ?? throw new RuntimeException($"类型 '{Name}' 没有方法 '{name}'");
 
     // ============================================================

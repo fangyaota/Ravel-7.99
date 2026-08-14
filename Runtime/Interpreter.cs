@@ -115,7 +115,7 @@ public partial class Interpreter
             return ToMore(() =>
             {
                 var savedOuter = Current.CurrentScope;
-                var s = cc.Fn.Trampolined([k]);
+                var s = cc.Fn.Trampolined(k);
                 var result = Step.Run(s);
                 Current.CallccActive = false;
                 Current.CurrentScope = savedOuter;
@@ -169,51 +169,42 @@ public partial class Interpreter
 
     // ======================== 控制流 ========================
 
-    /// <summary>While 内置函数：While { 条件 } → 返回等待 body 的函数</summary>
-    private Step EvalWhile(RuntimeValue[] a)
+    /// <summary>While 内置函数：While { 条件 } { 循环体 }（柯里化）</summary>
+    private Step EvalWhile(RuntimeValue cond, RuntimeValue body)
     {
-        var c = ExpectFunc(a[0], "while 条件");
-        return ToDone(FunctionVal.FromTrampolined(ba =>
-        {
-            var b = ExpectFunc(ba[0], "while 循环体");
-            return Loop(c, b, VoidVal.Instance);
-        }));
+        var c = ExpectFunc(cond, "while 条件");
+        var b = ExpectFunc(body, "while 循环体");
+        return Loop(c, b, VoidVal.Instance);
     }
 
     /// <summary>While 循环 CPS：重复调用条件，真则执行循环体，以 last 作为最终返回值</summary>
-    private Step Loop(FunctionVal c, FunctionVal b, RuntimeValue last) => Then(c.Trampolined([VoidVal.Instance]), cv =>
+    private Step Loop(FunctionVal c, FunctionVal b, RuntimeValue last) => Then(c.Trampolined(VoidVal.Instance), cv =>
     {
         if (cv is not BoolVal bv) return ThrowRavel("while 条件必须是 bool");
         if (!bv.Value) return ToDone(last);
-        return Then(b.Trampolined([VoidVal.Instance]), bv2 => Loop(c, b, bv2));
+        return Then(b.Trampolined(VoidVal.Instance), bv2 => Loop(c, b, bv2));
     });
 
-    /// <summary>If 内置函数：If { 条件 } → 返回等待 then 的函数 → 返回等待 else 的函数</summary>
-    private Step EvalIf(RuntimeValue[] a)
+    /// <summary>If 内置函数：If { 条件 } { then } { else }（柯里化）</summary>
+    private Step EvalIf(RuntimeValue cond, RuntimeValue then, RuntimeValue els)
     {
-        var c = ExpectFunc(a[0], "if 条件");
-        return ToDone(FunctionVal.FromTrampolined(ta =>
+        var c = ExpectFunc(cond, "if 条件");
+        var t = ExpectFunc(then, "if then");
+        var e = ExpectFunc(els, "if else");
+        return Then(c.Trampolined(VoidVal.Instance), cv =>
         {
-            var t = ExpectFunc(ta[0], "if then");
-            return ToDone(FunctionVal.FromTrampolined(ea =>
-            {
-                var e = ExpectFunc(ea[0], "if else");
-                return Then(c.Trampolined([VoidVal.Instance]), cv =>
-                {
-                    if (cv is not BoolVal b) return ThrowRavel("if 条件必须是 bool");
-                    if (b.Value) return t.Trampolined([VoidVal.Instance]);
-                    return e.Trampolined([VoidVal.Instance]);
-                });
-            }));
-        }));
+            if (cv is not BoolVal b) return ThrowRavel("if 条件必须是 bool");
+            if (b.Value) return t.Trampolined(VoidVal.Instance);
+            return e.Trampolined(VoidVal.Instance);
+        });
     }
 
     // ======================== callcc (多发射续延) ========================
 
     /// <summary>CallCC 内置函数：callcc fn —— 捕获当前续延 k，调用 fn(k)。k 支持多发</summary>
-    private Step EvalCallCC(RuntimeValue[] a)
+    private Step EvalCallCC(RuntimeValue a)
     {
-        if (a.Length != 1 || a[0] is not FunctionVal fn) return ThrowRavel("callcc 需要 1 个函数参数");
+        if (a is not FunctionVal fn) return ThrowRavel("callcc 需要 1 个函数参数");
         // 返回 CallCC——Then 在此捕获 continuation 并创建多发续延
         return new CallCC(fn);
     }
@@ -261,7 +252,7 @@ public partial class Interpreter
                     var prop = field.Value;
                     var setter = new BoxedValue(prop).GetMember("set").Value;
                     if (setter is FunctionVal sf)
-                        Step.Run(sf.Trampolined([val]));
+                        Step.Run(sf.Trampolined(val));
                     return ToDone(val);
                 }
 
@@ -309,16 +300,14 @@ public partial class Interpreter
         var pt = ResolveType(lam.Param.TypeName, CurrentScope);
         FunctionVal? self = null;
 
-        self = new FunctionVal(CurrentScope, (scope, args) =>
+        self = new FunctionVal(CurrentScope, (scope, arg) =>
         {
-            if (args.Length != 1)
-                return new Error("Lambda 需要 1 个参数");
-            if (!args[0].Type.IsAssignableTo(pt))
+            if (!arg.Type.IsAssignableTo(pt))
                 return new Error("类型不匹配");
 
             var innerScope = scope.Push();
             innerScope.Define("self", RuntimeType.Function, self!);
-            innerScope.Define(lam.Param.Name, pt, args[0]);
+            innerScope.Define(lam.Param.Name, pt, arg);
 
             var savedScope = CurrentScope;
             CurrentScope = innerScope;
@@ -366,7 +355,7 @@ public partial class Interpreter
             if (throwVar?.Value is FunctionVal tf)
             {
                 var exVal = new ExceptionVal(msg);
-                return tf.Trampolined([exVal]);
+                return tf.Trampolined(exVal);
             }
         }
 
@@ -374,7 +363,7 @@ public partial class Interpreter
         var exitVar = _global.TryLookup("exit");
         if (exitVar?.Value is FunctionVal ef)
         {
-            Step.Run(ef.Trampolined([new StringVal(msg)]));
+            Step.Run(ef.Trampolined(new StringVal(msg)));
         }
 
         throw new ExitException(msg);

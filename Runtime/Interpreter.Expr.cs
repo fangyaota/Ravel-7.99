@@ -20,7 +20,7 @@ public partial class Interpreter
             var prop = v.Value;
             var getter = new BoxedValue(prop).GetMember("get").Value;
             if (getter is FunctionVal gf)
-                return ToDone(Step.Run(gf.Trampolined([VoidVal.Instance])));
+                return ToDone(Step.Run(gf.Trampolined(VoidVal.Instance)));
         }
 
         return ToDone(v.Value);
@@ -163,7 +163,7 @@ public partial class Interpreter
                         var prop = field.Value;
                         var setter = new BoxedValue(prop).GetMember("set").Value;
                         if (setter is FunctionVal sf)
-                            Step.Run(sf.Trampolined([rv]));
+                            Step.Run(sf.Trampolined(rv));
                         return ToDone(rv);
                     });
                 }
@@ -183,14 +183,14 @@ public partial class Interpreter
                 var op = bin.Op[..1];
                 var fn = left.Type.TryLookupMethod(op);
                 if (fn == null) return ThrowRavel($"类型 {left.Type} 不支持运算符 '{op}'");
-                var r = fn(left, [right]);
+                var r = fn(left, right);
                 if (bin.Left is IdentifierExpr id) CurrentScope.Assign(id.Name, r);
                 else return ThrowRavel("复合赋值目标必须是变量");
                 return ToDone(r);
             }
 
             var builtin = left.Type.TryLookupMethod(bin.Op);
-            if (builtin != null) return ToDone(builtin(left, [right]));
+            if (builtin != null) return ToDone(builtin(left, right));
 
             return ThrowRavel($"未知的二元运算符: {bin.Op}");
         }));
@@ -217,42 +217,24 @@ public partial class Interpreter
     private Step EvalCall(CallExpr call) => Then(EvalExpr(call.Function), fv =>
     {
         if (fv is not FunctionVal fn) return ThrowRavel("无法调用: " + fv.Type);
-        return EvalArgs(call.Arguments, args =>
-        {
-            try
-            {
-                return fn.Trampolined(args);
-            }
-            catch (RuntimeException ex)
-            {
-                return ThrowRavel(ex.Message);
-            }
-        });
+        // parser 左嵌套消糖后恒为 1 个参数
+        var e = call.Arguments[0];
+        if (e is BlockExpr b)
+            return SafeCall(fn, new BlockVal(b, CurrentScope));
+        return Then(EvalExpr(e), a => SafeCall(fn, a));
     });
 
-
-    /// <summary>求值参数列表，结果放入数组后调用回调 k</summary>
-    private Step EvalArgs(List<Expression> es, Func<RuntimeValue[], Step> k)
+    /// <summary>调用函数并捕获 RuntimeException → ThrowRavel</summary>
+    private Step SafeCall(FunctionVal fn, RuntimeValue a)
     {
-        var r = new RuntimeValue[es.Count];
-        return EvalArgsRec(es, 0, r, k);
-    }
-
-    /// <summary>参数递归求值：逐参数求值，块参数惰性包装为 BlockVal</summary>
-    private Step EvalArgsRec(List<Expression> es, int i, RuntimeValue[] r, Func<RuntimeValue[], Step> k)
-    {
-        if (i >= es.Count) return k(r);
-        if (es[i] is BlockExpr b)
+        try
         {
-            r[i] = new BlockVal(b, CurrentScope);
-            return EvalArgsRec(es, i + 1, r, k);
+            return fn.Trampolined(a);
         }
-
-        return Then(EvalExpr(es[i]), v =>
+        catch (RuntimeException ex)
         {
-            r[i] = v;
-            return EvalArgsRec(es, i + 1, r, k);
-        });
+            return ThrowRavel(ex.Message);
+        }
     }
 
     /// <summary>求值成员访问 obj.member：通过 BoxedValue 统一查找</summary>
@@ -268,6 +250,6 @@ public partial class Interpreter
     private Step EvalPipe(PipeExpr p) => Then(EvalExpr(p.Right), right => Then(EvalExpr(p.Left), left =>
     {
         if (left is not FunctionVal fn) return ThrowRavel("<| 左边必须是函数");
-        return fn.Trampolined([right]);
+        return fn.Trampolined(right);
     }));
 }

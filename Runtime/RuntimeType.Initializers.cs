@@ -9,32 +9,27 @@ public partial class RuntimeType
     /// <summary>注册各内建类型的 Initializer（调用该类型时执行转换）</summary>
     private static void RegisterInitializers()
     {
-        Int.Initializer = MakeCaster(Int, CastToInt);
-        Float.Initializer = MakeCaster(Float, CastToFloat);
-        Bool.Initializer = MakeCaster(Bool, CastToBool);
-        String.Initializer = MakeCaster(String, CastToString);
-        BigInt.Initializer = MakeCaster(BigInt, CastToBigInt);
-        Fraction.Initializer = MakeCaster(Fraction, CastToFraction);
-        BigFraction.Initializer = MakeCaster(BigFraction, CastToBigFraction);
-        Exception.Initializer = MakeCaster(Exception, CastToException);
+        Int.Initializer = MakeCaster(CastToInt);
+        Float.Initializer = MakeCaster(CastToFloat);
+        Bool.Initializer = MakeCaster(CastToBool);
+        String.Initializer = MakeCaster(CastToString);
+        BigInt.Initializer = MakeCaster(CastToBigInt);
+        Fraction.Initializer = MakeCaster(CastToFraction);
+        BigFraction.Initializer = MakeCaster(CastToBigFraction);
+        Exception.Initializer = MakeCaster(CastToException);
         List.Initializer = MakeDefaultCaster(List);
         Set.Initializer = MakeDefaultCaster(Set);
         Dict.Initializer = MakeDefaultCaster(Dict);
         Class.Initializer = MakeClassInitializer();
     }
 
-    /// <summary>包装转换函数为单参构造器（含参数个数检查）</summary>
-    private static FunctionVal MakeCaster(RuntimeType type, Func<RuntimeValue, Step> cast)
-        => FunctionVal.FromTrampolined(args =>
-        {
-            if (args.Length != 1)
-                throw new RuntimeException($"{type.Name} 需要 1 个参数");
-            return cast(args[0]);
-        });
+    /// <summary>包装转换函数为单参构造器</summary>
+    private static FunctionVal MakeCaster(Func<RuntimeValue, Step> cast)
+        => FunctionVal.FromTrampolined(cast);
 
     /// <summary>仅支持 default → 默认值的构造器（集合等不可直接构造的类型）</summary>
     private static FunctionVal MakeDefaultCaster(RuntimeType type)
-        => MakeCaster(type, val => val is DefaultVal
+        => MakeCaster(val => val is DefaultVal
             ? new Done(ConvertDirect(type, val))
             : throw new RuntimeException($"类型 {type.Name} 不能作为构造器调用"));
 
@@ -101,11 +96,10 @@ public partial class RuntimeType
     {
         if (val is DefaultVal) return new Done(new FractionVal(0, 1));
         if (val is IntVal i)
-            return new Done(FunctionVal.FromTrampolined(da =>
-            {
-                if (da.Length != 1 || da[0] is not IntVal d) throw new RuntimeException("分数需要 int 分母");
-                return new Done(new FractionVal(i.Value, d.Value));
-            }));
+            return new Done(FunctionVal.FromTrampolined(d =>
+                d is IntVal dd
+                    ? new Done(new FractionVal(i.Value, dd.Value))
+                    : throw new RuntimeException("分数需要 int 分母")));
         if (val is FractionVal f) return new Done(f);
         if (val is StringVal s)
         {
@@ -123,12 +117,10 @@ public partial class RuntimeType
         if (val is DefaultVal) return new Done(new BigFractionVal(0, 1));
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;
         if (val is IntVal || val is BigIntVal)
-            return new Done(FunctionVal.FromTrampolined(da =>
-            {
-                if (da.Length != 1 || (da[0] is not IntVal && da[0] is not BigIntVal))
-                    throw new RuntimeException("大分数需要整数分母");
-                return new Done(new BigFractionVal(GetBi(val), GetBi(da[0])));
-            }));
+            return new Done(FunctionVal.FromTrampolined(d =>
+                d is IntVal or BigIntVal
+                    ? new Done(new BigFractionVal(GetBi(val), GetBi(d)))
+                    : throw new RuntimeException("大分数需要整数分母")));
         if (val is FractionVal fr) return new Done(new BigFractionVal(fr.Num, fr.Den));
         if (val is BigFractionVal bf) return new Done(bf);
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction");
@@ -174,18 +166,15 @@ public partial class RuntimeType
 
     /// <summary>class 构造器：class block（默认父类 object）或 class parent block（柯里化）</summary>
     private static FunctionVal MakeClassInitializer()
-        => FunctionVal.FromTrampolined(args =>
+        => FunctionVal.FromTrampolined(a =>
         {
-            if (args.Length != 1) throw new RuntimeException("class 需要参数");
-            if (args[0] is BlockVal block)
+            if (a is BlockVal block)
                 return new Done(CreateClass(Object, block));
-            if (args[0] is TypeVal parent)
-                return new Done(FunctionVal.FromTrampolined(ba =>
-                {
-                    if (ba.Length != 1 || ba[0] is not BlockVal b)
-                        throw new RuntimeException("class 需要代码块参数");
-                    return new Done(CreateClass(parent.Value, b));
-                }));
+            if (a is TypeVal parent)
+                return new Done(FunctionVal.FromTrampolined(b =>
+                    b is BlockVal bb
+                        ? new Done(CreateClass(parent.Value, bb))
+                        : throw new RuntimeException("class 需要代码块参数")));
             throw new RuntimeException("class 参数必须是类型或代码块");
         });
 
@@ -201,7 +190,7 @@ public partial class RuntimeType
 
     /// <summary>实例化器：执行类体 block 收集字段，打包 ObjectVal，绑定 this，调用 init</summary>
     private static FunctionVal MakeInstanceInitializer(RuntimeType type, BlockVal body)
-        => FunctionVal.FromTrampolined(args =>
+        => FunctionVal.FromTrampolined(arg =>
         {
             var interp = Interpreter.Current!;
             var saved = interp.CurrentScope;
@@ -217,7 +206,7 @@ public partial class RuntimeType
                         DefineBase(instanceScope, type);
                         var init = CollectInit(instanceScope);
                         if (init != null)
-                            return Interpreter.Then(init.Trampolined(args), _ => new Done(obj));
+                            return Interpreter.Then(init.Trampolined(arg), _ => new Done(obj));
                         return new Error($"类型 {type.Name} 没有构造器（init）");
                     }),
                 () => interp.CurrentScope = saved);
@@ -245,7 +234,7 @@ public partial class RuntimeType
 
     /// <summary>函数交替组合：左失败（返回 Error）则右</summary>
     private static FunctionVal CombineInit(FunctionVal left, FunctionVal right)
-        => FunctionVal.FromTrampolined(ia => Interpreter.OrElse(left.Trampolined(ia), _ => right.Trampolined(ia)));
+        => FunctionVal.FromTrampolined(a => Interpreter.OrElse(left.Trampolined(a), _ => right.Trampolined(a)));
 
     /// <summary>定义 base（by property）：getter 读 parent 字段，setter 存父类实例到 parent 字段（带 withDeep）</summary>
     private static void DefineBase(Scope scope, RuntimeType type)
@@ -259,7 +248,7 @@ public partial class RuntimeType
             }),
             FunctionVal.FromTrampolined(v =>
             {
-                if (v.Length != 1 || v[0] is not ObjectVal parentInstance || !parentInstance.ClassType.IsAssignableTo(type.Parent))
+                if (v is not ObjectVal parentInstance || !parentInstance.ClassType.IsAssignableTo(type.Parent))
                     return Interpreter.Current!.ThrowRavel($"base 需要 {type.Parent} 类型的父类实例");
                 var parentVar = scope.DefineOrReplace("parent", Object, parentInstance);
                 parentVar.SetAttr("withDeep");

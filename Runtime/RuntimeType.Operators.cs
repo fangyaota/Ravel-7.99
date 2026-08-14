@@ -4,7 +4,7 @@ public partial class RuntimeType
 {
     /// <summary>把二元运算符注册为名字是符号的方法（op 如 "+"、"=="）</summary>
     private static void DefineOp(RuntimeType type, string op, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => type.DefineMethod(op, (self, args) => impl(self, args[0]));
+        => type.DefineMethod(op, impl);
 
     private static void RegisterOperators()
     {
@@ -99,7 +99,7 @@ public partial class RuntimeType
         {
             var lf = (FunctionVal)a;
             var rf = (FunctionVal)b;
-            return FunctionVal.FromTrampolined(ia => Interpreter.OrElse(lf.Trampolined(ia), _ => rf.Trampolined(ia)));
+            return FunctionVal.FromTrampolined(a => Interpreter.OrElse(lf.Trampolined(a), _ => rf.Trampolined(a)));
         });
     }
 
