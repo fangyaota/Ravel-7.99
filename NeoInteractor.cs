@@ -4,6 +4,7 @@ using Ravel.Runtime;
 using Spectre.Console;
 
 using System.Text;
+using System.Text.Json;
 
 public class NeoInteractor
 {
@@ -26,10 +27,39 @@ public class NeoInteractor
     public bool OutPut { get; set; } = true;
     public Interpreter Global { get; }
 
+    private static readonly string SessionPath = "repl_session.json";
+
     public NeoInteractor(Interpreter global)
     {
         Global = global;
         Paras.Add(new());
+        LoadSession();
+    }
+
+    private void LoadSession()
+    {
+        if (!File.Exists(SessionPath)) return;
+        try
+        {
+            Paras = JsonSerializer.Deserialize<List<List<string>>>(File.ReadAllText(SessionPath)) ?? [];
+        }
+        catch
+        {
+            Paras = [];
+        }
+        if (Paras.Count == 0) Paras.Add(new());
+    }
+
+    private void SaveSession()
+    {
+        try
+        {
+            File.WriteAllText(SessionPath, JsonSerializer.Serialize(Paras));
+        }
+        catch
+        {
+            // 忽略保存失败
+        }
     }
 
     public void Run()
@@ -190,6 +220,7 @@ public class NeoInteractor
         {
             [index++] = ("编辑", DynamicInput),
             [index++] = ("运行", EvaluateTryCompile),
+            [index++] = ("普通 Repl", RunRepl),
             [index++] = ("读取", EvaluateLoad),
             [index++] = ("保存", EvaluateSave),
             [index++] = ("退出", EvaluateExit),
@@ -253,8 +284,9 @@ public class NeoInteractor
         Pause();
     }
 
-    private static void EvaluateExit()
+    private void EvaluateExit()
     {
+        SaveSession();
         Environment.Exit(0);
     }
 
@@ -296,9 +328,62 @@ public class NeoInteractor
         }
         catch (Exception ex)
         {
-            AnsiConsole.WriteException(ex);
+            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
         }
         Pause();
+    }
+
+    private void RunRepl()
+    {
+        AnsiConsole.Clear();
+        Console.WriteLine("普通 Repl（:exit 返回菜单）");
+        string buffer = "";
+        while (true)
+        {
+            Console.Write(buffer.Length == 0 ? ">>> " : "... ");
+            var input = Console.ReadLine();
+            if (input is null) return;
+            if (buffer.Length == 0 && input.Trim() is ":exit" or ":q" or ":quit") return;
+
+            buffer += input + "\n";
+            if (!IsBalanced(buffer)) continue;
+
+            try
+            {
+                var lexer = new Lexer(buffer);
+                var parser = new Parser(lexer.Tokenize());
+                var program = parser.Parse();
+                var result = Global.Interpret(program);
+                if (result is not VoidVal)
+                    Console.WriteLine($"==> {result}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+
+            buffer = "";
+        }
+    }
+
+    private static bool IsBalanced(string src)
+    {
+        int depth = 0;
+        bool inString = false;
+        for (int i = 0; i < src.Length; i++)
+        {
+            char c = src[i];
+            if (c == '"') inString = !inString;
+            if (inString) continue;
+            if (c == '#')
+            {
+                while (i < src.Length && src[i] != '\n') i++;
+                continue;
+            }
+            if (c is '(' or '[' or '{') depth++;
+            else if (c is ')' or ']' or '}') depth--;
+        }
+        return depth <= 0;
     }
 
     private static void Pause()
