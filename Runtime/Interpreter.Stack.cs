@@ -413,6 +413,8 @@ public partial class Interpreter
             if (field == null) throw new RuntimeException($"对象没有字段 '{ma.Member}'");
             if (field.HasAttr("core") && UnsafeDepth == 0)
                 throw new RuntimeException($"字段 '{ma.Member}' 是核心字段，需要 unsafe");
+            if (!CheckFieldAccess(field, ov))
+                throw new RuntimeException($"字段 '{ma.Member}' 是{(field.HasAttr("private") ? "私有的" : "受保护的")}");
             PushChild(nf, bin.Right);
             return;
         }

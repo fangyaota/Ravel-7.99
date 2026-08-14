@@ -1,6 +1,6 @@
 # todo
 Base := class {
-    init ctor := () => { 0 }
+    init ctor := () => { 0; }
     protected val: int = 10
     show := () => { print val }
 }

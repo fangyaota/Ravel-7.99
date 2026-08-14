@@ -89,6 +89,26 @@ public partial class Interpreter
     /// <summary>Ravel 错误:抛 RuntimeException(路由到 Ex.throw 后续再做)</summary>
     internal void ThrowRavel(string msg) => throw new RuntimeException(msg);
 
+    /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行</summary>
+    internal static bool CheckFieldAccess(Variable field, ObjectVal obj)
+    {
+        if (!field.HasAttr("private") && !field.HasAttr("protected")) return true;
+        var cur = Current?.CurrentScope;
+        while (cur != null)
+        {
+            if (cur == obj.Scope) return true;
+            if (field.HasAttr("protected"))
+            {
+                var t = cur.TryLookup("this");
+                if (t?.Value is ObjectVal o && o.ClassType.IsAssignableTo(obj.ClassType)) return true;
+            }
+
+            cur = cur.Parent;
+        }
+
+        return false;
+    }
+
     /// <summary>值转字符串（Ravel 语义）</summary>
     private static string Show(RuntimeValue v) => v.ToString();
 }

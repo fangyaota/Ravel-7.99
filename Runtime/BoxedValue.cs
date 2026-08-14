@@ -74,24 +74,8 @@ public class BoxedValue(RuntimeValue value)
                 if (vr.HasAttr("outdated"))
                     Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
                 // 访问控制
-                if (vr.HasAttr("private") || vr.HasAttr("protected"))
-                {
-                    var cur = Interpreter.Current?.CurrentScope;
-                    bool ok = false;
-                    while (cur != null)
-                    {
-                        if (cur == obj.Scope)
-                        {
-                            ok = true;
-                            break;
-                        }
-
-                        cur = cur.Parent;
-                    }
-
-                    if (!ok)
-                        throw new RuntimeException($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
-                }
+                if (!Interpreter.CheckFieldAccess(vr, obj))
+                    throw new RuntimeException($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
 
                 if (vr.HasAttr("by"))
                 {
