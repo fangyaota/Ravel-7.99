@@ -82,7 +82,21 @@ public class NeoInteractor
 
         string the_line = Lines[index];
 
-        var tokens = new Lexer(the_line).Tokenize();
+        List<Token> tokens;
+        try
+        {
+            tokens = new Lexer(the_line).Tokenize();
+        }
+        catch (Exception)
+        {
+            // 输入中遇到未识别字符,词法未完成:不高亮,原样显示
+            sb.Append(the_line.EscapeMarkup());
+            if (Cursor_y == index && Cursor_x == the_line.Length)
+                sb.Append("[underline red] [/]");
+            sb.AppendLine();
+            RenderedLines[index] = sb.ToString();
+            return;
+        }
 
         int pos = 0;
         foreach (var tok in tokens)
@@ -317,12 +331,12 @@ public class NeoInteractor
                 var output = sw.ToString().TrimEnd();
                 if (output.Length > 0)
                 {
-                    AnsiConsole.WriteLine(output.EscapeMarkup());
+                    AnsiConsole.MarkupLine(output.EscapeMarkup());
                 }
                 if (result is not VoidVal)
                 {
                     AnsiConsole.Markup("[yellow]==>[/]");
-                    AnsiConsole.WriteLine(result.ToString().EscapeMarkup());
+                    AnsiConsole.MarkupLine(result.ToString().EscapeMarkup());
                 }
             }
         }
