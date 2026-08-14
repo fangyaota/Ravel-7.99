@@ -45,6 +45,20 @@ while { x < 3; } {
     x += 1
 }
 print x
+# 控制内建柯里化(部分应用):if 三参逐层给
+cond := { 5 > 3; }
+f := if cond
+g := f { print "yes"; }
+g { print "no"; }
+h := if { false; }
+print (h { 1; } { 2; })
+# while 两参部分应用
+i := 0
+w := while { i < 3; }
+w { print i; i += 1; }
+# foreach 两参部分应用
+fe := foreach [10 20]
+fe (x: int) => { print x; }
 # --- expected ---
 # <block>
 # 0
@@ -63,3 +77,10 @@ print x
 # Set
 # true
 # 3
+# yes
+# 2
+# 0
+# 1
+# 2
+# 10
+# 20
