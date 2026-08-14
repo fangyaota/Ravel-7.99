@@ -183,14 +183,14 @@ public partial class Interpreter
                 var op = bin.Op[..1];
                 var fn = left.Type.TryLookupMethod(op);
                 if (fn == null) return ThrowRavel($"类型 {left.Type} 不支持运算符 '{op}'");
-                var r = fn(left, right);
+                var r = Step.Run(RuntimeType.BindMethod(fn, left).Trampolined(right));
                 if (bin.Left is IdentifierExpr id) CurrentScope.Assign(id.Name, r);
                 else return ThrowRavel("复合赋值目标必须是变量");
                 return ToDone(r);
             }
 
             var builtin = left.Type.TryLookupMethod(bin.Op);
-            if (builtin != null) return ToDone(builtin(left, right));
+            if (builtin != null) return RuntimeType.BindMethod(builtin, left).Trampolined(right);
 
             return ThrowRavel($"未知的二元运算符: {bin.Op}");
         }));

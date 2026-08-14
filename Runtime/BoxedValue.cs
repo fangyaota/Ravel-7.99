@@ -13,11 +13,7 @@ public class BoxedValue(RuntimeValue value)
             var op = name[8..];
             var opMethod = Value.Type.TryLookupMethod(op);
             if (opMethod != null)
-            {
-                var captured = Value;
-                return new BoxedValue(FunctionVal.FromDirect(a =>
-                    opMethod(captured, a)));
-            }
+                return new BoxedValue(RuntimeType.BindMethod(opMethod, Value));
         }
 
         if (Value is PropertyVal pv)
@@ -120,9 +116,7 @@ public class BoxedValue(RuntimeValue value)
         }
 
         var method = Value.Type.LookupMethod(name);
-        var self = Value;
-        var bound = FunctionVal.FromDirect(a => method(self, a));
-        return new BoxedValue(bound);
+        return new BoxedValue(RuntimeType.BindMethod(method, Value));
     }
 
     public override string ToString() => Value.ToString();

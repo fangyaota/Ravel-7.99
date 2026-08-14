@@ -8,8 +8,8 @@ public partial class RuntimeType
     public string Name { get; set; }
     public RuntimeType Parent { get; private set; }
 
-    /// <summary>方法表：方法名 → 实现（self + arg → result）</summary>
-    private readonly Dictionary<string, Func<RuntimeValue, RuntimeValue, RuntimeValue>> _methods = [];
+    /// <summary>方法表：方法名 → 方法值（未绑定的 Curried(self, arg) 函数）</summary>
+    private readonly Dictionary<string, FunctionVal> _methods = [];
 
     public IEnumerable<string> MethodNames => _methods.Keys;
 
@@ -135,14 +135,14 @@ public partial class RuntimeType
             AllTypes.Add(t);
     }
 
-    /// <summary>注册方法（在该类型上）</summary>
+    /// <summary>注册方法（在该类型上）：包装成 Curried(self, arg) 的方法值，访问时绑定 self</summary>
     public void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
     {
-        _methods[name] = impl;
+        _methods[name] = FunctionVal.Curried((self, arg) => new Done(impl(self, arg)));
     }
 
     /// <summary>沿继承链查找方法，找不到返回 null</summary>
-    public Func<RuntimeValue, RuntimeValue, RuntimeValue>? TryLookupMethod(string name)
+    public FunctionVal? TryLookupMethod(string name)
     {
         var current = this;
         while (true)
@@ -157,8 +157,12 @@ public partial class RuntimeType
     }
 
     /// <summary>沿继承链查找方法，找不到抛异常</summary>
-    public Func<RuntimeValue, RuntimeValue, RuntimeValue> LookupMethod(string name)
+    public FunctionVal LookupMethod(string name)
         => TryLookupMethod(name) ?? throw new RuntimeException($"类型 '{Name}' 没有方法 '{name}'");
+
+    /// <summary>绑定方法 self：方法值存为 Curried(self, arg)，绑 self 得等待 arg 的函数</summary>
+    public static FunctionVal BindMethod(FunctionVal methodFn, RuntimeValue self)
+        => (FunctionVal)Step.Run(methodFn.Trampolined(self));
 
     // ============================================================
     //  类型检查
