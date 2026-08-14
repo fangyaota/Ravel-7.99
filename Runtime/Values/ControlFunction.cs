@@ -1,7 +1,7 @@
 namespace Ravel.Runtime;
 
 /// <summary>控制内建种类(Alternate/ClassInit 为求值器内部合成)</summary>
-public enum ControlKind { While, If, With, Foreach, CallCC, Using, Eval, Alternate, ClassInit, Compose, ClassOp }
+public enum ControlKind { While, If, With, Foreach, CallCC, Using, Eval, Alternate, ClassInit, Compose, ClassOp, CallAssign }
 
 /// <summary>控制内建值:最终阶段是纯数据(Kind+Arity+已收集参数),求值器识别后推控制帧</summary>
 public sealed record ControlFunction(ControlKind Kind, int Arity, RList<RuntimeValue> Args)

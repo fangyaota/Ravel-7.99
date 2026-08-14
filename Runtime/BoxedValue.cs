@@ -13,11 +13,7 @@ public class BoxedValue(RuntimeValue value)
             var op = name[8..];
             var opMethod = Value.Type.TryLookupMethod(op);
             if (opMethod != null)
-            {
-                if (opMethod is ClassOperatorVal cop)
-                    return new BoxedValue(new BoundClassOp((ObjectVal)Value, cop.OpName));
                 return new BoxedValue(RuntimeType.BindMethod(opMethod, Value));
-            }
         }
 
         if (Value is PropertyVal pv)

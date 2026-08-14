@@ -135,16 +135,16 @@ public partial class RuntimeType
             AllTypes.Add(t);
     }
 
-    /// <summary>注册方法（在该类型上）：包装成 Curried(self, arg) 的方法值，访问时绑定 self</summary>
+    /// <summary>注册内置同步方法（在该类型上）：BuiltinMethodVal 标记，分派走快速同步路径</summary>
     public void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
     {
-        _methods[name] = FunctionVal.FromTrampolined2((self, arg) => new Done(impl(self, arg)));
+        _methods[name] = new BuiltinMethodVal(impl);
     }
 
-    /// <summary>注册类运算符标记：op 为运算符符号（"+"），分派时推 ClassOp 控制帧动态找实例字段</summary>
+    /// <summary>注册类运算符：op 为符号（"+"）。存自绑函数——self 绑定得 BoundClassOp，走 CallInto 推 ClassOp 帧</summary>
     public void DefineClassOperator(string op)
     {
-        _methods[op] = new ClassOperatorVal(op);
+        _methods[op] = FunctionVal.FromTrampolined(self => Interpreter.ToDone(new BoundClassOp((ObjectVal)self, op)));
     }
 
     /// <summary>沿继承链查找方法，找不到返回 null</summary>

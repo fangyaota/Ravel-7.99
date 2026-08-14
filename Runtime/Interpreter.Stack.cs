@@ -379,15 +379,16 @@ public partial class Interpreter
             var op = bin.Op[..1];
             var fn = left.Type.TryLookupMethod(op);
             if (fn == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
-            if (fn is ClassOperatorVal cop)
+            var bound = RuntimeType.BindMethod(fn, left);
+            if (fn is not BuiltinMethodVal)
             {
                 var target = bin.Left is IdentifierExpr id2 ? id2.Name : null;
                 if (target == null) throw new RuntimeException("复合赋值目标必须是变量");
-                PushClassOp(nf.Parent!, cop.OpName, (ObjectVal)left, right, target);
+                PushCallAssign(nf, bound, right, target);
                 return;
             }
 
-            var r = Step.Run(RuntimeType.BindMethod(fn, left).Trampolined(right));
+            var r = Step.Run(bound.Trampolined(right));
             if (bin.Left is IdentifierExpr id) nf.Scope.Assign(id.Name, r);
             else throw new RuntimeException("复合赋值目标必须是变量");
             Return(nf, r);
@@ -396,13 +397,11 @@ public partial class Interpreter
 
         var builtin = left.Type.TryLookupMethod(bin.Op);
         if (builtin == null) throw new RuntimeException($"未知的二元运算符: {bin.Op}");
-        if (builtin is ClassOperatorVal cop2)
-        {
-            PushClassOp(nf.Parent!, cop2.OpName, (ObjectVal)left, right);
-            return;
-        }
-
-        Return(nf, Step.Run(RuntimeType.BindMethod(builtin, left).Trampolined(right)));
+        var bound2 = RuntimeType.BindMethod(builtin, left);
+        if (builtin is BuiltinMethodVal)
+            Return(nf, Step.Run(bound2.Trampolined(right)));
+        else
+            CallInto(nf.Parent!, bound2, right);
     }
 
     private void StepMemberAssign(NodeFrame nf, BinaryExpr bin, MemberAccess ma)
@@ -563,6 +562,7 @@ public partial class Interpreter
             case ControlKind.ClassInit: StepClassInit(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
             case ControlKind.ClassOp: StepClassOp(cf); break;
+            case ControlKind.CallAssign: StepCallAssign(cf); break;
         }
     }
 
@@ -832,18 +832,33 @@ public partial class Interpreter
             return;
         }
 
-        // count 1:结果已到;复合赋值目标先赋回
-        if (cf.Args.Count > 3 && cf.Args.At(3) is StringVal target)
-            cf.Scope.Assign(target.Value, cf.Result(0));
         Return(cf, cf.Result(0));
     }
 
     /// <summary>推 ClassOp 帧:动态找实例的 operatorX 字段并调,结果返回 parent 帧。op 为符号("+"),帧内存 attr("operator+")</summary>
-    private void PushClassOp(Frame parent, string op, ObjectVal self, RuntimeValue arg, string? assignTarget = null)
+    private void PushClassOp(Frame parent, string op, ObjectVal self, RuntimeValue arg)
     {
         var args = RList<RuntimeValue>.Empty.Add(self).Add(arg).Add(new StringVal("operator" + op));
-        if (assignTarget != null) args = args.Add(new StringVal(assignTarget));
         _top = new ControlFrame(ControlKind.ClassOp, args, VoidVal.Instance) { Parent = parent, Scope = _top.Scope };
+    }
+
+    /// <summary>复合赋值通用帧:CallInto 算运算符,完成时把结果赋回目标变量</summary>
+    private void PushCallAssign(NodeFrame nf, FunctionVal bound, RuntimeValue arg, string target)
+    {
+        var args = RList<RuntimeValue>.Empty.Add(bound).Add(arg).Add(new StringVal(target));
+        _top = new ControlFrame(ControlKind.CallAssign, args, VoidVal.Instance) { Parent = nf.Parent, Scope = nf.Scope };
+    }
+
+    private void StepCallAssign(ControlFrame cf)
+    {
+        if (cf.Count == 0)
+        {
+            CallInto(cf, cf.Args.At(0), cf.Args.At(1));
+            return;
+        }
+
+        cf.Scope.Assign(((StringVal)cf.Args.At(2)).Value, cf.Result(0));
+        Return(cf, cf.Result(0));
     }
 
     /// <summary>收集 scope 链(沿 parent 字段)上所有带 attr 的函数,用 | 交替组合(多 operatorX 重载自动试下一个)</summary>
