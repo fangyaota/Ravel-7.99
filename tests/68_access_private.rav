@@ -1,3 +1,4 @@
+# todo
 C := class {
     init ctor := () => { 0 }
     private secret: int = 42

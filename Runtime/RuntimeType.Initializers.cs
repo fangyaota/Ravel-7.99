@@ -218,7 +218,7 @@ public partial class RuntimeType
                         var init = CollectInit(instanceScope);
                         if (init != null)
                             return Interpreter.Then(init.Trampolined(args), _ => new Done(obj));
-                        return new Done(obj);
+                        return new Error($"类型 {type.Name} 没有构造器（init）");
                     }),
                 () => interp.CurrentScope = saved);
         });

@@ -1,3 +1,4 @@
+# todo
 # metaclass: init 用 base.init 创建类
 LoggingMeta ::= class class {
     init new := (parent: type block: function) => {

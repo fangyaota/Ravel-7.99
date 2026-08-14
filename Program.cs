@@ -60,7 +60,7 @@ static void RunAllTests()
         var content = File.ReadAllText(file);
 
         // Split source from expected output
-        var (source, expected, expectError) = ParseTestFile(content);
+        var (source, expected, expectError, isTodo) = ParseTestFile(content);
 
         Console.Write($"{name,-35} ");
 
@@ -74,42 +74,44 @@ static void RunAllTests()
             output = $"Error: {ex.Message}";
         }
 
+        bool ok;
         if (expectError)
         {
-            if (output.StartsWith("Error:"))
-            {
-                Console.WriteLine("OK (expected error)");
-                passed++;
-            }
-            else
-            {
-                Console.WriteLine("TODO (expected error, got output)");
-                todo++;
-            }
+            ok = output.StartsWith("Error:");
         }
         else
         {
-            if (output.Trim() == expected.Trim())
-            {
-                Console.WriteLine("OK");
-                passed++;
-            }
-            else
-            {
-                Console.WriteLine("TODO");
-                Console.WriteLine($"       expected: {expected.Trim().Replace("\n", "\\n")}");
-                Console.WriteLine($"       got:      {output.Trim().Replace("\n", "\\n")}");
-                todo++;
-            }
+            ok = output.Trim() == expected.Trim();
+        }
+
+        if (ok)
+        {
+            Console.WriteLine(expectError ? "OK (expected error)" : "OK");
+            passed++;
+        }
+        else if (isTodo)
+        {
+            Console.WriteLine("TODO");
+            Console.WriteLine($"       expected: {expected.Trim().Replace("\n", "\\n")}");
+            Console.WriteLine($"       got:      {output.Trim().Replace("\n", "\\n")}");
+            todo++;
+        }
+        else
+        {
+            Console.WriteLine("FAIL");
+            Console.WriteLine($"       expected: {expected.Trim().Replace("\n", "\\n")}");
+            Console.WriteLine($"       got:      {output.Trim().Replace("\n", "\\n")}");
+            failed++;
         }
     }
 
     Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo");
 }
 
-static (string source, string expected, bool expectError) ParseTestFile(string content)
+static (string source, string expected, bool expectError, bool isTodo) ParseTestFile(string content)
 {
     bool expectError = false;
+    bool isTodo = false;
     var sourceLines = new List<string>();
     var expectedLines = new List<string>();
     bool inExpected = false;
@@ -120,6 +122,12 @@ static (string source, string expected, bool expectError) ParseTestFile(string c
         if (line.TrimStart().StartsWith("# expect-error"))
         {
             expectError = true;
+            continue;
+        }
+
+        if (line.TrimStart().StartsWith("# todo"))
+        {
+            isTodo = true;
             continue;
         }
 
@@ -135,7 +143,7 @@ static (string source, string expected, bool expectError) ParseTestFile(string c
             sourceLines.Add(line);
     }
 
-    return (string.Join("\n", sourceLines), string.Join("\n", expectedLines), expectError);
+    return (string.Join("\n", sourceLines), string.Join("\n", expectedLines), expectError, isTodo);
 }
 
 static string CaptureOutput(string source)

@@ -1,3 +1,4 @@
+# todo
 # metaclass: typeof 检查链
 MyMeta ::= class class {
     init ctor := (parent: type block: function) => {

@@ -1,3 +1,4 @@
+# todo
 B := class {
     init ctor := () => { this.val = 10 }
     val: int = 0

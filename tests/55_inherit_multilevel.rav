@@ -1,3 +1,4 @@
+# todo
 A := class {
     init ctor := () => { a = 1 }
     a: int = 0

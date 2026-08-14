@@ -1,3 +1,4 @@
+# todo
 # property C# factory
 C := class { init ctor := () => { _val = 0; }; _val: int = 0; by val := property (() => { _val; }) ((v: int) => { _val = v; }); get := () => { val }; }
 c := C ()

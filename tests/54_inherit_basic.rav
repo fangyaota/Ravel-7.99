@@ -1,3 +1,4 @@
+# todo
 Animal := class {
     init ctor := () => { this.name = "?" }
     name: string = ""

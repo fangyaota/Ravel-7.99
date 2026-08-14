@@ -1,3 +1,4 @@
+# todo
 # fn.scope / fn.setScope / fn.setType
 f := () => { print "hi"; }
 sc := f.scope ()

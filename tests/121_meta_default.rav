@@ -1,3 +1,4 @@
+# todo
 # metaclass: 添加默认方法
 HasDefaults ::= class class {
     init ctor := (parent: type block: function) => {

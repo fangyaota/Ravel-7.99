@@ -1,5 +1,5 @@
 # references 用 = 赋值（已在 predefined.rav 中定义为全局变量）
-references = ["/workspace/ravel/tests/"]
+references = ["./tests/"]
 using "132_mod_simple.rav"
 print "done"
 # --- expected ---

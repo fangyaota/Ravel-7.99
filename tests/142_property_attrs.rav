@@ -1,3 +1,4 @@
+# todo
 # Property.Attrs
 C := class { init ctor := () => { 0; }; readonly x: int = 42; }
 sc := C.Proto ()

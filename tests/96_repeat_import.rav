@@ -1,5 +1,5 @@
 # 非循环重复引用：同一模块被 import 两次，第二次应静默跳过
-references = ["/workspace/ravel/tests/"]
+references = ["./tests/"]
 using "132_mod_simple.rav"
 print "first done"
 using "132_mod_simple.rav"
