@@ -33,7 +33,17 @@ public partial class RuntimeType
         {
             var all = new List<RuntimeValue>();
             var seen = new HashSet<string>();
-            // 加类型方法（含继承链）
+
+            // 特判模块(Ravel 实例):字段 = 模块作用域里的变量
+            if (s is ModuleVal mv)
+            {
+                foreach (var kv in mv.ModuleScope.Variables)
+                    if (seen.Add(kv.Key))
+                        all.Add(new StringVal(kv.Key));
+                //return new ListVal(all);
+            }
+
+            // 其他值:字段 = 类型方法(含继承链)
             var t = s.Type;
             while (true)
             {
