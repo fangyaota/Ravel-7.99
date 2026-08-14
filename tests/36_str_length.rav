@@ -1,3 +1,0 @@
-print ("hello".Length ())
-# --- expected ---
-# 5

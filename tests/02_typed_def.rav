@@ -1,4 +1,0 @@
-B: int = 42
-print B
-# --- expected ---
-# 42

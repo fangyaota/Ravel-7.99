@@ -1,5 +1,0 @@
-X := 1 + 2
-X += 3
-print X
-# --- expected ---
-# 6

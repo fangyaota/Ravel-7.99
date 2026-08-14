@@ -39,7 +39,7 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    149 个 golden test(01-153,含 26 个 # todo)
+tests/                    129 个 golden test(含 26 个 # todo;小测试已按特性合并)
 ```
 
 ## 求值器架构(显式帧栈)
@@ -155,4 +155,4 @@ using "file.rav"
 
 ## 测试
 
-149 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 123 passed / 0 failed / 26 todo。
+129 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 103 passed / 0 failed / 26 todo。小测试已合并：`01_basics`/`10_list`/`14_operators`/`26_precedence`/`35_type_methods`/`147_reflection`。

@@ -1,7 +1,0 @@
-a: Any = 5
-print a
-a = "changed"
-print a
-# --- expected ---
-# 5
-# changed

@@ -1,5 +1,0 @@
-X := 10
-X %= 3
-print X
-# --- expected ---
-# 1

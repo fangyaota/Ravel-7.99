@@ -1,3 +1,0 @@
-print (!false && false)
-# --- expected ---
-# false
