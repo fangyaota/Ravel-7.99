@@ -176,6 +176,19 @@ public partial class RuntimeType
             var tv = (TypeVal)s;
             return ConvertDirect(tv.Value, DefaultVal.Instance);
         });
+        Type.DefineMethod("Initializer", (s, _) =>
+        {
+            var tv = (TypeVal)s;
+            return new PropertyVal(
+                FunctionVal.FromDirect(_ => (RuntimeValue?)tv.Value.Initializer ?? VoidVal.Instance),
+                FunctionVal.FromDirect(v =>
+                {
+                    if (v is not FunctionVal f) throw new RuntimeException("initializer 必须是函数");
+                    tv.Value.Initializer = f;
+                    return VoidVal.Instance;
+                })
+            );
+        });
         Function.DefineMethod("Name", (s, a) =>
         {
             var fn = (FunctionVal)s;
