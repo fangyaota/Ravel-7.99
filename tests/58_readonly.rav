@@ -1,6 +1,5 @@
-# todo
 C := class {
-    init ctor := () => { 0 }
+    init ctor := () => { 0; }
     readonly x: int = 10
 }
 c := C ()

@@ -1,12 +1,11 @@
-# todo
 Animal := class {
-    init ctor := () => { this.name = "?" }
+    init ctor := () => { this.name = "?"; }
     name: string = ""
-    speak := () => { print name }
+    speak := () => { print name; }
 }
 Dog := class Animal {
     init ctor := () => {
-        base.init ()
+        base = Animal ()
         name = "dog"
     }
 }

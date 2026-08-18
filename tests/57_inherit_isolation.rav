@@ -1,13 +1,12 @@
-# todo
 Animal := class {
-    init ctor := () => { 0 }
+    init ctor := () => { 0; }
     name: string = ""
 }
 Dog := class Animal {
-    init ctor := () => { base.init (); name = "hacked" }
+    init ctor := () => { base = Animal (); name = "hacked"; }
 }
 Dog2 := class Animal {
-    init ctor := () => { base.init () }
+    init ctor := () => { base = Animal (); }
 }
 d := Dog ()
 d2 := Dog2 ()

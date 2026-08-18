@@ -1,4 +1,3 @@
-# todo
 # ===== 文件系统 =====
 
 Node := class {
@@ -8,18 +7,18 @@ Node := class {
     }
     name: string = ""
     size: int = 0
-    getName := () => { name }
-    getSize := () => { size }
-    find := (target: string) => { File () }
+    getName := () => { name; }
+    getSize := () => { size; }
+    find := (target: string) => { File (); }
 }
 
 File := class Node {
     init ctor := () => {
-        base.init ()
+        base = Node ()
         content = ""
     }
     content: string = ""
-    read := () => { content }
+    read := () => { content; }
     write := (text: string) => {
         content = text
         size = text.Length ()
@@ -32,12 +31,12 @@ File := class Node {
 
 Folder := class Node {
     init ctor := () => {
-        base.init ()
+        base = Node ()
         children = []
     }
     children: list = []
 
-    add := (child: object) => { children.Add child }
+    add := (child: object) => { children.Add child; }
 
     find := (target: string) => {
         callcc (found: function) => {

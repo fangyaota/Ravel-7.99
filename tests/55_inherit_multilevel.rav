@@ -1,14 +1,13 @@
-# todo
 A := class {
-    init ctor := () => { a = 1 }
+    init ctor := () => { a = 1; }
     a: int = 0
 }
 B := class A {
-    init ctor := () => { base.init (); b = 2 }
+    init ctor := () => { base = A (); b = 2; }
     b: int = 0
 }
 C := class B {
-    init ctor := () => { base.init (); c = 3 }
+    init ctor := () => { base = B (); c = 3; }
     c: int = 0
 }
 obj := C ()
