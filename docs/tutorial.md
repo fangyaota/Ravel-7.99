@@ -428,7 +428,7 @@ class {
 Person ::= class {
     init ctor := () => {
         _name := ""
-        by name := Property (() => { _name; }) ((v: string) => { _name = v; })
+        by name := property (() => { _name; }) ((v: string) => { _name = v; })
     }
 }
 p := Person ()
@@ -436,7 +436,7 @@ p.name = "Alice"    # setter
 print (p.name)      # getter → "Alice"
 ```
 
-`Property getter setter` 两个参数都是函数。
+`property getter setter` 两个参数都是函数。
 
 ### 7.6 with（浅拷贝修改）
 

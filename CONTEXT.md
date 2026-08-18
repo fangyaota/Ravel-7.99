@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，123 passed / 0 failed / 26 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，31 passed / 0 failed / 18 todo。
 
 ## 编译运行
 
@@ -30,7 +30,8 @@ Runtime/
   Step.cs                        仅 Done(同步调用结果)
   BoxedValue.cs                  成员访问
   Values/                        FunctionVal/LambdaVal/BlockVal/TypeVal/ControlFunction/
-                                 ComposeVal/ContinuationVal/ObjectVal/.../各基础值
+                                 MethodVal(BuiltinMethodVal/BoundClassOp)/ComposeVal/
+                                 ContinuationVal/ObjectVal/.../各基础值
 Parser.cs / Lexer.cs / Ast.cs / Token.cs / TokenType.cs
 Program.cs                       golden test runner + REPL 入口
 
@@ -39,7 +40,7 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    49 个 golden test(7 合并普通 + 14 expect-error + 26 todo + 2 fixture)
+tests/                    49 个 golden test(普通 + 14 expect-error + 18 todo + fixture)
 ```
 
 ## 求值器架构(显式帧栈)
@@ -48,8 +49,8 @@ tests/                    49 个 golden test(7 合并普通 + 14 expect-error + 
 
 - 整个程序一个块根帧,`StepOnce()` 扁平循环逐帧推进,C# 栈恒平。
 - 每节点状态机按 `Results.Count` 推进;`Return` 把结果交给父帧。
-- 调用分派:`Sync`(算值)/`LambdaVal`/`BlockVal`/`TypeVal`(类→ClassInit 帧)/`ControlFunction`(控制帧)/`ContinuationVal`(还原帧链)/`ComposeVal`(prepend/append)。
-- 控制内建(`if`/`while`/`with`/`foreach`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。
+- 调用分派:`BuiltinMethodVal`/`Sync`(算值)/`LambdaVal`/`BlockVal`/`TypeVal`(类→ClassInit 帧)/`ControlFunction`(控制帧)/`ContinuationVal`(还原帧链)/`BoundClassOp`(类运算符)/`ComposeVal`(prepend/append)。
+- 控制内建(`if`/`while`/`with`/`foreach`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn` 控制帧。
 - callcc 单发(abort body)/多发(重跑局部 onDone + 返回参数给调用者)。
 - 深度递归 20 万层安全(原 CPS ~4k 层爆栈)。
 
@@ -81,7 +82,8 @@ Object (parent=self)
         AnyType EveryType ExceptionType ValueTypeVal
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
-        While If CallCC Exit With RavelMod Using
+        While If CallCC Exit With RavelMod Using unsafe
+        property Foreach currentScope
 
 **值**: True False Default
 
@@ -104,8 +106,10 @@ Object (parent=self)
 ## by 属性
 
 ```ravel
-by age := Property (() => { _age; }) ((v: int) => { _age = v; })
+by age := property (() => { _age; }) ((v: int) => { _age = v; })
 ```
+
+实例读 `obj.age` / 写 `obj.age = v` 走 getter/setter（`CallInto` 派发，lambda getter/setter 也有效）。
 
 ## 多参数 lambda
 
@@ -143,9 +147,10 @@ int.name          # "Integer"
 int.Parent ()     # ValueType
 int.Is ValueType  # true
 int.Subtypes ()   # [String BigInt ...]
+int.Initializer () # Property 代理(getter=构造器,setter=设构造器)
 
 # 对象
-obj.Fields ()     # 字段名列表（排除 init/by/private）
+obj.Fields ()     # 字段名列表(模块=作用域变量;对象=类型方法)
 obj.Copy ()       # 浅拷贝
 
 # 模块
@@ -155,4 +160,4 @@ using "file.rav"
 
 ## 测试
 
-49 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 23 passed / 0 failed / 26 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+49 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 31 passed / 0 failed / 18 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。

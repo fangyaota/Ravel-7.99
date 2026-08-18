@@ -17,7 +17,7 @@
 Frame (Parent, Scope, Results)
 ├── NodeFrame        求值一个 AST 节点（语句/表达式）
 ├── BlockExecFrame   执行一个代码块（逐语句）
-└── ControlFrame     控制帧（while/if/with/foreach/callcc/using/eval/alternate/class-init/compose）
+└── ControlFrame     控制帧（while/if/with/foreach/callcc/using/eval/alternate/class-init/compose/class-op/call-assign/call-return）
 ```
 
 - `Results` 是持久化单链表（`RList`），`WithResult` 生成新帧共享父节点。
@@ -40,12 +40,13 @@ while (_top != null) StepOnce();
 
 | 值 | 调用行为 |
 |---|---|
-| 同步内建/运算符/方法 | `Trampolined(arg)` 拿值 |
+| `BuiltinMethodVal`/同步内建 | `Trampolined(arg)` 拿值 |
 | `LambdaVal` | 推 body 帧（scope 绑 self+param） |
 | `BlockVal` | 推块执行帧 |
 | `TypeVal`（`Body != null`） | 推 ClassInit 构造帧 |
 | `ControlFunction` | 收满参数 → 推控制帧 |
 | `ContinuationVal` | 还原帧链 |
+| `BoundClassOp` | 推 ClassOp 帧（动态找实例 operatorX 字段） |
 | `ComposeVal`（prepend/append） | 推 Compose 帧 |
 
 ### 4. 控制内建 = 纯数据
@@ -80,7 +81,7 @@ ControlFunction(Kind, Arity, Args)   // Kind=控制种类, Arity=参数个数, A
 ### 收益
 
 - **深度递归 20 万层通过**（旧实现 ~4k 层爆栈），`while` 100 万次通过。
-- 123 passed / 0 failed / 26 todo，行为与旧实现完全一致。
+- 31 passed / 0 failed / 18 todo（测试已按特性合并），行为与旧实现完全一致。
 - callcc 多发射语义保留（85-89 测试）。
 
 ### 取舍
