@@ -61,6 +61,10 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
+    /// <summary>using/ravel 的模块加载。模块体执行期间要一直把它记在 `_loading` 里,
+    /// 循环引用才检测得到——所以 push 在这里、pop 在块跑完那一步(State 存路径,顺带当已 push 的凭据)。
+    /// 注意 pop 依赖帧的正常收尾:若 callcc 把续延甩过这个帧,模块体会留在 `_loading` 里不再摘掉,
+    /// 之后真去引它会被误报成循环引用。模块体里用 callcc 逃生是极罕见的写法,先按简单的来。</summary>
     private void StepUsing(ControlFrame cf)
     {
         if (cf.Count == 0)
@@ -73,10 +77,13 @@ public partial class Interpreter
                 return;
             }
 
-            _top = new BlockExecFrame(ast) { Parent = cf, Scope = cf.Scope };
+            var full = ResolveModulePath(path)!;   // 上面刚解析成功过
+            _loading.Push(full);
+            _top = new BlockExecFrame(ast) { Parent = cf with { State = new StringVal(full) }, Scope = cf.Scope };
             return;
         }
 
+        if (cf.State is StringVal s) _loading.Pop();
         Return(cf, VoidVal.Instance);
     }
 

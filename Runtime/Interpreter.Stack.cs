@@ -80,11 +80,25 @@ public partial class Interpreter
         return true;
     }
 
+    /// <summary>出错位置:当前正在求值的节点;它没有位置(控制帧代表「一次内建调用」而不是
+    /// 源码上的某个点,合成的块也一样)就沿帧链往上找最近一个有位置的。
+    /// 不加这个回退的话,`using` 找不到文件、类没有 init 这类错误全都报不出位置——
+    /// `Locate` 只补一次,而 StepOnce 不是递归的,没有第二层来兜底。</summary>
+    private static (int Line, int Column) ErrorSpot(Frame top)
+    {
+        for (var f = top; f != null; f = f.Parent)
+        {
+            var (line, col) = FrameSpot(f);
+            if (line > 0) return (line, col);
+        }
+
+        return (0, 0);
+    }
+
     /// <summary>给运行时错误补上位置和 Ravel 层调用栈。帧链本身就是调用栈,沿它收集即可。</summary>
     private static RuntimeException Locate(RuntimeException ex, Frame top)
     {
-        // 出错位置:精确到当前正在求值的那个节点
-        (ex.Line, ex.Column) = FrameSpot(top);
+        (ex.Line, ex.Column) = ErrorSpot(top);
 
         // 文件与调用栈:块帧才代表一次「调用」,节点帧只是栈帧内部的步骤
         var trace = new List<string>();

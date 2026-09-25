@@ -1,4 +1,4 @@
-references = ["/workspace/ravel/tests/"]
+references = ["tests/"]
 print "B start"
 y: int = 99
 using "129_circ_ref_a.rav"

@@ -1,5 +1,5 @@
 # 模块 private 变量外部不可访问
-references = ["/workspace/ravel/tests/"]
+references = ["tests/"]
 using "131_mod_lib.rav"
 print (Lib.priv_y)
 # expect-error

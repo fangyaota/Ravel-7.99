@@ -24,9 +24,11 @@ public partial class Parser(List<Token> tokens, string? source = null)
     public static Program ParseSource(string source, string? fileName = null)
         => new Parser(new Lexer(source, fileName).Tokenize(), fileName).Parse();
 
-    /// <summary>同上,但结果作为块(模块体 / eval 代码片段用)</summary>
+    /// <summary>同上,但结果作为块(模块体 / eval 代码片段用)。
+    /// 位置给 1:1 而不是留 0——帧链里 Line==0 的块会被当成「没有位置」跳过,
+    /// 模块体于是不会出现在调用栈里。顶层的根块(RunStack)也是这么标 1:1 的。</summary>
     public static BlockExpr ParseBlock(string source, string? fileName = null)
-        => new(ParseSource(source, fileName).Statements) { Source = fileName };
+        => new(ParseSource(source, fileName).Statements) { Line = 1, Column = 1, Source = fileName };
 
     public Program Parse()
     {
