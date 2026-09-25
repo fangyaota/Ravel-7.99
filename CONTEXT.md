@@ -51,8 +51,11 @@ Repl/                           REPL 前端
 Program.cs                      CLI 入口(REPL / test / 单文件)
 
 lib/
-  predefined.rav          别名 + 控制流 + using
-  try.rav                 异常处理(handlerStack + callcc)
+  predefined.rav          别名 + 控制流 + using(启动时自动加载)
+  try.rav                 异常处理:handlerStack + callcc 实现 Ex.try/Ex.throw
+  math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
+  app.rav                 示例脚本(math + try 的冒烟),手动跑:
+                          dotnet out/ravel.dll lib/app.rav
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
                           (元类特性还没实现,见 tests/117-122 的 todo)
 
