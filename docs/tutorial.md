@@ -84,9 +84,11 @@ int.Default ()         # 0           — 默认值
 ```ravel
 int "42"       # 42
 string 100     # "100"
-bool 0         # false
 float 3        # 3
+bool default   # false
 ```
+
+`bool` 只认 bool 和 `default`——数字**没有**到 bool 的转换，`bool 0` 会报「无法转换为 bool」。
 
 ### 2.5 空值
 
@@ -102,14 +104,17 @@ list default   # []
 ### 2.6 类型层次
 
 ```
-Object
+Object (parent = 自身)
 ├── ValueType → Integer Float String BigInt Fraction BigFraction   (并列)
 ├── Function → Bool  Block  Type → Class                          (及用户类)
 ├── List  Set  Dict
-├── Void  Exception
-├── Any (顶类型)
-└── Every (底类型，default 的类)
+├── Void  Exception  Ravel(模块)  Scope  Property
+├── Any (顶类型, parent = 自身, 不在 Object 子树里)
+└── Every (底类型 = default 的类, parent = 自身, 不在 Object 子树里)
 ```
+
+`Any` 和 `Every` 画在最后只是排版方便——它们的父类型是**自己**，不是 `Object`
+（`object.Subtypes ()` 里没有它们）。权威快照见 `tests/125_type_tree.rav`。
 
 `Bool` 挂在 `Function` 下是有意的：`true`/`false` 可以像函数一样调用，
 收两个代码块、返回选中那个的结果。于是 `if` 就是 `c {t} {e}`——见「四、控制流」。
@@ -194,7 +199,7 @@ true == true    # true
 "a" != "b"      # true
 ```
 
-Bool 和 String 只支持 `==` `!=`。
+Bool 只支持 `==` `!=`；String 支持 `==` `!=`，另外还有 `+`（拼接，见 3.5）。
 
 ### 3.7 复合赋值
 
@@ -350,6 +355,9 @@ double 5    # 10
 
 `()` 空参数：`() => { 42 }`，调用：`f ()`。
 
+`=>` 后面的块是**强制**的，单行写法 `{ x * 2 }` 合法。这一点只对 lambda 体成立——
+表达式位置的单行 `{ ... }` 是 Set/Dict，见「十二、常见陷阱」。
+
 ### 5.2 多参数（柯里化）
 
 ```ravel
@@ -369,10 +377,12 @@ add3 4           # 7
 inc := _ + 1              # (x: object) => x + 1
 both := _ + _             # (x: object) => (y: object) => x + y
 is_pos := _ > 0           # (x: object) => x > 0
-greet := print _ "!"      # (x: object) => print x "!"
+to_int := int _           # (x: object) => int x
 ```
 
-每个 `_` 一个参数，从左到右编号。
+每个 `_` 一个参数，从左到右编号。`_` 只是一个洞，脱糖后就是普通函数调用——
+所以 `_` 填进去的位置必须真的能吃这个参数：`print _ "!"` 会变成「先 `print x`、
+再拿它的返回值当函数用 `"!"`」，调用时报「值 () 不是函数」。
 
 ### 5.4 丢弃
 
@@ -411,11 +421,14 @@ add.name = "sum" # 改名
 lst := [1 2 3]
 lst.At 0          # 1
 lst.Count ()      # 3
-lst.Add 4         # [1 2 3 4]
-lst.Remove 1      # 删除索引 1 → 2
-lst.Insert 0 99   # [99 1 2 3]
-lst.Set 0 100     # [100 1 2 3]
+lst.Add 4         # 返回 ()，lst 变成 [1 2 3 4]
+lst.Remove 1      # 返回被删掉的元素 2，lst 变成 [1 3 4]
+lst.Insert 0 99   # 返回 ()，lst 变成 [99 1 3 4]
+lst.Set 0 100     # 返回 ()，lst 变成 [100 1 3 4]
 ```
+
+写列表的这几个方法都是**就地改**；只有 `Remove` 把删掉的元素交回来，
+`Add`/`Insert`/`Set` 返回 `()`。
 
 ### 6.2 Set
 
@@ -469,7 +482,13 @@ print (p.name)   # Alice
 ```
 
 构造器就是名字叫 `init` 的那个变量。一个类最多一个；类里不写就向上找父类的，
-整条继承链都没有则报「没有构造器」。写 `init ctor := ...`（旧写法）是语法错误。
+整条继承链都没有则报「类型 X 没有构造器（init）」。
+
+**`init` 是变量名，不是修饰符**。旧写法 `init ctor := ...` 会被专门拦下来：
+
+```
+Error: 构造器不用 init 修饰符，直接写 `init := () => { ... }`
+```
 
 字段用 `:=` 定义、用 `=` 改值。对象建好之后**也能加字段**——`obj.field := v` 是
 定义语句的成员版，字段不存在就新建、存在就整条替换（类型约束随之更新）：
@@ -569,17 +588,22 @@ print ((Animal ()).name)  # ?  —— 父类实例不受影响
 
 | 修饰符 | 作用 |
 |--------|------|
-| `init` | 标记为构造器 |
-| `public` | 外部可访问 |
-| `private` | 仅类内可访问 |
-| `protected` | 仅类内+子类可访问 |
-| `readonly` | 不可修改 |
+| `public` | 外部可访问（默认）|
+| `private` | 仅本对象内部可访问 |
+| `protected` | 类内 + 子类实例可访问 |
+| `readonly` | `=` 赋值时报「无法给只读变量赋值」（`:=` 重定义仍可绕过，见 7.1）|
+| `unreadable` | 读取时报「变量 'x' 不可读取」|
+| `outdated` | 读取时往 stderr 打一行 `[outdated] 'x' is deprecated` |
+| `core` | 读写都需要先 `unsafe ()` |
 | `by` | 属性（getter/setter）|
+| `override` / `new` | 解析器接受，但求值器不做任何检查（纯注解）|
+
+**`init` 不在表里**——它只是构造器的名字，不是修饰符（见 7.1）。
 
 ```ravel
-class {
-    init := () => { ... }
-    public name: string = ""
+C ::= class {
+    init := () => { _age = 0; }
+    public name: string = "n"
     private _age: int = 0
     readonly id: int = 1
 }
@@ -589,10 +613,9 @@ class {
 
 ```ravel
 Person ::= class {
-    init := () => {
-        _name := ""
-        by name := property (() => { _name; }) ((v: string) => { _name = v; })
-    }
+    init := () => { _name = ""; }
+    _name: string = ""
+    by name := property (() => { _name; }) ((v: string) => { _name = v; })
 }
 p := Person ()
 p.name = "Alice"    # setter
@@ -600,6 +623,10 @@ print (p.name)      # getter → "Alice"
 ```
 
 `property getter setter` 两个参数都是函数。
+
+⚠️ `by` 声明必须写在**类体一级**，不能写在 `init` 里面——`init` 是个 lambda，
+它的块有自己的局部作用域，写在里面的 `by name := ...` 挂不到对象上，
+`p.name` 会报「对象没有字段 'name'」。`init` 只负责给 `_name` 赋初值。
 
 ### 7.6 with（浅拷贝修改）
 
@@ -617,30 +644,47 @@ p.Copy ()      # 浅拷贝
 p.ToString ()  # 字符串表示
 ```
 
-`p.Fields ()` 列出的是**类型方法名**（`ToString`/`Copy`/`Fields`…），不是实例字段名。
-只有模块（`ravel`/`using` 建立的）会额外列出作用域里的变量。
+`p.Fields ()` 列出**实例字段名在前、类型方法名在后**：
+
+```ravel
+Person ::= class {
+    init := () => { name = "x"; }
+    name: string = ""
+    age: int = 0
+}
+p := Person ()
+print (p.Fields ())   # [name age ToString Copy Fields]
+```
+
+模块（`ravel`/`using` 建立的）则把作用域里的变量排在最前。
+不论哪种值，类型自己的方法（沿继承链到 `object`）都会并进来。
 
 ---
 
 ## 八、metaclass
 
-> ⚠️ **本章描述的是目标语义，尚未实现。** 元类构造器里创建类的 `base.init parent block`
-> 依赖已移除的 `base`，目前没有替代手段，对应用例（117/118/121/122）都是 `# todo`。
-> `typeof` 反射本身可用（8.1），但用它*创建*类还不行。
+> ⚠️ **只有 8.1 可用，8.2 以下全部未实现。** 除非明说，本节代码块都是**目标语义**，
+> 原样粘过去跑不通。原因：创建类要用的 `base.init parent block` 依赖**已被移除的 `base`**，
+> 目前没有替代手段（对应用例 117/118/121/122 一直是 `# todo`）。
+> 元类这条路要重启，得先另立一套建类机制。
 
-### 8.1 概念
+### 8.1 概念（可用）
 
-metaclass 是"类的类"。`typeof` 返回创建类的 metaclass：
+metaclass 是"类的类"。`typeof` 返回创建它的那个构造器对应的类型：
 
 ```ravel
 typeof Person     # Class    (Person 由 class 创建)
-typeof MyClass    # MyMeta   (MyClass 由 MyMeta 创建)
+typeof MyClass    # MyMeta   (MyClass 由 MyMeta 创建)  ← 未实现,见下
 typeof int        # Type     (内置类型由 type 创建)
 ```
 
-### 8.2 创建 metaclass
+`typeof` 反射本身是好的：`typeof Person` → `Class`、`typeof int` → `Type` 都能跑。
+只有"用户元类建出来的类，`typeof` 回元类"这一条依赖下面那套机制，用不了。
+
+### 8.2 创建 metaclass（未实现）
 
 ```ravel
+# ⚠️ 目标语义，跑不通
 LoggedMeta ::= class class {
     init := (parent: type block: function) => {
         print "creating..."
@@ -654,9 +698,13 @@ LoggedMeta ::= class class {
 - `base.init parent block` 调 `Class` 的 init 创建实际类
 - `this` 指向正在被创建的类构造器
 
-### 8.3 使用 metaclass
+**实际**：这整段落不了地。`base` 已移除，第二行的 `base.init` 无解；
+而且上面这段 `class class {...}` 本身就报 `Error: 类型不匹配`。
+
+### 8.3 使用 metaclass（未实现）
 
 ```ravel
+# ⚠️ 目标语义，跑不通
 MyClass ::= LoggedMeta {
     init := () => { 0; }
     x: int = 42
@@ -666,24 +714,33 @@ c := MyClass ()
 print (c.x)      # 42
 ```
 
-### 8.4 无 init 的 metaclass
+`LoggedMeta` 建不出来（8.2），所以这一段连带不可用。
+
+### 8.4 无 init 的 metaclass（未实现）
 
 ```ravel
+# ⚠️ 目标语义，跑不通
 M ::= class class { x: int = 1 }
 C ::= M { init := () => { 0; }; }
 ```
 
-继承 `Class` 的默认 init，行为同普通 class。
+**实际**：`Error: class 需要代码块参数`，位置指第二个 `class`。
+除了元类机制本身缺失，这里还踩了「代码块 vs 字典」的坑：`{ x: int = 1 }` 单行且形如
+`IDENT :`，被解析成 **Dict** 而不是块（见 6.4）。要写成块就得换行或加 `;`。
 
-### 8.5 接口（实验性）
+### 8.5 接口（未实现）
 
 ```ravel
+# ⚠️ 目标语义，跑不通
 IEnumerable := interface {
     count: function = () => { 0; }
 }
 ```
 
-`interface` 是内置 metaclass。
+**`interface` 不存在**——它不在 System 模块里，也不在 `predefined.rav` 的别名表里，
+原样写会报 `Error: 未定义的变量 'interface'`。
+`lib/std.rav` 里有个大写 `Interface`，但那个文件是**死文件**（没被加载，且它自己也靠
+`base.init`）。眼下要接口式的东西，只能用鸭子类型（直接调方法）或自定义运算符。
 
 ---
 
@@ -736,20 +793,37 @@ exit "fatal error"
 
 ### 10.1 报错长什么样
 
-运行时错误会带**位置**和**调用栈**，跨文件时也能看出是哪一层、在哪个文件：
+运行时错误会带**位置**和**调用栈**，跨文件时也能看出是哪一层、在哪个文件。
+`tests/152_error_report.rav` 的全文与输出：
+
+```ravel
+helper := (n: int) => { n + missing; }
+helper 1
+```
 
 ```
-Error: 未定义的变量 'nope'
-  --> lib/_errtest.rav:2:9
-  2 |     n + nope
-    |         ^
+Error: 未定义的变量 'missing'
+  --> tests/152_error_report.rav:4:29
+  4 | helper := (n: int) => { n + missing; }
+    |                             ^
   调用栈 (2 层):
-    在 lib/_errtest.rav:1:18
-    在 temp.ravel:1:1
+    在 tests/152_error_report.rav:4:20
+    在 tests/152_error_report.rav:1:1
 ```
 
 插入符指向出错的那个表达式；调用栈每层是该函数**定义处**的位置
 （Ravel 的帧链就是调用栈，所以这个信息是白捡的）。
+路径取相对 cwd、分隔符统一成 `/`，所以期望输出跨平台一致。
+
+**语法/词法错误走同一套渲染**，只是没有调用栈（源码根本没解析成功）。
+`tests/174_syntax_error_report.rav`：
+
+```
+Error: 未预期的字符 '$'
+  --> tests/174_syntax_error_report.rav:4:10
+  4 | print (x $ 2)
+    |          ^
+```
 
 ---
 
@@ -770,9 +844,21 @@ Error: 未定义的变量 'nope'
 
 ### 单行代码块需要 `;`
 
+**表达式位置**的 `{ ... }`，单行不写 `;` 就会被当成 Set/Dict，不是代码块：
+
 ```ravel
 if { x > 0; } { print 1; } { print 0; }   # ✅
 if { x > 0 } { print 1 } { print 0 }       # ❌ → Set
+X := { 1 2 }        # Set（不是块）
+X := { a: 1 }       # Dict（IDENT : 开头）
+```
+
+唯一例外是 **`=>` 后面的 lambda 体**：那里的块是**强制**的，没有「块 vs 集合」的歧义，
+所以单行写法合法、`;` 可省：
+
+```ravel
+f := (x: int) => { x * 2 }     # ✅ 合法
+g := (x: int) => { x * 2; }    # ✅ 也合法
 ```
 
 ### 链式调用需要临时变量
@@ -798,16 +884,19 @@ a ::= fn    # 定义+自动命名（仅函数/类）
 ### init 是构造器的名字
 
 ```ravel
-init := () => { ... }        # ✅ 构造器就是名字叫 init 的变量
-init ctor := () => { ... }   # ❌ 没有 init 修饰符这种写法了
+init := () => { x = 0; }        # ✅ 构造器就是名字叫 init 的变量
+init ctor := () => { x = 0; }   # ❌ 没有 init 修饰符这种写法了
 ```
 
-### metaclass 的父类型
+旧写法会被专门拦下来：
 
-```ravel
-# 父类型 = Object，base.init 走 Object
-MyMeta ::= MetaMeta object { ... }
-
-# 父类型 = MetaMeta，base.init 走 MetaMeta
-MyMeta ::= MetaMeta MetaMeta { ... }
 ```
+Error: 构造器不用 init 修饰符，直接写 `init := () => { ... }`
+```
+
+### metaclass 的父类型（未实现）
+
+这里原本讲 `MyMeta ::= MetaMeta object { ... }` 里父类型怎么选、`base.init` 走哪一层。
+**`base` 已经移除，整段都没法用了**——原样写只会得到
+`Error: 未定义的变量 'MetaMeta'`（`MetaMeta` 从来不是内置的）。
+元类建类目前没有替代机制，详见「八、metaclass」。

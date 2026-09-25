@@ -10,7 +10,8 @@
 >   调用即丢弃当前帧链、从捕获点继续），`CallccActive` 与「多发重跑局部 onDone」都已删除。
 >   详见 `CONTEXT.md` 的「控制流」。
 > - **`Interpreter.Stack.cs` 单文件** —— 已按职责拆成 Stack/Nodes/Call/Control/Modules 五个 partial。
-> - **末尾的测试计数** —— 现在按当前数字走，见 `CONTEXT.md`。
+> - **末尾的测试计数与编号** —— 已从本文档删除（数字会漂，编号也重排过）；
+>   要当前数字就跑 `dotnet out/ravel.dll test`，权威说明见 `CONTEXT.md` 的「测试」一节。
 
 ## 背景
 
@@ -97,8 +98,9 @@ ControlFunction(Kind, Arity, Args)   // Kind=控制种类, Arity=参数个数, A
 
 > 补记：20 万层是 **C# 调用栈**不爆，内存还是要的——每层约 1KB，20 万层 ≈ 250MB。
 > 没有尾调用优化，所以它在默认堆下能过、在测试用的 256MB 上限下会 OutOfMemory。
-- 31 passed / 0 failed / 18 todo（测试已按特性合并），行为与旧实现完全一致。
-- callcc 多发射语义保留（85-89 测试）。
+- 测试已按特性合并，计数不写死（见 `CONTEXT.md` 的「测试」一节），行为与旧实现完全一致。
+- ~~callcc 多发射语义保留~~——**已不成立**：callcc 只剩一套语义（见上面「已不成立的」
+  第 2 条与 `CONTEXT.md` 的「控制流」）。原文引的测试编号也已重排，不再对应。
 
 ### 取舍
 

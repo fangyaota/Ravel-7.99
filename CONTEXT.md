@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，75 passed / 0 failed / 4 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，测试全绿——具体计数看 `dotnet out/ravel.dll test` 的输出，别写死在这里（文档里的数字总是追不上）。
 
 ## 编译运行
 
@@ -57,9 +57,9 @@ lib/
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
-                          (元类特性还没实现,4 个 todo 全是它:117/118/121/122)
+                          (元类特性还没实现,todo 用例全是它:117/118/121/122)
 
-tests/                    79 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    golden test(普通 + expect-error + todo + fixture),个数以目录为准
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -146,7 +146,7 @@ Object (parent=self)
 设计见 [ADR-0001](adr/0001-class-and-type-system.md)。
 
 - `class Parent { fields + init }` 是**唯一**用户类型构造器，产物是 `ObjectVal`。
-- **构造器就是名字叫 `init` 的变量**（类体里写 `init := () => {...}`），不是修饰符——曾经写过 `init ctor := ...`，已废弃。一个类最多一个构造器，没有按参数类型重载；要分派就在 `init` 里自己判断。
+- **构造器就是名字叫 `init` 的变量**（类体里写 `init := () => {...}`），不是修饰符——曾经写过 `init ctor := ...`，已废弃，解析器会专门拦下来报「构造器不用 init 修饰符，直接写 `init := () => { ... }`」。一个类最多一个构造器，没有按参数类型重载；要分派就在 `init` 里自己判断。
 - `type` 禁止创建类型，退化为元类型（`typeof` 结果、类型注解、类型值）。
 - 用户类会被 `RuntimeType.Define` 登记进 `AllTypes`,`Subtypes ()` 才反射得到它们
   (只登记用户类:模块类型 System/Ex 每个 Interpreter 都重建一份,登记只会累积)。
@@ -267,7 +267,7 @@ int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueTy
 int.Initializer () # Property 代理(getter=构造器,setter=设构造器)
 
 # 对象
-obj.Fields ()     # 字段名列表(模块=作用域变量 + 类型方法;其他=类型方法)
+obj.Fields ()     # 数据字段名 + 类型方法名(对象=实例字段在前;模块=作用域变量在前)
 obj.Copy ()       # 浅拷贝
 obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
@@ -284,14 +284,16 @@ using "file.rav"
 运行时错误带**位置**和 **Ravel 层调用栈**，跨文件也分得清：
 
 ```
-Error: 未定义的变量 'nope'
-  --> lib/_errtest.rav:2:9
-  2 |     n + nope
-    |         ^
+Error: 未定义的变量 'missing'
+  --> tests/152_error_report.rav:4:29
+  4 | helper := (n: int) => { n + missing; }
+    |                             ^
   调用栈 (2 层):
-    在 lib/_errtest.rav:1:18
-    在 temp.ravel:1:1
+    在 tests/152_error_report.rav:4:20
+    在 tests/152_error_report.rav:1:1
 ```
+
+（取自 `tests/152_error_report.rav` 的实际输出——它是精确比对用例，所以这段不会漂。）
 
 - **抛出点只管给消息**：90 多处 `throw new RuntimeException("...")` 不用操心位置。
   位置和栈由求值器在冒泡时补（`Interpreter.Stack.cs` 的 `StepOnce` → `Locate`）——
@@ -313,7 +315,7 @@ Error: 未定义的变量 'nope'
 
 ## 测试
 
-79 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 75 passed / 0 failed / 4 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+`tests/` 下的 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。计数不写在这里——跑 `dotnet out/ravel.dll test` 看，或者按目录数。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
 
 - `expect-error` 只看 `output.StartsWith("Error:")`，所以**解释器自己漏出来的 C# 异常不算数**：
   `CaptureOutput` 给非 `RuntimeException`/`SyntaxException`/`ExitException` 的异常加了

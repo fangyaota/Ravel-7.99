@@ -31,9 +31,10 @@
 
 ### `type` 禁止创建类型
 
-`type` 的 `Initializer` 不设（调用即报「type 不能创建类型」）。`type` 退化为纯「元类型」概念，只承担：`typeof` 结果、类型注解、类型值。
+`type` 的 `Initializer` 不设（`type 1` 实测报 **`类型 Type 不能作为构造器调用`**）。`type` 退化为纯「元类型」概念，只承担：`typeof` 结果、类型注解、类型值。
 
-`type object {...}` 直接报错。测试 143/144 的 `type object {...}` 全部改成 `class object {...}`。
+`type object {...}` 直接报错。当时改的是几个 `type object {...}` 用例，全部改成 `class object {...}`
+（测试编号后来重排过，别按老编号找；权威清单见 `CONTEXT.md` 的「测试」一节）。
 
 ### `class` 是唯一用户类型构造器
 
@@ -132,11 +133,12 @@ M 的**元类** = 第一个 `class` → `Class`；M 的**父类** = 第二个 `c
 ### 砍掉
 
 - **元类机制**（`type type` / `Metaclass()` 方法那套）：不再需要「类型的类型去生成类型」的二阶结构。
-- **`Proto` / `Instantiate`**：把字段 shape 的临时 Scope 暴露出去再塞回，是泄漏抽象（143 测试）。建议砍掉。
+- **`Proto` / `Instantiate`**：把字段 shape 的临时 Scope 暴露出去再塞回，是泄漏抽象。建议砍掉。（已砍：`Proto` 现在不存在，`tests/142_property_attrs.rav` 的注释里留了记录。）
 - **`setInitializer`**：保留与否待定——它干净地表达「覆盖默认实例化器」，与 `FieldShape` 正交，倾向保留。
 
 ### 测试影响
 
-- 143/144：`type object {...}` → `class object {...}`。
-- 145：`type type { init new }` 的元类实现作废，重写或删。
-- 125：类型树标注 `Class [Class]` 改为 `Class [Type]`（class 元类改成 type 的体现）。
+- `type object {...}` → `class object {...}` 那几个用例：已改（编号已重排，不指旧号）。
+- `type type { init new }` 那类「元类实现」用例：作废，重写或删。
+- 类型树标注 `Class [Class]` 改为 `Class [Type]`（class 元类改成 type 的体现）——
+  落地在 `tests/125_type_tree.rav`，它的期望输出就是 `Class [Type]`。
