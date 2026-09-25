@@ -7,17 +7,36 @@ Adder := class {
 }
 a := Adder ()
 print (a 41)
+# 判据是**自己那层**有没有 `call`:对象是扁平的,成员就在它自己的 scope 里。
+# 而 `call`/`parent`/`block`/`name`/`init` 是**类对象自己身上的数据、不是方法**,
+# 所以实例沿类型链**找不到**它们 —— `d.call` 报"没有方法",不是"读得到但调不动"。
+using "try.rav"
+Ex.try { a (); } (e: Exception) => { print ("自有 call 收错参数: " + string e); }
+D ::= class { init := () => { this; }; }
+Ex.try { D () (); } (e: Exception) => { print ("实例: " + string e); }
+Ex.try { System.Object (); } (e: Exception) => { print ("无类体的类: " + string e); }
+# 实例沿类型链找不到 `call`(它不是方法) —— 非对象 receiver 也因此不会撞硬转
+Ex.try { (D ()).call; } (e: Exception) => { print ("实例读 call: " + string e); }
+Ex.try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
 # 类对象上的 Function 方法:它的元类链里有 Function,所以 Fields () 会列出来,
 # 但不能硬转成 FunctionVal —— 该报 Ravel 错误,不是 InvalidCastException
 C ::= class { init := () => { this; }; }
 print (C.Name ())
-print (typeof (C.scope ()))
+# 捕获作用域只有**函数**有 —— 类对象是 ObjectVal,不再冒充"有作用域"。
+# 从前 `IFunction` 上挂着个 `Scope`,函数说那是捕获作用域、对象说那是成员作用域,
+# 一个成员名焊了两个概念,于是 `C.scope ()` 会把类的成员表当"作用域"返回。
+Ex.try { C.scope (); } (e: Exception) => { print ("类取 scope: " + string e); }
 C.name = "Renamed"          # 类名是 `name` 成员(Name 是 Type 那层的方法,不给赋值)
 print (C.Name ())
 print (C.name)
 # --- expected ---
 # 42
+# 自有 call 收错参数: 参数 'n' 需要 Integer，得到 Void
+# 实例: 值 D {} 不是函数，不能调用
+# 无类体的类: 类型 Object 不能作为构造器调用
+# 实例读 call: 类型 'D' 没有方法 'call'
+# int 读 call: 类型 'Integer' 没有方法 'call'
+# 类取 scope: scope 只对函数有意义，Type 不行
 # C
-# Scope
 # Renamed
 # Renamed

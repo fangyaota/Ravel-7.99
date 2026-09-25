@@ -38,6 +38,10 @@ public record ObjectVal : RuntimeValue, IFunction
 
     public override ObjectVal Type => ClassType;
 
+    /// <summary>对象的成员就在它自己的 Scope 里(对象是扁平的)</summary>
+    public override Scope MemberScope => Scope;
+    public override bool HasOwnMembers => true;
+
 
     // ============================================================
     //  类性:读 Scope 里的成员
@@ -99,8 +103,19 @@ public record ObjectVal : RuntimeValue, IFunction
         return null;
     }
 
-    /// <summary>沿原型链查方法(存的是"self → (arg → impl)"的自绑定函数)</summary>
-    public FunctionVal? TryLookupMethod(string name) => LookupInChain<FunctionVal>(name);
+    /// <summary>机制成员名 —— 它们**不是方法**:是类对象自己身上的数据(原型链指针、类体、
+    /// 可调用的凭据、构造器)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
+    ///
+    /// `Fields ()` 列方法时排掉它们、`TryLookupMethod` 找方法时也要排掉 —— **两处必须同一份定义**。
+    /// 这个漏过一回:`call` 装到每个类对象上之后,`(5).call` / `().call` 会沿链找到它,
+    /// 再把它当方法绑到非对象 receiver 上,`(ObjectVal)self` 硬转就抛 InvalidCastException。</summary>
+    internal static bool IsMethodName(string n)
+        => n is not (BlockMember or CallMember or ParentMember or NameMember or InitMember);
+
+    /// <summary>沿原型链查方法(存的是"self → (arg → impl)"的自绑定函数)。
+    /// 机制成员直接返回 null —— 见 <see cref="IsMethodName"/>。</summary>
+    public FunctionVal? TryLookupMethod(string name)
+        => IsMethodName(name) ? LookupInChain<FunctionVal>(name) : null;
 
     /// <summary>沿原型链查方法,找不到抛异常</summary>
     public FunctionVal LookupMethod(string name)
@@ -143,8 +158,7 @@ public record ObjectVal : RuntimeValue, IFunction
     /// `init` 这一条容易漏:类体就跑在这个对象自己的实例作用域里,所以类对象的 Scope
     /// 里**装着它自己的构造器**,沿原型链查方法时会把子类的 `init` 一并列出来。</summary>
     internal IEnumerable<string> MethodNames => Scope.Variables
-        .Where(kv => kv.Value.Value is FunctionVal
-                     && kv.Key is not (BlockMember or CallMember or ParentMember or NameMember or InitMember))
+        .Where(kv => kv.Value.Value is FunctionVal && IsMethodName(kv.Key))
         .Select(kv => kv.Key);
 
     // ============================================================

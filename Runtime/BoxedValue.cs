@@ -57,15 +57,22 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
             if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);
         }
 
-        if (Value is ObjectVal obj)
+        // 在这个值**自己的成员作用域**里找:对象是它的实例 scope(扁平的、只有一层);
+        // 原子值(IntVal/DefaultVal/…)自己没有成员,借的是类那层表。
+        //
+        // 借表时**只认方法名**:那张表里还躺着 `parent`/`block`/`call`/`name`/`init`
+        // ——它们是**类自己的数据**,不是"这个值的成员"(对象读自己那层不受这条限制,
+        // 那层本来就是它自己的)。不挡的话 `(5).call` 会摸到 `Integer` 的 `call`。
+        if (Value is ObjectVal || ObjectVal.IsMethodName(name))
         {
-            var vr = obj.Scope.LookupField(name);
-            if (vr != null)
+            var member = Value.MemberScope.LookupField(name);
+            if (member != null)
             {
-                CheckObjectReadAccess(obj, vr, name);
+                // 门禁只对对象做:借来的类成员表里放的是内置方法,没有 core/private 可言
+                if (Value is ObjectVal obj) CheckObjectReadAccess(obj, member, name);
                 // 自绑定成员(类对象的 Scope 里装着内置方法/类运算符工厂)要绑上接收者;
                 // 实例 scope 里的是已经捕获好作用域的 lambda,原样返回
-                var v = vr.Value;
+                var v = member.Value;
                 return new BoxedValue(
                     v is ISelfBinding && v is FunctionVal sf ? ObjectVal.BindMethod(sf, Value) : v,
                     interp);

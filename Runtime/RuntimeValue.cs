@@ -16,6 +16,22 @@ public abstract record RuntimeValue
     /// 否则 bool 会被当成方法:字段从 `Fields ()`/`print obj` 里消失,
     /// `init := () => { true; }` 的对象也会被当成半成品构造器交出去。</summary>
     public bool IsClosure => this is FunctionVal and not BoolVal;
+
+    /// <summary>取成员用的作用域 —— 「我作为一个对象」的那半边:我身上挂着哪些成员。
+    ///
+    /// **不是 `FunctionVal.Scope`(捕获作用域)**,两个概念不同、字段也分开:捕获作用域是
+    /// lambda 定义处的词法作用域,闭包靠它(调用时 Push、`Copy` 时重绑);成员作用域是
+    /// "这个值能读到哪些成员"。混成一个字段的话,给函数挂个成员就会写进它捕获的那个作用域,
+    /// 泄漏给共用该作用域的其它闭包、甚至漏进外围局部变量。
+    ///
+    /// 默认实现借**类对象**的成员表 —— 原子值(`IntVal`/`DefaultVal`/…)自己没有成员,
+    /// 方法全在类那层。它只读:`HasOwnMembers` 为假时写路径会把写入挡回去,
+    /// 免得"挂到借用来的表上"等于改掉整个类型。</summary>
+    public virtual Scope MemberScope => Type.MemberScope;
+
+    /// <summary>这个值有**自己**的成员表吗?有才能往它身上写成员
+    /// (对象有;原子值和借类成员表的那些没有)。</summary>
+    public virtual bool HasOwnMembers => false;
 }
 
 /// <summary>Ravel 运行时错误。抛出点只管给消息——位置和调用栈由求值器在异常冒泡到

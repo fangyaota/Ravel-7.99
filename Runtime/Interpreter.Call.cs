@@ -39,20 +39,18 @@ public partial class Interpreter
                 break;
             case ObjectVal ov:
             {
-                // Ravel 层"能不能调用"的判据就是**自己那层有没有 `call` 成员** ——
-                // 引擎因此不需要知道"什么是类",interface/shape 也可以建在同一套判据上。
+                // "能不能调用"就是**自己那层有没有 `call` 成员**。
                 //
-                // ⚠️ **只看自己那层**(LookupField,不走原型链):`call` 是"我带着能造的牌子",
-                // 不是"我从类那儿继承来的方法"。走链的话实例会通过类的 `call` 被误判成可调用,
-                // 而将来 shape 检查多半会问"读得到 call 吗" —— 两边必须一致,
-                // 否则 `c.call` 读得到、`c ()` 却不行,判据就成了错的。
+                // **对象是扁平的**:它的成员就在它自己的 scope 里,直接在对象里找就行,
+                // 不沿原型链。沿链只适用于"函数类的东西取方法"(方法挂在类型上,
+                // 见 BoxedValue.GetMember 的兜底)—— `call` 是"我带着能造的牌子",
+                // 不是从类那儿继承来的方法,所以不适用。
+                //
+                // 想清楚这一点,`c.call` 读得到(那是个**函数成员**,走方法那条路)
+                // 而 `c ()` 不行(判据看自己那层)就不是矛盾:两者问的是不同的问题。
                 if (ov.Scope.LookupField(ObjectVal.CallMember)?.Value is not FunctionVal raw)
                     throw new RuntimeException($"值 {ov} 不是函数，不能调用");
 
-                // 自绑定成员(内置的 call 是 BuiltinMethodVal)要先绑上 self;绑完是 BoundCall,
-                // 交给实例化那条路。**不能无条件 BindMethod**:用户自己写的 `call` 是个普通
-                // lambda,而 BindMethod 假定 `Body(self)` 返回函数体 —— LambdaVal 的 Body 是占位,
-                // 会抛 InvalidCastException 漏到顶层。
                 var call = raw is ISelfBinding ? ObjectVal.BindMethod(raw, ov) : raw;
                 if (call is BoundCall bc) CallClassInto(sink, bc.Self, arg);
                 else CallInto(sink, call, arg);
@@ -107,7 +105,10 @@ public partial class Interpreter
     /// 没有类体的类型(Every/Any/Ravel/Scope/Property/Object…)照旧不能当构造器调。</summary>
     private void CallClassInto(Frame sink, ObjectVal t, RuntimeValue arg)
     {
-        if (t.Body == null) throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用");
+        if (t.Body == null)
+            throw new RuntimeException(t.IsClass
+                ? $"类型 {t.DisplayName} 不能作为构造器调用"        // 是类,但没类体(Every/Any/Object/…)
+                : $"值 {t} 不是类，不能这样调用");                  // 找到了 call,可它不是类
         _top = new ControlFrame(ControlKind.ClassInit, RList<RuntimeValue>.Empty.Add(t).Add(arg), VoidVal.Instance)
         {
             Parent = sink,

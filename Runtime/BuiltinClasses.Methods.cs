@@ -256,7 +256,8 @@ internal static partial class BuiltinClasses
 
             return new StringVal(f.Name ?? "");
         });
-        Function.DefineMethod("scope", (s, _) => new ScopeVal(((IFunction)s).Scope ?? new Scope()));
+        // 捕获作用域是**函数独有**的:对象没有捕获作用域,它那半边叫 MemberScope
+        Function.DefineMethod("scope", (s, _) => new ScopeVal(AsFunction(s, "scope").Scope ?? new Scope()));
         // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
         Function.DefineMethod("setScope", (s, a) =>
         {

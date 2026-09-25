@@ -127,7 +127,9 @@ public partial class Interpreter
         if (nf.Count == 0) { PushChild(nf, ma.Object); return; }
         if (nf.Count == 1) { PushChild(nf, bin.Right); return; }
 
-        if (nf.Result(0) is not ObjectVal ov) throw new RuntimeException("复合赋值的字段目标必须是对象");
+        if (!nf.Result(0).HasOwnMembers)
+            throw new RuntimeException($"复合赋值的字段目标需要有自己的成员，{nf.Result(0).Type} 没有");
+        var ov = (ObjectVal)nf.Result(0);
 
         var field = ov.Scope.LookupField(ma.Member)
                     ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
@@ -226,7 +228,11 @@ public partial class Interpreter
                 return;
             }
 
-            if (obj is not ObjectVal ov) throw new RuntimeException("无法给非对象设置字段");
+            // 判据是"有没有**自己**的成员表",不是"是不是 ObjectVal":
+            // 原子值借的是类那层的表,往里写等于改掉整个类型,所以按只读挡回去。
+            if (!obj.HasOwnMembers)
+                throw new RuntimeException($"无法给 {obj.Type} 的值设置字段（值类型没有自己的成员）");
+            var ov = (ObjectVal)obj;
             // `:=` 是定义:字段不存在也放行(到 count==2 时新建)。已存在的字段照样受 core/访问控制约束,
             // 否则 `:=` 就成了绕过封装的万能钥匙。
             var field = ov.Scope.LookupField(ma.Member);
