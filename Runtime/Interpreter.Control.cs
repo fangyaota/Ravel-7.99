@@ -8,10 +8,8 @@ public partial class Interpreter
     {
         switch (cf.Kind)
         {
-            case ControlKind.While: StepWhile(cf); break;
-            case ControlKind.If: StepIf(cf); break;
+            // if/while/foreach 不在这里:它们由 predefined.rav 用 Ravel 写(可调用的 true/false + callcc)
             case ControlKind.With: StepWith(cf); break;
-            case ControlKind.Foreach: StepForeach(cf); break;
             case ControlKind.CallCC: StepCallCC(cf); break;
             case ControlKind.Using: StepUsing(cf); break;
             case ControlKind.Eval: StepEval(cf); break;
@@ -26,53 +24,6 @@ public partial class Interpreter
     }
 
     private static BlockVal GetBlock(RuntimeValue v) => (BlockVal)v;
-
-    private void StepWhile(ControlFrame cf)
-    {
-        var cond = GetBlock(cf.Args.At(0));
-        var body = GetBlock(cf.Args.At(1));
-        if (cf.Count == 0)
-        {
-            _top = new BlockExecFrame(cond.Block) { Parent = cf, Scope = cond.Scope.Push() };
-            return;
-        }
-
-        if (cf.Count == 1)
-        {
-            if (cf.Result(0) is not BoolVal bv) throw new RuntimeException("while 条件必须是 bool");
-            if (bv.Value)
-                _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = body.Scope.Push() };
-            else
-                Return(cf, cf.State);
-            return;
-        }
-
-        // count 2:body 完成 → 循环
-        var newCf = cf with { State = cf.Result(1), Results = RList<RuntimeValue>.Empty };
-        _top = new BlockExecFrame(cond.Block) { Parent = newCf, Scope = cond.Scope.Push() };
-    }
-
-    private void StepIf(ControlFrame cf)
-    {
-        var c = GetBlock(cf.Args.At(0));
-        var t = GetBlock(cf.Args.At(1));
-        var e = GetBlock(cf.Args.At(2));
-        if (cf.Count == 0)
-        {
-            _top = new BlockExecFrame(c.Block) { Parent = cf, Scope = c.Scope.Push() };
-            return;
-        }
-
-        if (cf.Count == 1)
-        {
-            if (cf.Result(0) is not BoolVal b) throw new RuntimeException("if 条件必须是 bool");
-            var branch = b.Value ? t : e;
-            _top = new BlockExecFrame(branch.Block) { Parent = cf, Scope = branch.Scope.Push() };
-            return;
-        }
-
-        Return(cf, cf.Result(1));
-    }
 
     private void StepWith(ControlFrame cf)
     {
@@ -99,49 +50,17 @@ public partial class Interpreter
         Return(cf, cf.State);
     }
 
-    private void StepForeach(ControlFrame cf)
-    {
-        var items = ((ListVal)cf.Args.At(0)).Elements;
-        var fn = cf.Args.At(1);
-        if (cf.Count < items.Count)
-        {
-            CallInto(cf, fn, items[cf.Count]);
-            return;
-        }
-
-        Return(cf, cf.Count == 0 ? VoidVal.Instance : cf.Last);
-    }
-
+    /// <summary>callcc:把「捕获点之后要算的东西」作为续延交给 lambda。
+    /// 续延被调用时由 CallInto 负责切回捕获点(见 ContinuationVal 分支)。</summary>
     private void StepCallCC(ControlFrame cf)
     {
         if (cf.Count == 0)
         {
-            CallccActive = true;
-            var fn = cf.Args.At(0);
-            var k = new ContinuationVal(cf);
-            CallInto(cf, fn, k);
+            CallInto(cf, cf.Args.At(0), new ContinuationVal(cf));
             return;
         }
 
-        CallccActive = false;
         Return(cf, cf.Result(0));
-    }
-
-    /// <summary>多发续延:重跑局部 onDone(resumeRoot 消费 arg)到其完成,再把 arg 返回给 k 的调用者</summary>
-    private void ResumeContinuation(ContinuationVal k, RuntimeValue arg)
-    {
-        var resumeRoot = k.Captured.Parent;
-        if (resumeRoot == null)
-        {
-            _top = null!;
-            _result = arg;
-            return;
-        }
-
-        _resumeStopNode = (resumeRoot as NodeFrame)?.Node;
-        _resumeCaller = _top.Parent;
-        _resumeValue = arg;
-        _top = resumeRoot.WithResult(arg);
     }
 
     private void StepUsing(ControlFrame cf)

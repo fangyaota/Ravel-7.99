@@ -9,11 +9,6 @@ public partial class Interpreter
     private RuntimeValue _result = VoidVal.Instance;
     private Scope _rootScope = null!;
 
-    // 续延恢复状态:多发时重跑局部 onDone 到 resumeRoot 完成,然后返回 arg 给调用者
-    private AstNode? _resumeStopNode;
-    private Frame? _resumeCaller;
-    private RuntimeValue _resumeValue = VoidVal.Instance;
-
     /// <summary>顶层入口:整个程序一个块根帧(帧链包含剩余语句,callcc 续延才能完整恢复)。scope 用 _rootScope(ravel 模块切换会改它)</summary>
     private RuntimeValue RunStack(Program p)
     {
@@ -47,14 +42,6 @@ public partial class Interpreter
     /// <summary>完成帧:把结果交给父帧(父空=顶层完成)</summary>
     private void Return(Frame f, RuntimeValue v)
     {
-        // 续延恢复:resumeRoot(值消费者帧)完成 → 返回 arg 给调用者,不继续程序
-        if (_resumeStopNode != null && f is NodeFrame rnf && rnf.Node == _resumeStopNode)
-        {
-            _resumeStopNode = null;
-            _top = _resumeCaller!.WithResult(_resumeValue);
-            return;
-        }
-
         _top = f.Parent == null ? null! : f.Parent.WithResult(v);
         _result = f.Parent == null ? v : _result;
     }

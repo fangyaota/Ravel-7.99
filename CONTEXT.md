@@ -59,7 +59,7 @@ tests/                    50 个 golden test(普通 + expect-error + todo + fixt
 - 整个程序一个块根帧,`StepOnce()` 扁平循环逐帧推进,C# 栈恒平。
 - 每节点状态机按 `Results.Count` 推进;`Return` 把结果交给父帧。
 - 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`BlockVal`/`TypeVal`(类→ClassInit 帧)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
-- 控制内建(`if`/`while`/`with`/`foreach`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。
+- 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂,直到 `init` 应用完才把对象交出来。
 - callcc 单发(abort body)/多发(重跑局部 onDone + 返回参数给调用者)。
 - 深度递归 20 万层安全(原 CPS ~4k 层爆栈)。
@@ -71,9 +71,10 @@ Object (parent=self)
 ├── ValueType
 │   ├── Integer
 │   ├── Float
-│   ├── Bool
 │   └── String → BigInt → Fraction → BigFraction
 ├── Function
+│   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
+│   ├── Block
 │   └── Type
 │       └── Class
 │           ├── List / Set / Dict / Ravel
@@ -82,6 +83,9 @@ Object (parent=self)
 ├── Any (顶类型, parent=null)
 └── Every (底类型, parent=null)
 ```
+
+`Bool <: Function` 是为了 lisp 式的条件:`true {a} {b}` 执行 a、`false {a} {b}` 执行 b，
+于是 `if` 退化成 `(c ()) t e`（见下面「控制流」）。
 
 ## System 模块
 
@@ -92,8 +96,10 @@ Object (parent=self)
         AnyType EveryType ExceptionType ValueTypeVal
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
-        While If CallCC Exit With RavelMod Using unsafe
-        property Foreach currentScope
+        CallCC Exit With RavelMod Using unsafe
+        property currentScope
+
+（`if`/`while`/`foreach` 不在 System 模块里——它们在 `lib/predefined.rav` 用 Ravel 写。）
 
 **值**: True False Default
 
@@ -116,6 +122,29 @@ Object (parent=self)
 - 类实例化（`StepClassInit` 控制帧，阶段由 `Count` 推进）：建 instance scope → 打包 `ObjectVal` 并绑 `this`（`ClassType` = 最终子类，在第一个类体执行**之前**）→ 逐层跑类体 → **在实例作用域里按名字 `init` 找构造器**。各层平铺在同一个 scope，子类的 `init` 覆盖父类的，所以取到的天然是「最具体层声明的那个」；子类没写就落回父类的，整条链都没有才报错。
 - **父类的 init 不会自动调用**，初始值要写在字段声明上（`a: int = 1`）；父类 init 里写的赋值不生效。子类重声明同名字段是覆盖。
 - **没有 `base`**：曾用 `base = 父类()` 手工构造父类实例挂到实例 scope 的 `parent` 字段上，现已移除（`parent` 字段、`DefineBase`、`withDeep` 深拷贝一并删除）。元类路径的 `base.init parent block` 因此暂时无实现手段（117/118/121/122 保持 todo）。
+
+## 控制流
+
+`if`/`while`/`foreach` 是**库函数**（`lib/predefined.rav`），不是 C# 内建。它们靠两个机制写出来：
+
+- **`Bool <: Function`**：`true {a} {b}` 执行 a 并返回其结果，`false {a} {b}` 执行 b。
+  于是 `if {c} {t} {e}` ≡ `c {t} {e}`，`if` 只是 `(c t e) => { (c ()) t e; }`。
+  实现上不需要新的 `ControlKind`：`CallInto` 里给 `BoolVal` 加一个分支，收到第一个块返回 `PartialBool` 半成品，收到第二个块就执行选中的那个。
+- **callcc 当跳转**：续延被调用时丢弃当前帧链、从捕获点继续，所以可以拿它做循环：
+
+  ```ravel
+  while := (c: function body: function) => {
+      again := (x: int) => { x; }
+      callcc (k: function) => { again = k; }     # 独立语句:恢复时只是「这条语句完成」,不重跑它
+      if { c (); } { body (); again 0; } { 0; }  # again 0 跳回 callcc 之后
+  }
+  ```
+
+  这样帧链不随迭代增长（100 万轮实测跑得完）。**写成 `again := callcc (k) => { k; }` 不行**：恢复时会重跑那条赋值、`again` 被覆盖成 `0`，循环建立不起来。
+
+`with`/`using`/`eval` 仍是 C# 内建——`with` 需要「用副本的 scope 执行块」，`using`/`eval` 需要文件 IO 与词法/语法分析，Ravel 层做不到。
+
+**callcc 只有一套语义**：续延 = callcc 之后的剩余计算；调用它 = 丢弃当前帧链、把值当作 callcc 的返回值、从捕获点继续。因此 **callcc 之后的语句会被重新执行**——`x := 1 + callcc (k) => { saved = k; 0; }` 之后再 `saved 10`，会让 `x` 变成 11 并继续往下走。想「跳出去」就调用续延（旧的 escape 用例行为不变）。
 
 ## by 属性
 

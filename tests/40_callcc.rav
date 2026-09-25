@@ -81,36 +81,40 @@ product := (list: list) => {
 }
 print (product [2 3 4])
 print (product [2 0 4])
-saved := (x: function) => { x; }
-results := []
-first := callcc (k: function) => {
-    saved = k
-    k 1
-}
-results.Add first
-results.Add (saved 2)
-results.Add (saved 3)
-print results
+# 统一语义:续延 = callcc 之后的剩余计算。调用它 → 丢弃当前帧链,把值当作
+# callcc 的返回值、从捕获点继续(所以 callcc 之后的语句会被重新执行)。
 saved := (x: int) => { x; }
-r1 := 1 + callcc (k: function) => {
+trace := []
+n := 0
+n = 1 + callcc (k: function) => {
     saved = k
-    k 2
+    0
 }
-print r1
-print (1 + saved 10)
-print (1 + saved 100)
-current := 0
-next := (x: int) => { x; }
-callcc (k: function) => {
-    next = k
-    k 1
+trace.Add n
+if { n < 10; } { saved 10; } { 0; }
+print trace
+
+# 续延可反复调用:每次带新值从捕获点重来(靠守卫终止)
+seen := []
+m := 0
+m = callcc (k: function) => {
+    saved = k
+    0
 }
-a := next 2
-b := next 3
-c := next 4
-print a
-print b
-print c
+seen.Add m
+if { m < 3; } { saved (m + 1); } { 0; }
+print seen
+
+# 丢弃当前链 → 续延可以当跳转用,帧链不随迭代增长
+i := 0
+total := 0
+again := (x: int) => { x; }
+callcc (k: function) => { again = k; }
+i += 1
+total += i
+if { i < 5; } { again 0; } { 0; }
+print total
+
 using "try.rav"
 result := 0
 Ex.try {
@@ -124,16 +128,15 @@ result := callcc (k: function) => {
     k (k 3)
 }
 print result
-saved := (x: int) => { x; }
-result := callcc (k: function) => {
-    saved = k
-    k 1
-}
-doubler := (a: int b: int) => {
-    a * 2 + b
-}
-print (doubler result 3)
-print (doubler (saved 5) 3)
+
+# 帧链长度不随迭代增长:每次 loop 0 都丢弃当前链。若退化成 O(N) 帧链,
+# 50 万轮 ≈ 250 万常驻帧会撞穿测试的 256MB 堆上限,这一行就跑不到 500000。
+big := 0
+loop := (x: int) => { x; }
+callcc (k: function) => { loop = k; }
+big += 1
+if { big < 500000; } { loop 0; } { 0; }
+print big
 # --- expected ---
 # 42
 # 3
@@ -143,14 +146,9 @@ print (doubler (saved 5) 3)
 # 4
 # 24
 # 0
-# [1 2 3]
-# 3
-# 11
-# 101
-# 2
-# 3
-# 4
+# [1 11]
+# [0 1 2 3]
+# 15
 # 99
 # 3
-# 5
-# 13
+# 500000

@@ -25,8 +25,6 @@ print := System.WriteLine
 true := System.True
 false := System.False
 default := System.Default
-while := System.While
-if := System.If
 callcc := System.CallCC
 typeof := System.TypeOf
 assert := System.Assert
@@ -37,9 +35,26 @@ ravel := System.RavelMod
 using := System.Using
 exit := System.Exit
 input := System.ReadLine
-foreach := System.Foreach
 unsafe := System.unsafe
 currentScope := System.currentScope
 property := System.property
+
+# ── 控制流:用 Ravel 写,不占控制帧 ──
+# 条件当值用:true/false 可调用,收两个块返回选中那个的结果
+if := (c: function t: function e: function) => { (c ()) t e; }
+
+# callcc 写成独立语句:续延被调用时只是「这条语句完成」,不会重跑它,
+# 所以 again 始终是那个续延;again 0 丢弃当前帧链跳回 callcc 之后 → 帧链不随迭代增长。
+# (写成 again := callcc (k) => { k; } 的话,恢复时会重跑赋值、again 被覆盖成 0,循环建立不起来)
+while := (c: function body: function) => {
+    again := (x: int) => { x; }
+    callcc (k: function) => { again = k; }
+    if { c (); } { body (); again 0; } { 0; }
+}
+
+foreach := (xs: list f: function) => {
+    i := 0
+    while { i < xs.Count (); } { f (xs.At i); i += 1; }
+}
 
 using "try.rav"

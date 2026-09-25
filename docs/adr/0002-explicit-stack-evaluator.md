@@ -17,8 +17,12 @@
 Frame (Parent, Scope, Results)
 ├── NodeFrame        求值一个 AST 节点（语句/表达式）
 ├── BlockExecFrame   执行一个代码块（逐语句）
-└── ControlFrame     控制帧（while/if/with/foreach/callcc/using/eval/alternate/class-init/compose/class-op/call-assign/call-return）
+└── ControlFrame     控制帧（with/callcc/using/eval/alternate/class-init/compose/class-op/call-assign/call-return/ctor-apply）
 ```
+
+> 控制帧清单后来缩过：`if`/`while`/`foreach` 已搬进 `lib/predefined.rav` 用 Ravel 实现
+> （条件靠可调用的 `true`/`false`，循环靠 callcc 跳转），`ControlKind` 因此只剩 11 个值。
+> `ctor-apply` 是后来加的（构造器柯里化）。详见 `CONTEXT.md` 的「控制流」一节。
 
 - `Results` 是持久化单链表（`RList`），`WithResult` 生成新帧共享父节点。
 - **Scope 可变**（`ravel` 模块切换 `SetAmbientScope` 换 scope），Parent/Results 不可变。

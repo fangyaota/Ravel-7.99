@@ -41,7 +41,6 @@ public partial class Interpreter
     private readonly Dictionary<string, ModuleVal> _modules = [];
     private readonly HashSet<string> _loaded = [];
     private readonly Stack<string> _loading = new();
-    internal bool CallccActive;
     internal int UnsafeDepth;
 
     /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）</summary>

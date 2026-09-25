@@ -50,10 +50,8 @@ public partial class Interpreter
         Def("Default", RuntimeType.Every, DefaultVal.Instance);
 
         // ---- 控制内建:收满参数后由求值器推控制帧 ----
-        DefControl("While", ControlKind.While, 2);
-        DefControl("If", ControlKind.If, 3);
+        // if/while/foreach 不在这里——它们在 predefined.rav 用 Ravel 写(靠可调用的 true/false + callcc)
         DefControl("With", ControlKind.With, 2);
-        DefControl("Foreach", ControlKind.Foreach, 2);
         DefControl("CallCC", ControlKind.CallCC, 1);
         DefControl("Using", ControlKind.Using, 1);
         DefControl("Eval", ControlKind.Eval, 1);

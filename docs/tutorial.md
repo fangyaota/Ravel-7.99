@@ -103,12 +103,15 @@ list default   # []
 
 ```
 Object
-├── ValueType → Integer Float Bool String BigInt Fraction BigFraction
-├── Function → Type → Class → List Set Dict Ravel (及用户类)
+├── ValueType → Integer Float String BigInt Fraction BigFraction
+├── Function → Bool Block Type → Class → List Set Dict Ravel (及用户类)
 ├── Void Exception
 ├── Any (顶类型)
 └── Every (底类型，default 的类)
 ```
+
+`Bool` 挂在 `Function` 下是有意的：`true`/`false` 可以像函数一样调用，
+收两个代码块、返回选中那个的结果。于是 `if` 就是 `c {t} {e}`——见「四、控制流」。
 
 ### 2.7 BigInt / Fraction / BigFraction
 
@@ -213,7 +216,18 @@ if { x > 0; } {
 }
 ```
 
-`if` 接受三个块作为参数：条件、then、else。块需要 `;` 或换行。
+`if` 接受三个块：条件、then、else（块需要 `;` 或换行分隔）。
+
+它其实是**库函数**，不是内建——`Bool` 挂在 `Function` 下，`true`/`false` 本身就能选块：
+
+```ravel
+true  { print "then"; } { print "else"; }      # then
+false { print "then"; } { print "else"; }      # else
+(1 < 2) { "yes"; } { "no"; }                   # yes —— 比较结果直接当函数调
+```
+
+所以 `if { c; } { t; } { e; }` 等价于 `c { t; } { e; }`。一个类里也常见
+`init := (cond) => { ... }` 这种把条件当值传递的写法。
 
 ### 4.2 while
 
@@ -238,7 +252,33 @@ callcc (exit: function) => {
 # → 5
 ```
 
-续延可以被保存并多次调用。
+调用续延会**丢弃当前帧链**、把值当作 `callcc` 表达式的返回值从捕获点继续，
+所以它是逃出多层嵌套的办法。
+
+同一个机制反过来用就是循环——`while` 本身就是这么写的：
+
+```ravel
+while := (c: function body: function) => {
+    again := (x: int) => { x; }
+    callcc (k: function) => { again = k; }
+    if { c (); } { body (); again 0; } { 0; }
+}
+```
+
+注意续延调用是「从捕获点继续」，**callcc 之后的语句会被重新执行**：
+
+```ravel
+saved := (x: int) => { x; }
+n := 0
+n = 1 + callcc (k: function) => { saved = k; 0; }
+print n                                      # 1
+if { n < 10; } { saved 10; } { 0; }          # 跳回捕获点:n = 11,然后重新往下走
+                                             # → 又打印一次 n(11),这次条件不成立,结束
+# 输出:1 然后 11
+```
+
+它**不是**生成器那种「一次产出多个值」——重复调用同一个续延会不断从捕获点重来，
+所以调用点本身也在被重跑的代码里时，要像上面那样加个守卫，否则会一直转下去。
 
 ---
 

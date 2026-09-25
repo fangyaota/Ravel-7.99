@@ -44,20 +44,23 @@ public partial class Interpreter
                 break;
             }
             case ContinuationVal k:
-                if (CallccActive)
-                {
-                    // 单发:abort body,续延返回 arg 给 callcc 的消费者
-                    CallccActive = false;
-                    _top = k.Captured.WithResult(arg);
-                }
-                else
-                {
-                    ResumeContinuation(k, arg);
-                }
-
+                // 续延 = callcc 之后的剩余计算。调用它:丢弃当前帧链,把 arg 当作
+                // callcc 的返回值、从捕获点继续。丢弃当前链正是它能当「跳转」写循环的原因。
+                _top = k.Captured.WithResult(arg);
+                break;
+            case BoolVal bv:
+                // true/false 是函数(lisp 式):收两个块,返回选中那个块的结果
+                if (arg is not BlockVal thenBlock) throw new RuntimeException("true/false 需要两个代码块");
+                _top = sink.WithResult(new PartialBool(bv.Value, thenBlock));
+                break;
+            case PartialBool pb:
+                if (arg is not BlockVal elseBlock) throw new RuntimeException("true/false 需要两个代码块");
+                var chosen = pb.Value ? pb.Then : elseBlock;
+                _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.Scope.Push() };
                 break;
             default:
-                _top = sink.WithResult(((FunctionVal)fn).Body(arg));
+                if (fn is not FunctionVal fv) throw new RuntimeException($"值 {fn} 不是函数，不能调用");
+                _top = sink.WithResult(fv.Body(arg));
                 break;
         }
     }

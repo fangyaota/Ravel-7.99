@@ -78,21 +78,23 @@ public partial class RuntimeType
         Object = new RuntimeType("Object", null);
         Object.Parent = Object;
 
+        // Function 必须早于 Bool / Block（它们的父类）
+        Function = new RuntimeType("Function", Object);
+
         // 分支
         ValueType = new RuntimeType("ValueType", Object);
         Class = new RuntimeType("Class", Object);
 
-        // 值类型
+        // 值类型 —— Bool 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
         Int = new RuntimeType("Integer", ValueType);
         Float = new RuntimeType("Float", ValueType);
-        Bool = new RuntimeType("Bool", ValueType);
+        Bool = new RuntimeType("Bool", Function);
         String = new RuntimeType("String", ValueType);
         BigInt = new RuntimeType("BigInt", ValueType);
         Fraction = new RuntimeType("Fraction", ValueType);
         BigFraction = new RuntimeType("BigFraction", ValueType);
 
         // 引用类型
-        Function = new RuntimeType("Function", Object);
         Block = new RuntimeType("Block", Function);
         List = new RuntimeType("List", Object);
         Set = new RuntimeType("Set", Object);
