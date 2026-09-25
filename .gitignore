@@ -5,3 +5,5 @@ out/
 .claude/
 repl_session.json
 temp.ravel
+temp.ravel
+temp*.rav
