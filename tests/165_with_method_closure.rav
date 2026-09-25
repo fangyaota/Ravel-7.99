@@ -1,0 +1,25 @@
+# with / Copy 的副本上调方法,不该动到原对象。
+# 以前 CopyScope 只是浅拷贝,方法(lambda)的闭包 Scope 仍指向原实例,
+# 于是 `副本.set 99` 改的是原对象的字段——`with` 完全白拷。
+C := class {
+    init := () => { 0; }
+    v: int = 1
+    set := (n: int) => { v = n; }
+    get := () => { v; }
+}
+c := C ()
+c2 := with c { v = 10; }
+print (c2.get ())
+c2.set 99
+print (c.get ())
+print (c2.get ())
+c3 := c.Copy ()
+c3.set 7
+print (c.get ())
+print (c3.get ())
+# --- expected ---
+# 10
+# 1
+# 99
+# 1
+# 7

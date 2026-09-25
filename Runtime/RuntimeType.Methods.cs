@@ -353,7 +353,14 @@ public partial class RuntimeType
     {
         var dst = new Scope(src.Parent);
         foreach (var kv in src.Variables)
-            dst.Define(kv.Key, kv.Value.TypeConstraint, kv.Value.Value);
+        {
+            var value = kv.Value.Value;
+            // 方法(lambda)的闭包 Scope 指向原实例。浅拷贝共享它的话,
+            // 在副本上调方法会读写到原对象的字段——`with` 就白拷了。
+            if (value is LambdaVal lam) value = lam with { Scope = dst };
+            dst.Define(kv.Key, kv.Value.TypeConstraint, value);
+        }
+
         return dst;
     }
 }
