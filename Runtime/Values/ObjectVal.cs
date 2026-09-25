@@ -53,15 +53,6 @@ public record ObjectVal : RuntimeValue, IFunction
     /// 走的是**类型关系**,不是"某个成员名在不在"——后者是鸭子类型该管的事,
     /// 会跟 interface/shape 的判据混在一起。</summary>
     public bool IsClass => ClassType.IsAssignableTo(BuiltinClasses.Type);
-
-    /// <summary>在 Ravel 层"能不能调用"的判据:自己那层有没有 `call` 成员。
-    /// 只看本层——类对象建出来时会被装上(见 BuiltinClasses),实例不会被装,
-    /// 这样 `c ()` 不会因为"它的类有 call"就跟着可调用。
-    ///
-    /// `call` 是**唯一的**可调用判据,引擎因此不需要知道"什么是类":
-    /// 将来 interface / shape 这类"要求某组成员"的概念可以直接建在同一套判据上。</summary>
-    public bool HasCall => Scope.LookupField(CallMember) != null;
-
     /// <summary>父类对象(原型链的上游)。自引用(如 `object`/`Every`/`Any`)表示链到头。</summary>
     public ObjectVal? Parent => Scope.LookupField(ParentMember)?.Value as ObjectVal;
 

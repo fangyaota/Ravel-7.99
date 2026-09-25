@@ -39,8 +39,13 @@ public partial class Interpreter
                 break;
             case ObjectVal ov:
             {
-                // Ravel 层"能不能调用"的判据就是**有没有 `call` 成员** ——
-                // 引擎因此不需要知道"什么是类",interface/shape 也可以建在同一套判据上
+                // Ravel 层"能不能调用"的判据就是**自己那层有没有 `call` 成员** ——
+                // 引擎因此不需要知道"什么是类",interface/shape 也可以建在同一套判据上。
+                //
+                // ⚠️ **只看自己那层**(LookupField,不走原型链):`call` 是"我带着能造的牌子",
+                // 不是"我从类那儿继承来的方法"。走链的话实例会通过类的 `call` 被误判成可调用,
+                // 而将来 shape 检查多半会问"读得到 call 吗" —— 两边必须一致,
+                // 否则 `c.call` 读得到、`c ()` 却不行,判据就成了错的。
                 if (ov.Scope.LookupField(ObjectVal.CallMember)?.Value is not FunctionVal raw)
                     throw new RuntimeException($"值 {ov} 不是函数，不能调用");
 
