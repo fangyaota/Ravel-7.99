@@ -1,0 +1,11 @@
+# 分数的分母不能为零。以前 `fraction 1 0` 会造出一个 `1/0` 的无效分数,
+# 之后 `int (fraction 1 0)` 就抛 C# 的 DivideByZeroException。
+# 字符串形式 `fraction "1/0"` 一直有检查,构造器这条漏了。
+print (fraction 1 0)
+# --- expected ---
+# Error: 分数的分母不能为零
+#   --> tests/160_fraction_zero_den.rav:4:8
+#   4 | print (fraction 1 0)
+#     |        ^
+#   调用栈 (1 层):
+#     在 tests/160_fraction_zero_den.rav:1:1

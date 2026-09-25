@@ -92,9 +92,9 @@ public partial class RuntimeType
         // int 当分子,再收一个 int 分母
         if (val is IntVal i)
             return FunctionVal.From(d =>
-                d is IntVal dd
-                    ? new FractionVal(i.Value, dd.Value)
-                    : throw new RuntimeException("分数需要 int 分母"));
+                d is not IntVal dd ? throw new RuntimeException("分数需要 int 分母")
+                : dd.Value != 0 ? new FractionVal(i.Value, dd.Value)
+                : throw new RuntimeException("分数的分母不能为零"));
         if (val is FractionVal f) return f;
         if (val is StringVal s)
         {
@@ -113,9 +113,9 @@ public partial class RuntimeType
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;
         if (val is IntVal || val is BigIntVal)
             return FunctionVal.From(d =>
-                d is IntVal or BigIntVal
-                    ? new BigFractionVal(GetBi(val), GetBi(d))
-                    : throw new RuntimeException("大分数需要整数分母"));
+                d is not (IntVal or BigIntVal) ? throw new RuntimeException("大分数需要整数分母")
+                : GetBi(d).IsZero ? throw new RuntimeException("大分数的分母不能为零")
+                : new BigFractionVal(GetBi(val), GetBi(d)));
         if (val is FractionVal fr) return new BigFractionVal(fr.Num, fr.Den);
         if (val is BigFractionVal bf) return bf;
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction");
