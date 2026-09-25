@@ -1,0 +1,9 @@
+# Subtypes() 该看得到用户类。AllTypes 以前只在静态构造器里填内置类型,
+# Define 不登记,于是 `object.Subtypes ()` 只列内置的。
+C ::= class { init := () => { 0; }; }
+D ::= class C { init := () => { 0; }; }
+print (C.Subtypes ())
+print (C.Parent () == object)
+# --- expected ---
+# [Every D]
+# true

@@ -194,10 +194,13 @@ public partial class RuntimeType
     //  用户自定义类型
     // ============================================================
 
-    /// <summary>运行时创建新类型（class Foo : Parent { ... } 执行时调用）</summary>
+    /// <summary>运行时创建新类型（class Foo : Parent { ... } 执行时调用）
+    /// 登记进 AllTypes,否则 Subtypes() 反射看不到用户类（只列内置类型）</summary>
     public static RuntimeType Define(string name, RuntimeType? parent = null)
     {
-        return new RuntimeType(name, parent ?? Object);
+        var t = new RuntimeType(name, parent ?? Object);
+        AllTypes.Add(t);
+        return t;
     }
 
     /// <summary>显示用的名字。`C := class {...}` 建的类型**没有名字**(只有 `::=` 会命名),
