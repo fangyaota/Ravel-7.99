@@ -346,6 +346,18 @@ public partial class RuntimeType
 
     /// <summary>拷贝作用域（with / Copy 用）：逐字段浅拷贝，词法父照搬。
     /// 字段已平铺在同一个 scope 里，所以不再需要沿继承链递归深拷贝。</summary>
+    /// <summary>把指回原实例 scope 的闭包重绑到新 scope。方法(lambda)直接重绑;
+    /// `by` 属性要连 getter/setter 一起——它们也是 lambda,只是装在 PropertyVal 里。</summary>
+    private static RuntimeValue Rebind(RuntimeValue value, Scope dst) => value switch
+    {
+        LambdaVal lam => lam with { Scope = dst },
+        PropertyVal pv => pv with { Getter = RebindFn(pv.Getter, dst), Setter = RebindFn(pv.Setter, dst) },
+        _ => value,
+    };
+
+    private static FunctionVal RebindFn(FunctionVal f, Scope dst)
+        => f is LambdaVal lam ? lam with { Scope = dst } : f;
+
     /// <summary>拷贝一个对象:新实例 scope(方法闭包重绑,见 CopyScope)+ `this` 指向副本。
     /// `with` 和 `obj.Copy ()` 都要这一套——漏掉重绑 `this` 的话,副本里写 `this.v = n`
     /// 会落到原对象上,而裸写 `v = n` 却是对的,行为自相矛盾。</summary>
@@ -364,8 +376,11 @@ public partial class RuntimeType
             var value = kv.Value.Value;
             // 方法(lambda)的闭包 Scope 指向原实例。浅拷贝共享它的话,
             // 在副本上调方法会读写到原对象的字段——`with` 就白拷了。
-            if (value is LambdaVal lam) value = lam with { Scope = dst };
-            dst.Define(kv.Key, kv.Value.TypeConstraint, value);
+            value = Rebind(value, dst);
+            // attrs 也要带过去:丢了 by 的话副本上的 `v = x` 不走 setter,
+            // 丢了 readonly/private/core 就等于副本绕过了这些约束
+            var v = dst.Define(kv.Key, kv.Value.TypeConstraint, value);
+            foreach (var a in kv.Value.Attrs) v.SetAttr(a);
         }
 
         return dst;
