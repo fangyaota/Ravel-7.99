@@ -1,0 +1,23 @@
+# 单行 lambda 体不需要分号收尾
+# `=>` 后面块是强制的,没有「块 vs Set/Dict」的歧义,所以不该套用 ParseBrace 那条规则。
+# 从前这里必须写 `{ x + 1; }`,教程里满篇的单行 lambda 全是错的。
+double := (x: int) => { x * 2 }
+add ::= (x: int y: int) => { x + y }
+init := () => { 42 }
+print (double 5)
+print (add 3 4)
+print (init ())
+C := class {
+    init := () => { 0 }
+    probe := () => { print "hi" }
+}
+c := C ()
+c.probe ()
+# 表达式位置仍然要分号/换行,否则是 Set/Dict —— 两处规则不同,别混
+print ({ 1 2 })
+# --- expected ---
+# 10
+# 7
+# 42
+# hi
+# {1 2}

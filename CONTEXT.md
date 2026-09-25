@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，73 passed / 0 failed / 4 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，75 passed / 0 failed / 4 todo。
 
 ## 编译运行
 
@@ -59,7 +59,7 @@ lib/
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
                           (元类特性还没实现,4 个 todo 全是它:117/118/121/122)
 
-tests/                    77 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    79 个 golden test(普通 + expect-error + todo + fixture)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -250,6 +250,12 @@ add.name   # "add"
 {a; b;}     # Block (有分号/换行)
 ```
 
+这条「有分号/换行才是 Block」的规则**只管表达式位置**(`ParseBrace` 要在 Set/Dict/Block
+之间选)。`=>` 后面的 lambda 体是强制的块,没有歧义,所以不套用——`() => { x + 1 }`
+合法,不必写成 `{ x + 1; }`。`ParseMandatoryBlock` 曾经照抄了那条规则,于是教程里
+满篇的单行 lambda 全是错的,`tests/59`/`72` 更是被它抢先报语法错误、
+根本走不到自己要测的 readonly/unreadable。
+
 ## 关键API
 
 ```ravel
@@ -307,7 +313,7 @@ Error: 未定义的变量 'nope'
 
 ## 测试
 
-77 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 73 passed / 0 failed / 4 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+79 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 75 passed / 0 failed / 4 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
 
 - `expect-error` 只看 `output.StartsWith("Error:")`，所以**解释器自己漏出来的 C# 异常不算数**：
   `CaptureOutput` 给非 `RuntimeException`/`SyntaxException`/`ExitException` 的异常加了

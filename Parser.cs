@@ -79,6 +79,13 @@ public partial class Parser(List<Token> tokens, string? source = null)
             _pos + 1 < tokens.Count && IsOperatorToken(tokens[_pos + 1].Type))
             throw ParseError("运算符定义已改成直接用符号：`+ := f`（定义）或 `+ = f`（覆盖）");
 
+        // 旧写法 `init ctor := ...` 同理:构造器现在只是名字叫 init 的变量,
+        // 不拦下来就会去求值表达式 `init ctor`,报「未定义的变量 'init'」。
+        if (Check(TokenType.Identifier) && Peek().Lexeme == "init" &&
+            _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Identifier &&
+            _pos + 2 < tokens.Count && tokens[_pos + 2].Type is TokenType.ColonEqual or TokenType.ColonColonEqual)
+            throw ParseError("构造器不再用 init 修饰符，直接写 `init := () => { ... }`");
+
         // 修饰符
         var attrs = new List<string>();
         while (true)
@@ -709,12 +716,16 @@ public partial class Parser(List<Token> tokens, string? source = null)
     }
 
     /// <summary>强制解析为代码块——后面不是 block（单行无换行，即集合/字典）时报错</summary>
+    /// <summary>`=>` 后面的块。这里**不做** HasNewlineBeforeClose 那套判断——
+    /// 那条规则是给 ParseBrace 用的(表达式位置要分出 Set/Dict/Block),
+    /// 而 lambda 体必须是块,没有歧义。从前照抄了那条规则,于是 `() => { x + 1 }`
+    /// 报「lambda body 需要代码块」,得写成 `{ x + 1; }` 才行——
+    /// 教程里满篇的单行 lambda 全是错的,`tests/59`/`72` 更是被它抢先报错、
+    /// 根本没测到自己要测的 readonly/unreadable。</summary>
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
         Consume(TokenType.LeftBrace, $"需要 '{{' for {context}");
-        if (!HasNewlineBeforeClose(TokenType.RightBrace))
-            throw ParseError($"{context} 需要代码块（用换行或分号分隔）");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }
