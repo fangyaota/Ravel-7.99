@@ -115,7 +115,7 @@ Object (parent = 自身)
 
 **没有 `Class` 类型**：`class` 就是 `type` 的别名（`predefined.rav` 里 `class := System.Type`），
 两者是同一个值，所以 `typeof Person`（用户类）和 `typeof int`（内置类型）都是 `Type`。
-用户类也是同一个表示（`Runtime/Values/ObjectVal.cs`，见「七、类」），
+用户类也是同一个表示（`Runtime/Values/ClassVal.cs`，见「七、类」），
 它的父类是 `Object`、元类是 `Type`。
 
 `Any` 和 `Every` 画在最后只是排版方便——它们的父类型是**自己**，不是 `Object`
@@ -507,15 +507,17 @@ print (typeof Person)    # Type
 （`print (class == type)` 打出 `true`），所以 `Person ::= class { ... }` 和
 `Person ::= type { ... }` 建出来的是同一个东西。
 
-一个类**就是一个普通对象**——实例和类用的是同一个表示
-（`Runtime/Values/ObjectVal.cs`），「这是不是一个类」由它作用域里的几个成员决定：
+一个类就是一个**类对象**（C# 层是 `Runtime/Values/ClassVal.cs`），
+它的成员和实例一样挂在一张作用域表里：
 
 | 成员 | 含义 | 怎么看 |
 |---|---|---|
 | `parent` | 父类对象（链的上游） | `print (Person.Parent ())` → `Object` |
 | `block` | 类体——实例化时重跑的配方 | `typeof Person.block` 是 `Block` |
 | `name` | 类名 | `Person.name` → `"Person"` |
-| `call` | **"可调用"的凭据** | 有它才写得出 `Person ()` |
+
+类对象本身就是**可调用的东西**（不是靠某个成员表示"我能被调用"），所以写得出
+`Person ()`；而普通实例不是函数，`p ()` 会报「值 … 不是函数，不能调用」。
 
 `typeof X` 取的是**创建 X 的那个类对象**（元类）：`typeof p` 是 `Person`，
 `typeof Person` 是 `Type`；`type` 的元类是它自己，链在那里到头。所以「类是实例的类、
@@ -774,7 +776,7 @@ print (p.Fields ())   # [name age ToString Copy Fields]
 `p.Fields ()` 列出**实例字段名在前、类型方法名在后**：
 模块（`ravel`/`using` 建立的）则把作用域里的变量排在最前。
 不论哪种值，类型自己的方法（沿继承链到 `object`）都会并进来。
-`parent` / `block` / `call` / `init` 这些机制成员不会出现。
+`parent` / `block` / `name` / `init` / `this` 这些机制成员不会出现。
 
 ### 7.10 元类
 

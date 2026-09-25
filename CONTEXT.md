@@ -45,13 +45,14 @@ Runtime/                         求值器按职责拆成多个 partial class �
   BoxedValue.cs                  成员访问
   Values/                        
     IFunction.cs                 **可调用**的抽象:FunctionVal 和 ObjectVal 都实现它
-                                 (对象还要有 `call` 成员才算可调用,见「类型与对象」)
-    ObjectVal.cs                 **类与实例共用的表示**;类性靠 Scope 里的 parent/block/name/call
-    FunctionVal.cs               Body 即「参数→结果」;LambdaVal/BlockVal/BoolVal/TypeVal(没了)…
+    ClassVal.cs                  **类对象**;`ClassVal : FunctionVal`,自己就是可调用的那个东西
+    ObjectVal.cs                 **非原子值的基类**:带一张真实的成员表(Scope)
+    FunctionVal.cs               `: ObjectVal`;Body 即「参数→结果」,CaptureScope 是捕获作用域
+    MemberView.cs                **取成员的唯一入口**:自己那层 → 沿类对象 parent 链兜底
     ISelfBinding.cs              自绑定成员(内置方法/类运算符工厂):读出来要绑接收者
     NativeClosure.cs             **体是 C#、但按调用点作用域跑** —— 补 LambdaVal 和
                                  FunctionVal 中间那格(`type` 的 init 靠它看见 `this`)
-    BoundCall.cs / MethodVal.cs  `call` 成员的值 / 内置方法与类运算符工厂
+    MethodVal.cs                 内置方法 / 类运算符工厂 / 绑好的类运算符
     ControlFunction/ComposeVal/PartialCtor/ContinuationVal/...   各基础值
                                  BoolVal 也继承 FunctionVal(类型表里 Bool <: Function,见「两个坑」)
                                  FractionVal/BigFractionVal 构造即约分
@@ -93,7 +94,7 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 
 - 整个程序一个块根帧,`StepOnce()` 扁平循环逐帧推进,C# 栈恒平。
 - 每节点状态机按 `Results.Count` 推进;`Return` 把结果交给父帧。
-- 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`NativeClosure`(同上,但体是 C#)/`BlockVal`/`ObjectVal`(**有 `call` 成员才可调**,调它 = 实例化)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`BoundCall`(`call` 成员的值)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
+- 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`NativeClosure`(同上,但体是 C#)/`BlockVal`/`ClassVal`(**类对象,调它 = 实例化**)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;**交出的是 `init` 的返回值**(约定 `this`),`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂。
 - callcc 只有一套语义:续延 = callcc 之后的剩余计算;调用它 = 丢弃当前帧链、从捕获点继续(详见「控制流」)。
@@ -143,6 +144,9 @@ Object (parent=自己)
 `parent` 是类对象 Scope 里的一个普通成员(不是 C# 字段),所以链到头的方式是**自引用**
 (`object`/`Every`/`Any` 的 parent 是自己)—— 遍历这些链的地方都要在 `t.Parent == t` 处停。
 
+这棵树在 C# 侧全是 `ClassVal`(`ClassVal : FunctionVal : ObjectVal`,见下节);
+`Bool`/`Block` 的元类分别是 `Bool`/`Block`,不是 `Function`。
+
 `Bool <: Function` 是为了 lisp 式的条件:`true {a} {b}` 执行 a、`false {a} {b}` 执行 b，
 于是 `if` 退化成 `(c ()) t e`（见下面「控制流」）。
 
@@ -168,27 +172,73 @@ Object (parent=自己)
 
 其他所有变量通过 `predefined.rav` 别名定义（`int := System.Integer` 等）。
 
-## 类型与对象：类就是 ObjectVal
+## 类型与对象：类就是 ClassVal
 
-**没有 `RuntimeType`、没有 `TypeVal`。** 「一个类」就是一个 `ObjectVal`，
-类性由它 Scope 里的成员表达：
+**没有 `RuntimeType`、没有 `TypeVal`、也没有单独的 Class 类型。** 值阶层（`Runtime/Values/`）：
+
+```
+RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
+├── IntVal FloatVal BigIntVal FractionVal BigFractionVal
+│   StringVal ExceptionVal VoidVal DefaultVal      ← 原子值：无字段，MemberScope = 伪 Scope
+└── ObjectVal                         Scope 字段 = 真实成员表（取成员的落点）
+    ├── ListVal SetVal DictVal ModuleVal PropertyVal ScopeVal
+    └── FunctionVal                   + CaptureScope（捕获作用域）
+        ├── ClassVal                  ← **类对象就是它**
+        └── LambdaVal BlockVal BoolVal NativeClosure BuiltinMethodVal …
+```
+
+**一个类是 `ClassVal`，而 `ClassVal : FunctionVal`** —— 于是"能不能调"和"是不是类"
+都是**类型关系**，不再是"某个成员名在不在"：
+
+- **能不能调用** ⟺ `is FunctionVal`。类对象自己就是那个可调用的东西：`CallInto` 见
+  `case ClassVal` 就推 ClassInit 帧。没有 `call` 成员、也没有中间的 `BoundCall` 转发
+  （那套连同用户自定义 `call` 的能力一起删掉了）。
+- **`IsClass`**（我本身是不是一个类）⟺ **元类链上有 `type`**。
+  注意它和"实例化造出来的是什么"走**两条不同的链**：`IsClass` 走**元类**链，
+  而 `StepClassInit` 造 `ClassVal` 还是 `ObjectVal` 看的是**被实例化的那个类**的
+  **parent** 链（`type { body }` 里 `type <: type` 自反 → 造出来的就是类对象）。
+
+类对象的成员（类性由 Scope 里的普通成员表达）：
 
 | 成员 | 含义 |
 |---|---|
 | `parent` | 父类对象（原型链上游；自引用 = 链到头） |
 | `block` | 类体——实例化时重跑的配方 |
 | `name` | 类名（`C := class {...}` 的**成员值是空串**，只有 `::=` 会命名；但 `C.name` 读出来是显示名，空名字退化成 `class` —— 读写不对称，见 BoxedValue 的 `name` 伪成员） |
-| `call` | **"可调用"的凭据**（见下） |
 
-`RuntimeValue.Type` 返回这个对象的**元类**（创建它的那个类对象），`typeof X` 就是取它。
+`RuntimeValue.Type` 返回**元类**（创建它的那个类对象），`typeof X` 就是取它。
 `type` 的元类是它自己（自指，链的起点）。
+
+### 原子值与伪 Scope：取成员只有一条路
+
+`Value.MemberScope.LookupField(name)` —— 由 `MemberView` 一次走完两段：
+
+```
+① 值自己那层（对象是它的实例作用域，扁平）
+② 沿**类对象**的 parent 链兜底（方法住在类那层，`Fields` 就定义在 `object` 上）
+```
+
+- **非原子值**（对象、容器、函数、模块…）有**自己真实的成员表**（`ObjectVal.Scope`），
+  两段都有。表是**每个实例一张**的空表：`l.tag := 1` 挂得上，又不会像"共用类型那张表"
+  那样一改就改掉整个类型。
+- **原子值**（`IntVal`/`StringVal`/… 这些按值比较的）**没有自己那层** —— 它们是 record，
+  多一个字段就毁掉值相等。它们取到的是**伪 Scope**：只有第 ② 段，而那段是**算出来的视图**，
+  不落地。所以 `IntVal(1) == IntVal(1)` 照旧成立，集合去重也照常。
+
+第 ② 段**只认方法名**、且只收 `FunctionVal`：类对象的成员表里还躺着
+`parent`/`block`/`name`/`this`/`init`，那些是**类自己的数据**，不是"这个值的成员"。
+不挡的话 `(5).parent` 会从报错变成返回 `ValueType`。
+
+⚠️ **运算符是个例外：它问的是"类型"那张表**（`值.Type.MemberScope`）。
+运算符的语义是「这个**类型**怎么把两个操作数合起来」，和"这个值有哪些成员"不是同一个问题 ——
+混起来的话 `typeof 1 == int` 会撞上 `Integer` 那层的数值 `==`（把类对象当数字算）。
 
 ### 四条统一规则
 
 ```
-① 查成员   X.member   →  沿 X.Type 的 parent 链逐层在各自 Scope 里找
+① 查成员   X.member   →  X.MemberScope 一次查找（自己那层 → 沿类对象 parent 链兜底）
 ② 判类型   A <: B     →  沿 A 的 parent 链能否走到 B（Every 全局特判）
-③ 实例化   X args     →  新建 scope（this = 新 ObjectVal，ClassType = X）
+③ 实例化   X args     →  新建 scope（this = 新 ClassVal / ObjectVal，ClassType = X）
                         沿 X 的 parent 链逐层跑各层 block
                         在 scope 里 LookupField("init") 找构造器
                         调它，并把【它返回什么就是什么】作为结果
@@ -196,17 +246,6 @@ Object (parent=自己)
            X := class Parent { body }  ← 父类 Parent(必须已经存在)
            ≡ 把 class 换成 type 完全等价(两者是同一个值)
 ```
-
-- **`IsClass`**（我自己是不是一个类）判据是「**元类继承自 `type`**」——走类型关系，
-  不是"某个成员名在不在"（后者是鸭子类型该管的事，会跟 interface/shape 的判据混在一起）。
-- **能不能调用**的判据是「**自己那层**有没有 `call` 成员」（`LookupField`，不沿原型链）。
-  **对象是扁平的**：它的成员就在它自己的 scope 里，直接在对象里找。沿链只适用于
-  「函数类的东西取方法」（方法挂在类型上，见 `BoxedValue.GetMember` 的兜底）——
-  `call` 是"我带着能造的牌子"，不是从类那儿继承来的方法，所以不适用。
-  于是 `c.call` 读得到（那是个函数成员，走方法那条路）而 `c ()` 不行（判据看自己那层）——
-  两者问的是不同的问题，不是矛盾。
-  每个类对象建出来时都被装上 `call`（值是 `BoundCall`，`CallInto` 见到它就推 ClassInit 帧）。
-  **用户自己定义 `call` 也能造出可调用的对象**——这就是将来 interface / shape 的地基。
 
 ### 内置类也有类体
 
@@ -263,11 +302,15 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 - 用户类会被登记进 `AllTypes`，`Subtypes ()` 才反射得到它们。`AllTypes` 是静态表，
   而一个进程里会跑多个 Interpreter，所以每个 Interpreter 构造时调 `ResetUserTypes ()`
   清掉上一个留下的——否则上一个建过的类会出现在下一个的 `Subtypes ()` 里。
-- **`parent` / `block` / `call` / `init` 是机制成员**，不出现在 `Fields ()` / `print obj` 里
-  （`ObjectVal.MethodNames` 排掉它们）。`init` 这条容易漏：类体就跑在类对象自己的实例作用域里，
-  所以类对象的 Scope 里**装着它自己的构造器**。
-- **`parent` / `block` / `call` 是自绑定成员**（`ISelfBinding`）的话读出来要绑接收者 ——
-  这条区分不能少，漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
+- **`parent` / `block` / `name` / `init` / `this` 是机制成员**，不出现在 `Fields ()` /
+  `print obj` 里（`ObjectVal.IsMethodName` 排掉它们）。两条容易漏：
+  **`init`** —— 类体就跑在类对象自己的实例作用域里，所以类对象的 Scope 里**装着它自己的构造器**；
+  **`this`** —— 类对象就是 `type` 的实例，而实例化时那句 `instanceScope.Define("this", …)`
+  写进去的**正是这个类对象的成员表**。
+- **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
+  绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
+  它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
+  但绑完是 `BoundClassOp`（推帧的标记），不能直接算 —— 合并会让 `a + 5` 交出标记而不是数。
 
 ## 控制流
 
@@ -308,8 +351,8 @@ Vec := class {
 ```
 
 - `+ := f` **定义**；`+ = f` **覆盖**从父类层继承来的那个（父类自己不受影响）。旧写法 `operator+ add := ...` 已废弃，会报语法错误。
-- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`），与 `RuntimeType.Operators` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
-- 分派是**两跳**：`a + b` 先 `a.Type.TryLookupMethod("+")`；类运算符注册的是 `BoundClassOp`，于是推 `ClassOp` 帧到**实例作用域**里按符号名找实现（各层类体平铺在同一 scope、子类覆盖父类，所以只有一个）。
+- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- 分派是**两跳**：`a + b` 先在**类型**那张表里找（`a.Type.MemberScope`）；类运算符那格装的是 `ClassOperatorFactory`，绑完得 `BoundClassOp`，于是推 `ClassOp` 帧到**实例作用域**里按符号名找实现（各层类体平铺在同一 scope、子类覆盖父类，所以只有一个）。
 - 成员访问同构：`a.+` 取到绑好 self 的函数，`1.+` 取内置的。
 
 ## by 属性
@@ -465,18 +508,20 @@ Error: 未定义的变量 'missing'
 - **`Bool <: Function` 要求 `BoolVal : FunctionVal`**。true/false 可调用
   （`true {a} {b}`），类型表里挂在 Function 下；值这边不跟上，从 Function 继承来的方法
   拿到 self 是 BoolVal，`(FunctionVal)s` 直接抛 C# 的 InvalidCastException——
-  它不是 RuntimeException，Ravel 的 try 接不住，程序被打掉。`BlockVal`/`TypeVal`
-  一直是 `: FunctionVal(...)` 这么接的，`BoolVal` 是漏掉的那个。
-- 反过来，**不能拿 `is FunctionVal` 当「这是方法/闭包」的判据**，因为 BoolVal 也是
-  FunctionVal 了。用 `RuntimeValue.IsClosure`：`Fields ()`、`print obj`、
+  它不是 RuntimeException，Ravel 的 try 接不住，程序被打掉。`BlockVal` 一直是
+  `: FunctionVal(...)` 这么接的，`BoolVal` 是漏掉的那个。
+- 反过来，**不能拿 `is FunctionVal` 当「这是方法/闭包」的判据**，因为落在 Function
+  类型下的有两种**数据值**：`BoolVal`（`Bool <: Function`）和 `ClassVal`（类对象）。
+  用 `RuntimeValue.IsClosure`：`Fields ()`、`print obj`、
   `StepClassInit`/`StepCtorApply` 的半成品构造器判断都走它。用错会让
-  `flag: bool = true` 从 `Fields ()`/`print obj` 里消失，还会让
-  `init := () => { true; }` 的对象被当成半成品构造器交出去。
+  `flag: bool = true` 从 `Fields ()`/`print obj` 里消失，会让
+  `init := () => { true; }` 的对象被当成半成品构造器交出去，
+  还会让 `class {…}` 拿到一个 `PartialCtor` 而不是类。
 
 ## 测试
 
 `tests/` 下的 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现
-（**当前没有 todo 了**：最后 4 个是元类，随「类就是 ObjectVal」那一轮落地）。计数不写在这里——跑 `dotnet out/ravel.dll test` 看，或者按目录数。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+（**当前没有 todo 了**：最后 4 个是元类，随「类就是 ObjectVal」那一轮落地）。计数不写在这里——跑 `dotnet out/ravel.dll test` 看，或者按目录数。早期把基础特性合并过几个大文件（`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`·`98_types`·`99_collections`），后面按特性一个用例一个文件。expect-error 与 todo 因语义必须独立。
 
 - `expect-error` 只看 `output.StartsWith("Error:")`，所以**解释器自己漏出来的 C# 异常不算数**：
   `CaptureOutput` 给非 `RuntimeException`/`SyntaxException`/`ExitException` 的异常加了

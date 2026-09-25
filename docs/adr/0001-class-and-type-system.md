@@ -4,10 +4,13 @@
 - **日期**: 2026-08-13
 
 > ⚠️ **本文件写的是设计意图，其中一部分从未落地或已被取代。** 实际模型以 `CONTEXT.md` 的
-> 「类型与对象：类就是 ObjectVal」和「运算符」两节为准。要点：
-> - **`RuntimeType` / `TypeVal` 这套表示已经没了**：「一个类」就是一个 `ObjectVal`，
->   类性由它 Scope 里的 `parent` / `block` / `name` / `call` 表达。本文里的 `RuntimeType`
+> 「类型与对象：类就是 ClassVal」和「运算符」两节为准。要点：
+> - **`RuntimeType` / `TypeVal` 这套表示已经没了**：「一个类」就是一个**类对象**，
+>   类性由它 Scope 里的 `parent` / `block` / `name` 表达。本文里的 `RuntimeType`
 >   一律读成「类对象」，`TypeVal` 读成「类对象那个值」（`RuntimeValue.Type` 返回的是元类）。
+>   类对象在 C# 层是 `ClassVal`（`ClassVal : FunctionVal : ObjectVal`）——
+>   所以「能不能调用」是**类型关系**（是不是函数），不再靠一个 `call` 成员表示
+>   （那套 `call` 成员 / `BoundCall` / 用户自定义 `call` 已经删掉）。
 > - **`FieldShape` 依然不存在**。类体是运行时按祖先链逐层执行的,没有「先把字段收进 shape、
 >   实例化时再复制到 ObjectVal.Scope」这一步。「继承」和「class 的 Initializer」两节末尾
 >   各有一条更详细的更正。
@@ -22,7 +25,7 @@
 >   `typeof Person` 和 `typeof int` 都是 `Type`;建类挂在 `Type` 那层的 `init` 上
 >   (没有 `Type.Initializer` 这个成员)。
 >   本文里 `Class <: Type`、`X.Metaclass = Class`、`Class [Type]` 这些说法都按此理解——
->   把 `Class` 读成 `Type` 即可,另见 `CONTEXT.md`「类型与对象：类就是 ObjectVal」。
+>   把 `Class` 读成 `Type` 即可,另见 `CONTEXT.md`「类型与对象：类就是 ClassVal」。
 > - **「`type` 的构造器角色」当初被否掉的理由已不成立**。背景那节说「曾考虑 `type` 创建类型
 >   但否定了」,理由是要给 `class` 和 `type` 划清界限。现在界限取消了:`type { ... }` 就是建类,
 >   和 `class { ... }` 一回事。内置类型的 `init` 就是各自的转换器(没有单独的转换器概念了)。
