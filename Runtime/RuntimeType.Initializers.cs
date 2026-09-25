@@ -173,15 +173,23 @@ public partial class RuntimeType
             throw new RuntimeException("class 参数必须是类型或代码块");
         });
 
-    /// <summary>创建类：建 RuntimeType，存 body，扫描 operatorXxx 字段注册运算符标记</summary>
+    /// <summary>创建类：建 RuntimeType，存 body，扫描用符号定义的运算符注册到方法表</summary>
     private static TypeVal CreateClass(RuntimeType parent, BlockVal block)
     {
         var newType = Define("", parent);
         newType.Metaclass = Class;
         newType.Body = block;
+        // 类体里用符号定义的运算符(`+ := f` 定义、`+ = f` 覆盖)注册到类型的方法表
         foreach (var stmt in block.Block.Statements)
-            if (stmt is VarDefinition v && v.IsOperator && v.OperatorName != null)
-                newType.DefineClassOperator(v.OperatorName[8..]);
+        {
+            var op = stmt switch
+            {
+                VarDefinition v when v.IsOperator => v.Name,
+                Assignment a when OperatorSymbols.IsSymbol(a.Name) => a.Name,
+                _ => null,
+            };
+            if (op != null) newType.DefineClassOperator(op);
+        }
         return new TypeVal(newType);
     }
 

@@ -86,12 +86,12 @@ public partial class Interpreter
 
     // ======================== 合成控制帧的推帧助手 ========================
 
-    /// <summary>推 ClassOp 帧:动态找实例的 operatorX 字段并调,结果返回 parent 帧。op 为符号("+"),帧内存 attr("operator+")。
+    /// <summary>推 ClassOp 帧:到实例里找同名成员(符号就是成员名)并调,结果返回 parent 帧。
     /// 作用域取当前帧(调用发起处)的,不是 parent 的——运算符体应按调用点作用域求值。</summary>
     private void PushClassOp(Frame parent, string op, ObjectVal self, RuntimeValue arg)
     {
         var callerScope = _top.Scope;
-        var args = RList<RuntimeValue>.Empty.Add(self).Add(arg).Add(new StringVal("operator" + op));
+        var args = RList<RuntimeValue>.Empty.Add(self).Add(arg).Add(new StringVal(op));
         _top = new ControlFrame(ControlKind.ClassOp, args, VoidVal.Instance) { Parent = parent, Scope = callerScope };
     }
 

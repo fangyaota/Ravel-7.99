@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，43 passed / 0 failed / 7 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，46 passed / 0 failed / 7 todo。
 
 ## 编译运行
 
@@ -13,6 +13,10 @@ dotnet out/ravel.dll path/file.rav      # 单文件
 dotnet out/ravel.dll                    # REPL
 ```
 
+VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前文件并可下断点、
+命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。语法高亮靠 `vscode-ravel/` 扩展
+（见下），它调用的同样是 `bin/Debug/net8.0/ravel.dll`。
+
 ## 文件结构
 
 ```
@@ -21,7 +25,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Stack.cs    帧栈推进循环(StepOnce/Return/PushChild + 块执行)
   Interpreter.Nodes.cs    节点状态机(每 AST 节点一个 NodeFrame,按 Results.Count 分阶段)
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
-  Interpreter.Control.cs  控制帧状态机(while/if/with/foreach/callcc/using/eval/类初始化)
+  Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(references + 搜索目录、循环引用检测)
   Interpreter.System.cs   RegisterBuiltins + System 模块
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
@@ -49,7 +53,14 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    50 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    53 个 golden test(普通 + expect-error + todo + fixture)
+
+.vscode/                  VS Code 工作区配置
+  tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
+  launch.json             F5 跑当前 .rav(可下断点) / 原来的 REPL 配置
+
+vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
+                          装法:复制成 ~/.vscode/extensions/ravel.ravel-language-0.1.0/
 ```
 
 ## 求值器架构(显式帧栈)
@@ -61,7 +72,7 @@ tests/                    50 个 golden test(普通 + expect-error + todo + fixt
 - 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`BlockVal`/`TypeVal`(类→ClassInit 帧)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂,直到 `init` 应用完才把对象交出来。
-- callcc 单发(abort body)/多发(重跑局部 onDone + 返回参数给调用者)。
+- callcc 只有一套语义:续延 = callcc 之后的剩余计算;调用它 = 丢弃当前帧链、从捕获点继续(详见「控制流」)。
 - 深度递归 20 万层安全(原 CPS ~4k 层爆栈)。
 
 ## 类型层次
@@ -146,6 +157,24 @@ Object (parent=self)
 
 **callcc 只有一套语义**：续延 = callcc 之后的剩余计算；调用它 = 丢弃当前帧链、把值当作 callcc 的返回值、从捕获点继续。因此 **callcc 之后的语句会被重新执行**——`x := 1 + callcc (k) => { saved = k; 0; }` 之后再 `saved 10`，会让 `x` 变成 11 并继续往下走。想「跳出去」就调用续延（旧的 escape 用例行为不变）。
 
+## 运算符
+
+类体里**直接用符号**定义，符号本身就是实例里的成员名：
+
+```ravel
+Vec := class {
+    init := () => { 0; }
+    x: int = 0
+    + := (o: Vec) => { ... }    # 定义
+    == := (o: Vec) => { ... }
+}
+```
+
+- `+ := f` **定义**；`+ = f` **覆盖**从父类层继承来的那个（父类自己不受影响）。旧写法 `operator+ add := ...` 已废弃，会报语法错误。
+- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`），与 `RuntimeType.Operators` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- 分派是**两跳**：`a + b` 先 `a.Type.TryLookupMethod("+")`；类运算符注册的是 `BoundClassOp`，于是推 `ClassOp` 帧到**实例作用域**里按符号名找实现（各层类体平铺在同一 scope、子类覆盖父类，所以只有一个）。
+- 成员访问同构：`a.+` 取到绑好 self 的函数，`1.+` 取内置的。
+
 ## by 属性
 
 ```ravel
@@ -153,6 +182,7 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 ```
 
 实例读 `obj.age` / 写 `obj.age = v` 走 getter/setter（`CallInto` 派发，lambda getter/setter 也有效）。
+`obj.age += v` 同样走——先过 getter 读、算完再过 setter 写（`StepByCompoundAssign`）。
 
 ## 多参数 lambda
 
@@ -161,11 +191,19 @@ add := (x: int y: int) => { x + y }
 add 3 4    # 柯里化
 ```
 
-## _ 占位符
+## _ 占位符 / 运算符节
 
 ```ravel
 add1 := _ + 1    # (x: object) => x + 1
+add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留空
 ```
+
+`+.1` 与 `_ + 1` 脱糖成同一个 lambda。右操作数**只吃一个 primary**（含成员访问），
+复杂式要自己加括号：`+.(2 * 3)`。
+
+**括号界定 section 的范围**：`(+.1) 41` 先把 `(+.1)` 变成 lambda、再让 `41` 应用上去 = 42。
+（占位符消糖本来只作用于整条语句，那会把 `(+.1) 41` 整个包成 `(_0) => (_0 + 1) 41`，
+所以 `ParseParen` 在括号内就地收口。）
 
 ## ::= 命名
 
@@ -195,6 +233,10 @@ int.Initializer () # Property 代理(getter=构造器,setter=设构造器)
 # 对象
 obj.Fields ()     # 字段名列表(模块=作用域变量 + 类型方法;其他=类型方法)
 obj.Copy ()       # 浅拷贝
+obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
+obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
+obj.+             # 取绑定好 self 的运算符函数(符号就是成员名)
+
 
 # 模块
 ravel "M"
@@ -203,4 +245,4 @@ using "file.rav"
 
 ## 测试
 
-50 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 43 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+53 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 46 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。

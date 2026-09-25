@@ -220,7 +220,7 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    /// <summary>类运算符:动态找实例 operatorX 字段(沿 parent 链)并成 | 交替,调并函数</summary>
+    /// <summary>类运算符:在实例作用域里找同名的成员(符号就是成员名),调它</summary>
     private void StepClassOp(ControlFrame cf)
     {
         var self = (ObjectVal)cf.Args.At(0);
@@ -228,9 +228,9 @@ public partial class Interpreter
         var op = ((StringVal)cf.Args.At(2)).Value;
         if (cf.Count == 0)
         {
-            var ops = CollectOperators(self.Scope, op);
-            if (ops == null) throw new RuntimeException($"对象没有运算符 '{op[8..]}'");
-            CallInto(cf, ops, arg);
+            var impl = FindClassOperator(self.Scope, op)
+                       ?? throw new RuntimeException($"对象没有运算符 '{op}'");
+            CallInto(cf, impl, arg);
             return;
         }
 
@@ -260,19 +260,8 @@ public partial class Interpreter
         Return(cf, cf.Args.At(2));
     }
 
-    /// <summary>收集实例 scope 里所有带 attr 的函数,用 | 交替组合(多 operatorX 重载自动试下一个)。
-    /// 继承来的运算符也在同一 scope 里(各层类体平铺),所以扫一层就够。</summary>
-    private static FunctionVal? CollectOperators(Scope scope, string attr)
-    {
-        FunctionVal? result = null;
-        foreach (var kv in scope.Variables)
-        {
-            if (kv.Value.HasAttr(attr) && kv.Value.Value is FunctionVal fn)
-                result = result == null
-                    ? fn
-                    : new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(result).Add(fn));
-        }
-
-        return result;
-    }
+    /// <summary>找实例里这个符号的运算符实现。符号就是成员名(`+ := f` 定义的就是 `+`),
+    /// 各层类体平铺在同一个实例 scope、子类覆盖父类,所以只有一个,查一层就够。</summary>
+    private static FunctionVal? FindClassOperator(Scope scope, string symbol)
+        => scope.LookupField(symbol)?.Value as FunctionVal;
 }

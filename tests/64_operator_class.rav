@@ -2,16 +2,16 @@
 Vec := class {
     init := () => { this.v = 10; }
     v: int = 0
-    operator+ add := (x: int) => { v + x; }
-    operator* mul := (x: int) => { v * x; }
-    operator- sub := (x: int) => { v - x; }
+    + := (x: int) => { v + x; }
+    * := (x: int) => { v * x; }
+    - := (x: int) => { v - x; }
 }
 a := Vec ()
 print (a + 5)
 print (a * 3)
 print (a - 2)
 # 运算符作变量
-addFn := a.operator+
+addFn := a.+
 print (addFn 100)
 # --- expected ---
 # 15

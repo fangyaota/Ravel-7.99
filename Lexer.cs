@@ -208,47 +208,6 @@ public class Lexer(string source)
             _pos++;
         string word = source[start.._pos];
 
-        // operator+ / operator== 等 → 合并为一个标识符
-        if (word == "operator" && _pos < source.Length)
-        {
-            char nc = source[_pos];
-            if (nc == '+' || nc == '-' || nc == '*' || nc == '/' || nc == '%')
-            {
-                _pos++;
-                word += nc;
-            }
-            else if (nc == '=' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                word += "==";
-            }
-            else if (nc == '!' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                word += "!=";
-            }
-            else if (nc == '<' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                word += "<=";
-            }
-            else if (nc == '>' && _pos + 1 < source.Length && source[_pos + 1] == '=')
-            {
-                _pos += 2;
-                word += ">=";
-            }
-            else if (nc == '<' || nc == '>')
-            {
-                _pos++;
-                word += nc;
-            }
-            else if (nc == '&' || nc == '|' || nc == '^')
-            {
-                _pos++;
-                word += nc;
-            }
-        }
-
         _col += (_pos - start);
 
         return new Token(TokenType.Identifier, word, line, col);

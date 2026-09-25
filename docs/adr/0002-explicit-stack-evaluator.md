@@ -50,7 +50,7 @@ while (_top != null) StepOnce();
 | `TypeVal`（`Body != null`） | 推 ClassInit 构造帧 |
 | `ControlFunction` | 收满参数 → 推控制帧 |
 | `ContinuationVal` | 还原帧链 |
-| `BoundClassOp` | 推 ClassOp 帧（动态找实例 operatorX 字段） |
+| `BoundClassOp` | 推 ClassOp 帧（动态找实例里同名的运算符成员） |
 | `ComposeVal`（prepend/append） | 推 Compose 帧 |
 
 ### 4. 控制内建 = 纯数据

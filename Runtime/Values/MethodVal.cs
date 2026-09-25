@@ -4,5 +4,5 @@ namespace Ravel.Runtime;
 public sealed record BuiltinMethodVal(Func<RuntimeValue, RuntimeValue, RuntimeValue> Impl)
     : FunctionVal(null!, (_, self) => FunctionVal.From(arg => Impl(self, arg)));
 
-/// <summary>绑定的类运算符(a.operator+ 的值):调用时推 ClassOp 帧,动态找实例 operatorX 字段</summary>
+/// <summary>绑定的类运算符(a.+ 的值):调用时推 ClassOp 帧,到实例里按符号名找实现</summary>
 public sealed record BoundClassOp(ObjectVal Self, string OpName) : FunctionVal(null!, (_, _) => VoidVal.Instance);

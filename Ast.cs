@@ -1,5 +1,15 @@
 namespace Ravel;
 
+/// <summary>可自定义的运算符符号。类体里直接用符号定义(`+ := f` 定义、`+ = f` 覆盖),
+/// 符号本身就是实例里的成员名,所以 `a.+` 能取到它。集合与 RuntimeType.Operators 注册的内置运算符一致。</summary>
+public static class OperatorSymbols
+{
+    public static readonly HashSet<string> All =
+        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^"];
+
+    public static bool IsSymbol(string name) => All.Contains(name);
+}
+
 // ============================================================
 //  抽象语法树 — 纯语法结构，不带类型信息
 // ============================================================
@@ -18,8 +28,8 @@ public record VarDefinition(string Name, string? TypeAnnotation, Expression Valu
     public bool HasAttr(string a) => Attrs?.Contains(a) ?? false;
     /// <summary>构造器:靠名字识别(类体里写 `init := () => {...}`),不再用 init 修饰符</summary>
     public bool IsInit => Name == "init";
-    public bool IsOperator => Attrs?.Any(a => a.StartsWith("operator")) ?? false;
-    public string? OperatorName => Attrs?.FirstOrDefault(a => a.StartsWith("operator"));
+    /// <summary>运算符:靠名字识别——类体里直接写符号(`+ := f` / `+ = f`)</summary>
+    public bool IsOperator => OperatorSymbols.IsSymbol(Name);
     public bool IsReadonly => HasAttr("readonly");
     public bool IsOverride => HasAttr("override");
     public bool IsNew => HasAttr("new");

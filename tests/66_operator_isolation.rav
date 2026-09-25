@@ -1,7 +1,7 @@
 A := class {
     init := () => { this.n = 1; }
     n: int = 0
-    operator+ add := (x: int) => { n + x; }
+    + := (x: int) => { n + x; }
 }
 a1 := A ()
 a2 := A ()

@@ -44,13 +44,38 @@ public partial class Parser(List<Token> tokens)
         "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"
     ];
 
-    private static bool IsMod(string kw) => Modifiers.Contains(kw) || kw.StartsWith("operator");
+    private static bool IsMod(string kw) => Modifiers.Contains(kw);
+
+    /// <summary>能作为运算符定义的符号 token(`+ := f` / `a.+`)。一元 `!` 和短路 `&&`/`||` 不在内——
+    /// 它们是求值器特判的,不支持自定义。</summary>
+    private static bool IsOperatorToken(TokenType t) => t switch
+    {
+        TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
+            or TokenType.EqualEqual or TokenType.NotEqual
+            or TokenType.Less or TokenType.Greater or TokenType.LessEqual or TokenType.GreaterEqual
+            or TokenType.And or TokenType.Pipe or TokenType.Caret => true,
+        _ => false,
+    };
 
     /// <summary>类机制内部词——禁止作为变量名（this/init 是类内可用变量，不禁）</summary>
     private static readonly HashSet<string> ReservedWords = ["thistype", "block", "core"];
 
     private Statement ParseStatement()
     {
+        // 运算符定义:`+ := f`(定义) / `+ = f`(覆盖)。符号本身就是成员名。
+        if (IsOperatorToken(Peek().Type) && _pos + 1 < tokens.Count)
+        {
+            var nt = tokens[_pos + 1].Type;
+            if (nt is TokenType.ColonEqual or TokenType.Equal)
+                return ParseOperatorDefinition();
+        }
+
+        // 旧写法 operator+ add := ... 已废弃。不拦的话会被当表达式 `operator + add` 求值,
+        // 报的却是「未定义的变量 'operator'」,看不出所以然。
+        if (Check(TokenType.Identifier) && Peek().Lexeme == "operator" &&
+            _pos + 1 < tokens.Count && IsOperatorToken(tokens[_pos + 1].Type))
+            throw ParseError("运算符定义已改成直接用符号：`+ := f`（定义）或 `+ = f`（覆盖）");
+
         // 修饰符
         var attrs = new List<string>();
         while (true)
@@ -105,6 +130,38 @@ public partial class Parser(List<Token> tokens)
         return new ExpressionStatement(expr) { Line = expr.Line, Column = expr.Column };
     }
 
+    /// <summary>`.` 后面那一段:普通成员名,或运算符符号(`2.+` / `"a".==`)</summary>
+    private string ParseMemberName()
+    {
+        if (Check(TokenType.Identifier))
+        {
+            var t = Peek();
+            _pos++;
+            return t.Lexeme;
+        }
+
+        if (IsOperatorToken(Peek().Type))
+        {
+            var t = Peek();
+            _pos++;
+            return t.Lexeme;
+        }
+
+        throw ParseError("'.' 后需要成员名");
+    }
+
+    /// <summary>`+ := f` 定义运算符;`+ = f` 覆盖已有的(父类层定义的)那个。符号即成员名。</summary>
+    private Statement ParseOperatorDefinition()
+    {
+        var sym = Peek();
+        _pos++;
+        if (Match(TokenType.ColonEqual))
+            return new VarDefinition(sym.Lexeme, null, ParseExpression()) { Line = sym.Line, Column = sym.Column };
+
+        Match(TokenType.Equal);
+        return new Assignment(sym.Lexeme, ParseExpression()) { Line = sym.Line, Column = sym.Column };
+    }
+
     /// <summary>name := expr  |  name: Type = expr</summary>
     private Statement ParseDefinition(List<string>? attrs = null)
     {
@@ -121,7 +178,8 @@ public partial class Parser(List<Token> tokens)
             }
             else
             {
-                name = attrs.FirstOrDefault(a => a.StartsWith("operator")) ?? attrs[0];
+                // 修饰符本身当名字用(如 `readonly := ...`)
+                name = attrs[0];
                 line = Previous().Line;
                 col = Previous().Column;
             }
@@ -224,12 +282,14 @@ public partial class Parser(List<Token> tokens)
         return left;
     }
 
-    /// <summary>赋值 = += -= *= /=  （右结合，仅表达式级别）</summary>
+    /// <summary>赋值 = += -= *= /= 与成员定义 :=  （右结合，仅表达式级别）。
+    /// 顶层语句的 `x := v` 在 ParseStatement 就分派给 ParseDefinition 了，
+    /// 这里收的是左操作数为成员访问的 `obj.field := v`（定义/覆盖字段）。</summary>
     private Expression ParseAssignment(bool allowCall = true)
     {
         var left = ParseLogic(allowCall);
 
-        if (Match(TokenType.Equal) || Match(TokenType.PlusEqual) ||
+        if (Match(TokenType.Equal) || Match(TokenType.ColonEqual) || Match(TokenType.PlusEqual) ||
             Match(TokenType.MinusEqual) || Match(TokenType.StarEqual) ||
             Match(TokenType.SlashEqual) || Match(TokenType.PercentEqual))
         {
@@ -370,8 +430,8 @@ public partial class Parser(List<Token> tokens)
         // .成员访问  — 在空格调用之前处理
         while (Match(TokenType.Dot))
         {
-            var member = Consume(TokenType.Identifier, "'.' 后需要成员名");
-            expr = new MemberAccess(expr, member.Lexeme) { Line = expr.Line, Column = expr.Column };
+            var member = ParseMemberName();
+            expr = new MemberAccess(expr, member) { Line = expr.Line, Column = expr.Column };
         }
 
         if (!allowCall) return expr;
@@ -382,8 +442,8 @@ public partial class Parser(List<Token> tokens)
             var arg = ParsePrimary();
             while (Match(TokenType.Dot))
             {
-                var mem = Consume(TokenType.Identifier, "'.' 后需要成员名");
-                arg = new MemberAccess(arg, mem.Lexeme) { Line = arg.Line, Column = arg.Column };
+                var mem = ParseMemberName();
+                arg = new MemberAccess(arg, mem) { Line = arg.Line, Column = arg.Column };
             }
 
             expr = new CallExpr(expr, [arg])
@@ -402,6 +462,18 @@ public partial class Parser(List<Token> tokens)
 
     private Expression ParsePrimary()
     {
+        // 运算符节 `+.2` —— 左操作数留空,等价于 `_ + 2`(脱糖成同一个 lambda)。
+        // 右操作数只吃一个 primary(含成员访问),所以 `+.2 + 3` 是 `(+.2) + 3`。
+        if (IsOperatorToken(Peek().Type) && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot)
+        {
+            var sym = Peek();
+            _pos += 2;
+            _holeCount++;
+            var hole = new HoleExpr(_holeCount - 1) { Line = sym.Line, Column = sym.Column };
+            return new BinaryExpr(hole, sym.Lexeme, ParseCall(allowCall: false))
+                { Line = sym.Line, Column = sym.Column };
+        }
+
         if (Match(TokenType.Number))
         {
             var lexeme = Previous().Lexeme;
@@ -517,7 +589,11 @@ public partial class Parser(List<Token> tokens)
         // (a)      →  a
         var inner = ParseExpression(allowCall: true);
         Consume(TokenType.RightParen, "表达式后需要 ')'");
-        return inner;
+
+        // 括号里的占位符就地在括号内消糖:占位符消糖本来只作用于整条语句,
+        // 那会让 `(_ + 1) 41` 变成 `(_0) => (_0 + 1) 41`(整个式子被包起来、41 没被应用)。
+        // 括号界定了 section 的范围,所以在这里收口:先把 `(_ + 1)` 变成 lambda,再让 41 应用。
+        return HasHoles(inner) ? DesugarHoles(inner) : inner;
     }
 
     /// <summary>{ ... } — 集合 / 字典 / 代码块（根据是否跨行判断）</summary>

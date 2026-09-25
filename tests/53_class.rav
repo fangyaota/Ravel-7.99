@@ -1,7 +1,7 @@
 C := class {
     init := () => { this.n = 10; }
     n: int = 0
-    operator+ add := (x: int) => { n + x; }
+    + := (x: int) => { n + x; }
     setN := (v: int) => { n = v; }
     getN := () => { n; }
 }

@@ -11,8 +11,6 @@ public class Variable(string name, RuntimeType typeConstraint, RuntimeValue init
     public void SetAttr(string a) => _attrs.Add(a);
     public IEnumerable<string> Attrs => _attrs;
 
-    public bool IsOperator => _attrs.Any(a => a.StartsWith("operator"));
-
     public void Assign(RuntimeValue newValue)
     {
         if (HasAttr("readonly")) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");

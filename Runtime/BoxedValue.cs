@@ -31,14 +31,9 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
 
     public BoxedValue GetMember(string name)
     {
-        // 内置类型运算符访问：1.operator+ → 返回 (rhs) => 1 + rhs
-        if (name.StartsWith("operator"))
-        {
-            var op = name[8..];
-            var opMethod = Value.Type.TryLookupMethod(op);
-            if (opMethod != null)
-                return new BoxedValue(RuntimeType.BindMethod(opMethod, Value), interp);
-        }
+        // 运算符访问：`1.+` / `"a".==` → 返回绑好 self 的函数。类型层注册的(内置或类运算符)优先。
+        if (OperatorSymbols.IsSymbol(name) && Value.Type.TryLookupMethod(name) is { } opMethod)
+            return new BoxedValue(RuntimeType.BindMethod(opMethod, Value), interp);
 
         if (Value is PropertyVal pv)
         {
