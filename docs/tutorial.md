@@ -315,7 +315,9 @@ callcc (exit: function) => {
 while := (c: function body: function) => {
     again := (x: int) => { x; }
     callcc (k: function) => { again = k; }
-    if { c (); } { body (); again 0; } { 0; }
+    cond := c ()      # 必须在恢复点之后,否则 again 0 跳回来时不重求,条件只判一次
+    assert (typeof cond == bool) ("while 的条件必须是 bool，得到 " + string (typeof cond))
+    if { cond; } { body (); again 0; } { 0; }
 }
 ```
 
@@ -379,11 +381,16 @@ _ = f ()         # 调函数丢弃结果
 _ : int = 99     # 类型标注丢弃
 ```
 
-### 5.5 管道
+### 5.5 向函数喂参（`<|`）
 
 ```ravel
-5 <| double    # double 5 → 10
+double ::= (x: int) => { x * 2 }
+double <| 5    # 10 —— 等价于 double 5
 ```
+
+`<|` 和 F#/Haskell 的 `$`、`<|` 一样是**函数在左**：`f <| x` ≡ `f x`。
+它存在的意义是省掉一层括号——`f <| a + b` 不用写成 `f (a + b)`。
+（以前这里写的是 `5 <| double`，和实现对不上。）
 
 ### 5.6 函数名
 
