@@ -13,30 +13,39 @@ public partial class RuntimeType
     private static T Operand<T>(RuntimeValue v, string op) where T : RuntimeValue
         => v as T ?? throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
 
+    /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:float > bigint > int——
+    /// 结果类型取较宽的那个。以前只特判了 Float,于是 `1 + bigint 2` 报「运算符 '+' 不支持
+    /// BigInt 操作数」,而反过来的 `bigint 2 + 1` 却正常(AsBigInt 收 int),两边不对称。</summary>
+    private static RuntimeValue IntOp(RuntimeValue a, RuntimeValue b, string op,
+        Func<int, int, RuntimeValue> ii,
+        Func<int, double, RuntimeValue> id,
+        Func<int, System.Numerics.BigInteger, RuntimeValue> ib)
+    {
+        var x = ((IntVal)a).Value;
+        return b switch
+        {
+            FloatVal f => id(x, f.Value),
+            BigIntVal g => ib(x, g.Value),
+            IntVal i => ii(x, i.Value),
+            _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数"),
+        };
+    }
+
     private static void RegisterOperators()
     {
-        // int 运算符
-        DefineOp(Int, "+", (a, b) =>
-        {
-            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value + fb.Value);
-            return new IntVal(((IntVal)a).Value + Operand<IntVal>(b, "+").Value);
-        });
-        DefineOp(Int, "-", (a, b) =>
-        {
-            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value - fb.Value);
-            return new IntVal(((IntVal)a).Value - Operand<IntVal>(b, "-").Value);
-        });
-        DefineOp(Int, "*", (a, b) =>
-        {
-            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value * fb.Value);
-            return new IntVal(((IntVal)a).Value * Operand<IntVal>(b, "*").Value);
-        });
-        DefineOp(Int, "/", (a, b) =>
-        {
-            if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value / fb.Value);
-            return new IntVal(((IntVal)a).Value / NonZero(Operand<IntVal>(b, "/").Value, "/"));
-        });
-        DefineOp(Int, "%", (a, b) => new IntVal(((IntVal)a).Value % NonZero(Operand<IntVal>(b, "%").Value, "%")));
+        // int 运算符 —— 右操作数按"宽度"升级:float > bigint > int
+        DefineOp(Int, "+", (a, b) => IntOp(a, b, "+",
+            (x, y) => new IntVal(x + y), (x, y) => new FloatVal(x + y), (x, y) => new BigIntVal(x + y)));
+        DefineOp(Int, "-", (a, b) => IntOp(a, b, "-",
+            (x, y) => new IntVal(x - y), (x, y) => new FloatVal(x - y), (x, y) => new BigIntVal(x - y)));
+        DefineOp(Int, "*", (a, b) => IntOp(a, b, "*",
+            (x, y) => new IntVal(x * y), (x, y) => new FloatVal(x * y), (x, y) => new BigIntVal(x * y)));
+        DefineOp(Int, "/", (a, b) => IntOp(a, b, "/",
+            (x, y) => new IntVal(x / NonZero(y, "/")), (x, y) => new FloatVal(x / y),
+            (x, y) => new BigIntVal(x / NonZero(y, "/"))));
+        DefineOp(Int, "%", (a, b) => IntOp(a, b, "%",
+            (x, y) => new IntVal(x % NonZero(y, "%")), (x, y) => new FloatVal(x % y),
+            (x, y) => new BigIntVal(x % NonZero(y, "%"))));
 
         // float 运算符
         DefineOp(Float, "+", (a, b) => new FloatVal(AsFloat(a, "+") + AsFloat(b, "+")));

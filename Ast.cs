@@ -40,7 +40,9 @@ public record ExpressionStatement(Expression Expr) : Statement;
 // --- 表达式 ---
 public abstract record Expression : AstNode;
 
-public record NumberLiteral(double Value, bool IsFloat = false) : Expression;
+/// <summary>数字文字。存**原始文本**而不是 double:double 只有 15~17 位有效数字,
+/// 大整数转一手就丢精度(12345678901234567890 → 12345678901234567000),再转回来已经不是原来那个数。</summary>
+public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression;
 public record StringLiteral(string Value) : Expression;
 public record IdentifierExpr(string Name) : Expression;
 public record CallExpr(Expression Function, List<Expression> Arguments) : Expression;

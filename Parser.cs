@@ -485,7 +485,7 @@ public partial class Parser(List<Token> tokens, string? source = null)
         {
             var lexeme = Previous().Lexeme;
             var isFloat = lexeme.Contains('.');
-            return new NumberLiteral(double.Parse(lexeme), isFloat)
+            return new NumberLiteral(lexeme, isFloat)
                 { Line = Previous().Line, Column = Previous().Column };
         }
 
