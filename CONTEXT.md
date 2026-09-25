@@ -378,7 +378,14 @@ Vec := class {
 ```
 
 - `+ := f` **定义**；`+ = f` **覆盖**从父类层继承来的那个（父类自己不受影响）。旧写法 `operator+ add := ...` 已废弃，会报语法错误。
-- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`，以及**词形运算符** `is` / `isnot`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- **`is` / `isnot` 是词形运算符**：不是标点，所以解析器在**运算符位置**按词认
+  （`Parser.IsWordOperator` / `IsInfixWordOperator`），别处照样能当标识符与成员名用 ——
+  于是 `1.is`（等右操作数）和 `is.int`（等左操作数）与 `a.+` / `+.2` 完全对称。
+  实现挂在 `Object` 上（每个类的 parent 链都到它），判据就是 `IsAssignableTo`：
+  `1 is int` ✓、`1 is float` ✗（兄弟）、`1 is object` ✓、`int is type` ✓。
+  节的脱糖必须**就地**做（`ParsePrimary` 里 `DesugarHoles`），否则 `isnot.string "a"`
+  会变成 `(_0) => { (_0 isnot string) "a"; }` —— 把实参也吞进体里，而不是"应用节"。
 - 分派是**两跳**：`a + b` 先在**类型**那张表里找（`a.Type.MemberScope`）；类运算符那格装的是 `ClassOperatorFactory`，绑完得 `BoundClassOp`，于是推 `ClassOp` 帧到**实例作用域**里按符号名找实现（各层类体平铺在同一 scope、子类覆盖父类，所以只有一个）。
 - 成员访问同构：`a.+` 取到绑好 self 的函数，`1.+` 取内置的。
 
@@ -474,6 +481,7 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 int.name          # "Integer"
 int.Parent ()     # ValueType
 int.Is ValueType  # true
+1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
 
 # 对象

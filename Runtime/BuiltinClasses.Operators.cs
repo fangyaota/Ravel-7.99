@@ -122,6 +122,17 @@ internal static partial class BuiltinClasses
         DefineOp(String, "!=", (a, b) => new BoolVal(((StringVal)a).Value != Operand<StringVal>(b, "!=").Value));
         // string 拼接
         DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + Operand<StringVal>(b, "+").Value));
+        // 类型判定 `is` / `isnot` —— 注册在 Object 上,于是**任何值**都有
+        // (每个类的 parent 链都到 Object)。判据就是类型树上的 `IsAssignableTo`:
+        //   `1 is int`     Integer <: Integer          ✓
+        //   `1 is float`   Integer 与 Float 是兄弟       ✗
+        //   `1 is object`  Integer <: ValueType <: Object ✓
+        //   `int is type`  类对象是 type 的实例           ✓
+        //   `default is int`  Every(底类型)特判           ✓
+        // 右边必须是个类型对象,否则报 Ravel 错误(不是 InvalidCastException)。
+        DefineOp(Object, "is", (a, b) => new BoolVal(IsA(a, b, "is")));
+        DefineOp(Object, "isnot", (a, b) => new BoolVal(!IsA(a, b, "isnot")));
+
         // 类对象自己就是那个值,直接按身份比(和 ObjectVal.Equals 一致)
         DefineOp(Type, "==", (a, b) => new BoolVal((ObjectVal)a == Operand<ObjectVal>(b, "==")));
         DefineOp(Type, "!=", (a, b) => new BoolVal((ObjectVal)a != Operand<ObjectVal>(b, "!=")));
@@ -173,6 +184,13 @@ internal static partial class BuiltinClasses
 
     private static double AsDouble(RuntimeValue v, string op)
         => TryAsDouble(v, out var d) ? d : throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
+
+    /// <summary>`is` / `isnot` 的实现:值的类型是不是(是某个类型的子类型)。
+    /// 返回 bool,由调用点决定要不要取反 —— `isnot` 是同一个判据,不是两套。</summary>
+    private static bool IsA(RuntimeValue v, RuntimeValue type, string op)
+        => type is ObjectVal t
+            ? v.Type.IsAssignableTo(t)
+            : throw new RuntimeException($"'{op}' 的右边要是一个类型，得到 {type.Type}");
 
     private static System.Numerics.BigInteger AsBigInt(RuntimeValue v, string op) => v switch
     {

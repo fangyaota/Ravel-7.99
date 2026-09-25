@@ -1,0 +1,62 @@
+# `is` / `isnot`:类型判定。判据就是类型树上那条 `A <: B`(`ObjectVal.IsAssignableTo`)。
+#
+# 它们是**词形运算符**(不是标点),所以三种写法都有,和 `+` 完全对称:
+#   中缀      `1 is int`
+#   等右操作数 `1.is`      ← 和 `2.+` 对称
+#   等左操作数 `is.int`    ← 和 `+.2` 对称
+
+# ---- 中缀 ----
+print (1 is int)
+print (1 is float)          # Integer 与 Float 是兄弟,不是子类型
+print ("a" is ValueType)
+print (1 is object)         # Integer <: ValueType <: Object
+print (1 is Any)            # 顶类型:什么都是它的子类
+print (1 is Every)          # 底类型:Every 是所有人的子类,反过来不成立
+print (default is int)      # default 的类型就是 Every
+print ([1] is list)
+
+# ---- 等右操作数:和 `2.+` 对称 ----
+bound := 1.is
+print (bound int)
+print (2.isnot int)
+print ((1.is) int)          # 也可以直接接上去写
+
+# ---- 等左操作数:和 `+.2` 对称(节)。括号界定节的范围 ----
+isInt := is.int
+print (isInt 1)
+print (is.ValueType "a")
+print (isnot.string "a")
+print ((isnot.string) "a")  # 和上一行同一个意思:节是 lambda,接上实参就是应用
+
+# ---- 类对象也是值:它是 `type` 的实例,不是它自己表示的那个类型 ----
+print (int is type)
+print (typeof 1 is type)
+print (typeof 1 is int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
+print ((typeof 1).Is int)   # 想比"是不是这个类型"用 `Is`(类对象上的方法)
+
+# ---- 右边得是个类型 ----
+using "try.rav"
+Ex.try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
+print "done"
+# --- expected ---
+# true
+# false
+# true
+# true
+# true
+# false
+# true
+# true
+# true
+# false
+# true
+# true
+# true
+# false
+# false
+# true
+# true
+# false
+# true
+# 右边不是类型: 'is' 的右边要是一个类型，得到 Integer
+# done

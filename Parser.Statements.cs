@@ -17,6 +17,29 @@ public partial class Parser
 
     /// <summary>能作为运算符定义的符号 token(`+ := f` / `a.+`)。一元 `!` 和短路 `&&`/`||` 不在内——
     /// 它们是求值器特判的,不支持自定义。</summary>
+    /// <summary>词形运算符:`is` / `isnot` 不是标点,只能按词认。
+    /// **只在运算符位置认**(中缀、节首),所以它们同时还能当普通标识符/成员名用 ——
+    /// `1.is` 要能走成员访问那条路。</summary>
+    private bool IsWordOperator(Token t) => t.Type == TokenType.Identifier && t.Lexeme is "is" or "isnot";
+
+    /// <summary>吃掉一个词形运算符(是的话)。</summary>
+    private bool MatchWordOperator()
+    {
+        if (!IsWordOperator(Peek())) return false;
+        _pos++;
+        return true;
+    }
+
+    /// <summary>运算符节的开头:`+.2` / `is.int` —— 运算符(标点或词形)后面紧跟 `.`。
+    /// 节是"左操作数留空"的写法,`ParsePrimary` 认它。</summary>
+    private bool IsSectionStart()
+        => (IsOperatorToken(Peek().Type) || IsWordOperator(Peek()))
+           && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot;
+
+    /// <summary>这个位置上的词形运算符**是中缀**(`x is int`),不是节的开头(`is.int`)。
+    /// 相邻调用的参数扫描要在这儿停 —— 否则 `1 is int` 会被吃成 `1(is, int)`。</summary>
+    private bool IsInfixWordOperator() => IsWordOperator(Peek()) && !IsSectionStart();
+
     private static bool IsOperatorToken(TokenType t) => t switch
     {
         TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent

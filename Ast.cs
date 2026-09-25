@@ -3,11 +3,15 @@
 using Ravel.Runtime;
 
 /// <summary>可自定义的运算符符号。类体里直接用符号定义(`+ := f` 定义、`+ = f` 覆盖),
-/// 符号本身就是实例里的成员名,所以 `a.+` 能取到它。集合与 BuiltinClasses.Operators 注册的内置运算符一致。</summary>
+/// 符号本身就是实例里的成员名,所以 `a.+` 能取到它。集合与 BuiltinClasses.Operators 注册的内置运算符一致。
+///
+/// `is` / `isnot` 是**词形运算符**(类型判定):它们不是标点,所以解析器在
+/// **运算符位置**按词判定(见 `Parser.IsWordOperator`)—— 别处照样能当普通标识符用,
+/// 于是 `1.is`(等右操作数)和 `is.int`(等左操作数)两种节形式和 `a.+` / `+.2` 完全对称。</summary>
 public static class OperatorSymbols
 {
     public static readonly HashSet<string> All =
-        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^"];
+        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^", "is", "isnot"];
 
     public static bool IsSymbol(string name) => All.Contains(name);
 }

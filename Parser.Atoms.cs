@@ -14,16 +14,21 @@ public partial class Parser
 
     private Expression ParsePrimary()
     {
-        // 运算符节 `+.2` —— 左操作数留空,等价于 `_ + 2`(脱糖成同一个 lambda)。
-        // 右操作数只吃一个 primary(含成员访问),所以 `+.2 + 3` 是 `(+.2) + 3`。
-        if (IsOperatorToken(Peek().Type) && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot)
+        // 运算符节 `+.2` / `is.int` —— 左操作数留空,等价于 `_ + 2` / `_ is int`
+        // (脱糖成同一个 lambda)。右操作数只吃一个 primary(含成员访问),
+        // 所以 `+.2 + 3` 是 `(+.2) + 3`。
+        if (IsSectionStart())
         {
             var sym = Peek();
             _pos += 2;
             _holeCount++;
             var hole = new HoleExpr(_holeCount - 1) { Line = sym.Line, Column = sym.Column };
-            return new BinaryExpr(hole, sym.Lexeme, ParseCall(allowCall: false))
+            var body = new BinaryExpr(hole, sym.Lexeme, ParseCall(allowCall: false))
                 { Line = sym.Line, Column = sym.Column };
+            // **就地脱糖成 lambda**,和括号那趟一个道理(见文件末尾):节是闭包边界,
+            // 它那个洞不该让外层那趟再包一次 —— 否则 `isnot.string "a"` 会变成
+            // `(_0) => { (_0 isnot string) "a"; }`(把实参也吞进体里),而不是"应用节"。
+            return DesugarHoles(body);
         }
 
         if (Match(TokenType.Number))

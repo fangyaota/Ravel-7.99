@@ -108,14 +108,16 @@ public partial class Parser
         return left;
     }
 
-    /// <summary>比较 != == &lt; &gt; &lt;= &gt;=</summary>
+    /// <summary>比较 != == &lt; &gt; &lt;= &gt;=,以及类型判定 `is` / `isnot`
+    /// (`1 is int` —— 词形运算符,优先级和比较一样)</summary>
     private Expression ParseComparison(bool allowCall = true)
     {
         var left = ParseTerm(allowCall);
 
         while (Match(TokenType.NotEqual) || Match(TokenType.EqualEqual) ||
                Match(TokenType.Less) || Match(TokenType.Greater) ||
-               Match(TokenType.LessEqual) || Match(TokenType.GreaterEqual))
+               Match(TokenType.LessEqual) || Match(TokenType.GreaterEqual) ||
+               MatchWordOperator())
         {
             var op = Previous().Lexeme;
             var right = ParseTerm(allowCall);
@@ -183,8 +185,10 @@ public partial class Parser
 
         if (!allowCall) return expr;
 
-        // f a b c  →  ((f a) b) c  柯里化
-        while (StartsPrimary())
+        // f a b c  →  ((f a) b) c  柯里化。
+        // 词形运算符在这儿要停:它看着像个 primary,但 `1 is int` 里那个 `is` 是中缀
+        // (节形式的 `f is.int` 除外,那是参数)。
+        while (StartsPrimary() && !IsInfixWordOperator())
         {
             var arg = ParsePrimary();
             while (Match(TokenType.Dot))

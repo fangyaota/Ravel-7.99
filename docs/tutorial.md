@@ -79,6 +79,9 @@ int.Subtypes ()        # [Every]  — 所有子类型(Integer 没有自己的子
 int.Default ()         # 0           — 默认值
 ```
 
+值的类型判定用 **`is` / `isnot`** 运算符（下面 3.3 有）——`1 is int`，
+它和 `int.Is` 是同一个判据，只是站在值这边说。
+
 ### 2.4 类型转换
 
 ```ravel
@@ -159,7 +162,29 @@ bigfraction 123 456   # 大数分数
 
 整数和浮点可以混用：`3 == 3.0` → `true`。
 
-### 3.3 逻辑
+### 3.3 类型判定 is / isnot
+
+```ravel
+1 is int          # true
+1 is float        # false（Integer 和 Float 是兄弟，不是子类型）
+1 is object       # true（Integer <: ValueType <: Object）
+1 isnot int       # false
+```
+
+判据就是类型树上那条 `A <: B`。`is` / `isnot` 是**词形运算符**，所以和 `+` 一样
+三种写法都成立：
+
+```ravel
+1.is              # 等右操作数（和 2.+ 对称）
+is.int            # 等左操作数（和 +.2 对称）→ 等价于 (_ is int)
+isnot.string "a"  # false
+```
+
+类对象自己也是值——它是 `type` 的实例，所以 `int is type` 是 `true`，
+而 `typeof 1 is int` 是 `false`（`typeof 1` 求出来的是类对象 `Integer`，不是 int 值）。
+要比"是不是这个类型"用类对象上的 `Is`：`(typeof 1).Is int`。
+
+### 3.4 逻辑
 
 ```ravel
 true && false    # false  (短路与)
@@ -169,7 +194,7 @@ true || false    # true   (短路或)
 
 `&&` `||` 是短路特殊结构，**不可重载**。
 
-### 3.4 位/逻辑运算
+### 3.5 位/逻辑运算
 
 ```ravel
 3 & 1    # 1    (位与 / 逻辑与)
@@ -179,7 +204,7 @@ true || false    # true   (短路或)
 
 `&` `|` `^` 可重载。
 
-### 3.5 字符串拼接与转义
+### 3.6 字符串拼接与转义
 
 ```ravel
 "hello " + "world"   # "hello world"
@@ -197,16 +222,16 @@ print ("c:\path\file")      # c:\path\file —— \p \f 不认识，原样留着
 
 字符串可以跨行（直接换行即可），不需要续行符。
 
-### 3.6 比较 Bool / String
+### 3.7 比较 Bool / String
 
 ```ravel
 true == true    # true
 "a" != "b"      # true
 ```
 
-Bool 只支持 `==` `!=`；String 支持 `==` `!=`，另外还有 `+`（拼接，见 3.5）。
+Bool 只支持 `==` `!=`；String 支持 `==` `!=`，另外还有 `+`（拼接，见 3.6）。
 
-### 3.7 复合赋值
+### 3.8 复合赋值
 
 ```ravel
 x := 10
@@ -217,7 +242,7 @@ x /= 4     # x = 6
 x %= 4     # x = 2
 ```
 
-### 3.8 成员运算符访问与运算符节
+### 3.9 成员运算符访问与运算符节
 
 ```ravel
 1.+     # 返回函数: (rhs) => 1 + rhs   —— 右操作数留空
@@ -237,7 +262,7 @@ print ((+.(2 * 3)) 10)  # 16
 print ((+.1) 41)        # 42 —— 括号界定了节的范围
 ```
 
-### 3.9 给类定义运算符
+### 3.10 给类定义运算符
 
 类体里**直接用符号**定义，符号本身就是成员名：
 
@@ -1005,6 +1030,7 @@ Error: 未预期的字符 '$'
 | `print x` | 输出 x 并换行 |
 | `input ()` | 读一行 |
 | `typeof x` | 返回 x 的类型 |
+| `x is T` | 类型判定（`isnot` 取反；`x.is` / `is.T` 也成立） |
 | `exit msg` | 退出程序 |
 | `eval "code"` | 执行字符串 |
 | `callcc fn` | 续延 |
