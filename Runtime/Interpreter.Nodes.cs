@@ -4,15 +4,19 @@ namespace Ravel.Runtime;
 /// 需要「调用函数拿结果」的节点把 sink 传 nf.Parent(结果直接流进父帧),不再回到本帧。</summary>
 public partial class Interpreter
 {
-    /// <summary>隐式转换:失败返回 null</summary>
-    private static RuntimeValue? TryConvert(RuntimeValue val, RuntimeType target)
+    /// <summary>隐式转换:失败返回 null,把失败原因从 out 带走。
+    /// 原因要带——`x: int = bigint 9999999999999` 光说「无法将 BigInt 赋值给 Integer」,
+    /// 看不出是「类型根本不支持转换」还是「转得动但这个值超出 int 范围」,后者才是真话。</summary>
+    private static RuntimeValue? TryConvert(RuntimeValue val, RuntimeType target, out string? why)
     {
         try
         {
+            why = null;
             return RuntimeType.ConvertDirect(target, val);
         }
-        catch (RuntimeException)
+        catch (RuntimeException ex)
         {
+            why = ex.Message;
             return null;
         }
     }
@@ -223,9 +227,11 @@ public partial class Interpreter
         var dt = v.TypeAnnotation != null ? ResolveType(v.TypeAnnotation, nf.Scope) : val.Type;
         if (v.TypeAnnotation != null && !val.Type.IsAssignableTo(dt))
         {
-            var cv = TryConvert(val, dt);
+            var cv = TryConvert(val, dt, out var why);
             if (cv != null) val = cv;
-            else throw new RuntimeException($"类型不匹配: 无法将 {val.Type} 赋值给 {dt}");
+            // 用 `—` 而不是括号:why 自己常带括号(「超出 int 范围(大数用 bigint)」),
+            // 套起来会变成双层括号
+            else throw new RuntimeException($"类型不匹配: 无法将 {val.Type} 赋值给 {dt} — {why}");
         }
 
         var vr = nf.Scope.DefineOrReplace(v.Name, dt, val);

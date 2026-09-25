@@ -33,6 +33,24 @@ public partial class RuntimeType
             ? ConvertDirect(type, val)
             : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用"));
 
+    /// <summary>收进 int32，越界明确报错。以前是直接 `(int)` 硬转，两头都不对：
+    /// BigInteger 那条越界会抛 C# 的 OverflowException 一直漏到顶层（`int 9999999999999` 就崩），
+    /// double 那条在 .NET Core 里是**饱和**转换，`int 1e30` 静默变成 2147483647、
+    /// `int 0/0` 静默变成 0——一个字都不说。
+    /// int 是 32 位的类型，装不下就该报，别让调用者以为算出来了。</summary>
+    private static IntVal FromBig(System.Numerics.BigInteger v)
+        => v >= int.MinValue && v <= int.MaxValue
+            ? new IntVal((int)v)
+            : throw new RuntimeException($"数值 {v} 超出 int 范围（int 是 32 位，大数用 bigint）");
+
+    private static IntVal FromDouble(double v)
+    {
+        if (double.IsNaN(v)) throw new RuntimeException("NaN 不能转换为 int");
+        if (v < int.MinValue || v > int.MaxValue)
+            throw new RuntimeException($"数值 {v} 超出 int 范围（int 是 32 位，大数用 bigint）");
+        return new IntVal((int)v);
+    }
+
     private static RuntimeValue CastToInt(RuntimeValue val)
     {
         if (val is DefaultVal) return new IntVal(0);
@@ -40,14 +58,15 @@ public partial class RuntimeType
         if (val is StringVal s)
         {
             if (int.TryParse(s.Value, out var n)) return new IntVal(n);
-            throw new RuntimeException("无法将字符串转换为 int");
+            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）");
         }
 
         if (val is BoolVal b) return new IntVal(b.Value ? 1 : 0);
-        if (val is FloatVal f) return new IntVal((int)f.Value);
-        if (val is BigIntVal bi) return new IntVal((int)bi.Value);
-        if (val is FractionVal fr) return new IntVal(fr.Num / fr.Den);
-        if (val is BigFractionVal bfr) return new IntVal((int)(bfr.Num / bfr.Den));
+        if (val is FloatVal f) return FromDouble(f.Value);
+        if (val is BigIntVal bi) return FromBig(bi.Value);
+        // 分数先在 BigInteger 里除，免得 int 除法自己先溢出（MinValue / -1）
+        if (val is FractionVal fr) return FromBig((System.Numerics.BigInteger)fr.Num / fr.Den);
+        if (val is BigFractionVal bfr) return FromBig(bfr.Num / bfr.Den);
         throw new RuntimeException($"无法将 {val.Type} 转换为 int");
     }
 
@@ -56,10 +75,13 @@ public partial class RuntimeType
         if (val is DefaultVal) return new FloatVal(0);
         if (val is IntVal i) return new FloatVal(i.Value);
         if (val is FloatVal f) return f;
+        // bigint → float 是拓宽,顺手接上(以前 `float (bigint 5)` 报「无法转换为 float」,
+        // 而 `bigint 5 + 1.0` 却算得出来,两边对不上)
+        if (val is BigIntVal bi) return new FloatVal((double)bi.Value);
         if (val is StringVal s)
         {
             if (double.TryParse(s.Value, out var n)) return new FloatVal(n);
-            throw new RuntimeException("无法将字符串转换为 float");
+            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 float");
         }
 
         throw new RuntimeException($"无法将 {val.Type} 转换为 float");
@@ -143,17 +165,23 @@ public partial class RuntimeType
             return val;
         }
 
+        // 隐式和显式(`int x`)该收同一批东西,差别只在失败时报什么:
+        // 这里失败会被 TryConvert 吞掉变成「类型不匹配」,所以越界也走同一套检查
         if (target == Int)
             return val is IntVal i ? i :
-                val is FloatVal f ? new IntVal((int)f.Value) :
-                val is StringVal s ? new IntVal(int.TryParse(s.Value, out var sn) ? sn : throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int")) :
+                val is FloatVal f ? FromDouble(f.Value) :
+                val is StringVal s ? new IntVal(int.TryParse(s.Value, out var sn)
+                    ? sn : throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）")) :
                 val is BoolVal b ? new IntVal(b.Value ? 1 : 0) :
-                throw new RuntimeException("无法转换为 int");
+                val is BigIntVal bi ? FromBig(bi.Value) :
+                throw new RuntimeException($"无法将 {val.Type} 转换为 int");
         if (target == Float)
             return val is IntVal i2 ? new FloatVal(i2.Value) :
                 val is FloatVal f2 ? f2 :
-                val is StringVal fs ? new FloatVal(double.TryParse(fs.Value, out var fn) ? fn : throw new RuntimeException($"无法将字符串 '{fs.Value}' 转换为 float")) :
-                throw new RuntimeException("无法转换为 float");
+                val is BigIntVal bi2 ? new FloatVal((double)bi2.Value) :
+                val is StringVal fs ? new FloatVal(double.TryParse(fs.Value, out var fn)
+                    ? fn : throw new RuntimeException($"无法将字符串 '{fs.Value}' 转换为 float")) :
+                throw new RuntimeException($"无法将 {val.Type} 转换为 float");
         if (target == BigInt)
             // 和 CastToBigInt 对齐:显式 `bigint "123"` 走得通,隐式 `x: bigint = "123"` 也该走得通
             return val is BigIntVal bi2 ? bi2 :
@@ -164,7 +192,7 @@ public partial class RuntimeType
             return val is StringVal sv ? sv : new StringVal(val.ToString());
         if (target == Bool)
             return val is BoolVal b3 ? b3 : throw new RuntimeException("无法转换为 bool");
-        throw new RuntimeException("无法转换类型");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}");
     }
 
     /// <summary>class 构造器：class block（默认父类 object）或 class parent block（柯里化）</summary>
