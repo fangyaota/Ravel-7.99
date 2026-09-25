@@ -173,14 +173,20 @@ public partial class Interpreter
             // 子类的 init 覆盖父类的,所以直接找名字 = 只调最具体层声明的那个
             var init = inst.Scope.LookupField("init")?.Value as FunctionVal
                        ?? throw new RuntimeException($"类型 {type.DisplayName} 没有构造器（init）");
-            CallInto(cf, init, arg);
+            // 调用点用**实例作用域**:init 要能看见 `this` 和各层类体落的成员。
+            // 内置类的默认建类函数(NativeClosure)正是靠这个把 parent/block 装到 self 上。
+            CallInto(cf with { Scope = inst.Scope }, init, arg);
             return;
         }
 
         // Count 超过层数:init 已返回(用 > 而非 == :callcc 续延重入可能把 Count 顶过头)。
         // Results 里前面几项是各层类体的返回值,最后一项才是 init 的——所以取 Last 而不是 Result(0)。
         // init 若还返回函数(多参构造器只喂了一部分)就交出半成品,让它继续收参数,和普通函数一样柯里化
-        Return(cf, cf.Last is FunctionVal rest && rest.IsClosure ? new PartialCtor(inst, rest) : inst);
+        // **构造交出 init 的返回值** —— 不再无条件交出实例。
+        // init 约定以 `this` 收尾,所以普通类拿到的还是实例;
+        // 而元类的 init 可以建出一个类再交出来(或返回别的什么)。
+        // init 若还返回函数(多参构造器只喂了一部分)就交出半成品,和普通函数一样柯里化。
+        Return(cf, cf.Last is FunctionVal rest && rest.IsClosure ? new PartialCtor(inst, rest) : cf.Last);
     }
 
     /// <summary>半成品构造器继续收参数:喂给 init 的剩余部分,应用完才交出对象</summary>
@@ -193,7 +199,8 @@ public partial class Interpreter
             return;
         }
 
-        Return(cf, cf.Result(0) is FunctionVal rest && rest.IsClosure ? new PartialCtor(target, rest) : target);
+        // 和 StepClassInit 一个规则:交出 init 的返回值(半成品构造器继续柯里化)
+        Return(cf, cf.Result(0) is FunctionVal rest && rest.IsClosure ? new PartialCtor(target, rest) : cf.Result(0));
     }
 
     /// <summary>prepend/append 合成:先跑块再调原函数,或先调原函数再跑块</summary>

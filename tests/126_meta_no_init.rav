@@ -1,4 +1,14 @@
-# metaclass 无 init — 不可调用（同普通类）
+# `class class {...}` 是个元类:它的父类是 `type`,于是继承了"建类"那层的 init。
+# 所以它建出来的东西是**类**,不是实例 —— 这条以前是 todo(元类没实现),现在成立。
 M ::= class class { x: int = 1; }
 C := M { init := () => { 0; this; }; y: int = 2 }
-# expect-error
+print (typeof C)
+d := C ()
+print (d.y)
+# 没写 init 的类仍然调不动:引擎找构造器只看实例作用域那一层,
+# 不会沿原型链掉进 `type` 那层的默认建类逻辑(否则每个没写 init 的类都会去建类)
+print (typeof C.block)
+# --- expected ---
+# M
+# 2
+# Block

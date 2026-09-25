@@ -11,7 +11,7 @@ public partial class Interpreter
         {
             case ControlFunction cf:
                 if (cf.IsFinalAfter(1))
-                    _top = new ControlFrame(cf.Kind, cf.Args.Add(arg), VoidVal.Instance) { Parent = sink, Scope = sink.Scope };
+                    _top = new ControlFrame(cf.Kind, cf.Args.Add(arg), VoidVal.Instance) { Parent = sink, Scope = sink.Scope, CallSite = (_top as NodeFrame)?.Node };
                 else
                     _top = sink.WithResult(cf.Accumulate(arg));
                 break;
@@ -23,6 +23,17 @@ public partial class Interpreter
                 lamScope.Define(lam.ParamName, lam.ParamType, arg);
                 _top = new BlockExecFrame(lam.Block) { Parent = sink, Scope = lamScope };
                 break;
+            case NativeClosure nc:
+            {
+                // 和 LambdaVal 同款:先查参数类型(交替机制靠它分流),再在**调用点作用域**里跑
+                if (!arg.Type.IsAssignableTo(nc.ParamType))
+                    throw new TypeMismatchException($"参数 '{nc.ParamName}' 需要 {nc.ParamType}，得到 {arg.Type}");
+                var ncScope = _top.Scope.Push();
+                ncScope.Define("self", BuiltinClasses.Function, nc);
+                ncScope.Define(nc.ParamName, nc.ParamType, arg);
+                _top = sink.WithResult(nc.Fn(ncScope, arg));
+                break;
+            }
             case BlockVal blk:
                 _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.Scope.Push() };
                 break;
@@ -41,7 +52,7 @@ public partial class Interpreter
             case ComposeVal comp:
             {
                 var cargs = RList<RuntimeValue>.Empty.Add(comp.Original).Add(comp.Block).Add(arg).Add(new BoolVal(comp.IsPrepend));
-                _top = new ControlFrame(ControlKind.Compose, cargs, VoidVal.Instance) { Parent = sink, Scope = sink.Scope };
+                _top = new ControlFrame(ControlKind.Compose, cargs, VoidVal.Instance) { Parent = sink, Scope = sink.Scope, CallSite = (_top as NodeFrame)?.Node };
                 break;
             }
             case BoundClassOp bco:
@@ -50,7 +61,7 @@ public partial class Interpreter
             case PartialCtor pc:
             {
                 var cargs = RList<RuntimeValue>.Empty.Add(pc.Partial).Add(arg).Add(pc.Target);
-                _top = new ControlFrame(ControlKind.CtorApply, cargs, VoidVal.Instance) { Parent = sink, Scope = sink.Scope };
+                _top = new ControlFrame(ControlKind.CtorApply, cargs, VoidVal.Instance) { Parent = sink, Scope = sink.Scope, CallSite = (_top as NodeFrame)?.Node };
                 break;
             }
             case ContinuationVal k:
@@ -75,30 +86,21 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>调用一个类对象 = 实例化它。
+    /// <summary>调用一个类对象 = 实例化它。**只有一条路**：推 ClassInit 控制帧,
+    /// 建 scope、跑各层类体、调用类体里定义的 `init`,并交出 init 的返回值。
     ///
-    /// 两条路(S1 阶段):
-    /// - 有类体(用户类)→ 推 ClassInit 控制帧:建 scope、跑各层类体、调 init
-    /// - 只有 Initializer(内置类)→ 同步转换器
-    ///
-    /// S2 会把两条合成一条:内置类也在预设类体里定义 `init`,构造一律交出 init 的返回值。</summary>
+    /// 内置类和用户类走的是同一条(S1 那条 "有 Initializer 就同步转换" 的分叉没有了)——
+    /// `int 42` 得 42,是因为 `Integer` 的预设类体里写着 `init := <CastToInt>`。
+    /// 没有类体的类型(Every/Any/Ravel/Scope/Property/Object…)照旧不能当构造器调。</summary>
     private void CallClassInto(Frame sink, ObjectVal t, RuntimeValue arg)
     {
-        if (t.Body != null)
+        if (t.Body == null) throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用");
+        _top = new ControlFrame(ControlKind.ClassInit, RList<RuntimeValue>.Empty.Add(t).Add(arg), VoidVal.Instance)
         {
-            _top = new ControlFrame(ControlKind.ClassInit, RList<RuntimeValue>.Empty.Add(t).Add(arg), VoidVal.Instance)
-            {
-                Parent = sink,
-                Scope = sink.Scope
-            };
-            return;
-        }
-
-        var init = t.Initializer;
-        // DisplayName 而不是 Name:用户类的名字是空的(`C := class {...}` 没有名字),
-        // 直接插 Name 会报成「类型  不能作为构造器调用」,两个空格中间什么都没有
-        if (init == null) throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用");
-        _top = sink.WithResult(init.Body(arg));
+            Parent = sink,
+            Scope = sink.Scope,
+            CallSite = (_top as NodeFrame)?.Node,
+        };
     }
 
     // ======================== 合成控制帧的推帧助手 ========================

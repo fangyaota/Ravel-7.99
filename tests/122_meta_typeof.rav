@@ -1,21 +1,23 @@
-﻿# todo
-# metaclass: typeof 检查链
-MyMeta ::= class class {
-    init := (parent: type block: function) => {
-        base.init parent block
-        this
-        this;
+# metaclass:typeof 检查链
+#   typeof 实例 = 它的类   typeof 类 = 它由谁建的   type 自己元类自指
+MyMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        parentInit parent body
+    } | (body: function) => {
+        parentInit object body
     }
 }
 A ::= MyMeta object { init := () => { 0; this; }; }
 B ::= class { init := () => { 0; this; }; }
-# metaclass 创建的类
 print (typeof A)
-# 普通类
 print (typeof B)
-# metaclass 本身
 print (typeof MyMeta)
+print (typeof (A ()))
+print (typeof (B ()))
 # --- expected ---
 # MyMeta
 # Type
 # Type
+# A
+# B

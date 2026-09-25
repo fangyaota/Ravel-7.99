@@ -130,6 +130,8 @@ internal static partial class BuiltinClasses
         RegisterMethods();
         // ---- 注册类型构造器 ----
         RegisterInitializers();
+        // ---- type 的 init:默认的建类逻辑(必须在 Type/Object/Function 都挂好之后) ----
+        InstallTypeInit();
 
         // ---- 收集所有内置类（供 Subtypes 反射） ----
         foreach (var t in new[]
@@ -142,6 +144,76 @@ internal static partial class BuiltinClasses
             AllTypes.Add(t);
 
         _builtinCount = AllTypes.Count;
+    }
+
+    // ============================================================
+    //  预设类体 —— 内置类的"类体"
+    // ============================================================
+
+    /// <summary>造一段**预设类体**:内置类的类体。里面只定义它的成员。
+    ///
+    /// 内置类的成员是 C# 造好的值(转换器、默认建类函数),写不出 Ravel 源码,
+    /// 所以用 <see cref="LiteralExpr"/> 直接塞进去。这样内置类和用户类走**完全相同**的
+    /// 实例化路径:跑各层类体 → 在实例作用域里找 `init` → 调它、交出它的返回值。
+    /// S1 那条 `Initializer` vs `Body` 的分叉到这里就没了。
+    ///
+    /// 捕获作用域给一个空 scope:体里只有 `init := <字面量值>`,不需要解析任何名字。</summary>
+    private static BlockVal PresetBody(params (string Name, RuntimeValue Value)[] members)
+    {
+        var stmts = new List<Statement>();
+        foreach (var (name, value) in members)
+            stmts.Add(new VarDefinition(name, null, new LiteralExpr(value)) { Line = 1, Column = 1 });
+        return new BlockVal(new BlockExpr(stmts) { Line = 1, Column = 1, Source = "<preset>" }, new Scope());
+    }
+
+    /// <summary>把两个候选做成 `|` 交替(和 `Function.|` 同一个机制,只是从 C# 侧构造)。
+    /// 分流靠 TypeMismatchException —— 第一支的参数类型对不上就试第二支,见 StepAlternate。</summary>
+    internal static ControlFunction Alternate(RuntimeValue a, RuntimeValue b)
+        => new(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b));
+
+    /// <summary>`type` 的 init —— **新建实例/新建类这件事的默认逻辑**,也是元类要委托的那一层。
+    ///
+    /// 两分支(和用户在 Ravel 里写 `(parent: Type body) => ... | (body) => ...` 完全一样):
+    /// - 第一支收 `(parent: Type, body)`。参数标成 `Type`,于是 `class { body }` 传块进来时
+    ///   类型不匹配、自动落到第二支 —— **交替机制就是靠参数类型分流的**。
+    /// - 第二支只收 `body`,parent 默认成 `object`。
+    ///
+    /// 做的事只有一件:把 (parent, block) 装到**正在构造的那个对象**上,它于是成为一个类。
+    /// `this` 从实例作用域拿 —— 这个函数是在 ClassInit 里以实例作用域为调用点被调的。</summary>
+    private static void InstallTypeInit()
+    {
+        var twoArg = new NativeClosure("parent", Type, (scope, parent) =>
+            FunctionVal.From(body => Install(scope, (ObjectVal)parent, body)));
+        var oneArg = new NativeClosure("body", Function, (scope, body) => Install(scope, Object, body));
+        Type.Body = PresetBody(("init", Alternate(twoArg, oneArg)));
+    }
+
+    /// <summary>把 (parent, body) 装到 self 上,self 于是是一个类。返回 self ——
+    /// 构造交出 init 的返回值,所以这就是"建出来的那个类"。
+    ///
+    /// 装完顺手登记进 AllTypes(`Subtypes ()` 反射要用)并扫类体里用符号定义的运算符。</summary>
+    private static RuntimeValue Install(Scope scope, ObjectVal parent, RuntimeValue body)
+    {
+        if (body is not BlockVal blk) throw new RuntimeException("class 需要代码块参数");
+        var self = (ObjectVal)scope.Lookup("this").Value;
+        self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
+        self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk);
+        self.Scope.DefineOrReplace(ObjectVal.CallMember, Function, Call);   // "可调用"的凭据
+        self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
+        AllTypes.Add(self);
+
+        foreach (var stmt in blk.Block.Statements)
+        {
+            var op = stmt switch
+            {
+                VarDefinition v when v.IsOperator => v.Name,
+                Assignment a when OperatorSymbols.IsSymbol(a.Name) => a.Name,
+                _ => null,
+            };
+            if (op != null) self.DefineClassOperator(op);
+        }
+
+        return self;
     }
 
     private static ObjectVal New(string name)
@@ -164,41 +236,14 @@ internal static partial class BuiltinClasses
     //  用户自定义类
     // ============================================================
 
-    /// <summary>建一个用户类对象（`class Parent { ... }` 执行时调用）。
-    /// 登记进 AllTypes，否则 `Subtypes ()` 反射看不到用户类（只列内置类）。
-    ///
-    /// `C := class {...}` 建的类**没有名字**（只有 `::=` 会命名）——由 `ObjectVal.Name` 的空串表示。</summary>
-    internal static ObjectVal CreateClass(ObjectVal parent, BlockVal block)
-    {
-        var t = new ObjectVal(Type, new Scope());
-        t.Scope.Define(ObjectVal.ParentMember, Object, parent);
-        t.Scope.Define(ObjectVal.BlockMember, Block, block);
-        t.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
-        t.Scope.Define(ObjectVal.CallMember, Function, Call);   // "可调用"的凭据
-        AllTypes.Add(t);
-
-        // 类体里用符号定义的运算符(`+ := f` 定义、`+ = f` 覆盖)注册到类的方法表
-        foreach (var stmt in block.Block.Statements)
-        {
-            var op = stmt switch
-            {
-                VarDefinition v when v.IsOperator => v.Name,
-                Assignment a when OperatorSymbols.IsSymbol(a.Name) => a.Name,
-                _ => null,
-            };
-            if (op != null) t.DefineClassOperator(op);
-        }
-
-        return t;
-    }
-
     /// <summary>建一个模块的类对象（`ravel "M"` / System 模块用）。模块也是类型，
-    /// 但它的成员住在 <see cref="ModuleVal.ModuleScope"/> 里而不是这类对象自己的 Scope ——
+    /// 但它的成员住在 `ModuleVal.ModuleScope` 里而不是这类对象自己的 Scope ——
     /// 所以不登记进 AllTypes（每个 Interpreter 都重建一份，登记只会累积）。</summary>
     internal static ObjectVal NewModuleClass(string name, ObjectVal parent)
     {
         var t = new ObjectVal(Type, new Scope());
         t.Scope.Define(ObjectVal.ParentMember, Object, parent);
+        t.Scope.Define(ObjectVal.CallMember, Function, Call);
         t.Scope.Define(ObjectVal.NameMember, String, new StringVal(name));
         return t;
     }

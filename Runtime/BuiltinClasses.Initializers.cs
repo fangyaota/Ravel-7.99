@@ -3,9 +3,10 @@
 /// <summary>内置转换器（"调用这个类时算出什么值"）的注册。
 /// 端口自旧的 RuntimeType.Initializers.cs。
 ///
-/// `Initializer` 是 S1 阶段的临时桥：有它的类走同步转换、交出转换器的返回值；
-/// 没有它的类走"实例化并交出实例"。两条路 S2 会合成为一条
-/// （内置类也在类体里定义 `init`，构造交出 init 的返回值）。</summary>
+/// **没有特设的"转换器"了**：内置类和用户类一样,类体里定义 `init`,
+/// 实例化就是"跑类体 → 找 init → 调它 → 交出它的返回值"。`int 42` 得 42,
+/// 是因为 `Integer` 的预设类体里写着 `init := <CastToInt>`。
+/// 这里只剩下转换函数本身,以及 `ConvertDirect`(隐式转换走它)。</summary>
 internal static partial class BuiltinClasses
 {
 
@@ -13,23 +14,22 @@ internal static partial class BuiltinClasses
     //  类型构造器 / 转换器
     // ============================================================
 
-    /// <summary>注册各内建类型的 Initializer（调用该类型时执行转换）</summary>
+    /// <summary>给各内建类型装上预设类体（里面只定义 `init`，值是转换函数）</summary>
     private static void RegisterInitializers()
     {
-        Int.Initializer = MakeCaster(CastToInt);
-        Float.Initializer = MakeCaster(CastToFloat);
-        Bool.Initializer = MakeCaster(CastToBool);
-        String.Initializer = MakeCaster(CastToString);
-        BigInt.Initializer = MakeCaster(CastToBigInt);
-        Fraction.Initializer = MakeCaster(CastToFraction);
-        BigFraction.Initializer = MakeCaster(CastToBigFraction);
-        Exception.Initializer = MakeCaster(CastToException);
-        List.Initializer = MakeDefaultCaster(List);
-        Set.Initializer = MakeDefaultCaster(Set);
-        Dict.Initializer = MakeDefaultCaster(Dict);
-        // 建类挂在 Type 上:`class` 就是 `type` 的别名(predefined.rav),
-        // 两者是同一个值,所以 `type { ... }` 和 `class { ... }` 行为一致
-        Type.Initializer = MakeClassInitializer();
+        Int.Body = PresetBody(("init", MakeCaster(CastToInt)));
+        Float.Body = PresetBody(("init", MakeCaster(CastToFloat)));
+        Bool.Body = PresetBody(("init", MakeCaster(CastToBool)));
+        String.Body = PresetBody(("init", MakeCaster(CastToString)));
+        BigInt.Body = PresetBody(("init", MakeCaster(CastToBigInt)));
+        Fraction.Body = PresetBody(("init", MakeCaster(CastToFraction)));
+        BigFraction.Body = PresetBody(("init", MakeCaster(CastToBigFraction)));
+        Exception.Body = PresetBody(("init", MakeCaster(CastToException)));
+        List.Body = PresetBody(("init", MakeDefaultCaster(List)));
+        Set.Body = PresetBody(("init", MakeDefaultCaster(Set)));
+        Dict.Body = PresetBody(("init", MakeDefaultCaster(Dict)));
+        // 建类不在这里:`type` 的 init 由 InstallTypeInit 装 —— 它要用 NativeClosure
+        // 看见正在构造的那个对象的 `this`,而且必须在 Object/Function/Type 都挂好之后
     }
 
     /// <summary>包装转换函数为单参构造器</summary>
@@ -204,17 +204,4 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}");
     }
 
-    /// <summary>class 构造器：class block（默认父类 object）或 class parent block（柯里化）</summary>
-    private static FunctionVal MakeClassInitializer()
-        => FunctionVal.From(a =>
-        {
-            if (a is BlockVal block)
-                return CreateClass(Object, block);
-            if (a is ObjectVal parent)
-                return FunctionVal.From(b =>
-                    b is BlockVal bb
-                        ? CreateClass(parent, bb)
-                        : throw new RuntimeException("class 需要代码块参数"));
-            throw new RuntimeException("class 参数必须是类型或代码块");
-        });
 }

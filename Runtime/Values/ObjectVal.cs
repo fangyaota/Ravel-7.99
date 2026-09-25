@@ -34,13 +34,10 @@ public record ObjectVal : RuntimeValue, IFunction
     internal const string BlockMember = "block";
     internal const string NameMember = "name";
     internal const string CallMember = "call";
+    internal const string InitMember = "init";
 
     public override ObjectVal Type => ClassType;
 
-    /// <summary>**临时**(S1 阶段):内置类型的同步转换器。有它就走它、交出它的返回值,
-    /// 没有就走"实例化并交出实例"——这是今天 `RuntimeType.Initializer` vs `Body` 那条分叉的搬运。
-    /// S2 会把它换成"每个类的类体里都有一个 `init` 成员",然后删掉这个字段。</summary>
-    internal FunctionVal? Initializer { get; set; }
 
     // ============================================================
     //  类性:读 Scope 里的成员
@@ -68,8 +65,16 @@ public record ObjectVal : RuntimeValue, IFunction
     /// <summary>父类对象(原型链的上游)。自引用(如 `object`/`Every`/`Any`)表示链到头。</summary>
     public ObjectVal? Parent => Scope.LookupField(ParentMember)?.Value as ObjectVal;
 
-    /// <summary>类体——实例化时重跑的配方</summary>
-    public BlockVal? Body => Scope.LookupField(BlockMember)?.Value as BlockVal;
+    /// <summary>类体——实例化时重跑的配方。可写:内置类的预设类体是 C# 侧装上去的
+    /// (见 BuiltinClasses.PresetBody),用户类的类体由 `type` 的 init 装(见 Install)。</summary>
+    public BlockVal? Body
+    {
+        get => Scope.LookupField(BlockMember)?.Value as BlockVal;
+        set
+        {
+            if (value != null) Scope.DefineOrReplace(BlockMember, BuiltinClasses.Block, value);
+        }
+    }
 
     /// <summary>类名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)</summary>
     public string? Name
@@ -142,10 +147,13 @@ public record ObjectVal : RuntimeValue, IFunction
 
     /// <summary>本层定义过的**方法**名(给 `Fields ()` 用)。
     /// 机制成员要排掉:`block` 是代码块(它也是 FunctionVal)、`call` 是"可调用"的凭据、
-    /// `parent` 是原型链指针——它们都不是用户眼里的"方法"。</summary>
+    /// `parent` 是原型链指针、`init` 是构造器——它们都不是用户眼里的"方法"。
+    ///
+    /// `init` 这一条容易漏:类体就跑在这个对象自己的实例作用域里,所以类对象的 Scope
+    /// 里**装着它自己的构造器**,沿原型链查方法时会把子类的 `init` 一并列出来。</summary>
     internal IEnumerable<string> MethodNames => Scope.Variables
         .Where(kv => kv.Value.Value is FunctionVal
-                     && kv.Key is not (BlockMember or CallMember or ParentMember or NameMember))
+                     && kv.Key is not (BlockMember or CallMember or ParentMember or NameMember or InitMember))
         .Select(kv => kv.Key);
 
     // ============================================================

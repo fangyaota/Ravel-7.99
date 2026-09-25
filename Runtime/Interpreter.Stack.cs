@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>显式持久帧栈求值器:Step() 循环逐帧推进,C# 栈恒平,递归深度=帧链长度。
 /// 本文件只放推进循环本身(取帧/推帧/返回);节点求值见 Interpreter.Nodes.cs,
@@ -102,6 +102,10 @@ public partial class Interpreter
     {
         for (var f = top; f != null; f = f.Parent)
         {
+            // 控制帧自己没位置,但它记着发起它的那个节点 —— 用它更准
+            if (f is ControlFrame { CallSite: { } site } && site.Line > 0)
+                return (site.Line, site.Column);
+
             var (line, col) = FrameSpot(f);
             if (line > 0) return (line, col);
         }

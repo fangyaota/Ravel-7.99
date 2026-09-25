@@ -221,19 +221,6 @@ internal static partial class BuiltinClasses
             return new BoolVal(((ObjectVal)s).IsAssignableTo(other));
         });
         Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));
-        Type.DefineMethod("Initializer", (s, _) =>
-        {
-            var t = (ObjectVal)s;
-            return new PropertyVal(
-                FunctionVal.From(_ => (RuntimeValue?)t.Initializer ?? VoidVal.Instance),
-                FunctionVal.From(v =>
-                {
-                    if (v is not FunctionVal f) throw new RuntimeException("initializer 必须是函数");
-                    t.Initializer = f;
-                    return VoidVal.Instance;
-                })
-            );
-        });
         Type.DefineMethod("Subtypes", (s, _) =>
         {
             var t = (ObjectVal)s;

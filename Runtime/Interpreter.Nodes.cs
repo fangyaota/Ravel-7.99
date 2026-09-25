@@ -39,6 +39,7 @@ public partial class Interpreter
             case NumberLiteral nn: if (nf.Count == 0) Return(nf, MakeNumber(nn)); break;
             case StringLiteral ss: if (nf.Count == 0) Return(nf, new StringVal(ss.Value)); break;
             case VoidLiteral: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
+            case LiteralExpr le: if (nf.Count == 0) Return(nf, le.Value); break;
             case IdentifierExpr id: StepIdent(nf, id); break;
             case BinaryExpr bin: StepBinary(nf, bin); break;
             case UnaryExpr un: StepUnary(nf, un); break;

@@ -58,6 +58,11 @@ public record SetLiteral(List<Expression> Elements) : Expression;
 public record DictEntry(string Key, Expression Value);
 public record DictLiteral(List<DictEntry> Entries) : Expression;
 public record VoidLiteral : Expression;
+
+/// <summary>直接求值成一个 C# 侧造好的值。给内置类的**预设类体**用 —— 那些成员
+/// (类型转换器、`type` 的默认建类函数)是 C# 函数,写不出 Ravel 源码来。
+/// 造类体走 BuiltinClasses.PresetBody。</summary>
+public record LiteralExpr(RuntimeValue Value) : Expression;
 public record HoleExpr(int Index) : Expression;
 public record BlockExpr(List<Statement> Statements) : Expression
 {

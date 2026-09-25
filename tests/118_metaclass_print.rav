@@ -1,12 +1,17 @@
-# todo
-# metaclass: init 用 base.init 创建类
-LoggingMeta ::= class class {
-    init := (parent: type block: function) => {
+# metaclass:在 init 里挂钩建类过程
+# `parentInit parent body` 就是"走默认那套建类逻辑",它返回建出来的那个类。
+LoggingMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
         print "meta: creating..."
-        base.init parent block
+        r := parentInit parent body
         print "meta: done"
-        this
-        this;
+        r
+    } | (body: function) => {
+        print "meta: creating..."
+        r := parentInit object body
+        print "meta: done"
+        r
     }
 }
 M2 := LoggingMeta object {

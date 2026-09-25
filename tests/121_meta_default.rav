@@ -1,10 +1,12 @@
-# todo
-# metaclass: 添加默认方法
-HasDefaults ::= class class {
-    init := (parent: type block: function) => {
-        c := base.init parent block
+# metaclass:拿到建好的类再交出去(这里只是穿过去,真实用途是在这中间做手脚)
+HasDefaults ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        c := parentInit parent body
         c
-        this;
+    } | (body: function) => {
+        c := parentInit object body
+        c
     }
 }
 Person ::= HasDefaults {

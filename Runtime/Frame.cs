@@ -4,6 +4,10 @@
 public abstract record Frame
 {
     public Frame? Parent { get; init; }
+
+    /// <summary>发起这个帧的那个 AST 节点。控制帧自己没有位置(它代表"一次内建调用"),
+    /// 报错时靠它指回源码里的调用点 —— 否则 `fraction 1 0` 这类错只能报到最外层的块。</summary>
+    public AstNode? CallSite { get; init; }
     public Scope Scope { get; set; } = null!;
     public RList<RuntimeValue> Results { get; init; } = RList<RuntimeValue>.Empty;
     public int Count => Results.Count;
