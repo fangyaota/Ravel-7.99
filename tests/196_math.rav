@@ -1,0 +1,112 @@
+# Math 模块**本身就是内置的**(C# 侧,见 Runtime/Interpreter.Math.cs):
+# 常量 + 三角/双曲/幂对数/取整/极值,`Math.sin 1` 不用 using 任何东西。
+# `lib/math.rav` 只在它上面补 Ravel 说得清楚的那几个(square/cube/deg/rad)。
+using "try.rav"
+
+# ---- 常量 ----
+print (Math.pi)
+print (Math.tau)
+print (Math.e)
+
+# ---- 三角(弧度) ----
+print (Math.sin 0)
+print (Math.cos 0)
+print (Math.atan2 1 1)
+
+# ---- 取整:round 是**四舍五入**,不是 .NET 默认的"银行家舍入"(否则 2.5 → 2) ----
+print (Math.floor 3.7)
+print (Math.ceil 1.1)
+print (Math.trunc (-3.7))
+print (Math.round 2.5)
+print (Math.roundTo 3.14159 2)
+
+# ---- 幂与对数 ----
+print (Math.sqrt 16)
+print (Math.sqrt (fraction 1 4))
+print (Math.cbrt 27)
+print (Math.pow 2 10)
+print (Math.log Math.e)
+print (Math.log2 8)
+print (Math.log10 1000)
+print (Math.logBase 8 2)
+print (Math.hypot 3 4)
+
+# ---- 保型的那几个:交回原始实参,不折成 double。
+#      `abs -5` 还是 int,`max 3 bigint …` 还是 bigint ----
+print (Math.abs (-5))
+print (typeof (Math.abs (-5)))
+print (typeof (Math.abs (-2.5)))
+print (Math.abs (bigint "-7"))
+print (Math.min 3 7)
+print (Math.max 3 (bigint "9999999999999"))
+print (typeof (Math.max 3 (bigint "9999999999999")))
+print (Math.clamp 15 0 10)
+print (Math.minMagnitude (-5) 3)
+print (Math.fma 2 3 4)
+
+# ---- 参数收**任何数值**,内部按 double 算 —— 和 `<` 那批运算符同一个口径 ----
+print (Math.sign (-3.2))
+print (Math.sign 0)
+print (Math.sin 1)
+
+# ---- lib/math.rav 那层:Ravel 能表达的那几个 ----
+Ex.try { Math.square 5; } (e: Exception) => { print ("还没 using: " + string e); }
+using "math.rav"
+print (Math.square 5)
+print (Math.square 2.5)
+print (Math.cube 3)
+print (Math.deg Math.pi)
+print (Math.rad 180)
+
+# ---- C# 会抛异常的地方自己先拦:那些异常不是 RuntimeException,
+#      Ravel 的 try 接不住,会一路把程序打掉(见 randint 的先例) ----
+Ex.try { Math.sin "a"; } (e: Exception) => { print ("sin: " + string e); }
+Ex.try { Math.roundTo 3.14 20; } (e: Exception) => { print ("roundTo: " + string e); }
+Ex.try { Math.clamp 5 10 0; } (e: Exception) => { print ("clamp: " + string e); }
+Ex.try { Math.sign (0.0 / 0.0); } (e: Exception) => { print ("sign: " + string e); }
+print "done"
+# --- expected ---
+# 3.141592653589793
+# 6.283185307179586
+# 2.718281828459045
+# 0
+# 1
+# 0.7853981633974483
+# 3
+# 2
+# -3
+# 3
+# 3.14
+# 4
+# 0.5
+# 3
+# 1024
+# 1
+# 3
+# 3
+# 3
+# 5
+# 5
+# Integer
+# Float
+# 7
+# 3
+# 9999999999999
+# BigInt
+# 10
+# 3
+# 10
+# -1
+# 0
+# 0.8414709848078965
+# 还没 using: 类型 'Math' 没有方法 'square'
+# 25
+# 6.25
+# 27
+# 180
+# 3.141592653589793
+# sin: sin 需要数值参数，得到 String
+# roundTo: roundTo 的小数位数要在 0..15，得到 20
+# clamp: clamp 的下界 10 不能大于上界 0
+# sign: sign 的 NaN 没有符号
+# done

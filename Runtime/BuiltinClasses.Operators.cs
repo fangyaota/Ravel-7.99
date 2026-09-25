@@ -61,12 +61,16 @@ internal static partial class BuiltinClasses
             (x, y) => Narrow((long)x % NonZero(y, "%"), $"{x} % {y}"), (x, y) => new FloatVal(x % y),
             (x, y) => new BigIntVal(x % NonZero(y, "%"))));
 
-        // float 运算符
-        DefineOp(Float, "+", (a, b) => new FloatVal(AsFloat(a, "+") + AsFloat(b, "+")));
-        DefineOp(Float, "-", (a, b) => new FloatVal(AsFloat(a, "-") - AsFloat(b, "-")));
-        DefineOp(Float, "*", (a, b) => new FloatVal(AsFloat(a, "*") * AsFloat(b, "*")));
-        DefineOp(Float, "/", (a, b) => new FloatVal(AsFloat(a, "/") / AsFloat(b, "/")));
-        DefineOp(Float, "%", (a, b) => new FloatVal(AsFloat(a, "%") % AsFloat(b, "%")));
+        // float 运算符 —— **全程 double**。
+        // 曾经这里走 `AsFloat`(转成 32 位 float 再算),于是 `Math.pi * 180` 得
+        // 565.4866943359375(float32 的 π 乘出来的),而 `180 * Math.pi` 得
+        // 565.4866776461628 —— 同一个数换个顺序两个答案,还和比较运算符
+        // (那边一直是 double)也对不上。float 值本身就是 double,没必要经过 32 位。
+        DefineOp(Float, "+", (a, b) => new FloatVal(AsDouble(a, "+") + AsDouble(b, "+")));
+        DefineOp(Float, "-", (a, b) => new FloatVal(AsDouble(a, "-") - AsDouble(b, "-")));
+        DefineOp(Float, "*", (a, b) => new FloatVal(AsDouble(a, "*") * AsDouble(b, "*")));
+        DefineOp(Float, "/", (a, b) => new FloatVal(AsDouble(a, "/") / AsDouble(b, "/")));
+        DefineOp(Float, "%", (a, b) => new FloatVal(AsDouble(a, "%") % AsDouble(b, "%")));
 
         // BigInt 运算符
         DefineOp(BigInt, "+", (a, b) => new BigIntVal(AsBigInt(a, "+") + AsBigInt(b, "+")));
@@ -152,22 +156,23 @@ internal static partial class BuiltinClasses
     private static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
         => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零");
 
-    private static double AsDouble(RuntimeValue v, string op) => v switch
+    /// <summary>把数值收成 double(大数/分数也接受 —— 和 `<` 那批运算符同一个口径)。
+    /// 非数值返回 false,由调用方决定报什么:运算符说"运算符 X 不支持",Math 模块说函数名。</summary>
+    internal static bool TryAsDouble(RuntimeValue v, out double d)
     {
-        IntVal i => i.Value,
-        FloatVal f => f.Value,
-        BigIntVal bi => (double)bi.Value,
-        FractionVal fr => (double)fr.Num / fr.Den,
-        BigFractionVal bf => (double)bf.Num / (double)bf.Den,
-        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
-    };
+        switch (v)
+        {
+            case IntVal i: d = i.Value; return true;
+            case FloatVal f: d = f.Value; return true;
+            case BigIntVal bi: d = (double)bi.Value; return true;
+            case FractionVal fr: d = (double)fr.Num / fr.Den; return true;
+            case BigFractionVal bf: d = (double)bf.Num / (double)bf.Den; return true;
+            default: d = 0; return false;
+        }
+    }
 
-    private static float AsFloat(RuntimeValue v, string op) => v switch
-    {
-        IntVal i => i.Value,
-        FloatVal f => (float)f.Value,
-        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
-    };
+    private static double AsDouble(RuntimeValue v, string op)
+        => TryAsDouble(v, out var d) ? d : throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
 
     private static System.Numerics.BigInteger AsBigInt(RuntimeValue v, string op) => v switch
     {

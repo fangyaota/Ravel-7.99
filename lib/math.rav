@@ -1,7 +1,20 @@
+# Math 模块**本身就是内置的**(C# 侧,见 Runtime/Interpreter.Math.cs):
+# 常量 pi / e / tau,以及三角、双曲、幂与对数、取整、极值那一整套 ——
+# `Math.sin 1` 不需要 using 任何东西。
+#
+# 这个文件只补 Ravel 说得清楚的几个。
+#
+# ⚠️ 别在这里重定义 pi / e / tau:C# 侧已经建好了,`Define` 会报「变量 'pi' 已定义」。
+# 而且那份精度更高(3.141592653589793,不是 3.14159)。
+#
+# 参数标成 ValueType 而不是 float:Ravel 的 lambda 参数**不做隐式转换**,
+# 标 float 就只收 float,而 `square 5`、`deg 90` 这种整数写法必须能用。
+
 ravel "Math"
 
-pi := 3.14159
-e := 2.71828
+square := (x: ValueType) => { x * x; }
+cube := (x: ValueType) => { x * x * x; }
 
-square := (x: int) => { x * x; }
-cube := (x: int) => { x * x * x; }
+# 角度与弧度换算 —— 三角函数的输入输出都是弧度,这两个是常用的转接
+deg := (rad: ValueType) => { rad * 180 / pi; }
+rad := (deg: ValueType) => { deg * pi / 180; }

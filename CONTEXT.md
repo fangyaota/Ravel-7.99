@@ -30,6 +30,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(references + 搜索目录、循环引用检测)
   Interpreter.System.cs   RegisterBuiltins + System 模块
+  Interpreter.Math.cs           Math 模块(常量/三角/双曲/幂对数/取整/极值)
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
   Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;
                           Frame.cs 还有 ControlFrame.Arg<T> 和 ArgNames(控制帧参数的类型化取值)
@@ -165,6 +166,25 @@ Object (parent=自己)
 （`if`/`while`/`foreach` 不在 System 模块里——它们在 `lib/predefined.rav` 用 Ravel 写。）
 
 **值**: True False Default
+
+## Math 模块
+
+第二块内置模块（`Interpreter.Math.cs`）—— `Math.sin 1` **不需要 using**：
+
+**常量**: pi e tau
+
+**三角/双曲**: sin cos tan asin acos atan atan2
+              sinh cosh tanh asinh acosh atanh
+
+**幂/对数**: sqrt cbrt pow exp log log2 log10 logBase hypot
+
+**取整**: floor ceil trunc round roundTo（`round` 是四舍五入，不是银行家舍入）
+
+**保型的那几个**: abs sign min max clamp minMagnitude maxMagnitude —— 交回**原始实参**
+（`abs -5` 还是 int、`max 3 bigint …` 还是 bigint），其余一律给 float。
+
+参数收**任何数值**（int/float/bigint/fraction），内部按 double 算 —— 和 `<` 那批运算符
+同一个口径。`lib/math.rav` 只在上面补 Ravel 说得清楚的几个（square/cube/deg/rad）。
 
 ## 全局变量
 

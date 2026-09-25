@@ -189,7 +189,7 @@ print "range ok"
 # [Integer Float String BigInt Fraction BigFraction Every]
 # 5
 # changed
-# 2.71828
+# 2.718281828459045
 # 27
 # abcdef
 # true

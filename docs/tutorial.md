@@ -921,6 +921,30 @@ System.ReadLine ()
 
 小写别名在 `predefined.rav` 中定义。
 
+### 8.4 Math 模块
+
+也是内置的，**不用 `using`**：
+
+```ravel
+Math.pi            # 3.141592653589793
+Math.sin 0         # 0（三角函数收弧度）
+Math.sqrt 16       # 4
+Math.round 2.5     # 3（四舍五入，不是银行家舍入）
+Math.abs (-5)      # 5（还是 int —— 保型的几个交回原始实参）
+Math.clamp 15 0 10 # 10
+```
+
+常量 `pi` / `e` / `tau`，其余见「十、内置函数速查」。`Math` 收任何数值
+（int/float/bigint/fraction），内部按 double 算。
+
+`lib/math.rav` 在它上面补 Ravel 能表达的几个，用之前要 `using "math.rav"`：
+
+```ravel
+using "math.rav"
+Math.square 5      # 25
+Math.deg Math.pi   # 180（角度↔弧度）
+```
+
 ---
 
 ## 九、异常
@@ -984,6 +1008,22 @@ Error: 未预期的字符 '$'
 | `callcc fn` | 续延 |
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |
+
+### Math（内置模块，不用 using）
+
+| 函数 | 说明 |
+|------|------|
+| `Math.pi` `Math.e` `Math.tau` | 常量 |
+| `Math.sin x` `cos` `tan` `asin` `acos` `atan` | 三角（弧度） |
+| `Math.atan2 y x` | 两参数反正切 |
+| `Math.sinh` `cosh` `tanh` `asinh` `acosh` `atanh` | 双曲 |
+| `Math.sqrt` `cbrt` `exp` `log` `log2` `log10` | 幂与对数 |
+| `Math.pow x y` `Math.logBase x b` `Math.hypot x y` | 两参数 |
+| `Math.floor` `ceil` `trunc` `round` | 取整（`roundTo x n` 保留 n 位） |
+| `Math.abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参 |
+| `Math.minMagnitude` `maxMagnitude` `fma` | 按绝对值比 / `a*b+c` |
+
+`lib/math.rav`（要 `using`）另加：`square` `cube` `deg` `rad`。
 
 ## 十一、常见陷阱
 
