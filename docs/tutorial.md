@@ -410,13 +410,26 @@ double <| 5    # 10 —— 等价于 double 5
 它存在的意义是省掉一层括号——`f <| a + b` 不用写成 `f (a + b)`。
 （以前这里写的是 `5 <| double`，和实现对不上。）
 
-### 5.6 函数名
+### 5.6 函数名与打印
 
 ```ravel
 add ::= (x: int) => { x + 1; }
 add.name         # "add"
 add.name = "sum" # 改名
 ```
+
+**打印一个函数打出来的是它的代码**（函数值没有可显示的标量），`::=` 命名的带上名字：
+
+```ravel
+print add                 # <function add (x: int) => { x + 1; }>
+print (add 3)             # 已经是普通值 4
+add2 := (x: int y: int) => { x + y; }
+print add2                # <function (x: int y: int) => { x + y; }>
+print (add2 3)            # <function (y: int) => { x + y; } 已收 x=3>
+```
+
+签名里是**还等着**的参数，已经喂过的实参跟在 `已收` 后面 —— 两者合起来就是完整的形状。
+体太长会截断（它不是给你复制代码用的，是给你认出"这是哪个函数"的）。
 
 ---
 

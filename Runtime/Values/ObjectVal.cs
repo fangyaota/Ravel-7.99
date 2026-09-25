@@ -144,9 +144,15 @@ public record ObjectVal : RuntimeValue, IFunction
         return false;
     }
 
-    /// <summary>绑定方法 self:方法值存为 Curried(self, arg),绑 self 得等待 arg 的函数</summary>
+    /// <summary>绑定方法 self:方法值存为 Curried(self, arg),绑 self 得等待 arg 的函数。
+    /// 顺带把名字带上 —— 绑完的仍是个普通 `FunctionVal`,名字是它能显示的唯一线索
+    /// (`print (1.+)` → `<function +>` 而不是光秃秃的 `<function>`)。</summary>
     public static FunctionVal BindMethod(FunctionVal methodFn, RuntimeValue self)
-        => (FunctionVal)methodFn.Body(self);
+    {
+        var bound = (FunctionVal)methodFn.Body(self);
+        bound.Name = methodFn.Name;
+        return bound;
+    }
 
     // ============================================================
     //  注册(S1 阶段内置成员仍走这里,S2 会改成往类体的 Scope 里定义)
@@ -154,12 +160,12 @@ public record ObjectVal : RuntimeValue, IFunction
 
     /// <summary>注册内置同步方法:BuiltinMethodVal 标记,分派走快速同步路径</summary>
     internal void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => Scope.DefineOrReplace(name, BuiltinClasses.Function, new BuiltinMethodVal(impl));
+        => Scope.DefineOrReplace(name, BuiltinClasses.Function, new BuiltinMethodVal(impl) { Name = name });
 
     /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
     /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。</summary>
     internal void DefineClassOperator(string op)
-        => Scope.DefineOrReplace(op, BuiltinClasses.Function, new ClassOperatorFactory(op));
+        => Scope.DefineOrReplace(op, BuiltinClasses.Function, new ClassOperatorFactory(op) { Name = op });
 
     /// <summary>本层定义过的**方法**名(给 `Fields ()` 和类链查找用)。
     /// 机制成员要排掉:`block` 是代码块(它也是 FunctionVal)、`call` 是"可调用"的凭据、

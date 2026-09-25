@@ -11,6 +11,7 @@ namespace Ravel.Runtime;
 public sealed record NativeClosure(string ParamName, ObjectVal ParamType, Func<Scope, RuntimeValue, RuntimeValue> Fn)
     : FunctionVal(null!, (_, _) => VoidVal.Instance)
 {
-    /// <summary>盖掉 record 的自动 dump</summary>
-    public override string ToString() => base.ToString();
+    /// <summary>盖掉 record 的自动 dump:体是 C#(写不出 Ravel 源码),所以只报参数。</summary>
+    public override string ToString()
+        => "<function (" + ParamName + ": " + ParamType.DisplayName + ") => <C#>>";
 }

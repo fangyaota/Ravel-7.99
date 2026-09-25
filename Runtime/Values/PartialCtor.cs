@@ -7,6 +7,10 @@ namespace Ravel.Runtime;
 public sealed record PartialCtor(ObjectVal Target, FunctionVal Partial)
     : FunctionVal(null!, (_, _) => VoidVal.Instance)
 {
-    /// <summary>盖掉 record 的自动 dump,用基类的 &lt;function&gt;</summary>
-    public override string ToString() => base.ToString();
+    /// <summary>盖掉 record 的自动 dump:带上**建的是哪个类**,以及 init 还等着哪个参数、
+    /// 已经喂过哪些 —— 和普通柯里化一个读法(`Point 1` → `<function Point (y: int) => … 已收 x=1>`)。</summary>
+    public override string ToString()
+        => Partial is LambdaVal lam
+            ? "<function " + Target.Type.DisplayName + " " + lam.Describe() + ">"
+            : "<function " + Target.Type.DisplayName + " " + Partial + ">";
 }

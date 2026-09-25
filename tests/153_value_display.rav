@@ -11,11 +11,16 @@ print ([c c])
 print (typeof c).name
 print (typeof c)
 
-# 函数统一是 <function>; ::= 命名的带上名字。
+# 函数打印成**它的代码**(函数值没有可显示的标量),::= 命名的带上名字。
 # 以前这些 record 会吐 C# 的自动 dump(System.Func`2[Ravel.Runtime...])
 print ((x: int) => { x; })
 add ::= (x: int) => { x; }
 print add
+# 柯里化喂过的实参跟在后面;签名里是**还等着**的那几个
+add2 := (a: int b: int) => { a + b; }
+print add2
+print (add2 1)
+print ((add2 1) 2)
 
 # 自引用容器靠深度护栏收住——以前是直接爆 C# 栈,进程都没了
 loop := []
@@ -33,8 +38,11 @@ print ({1 2 3})
 # [class { x = 1, s = hi } class { x = 1, s = hi }]
 # class
 # class
-# <function>
-# <function add>
+# <function (x: int) => { x; }>
+# <function add (x: int) => { x; }>
+# <function (a: int b: int) => { a + b; }>
+# <function (b: int) => { a + b; } 已收 a=1>
+# 3
 # [[[...]]]
 # [[[1]]]
 # {a: 1 b: x}
