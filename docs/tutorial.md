@@ -770,13 +770,16 @@ Person ::= class {
 p := Person ()
 p.Copy ()             # 浅拷贝
 p.ToString ()         # 字符串表示
-print (p.Fields ())   # [name age ToString Copy Fields]
+print (p.Fields ())   # [init name age ToString Copy Fields]
 ```
 
-`p.Fields ()` 列出**实例字段名在前、类型方法名在后**：
-模块（`ravel`/`using` 建立的）则把作用域里的变量排在最前。
-不论哪种值，类型自己的方法（沿继承链到 `object`）都会并进来。
-`parent` / `block` / `name` / `init` / `this` 这些机制成员不会出现。
+`p.Fields ()` 列的**就是这个值的作用域里有哪些成员**：字段和方法一视同仁
+（`name` 和 `init` 都在里面——它们确实是成员，读得到也调得动），
+然后再并上类型自己的方法（沿继承链到 `object`）。
+模块（`ravel`/`using` 建立的）的成员就是它作用域里的变量，排在最前。
+只排掉 `this`：它是这个值自己，不是成员。
+
+`print p` 是另一回事——它是**数据快照**，方法不出现在里面（`class { name = ..., age = ... }`）。
 
 ### 7.10 元类
 

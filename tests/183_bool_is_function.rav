@@ -28,7 +28,7 @@ print (typeof true)
 # 1
 # true
 # class { flag = true, n = 5 }
-# [flag n ToString Copy Fields]
+# [init flag n ToString Copy Fields]
 # class
 # true
 # 2

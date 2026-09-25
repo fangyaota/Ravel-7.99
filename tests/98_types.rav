@@ -185,7 +185,7 @@ print "range ok"
 # BigFraction
 # 10
 # 99
-# [x ToString Copy Fields]
+# [init x ToString Copy Fields]
 # [Integer Float String BigInt Fraction BigFraction Every]
 # 5
 # changed

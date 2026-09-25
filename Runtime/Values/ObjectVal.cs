@@ -161,7 +161,7 @@ public record ObjectVal : RuntimeValue, IFunction
     internal void DefineClassOperator(string op)
         => Scope.DefineOrReplace(op, BuiltinClasses.Function, new ClassOperatorFactory(op));
 
-    /// <summary>本层定义过的**方法**名(给 `Fields ()` 用)。
+    /// <summary>本层定义过的**方法**名(给 `Fields ()` 和类链查找用)。
     /// 机制成员要排掉:`block` 是代码块(它也是 FunctionVal)、`call` 是"可调用"的凭据、
     /// `parent` 是原型链指针、`init` 是构造器——它们都不是用户眼里的"方法"。
     ///

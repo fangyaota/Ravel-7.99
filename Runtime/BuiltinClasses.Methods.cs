@@ -50,41 +50,13 @@ internal static partial class BuiltinClasses
                 default: return s;
             }
         });
+        // **枚举那个 Scope** —— 所有成员(字段和方法一视同仁)都在它里面,
+        // 没有"猜哪张表"这一步。这里从前是两圈:一圈扫实例作用域里的**数据字段**,
+        // 一圈沿类型链扫**方法名**,于是同一个类体里定义的东西一个列得出、一个列不出
+        // (运算符恰好在类对象表里另有一份,所以它在;用户写的方法就凭空消失了)。
+        // 现在两段判据只有一份,和成员查找共用(见 MemberView)。
         Object.DefineMethod("Fields", (s, _) =>
-        {
-            var all = new List<RuntimeValue>();
-            var seen = new HashSet<string>();
-
-            // 模块(Ravel 实例):字段 = 模块作用域里的变量,排在类型方法前面
-            if (s is ModuleVal mv)
-            {
-                foreach (var kv in mv.ModuleScope.Variables)
-                    if (seen.Add(kv.Key))
-                        all.Add(new StringVal(kv.Key));
-            }
-            // 对象:字段 = 实例作用域里的数据字段(和 print 显示的是同一批)。
-            // 以前只特判了模块,对象这边漏了,于是 `obj.Fields ()` 只给类型方法——
-            // 名字叫 Fields 却拿不到字段。方法仍会由下面那圈并进来。
-            else if (s is ObjectVal ov)
-            {
-                foreach (var kv in ov.Scope.Variables)
-                    if (!kv.Value.Value.IsClosure &&
-                        kv.Key is not ("this" or "base" or "parent" or "thistype" or "block") &&
-                        seen.Add(kv.Key))
-                        all.Add(new StringVal(kv.Key));
-            }
-
-            // 任何值都再并上类型方法(沿原型链到 object),去重
-            for (var t = s.Type; t != null; t = t.Parent)
-            {
-                foreach (var n in t.MethodNames)
-                    if (seen.Add(n))
-                        all.Add(new StringVal(n));
-                if (t.Parent == t) break;
-            }
-
-            return new ListVal(all);
-        });
+            new ListVal([.. s.MemberScope.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
     }
 
     private static void RegisterIntMethods()

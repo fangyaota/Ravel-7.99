@@ -47,6 +47,10 @@ public class Scope(Scope? parent = null)
     public bool Contains(string name) => _vars.ContainsKey(name);
     public IEnumerable<KeyValuePair<string, Variable>> Variables => _vars;
 
+    /// <summary>这一层里**有哪些成员名**。取值的成员清单要走 <see cref="MemberView"/>
+    /// (它在本层之外还并上类链的方法);这里只是"本层登记了哪些名字"。</summary>
+    public virtual IEnumerable<string> MemberNames => _vars.Keys;
+
     /// <summary>查找字段：只看本 scope 自己的变量，不走词法链、不走链式继承。
     /// 继承来的字段在实例化时就已平铺进同一个实例 scope，所以一层就够；
     /// 不能走词法链是因为实例 scope 的 Parent 是「类定义处的作用域」，那会泄漏外部局部变量。

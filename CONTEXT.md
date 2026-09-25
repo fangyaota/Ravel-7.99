@@ -302,11 +302,15 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 - 用户类会被登记进 `AllTypes`，`Subtypes ()` 才反射得到它们。`AllTypes` 是静态表，
   而一个进程里会跑多个 Interpreter，所以每个 Interpreter 构造时调 `ResetUserTypes ()`
   清掉上一个留下的——否则上一个建过的类会出现在下一个的 `Subtypes ()` 里。
-- **`parent` / `block` / `name` / `init` / `this` 是机制成员**，不出现在 `Fields ()` /
-  `print obj` 里（`ObjectVal.IsMethodName` 排掉它们）。两条容易漏：
-  **`init`** —— 类体就跑在类对象自己的实例作用域里，所以类对象的 Scope 里**装着它自己的构造器**；
-  **`this`** —— 类对象就是 `type` 的实例，而实例化时那句 `instanceScope.Define("this", …)`
-  写进去的**正是这个类对象的成员表**。
+- **`parent` / `block` / `name` / `init` / `this` 是机制成员**。注意两个问题它们是两个答案：
+  - **查找**时它们**不沿类链继承**（`ObjectVal.IsMethodName`）：不挡的话 `(5).parent` 会从报错
+    变成返回 `ValueType`。
+  - **`Fields ()`** 不按名字挡 —— 它列的就是"这个 Scope 里的成员",`init` / `parent` / `block`
+    都在里面（它们读得到、调得动）。唯一排掉的是 `this`：它不是成员，是**这个值自己**的别名。
+  `print obj` 是另一回事：它是**数据快照**，方法（含 `init`）不出现在里面（显示选择，不是成员定义）。
+  两条容易漏的：**`init`** —— 类体就跑在类对象自己的实例作用域里，所以类对象的 Scope 里
+  **装着它自己的构造器**；**`this`** —— 类对象就是 `type` 的实例，而实例化时那句
+  `instanceScope.Define("this", …)` 写进去的**正是这个类对象的成员表**。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
   绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
@@ -450,7 +454,8 @@ int.Is ValueType  # true
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
 
 # 对象
-obj.Fields ()     # 数据字段名 + 类型方法名(对象=实例字段在前;模块=作用域变量在前)
+obj.Fields ()     # **这个值有哪些成员**:自己那层照单全收(字段和方法一视同仁),
+                  # 再并上类型链上的方法名。只排掉 `this`(它是值自己,不是成员)
 obj.Copy ()       # 浅拷贝
 obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次

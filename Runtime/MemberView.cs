@@ -22,18 +22,51 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
     public override Variable? LookupField(string name)
         => own?.LookupField(name) ?? LookupInClassChain(name);
 
+    /// <summary>这个值**有哪些成员** —— 就是"查找能解析出什么",所以两个动作共用同一份判据。
+    ///
+    /// 两段的规则和 <see cref="LookupField"/> 完全一致:自己那层照单全收(不收的话,
+    /// 模块里一个叫 `name` 的变量就没了 —— 它不是机制成员,是用户的变量),
+    /// 类链那半只认方法名。
+    ///
+    /// 唯一排掉的是 `this`:它不是"这个值的成员",是**这个值自己**的别名,引擎为了让
+    /// 类体写得出 `this` 才注入的。</summary>
+    public override IEnumerable<string> MemberNames => Names();
+
+    private IEnumerable<string> Names()
+    {
+        var seen = new HashSet<string>();
+        if (own != null)
+            foreach (var kv in own.Variables)
+                if (kv.Key != ObjectVal.ThisMember && seen.Add(kv.Key))
+                    yield return kv.Key;
+
+        foreach (var t in ClassChain())
+            foreach (var n in t.MethodNames)
+                if (seen.Add(n))
+                    yield return n;
+    }
+
     /// <summary>沿类对象的 parent 链找方法。自引用(`object`/`Every`/`Any` 的 parent 是自己)就地停。</summary>
     private Variable? LookupInClassChain(string name)
     {
         if (!ObjectVal.IsMethodName(name)) return null;
-        for (var t = type; t != null; t = t.Parent)
+        foreach (var t in ClassChain())
         {
             var vr = t.Scope.LookupField(name);
             if (vr?.Value is FunctionVal) return vr;
-            if (t.Parent == t) break;      // 链到头
         }
 
         return null;
+    }
+
+    /// <summary>这个值所属的类,以及它沿 parent 的原型链上游(`object`/`Every`/`Any` 自引用时到头)。</summary>
+    private IEnumerable<ObjectVal> ClassChain()
+    {
+        for (var t = type; t != null; t = t.Parent)
+        {
+            yield return t;
+            if (t.Parent == t) yield break;     // 链到头
+        }
     }
 
     private static RuntimeException ReadOnly()
