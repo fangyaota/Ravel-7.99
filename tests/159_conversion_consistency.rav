@@ -1,0 +1,17 @@
+# 隐式与显式的转换表要一致:显式 `bigint "123"` 走得通,
+# 隐式 `x: bigint = "123"` 也该走得通(以前 ConvertDirect 缺 String/Int 分支,
+# 于是同一件事两条路两种结果)
+x: bigint = "123"
+print x
+y: float = "1.5"
+print y
+z: bigint = 5
+print z
+print (bigint "123")
+print (float "1.5")
+# --- expected ---
+# 123
+# 1.5
+# 5
+# 123
+# 1.5

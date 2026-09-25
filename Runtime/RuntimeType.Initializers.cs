@@ -146,12 +146,20 @@ public partial class RuntimeType
         if (target == Int)
             return val is IntVal i ? i :
                 val is FloatVal f ? new IntVal((int)f.Value) :
-                val is StringVal s ? new IntVal(int.Parse(s.Value)) :
+                val is StringVal s ? new IntVal(int.TryParse(s.Value, out var sn) ? sn : throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int")) :
                 val is BoolVal b ? new IntVal(b.Value ? 1 : 0) :
                 throw new RuntimeException("无法转换为 int");
         if (target == Float)
             return val is IntVal i2 ? new FloatVal(i2.Value) :
-                val is FloatVal f2 ? f2 : throw new RuntimeException("无法转换为 float");
+                val is FloatVal f2 ? f2 :
+                val is StringVal fs ? new FloatVal(double.TryParse(fs.Value, out var fn) ? fn : throw new RuntimeException($"无法将字符串 '{fs.Value}' 转换为 float")) :
+                throw new RuntimeException("无法转换为 float");
+        if (target == BigInt)
+            // 和 CastToBigInt 对齐:显式 `bigint "123"` 走得通,隐式 `x: bigint = "123"` 也该走得通
+            return val is BigIntVal bi2 ? bi2 :
+                val is IntVal ib ? new BigIntVal(ib.Value) :
+                val is StringVal bs ? new BigIntVal(System.Numerics.BigInteger.TryParse(bs.Value, out var bn) ? bn : throw new RuntimeException($"无法将字符串 '{bs.Value}' 转换为 bigint")) :
+                throw new RuntimeException("无法转换为 bigint");
         if (target == String)
             return val is StringVal sv ? sv : new StringVal(val.ToString());
         if (target == Bool)
