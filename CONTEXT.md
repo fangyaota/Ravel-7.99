@@ -55,7 +55,7 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    70 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    71 个 golden test(普通 + expect-error + todo + fixture)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -274,4 +274,4 @@ Error: 未定义的变量 'nope'
 
 ## 测试
 
-70 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 63 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+71 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 63 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
