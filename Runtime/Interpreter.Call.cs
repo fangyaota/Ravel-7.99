@@ -81,7 +81,9 @@ public partial class Interpreter
 
         // 内建类型:同步构造器(转换器)
         var init = t.Value.Initializer;
-        if (init == null) throw new RuntimeException($"类型 {t.Value.Name} 不能作为构造器调用");
+        // DisplayName 而不是 Name:用户类的名字是空的(`C := class {...}` 没有名字),
+        // 直接插 Name 会报成「类型  不能作为构造器调用」,两个空格中间什么都没有
+        if (init == null) throw new RuntimeException($"类型 {t.Value.DisplayName} 不能作为构造器调用");
         _top = sink.WithResult(init.Body(arg));
     }
 

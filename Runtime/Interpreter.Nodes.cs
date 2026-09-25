@@ -49,7 +49,8 @@ public partial class Interpreter
             case VarDefinition v: StepVarDef(nf, v); break;
             case Assignment a: StepAssign(nf, a); break;
             case ExpressionStatement es: if (nf.Count == 0) PushChild(nf, es.Expr); else Return(nf, nf.Result(0)); break;
-            default: throw new RuntimeException("无法求值该表达式");
+            // 走到这里说明 AST 里有个节点类型没接上状态机——报出节点类型才查得下去
+            default: throw new RuntimeException($"无法求值的节点类型: {nf.Node.GetType().Name}");
         }
     }
 

@@ -87,15 +87,26 @@ public partial class RuntimeType
         String.DefineMethod("Length", (s, _) => new IntVal(((StringVal)s).Value.Length));
     }
 
+    /// <summary>取下标之前的统一检查:收下索引、卡边界,顺手把列表交回去。
+    /// 以前五处各写一遍检查、消息都只有「索引超出范围」四个字——越的是哪个界、
+    /// 在几号元素上越的,全看不出来。allowEnd 给 Insert 用(插到末尾是合法的)。</summary>
+    private static ListVal Indexed(RuntimeValue s, RuntimeValue a, string what, bool allowEnd = false)
+    {
+        if (a is not IntVal i) throw new RuntimeException($"{what} 需要 int 参数");
+        var lst = (ListVal)s;
+        var n = lst.Elements.Count;
+        if (i.Value < 0 || i.Value > (allowEnd ? n : n - 1))
+            throw new RuntimeException($"{what} 的索引 {i.Value} 越界 (列表长度 {n})");
+        return lst;
+    }
+
     private static void RegisterListMethods()
     {
         List.DefineMethod("Count", (s, _) => new IntVal(((ListVal)s).Elements.Count));
         List.DefineMethod("At", (s, a) =>
         {
-            if (a is not IntVal i) throw new RuntimeException("list.At 需要 int 参数");
-            var lst = (ListVal)s;
-            if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            return lst.Elements[i.Value];
+            var lst = Indexed(s, a, "list.At");
+            return lst.Elements[((IntVal)a).Value];
         });
         List.DefineMethod("Add", (s, a) =>
         {
@@ -104,19 +115,16 @@ public partial class RuntimeType
         });
         List.DefineMethod("Remove", (s, a) =>
         {
-            if (a is not IntVal i) throw new RuntimeException("list.Remove 需要 int 参数");
-            var lst = (ListVal)s;
-            if (i.Value < 0 || i.Value >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            var v = lst.Elements[i.Value];
-            lst.Elements.RemoveAt(i.Value);
+            var lst = Indexed(s, a, "list.Remove");
+            var idx = ((IntVal)a).Value;
+            var v = lst.Elements[idx];
+            lst.Elements.RemoveAt(idx);
             return v;
         });
         List.DefineMethod("Insert", (s, a) =>
         {
-            if (a is not IntVal i) throw new RuntimeException("list.Insert 需要 int 参数");
-            var lst = (ListVal)s;
-            var idx = i.Value;
-            if (idx < 0 || idx > lst.Elements.Count) throw new RuntimeException("索引超出范围");
+            var lst = Indexed(s, a, "list.Insert", allowEnd: true);
+            var idx = ((IntVal)a).Value;
             return FunctionVal.From(v =>
             {
                 lst.Elements.Insert(idx, v);
@@ -125,10 +133,8 @@ public partial class RuntimeType
         });
         List.DefineMethod("Set", (s, a) =>
         {
-            if (a is not IntVal i) throw new RuntimeException("list.Set 需要 int 参数");
-            var lst = (ListVal)s;
-            var idx = i.Value;
-            if (idx < 0 || idx >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
+            var lst = Indexed(s, a, "list.Set");
+            var idx = ((IntVal)a).Value;
             return FunctionVal.From(v =>
             {
                 lst.Elements[idx] = v;
