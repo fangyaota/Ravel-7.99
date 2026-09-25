@@ -56,6 +56,20 @@ public partial class Interpreter
             if (HandToRavelHandler(ex)) return;   // 交给 Ravel 的 handler,异常到此为止
             throw;                                // 没人接 → 冒泡给 CLI 打报告
         }
+        catch (SyntaxException sx)
+        {
+            // `eval`/`using` 会在求值中途碰到语法错误。对 Ravel 层来说那只是一次
+            // 「操作失败」,该和运行时错误一样能被 Ex.try 接住——否则 eval 一段用户输入
+            // 就能把程序打死(Ravel 的 try 只认 RuntimeException)。
+            // 位置用解析器给的那个(比当前帧准),调用栈照常补上。
+            var ex = new RuntimeException(sx.Message)
+            {
+                File = sx.Spot.File, Line = sx.Spot.Line, Column = sx.Spot.Column,
+                Trace = StackTraceOf(_top),
+            };
+            if (HandToRavelHandler(ex)) return;
+            throw;                                // 没人接 → 原样冒泡,CLI 按语法错误渲染
+        }
     }
 
     /// <summary>把运行时错误交给 Ravel 层的 handler(`try.rav` 的 handlerStack 栈顶)。
@@ -99,23 +113,33 @@ public partial class Interpreter
     private static RuntimeException Locate(RuntimeException ex, Frame top)
     {
         (ex.Line, ex.Column) = ErrorSpot(top);
+        ex.File = NearestSource(top);
+        ex.Trace = StackTraceOf(top);
+        return ex;
+    }
 
-        // 文件与调用栈:块帧才代表一次「调用」,节点帧只是栈帧内部的步骤
+    /// <summary>沿帧链收集 Ravel 层调用栈。块帧才代表一次「调用」,节点帧只是栈帧内部的步骤</summary>
+    private static List<string> StackTraceOf(Frame top)
+    {
         var trace = new List<string>();
-        string? file = null;
         for (var f = top; f != null; f = f.Parent)
         {
             if (f is not BlockExecFrame bf) continue;
-            file ??= bf.Block.Source;
             if (trace.Count >= MaxTrace) continue;
             var (line, col) = FrameSpot(bf);
-            if (line == 0) continue;          // eval 之类没有位置的块不入栈
+            if (line == 0) continue;          // 没有位置的块(合成的)不入栈
             trace.Add(bf.Block.Source is { } src ? $"{ErrorReport.ShortPath(src)}:{line}:{col}" : $"{line}:{col}");
         }
 
-        ex.File = file;
-        ex.Trace = trace;
-        return ex;
+        return trace;
+    }
+
+    /// <summary>最近一个有源文件名的块——那就是「出错时在哪个文件里」</summary>
+    private static string? NearestSource(Frame top)
+    {
+        for (var f = top; f != null; f = f.Parent)
+            if (f is BlockExecFrame { Block.Source: { } src }) return src;
+        return null;
     }
 
     /// <summary>帧在源码里的位置。块帧用块本身的位置(≈ 函数定义处)</summary>

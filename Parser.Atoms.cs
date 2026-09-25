@@ -67,7 +67,7 @@ public partial class Parser
         if (Match(TokenType.LeftBrace))
             return Nested(ParseBrace);
 
-        throw ParseError($"需要表达式，但得到 {Peek()}");
+        throw ParseError($"需要表达式，但得到{Describe(Peek())}");
     }
 
     /// <summary>嵌套深度护栏。递归下降解析器靠 C# 调用栈,而 StackOverflow *捕获不了*——

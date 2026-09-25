@@ -56,6 +56,19 @@ public partial class Parser(List<Token> tokens, string? source = null)
             or TokenType.LeftBrace;
     }
 
+    /// <summary>把 token 说成人话,给报错用。
+    /// `Token.ToString()` 是 `EndOfFile() at 1:4` 那种调试格式(类型名 + 行列),
+    /// 直接插进用户消息里就成了「需要表达式，但得到 EndOfFile() at 1:4」——
+    /// 行列号 ErrorReport 会另外画,这里只该说「看到的是什么」。</summary>
+    private static string Describe(Token t) => t.Type switch
+    {
+        TokenType.EndOfFile => "表达式结束",
+        TokenType.Newline => "换行",
+        TokenType.Identifier => $"标识符 '{t.Lexeme}'",
+        TokenType.Number or TokenType.String => $"字面量 {t.Lexeme}",
+        _ => $"'{t.Lexeme}'",
+    };
+
     private Token Peek() => tokens[_pos];
     private Token Previous() => tokens[_pos - 1];
     private bool IsAtEnd() => _pos >= tokens.Count || tokens[_pos].Type == TokenType.EndOfFile;
