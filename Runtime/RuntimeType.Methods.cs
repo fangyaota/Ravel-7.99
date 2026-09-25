@@ -36,10 +36,7 @@ public partial class RuntimeType
                 case ListVal v: return new ListVal([.. v.Elements]);
                 case SetVal v: return new SetVal([.. v.Elements]);
                 case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries));
-                case ObjectVal v:
-                {
-                    return new ObjectVal(v.ClassType, CopyScope(v.Scope));
-                }
+                case ObjectVal v: return CopyObject(v);
                 default: return s;
             }
         });
@@ -349,6 +346,16 @@ public partial class RuntimeType
 
     /// <summary>拷贝作用域（with / Copy 用）：逐字段浅拷贝，词法父照搬。
     /// 字段已平铺在同一个 scope 里，所以不再需要沿继承链递归深拷贝。</summary>
+    /// <summary>拷贝一个对象:新实例 scope(方法闭包重绑,见 CopyScope)+ `this` 指向副本。
+    /// `with` 和 `obj.Copy ()` 都要这一套——漏掉重绑 `this` 的话,副本里写 `this.v = n`
+    /// 会落到原对象上,而裸写 `v = n` 却是对的,行为自相矛盾。</summary>
+    internal static ObjectVal CopyObject(ObjectVal src)
+    {
+        var copy = new ObjectVal(src.ClassType, CopyScope(src.Scope));
+        copy.Scope.DefineOrReplace("this", src.ClassType, copy);
+        return copy;
+    }
+
     internal static Scope CopyScope(Scope src)
     {
         var dst = new Scope(src.Parent);

@@ -33,14 +33,12 @@ public partial class Interpreter
         {
             var copy = obj switch
             {
-                ObjectVal ov => new ObjectVal(ov.ClassType, RuntimeType.CopyScope(ov.Scope)),
+                ObjectVal ov => RuntimeType.CopyObject(ov),
                 ListVal lv => new ListVal([.. lv.Elements]),
                 SetVal sv => new SetVal([.. sv.Elements]),
                 DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries)),
                 _ => obj
             };
-            if (copy is ObjectVal copyObj)
-                copyObj.Scope.DefineOrReplace("this", copyObj.ClassType, copyObj);
             var newCf = cf with { State = copy };
             var bodyScope = copy is ObjectVal ov2 ? ov2.Scope.Push() : body.Scope.Push();
             _top = new BlockExecFrame(body.Block) { Parent = newCf, Scope = bodyScope };
