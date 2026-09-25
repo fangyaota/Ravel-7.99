@@ -41,7 +41,11 @@ property := System.property
 
 # ── 控制流:用 Ravel 写,不占控制帧 ──
 # 条件当值用:true/false 可调用,收两个块返回选中那个的结果
-if := (c: function t: function e: function) => { (c ()) t e; }
+if := (c: function t: function e: function) => {
+    cond := c ()
+    assert (typeof cond == bool) ("if 的条件必须是 bool，得到 " + string (typeof cond))
+    cond t e
+}
 
 # callcc 写成独立语句:续延被调用时只是「这条语句完成」,不会重跑它,
 # 所以 again 始终是那个续延;again 0 丢弃当前帧链跳回 callcc 之后 → 帧链不随迭代增长。
@@ -49,10 +53,14 @@ if := (c: function t: function e: function) => { (c ()) t e; }
 while := (c: function body: function) => {
     again := (x: int) => { x; }
     callcc (k: function) => { again = k; }
-    if { c (); } { body (); again 0; } { 0; }
+    # 条件必须写在恢复点(callcc 那条语句)之后,否则 again 0 跳回来时不会重求,变成只判一次
+    cond := c ()
+    assert (typeof cond == bool) ("while 的条件必须是 bool，得到 " + string (typeof cond))
+    if { cond; } { body (); again 0; } { 0; }
 }
 
-foreach := (xs: list f: function) => {
+foreach := (xs: object f: function) => {
+    assert (typeof xs == list) ("foreach 需要 list，得到 " + string (typeof xs))
     i := 0
     while { i < xs.Count (); } { f (xs.At i); i += 1; }
 }

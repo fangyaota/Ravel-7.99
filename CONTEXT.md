@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，63 passed / 0 failed / 7 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，65 passed / 0 failed / 7 todo。
 
 ## 编译运行
 
@@ -59,7 +59,7 @@ lib/
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
                           (元类特性还没实现,见 tests/117-122 的 todo)
 
-tests/                    71 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    72 个 golden test(普通 + expect-error + todo + fixture)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -154,7 +154,9 @@ Object (parent=self)
   while := (c: function body: function) => {
       again := (x: int) => { x; }
       callcc (k: function) => { again = k; }     # 独立语句:恢复时只是「这条语句完成」,不重跑它
-      if { c (); } { body (); again 0; } { 0; }  # again 0 跳回 callcc 之后
+      cond := c ()                               # 必须在恢复点之后,否则 again 0 跳回来时不重求
+      assert (typeof cond == bool) ("while 的条件必须是 bool，得到 " + string (typeof cond))
+      if { cond; } { body (); again 0; } { 0; }  # again 0 跳回 callcc 之后
   }
   ```
 
@@ -278,4 +280,4 @@ Error: 未定义的变量 'nope'
 
 ## 测试
 
-71 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 63 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+72 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 65 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
