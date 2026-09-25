@@ -604,8 +604,10 @@ public partial class Parser(List<Token> tokens, string? source = null)
     {
         int line = Previous().Line, col = Previous().Column;
 
+        // 单行 `{}` 是空字典。空块本来就禁止(见 ParseBlockStatements),所以没有歧义;
+        // 这样空集合的三种写法才一致:[] / {} / set default
         if (Match(TokenType.RightBrace))
-            throw ParseError("不允许空的 '{ }'");
+            return new DictLiteral([]) { Line = line, Column = col };
 
         // 含 Newline（; 也算）→ 代码块，否则 → 集合或字典
         if (HasNewlineBeforeClose(TokenType.RightBrace))
@@ -732,7 +734,7 @@ public partial class Parser(List<Token> tokens, string? source = null)
         Consume(TokenType.RightBrace, "代码块末尾需要 '}'");
 
         if (list.Count == 0)
-            throw ParseError("Empty block '{ }' is not allowed");
+            throw ParseError("不允许空的 '{ }'");
 
         return list;
     }
