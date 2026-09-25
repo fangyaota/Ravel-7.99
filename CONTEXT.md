@@ -260,6 +260,26 @@ add.name   # "add"
 满篇的单行 lambda 全是错的,`tests/59`/`72` 更是被它抢先报语法错误、
 根本走不到自己要测的 readonly/unreadable。
 
+## core 字段与 unsafe ()
+
+`core` 修饰的字段读写都要先 `unsafe ()`。**`unsafe ()` 按作用域生效**：
+它把**调用它的那个作用域**记进 `Interpreter.UnsafeScopes`，检查时沿作用域链往上找标记。
+标记随调用帧走，函数返回后自然失效。
+
+从前是个只增不减的计数器（`UnsafeDepth++`，没有对应的 `--`），于是**任何一次**
+`unsafe ()` 之后整个程序余下的 core 检查全关掉：在某个无关函数里调一次、哪怕它早就返回了，
+外部就能直接读写核心字段——core 修饰符等于不存在。
+
+```ravel
+f := () => { unsafe (); 0; }
+f ()                 # 跟 secret 毫无关系
+print c.secret       # 现在照样报「字段 'secret' 是核心字段，需要 unsafe」
+```
+
+读的门禁统一在 `BoxedValue.GateRead`（裸标识符和成员访问共用一份）——
+从前 `StepIdent` 自己抄了一份、漏抄 core 那条，于是 `c.secret` 被拦住、
+类体里直接写 `secret` 却读得到。
+
 ## 关键API
 
 ```ravel
@@ -316,6 +336,26 @@ Error: 未定义的变量 'missing'
   和「解释器有 bug」——两者都落在同一个 `catch (Exception)` 里。现在三个类型各归各位：
   `RuntimeException`（求值期）/ `SyntaxException`（词法语法期）/ `ExitException`（exit 解栈），
   落到兜底 `catch (Exception)` 的一律打 `!! 解释器内部错误`。
+- **`eval` 里的语法错误对 Ravel 层是可接的**：`StepOnce` 另有一个 `catch (SyntaxException)`，
+  把它转成 `RuntimeException` 再走同一套 handler 分发。不转的话
+  `Ex.try { eval "1 +" } {...}` 不生效——handler 只认 `RuntimeException`——
+  eval 一段用户输入就能撂倒整个程序。没人接时仍抛原异常，CLI 按语法错误渲染。
+  `eval` 的块带合成名 `<eval>`（`ErrorReport.ShortPath` 认这种虚拟名，不当路径解析）。
+
+## 两个「类型说有、值却没有」的坑
+
+这两处都栽过，加新类型/新内建时留意：
+
+- **`Bool <: Function` 要求 `BoolVal : FunctionVal`**。true/false 可调用
+  （`true {a} {b}`），类型表里挂在 Function 下；值这边不跟上，从 Function 继承来的方法
+  拿到 self 是 BoolVal，`(FunctionVal)s` 直接抛 C# 的 InvalidCastException——
+  它不是 RuntimeException，Ravel 的 try 接不住，程序被打掉。`BlockVal`/`TypeVal`
+  一直是 `: FunctionVal(...)` 这么接的，`BoolVal` 是漏掉的那个。
+- 反过来，**不能拿 `is FunctionVal` 当「这是方法/闭包」的判据**，因为 BoolVal 也是
+  FunctionVal 了。用 `RuntimeValue.IsClosure`：`Fields ()`、`print obj`、
+  `StepClassInit`/`StepCtorApply` 的半成品构造器判断都走它。用错会让
+  `flag: bool = true` 从 `Fields ()`/`print obj` 里消失，还会让
+  `init := () => { true; }` 的对象被当成半成品构造器交出去。
 
 ## 测试
 
