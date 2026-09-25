@@ -130,6 +130,9 @@ Object (parent=self)
 - `class Parent { fields + init }` 是**唯一**用户类型构造器，产物是 `ObjectVal`。
 - **构造器就是名字叫 `init` 的变量**（类体里写 `init := () => {...}`），不是修饰符——曾经写过 `init ctor := ...`，已废弃。一个类最多一个构造器，没有按参数类型重载；要分派就在 `init` 里自己判断。
 - `type` 禁止创建类型，退化为元类型（`typeof` 结果、类型注解、类型值）。
+- 用户类会被 `RuntimeType.Define` 登记进静态的 `AllTypes`,所以 `Subtypes ()` 反射看得到它们。
+  代价:每执行一次 `class {...}` 表达式就多一个类型对象,且永不回收——REPL 里反复"运行"同一段
+  代码会累积(可忽略,但要知道)。
 - **`C := class {...}` 建的类型没有名字**（只有 `::=` 会命名）。显示和报错时走 `RuntimeType.DisplayName`，空名字退化成 `class`——否则错误信息会变成「类型 '' 不支持运算符」这种没法读的东西。`Type.name` / `typeof c` 的显示 / `print obj` 都取它。
 - 内置类型是 C# 硬编码（元类 `type`），实例是 C# record。
 - **元类 = 创建者**：`Type` 自指；`Class` 的元类是 `Type`；`class` 建的类元类是 `Class`；用户元类 M 建的类元类是 M。
