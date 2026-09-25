@@ -156,7 +156,20 @@ public class NeoInteractor
             ClearAndRender();
 
             var result = AnsiConsole.Prompt(prompt);
-            map[result].action();
+            // 菜单项里全是文件 IO 和解析:路径非法、文件被锁、语法写错都会抛。
+            // 不接的话异常会从 Interact 里溜出去,整个 REPL 直接结束——
+            // 缓冲区还在内存里但没落盘,用户写的东西就没了。接住,报一句,回菜单。
+            try
+            {
+                map[result].action();
+            }
+            // ExitException 也接:「退出」菜单项是自己调的 Environment.Exit,
+            // 菜单项内部跑出来的 exit 不该把没保存的缓冲区一起带走
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]出错了：{ex.Message.EscapeMarkup()}[/]");
+                Pause();
+            }
         }
     }
 
