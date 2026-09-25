@@ -1,9 +1,14 @@
-# todo
-# Property.Attrs
-C := class { init := () => { 0; }; readonly x: int = 42; }
-sc := C.Proto ()
-p := sc.Lookup "x"
-attrs := p.Attrs ()
-print (attrs.Count ())
+# Property.Attrs —— 属性的 attrs 会跟着 Property 值走
+# (原来靠 C.Proto () 拿实例 scope,但 Proto 已不存在,得在类方法里用 currentScope ())
+C := class {
+    init := () => { 0; }
+    readonly x: int = 42
+    probe := () => {
+        p := (currentScope ()).Lookup "x"
+        print ((p.Attrs ()).Count ())
+    }
+}
+c := C ()
+c.probe ()
 # --- expected ---
 # 1
