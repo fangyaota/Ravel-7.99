@@ -79,7 +79,10 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂,直到 `init` 应用完才把对象交出来。
 - callcc 只有一套语义:续延 = callcc 之后的剩余计算;调用它 = 丢弃当前帧链、从捕获点继续(详见「控制流」)。
-- 深度递归 20 万层安全(原 CPS ~4k 层爆栈)。
+- 深度递归 20 万层安全(原 CPS ~4k 层爆栈)——但那是 **C# 栈**安全,不是内存安全:
+  每层留 5~6 个帧(BlockExecFrame + 各语句/表达式),合起来约 1KB,
+  20 万层要 250MB 上下。所以它在默认堆下跑得通,在测试用的
+  DOTNET_GCHeapHardLimit=0x10000000(256MB)下会 OOM。没有尾调用优化,长递归就是吃内存。
 
 ## 类型层次
 
