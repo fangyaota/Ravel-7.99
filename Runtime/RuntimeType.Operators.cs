@@ -39,18 +39,18 @@ public partial class RuntimeType
         DefineOp(Int, "%", (a, b) => new IntVal(((IntVal)a).Value % NonZero(Operand<IntVal>(b, "%").Value, "%")));
 
         // float 运算符
-        DefineOp(Float, "+", (a, b) => new FloatVal(AsFloat(a) + AsFloat(b)));
-        DefineOp(Float, "-", (a, b) => new FloatVal(AsFloat(a) - AsFloat(b)));
-        DefineOp(Float, "*", (a, b) => new FloatVal(AsFloat(a) * AsFloat(b)));
-        DefineOp(Float, "/", (a, b) => new FloatVal(AsFloat(a) / AsFloat(b)));
-        DefineOp(Float, "%", (a, b) => new FloatVal(AsFloat(a) % AsFloat(b)));
+        DefineOp(Float, "+", (a, b) => new FloatVal(AsFloat(a, "+") + AsFloat(b, "+")));
+        DefineOp(Float, "-", (a, b) => new FloatVal(AsFloat(a, "-") - AsFloat(b, "-")));
+        DefineOp(Float, "*", (a, b) => new FloatVal(AsFloat(a, "*") * AsFloat(b, "*")));
+        DefineOp(Float, "/", (a, b) => new FloatVal(AsFloat(a, "/") / AsFloat(b, "/")));
+        DefineOp(Float, "%", (a, b) => new FloatVal(AsFloat(a, "%") % AsFloat(b, "%")));
 
         // BigInt 运算符
-        DefineOp(BigInt, "+", (a, b) => new BigIntVal(AsBigInt(a) + AsBigInt(b)));
-        DefineOp(BigInt, "-", (a, b) => new BigIntVal(AsBigInt(a) - AsBigInt(b)));
-        DefineOp(BigInt, "*", (a, b) => new BigIntVal(AsBigInt(a) * AsBigInt(b)));
-        DefineOp(BigInt, "/", (a, b) => new BigIntVal(AsBigInt(a) / NonZero(AsBigInt(b), "/")));
-        DefineOp(BigInt, "%", (a, b) => new BigIntVal(AsBigInt(a) % NonZero(AsBigInt(b), "%")));
+        DefineOp(BigInt, "+", (a, b) => new BigIntVal(AsBigInt(a, "+") + AsBigInt(b, "+")));
+        DefineOp(BigInt, "-", (a, b) => new BigIntVal(AsBigInt(a, "-") - AsBigInt(b, "-")));
+        DefineOp(BigInt, "*", (a, b) => new BigIntVal(AsBigInt(a, "*") * AsBigInt(b, "*")));
+        DefineOp(BigInt, "/", (a, b) => new BigIntVal(AsBigInt(a, "/") / NonZero(AsBigInt(b, "/"), "/")));
+        DefineOp(BigInt, "%", (a, b) => new BigIntVal(AsBigInt(a, "%") % NonZero(AsBigInt(b, "%"), "%")));
 
         // Fraction 运算符
         DefineOp(Fraction, "+",
@@ -79,12 +79,12 @@ public partial class RuntimeType
         // 比较运算符 — 数字
         foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })
         {
-            DefineOp(t, "==", (a, b) => new BoolVal(AsDouble(a) == AsDouble(b)));
-            DefineOp(t, "!=", (a, b) => new BoolVal(AsDouble(a) != AsDouble(b)));
-            DefineOp(t, "<", (a, b) => new BoolVal(AsDouble(a) < AsDouble(b)));
-            DefineOp(t, ">", (a, b) => new BoolVal(AsDouble(a) > AsDouble(b)));
-            DefineOp(t, "<=", (a, b) => new BoolVal(AsDouble(a) <= AsDouble(b)));
-            DefineOp(t, ">=", (a, b) => new BoolVal(AsDouble(a) >= AsDouble(b)));
+            DefineOp(t, "==", (a, b) => new BoolVal(AsDouble(a, "==") == AsDouble(b, "==")));
+            DefineOp(t, "!=", (a, b) => new BoolVal(AsDouble(a, "!=") != AsDouble(b, "!=")));
+            DefineOp(t, "<", (a, b) => new BoolVal(AsDouble(a, "<") < AsDouble(b, "<")));
+            DefineOp(t, ">", (a, b) => new BoolVal(AsDouble(a, ">") > AsDouble(b, ">")));
+            DefineOp(t, "<=", (a, b) => new BoolVal(AsDouble(a, "<=") <= AsDouble(b, "<=")));
+            DefineOp(t, ">=", (a, b) => new BoolVal(AsDouble(a, ">=") >= AsDouble(b, ">=")));
         }
 
         // bool 比较
@@ -120,28 +120,28 @@ public partial class RuntimeType
     private static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
         => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零");
 
-    private static double AsDouble(RuntimeValue v) => v switch
+    private static double AsDouble(RuntimeValue v, string op) => v switch
     {
         IntVal i => i.Value,
         FloatVal f => f.Value,
         BigIntVal bi => (double)bi.Value,
         FractionVal fr => (double)fr.Num / fr.Den,
         BigFractionVal bf => (double)bf.Num / (double)bf.Den,
-        _ => throw new RuntimeException("需要数值类型")
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
     };
 
-    private static float AsFloat(RuntimeValue v) => v switch
+    private static float AsFloat(RuntimeValue v, string op) => v switch
     {
         IntVal i => i.Value,
         FloatVal f => (float)f.Value,
-        _ => throw new RuntimeException("需要数值类型")
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
     };
 
-    private static System.Numerics.BigInteger AsBigInt(RuntimeValue v) => v switch
+    private static System.Numerics.BigInteger AsBigInt(RuntimeValue v, string op) => v switch
     {
         IntVal i => i.Value,
         BigIntVal bi => bi.Value,
-        _ => throw new RuntimeException("需要 bigint 类型")
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
     };
 
     private static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<int, int, int, int, RuntimeValue> f)
