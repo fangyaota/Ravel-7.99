@@ -1,10 +1,15 @@
 namespace Ravel.Runtime;
 
-/// <summary>内置 Math 模块 —— 第二块「用 C# 写死」的模块(第一块是 System)。
+/// <summary>Math 模块的成员(C# 侧)—— 常量、三角、双曲、幂与对数、取整、极值。
 ///
 /// 为什么是 C#:这些函数要落到 `System.Math` 上,写不出 Ravel 源码。
-/// 模块**启动时就建好**,所以 `Math.sin 1` 不需要 `using` 任何东西 ——
-/// `lib/math.rav` 只在它上面补 Ravel 说得清楚的那几个(`square`/`cube`/角度换算)。
+///
+/// **不像 System 那样启动就建好**:`Math` 要**显式引用**才有 —— 成员的填充挂在
+/// <see cref="ModuleFillers"/> 上,由 `EnterModule` 在模块**第一次被 `ravel` 到时**调用,
+/// 也就是 `lib/math.rav` 第一行那句 `ravel "Math"`。所以 `using "math.rav"` 之前
+/// `Math` 根本不是一个名字(`未定义的变量 'Math'`)。
+///
+/// `lib/math.rav` 仍在这个模块里补 Ravel 说得清楚的那几个(`square`/`cube`/角度换算)。
 ///
 /// 三条约定:
 /// - **参数收任何数值**(int/float/bigint/fraction),内部按 double 算 —— 和 `<` 那批运算符
@@ -22,12 +27,19 @@ namespace Ravel.Runtime;
 /// 不是算术。</summary>
 public partial class Interpreter
 {
-    private ModuleVal BuildMathModule()
+    /// <summary>「成员是 C# 造的」模块:名字 → 往它的作用域里填成员的动作。
+    /// `EnterModule` 在模块**第一次被 `ravel` 到时**调用一次 —— 这就是"要显式引用才有"
+    /// 的落点(`System` 不走这条路:它启动时就建好、永远在)。
+    ///
+    /// 表是静态的:填成员不需要解释器状态,而模块是每个 Interpreter 各自建的
+    /// (和 `_modules` 一起生命周期)。</summary>
+    private static readonly Dictionary<string, Action<Scope>> ModuleFillers = new()
     {
-        var moduleType = BuiltinClasses.NewModuleClass("Math", BuiltinClasses.Ravel);
-        var module = new ModuleVal(moduleType, new Scope(_global));
-        var scope = module.ModuleScope;
+        ["Math"] = FillMath,
+    };
 
+    private static void FillMath(Scope scope)
+    {
         void Def(string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);
         void Fn(string name, FunctionVal fn) => Def(name, BuiltinClasses.Function, fn);
 
@@ -102,8 +114,6 @@ public partial class Interpreter
         }));
         Fn("fma", FunctionVal.From((a, b, c) =>
             new FloatVal(Math.FusedMultiplyAdd(Num(a, "fma"), Num(b, "fma"), Num(c, "fma")))));
-
-        return module;
     }
 
     /// <summary>`hypot` = sqrt (x²+y²),但先按较大的那个归一 —— 直接 x*x 在

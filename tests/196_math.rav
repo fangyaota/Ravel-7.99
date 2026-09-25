@@ -1,7 +1,10 @@
-# Math 模块**本身就是内置的**(C# 侧,见 Runtime/Interpreter.Math.cs):
-# 常量 + 三角/双曲/幂对数/取整/极值,`Math.sin 1` 不用 using 任何东西。
-# `lib/math.rav` 只在它上面补 Ravel 说得清楚的那几个(square/cube/deg/rad)。
+# Math **要显式引用才有**:成员是 C# 造的(System.Math 上落,见 Interpreter.Math.cs:
+# 常量 + 三角/双曲/幂对数/取整/极值),它们挂在 `lib/math.rav` 那句 `ravel "Math"`
+# 建模块的时候填进去 —— 在那之前 `Math` 根本不是一个名字。
+# `lib/math.rav` 另外补 Ravel 说得清楚的几个(square/cube/deg/rad)。
 using "try.rav"
+Ex.try { Math.pi; } (e: Exception) => { print ("还没引用: " + string e); }
+using "math.rav"
 
 # ---- 常量 ----
 print (Math.pi)
@@ -50,8 +53,6 @@ print (Math.sign 0)
 print (Math.sin 1)
 
 # ---- lib/math.rav 那层:Ravel 能表达的那几个 ----
-Ex.try { Math.square 5; } (e: Exception) => { print ("还没 using: " + string e); }
-using "math.rav"
 print (Math.square 5)
 print (Math.square 2.5)
 print (Math.cube 3)
@@ -66,6 +67,7 @@ Ex.try { Math.clamp 5 10 0; } (e: Exception) => { print ("clamp: " + string e); 
 Ex.try { Math.sign (0.0 / 0.0); } (e: Exception) => { print ("sign: " + string e); }
 print "done"
 # --- expected ---
+# 还没引用: 未定义的变量 'Math'
 # 3.141592653589793
 # 6.283185307179586
 # 2.718281828459045
@@ -99,7 +101,6 @@ print "done"
 # -1
 # 0
 # 0.8414709848078965
-# 还没 using: 类型 'Math' 没有方法 'square'
 # 25
 # 6.25
 # 27

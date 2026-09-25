@@ -169,7 +169,10 @@ Object (parent=自己)
 
 ## Math 模块
 
-第二块内置模块（`Interpreter.Math.cs`）—— `Math.sin 1` **不需要 using**：
+成员是 C# 造的（`Interpreter.Math.cs`），但**不像 System 那样启动就有** ——
+`Math` 要**显式引用**（`using "math.rav"`）之后才是一个名字。落点是一张
+`ModuleFillers` 表：`EnterModule` 在模块**第一次被 `ravel` 到时**调它填成员，
+而 `lib/math.rav` 第一行就是那句 `ravel "Math"`。
 
 **常量**: pi e tau
 

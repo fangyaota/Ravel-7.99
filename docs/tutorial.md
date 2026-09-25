@@ -923,9 +923,10 @@ System.ReadLine ()
 
 ### 8.4 Math 模块
 
-也是内置的，**不用 `using`**：
+函数体是 C# 造的（落到 `System.Math` 上），但要**显式引用**才有：
 
 ```ravel
+using "math.rav"
 Math.pi            # 3.141592653589793
 Math.sin 0         # 0（三角函数收弧度）
 Math.sqrt 16       # 4
@@ -937,13 +938,14 @@ Math.clamp 15 0 10 # 10
 常量 `pi` / `e` / `tau`，其余见「十、内置函数速查」。`Math` 收任何数值
 （int/float/bigint/fraction），内部按 double 算。
 
-`lib/math.rav` 在它上面补 Ravel 能表达的几个，用之前要 `using "math.rav"`：
+`lib/math.rav` 另外补了 Ravel 能表达的几个（同一次 `using` 一起到位）：
 
 ```ravel
-using "math.rav"
 Math.square 5      # 25
 Math.deg Math.pi   # 180（角度↔弧度）
 ```
+
+`using "math.rav"` 之前 `Math` 不是一个名字 —— 会报「未定义的变量 'Math'」。
 
 ---
 
@@ -1009,7 +1011,7 @@ Error: 未预期的字符 '$'
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |
 
-### Math（内置模块，不用 using）
+### Math（`using "math.rav"` 之后可用）
 
 | 函数 | 说明 |
 |------|------|
@@ -1023,7 +1025,7 @@ Error: 未预期的字符 '$'
 | `Math.abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参 |
 | `Math.minMagnitude` `maxMagnitude` `fma` | 按绝对值比 / `a*b+c` |
 
-`lib/math.rav`（要 `using`）另加：`square` `cube` `deg` `rad`。
+同一次 `using "math.rav"` 还带来 `square` `cube` `deg` `rad`。
 
 ## 十一、常见陷阱
 

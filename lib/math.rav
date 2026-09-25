@@ -1,10 +1,12 @@
-# Math 模块**本身就是内置的**(C# 侧,见 Runtime/Interpreter.Math.cs):
+# Math 模块 —— **要显式引用才有**:`using "math.rav"` 之后 `Math.xxx` 才是一个名字。
+#
+# 函数体是 C# 造的(System.Math 上落,写不出 Ravel 源码),见 Runtime/Interpreter.Math.cs:
 # 常量 pi / e / tau,以及三角、双曲、幂与对数、取整、极值那一整套 ——
-# `Math.sin 1` 不需要 using 任何东西。
+# 它们在下面那句 `ravel "Math"` 建出模块时**自动填进去**。
 #
-# 这个文件只补 Ravel 说得清楚的几个。
+# 这个文件只补 Ravel 说得清楚的几个,以及那句 `ravel "Math"` 本身。
 #
-# ⚠️ 别在这里重定义 pi / e / tau:C# 侧已经建好了,`Define` 会报「变量 'pi' 已定义」。
+# ⚠️ 别在这里重定义 pi / e / tau:C# 侧已经填好了,`Define` 会报「变量 'pi' 已定义」。
 # 而且那份精度更高(3.141592653589793,不是 3.14159)。
 #
 # 参数标成 ValueType 而不是 float:Ravel 的 lambda 参数**不做隐式转换**,

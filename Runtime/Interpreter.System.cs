@@ -1,6 +1,6 @@
 ﻿namespace Ravel.Runtime;
 
-/// <summary>内置注册:建 System 与 Math 两块内置模块,填入类型别名、控制内建和核心函数。
+/// <summary>内置注册:建 System 模块,填入类型别名、控制内建和核心函数。
 /// 加一个内置 = 在对应分组里加一行(DefType/DefFn/DefControl/Def)。</summary>
 public partial class Interpreter
 {
@@ -9,12 +9,6 @@ public partial class Interpreter
         var systemModule = BuildSystemModule();
         _modules["System"] = systemModule;
         _global.Define("System", systemModule.Type, systemModule);
-
-        // Math 也是内置模块(见 Interpreter.Math.cs):`Math.sin 1` 不用 using。
-        // 登记进 _modules,所以 `lib/math.rav` 里的 `ravel "Math"` 会落进**同一个**模块。
-        var mathModule = BuildMathModule();
-        _modules["Math"] = mathModule;
-        _global.Define("Math", mathModule.Type, mathModule);
     }
 
     /// <summary>组装 System 模块——它是唯一「用 C# 写死」的模块,其余模块都来自 .rav 文件</summary>
@@ -131,6 +125,8 @@ public partial class Interpreter
         {
             var mt = BuiltinClasses.NewModuleClass(name, BuiltinClasses.Ravel);
             mv = new ModuleVal(mt, new Scope(_global));
+            // 成员是 C# 造的那几个模块(Math),在这里填 —— 所以它们**要显式 ravel 才有**
+            if (ModuleFillers.TryGetValue(name, out var fill)) fill(mv.ModuleScope);
             _modules[name] = mv;
             _global.Define(name, mt, mv);
         }
