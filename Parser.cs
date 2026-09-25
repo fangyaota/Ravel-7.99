@@ -10,6 +10,10 @@ public partial class Parser(List<Token> tokens, string? source = null)
 
     private int _holeCount;
 
+    /// <summary>当前括号/块的嵌套深度(见 Nested)</summary>
+    private int _depth;
+    private const int MaxDepth = 400;
+
     // ========================================
     //  入口
     // ========================================
@@ -503,19 +507,40 @@ public partial class Parser(List<Token> tokens, string? source = null)
         }
 
         if (Match(TokenType.LeftParen))
-            return ParseParen();
+            return Nested(ParseParen);
 
         if (Match(TokenType.LeftBracket))
         {
             int line = Previous().Line, col = Previous().Column;
-            var elements = ParseSpaceSeparatedList(TokenType.RightBracket, "]");
-            return new ListLiteral(elements) { Line = line, Column = col };
+            return Nested(() =>
+            {
+                var elements = ParseSpaceSeparatedList(TokenType.RightBracket, "]");
+                return new ListLiteral(elements) { Line = line, Column = col };
+            });
         }
 
         if (Match(TokenType.LeftBrace))
-            return ParseBrace();
+            return Nested(ParseBrace);
 
         throw ParseError($"需要表达式，但得到 {Peek()}");
+    }
+
+    /// <summary>嵌套深度护栏。递归下降解析器靠 C# 调用栈,而 StackOverflow *捕获不了*——
+    /// 1000 层括号就能让进程直接死在 "Stack overflow." 上,连个语法错误都看不到。
+    /// 实测 500 层没事、1000 层爆,所以卡在 400。</summary>
+    private Expression Nested(Func<Expression> parse)
+    {
+        if (_depth >= MaxDepth) throw ParseError($"表达式嵌套太深（超过 {MaxDepth} 层）");
+
+        _depth++;
+        try
+        {
+            return parse();
+        }
+        finally
+        {
+            _depth--;
+        }
     }
 
     // ========================================
