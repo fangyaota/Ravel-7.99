@@ -203,11 +203,12 @@ public record ObjectVal : RuntimeValue, IFunction
         ObjectVal { IsClass: true } o => o.DisplayName,
         // 函数排在实例之前:FunctionVal 也是 ObjectVal,按实例展开会打出一串成员
         FunctionVal f => f.ToString(),
-        // 走 `Type` 而不是 `ClassType` —— 只有它保证非 null(见 FunctionVal.Type 的懒回填)
-        ObjectVal o => o.Type.DisplayName + " {...}",
+        // 容器也排在 ObjectVal 之前(它们现在也是 ObjectVal),不然会打成 `List {...}`
         ListVal l => "[" + l.Elements.Count + " 项]",
         SetVal s => "{" + s.Elements.Count + " 项}",
         DictVal d => "{" + d.Entries.Count + " 项}",
+        // 走 `Type` 而不是 `ClassType` —— 只有它保证非 null(见 FunctionVal.Type 的懒回填)
+        ObjectVal o => o.Type.DisplayName + " {...}",
         _ => v.ToString() ?? "()",
     };
 

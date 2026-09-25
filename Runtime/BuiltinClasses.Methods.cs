@@ -35,9 +35,10 @@ internal static partial class BuiltinClasses
                 case BigIntVal v: return new BigIntVal(v.Value);
                 case FractionVal v: return new FractionVal(v.Num, v.Den);
                 case BigFractionVal v: return new BigFractionVal(v.Num, v.Den);
-                case ListVal v: return new ListVal([.. v.Elements]);
-                case SetVal v: return new SetVal([.. v.Elements]);
-                case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries));
+                // 容器的成员表跟着副本走 —— 和 CopyObject 一个道理(它们现在也是 ObjectVal)
+                case ListVal v: return new ListVal([.. v.Elements], CopyScope(v.Scope));
+                case SetVal v: return new SetVal([.. v.Elements], CopyScope(v.Scope));
+                case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries), CopyScope(v.Scope));
                 // 函数/类对象"拷"出来只会变成一个不可调用的普通对象 —— 原样交回。
                 // 排在 ObjectVal 之前:FunctionVal 现在也是 ObjectVal。
                 case FunctionVal v: return v;

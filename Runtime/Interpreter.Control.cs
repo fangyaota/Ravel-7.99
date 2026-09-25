@@ -34,10 +34,14 @@ public partial class Interpreter
                 // 函数/类对象不是"带字段的数据":`with` 对它们等于原样(块跑在调用点的词法作用域里)。
                 // 这条必须排在 ObjectVal 之前 —— FunctionVal 现在**也是** ObjectVal。
                 FunctionVal => obj,
+                // 容器有各自的浅拷贝法,也得排在 ObjectVal 之前(它们现在也是 ObjectVal)。
+                // 成员表要跟着副本走(和 CopyObject 一个道理):块里 `tag = …` 那种赋值
+                // 找的是副本的成员表,给空表的话会报"无法给未定义变量赋值"。
+                ListVal lv => new ListVal([.. lv.Elements], BuiltinClasses.CopyScope(lv.Scope)),
+                SetVal sv => new SetVal([.. sv.Elements], BuiltinClasses.CopyScope(sv.Scope)),
+                DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries),
+                    BuiltinClasses.CopyScope(dv.Scope)),
                 ObjectVal ov => BuiltinClasses.CopyObject(ov),
-                ListVal lv => new ListVal([.. lv.Elements]),
-                SetVal sv => new SetVal([.. sv.Elements]),
-                DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries)),
                 _ => obj
             };
             var newCf = cf with { State = copy };
