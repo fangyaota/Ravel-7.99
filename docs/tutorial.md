@@ -425,10 +425,10 @@ print add                 # <function add (x: int) => { x + 1; }>
 print (add 3)             # 已经是普通值 4
 add2 := (x: int y: int) => { x + y; }
 print add2                # <function (x: int y: int) => { x + y; }>
-print (add2 3)            # <function (y: int) => { x + y; } 已收 x=3>
+print (add2 3)            # <function (y: int) => { x + y; } applied x=3>
 ```
 
-签名里是**还等着**的参数，已经喂过的实参跟在 `已收` 后面 —— 两者合起来就是完整的形状。
+签名里是**还等着**的参数，已经喂过的实参跟在 `applied` 后面 —— 两者合起来就是完整的形状。
 体太长会截断（它不是给你复制代码用的，是给你认出"这是哪个函数"的）。
 
 ---

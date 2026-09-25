@@ -10,18 +10,19 @@ public sealed record LambdaVal(string ParamName, string ParamTypeName, ObjectVal
     /// <summary>打印成**它的代码** + **柯里化已经收下的实参**:
     ///
     ///     <function (a: int b: int) => { a + b; }>
-    ///     <function (b: int) => { a + b; } 已收 a=1>      ← 只喂了 a
+    ///     <function (b: int) => { a + b; } applied a=1>      ← 只喂了 a
     ///     <function add (x: int) => { x; }>               ← `::=` 命名的带上名字
     ///
     /// 签名里是**还等着**的参数,已经收下的放在 `已收` 后面 —— 两者合起来正好是完整的形状。
     /// 没写 `(a: int b: int) => …` 那种完整签名,是因为链外面那几层的参数类型只能从**运行时的值**
     /// 反推(`Integer`),而这层能拿到源码里写的名字(`int`);混在一张表里会出现两套叫法。
     ///
-    /// `已收` 从哪来:每次调用 lambda 都会在调用点作用域里落下 `self`(被调的那个函数)
+    /// `applied` 从哪来:每次调用 lambda 都会在调用点作用域里落下 `self`(被调的那个函数)
     /// 和 `参数名`(这次收到的实参),而内层 lambda 捕获的正是那个作用域 ——
     /// 所以顺着 `CaptureScope` 往外走就能把喂过的实参一个个捡回来。
     ///
-    /// record 自动生成的 ToString 会把 Body/CaptureScope/Block 这些实现细节全 dump 出来,
+    /// 打印出来的**全是 ASCII** —— 值的形式是数据,不该混进中文;中文只留给报错文案。
+/// record 自动生成的 ToString 会把 Body/CaptureScope/Block 这些实现细节全 dump 出来,
     /// 盖掉基类的 `<function>`;显式盖回来。</summary>
     public override string ToString()
         => "<function " + (Name is { Length: > 0 } n ? n + " " : "") + Describe() + ">";
@@ -31,7 +32,7 @@ public sealed record LambdaVal(string ParamName, string ParamTypeName, ObjectVal
     {
         var text = AstPrinter.Signature(this);
         var applied = Applied();
-        if (applied.Count > 0) text += " 已收 " + string.Join(" ", applied);
+        if (applied.Count > 0) text += " applied " + string.Join(" ", applied);
         return text;
     }
 

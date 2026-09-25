@@ -56,7 +56,7 @@ internal static class AstPrinter
             + Expr(v.Value),
         Assignment a => a.Name + " = " + Expr(a.Value),
         ExpressionStatement es => Expr(es.Expr),
-        _ => "…",           // 将来加了新语句种类,打印退化成一个省略号,别把 ToString 搞炸
+        _ => "...",        // 将来加了新语句种类,打印退化成一个省略号,别把 ToString 搞炸
     };
 
     private static string Expr(Expression e) => e switch
@@ -77,8 +77,8 @@ internal static class AstPrinter
         BlockExpr b => Block(b),
         HoleExpr h => "_" + h.Index,
         // 内置类的预设类体里是 C# 造好的值,没有源码可还原
-        LiteralExpr => "<内置>",
-        _ => "…",
+        LiteralExpr => "<builtin>",
+        _ => "...",
     };
 
     /// <summary>要拼进更大表达式时,自身定界的那些直接写,其余的套一层括号。</summary>
@@ -98,6 +98,6 @@ internal static class AstPrinter
         var cut = s[..(MaxLength - 1)];
         var space = cut.LastIndexOf(' ');
         if (space > MaxLength / 2) cut = cut[..space];
-        return cut + "…";
+        return cut + "...";
     }
 }
