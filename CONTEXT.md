@@ -51,9 +51,10 @@ Repl/                           REPL 前端
 Program.cs                      CLI 入口(REPL / test / 单文件)
 
 lib/
-  predefined.rav          别名 + using
-  std.rav                 Property + interface
-  try.rav                 异常处理
+  predefined.rav          别名 + 控制流 + using
+  try.rav                 异常处理(handlerStack + callcc)
+  std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
+                          (元类特性还没实现,见 tests/117-122 的 todo)
 
 tests/                    71 个 golden test(普通 + expect-error + todo + fixture)
 

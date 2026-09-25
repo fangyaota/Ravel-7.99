@@ -1,4 +1,11 @@
 # ── Ravel 标准库 ──
+#
+# ⚠️ 这个文件目前没有实际用途,也用不了:
+#   - 它没有被 predefined.rav 加载(那里只 using "try.rav")
+#   - 唯一的 Interface 靠 `class class` 元类和 `base.init`,而 base 已经移除;
+#     元类特性整体还没实现(见 tests/117-122 的 # todo)
+# `using "std.rav"` 本身不会报错(init 是 lambda,定义时不跑),但一旦用 Interface 就会炸。
+# 要接口式的东西,暂时用鸭子类型(直接调方法),或者用自定义运算符(`==` / `+`)。
 
 Interface ::= class class {
     init := (parent: type block: function) => {
