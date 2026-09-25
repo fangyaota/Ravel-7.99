@@ -12,7 +12,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         if (value is ObjectVal obj)
         {
             var vr = obj.Scope.LookupField(name);
-            if (vr == null || !vr.HasAttr("by")) return null;
+            if (vr == null || !vr.HasAttr(Attr.By)) return null;
             new BoxedValue(obj, interp).CheckObjectReadAccess(obj, vr, name);
             return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
         }
@@ -21,7 +21,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         {
             if (!mv.ModuleScope.Contains(name)) return null;
             var vr = mv.ModuleScope.Lookup(name);
-            if (!vr.HasAttr("by")) return null;
+            if (!vr.HasAttr(Attr.By)) return null;
             new BoxedValue(mv, interp).CheckModuleReadAccess(mv, vr, name);
             return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
         }
@@ -74,14 +74,14 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     {
         CheckUnreadable(vr, name);
         WarnIfOutdated(vr, name);
-        if ((vr.HasAttr("private") || vr.HasAttr("protected")) && !IsInsideModule(mv))
+        if ((vr.HasAttr(Attr.Private) || vr.HasAttr(Attr.Protected)) && !IsInsideModule(mv))
             throw AccessDenied(vr, name);
     }
 
     private void CheckObjectReadAccess(ObjectVal obj, Variable vr, string name)
     {
         CheckUnreadable(vr, name);
-        if (vr.HasAttr("core") && interp.UnsafeDepth == 0)
+        if (vr.HasAttr(Attr.Core) && interp.UnsafeDepth == 0)
             throw new RuntimeException($"变量 '{name}' 是核心字段，需要 unsafe");
         WarnIfOutdated(vr, name);
         if (!interp.CheckFieldAccess(vr, obj))
@@ -97,18 +97,18 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
 
     private static void CheckUnreadable(Variable vr, string name)
     {
-        if (vr.HasAttr("unreadable"))
+        if (vr.HasAttr(Attr.Unreadable))
             throw new RuntimeException($"变量 '{name}' 不可读取");
     }
 
     private static void WarnIfOutdated(Variable vr, string name)
     {
-        if (vr.HasAttr("outdated"))
+        if (vr.HasAttr(Attr.Outdated))
             Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
     }
 
     private static RuntimeException AccessDenied(Variable vr, string name)
-        => new($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
+        => new($"变量 '{name}' 是{(vr.HasAttr(Attr.Private) ? "私有的" : "受保护的")}");
 
     public override string ToString() => Value.ToString();
 }

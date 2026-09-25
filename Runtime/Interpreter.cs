@@ -82,11 +82,11 @@ public partial class Interpreter
     /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行</summary>
     internal bool CheckFieldAccess(Variable field, ObjectVal obj)
     {
-        if (!field.HasAttr("private") && !field.HasAttr("protected")) return true;
+        if (!field.HasAttr(Attr.Private) && !field.HasAttr(Attr.Protected)) return true;
         for (var cur = CurrentScope; cur != null; cur = cur.Parent)
         {
             if (cur == obj.Scope) return true;
-            if (field.HasAttr("protected"))
+            if (field.HasAttr(Attr.Protected))
             {
                 var t = cur.TryLookup("this");
                 if (t?.Value is ObjectVal o && o.ClassType.IsAssignableTo(obj.ClassType)) return true;

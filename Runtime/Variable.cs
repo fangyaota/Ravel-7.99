@@ -13,7 +13,7 @@ public class Variable(string name, RuntimeType typeConstraint, RuntimeValue init
 
     public void Assign(RuntimeValue newValue)
     {
-        if (HasAttr("readonly")) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
+        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
         if (TypeConstraint != RuntimeType.Any && !newValue.Type.IsAssignableTo(TypeConstraint))
             throw new RuntimeException(
                 "类型错误: 无法将 " + newValue.Type + " 赋值给 '" + Name + "' (声明为 " + TypeConstraint + ")");

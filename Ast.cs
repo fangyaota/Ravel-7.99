@@ -1,5 +1,7 @@
 namespace Ravel;
 
+using Ravel.Runtime;
+
 /// <summary>可自定义的运算符符号。类体里直接用符号定义(`+ := f` 定义、`+ = f` 覆盖),
 /// 符号本身就是实例里的成员名,所以 `a.+` 能取到它。集合与 RuntimeType.Operators 注册的内置运算符一致。</summary>
 public static class OperatorSymbols
@@ -30,9 +32,9 @@ public record VarDefinition(string Name, string? TypeAnnotation, Expression Valu
     public bool IsInit => Name == "init";
     /// <summary>运算符:靠名字识别——类体里直接写符号(`+ := f` / `+ = f`)</summary>
     public bool IsOperator => OperatorSymbols.IsSymbol(Name);
-    public bool IsReadonly => HasAttr("readonly");
-    public bool IsOverride => HasAttr("override");
-    public bool IsNew => HasAttr("new");
+    public bool IsReadonly => HasAttr(Attr.Readonly);
+    public bool IsOverride => HasAttr(Attr.Override);
+    public bool IsNew => HasAttr(Attr.New);
 }
 public record Assignment(string Name, Expression Value) : Statement;
 public record ExpressionStatement(Expression Expr) : Statement;

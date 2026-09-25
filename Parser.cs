@@ -1,6 +1,7 @@
 namespace Ravel;
 
 using System.Linq;
+using Ravel.Runtime;
 
 /// <summary>递归下降解析器,按优先级链逐层收窄(见 ParseExpression 起的各层)。
 /// `_` 占位符的消糖是独立的一趟 AST 改写,在 Parser.Holes.cs。</summary>
@@ -46,12 +47,7 @@ public partial class Parser(List<Token> tokens, string? source = null)
     // ========================================
 
     // 注意 init 不在此列:构造器是名字叫 init 的变量(类体里写 `init := ...`),不是修饰符
-    private static readonly HashSet<string> Modifiers =
-    [
-        "readonly", "override", "new", "public", "private", "protected", "outdated", "unreadable", "by", "core"
-    ];
-
-    private static bool IsMod(string kw) => Modifiers.Contains(kw);
+    private static bool IsMod(string kw) => Attr.All.Contains(kw);
 
     /// <summary>能作为运算符定义的符号 token(`+ := f` / `a.+`)。一元 `!` 和短路 `&&`/`||` 不在内——
     /// 它们是求值器特判的,不支持自定义。</summary>

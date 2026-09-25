@@ -131,7 +131,7 @@ public partial class Interpreter
                     ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         CheckMemberAccess(field, ov, ma.Member);
 
-        if (field.HasAttr("by"))
+        if (field.HasAttr(Attr.By))
         {
             StepByCompoundAssign(nf, op, field, ma.Member);
             return;
@@ -199,10 +199,10 @@ public partial class Interpreter
     /// <summary>成员写入前的门禁:core 需要 unsafe,private/protected 看访问控制。</summary>
     private void CheckMemberAccess(Variable field, ObjectVal obj, string member)
     {
-        if (field.HasAttr("core") && UnsafeDepth == 0)
+        if (field.HasAttr(Attr.Core) && UnsafeDepth == 0)
             throw new RuntimeException($"字段 '{member}' 是核心字段，需要 unsafe");
         if (!CheckFieldAccess(field, obj))
-            throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr("private") ? "私有的" : "受保护的")}");
+            throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}");
     }
 
     /// <summary>成员写入。`=` 是赋值(字段必须已存在),`:=` 是定义(不存在就新建、存在就整条替换)。</summary>
@@ -263,7 +263,7 @@ public partial class Interpreter
         // count==1 已查过字段存在,这里再兜一次:字段在右侧求值期间被删掉时不至于 NRE
         var field2 = ov2.Scope.LookupField(ma.Member)
                      ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
-        if (field2.HasAttr("by"))
+        if (field2.HasAttr(Attr.By))
         {
             var setter = new BoxedValue(field2.Value, this).GetMember("set").Value;
             if (setter is FunctionVal sf)

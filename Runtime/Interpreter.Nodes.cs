@@ -58,9 +58,9 @@ public partial class Interpreter
         if (nf.Count > 0) return;
         var v = nf.Scope.LookupVar(id.Name);
         if (v == null) throw new RuntimeException($"未定义的变量 '{id.Name}'");
-        if (v.HasAttr("unreadable")) throw new RuntimeException($"变量 '{id.Name}' 不可读取");
-        if (v.HasAttr("outdated")) Console.Error.WriteLine("[outdated] " + id.Name);
-        if (v.HasAttr("by"))
+        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{id.Name}' 不可读取");
+        if (v.HasAttr(Attr.Outdated)) Console.Error.WriteLine("[outdated] " + id.Name);
+        if (v.HasAttr(Attr.By))
         {
             var getter = new BoxedValue(v.Value, this).GetMember("get").Value;
             if (getter is FunctionVal gf) CallInto(nf.Parent!, gf, VoidVal.Instance);
@@ -253,9 +253,9 @@ public partial class Interpreter
         var field = nf.Scope.LookupVar(a.Name);
         if (field != null)
         {
-            if (field.HasAttr("core") && UnsafeDepth == 0)
+            if (field.HasAttr(Attr.Core) && UnsafeDepth == 0)
                 throw new RuntimeException($"字段 '{a.Name}' 是核心字段，需要 unsafe");
-            if (field.HasAttr("by"))
+            if (field.HasAttr(Attr.By))
             {
                 var setter = new BoxedValue(field.Value, this).GetMember("set").Value;
                 if (setter is FunctionVal sf)
