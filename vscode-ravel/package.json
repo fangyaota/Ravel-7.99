@@ -78,7 +78,7 @@
                 "ravel.ravelDll": {
                     "type": "string",
                     "default": "",
-                    "description": "ravel.dll 的路径。留空则在工作区里自动搜索（out/ 与 bin/ 优先）。"
+                    "description": "ravel.dll 的路径。留空则在工作区里自动搜索，取最新的那一份。"
                 },
                 "ravel.heapHardLimit": {
                     "type": "string",

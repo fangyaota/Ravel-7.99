@@ -863,13 +863,15 @@ g := (x: int) => { x * 2; }    # ✅ 也合法
 
 ### 链式调用需要临时变量
 
-```ravel
-# ❌ 解析为 s.At (0.Parent()) 
-s.At 0.Parent ()
+应用语法 `f a b` 的左结合会让「点号接在字面量后面」被吃掉：`s.At 0.Count ()`
+解析成 `s.At (0.Count ())`，先算 `0.Count ()` 再报 `'Integer' 没有方法 'Count'`。
 
-# ✅ 临时变量
-v := s.At 0
-v.Parent ()
+```ravel
+s := [[1 2] [3]]
+s.At 0.Count ()      # ❌ 报「'Integer' 没有方法 'Count'」
+
+v := s.At 0          # ✅ 用临时变量断开
+v.Count ()           # 2
 ```
 
 ### `:=` vs `=` vs `::=`

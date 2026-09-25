@@ -33,15 +33,11 @@ async function findRavelDll() {
         return { error: '找不到 ravel.dll。先编译一次（Ctrl+Shift+B，或 dotnet build）。' };
     }
 
-    // out/ 和 bin/Debug 是常用的产物位置，优先；其余按路径短优先
-    const rank = (p) => {
-        const s = p.fsPath.replace(/\\/g, '/');
-        if (s.includes('/out/')) return 0;
-        if (s.includes('/bin/Debug/')) return 1;
-        if (s.includes('/bin/Release/')) return 2;
-        return 3;
-    };
-    found.sort((a, b) => rank(a) - rank(b) || a.fsPath.length - b.fsPath.length);
+    // 取**最新的**那个。产物常常同时在 out/ 和 bin/Debug 里，按固定顺序挑会挑到陈旧的：
+    // 只跑 dotnet build 时 bin/ 是新的、out/ 还是上次 publish 留下的；
+    // 只跑 dotnet publish -o out 时反过来。比时间戳才不会跑到旧解释器上。
+    const mtime = (p) => { try { return fs.statSync(p.fsPath).mtimeMs; } catch { return 0; } };
+    found.sort((a, b) => mtime(b) - mtime(a) || a.fsPath.length - b.fsPath.length);
     return found[0].fsPath;
 }
 
