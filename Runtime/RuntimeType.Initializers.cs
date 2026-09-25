@@ -20,7 +20,9 @@ public partial class RuntimeType
         List.Initializer = MakeDefaultCaster(List);
         Set.Initializer = MakeDefaultCaster(Set);
         Dict.Initializer = MakeDefaultCaster(Dict);
-        Class.Initializer = MakeClassInitializer();
+        // 建类挂在 Type 上:`class` 就是 `type` 的别名(predefined.rav),
+        // 两者是同一个值,所以 `type { ... }` 和 `class { ... }` 行为一致
+        Type.Initializer = MakeClassInitializer();
     }
 
     /// <summary>包装转换函数为单参构造器</summary>
@@ -209,11 +211,12 @@ public partial class RuntimeType
             throw new RuntimeException("class 参数必须是类型或代码块");
         });
 
-    /// <summary>创建类：建 RuntimeType，存 body，扫描用符号定义的运算符注册到方法表</summary>
+    /// <summary>创建类：建 RuntimeType，存 body，扫描用符号定义的运算符注册到方法表。
+    /// 元类是 `Type` —— 没有单独的 Class 类型了,`typeof Person` 和 `typeof int` 都是 Type。</summary>
     private static TypeVal CreateClass(RuntimeType parent, BlockVal block)
     {
         var newType = Define("", parent);
-        newType.Metaclass = Class;
+        newType.Metaclass = Type;
         newType.Body = block;
         // 类体里用符号定义的运算符(`+ := f` 定义、`+ = f` 覆盖)注册到类型的方法表
         foreach (var stmt in block.Block.Statements)

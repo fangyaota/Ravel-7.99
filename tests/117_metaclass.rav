@@ -1,5 +1,5 @@
-# todo
-# metaclass：继承 class 的类型构造器
+﻿# todo
+# metaclass:继承 type 的类型构造器(没有 Class 类型了,类的元类就是 Type)
 MyMeta := class class {
     init := (parent: type block: function) => {
         base.init parent block
@@ -15,5 +15,5 @@ MyClass := MyMeta {
 c := MyClass ()
 print (c.x)
 # --- expected ---
-# Class
+# Type
 # 42

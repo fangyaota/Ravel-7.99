@@ -1,4 +1,4 @@
-references: list = []
+﻿references: list = []
 
 # ── 别名 ──
 int := System.Integer
@@ -12,7 +12,7 @@ list := System.List
 set := System.Set
 dict := System.Dict
 object := System.Object
-class := System.Class
+class := System.Type  # 别名:没有单独的 Class 类型
 function := System.Function
 type := System.Type
 void := System.Void

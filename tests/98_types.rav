@@ -1,4 +1,4 @@
-# 类型/反射/大数/作用域(合并 98/113/114/123/124/140/141/143/144/145/146/147/149/150/151)
+﻿# 类型/反射/大数/作用域(合并 98/113/114/123/124/140/141/143/144/145/146/147/149/150/151)
 print (typeof 5)
 print (typeof 5.0)
 print (typeof 3.14)
@@ -39,7 +39,6 @@ print (System.List)
 print (System.Set)
 print (System.Dict)
 print (System.Object)
-print (System.Class)
 print (System.Function)
 print (System.Type)
 print (System.Void)
@@ -160,7 +159,6 @@ print "range ok"
 # Set
 # Dict
 # Object
-# Class
 # Function
 # Type
 # Void

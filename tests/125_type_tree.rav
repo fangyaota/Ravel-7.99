@@ -1,5 +1,5 @@
-# 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
-# 所以类的实例显类型名、类本身显 Class 的创建者 Type。
+﻿# 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
+# 所以类的实例显类型名、类本身显 Type —— 没有单独的 Class 类型了,class 只是 type 的别名。
 # 注意 Ravel 下挂着 System / Ex —— 模块也是类型,它们由 RuntimeType.Define 建。
 print_tree := (t: object prefix: string) => {
     subs := t.Subtypes ()
@@ -47,7 +47,6 @@ print_tree object ""
 # │   ├── Bool [Type]
 # │   ├── Block [Type]
 # │   └── Type [Type]
-# │       └── Class [Type]
 # ├── List [Type]
 # ├── Set [Type]
 # ├── Dict [Type]

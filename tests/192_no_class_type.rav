@@ -1,0 +1,3 @@
+# expect-error
+# System 模块里不再有 Class 这个名字 —— 它作为类型已经删掉了,class 只是 type 的别名
+print (System.Class)

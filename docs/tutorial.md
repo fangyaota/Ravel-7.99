@@ -106,12 +106,16 @@ list default   # []
 ```
 Object (parent = 自身)
 ├── ValueType → Integer Float String BigInt Fraction BigFraction   (并列)
-├── Function → Bool  Block  Type → Class                          (及用户类)
+├── Function → Bool  Block  Type
 ├── List  Set  Dict
 ├── Void  Exception  Ravel(模块)  Scope  Property
 ├── Any (顶类型, parent = 自身, 不在 Object 子树里)
 └── Every (底类型 = default 的类, parent = 自身, 不在 Object 子树里)
 ```
+
+**没有 `Class` 类型**：`class` 就是 `type` 的别名（`predefined.rav` 里 `class := System.Type`），
+两者是同一个值，所以 `typeof Person`（用户类）和 `typeof int`（内置类型）都是 `Type`。
+用户类是 `RuntimeType`，它的父类是 `Object`、元类是 `Type`。
 
 `Any` 和 `Every` 画在最后只是排版方便——它们的父类型是**自己**，不是 `Object`
 （`object.Subtypes ()` 里没有它们）。权威快照见 `tests/125_type_tree.rav`。
@@ -690,13 +694,14 @@ print (p.Fields ())   # [name age ToString Copy Fields]
 metaclass 是"类的类"。`typeof` 返回创建它的那个构造器对应的类型：
 
 ```ravel
-typeof Person     # Class    (Person 由 class 创建)
+typeof Person     # Type     (Person 由 class 创建,而 class 就是 type)
+typeof int        # Type     (内置类型也由 type 创建)
 typeof MyClass    # MyMeta   (MyClass 由 MyMeta 创建)  ← 未实现,见下
-typeof int        # Type     (内置类型由 type 创建)
 ```
 
-`typeof` 反射本身是好的：`typeof Person` → `Class`、`typeof int` → `Type` 都能跑。
-只有"用户元类建出来的类，`typeof` 回元类"这一条依赖下面那套机制，用不了。
+**没有 `Class` 类型**（以前 `typeof Person` 给 `Class`，现在是 `Type`）：
+`class` 只是 `type` 的别名，两者同一个值。所以 8.1 这条反射能跑，
+只有"用户元类建出来的类，`typeof` 回元类"依赖下面那套机制，用不了。
 
 ### 8.2 创建 metaclass（未实现）
 
@@ -711,8 +716,8 @@ LoggedMeta ::= class class {
 }
 ```
 
-- `class class` 继承 `Class`，创建新的类构造器
-- `base.init parent block` 调 `Class` 的 init 创建实际类
+- `class class` 想表达「拿 `type` 这个值（`class` 就是它）当父类，建一个新的类构造器」
+- `base.init parent block` 想调那层父类的 init 来创建实际的类
 - `this` 指向正在被创建的类构造器
 
 **实际**：这整段落不了地。`base` 已移除，第二行的 `base.init` 无解；

@@ -1,4 +1,4 @@
-# todo
+﻿# todo
 # metaclass: typeof 检查链
 MyMeta ::= class class {
     init := (parent: type block: function) => {
@@ -16,5 +16,5 @@ print (typeof B)
 print (typeof MyMeta)
 # --- expected ---
 # MyMeta
-# Class
-# Class
+# Type
+# Type

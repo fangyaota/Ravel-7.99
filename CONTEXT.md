@@ -126,9 +126,8 @@ Object (parent=self)
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
-│   └── Type
-│       └── Class
-├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Class
+│   └── Type          ← 用户类直接挂这下面(没有中间的 Class 一层)
+├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
 ├── Void / Exception / Ravel(模块) / Scope / Property
 ├── Any (顶类型, parent=null)
 └── Every (底类型, parent=null)
@@ -142,7 +141,7 @@ Object (parent=self)
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
 **类型**: Integer String Bool Float BigInteger Fraction BigFraction
-        List Set Dict Object Void Function Type Class
+        List Set Dict Object Void Function Type
         AnyType EveryType ExceptionType ValueTypeVal
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
@@ -159,13 +158,14 @@ Object (parent=self)
 
 其他所有变量通过 `predefined.rav` 别名定义（`int := System.Integer` 等）。
 
-## 类型创建（class）
+## 类型创建（class / type）
 
 设计见 [ADR-0001](adr/0001-class-and-type-system.md)。
 
 - `class Parent { fields + init }` 是**唯一**用户类型构造器，产物是 `ObjectVal`。
+- **`class` 就是 `type` 的别名**（`predefined.rav` 里 `class := System.Type`），两者是同一个值：没有 `Class` 类型，`typeof Person` 和 `typeof int` 都是 `Type`。建类挂在 `Type.Initializer` 上，所以 `type { ... }` 和 `class { ... }` 行为一致。
 - **构造器就是名字叫 `init` 的变量**（类体里写 `init := () => {...}`），不是修饰符——曾经写过 `init ctor := ...`，已废弃，解析器会专门拦下来报「构造器不用 init 修饰符，直接写 `init := () => { ... }`」。一个类最多一个构造器，没有按参数类型重载；要分派就在 `init` 里自己判断。
-- `type` 禁止创建类型，退化为元类型（`typeof` 结果、类型注解、类型值）。
+- `type` 既是元类型（`typeof` 结果、类型注解、类型值）也是建类的入口——因为它和 `class` 是同一个值。
 - 用户类会被 `RuntimeType.Define` 登记进 `AllTypes`,`Subtypes ()` 才反射得到它们
   (只登记用户类:模块类型 System/Ex 每个 Interpreter 都重建一份,登记只会累积)。
   `AllTypes` 是静态表,而一个进程里会跑多个 Interpreter,所以**每个 Interpreter 构造时
@@ -173,7 +173,7 @@ Object (parent=self)
   `Subtypes ()` 里(测试之间就会互相看见,类型树快照这类用例直接失效)。
 - **`C := class {...}` 建的类型没有名字**（只有 `::=` 会命名）。显示和报错时走 `RuntimeType.DisplayName`，空名字退化成 `class`——否则错误信息会变成「类型 '' 不支持运算符」这种没法读的东西。`Type.name` / `typeof c` 的显示 / `print obj` 都取它。
 - 内置类型是 C# 硬编码（元类 `type`），实例是 C# record。
-- **元类 = 创建者**：`Type` 自指；`Class` 的元类是 `Type`；`class` 建的类元类是 `Class`；用户元类 M 建的类元类是 M。
+- **元类 = 创建者**：`Type` 自指；`class` 建的类元类是 `Type`（没有 `Class` 类型了——`class` 是 `type` 的别名，建类挂在 `Type.Initializer` 上）；用户元类 M 建的类元类是 M。
 - **继承是平铺的**：子类实例化时沿 `RuntimeType.Parent` 链从顶祖先到自身依次跑**每层类体**，所有层的字段落在**同一个 instance scope**里，所以字段查找只需一层（`Scope.LookupField` 不走链、不走词法链）。
 - 类实例化（`StepClassInit` 控制帧，阶段由 `Count` 推进）：建 instance scope → 打包 `ObjectVal` 并绑 `this`（`ClassType` = 最终子类，在第一个类体执行**之前**）→ 逐层跑类体 → **在实例作用域里按名字 `init` 找构造器**。各层平铺在同一个 scope，子类的 `init` 覆盖父类的，所以取到的天然是「最具体层声明的那个」；子类没写就落回父类的，整条链都没有才报错。
 - **父类的 init 不会自动调用**，初始值要写在字段声明上（`a: int = 1`）；父类 init 里写的赋值不生效。子类重声明同名字段是覆盖。

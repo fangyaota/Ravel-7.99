@@ -11,7 +11,14 @@
 > - **`base.init` 已删除**(元类创建类的唯一手段,一并没了;117-122 保持 todo)。
 >   子类 init 里的 `base = 父类()` 也已移除——继承改成了平铺。
 > - **构造器靠名字识别**:类体里写 `init := () => {...}`,`init` 是变量名不是修饰符。
-> - **元类 = 创建者**这条仍然成立(`Type` 自指、`Class` 的元类是 `Type`、`class` 建的类元类是 `Class`)。
+> - **元类 = 创建者**这条仍然成立,但**没有 `Class` 类型了**:`class` 就是 `type` 的别名
+>   (`predefined.rav` 里 `class := System.Type`),两者是同一个值。用户类直接挂在 `Type` 下,
+>   `typeof Person` 和 `typeof int` 都是 `Type`;建类挂在 `Type.Initializer` 上。
+>   本文里 `Class <: Type`、`X.Metaclass = Class`、`Class [Type]` 这些说法都按此理解——
+>   把 `Class` 读成 `Type` 即可,另见 `CONTEXT.md`「类型创建（class / type）」。
+> - **「`type` 的构造器角色」当初被否掉的理由已不成立**。背景那节说「曾考虑 `type` 创建类型
+>   但否定了」,理由是要给 `class` 和 `type` 划清界限。现在界限取消了:`type { ... }` 就是建类,
+>   和 `class { ... }` 一回事。内置类型仍走各自 `Initializer`(转换器),这条没变。
 
 ## 背景
 

@@ -44,7 +44,6 @@ public partial class RuntimeType
     public static readonly RuntimeType BigFraction;
 
     // 引用类型分支（可变/有行为）
-    public static readonly RuntimeType Class;
     public static readonly RuntimeType Function;
     public static readonly RuntimeType Block;
     public static readonly RuntimeType List;
@@ -54,7 +53,8 @@ public partial class RuntimeType
     // void — 唯一值 ()
     public static readonly RuntimeType Void;
 
-    // 元类型 — 所有类型的类型
+    // 元类型 — 所有类型的类型。用户类也是它:没有单独的 Class 类型了,
+    // `class` 只是 `type` 的别名(predefined.rav 里 alias 过来),建类由 Type.Initializer 负责。
     public static readonly RuntimeType Type;
 
     // 底类型 — 不在继承树中，IsAssignableTo 全局特判
@@ -86,7 +86,6 @@ public partial class RuntimeType
 
         // 分支
         ValueType = new RuntimeType("ValueType", Object);
-        Class = new RuntimeType("Class", Object);
 
         // 值类型 —— Bool 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
         Int = new RuntimeType("Integer", ValueType);
@@ -106,9 +105,9 @@ public partial class RuntimeType
         // void
         Void = new RuntimeType("Void", Object);
 
-        // 元类型
-        Type = new RuntimeType("Type", Function); // type 是函数，可作为构造器
-        Class.Parent = Type; // class <: type <: function <: object
+        // 元类型 —— 它同时是可调用的构造器(建类,见 RegisterInitializers)。
+        // 用户类直接挂在这下面,不再有中间的 Class 一层:`typeof Person` 和 `typeof int` 都是 Type。
+        Type = new RuntimeType("Type", Function);
 
         // 底类型
         Ravel = new RuntimeType("Ravel", Object);
@@ -133,7 +132,7 @@ public partial class RuntimeType
         foreach (var t in new[]
                  {
                      Object, ValueType, Int, Float, Bool, String, BigInt,
-                     Fraction, BigFraction, Class, Function, Block,
+                     Fraction, BigFraction, Function, Block,
                      List, Set, Dict, Void, Type,
                      Ravel, Any, Every, Exception, ScopeType, Property
                  })

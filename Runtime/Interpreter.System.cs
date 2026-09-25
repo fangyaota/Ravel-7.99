@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>内置注册:建 System 模块,填入类型别名、控制内建和核心函数。
 /// 加一个内置 = 在对应分组里加一行(DefType/DefFn/DefControl/Def)。</summary>
@@ -37,7 +37,6 @@ public partial class Interpreter
         DefType("Object", RuntimeType.Object);
         DefType("Function", RuntimeType.Function);
         DefType("Void", RuntimeType.Void);
-        DefType("Class", RuntimeType.Class);
         DefType("Type", RuntimeType.Type);
         DefType("ValueTypeVal", RuntimeType.ValueType);
         DefType("AnyType", RuntimeType.Any);
