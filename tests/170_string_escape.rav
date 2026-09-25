@@ -1,0 +1,15 @@
+# 字符串转义。以前 lexer 只找下一个引号,所以字符串里根本放不进 `"`,
+# `"say \"hi\""` 会被当成两个串,再报「未预期的字符」。
+# 不认识的转义原样保留(含反斜杠),免得把 Windows 路径这类文本吃掉。
+print ("say \"hi\"")
+print ("tab:\tend")
+print ("line1\nline2")
+print ("back\\slash")
+print ("stays:\dz")
+# --- expected ---
+# say "hi"
+# tab:	end
+# line1
+# line2
+# back\slash
+# stays:\dz

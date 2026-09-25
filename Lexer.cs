@@ -180,25 +180,40 @@ public class Lexer(string source)
     {
         int line = _line, col = _col;
         Advance(); // skip "
-        int start = _pos;
+        var sb = new System.Text.StringBuilder();
         while (_pos < source.Length && source[_pos] != '"')
         {
-            if (source[_pos] == '\n')
+            char c = source[_pos];
+            if (c == '\\' && _pos + 1 < source.Length)
             {
-                _line++;
-                _col = 1;
+                // 转义。以前只找下一个引号,于是字符串里根本放不进 `"`——
+                // `"say \"hi\""` 会被当成两个串,再报「未预期的字符」。
+                _pos++;
+                _col++;
+                var esc = source[_pos];
+                sb.Append(esc switch
+                {
+                    'n' => "\n",
+                    't' => "\t",
+                    'r' => "\r",
+                    '\\' => "\\",
+                    '"' => "\"",
+                    // 不认识的转义原样保留,免得把已有文本里的反斜杠吃掉
+                    _ => "\\" + esc,
+                });
             }
             else
             {
-                _col++;
+                if (c == '\n') { _line++; _col = 1; }
+                else _col++;
+                sb.Append(c);
             }
 
             _pos++;
         }
 
-        string str = source[start.._pos];
         if (_pos < source.Length) Advance(); // skip closing "
-        return new Token(TokenType.String, str, line, col);
+        return new Token(TokenType.String, sb.ToString(), line, col);
     }
 
     private Token ReadIdentifier()
