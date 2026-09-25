@@ -138,7 +138,8 @@ public partial class Interpreter
     /// `0 - bigint` 会撞上「运算符 '-' 不支持 BigInt 操作数」。</summary>
     private static RuntimeValue Negate(RuntimeValue v) => v switch
     {
-        IntVal i => new IntVal(-i.Value),
+        // -int.MinValue 翻不过来(2147483648 装不下),别静默回绕成它自己
+        IntVal i => RuntimeType.Narrow(-(long)i.Value, $"-({i.Value})"),
         FloatVal f => new FloatVal(-f.Value),
         BigIntVal b => new BigIntVal(-b.Value),
         FractionVal fr => new FractionVal(-fr.Num, fr.Den),

@@ -31,20 +31,31 @@ public partial class RuntimeType
         };
     }
 
+    /// <summary>把 int 运算的中间结果(l长期算的)收窄回 int32,超出就报错。
+    ///
+    /// 不检查的话 C# 的 unchecked 会**静默回绕**:`100000 * 100000` 得 1410065408、
+    /// `2147483647 + 1` 得 -2147483648 —— 「算出来了但是错的」比直接崩难查得多。
+    /// int 是 32 位的类型,装不下就该说;要更宽就写 bigint,消息里明说。</summary>
+    internal static IntVal Narrow(long r, string what)
+        => r >= int.MinValue && r <= int.MaxValue
+            ? new IntVal((int)r)
+            : throw new RuntimeException($"{what} 超出 int 范围（int 是 32 位，大数用 bigint）");
+
     private static void RegisterOperators()
     {
-        // int 运算符 —— 右操作数按"宽度"升级:float > bigint > int
+        // int 运算符 —— 右操作数按"宽度"升级:float > bigint > int。
+        // int×int 一律在 long 里算再收窄,免得 unchecked 静默回绕见 Narrow
         DefineOp(Int, "+", (a, b) => IntOp(a, b, "+",
-            (x, y) => new IntVal(x + y), (x, y) => new FloatVal(x + y), (x, y) => new BigIntVal(x + y)));
+            (x, y) => Narrow((long)x + y, $"{x} + {y}"), (x, y) => new FloatVal(x + y), (x, y) => new BigIntVal(x + y)));
         DefineOp(Int, "-", (a, b) => IntOp(a, b, "-",
-            (x, y) => new IntVal(x - y), (x, y) => new FloatVal(x - y), (x, y) => new BigIntVal(x - y)));
+            (x, y) => Narrow((long)x - y, $"{x} - {y}"), (x, y) => new FloatVal(x - y), (x, y) => new BigIntVal(x - y)));
         DefineOp(Int, "*", (a, b) => IntOp(a, b, "*",
-            (x, y) => new IntVal(x * y), (x, y) => new FloatVal(x * y), (x, y) => new BigIntVal(x * y)));
+            (x, y) => Narrow((long)x * y, $"{x} * {y}"), (x, y) => new FloatVal(x * y), (x, y) => new BigIntVal(x * y)));
         DefineOp(Int, "/", (a, b) => IntOp(a, b, "/",
-            (x, y) => new IntVal(x / NonZero(y, "/")), (x, y) => new FloatVal(x / y),
+            (x, y) => Narrow((long)x / NonZero(y, "/"), $"{x} / {y}"), (x, y) => new FloatVal(x / y),
             (x, y) => new BigIntVal(x / NonZero(y, "/"))));
         DefineOp(Int, "%", (a, b) => IntOp(a, b, "%",
-            (x, y) => new IntVal(x % NonZero(y, "%")), (x, y) => new FloatVal(x % y),
+            (x, y) => Narrow((long)x % NonZero(y, "%"), $"{x} % {y}"), (x, y) => new FloatVal(x % y),
             (x, y) => new BigIntVal(x % NonZero(y, "%"))));
 
         // float 运算符

@@ -99,6 +99,13 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 
 后缀 `bigint` 是**构造器**（`bigint 123` 把值转成 BigInt），和字面量的类型推断是两回事。
 
+**int 算术溢出报错,不静默回绕**（`Narrow`）：`int × int` 一律在 `long` 里算再收窄，
+超出 int32 就报「`100000 * 100000` 超出 int 范围（int 是 32 位，大数用 bigint）」。
+不检查的话 C# 的 unchecked 会让 `100000 * 100000` 得 1410065408、
+`2147483647 + 1` 得 -2147483648——「算出来了但是错的」比崩溃难查得多。
+一元 `-` 同理（`-int.MinValue` 翻不过来）。要更宽就写 `bigint`：
+一边是 bigint 时按宽度升级,根本不进 int 那条路。
+
 一元 `-` 按数值类型逐个翻转（`Negate`），不走 `0 - x`——Int 的 `-` 只认 Float 右操作数。
 Int 与右操作数的二元运算按宽度升级（`IntOp`）：`float > bigint > int`，
 所以 `1 + bigint 2` 和 `bigint 2 + 1` 都得到 BigInt。
