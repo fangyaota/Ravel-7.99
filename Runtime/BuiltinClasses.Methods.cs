@@ -42,6 +42,10 @@ internal static partial class BuiltinClasses
                 // 函数/类对象"拷"出来只会变成一个不可调用的普通对象 —— 原样交回。
                 // 排在 ObjectVal 之前:FunctionVal 现在也是 ObjectVal。
                 case FunctionVal v: return v;
+                // 模块/属性/作用域值也原样交回(理由同 StepWith);它们现在也是 ObjectVal
+                case ModuleVal v: return v;
+                case PropertyVal v: return v;
+                case ScopeVal v: return v;
                 case ObjectVal v: return CopyObject(v);
                 default: return s;
             }
@@ -266,7 +270,7 @@ internal static partial class BuiltinClasses
         Function.DefineMethod("setScope", (s, a) =>
         {
             if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
-            AsFunction(s, "setScope").CaptureScope = sv.Scope;
+            AsFunction(s, "setScope").CaptureScope = sv.Inner;
             return VoidVal.Instance;
         });
         Function.DefineMethod("prepend", (s, a) =>
@@ -285,14 +289,14 @@ internal static partial class BuiltinClasses
     {
         ScopeType.DefineMethod("Push", (s, _) =>
         {
-            var scope = ((ScopeVal)s).Scope;
+            var scope = ((ScopeVal)s).Inner;
             return new ScopeVal(scope.Push());
         });
         ScopeType.DefineMethod("Define", (s, a) =>
         {
             if (a is not StringVal name)
                 throw new RuntimeException("scope.Define 需要字符串名称");
-            var scope = ((ScopeVal)s).Scope;
+            var scope = ((ScopeVal)s).Inner;
             return FunctionVal.From(tv =>
             {
                 if (tv is not ObjectVal t)
@@ -305,7 +309,7 @@ internal static partial class BuiltinClasses
         {
             if (a is not StringVal name)
                 throw new RuntimeException("scope.Lookup 需要字符串参数");
-            var scope = ((ScopeVal)s).Scope;
+            var scope = ((ScopeVal)s).Inner;
             var vr = scope.Lookup(name.Value);
             return new PropertyVal(
                 FunctionVal.From(_ => vr.Value),
@@ -319,7 +323,7 @@ internal static partial class BuiltinClasses
         });
         ScopeType.DefineMethod("Variables", (s, _) =>
         {
-            var scope = ((ScopeVal)s).Scope;
+            var scope = ((ScopeVal)s).Inner;
             var d = new Dictionary<string, RuntimeValue>();
             foreach (var kv in scope.Variables)
             {

@@ -9,20 +9,23 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     /// <summary>若 value 的 name 成员是 by 属性,返回其 getter(已做访问控制);否则返回 null。调用方走 CallInto 派发</summary>
     public static FunctionVal? TryGetByGetter(Interpreter interp, RuntimeValue value, string name)
     {
-        if (value is ObjectVal obj)
-        {
-            var vr = obj.Scope.LookupField(name);
-            if (vr == null || !vr.HasAttr(Attr.By)) return null;
-            new BoxedValue(obj, interp).CheckObjectReadAccess(obj, vr, name);
-            return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
-        }
-
+        // 模块**必须**排在 ObjectVal 之前:模块的成员表就是 ModuleScope,两条分支会查同一张表,
+        // 但门禁不一样 —— 走对象那条会把模块的 private/protected 当成普通字段的访问控制,
+        // 而模块要的是"当前作用域能不能走到这个模块"(CheckModuleReadAccess)。
         if (value is ModuleVal mv)
         {
             if (!mv.ModuleScope.Contains(name)) return null;
             var vr = mv.ModuleScope.Lookup(name);
             if (!vr.HasAttr(Attr.By)) return null;
             new BoxedValue(mv, interp).CheckModuleReadAccess(mv, vr, name);
+            return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
+        }
+
+        if (value is ObjectVal obj)
+        {
+            var vr = obj.Scope.LookupField(name);
+            if (vr == null || !vr.HasAttr(Attr.By)) return null;
+            new BoxedValue(obj, interp).CheckObjectReadAccess(obj, vr, name);
             return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
         }
 

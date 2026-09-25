@@ -41,6 +41,10 @@ public partial class Interpreter
                 SetVal sv => new SetVal([.. sv.Elements], BuiltinClasses.CopyScope(sv.Scope)),
                 DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries),
                     BuiltinClasses.CopyScope(dv.Scope)),
+                // 这三个今天也是"原样返回"(块跑在自己的捕获作用域里),不能让
+                // ObjectVal 那条臂把它们拷成一个普通对象 —— 那样模块就不再是模块了
+                // (`EnterModule`/`_modules` 靠 `as ModuleVal` 认它)。
+                ModuleVal or PropertyVal or ScopeVal => obj,
                 ObjectVal ov => BuiltinClasses.CopyObject(ov),
                 _ => obj
             };
