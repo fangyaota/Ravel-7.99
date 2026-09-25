@@ -3,6 +3,15 @@
 - **状态**: Accepted（已实现，测试全绿）
 - **日期**: 2026-08-14
 
+> ⚠️ **本文件记录的是当时的决策，部分细节已被后续重构取代。** 仍准确的：帧链/显式栈/`RList`/
+> `StepOnce` 循环、以及「控制内建 = 纯数据」的思路。已经不成立的：
+> - **§3 的 `Trampolined(arg) 拿值`** —— 那个 API 现在叫 `Body(arg)`；`Step`/`Done` 整个删了。
+> - **§5 的单发/多发之分** —— callcc 已统一成一套语义（续延 = callcc 之后的剩余计算，
+>   调用即丢弃当前帧链、从捕获点继续），`CallccActive` 与「多发重跑局部 onDone」都已删除。
+>   详见 `CONTEXT.md` 的「控制流」。
+> - **`Interpreter.Stack.cs` 单文件** —— 已按职责拆成 Stack/Nodes/Call/Control/Modules 五个 partial。
+> - **末尾的测试计数** —— 现在按当前数字走，见 `CONTEXT.md`。
+
 ## 背景
 
 原求值器是 CPS trampoline：`Step`（Done/More/Escape/Error/CallCC）+ `Then`/`OrElse`/`Finally` 组合子 + `Step.Run` while 循环。压测发现**深度函数递归爆栈**（~4k 层即溢出）：`Then`/`Finally` 的延迟闭包链在 C# 栈上层层嵌套，没有真正被 trampoline 迭代。`while` 循环安全（每轮经 `ToMore` 延迟），但纯递归（经 lambda body 的 `ToMore` + 内部 `Then` 直连）会嵌套。
