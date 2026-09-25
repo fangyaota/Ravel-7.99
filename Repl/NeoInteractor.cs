@@ -239,11 +239,22 @@ public class NeoInteractor
                 }
             }
         }
+        catch (RuntimeException ex)
+        {
+            PrintError(ErrorReport.Format(ex));
+        }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+            PrintError(ex.Message);
         }
         Pause();
+    }
+
+    /// <summary>多行错误报告逐行上色——整串 EscapeMarkup 会把换行也吃掉</summary>
+    private static void PrintError(string report)
+    {
+        foreach (var line in report.Split('\n'))
+            AnsiConsole.MarkupLine($"[red]{line.EscapeMarkup()}[/]");
     }
 
     private void RunRepl()
@@ -263,9 +274,13 @@ public class NeoInteractor
 
             try
             {
-                var result = Global.Interpret(Parser.ParseSource(buffer));
+                var result = Global.Interpret(Parser.ParseSource(buffer, "<repl>"));
                 if (result is not VoidVal)
                     Console.WriteLine($"==> {result}");
+            }
+            catch (RuntimeException ex)
+            {
+                Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
             }
             catch (Exception ex)
             {

@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，46 passed / 0 failed / 7 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，49 passed / 0 failed / 7 todo。
 
 ## 编译运行
 
@@ -53,7 +53,7 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    53 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    56 个 golden test(普通 + expect-error + todo + fixture)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -243,6 +243,32 @@ ravel "M"
 using "file.rav"
 ```
 
+## 错误报告
+
+运行时错误带**位置**和 **Ravel 层调用栈**，跨文件也分得清：
+
+```
+Error: 未定义的变量 'nope'
+  --> lib/_errtest.rav:2:9
+  2 |     n + nope
+    |         ^
+  调用栈 (2 层):
+    在 lib/_errtest.rav:1:18
+    在 temp.ravel:1:1
+```
+
+- **抛出点只管给消息**：90 多处 `throw new RuntimeException("...")` 不用操心位置。
+  位置和栈由求值器在冒泡时补（`Interpreter.Stack.cs` 的 `StepOnce` → `Locate`）——
+  `catch (...) when (!ex.Located)` 保证只有**最内层**补，外层不覆盖成更外侧的位置。
+- **帧链就是调用栈**，沿 `Parent` 收集即可，这是显式帧栈架构白捡的好处。
+  只取 `BlockExecFrame`（每次块执行 = 一次调用），节点帧只是栈帧内部的步骤；
+  最多列 12 层（深递归时帧链可能有几十万层）。
+- **文件名挂在 `BlockExpr.Source` 上**（主文件 / `using` 的模块 / `eval` 片段），
+  节点本身只有行列。调用栈里每层用**块**的位置（≈ 函数定义处），
+  出错位置则精确到当前求值的节点。
+- 渲染在 `Runtime/ErrorReport.cs`：路径取相对 cwd、分隔符统一 `/`——报告短，
+  且让 `tests/152_error_report.rav` 能精确比对（不是 `# expect-error` 那样只看前缀）。
+
 ## 测试
 
-53 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 46 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+56 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 49 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。

@@ -4,7 +4,7 @@ using System.Linq;
 
 /// <summary>递归下降解析器,按优先级链逐层收窄(见 ParseExpression 起的各层)。
 /// `_` 占位符的消糖是独立的一趟 AST 改写,在 Parser.Holes.cs。</summary>
-public partial class Parser(List<Token> tokens)
+public partial class Parser(List<Token> tokens, string? source = null)
 {
     private int _pos;
 
@@ -14,11 +14,14 @@ public partial class Parser(List<Token> tokens)
     //  入口
     // ========================================
 
-    /// <summary>词法 + 语法一步到位(调用方不必重复 new Lexer/new Parser 两行)</summary>
-    public static Program ParseSource(string source) => new Parser(new Lexer(source).Tokenize()).Parse();
+    /// <summary>词法 + 语法一步到位(调用方不必重复 new Lexer/new Parser 两行)。
+    /// fileName 会挂到块上,求值器报错时用它指出是哪个文件。</summary>
+    public static Program ParseSource(string source, string? fileName = null)
+        => new Parser(new Lexer(source).Tokenize(), fileName).Parse();
 
     /// <summary>同上,但结果作为块(模块体 / eval 代码片段用)</summary>
-    public static BlockExpr ParseBlock(string source) => new(ParseSource(source).Statements);
+    public static BlockExpr ParseBlock(string source, string? fileName = null)
+        => new(ParseSource(source, fileName).Statements) { Source = fileName };
 
     public Program Parse()
     {
@@ -31,7 +34,7 @@ public partial class Parser(List<Token> tokens)
             statements.Add(ParseStatement());
         }
 
-        return new Program(statements);
+        return new Program(statements) { Source = source };
     }
 
     // ========================================
@@ -576,7 +579,7 @@ public partial class Parser(List<Token> tokens)
                     {
                         new ExpressionStatement(result) { Line = line, Column = col }
                     };
-                    var block = new BlockExpr(blockStmts) { Line = line, Column = col };
+                    var block = new BlockExpr(blockStmts) { Line = line, Column = col, Source = source };
                     result = new LambdaExpr(@params[i], block) { Line = line, Column = col };
                 }
             }
@@ -608,7 +611,7 @@ public partial class Parser(List<Token> tokens)
         if (HasNewlineBeforeClose(TokenType.RightBrace))
         {
             var block = ParseBlockStatements();
-            return new BlockExpr(block) { Line = line, Column = col };
+            return new BlockExpr(block) { Line = line, Column = col, Source = source };
         }
 
         // 单行无换行：检测是否为字典（IDENT : 模式）
@@ -690,7 +693,7 @@ public partial class Parser(List<Token> tokens)
         if (!HasNewlineBeforeClose(TokenType.RightBrace))
             throw ParseError($"{context} 需要代码块（用换行或分号分隔）");
         var stmts = ParseBlockStatements();
-        return new BlockExpr(stmts) { Line = line, Column = col };
+        return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }
 
     // ========================================

@@ -51,7 +51,7 @@ public partial class Interpreter
             var p = Path.Combine(d, "predefined.rav");
             if (File.Exists(p))
             {
-                RunStack(Parser.ParseSource(File.ReadAllText(p)));
+                RunStack(Parser.ParseSource(File.ReadAllText(p), p));
                 return;
             }
         }

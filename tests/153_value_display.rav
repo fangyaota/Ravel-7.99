@@ -1,0 +1,34 @@
+# 值和容器的打印形式
+
+# 对象:类名 + 数据字段。方法(含 init)和 this/base 这些机制字段不显示
+C := class { init := () => { 0; }; x: int = 1; s: string = "hi"; }
+c := C ()
+print c
+print ([c c])
+
+# 函数统一是 <function>; ::= 命名的带上名字。
+# 以前这些 record 会吐 C# 的自动 dump(System.Func`2[Ravel.Runtime...])
+print ((x: int) => { x; })
+add ::= (x: int) => { x; }
+print add
+
+# 自引用容器靠深度护栏收住——以前是直接爆 C# 栈,进程都没了
+loop := []
+loop.Add loop
+print loop
+
+# 深度以内的嵌套照常展开
+print ([[[1]]])
+
+# 字典/集合
+print ({a: 1 b: "x"})
+print ({1 2 3})
+# --- expected ---
+# class { x = 1, s = hi }
+# [class { x = 1, s = hi } class { x = 1, s = hi }]
+# <function>
+# <function add>
+# [[[...]]]
+# [[[1]]]
+# {a: 1 b: x}
+# {1 2 3}

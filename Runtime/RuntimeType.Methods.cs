@@ -4,8 +4,22 @@ using System.Linq;
 
 public partial class RuntimeType
 {
-    /// <summary>注册各内置类型的方法</summary>
+    /// <summary>注册各内置类型的方法(按类型分组,加方法时直接跳对应那块)</summary>
     private static void RegisterMethods()
+    {
+        RegisterObjectMethods();
+        RegisterIntMethods();
+        RegisterStringMethods();
+        RegisterListMethods();
+        RegisterSetMethods();
+        RegisterDictMethods();
+        RegisterTypeMethods();
+        RegisterFunctionMethods();
+        RegisterScopeMethods();
+        RegisterPropertyMethods();
+    }
+
+    private static void RegisterObjectMethods()
     {
         Object.DefineMethod("ToString", (s, _) => new StringVal(s.ToString()));
         Object.DefineMethod("Copy", (s, _) =>
@@ -51,8 +65,20 @@ public partial class RuntimeType
 
             return new ListVal(all);
         });
+    }
+
+    private static void RegisterIntMethods()
+    {
         Int.DefineMethod("ToString", (s, _) => new StringVal(((IntVal)s).Value.ToString()));
+    }
+
+    private static void RegisterStringMethods()
+    {
         String.DefineMethod("Length", (s, _) => new IntVal(((StringVal)s).Value.Length));
+    }
+
+    private static void RegisterListMethods()
+    {
         List.DefineMethod("Count", (s, _) => new IntVal(((ListVal)s).Elements.Count));
         List.DefineMethod("At", (s, a) =>
         {
@@ -99,8 +125,10 @@ public partial class RuntimeType
                 return VoidVal.Instance;
             });
         });
+    }
 
-        // ---- Set 方法 ----
+    private static void RegisterSetMethods()
+    {
         Set.DefineMethod("Count", (s, _) => new IntVal(((SetVal)s).Elements.Count));
         Set.DefineMethod("Add", (s, a) =>
         {
@@ -114,8 +142,10 @@ public partial class RuntimeType
         });
         Set.DefineMethod("Contains", (s, a) =>
             new BoolVal(((SetVal)s).Elements.Contains(a)));
+    }
 
-        // ---- Dict 方法 ----
+    private static void RegisterDictMethods()
+    {
         Dict.DefineMethod("Count", (s, _) => new IntVal(((DictVal)s).Entries.Count));
         Dict.DefineMethod("Get", (s, a) =>
         {
@@ -152,8 +182,10 @@ public partial class RuntimeType
                 vals.Add(v);
             return new ListVal(vals);
         });
+    }
 
-        // type 类型方法
+    private static void RegisterTypeMethods()
+    {
         Type.DefineMethod("name", (s, _) => new StringVal(((TypeVal)s).Value.Name));
         Type.DefineMethod("Parent", (s, _) =>
         {
@@ -184,17 +216,6 @@ public partial class RuntimeType
                 })
             );
         });
-        Function.DefineMethod("Name", (s, a) =>
-        {
-            var fn = (FunctionVal)s;
-            if (a is StringVal sv)
-            {
-                fn.Name = sv.Value;
-                return VoidVal.Instance;
-            }
-
-            return new StringVal(fn.Name ?? "");
-        });
         Type.DefineMethod("Subtypes", (s, _) =>
         {
             var tv = (TypeVal)s;
@@ -207,8 +228,46 @@ public partial class RuntimeType
 
             return new ListVal(subs);
         });
+    }
 
-        // ---- Scope 方法 ----
+    private static void RegisterFunctionMethods()
+    {
+        Function.DefineMethod("Name", (s, a) =>
+        {
+            var fn = (FunctionVal)s;
+            if (a is StringVal sv)
+            {
+                fn.Name = sv.Value;
+                return VoidVal.Instance;
+            }
+
+            return new StringVal(fn.Name ?? "");
+        });
+        Function.DefineMethod("scope", (s, _) =>
+        {
+            var fn = (FunctionVal)s;
+            return new ScopeVal(fn.Scope ?? new Scope());
+        });
+        Function.DefineMethod("setScope", (s, a) =>
+        {
+            if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
+            ((FunctionVal)s).Scope = sv.Scope;
+            return VoidVal.Instance;
+        });
+        Function.DefineMethod("prepend", (s, a) =>
+        {
+            if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
+            return ((FunctionVal)s).Prepend(p);
+        });
+        Function.DefineMethod("append", (s, a) =>
+        {
+            if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
+            return ((FunctionVal)s).Append(p);
+        });
+    }
+
+    private static void RegisterScopeMethods()
+    {
         ScopeType.DefineMethod("Push", (s, _) =>
         {
             var scope = ((ScopeVal)s).Scope;
@@ -262,37 +321,16 @@ public partial class RuntimeType
 
             return new DictVal(d);
         });
+    }
 
-        // ---- Property 方法 ----
+    private static void RegisterPropertyMethods()
+    {
         Property.DefineMethod("Attrs", (s, _) =>
         {
             var pv = (PropertyVal)s;
             return pv.Attrs != null
                 ? new ListVal([.. pv.Attrs.Select(a => new StringVal(a))])
                 : new ListVal([]);
-        });
-
-        // ---- Function 方法 ----
-        Function.DefineMethod("scope", (s, _) =>
-        {
-            var fn = (FunctionVal)s;
-            return new ScopeVal(fn.Scope ?? new Scope());
-        });
-        Function.DefineMethod("setScope", (s, a) =>
-        {
-            if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
-            ((FunctionVal)s).Scope = sv.Scope;
-            return VoidVal.Instance;
-        });
-        Function.DefineMethod("prepend", (s, a) =>
-        {
-            if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
-            return ((FunctionVal)s).Prepend(p);
-        });
-        Function.DefineMethod("append", (s, a) =>
-        {
-            if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
-            return ((FunctionVal)s).Append(p);
         });
     }
 

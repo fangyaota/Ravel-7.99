@@ -55,10 +55,19 @@ public record DictEntry(string Key, Expression Value);
 public record DictLiteral(List<DictEntry> Entries) : Expression;
 public record VoidLiteral : Expression;
 public record HoleExpr(int Index) : Expression;
-public record BlockExpr(List<Statement> Statements) : Expression;
+public record BlockExpr(List<Statement> Statements) : Expression
+{
+    /// <summary>这个块来自哪个源文件(主文件 / using 的模块 / eval 的片段)。
+    /// 节点本身只有行列,文件名记在块上——求值器报错和拼调用栈时沿帧链取最近的一个。</summary>
+    public string? Source { get; init; }
+}
 
 // --- 辅助 ---
 public record Parameter(string Name, string TypeName);
 
 // --- 程序根 ---
-public record Program(List<Statement> Statements) : AstNode;
+public record Program(List<Statement> Statements) : AstNode
+{
+    /// <summary>入口源文件路径(报错时显示用)</summary>
+    public string? Source { get; init; }
+}

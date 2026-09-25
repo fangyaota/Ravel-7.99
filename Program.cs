@@ -24,7 +24,11 @@ static void RunFile(string path)
     Console.WriteLine("── Output ──");
     try
     {
-        new Interpreter().Interpret(Parser.ParseSource(source));
+        new Interpreter().Interpret(Parser.ParseSource(source, path));
+    }
+    catch (RuntimeException ex)
+    {
+        Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
     }
     catch (Exception ex)
     {

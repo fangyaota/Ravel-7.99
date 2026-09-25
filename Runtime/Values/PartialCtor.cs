@@ -5,4 +5,8 @@ namespace Ravel.Runtime;
 /// 这让构造器调用和普通函数一样柯里化:`Point 3 4` ≡ `((Point 3) 4)`。
 /// 注意同一个半成品被调用多次会作用在同一个对象的 scope 上。</summary>
 public sealed record PartialCtor(ObjectVal Target, FunctionVal Partial)
-    : FunctionVal(null!, (_, _) => VoidVal.Instance);
+    : FunctionVal(null!, (_, _) => VoidVal.Instance)
+{
+    /// <summary>盖掉 record 的自动 dump,用基类的 &lt;function&gt;</summary>
+    public override string ToString() => base.ToString();
+}

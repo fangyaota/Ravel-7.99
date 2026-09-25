@@ -1,0 +1,13 @@
+# 运行时错误报告:位置 + 源码行 + 插入符 + Ravel 层调用栈。
+# 这里做精确比对(而不是 expect-error 那样只看前缀),把格式锁住。
+# 路径取相对 cwd 且统一用 '/',所以期望是跨平台的。
+helper := (n: int) => { n + missing; }
+helper 1
+# --- expected ---
+# Error: 未定义的变量 'missing'
+#   --> tests/152_error_report.rav:4:29
+#   4 | helper := (n: int) => { n + missing; }
+#     |                             ^
+#   调用栈 (2 层):
+#     在 tests/152_error_report.rav:4:20
+#     在 tests/152_error_report.rav:1:1

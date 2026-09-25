@@ -6,7 +6,21 @@ public abstract record RuntimeValue
     public abstract RuntimeType Type { get; }
 }
 
-public class RuntimeException(string message) : Exception(message);
+/// <summary>Ravel 运行时错误。抛出点只管给消息——位置和调用栈由求值器在异常冒泡到
+/// `StepOnce` 时补上(见 <c>Interpreter.Locate</c>),所以 90 多处 throw 不用各自操心这些。</summary>
+public class RuntimeException(string message) : Exception(message)
+{
+    /// <summary>出错位置所在的源文件(沿帧链找到最近一个有 Source 的块)</summary>
+    public string? File { get; internal set; }
+    public int Line { get; internal set; }
+    public int Column { get; internal set; }
+
+    /// <summary>Ravel 层的调用栈,最近的在最前,形如 "file:line 在 <块 12:4> 里"</summary>
+    public IReadOnlyList<string> Trace { get; internal set; } = [];
+
+    /// <summary>已经补过位置了——内层 StepOnce 补完,外层就不会覆盖成更外侧的位置</summary>
+    internal bool Located => Line != 0;
+}
 
 /// <summary>参数类型不匹配(lambda 参数检查失败,供 | 交替 / 多 init 捕捉)</summary>
 public sealed class TypeMismatchException() : RuntimeException("类型不匹配");

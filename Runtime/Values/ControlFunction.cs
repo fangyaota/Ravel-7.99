@@ -14,4 +14,7 @@ public sealed record ControlFunction(ControlKind Kind, int Arity, RList<RuntimeV
 
     /// <summary>再来一个参数是否收满</summary>
     public bool IsFinalAfter(int incoming) => Args.Count + incoming >= Arity;
+
+    /// <summary>盖掉 record 的自动 dump,顺带带上还没收满的参数个数</summary>
+    public override string ToString() => $"<builtin {Kind} {Args.Count}/{Arity}>";
 }

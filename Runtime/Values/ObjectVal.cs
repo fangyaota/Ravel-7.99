@@ -2,6 +2,36 @@ namespace Ravel.Runtime;
 
 public record ObjectVal(RuntimeType ClassType, Scope Scope) : RuntimeValue
 {
+    /// <summary>最多列几个字段,超出用 ... 收尾</summary>
+    private const int MaxFields = 8;
+
     public override RuntimeType Type => ClassType;
-    public override string ToString() => $"<{ClassType.Name}>";
+
+    /// <summary>`C { x = 1, s = "hi" }`。`:=` 定义的类没有名字(只有 `::=` 命名),那时用 `class`。</summary>
+    public override string ToString()
+    {
+        var name = ClassType.Name.Length > 0 ? ClassType.Name : "class";
+        var fields = new List<string>();
+        foreach (var kv in Scope.Variables)
+        {
+            // 只列数据字段:方法(含 init)是噪音,this/base 是机制内部的
+            if (kv.Value.Value is FunctionVal) continue;
+            if (kv.Key is "this" or "parent" or "base" or "thistype" or "block") continue;
+            if (fields.Count == MaxFields) { fields.Add("..."); break; }
+            fields.Add(kv.Key + " = " + Brief(kv.Value.Value));
+        }
+
+        return fields.Count == 0 ? name + " {}" : name + " { " + string.Join(", ", fields) + " }";
+    }
+
+    /// <summary>字段值的短形式:嵌套的对象/集合不再展开。列表本身就展开元素,
+    /// 这里跟着展开的话,`a.Add a` 这种自引用会直接把栈打爆。</summary>
+    private static string Brief(RuntimeValue v) => v switch
+    {
+        ObjectVal o => (o.ClassType.Name.Length > 0 ? o.ClassType.Name : "class") + " {...}",
+        ListVal l => "[" + l.Elements.Count + " 项]",
+        SetVal s => "{" + s.Elements.Count + " 项}",
+        DictVal d => "{" + d.Entries.Count + " 项}",
+        _ => v.ToString() ?? "()",
+    };
 }

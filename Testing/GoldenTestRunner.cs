@@ -24,7 +24,7 @@ internal static class GoldenTestRunner
             var test = Parse(File.ReadAllText(file));
             Console.Write($"{Path.GetFileName(file),-35} ");
 
-            var output = CaptureOutput(test.Source);
+            var output = CaptureOutput(test.Source, file);
             if (IsPassing(test, output))
             {
                 Console.WriteLine(test.ExpectError ? "OK (expected error)" : "OK");
@@ -61,15 +61,19 @@ internal static class GoldenTestRunner
 
     private static string Flatten(string s) => s.Trim().Replace("\n", "\\n");
 
-    /// <summary>执行源码,捕获 stdout;异常按 CLI 的约定渲染成 "Error: 消息"</summary>
-    private static string CaptureOutput(string source)
+    /// <summary>执行源码,捕获 stdout;异常按 CLI 的约定渲染成 "Error: ..."(运行时错误带位置和调用栈)</summary>
+    private static string CaptureOutput(string source, string? file = null)
     {
         var oldOut = Console.Out;
         var sw = new StringWriter();
         Console.SetOut(sw);
         try
         {
-            new Interpreter().Interpret(Parser.ParseSource(source));
+            new Interpreter().Interpret(Parser.ParseSource(source, file));
+        }
+        catch (RuntimeException ex)
+        {
+            return "Error: " + ErrorReport.Format(ex);
         }
         catch (Exception ex)
         {

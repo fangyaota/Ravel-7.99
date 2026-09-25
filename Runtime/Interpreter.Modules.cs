@@ -34,7 +34,7 @@ public partial class Interpreter
         _loading.Push(full);
         try
         {
-            return Parser.ParseBlock(File.ReadAllText(full));
+            return Parser.ParseBlock(File.ReadAllText(full), full);
         }
         finally
         {
