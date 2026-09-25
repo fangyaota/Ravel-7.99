@@ -72,17 +72,22 @@ public partial class Interpreter
         // ---- 反射 / 作用域 ----
         DefFn("TypeOf", FunctionVal.From(a => new TypeVal(a.Type)));
         DefFn("currentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
+        // 标记**当前**作用域:core 检查沿作用域链往上找标记,所以函数返回后标记自然失效
         DefFn("unsafe", FunctionVal.From(_ =>
         {
-            UnsafeDepth++;
+            UnsafeScopes.Add(CurrentScope);
             return VoidVal.Instance;
         }));
 
         // ---- 其他核心函数 ----
         DefFn("RandInt", FunctionVal.From((lo, hi) =>
         {
-            if (lo is not IntVal l) throw new RuntimeException("randint 需要 int 参数(最小值)");
-            if (hi is not IntVal h) throw new RuntimeException("randint 需要 int 参数(最大值)");
+            if (lo is not IntVal l) throw new RuntimeException($"randint 的最小值需要 int，得到 {lo.Type}");
+            if (hi is not IntVal h) throw new RuntimeException($"randint 的最大值需要 int，得到 {hi.Type}");
+            // Random.Next 在 min > max 时抛 ArgumentOutOfRangeException——那是 C# 异常,
+            // 会绕过 Ravel 层的 try 一路漏到顶层把程序打掉,所以自己先拦
+            if (l.Value > h.Value)
+                throw new RuntimeException($"randint 的最小值 {l.Value} 不能大于最大值 {h.Value}");
             return new IntVal(Random.Shared.Next(l.Value, h.Value));
         }));
         DefFn("property", FunctionVal.From((g, s) =>

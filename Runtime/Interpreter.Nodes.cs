@@ -259,7 +259,7 @@ public partial class Interpreter
         var field = nf.Scope.LookupVar(a.Name);
         if (field != null)
         {
-            if (field.HasAttr(Attr.Core) && UnsafeDepth == 0)
+            if (field.HasAttr(Attr.Core) && !IsUnsafe)
                 throw new RuntimeException($"字段 '{a.Name}' 是核心字段，需要 unsafe");
             if (field.HasAttr(Attr.By))
             {

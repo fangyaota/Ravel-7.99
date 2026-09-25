@@ -42,7 +42,26 @@ public partial class Interpreter
     private readonly Dictionary<string, ModuleVal> _modules = [];
     private readonly HashSet<string> _loaded = [];
     private readonly Stack<string> _loading = new();
-    internal int UnsafeDepth;
+    /// <summary>`unsafe ()` 标记过的作用域。core 字段只在「当前作用域往上走得到某个被标记的作用域」
+    /// 时才放行。
+    ///
+    /// 从前这里是个只增不减的计数器(`UnsafeDepth++`,没有对应的 --),于是**任何一次**
+    /// `unsafe ()` 之后整个程序余下的 core 检查全关掉:在某个无关函数里调一次
+    /// ——哪怕它早就返回了——外部就能直接读核心字段,core 修饰符等于不存在。
+    /// 按作用域标记才对得上「读写之前先 `unsafe ()`」这个用法:标记随调用帧走,
+    /// 函数返回后自然失效。</summary>
+    internal readonly HashSet<Scope> UnsafeScopes = [];
+
+    /// <summary>当前作用域是否在被 `unsafe ()` 标记的范围内</summary>
+    internal bool IsUnsafe
+    {
+        get
+        {
+            for (var s = CurrentScope; s != null; s = s.Parent)
+                if (UnsafeScopes.Contains(s)) return true;
+            return false;
+        }
+    }
 
     /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）</summary>
     private void LoadPredefined()

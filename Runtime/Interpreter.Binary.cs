@@ -201,7 +201,7 @@ public partial class Interpreter
     /// <summary>成员写入前的门禁:core 需要 unsafe,private/protected 看访问控制。</summary>
     private void CheckMemberAccess(Variable field, ObjectVal obj, string member)
     {
-        if (field.HasAttr(Attr.Core) && UnsafeDepth == 0)
+        if (field.HasAttr(Attr.Core) && !IsUnsafe)
             throw new RuntimeException($"字段 '{member}' 是核心字段，需要 unsafe");
         if (!CheckFieldAccess(field, obj))
             throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}");
