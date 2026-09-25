@@ -1,7 +1,7 @@
 # ===== 文件系统 =====
 
 Node := class {
-    init ctor := () => {
+    init := () => {
         this.name = ""
         this.size = 0
     }
@@ -13,8 +13,7 @@ Node := class {
 }
 
 File := class Node {
-    init ctor := () => {
-        base = Node ()
+    init := () => {
         content = ""
     }
     content: string = ""
@@ -30,8 +29,7 @@ File := class Node {
 }
 
 Folder := class Node {
-    init ctor := () => {
-        base = Node ()
+    init := () => {
         children = []
     }
     children: list = []

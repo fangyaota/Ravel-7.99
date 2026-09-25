@@ -8,7 +8,7 @@ f.setType object
 print (typeof f)
 
 # setScope
-C := class { init ctor := () => { 0; }; x: int = 99; }
+C := class { init := () => { 0; }; x: int = 99; }
 g := () => { x; }
 proto := C.Proto ()
 g.setScope proto

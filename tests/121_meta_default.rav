@@ -1,13 +1,13 @@
 # todo
 # metaclass: 添加默认方法
 HasDefaults ::= class class {
-    init ctor := (parent: type block: function) => {
+    init := (parent: type block: function) => {
         c := base.init parent block
         c
     }
 }
 Person ::= HasDefaults {
-    init ctor := () => { name = "?"; age = 0; }
+    init := () => { name = "?"; age = 0; }
     name: string = ""
     age: int = 0
 }

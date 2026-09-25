@@ -1,14 +1,16 @@
-using Ravel;
+namespace Ravel.Repl;
+
 using Ravel.Runtime;
 
 using Spectre.Console;
 
 using System.Text;
-using System.Text.Json;
 
+/// <summary>REPL 外壳:多页编辑缓冲 + 光标 + 主菜单(编辑/运行/读写文件/普通 REPL)。
+/// 视图渲染在 <see cref="ReplView"/>,会话持久化在 <see cref="ReplSession"/>。</summary>
 public class NeoInteractor
 {
-    public List<List<string>> Paras { get; set; } = new();
+    public List<List<string>> Paras { get; set; }
     public List<string> Lines
     {
         get => Paras[Cursor_z];
@@ -27,39 +29,10 @@ public class NeoInteractor
     public bool OutPut { get; set; } = true;
     public Interpreter Global { get; }
 
-    private static readonly string SessionPath = "repl_session.json";
-
     public NeoInteractor(Interpreter global)
     {
         Global = global;
-        Paras.Add(new());
-        LoadSession();
-    }
-
-    private void LoadSession()
-    {
-        if (!File.Exists(SessionPath)) return;
-        try
-        {
-            Paras = JsonSerializer.Deserialize<List<List<string>>>(File.ReadAllText(SessionPath)) ?? [];
-        }
-        catch
-        {
-            Paras = [];
-        }
-        if (Paras.Count == 0) Paras.Add(new());
-    }
-
-    private void SaveSession()
-    {
-        try
-        {
-            File.WriteAllText(SessionPath, JsonSerializer.Serialize(Paras));
-        }
-        catch
-        {
-            // 忽略保存失败
-        }
+        Paras = ReplSession.Load();
     }
 
     public void Run()
@@ -70,84 +43,12 @@ public class NeoInteractor
 
     public string GetText() => string.Join('\n', Lines);
 
+    /// <summary>重算第 index 行的渲染缓存(高亮 + 光标)</summary>
     public void FlushRenderedLine(int index)
     {
-        if (index >= Lines.Count)
-        {
-            return;
-        }
-
-        StringBuilder sb = new();
-        sb.Append($"[blue]{index.ToString().PadLeft(3)}|[/] ");
-
-        string the_line = Lines[index];
-
-        List<Token> tokens;
-        try
-        {
-            tokens = new Lexer(the_line).Tokenize();
-        }
-        catch (Exception)
-        {
-            // 输入中遇到未识别字符,词法未完成:不高亮,原样显示
-            sb.Append(the_line.EscapeMarkup());
-            if (Cursor_y == index && Cursor_x == the_line.Length)
-                sb.Append("[underline red] [/]");
-            sb.AppendLine();
-            RenderedLines[index] = sb.ToString();
-            return;
-        }
-
-        int pos = 0;
-        foreach (var tok in tokens)
-        {
-            if (tok.Type == TokenType.EndOfFile || tok.Type == TokenType.Newline)
-                continue;
-
-            int start = tok.Column - 1;
-            int end = start + tok.Lexeme.Length;
-            if (tok.Type == TokenType.String)
-                end += 2;
-            if (end > the_line.Length)
-                end = the_line.Length;
-
-            if (pos < start)
-                sb.Append(the_line[pos..start].EscapeMarkup());
-
-            string color = tok.Type switch
-            {
-                TokenType.String => "yellow",
-                TokenType.Number => "lime",
-                TokenType.Identifier => "cyan",
-                _ => "bold"
-            };
-            sb.Append($"[{color}]");
-
-            if (Cursor_y == index && start <= Cursor_x && Cursor_x < end)
-            {
-                sb.Append(the_line[start..Cursor_x].EscapeMarkup());
-                sb.Append("[underline red]");
-                sb.Append(the_line[Cursor_x].ToString().EscapeMarkup());
-                sb.Append("[/]");
-                sb.Append(the_line[(Cursor_x + 1)..end].EscapeMarkup());
-            }
-            else
-            {
-                sb.Append(the_line[start..end].EscapeMarkup());
-            }
-
-            sb.Append("[/]");
-            pos = end;
-        }
-
-        if (pos < the_line.Length)
-            sb.Append(the_line[pos..].EscapeMarkup());
-
-        if (Cursor_y == index && Cursor_x == the_line.Length)
-            sb.Append("[underline red] [/]");
-
-        sb.AppendLine();
-        RenderedLines[index] = sb.ToString();
+        if (index >= Lines.Count) return;
+        int? cursorX = Cursor_y == index ? Cursor_x : null;
+        RenderedLines[index] = ReplView.RenderRow(index, Lines[index], cursorX);
     }
 
     public void FlushRenderedLineAll()
@@ -300,7 +201,7 @@ public class NeoInteractor
 
     private void EvaluateExit()
     {
-        SaveSession();
+        ReplSession.Save(Paras);
         Environment.Exit(0);
     }
 
@@ -309,9 +210,7 @@ public class NeoInteractor
         string source = GetText();
         try
         {
-            var lexer = new Lexer(source);
-            var parser = new Parser(lexer.Tokenize());
-            var program = parser.Parse();
+            var program = Parser.ParseSource(source);
 
             var oldOut = Console.Out;
             var sw = new StringWriter();
@@ -364,10 +263,7 @@ public class NeoInteractor
 
             try
             {
-                var lexer = new Lexer(buffer);
-                var parser = new Parser(lexer.Tokenize());
-                var program = parser.Parse();
-                var result = Global.Interpret(program);
+                var result = Global.Interpret(Parser.ParseSource(buffer));
                 if (result is not VoidVal)
                     Console.WriteLine($"==> {result}");
             }

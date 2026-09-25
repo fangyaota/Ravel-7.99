@@ -1,6 +1,6 @@
-Node := class { init ctor := () => { 0; }; }
+Node := class { init := () => { 0; }; }
 Child := class Node {
-    init ctor := () => { base = Node (); }
+    init := () => { 0; }
     v: int = 42
     operator+ add := (x: int) => { v + x; }
 }

@@ -1,13 +1,13 @@
 A := class {
-    init ctor := () => { a = 1; }
-    a: int = 0
+    init := () => { 0; }
+    a: int = 1
 }
 B := class A {
-    init ctor := () => { base = A (); b = 2; }
-    b: int = 0
+    init := () => { 0; }
+    b: int = 2
 }
 C := class B {
-    init ctor := () => { base = B (); c = 3; }
+    init := () => { c = 3; }
     c: int = 0
 }
 obj := C ()

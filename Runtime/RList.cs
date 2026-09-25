@@ -4,8 +4,10 @@ namespace Ravel.Runtime;
 public sealed class RList<T>
 {
     public static readonly RList<T> Empty = new();
-    public readonly T Head;
-    public readonly RList<T> Tail;
+
+    // Empty 之外每次 Add 都会给 Head/Tail 赋值,只有空表这两个字段无意义
+    public readonly T Head = default!;
+    public readonly RList<T> Tail = null!;
     public readonly int Count;
 
     private RList()

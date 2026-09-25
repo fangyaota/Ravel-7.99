@@ -24,110 +24,105 @@ public partial class RuntimeType
     }
 
     /// <summary>包装转换函数为单参构造器</summary>
-    private static FunctionVal MakeCaster(Func<RuntimeValue, Step> cast)
-        => FunctionVal.FromTrampolined(cast);
+    private static FunctionVal MakeCaster(Func<RuntimeValue, RuntimeValue> cast)
+        => FunctionVal.From(cast);
 
     /// <summary>仅支持 default → 默认值的构造器（集合等不可直接构造的类型）</summary>
     private static FunctionVal MakeDefaultCaster(RuntimeType type)
         => MakeCaster(val => val is DefaultVal
-            ? new Done(ConvertDirect(type, val))
+            ? ConvertDirect(type, val)
             : throw new RuntimeException($"类型 {type.Name} 不能作为构造器调用"));
 
-    private static Step CastToInt(RuntimeValue val)
+    private static RuntimeValue CastToInt(RuntimeValue val)
     {
-        if (val is DefaultVal) return new Done(new IntVal(0));
-        if (val is IntVal i) return new Done(i);
+        if (val is DefaultVal) return new IntVal(0);
+        if (val is IntVal i) return i;
         if (val is StringVal s)
         {
-            if (int.TryParse(s.Value, out var n)) return new Done(new IntVal(n));
+            if (int.TryParse(s.Value, out var n)) return new IntVal(n);
             throw new RuntimeException("无法将字符串转换为 int");
         }
 
-        if (val is BoolVal b) return new Done(new IntVal(b.Value ? 1 : 0));
-        if (val is FloatVal f) return new Done(new IntVal((int)f.Value));
-        if (val is BigIntVal bi) return new Done(new IntVal((int)bi.Value));
-        if (val is FractionVal fr) return new Done(new IntVal(fr.Num / fr.Den));
-        if (val is BigFractionVal bfr) return new Done(new IntVal((int)(bfr.Num / bfr.Den)));
+        if (val is BoolVal b) return new IntVal(b.Value ? 1 : 0);
+        if (val is FloatVal f) return new IntVal((int)f.Value);
+        if (val is BigIntVal bi) return new IntVal((int)bi.Value);
+        if (val is FractionVal fr) return new IntVal(fr.Num / fr.Den);
+        if (val is BigFractionVal bfr) return new IntVal((int)(bfr.Num / bfr.Den));
         throw new RuntimeException($"无法将 {val.Type} 转换为 int");
     }
 
-    private static Step CastToFloat(RuntimeValue val)
+    private static RuntimeValue CastToFloat(RuntimeValue val)
     {
-        if (val is DefaultVal) return new Done(new FloatVal(0));
-        if (val is IntVal i) return new Done(new FloatVal(i.Value));
-        if (val is FloatVal f) return new Done(f);
+        if (val is DefaultVal) return new FloatVal(0);
+        if (val is IntVal i) return new FloatVal(i.Value);
+        if (val is FloatVal f) return f;
         if (val is StringVal s)
         {
-            if (double.TryParse(s.Value, out var n)) return new Done(new FloatVal(n));
+            if (double.TryParse(s.Value, out var n)) return new FloatVal(n);
             throw new RuntimeException("无法将字符串转换为 float");
         }
 
         throw new RuntimeException($"无法将 {val.Type} 转换为 float");
     }
 
-    private static Step CastToBool(RuntimeValue val)
-    {
-        if (val is DefaultVal) return new Done(new BoolVal(false));
-        return new Done(ConvertDirect(Bool, val));
-    }
+    private static RuntimeValue CastToBool(RuntimeValue val)
+        => val is DefaultVal ? new BoolVal(false) : ConvertDirect(Bool, val);
 
-    private static Step CastToString(RuntimeValue val)
-    {
-        if (val is DefaultVal) return new Done(new StringVal(""));
-        return new Done(ConvertDirect(String, val));
-    }
+    private static RuntimeValue CastToString(RuntimeValue val)
+        => val is DefaultVal ? new StringVal("") : ConvertDirect(String, val);
 
-    private static Step CastToBigInt(RuntimeValue val)
+    private static RuntimeValue CastToBigInt(RuntimeValue val)
     {
-        if (val is DefaultVal) return new Done(new BigIntVal(0));
-        if (val is IntVal i) return new Done(new BigIntVal(i.Value));
-        if (val is BigIntVal bi) return new Done(bi);
+        if (val is DefaultVal) return new BigIntVal(0);
+        if (val is IntVal i) return new BigIntVal(i.Value);
+        if (val is BigIntVal bi) return bi;
         if (val is StringVal s)
         {
-            if (System.Numerics.BigInteger.TryParse(s.Value, out var n)) return new Done(new BigIntVal(n));
+            if (System.Numerics.BigInteger.TryParse(s.Value, out var n)) return new BigIntVal(n);
             throw new RuntimeException("无法将字符串转换为 bigint");
         }
 
-        if (val is FloatVal f) return new Done(new BigIntVal((System.Numerics.BigInteger)f.Value));
+        if (val is FloatVal f) return new BigIntVal((System.Numerics.BigInteger)f.Value);
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigint");
     }
 
-    private static Step CastToFraction(RuntimeValue val)
+    private static RuntimeValue CastToFraction(RuntimeValue val)
     {
-        if (val is DefaultVal) return new Done(new FractionVal(0, 1));
+        if (val is DefaultVal) return new FractionVal(0, 1);
+        // int 当分子,再收一个 int 分母
         if (val is IntVal i)
-            return new Done(FunctionVal.FromTrampolined(d =>
+            return FunctionVal.From(d =>
                 d is IntVal dd
-                    ? new Done(new FractionVal(i.Value, dd.Value))
-                    : throw new RuntimeException("分数需要 int 分母")));
-        if (val is FractionVal f) return new Done(f);
+                    ? new FractionVal(i.Value, dd.Value)
+                    : throw new RuntimeException("分数需要 int 分母"));
+        if (val is FractionVal f) return f;
         if (val is StringVal s)
         {
             var p = s.Value.Split('/');
             if (p.Length == 2 && int.TryParse(p[0], out var n) && int.TryParse(p[1], out var d) && d != 0)
-                return new Done(new FractionVal(n, d));
+                return new FractionVal(n, d);
             throw new RuntimeException("无效的分数字符串");
         }
 
         throw new RuntimeException($"无法将 {val.Type} 转换为 fraction");
     }
 
-    private static Step CastToBigFraction(RuntimeValue val)
+    private static RuntimeValue CastToBigFraction(RuntimeValue val)
     {
-        if (val is DefaultVal) return new Done(new BigFractionVal(0, 1));
+        if (val is DefaultVal) return new BigFractionVal(0, 1);
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;
         if (val is IntVal || val is BigIntVal)
-            return new Done(FunctionVal.FromTrampolined(d =>
+            return FunctionVal.From(d =>
                 d is IntVal or BigIntVal
-                    ? new Done(new BigFractionVal(GetBi(val), GetBi(d)))
-                    : throw new RuntimeException("大分数需要整数分母")));
-        if (val is FractionVal fr) return new Done(new BigFractionVal(fr.Num, fr.Den));
-        if (val is BigFractionVal bf) return new Done(bf);
+                    ? new BigFractionVal(GetBi(val), GetBi(d))
+                    : throw new RuntimeException("大分数需要整数分母"));
+        if (val is FractionVal fr) return new BigFractionVal(fr.Num, fr.Den);
+        if (val is BigFractionVal bf) return bf;
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction");
     }
 
-    private static Step CastToException(RuntimeValue val)
-        => new Done(new ExceptionVal(val.ToString()));
+    private static RuntimeValue CastToException(RuntimeValue val)
+        => new ExceptionVal(val.ToString());
 
     /// <summary>同步类型转换（隐式转换用）：失败抛异常，仅支持安全转换</summary>
     internal static RuntimeValue ConvertDirect(RuntimeType target, RuntimeValue val)
@@ -144,7 +139,7 @@ public partial class RuntimeType
             if (target == BigInt) return new BigIntVal(0);
             if (target == Fraction) return new FractionVal(0, 1);
             if (target == BigFraction) return new BigFractionVal(0, 1);
-            if (target == Function) return FunctionVal.FromDirect(_ => VoidVal.Instance);
+            if (target == Function) return FunctionVal.From(_ => VoidVal.Instance);
             return val;
         }
 
@@ -166,15 +161,15 @@ public partial class RuntimeType
 
     /// <summary>class 构造器：class block（默认父类 object）或 class parent block（柯里化）</summary>
     private static FunctionVal MakeClassInitializer()
-        => FunctionVal.FromTrampolined(a =>
+        => FunctionVal.From(a =>
         {
             if (a is BlockVal block)
-                return new Done(CreateClass(Object, block));
+                return CreateClass(Object, block);
             if (a is TypeVal parent)
-                return new Done(FunctionVal.FromTrampolined(b =>
+                return FunctionVal.From(b =>
                     b is BlockVal bb
-                        ? new Done(CreateClass(parent.Value, bb))
-                        : throw new RuntimeException("class 需要代码块参数")));
+                        ? CreateClass(parent.Value, bb)
+                        : throw new RuntimeException("class 需要代码块参数"));
             throw new RuntimeException("class 参数必须是类型或代码块");
         });
 
@@ -190,51 +185,20 @@ public partial class RuntimeType
         return new TypeVal(newType);
     }
 
-    /// <summary>收集带 init 属性的构造器，用 | 组合（参数不匹配自动试下一个）</summary>
-    internal static FunctionVal? CollectInit(Scope scope)
+    /// <summary>沿 Parent 链收集各层类体，返回「顶祖先 → 自身」。Body == null 的层(内建类型)不入列且到此为止。
+    /// Parent/Body 创建后不可变,所以这是纯函数,可随帧推进反复调用。</summary>
+    internal static List<BlockVal> CollectBodies(RuntimeType type)
     {
-        FunctionVal? result = null;
-        foreach (var kv in scope.Variables)
+        var layers = new List<BlockVal>();
+        for (var t = type; ; t = t.Parent)
         {
-            if (!kv.Value.HasAttr("init") || kv.Value.Value is not FunctionVal fn)
-                continue;
-            if (result == null)
-            {
-                result = fn;
-            }
-            else
-            {
-                result = CombineInit(result, fn);
-            }
+            var body = t.Body;
+            if (body == null) break;
+            layers.Add(body);
+            if (t.Parent == t) break;
         }
-        return result;
-    }
 
-    /// <summary>函数交替组合：左类型不匹配则右 → Alternate 控制帧</summary>
-    private static FunctionVal CombineInit(FunctionVal left, FunctionVal right)
-        => new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(left).Add(right));
-
-    /// <summary>定义 base（by property）：getter 读 parent 字段，setter 存父类实例到 parent 字段（带 withDeep）</summary>
-    internal static void DefineBase(Scope scope, RuntimeType type)
-    {
-        var baseProp = new PropertyVal(
-            FunctionVal.FromTrampolined(_ =>
-            {
-                if (!scope.Contains("parent"))
-                    throw new RuntimeException("base 未定义");
-                return new Done(scope.Lookup("parent").Value);
-            }),
-            FunctionVal.FromTrampolined(v =>
-            {
-                if (v is not ObjectVal parentInstance || !parentInstance.ClassType.IsAssignableTo(type.Parent))
-                    throw new RuntimeException($"base 需要 {type.Parent} 类型的父类实例");
-                var parentVar = scope.DefineOrReplace("parent", Object, parentInstance);
-                parentVar.SetAttr("withDeep");
-                parentVar.SetAttr("core");
-                return new Done(VoidVal.Instance);
-            })
-        );
-        var baseVar = scope.Define("base", Property, baseProp);
-        baseVar.SetAttr("by");
+        layers.Reverse();
+        return layers;
     }
 }

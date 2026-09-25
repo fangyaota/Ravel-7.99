@@ -1,7 +1,7 @@
 # todo
 # metaclass：继承 class 的类型构造器
 MyMeta := class class {
-    init ctor := (parent: type block: function) => {
+    init := (parent: type block: function) => {
         base.init parent block
     }
 }
@@ -9,7 +9,7 @@ print (typeof MyMeta)
 
 # 用 MyMeta 创建类
 MyClass := MyMeta {
-    init ctor := () => { 0; }
+    init := () => { 0; }
     x: int = 42
 }
 c := MyClass ()

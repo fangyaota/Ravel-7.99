@@ -75,7 +75,10 @@ public override RuntimeType Type => Value.Metaclass;
 
 ### class 的 Initializer
 
-`class Parent { init ctor := (x) => {...} name: string = "" }` 执行时：
+> ⚠️ **本节描述的 `FieldShape` 方案从未落地。** 实际实现里 `RuntimeType` 上只有 `Body`/`Initializer`/`Metaclass`，
+> 类体是运行时按祖先链逐层执行的，不是先把字段收进 shape 再复制到实例。见下面「继承（平铺，无 base）」一节。
+
+`class Parent { init := (x) => {...} name: string = "" }` 执行时：
 
 1. 参数 `Parent`（TypeVal）+ `body`（BlockVal）。
 2. 压临时 Scope 跑 `body`——字段声明 `name: string = ""` 是普通 `VarDefinition`，落到临时 Scope。
@@ -88,11 +91,22 @@ public override RuntimeType Type => Value.Metaclass;
 
 ### 实例化统一路径
 
-`T args` / `A args` 都走 `TypeVal.Trampolined(args)` → `Value.Initializer`。type 产物用默认实例化器，class 产物用「建对象 + 跑 init」。`EvalCall` 无需分派。
+`T args` / `A args` 都走 `CallInto` → `TypeVal` 分支。内建类型的产物用 `RuntimeType.Initializer`（转换器），用户 class 的产物用 `ClassInit` 控制帧「建对象 + 跑类体 + 跑 init」。
 
-### 继承
+### 继承（平铺，无 base）
 
-`FieldShape` 子类叠加父类（`Dog.FieldShape = Animal.FieldShape ⊕ Dog.FieldShape`）；init 链走 `base.init()`（沿 `Parent` 的初始器）。
+> **本节已按当前实现重写。** 原文写的是 `FieldShape` 子类叠加 + `base.init()` 沿 Parent 调初始器——`FieldShape` 这个结构在代码里从未落地（`RuntimeType` 上只有 `Body`/`Initializer`/`Metaclass`），`base.init()` 也一度退化成 `base = 父类()` 的显式构造再被移除。下面是实际模型。
+
+继承是**平铺**的：实例化 `T` 时沿 `RuntimeType.Parent` 链从顶祖先到自身依次跑**每一层的类体**，所有层的字段落在**同一个 instance scope** 里。因此字段查找只需一层——`Scope.LookupField` 既不跳实例链也不走词法链。
+
+- 每个实例只有**一个** scope，没有「父类实例」这层间接（曾经的实例层 `parent` 字段链、`DefineBase`、`withDeep` 深拷贝都已删除）。
+- `this` 与 `ObjectVal` 在**第一个类体执行之前**就绑好，`ClassType` 是最终子类。
+- **父类的 init 不自动调用**：每层只跑类体，然后在实例作用域里按名字 `init` 找构造器。因为各层平铺在同一个 scope、子类的 `init` 覆盖父类的，所以取到的天然是「最具体层声明的那个」；子类没写就落回父类的，整条链都没有才报错。初始值必须写在字段声明上。
+- **构造器靠名字识别**：类体里写 `init := () => {...}`，`init` 就是变量名（不再是修饰符，也不再自动生成 `init` 别名）。一个类最多一个构造器，没有按参数类型重载。
+- 子类重声明同名字段 = 覆盖（`DefineOrReplace`），祖先同类字段被替换。
+- `RuntimeType.Parent` 只剩两个用途：**收集类体**（`CollectBodies`）与类型层的 `IsAssignableTo` / 方法表查找。
+
+**没有 `base`。** 元类创建类的 `base.init parent block` 因此暂时没有实现手段，相关用例（117/118/121/122）保持 `# todo`。重启元类特性需要另立机制。
 
 ### class class 的两个角色
 

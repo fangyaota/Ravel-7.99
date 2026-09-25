@@ -14,7 +14,7 @@ print (f.name)
 g := f.append { print " there"; }
 g ()
 Point := class {
-    init ctor := () => { 0; }
+    init := () => { 0; }
     x: int = 0
     y: int = 0
 }
@@ -34,7 +34,7 @@ r := with p {
 }
 print (r.x)
 Point := class {
-    init ctor := () => { 0; }
+    init := () => { 0; }
     x: int = 0
     y: int = 0
 }
@@ -51,12 +51,11 @@ r := with p {
 }
 print (r.x)
 Animal := class {
-    init ctor := () => { 0; }
+    init := () => { 0; }
     name: string = ""
 }
 Dog := class Animal {
-    init ctor := () => {
-        base = Animal ()
+    init := () => {
         breed = ""
     }
     breed: string = ""
@@ -68,14 +67,14 @@ dog2 := with dog { name = "Max"; }
 print (dog.name)
 print (dog2.name)
 print (dog2.breed)
+# 一个类只有一个构造器,要按参数分派就在 init 里自己判断
 Multi := class {
-    init with_val := (v: int) => {
-        x = v
-        y = 0
-    }
-    init empty := () => {
+    init := (v: object) => {
         x = 0
         y = 0
+        if { typeof v == int; } {
+            x = int v
+        } { 0; }
     }
     x: int = 0
     y: int = 0

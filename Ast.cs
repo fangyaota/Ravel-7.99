@@ -16,7 +16,8 @@ public abstract record Statement : AstNode;
 public record VarDefinition(string Name, string? TypeAnnotation, Expression Value, List<string>? Attrs = null, bool Named = false) : Statement
 {
     public bool HasAttr(string a) => Attrs?.Contains(a) ?? false;
-    public bool IsInit => HasAttr("init");
+    /// <summary>构造器:靠名字识别(类体里写 `init := () => {...}`),不再用 init 修饰符</summary>
+    public bool IsInit => Name == "init";
     public bool IsOperator => Attrs?.Any(a => a.StartsWith("operator")) ?? false;
     public string? OperatorName => Attrs?.FirstOrDefault(a => a.StartsWith("operator"));
     public bool IsReadonly => HasAttr("readonly");

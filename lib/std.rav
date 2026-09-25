@@ -1,7 +1,7 @@
 # ── Ravel 标准库 ──
 
 Interface ::= class class {
-    init new := (parent: type block: function) => {
+    init := (parent: type block: function) => {
         base.init parent block
         this
     }

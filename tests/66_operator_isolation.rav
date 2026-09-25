@@ -1,5 +1,5 @@
 A := class {
-    init ctor := () => { this.n = 1; }
+    init := () => { this.n = 1; }
     n: int = 0
     operator+ add := (x: int) => { n + x; }
 }

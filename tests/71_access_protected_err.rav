@@ -1,6 +1,6 @@
 # expect-error
 Base := class {
-    init ctor := () => { 0; }
+    init := () => { 0; }
     protected val: int = 10
 }
 b := Base ()

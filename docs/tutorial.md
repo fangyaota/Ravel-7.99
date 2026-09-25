@@ -76,7 +76,6 @@ int.Parent ()          # ValueType  — 父类型
 int.Is ValueType       # true       — 子类型检查
 int.Is string          # false
 int.Subtypes ()        # [String BigInt ...]  — 所有子类型
-int.Metaclass ()       # Type       — 元类
 int.Default ()         # 0           — 默认值
 ```
 
@@ -355,7 +354,7 @@ d.Has "a"         # true
 
 ```ravel
 Person ::= class {
-    init ctor := () => {
+    init := () => {
         name = ""
         age = 0
     }
@@ -364,43 +363,86 @@ Person ::= class {
 }
 p := Person ()
 p.name = "Alice"
-print (p.Fields ())   # ["name" "age"]
+print (p.name)   # Alice
 ```
 
-`init` 是修饰符，`ctor` 是构造器名字。可以有多个构造器。
+构造器就是名字叫 `init` 的那个变量。一个类最多一个；类里不写就向上找父类的，
+整条继承链都没有则报「没有构造器」。写 `init ctor := ...`（旧写法）是语法错误。
 
-### 7.2 多构造器
+### 7.2 构造器与参数
 
 ```ravel
 Point ::= class {
-    init from_xy := (x: int y: int) => { this.x = x; this.y = y }
-    init from_val := (v: int) => { x = v; y = v }
-    init zero := () => { x = 0; y = 0 }
+    init := (x0: int y0: int) => {
+        x = x0
+        y = y0
+    }
     x: int = 0
     y: int = 0
 }
-a := Point 3 5     # 匹配 from_xy
-b := Point 10      # 匹配 from_val
-c := Point ()       # 匹配 zero
+p := Point 3 4          # 和普通函数一样柯里化：((Point 3) 4)
+print (p.x)             # 3
+
+half := Point 10        # 少参：拿到一个「还要参数的构造器」
+q := half 20            # 补上参数才得到对象
+print (q.x)             # 10
+print (q.y)             # 20
 ```
 
-按定义顺序从上往下匹配，参数个数/类型不匹配自动试下一个。
+构造器调用和普通函数走同一条柯里化路径：对象在第一次调用时就建好（类体已跑、`this` 已绑），
+`init` 每收到一个参数就往下走一层；`init` 还没应用完就返回一个「半成品构造器」，
+应用完了才把对象交出来。所以：
+
+- `Point 3 4` 一次写全 —— 正常用法
+- `half := Point 10` 再 `half 20` —— 也合法，等价于 `Point 10 20`
+- ⚠️ 同一个半成品被调用多次会作用在**同一个对象**上（它捕获的是第一次调用时建的那个对象），
+  要独立对象就写 `Point 10 1` 和 `Point 10 2`，而不是复用一个 `half`
+
+一个类只有一个构造器，**没有按参数类型重载**。若确实要按参数分派，在 `init` 里自己判断：
+
+```ravel
+Flex ::= class {
+    init := (v: object) => {
+        x = 0
+        if { typeof v == int; } { x = int v; } { 0; }
+    }
+    x: int = 0
+}
+```
 
 ### 7.3 继承
 
 ```ravel
 Animal ::= class {
-    init ctor := () => { name = "?" }
-    name: string = ""
+    init := () => { 0; }
+    name: string = "?"
 }
 Dog ::= class Animal {
-    init ctor := () => {
-        base.init ()
-        breed = ""
+    init := () => {
+        name = "dog"
+        breed = "husky"
     }
     breed: string = ""
 }
+d := Dog ()
+print (d.name)     # dog
+print (d.breed)    # husky
+print ((Animal ()).name)  # ?  —— 父类实例不受影响
 ```
+
+继承是**平铺**的，不是链式查找：`Dog ()` 时会依次跑 `Animal` 的类体、再跑 `Dog` 的类体，
+所有字段落在同一个作用域里，所以子类能直接读写父类的字段。
+
+几条规则：
+
+- **父类的 init 不会自动调用**。初始值写在字段声明上（`name: string = "?"`），
+  写在父类 init 里的赋值不会生效。
+- **只调用最具体的那一层 init**。`Dog` 自己写了 init 就调 `Dog` 的；
+  `Dog` 没写就向上找，用 `Animal` 的（整条链都没有才报「没有构造器」）。
+- **子类重声明同名字段是覆盖**：`:=` 就是定义。
+- 想改从父类继承来的字段，直接赋值即可（`name = "dog"`）。
+
+没有 `base`。父类实例不需要（也无法）由子类手工构造。
 
 ### 7.4 修饰符
 
@@ -415,7 +457,7 @@ Dog ::= class Animal {
 
 ```ravel
 class {
-    init ctor := () => { ... }
+    init := () => { ... }
     public name: string = ""
     private _age: int = 0
     readonly id: int = 1
@@ -426,7 +468,7 @@ class {
 
 ```ravel
 Person ::= class {
-    init ctor := () => {
+    init := () => {
         _name := ""
         by name := property (() => { _name; }) ((v: string) => { _name = v; })
     }
@@ -450,14 +492,20 @@ p2 := with p { name = "Bob"; }
 ### 7.7 object 方法
 
 ```ravel
-p.Fields ()    # ["name" "age"] — 公开字段名
 p.Copy ()      # 浅拷贝
 p.ToString ()  # 字符串表示
 ```
 
+`p.Fields ()` 列出的是**类型方法名**（`ToString`/`Copy`/`Fields`…），不是实例字段名。
+只有模块（`ravel`/`using` 建立的）会额外列出作用域里的变量。
+
 ---
 
 ## 八、metaclass
+
+> ⚠️ **本章描述的是目标语义，尚未实现。** 元类构造器里创建类的 `base.init parent block`
+> 依赖已移除的 `base`，目前没有替代手段，对应用例（117/118/121/122）都是 `# todo`。
+> `typeof` 反射本身可用（8.1），但用它*创建*类还不行。
 
 ### 8.1 概念
 
@@ -473,7 +521,7 @@ typeof int        # Type     (内置类型由 type 创建)
 
 ```ravel
 LoggedMeta ::= class class {
-    init ctor := (parent: type block: function) => {
+    init := (parent: type block: function) => {
         print "creating..."
         base.init parent block
         this
@@ -489,7 +537,7 @@ LoggedMeta ::= class class {
 
 ```ravel
 MyClass ::= LoggedMeta {
-    init ctor := () => { 0; }
+    init := () => { 0; }
     x: int = 42
 }
 typeof MyClass   # LoggedMeta
@@ -501,7 +549,7 @@ print (c.x)      # 42
 
 ```ravel
 M ::= class class { x: int = 1 }
-C ::= M { init ctor := () => { 0; }; }
+C ::= M { init := () => { 0; }; }
 ```
 
 继承 `Class` 的默认 init，行为同普通 class。
@@ -609,11 +657,11 @@ a = 42      # 赋值（变量已存在）
 a ::= fn    # 定义+自动命名（仅函数/类）
 ```
 
-### init 是修饰符不是名字
+### init 是构造器的名字
 
 ```ravel
-init ctor := () => { ... }   # ✅ ctor 是构造器名字
-init := () => { ... }        # ❌ init 不能当名字
+init := () => { ... }        # ✅ 构造器就是名字叫 init 的变量
+init ctor := () => { ... }   # ❌ 没有 init 修饰符这种写法了
 ```
 
 ### metaclass 的父类型

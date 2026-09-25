@@ -1,5 +1,5 @@
 B := class {
-    init ctor := () => { this.val = 10; }
+    init := () => { this.val = 10; }
     val: int = 0
     operator+ op1 := (x: int) => { val + x; }
     operator* op2 := (x: int) => { this.val * x; }

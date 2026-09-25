@@ -1,6 +1,6 @@
 # expect-error
 C := class {
-    init ctor := () => { x = 99 }
+    init := () => { x = 99 }
     readonly x: int = 10
 }
 c := C ()

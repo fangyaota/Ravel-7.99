@@ -1,6 +1,6 @@
 # todo
 # Property.Attrs
-C := class { init ctor := () => { 0; }; readonly x: int = 42; }
+C := class { init := () => { 0; }; readonly x: int = 42; }
 sc := C.Proto ()
 p := sc.Lookup "x"
 attrs := p.Attrs ()

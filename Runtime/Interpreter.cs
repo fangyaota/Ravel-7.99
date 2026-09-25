@@ -9,9 +9,6 @@ public partial class Interpreter
     /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>
     public Scope CurrentScope { get; set; }
 
-    /// <summary>当前解释器实例（单例模式，方便静态方法访问）</summary>
-    public static Interpreter? Current;
-
     /// <summary>内建类型名 → RuntimeType 速查表</summary>
     private static readonly Dictionary<string, RuntimeType> TypeRegistry = new()
     {
@@ -38,7 +35,6 @@ public partial class Interpreter
         _global = new Scope();
         CurrentScope = _global;
         RegisterBuiltins();
-        Current = this;
         LoadPredefined();
     }
 
@@ -51,15 +47,12 @@ public partial class Interpreter
     /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）</summary>
     private void LoadPredefined()
     {
-        foreach (var d in new[] { "./", "/workspace/ravel/lib/", "/workspace/ravel/", "lib/" })
+        foreach (var d in ModuleSearchPath.Defaults)
         {
             var p = Path.Combine(d, "predefined.rav");
             if (File.Exists(p))
             {
-                var src = File.ReadAllText(p);
-                var lexer = new Lexer(src);
-                var parser = new Parser(lexer.Tokenize());
-                RunStack(parser.Parse());
+                RunStack(Parser.ParseSource(File.ReadAllText(p)));
                 return;
             }
         }
@@ -67,9 +60,6 @@ public partial class Interpreter
 
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
     public RuntimeValue Interpret(Program p) => RunStack(p);
-
-    /// <summary>创建 Done 步骤——同步调用结果(显式帧栈已取代 CPS,仅存 Done)</summary>
-    internal static Step ToDone(RuntimeValue v) => new Done(v);
 
     /// <summary>按名称解析类型：先查作用域，再查类型注册表</summary>
     private RuntimeType ResolveType(string n, Scope? extra = null)
@@ -90,11 +80,10 @@ public partial class Interpreter
     internal void ThrowRavel(string msg) => throw new RuntimeException(msg);
 
     /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行</summary>
-    internal static bool CheckFieldAccess(Variable field, ObjectVal obj)
+    internal bool CheckFieldAccess(Variable field, ObjectVal obj)
     {
         if (!field.HasAttr("private") && !field.HasAttr("protected")) return true;
-        var cur = Current?.CurrentScope;
-        while (cur != null)
+        for (var cur = CurrentScope; cur != null; cur = cur.Parent)
         {
             if (cur == obj.Scope) return true;
             if (field.HasAttr("protected"))
@@ -102,8 +91,6 @@ public partial class Interpreter
                 var t = cur.TryLookup("this");
                 if (t?.Value is ObjectVal o && o.ClassType.IsAssignableTo(obj.ClassType)) return true;
             }
-
-            cur = cur.Parent;
         }
 
         return false;

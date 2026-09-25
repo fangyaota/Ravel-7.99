@@ -144,7 +144,7 @@ public partial class RuntimeType
     /// <summary>注册类运算符：op 为符号（"+"）。存自绑函数——self 绑定得 BoundClassOp，走 CallInto 推 ClassOp 帧</summary>
     public void DefineClassOperator(string op)
     {
-        _methods[op] = FunctionVal.FromTrampolined(self => Interpreter.ToDone(new BoundClassOp((ObjectVal)self, op)));
+        _methods[op] = FunctionVal.From(self => new BoundClassOp((ObjectVal)self, op));
     }
 
     /// <summary>沿继承链查找方法，找不到返回 null</summary>
@@ -168,7 +168,7 @@ public partial class RuntimeType
 
     /// <summary>绑定方法 self：方法值存为 Curried(self, arg)，绑 self 得等待 arg 的函数</summary>
     public static FunctionVal BindMethod(FunctionVal methodFn, RuntimeValue self)
-        => (FunctionVal)Step.Run(methodFn.Trampolined(self));
+        => (FunctionVal)methodFn.Body(self);
 
     // ============================================================
     //  类型检查

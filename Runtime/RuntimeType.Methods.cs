@@ -34,24 +34,19 @@ public partial class RuntimeType
             var all = new List<RuntimeValue>();
             var seen = new HashSet<string>();
 
-            // 特判模块(Ravel 实例):字段 = 模块作用域里的变量
+            // 模块(Ravel 实例):字段 = 模块作用域里的变量,排在类型方法前面
             if (s is ModuleVal mv)
-            {
                 foreach (var kv in mv.ModuleScope.Variables)
                     if (seen.Add(kv.Key))
                         all.Add(new StringVal(kv.Key));
-                //return new ListVal(all);
-            }
 
-            // 其他值:字段 = 类型方法(含继承链)
-            var t = s.Type;
-            while (true)
+            // 任何值都再并上类型方法(沿继承链到 object),去重
+            for (var t = s.Type; ; t = t.Parent)
             {
                 foreach (var n in t.MethodNames)
                     if (seen.Add(n))
                         all.Add(new StringVal(n));
                 if (t == t.Parent) break;
-                t = t.Parent;
             }
 
             return new ListVal(all);
@@ -86,7 +81,7 @@ public partial class RuntimeType
             var lst = (ListVal)s;
             var idx = i.Value;
             if (idx < 0 || idx > lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            return FunctionVal.FromDirect(v =>
+            return FunctionVal.From(v =>
             {
                 lst.Elements.Insert(idx, v);
                 return VoidVal.Instance;
@@ -98,7 +93,7 @@ public partial class RuntimeType
             var lst = (ListVal)s;
             var idx = i.Value;
             if (idx < 0 || idx >= lst.Elements.Count) throw new RuntimeException("索引超出范围");
-            return FunctionVal.FromDirect(v =>
+            return FunctionVal.From(v =>
             {
                 lst.Elements[idx] = v;
                 return VoidVal.Instance;
@@ -132,7 +127,7 @@ public partial class RuntimeType
         Dict.DefineMethod("Set", (s, a) =>
         {
             if (a is not StringVal key) throw new RuntimeException("dict.Set 需要 string 键");
-            return FunctionVal.FromDirect(v =>
+            return FunctionVal.From(v =>
             {
                 ((DictVal)s).Entries[key.Value] = v;
                 return VoidVal.Instance;
@@ -180,8 +175,8 @@ public partial class RuntimeType
         {
             var tv = (TypeVal)s;
             return new PropertyVal(
-                FunctionVal.FromDirect(_ => (RuntimeValue?)tv.Value.Initializer ?? VoidVal.Instance),
-                FunctionVal.FromDirect(v =>
+                FunctionVal.From(_ => (RuntimeValue?)tv.Value.Initializer ?? VoidVal.Instance),
+                FunctionVal.From(v =>
                 {
                     if (v is not FunctionVal f) throw new RuntimeException("initializer 必须是函数");
                     tv.Value.Initializer = f;
@@ -224,7 +219,7 @@ public partial class RuntimeType
             if (a is not StringVal name)
                 throw new RuntimeException("scope.Define 需要字符串名称");
             var scope = ((ScopeVal)s).Scope;
-            return FunctionVal.FromDirect(tv =>
+            return FunctionVal.From(tv =>
             {
                 if (tv is not TypeVal t)
                     throw new RuntimeException("scope.Define 需要 type 参数");
@@ -239,8 +234,8 @@ public partial class RuntimeType
             var scope = ((ScopeVal)s).Scope;
             var vr = scope.Lookup(name.Value);
             return new PropertyVal(
-                FunctionVal.FromDirect(_ => vr.Value),
-                FunctionVal.FromDirect(v =>
+                FunctionVal.From(_ => vr.Value),
+                FunctionVal.From(v =>
                 {
                     vr.Assign(v);
                     return VoidVal.Instance;
@@ -254,10 +249,10 @@ public partial class RuntimeType
             var d = new Dictionary<string, RuntimeValue>();
             foreach (var kv in scope.Variables)
             {
-                if (kv.Key == "this" || kv.Key == "base" || kv.Key == "block" || kv.Key == "thistype") continue;
+                if (kv.Key == "this" || kv.Key == "block" || kv.Key == "thistype") continue;
                 var vr = scope.Lookup(kv.Key);
-                var getter = FunctionVal.FromDirect(_ => vr.Value);
-                var setter = FunctionVal.FromDirect(v =>
+                var getter = FunctionVal.From(_ => vr.Value);
+                var setter = FunctionVal.From(v =>
                 {
                     vr.Assign(v);
                     return VoidVal.Instance;
@@ -301,17 +296,13 @@ public partial class RuntimeType
         });
     }
 
-    /// <summary>拷贝作用域（with / Copy 用）：带 withDeep 属性的父类实例递归深拷贝</summary>
+    /// <summary>拷贝作用域（with / Copy 用）：逐字段浅拷贝，词法父照搬。
+    /// 字段已平铺在同一个 scope 里，所以不再需要沿继承链递归深拷贝。</summary>
     internal static Scope CopyScope(Scope src)
     {
         var dst = new Scope(src.Parent);
         foreach (var kv in src.Variables)
-        {
-            var value = kv.Value.Value;
-            if (kv.Value.HasAttr("withDeep") && value is ObjectVal obj)
-                value = new ObjectVal(obj.ClassType, CopyScope(obj.Scope));
-            dst.Define(kv.Key, kv.Value.TypeConstraint, value);
-        }
+            dst.Define(kv.Key, kv.Value.TypeConstraint, kv.Value.Value);
         return dst;
     }
 }

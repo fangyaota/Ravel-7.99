@@ -3,7 +3,7 @@ eval "xs.Add 4"
 eval "print xs"
 eval "
     C := class {
-        init ctor := () => { this.n = 7; }
+        init := () => { this.n = 7; }
         n: int = 0
         get := () => { n; }
     }

@@ -1,110 +1,122 @@
 namespace Ravel.Runtime;
 
-using System.IO;
-using System.Linq;
-
+/// <summary>内置注册:建 System 模块,填入类型别名、控制内建和核心函数。
+/// 加一个内置 = 在对应分组里加一行(DefType/DefFn/DefControl/Def)。</summary>
 public partial class Interpreter
 {
-    // ======================== 内置 ========================
-    /// <summary>注册内置类型、运算符和 System 模块（While/If/CallCC/Eval/Using 等核心函数）</summary>
     private void RegisterBuiltins()
     {
-        // System 内置模块
-        var systemModuleType = RuntimeType.Define("System", RuntimeType.Ravel);
-        var systemModule = new ModuleVal(systemModuleType, new Scope(_global));
-        systemModule.ModuleScope.Define("Integer", RuntimeType.Type, new TypeVal(RuntimeType.Int));
-        systemModule.ModuleScope.Define("String", RuntimeType.Type, new TypeVal(RuntimeType.String));
-        systemModule.ModuleScope.Define("Bool", RuntimeType.Type, new TypeVal(RuntimeType.Bool));
-        systemModule.ModuleScope.Define("Float", RuntimeType.Type, new TypeVal(RuntimeType.Float));
-        systemModule.ModuleScope.Define("BigInteger", RuntimeType.Type, new TypeVal(RuntimeType.BigInt));
-        systemModule.ModuleScope.Define("Fraction", RuntimeType.Type, new TypeVal(RuntimeType.Fraction));
-        systemModule.ModuleScope.Define("BigFraction", RuntimeType.Type, new TypeVal(RuntimeType.BigFraction));
-        systemModule.ModuleScope.Define("List", RuntimeType.Type, new TypeVal(RuntimeType.List));
-        systemModule.ModuleScope.Define("Set", RuntimeType.Type, new TypeVal(RuntimeType.Set));
-        systemModule.ModuleScope.Define("Dict", RuntimeType.Type, new TypeVal(RuntimeType.Dict));
-        systemModule.ModuleScope.Define("Object", RuntimeType.Type, new TypeVal(RuntimeType.Object));
-        systemModule.ModuleScope.Define("Function", RuntimeType.Type, new TypeVal(RuntimeType.Function));
-        systemModule.ModuleScope.Define("Void", RuntimeType.Type, new TypeVal(RuntimeType.Void));
-        systemModule.ModuleScope.Define("AnyType", RuntimeType.Type, new TypeVal(RuntimeType.Any));
-        systemModule.ModuleScope.Define("EveryType", RuntimeType.Type, new TypeVal(RuntimeType.Every));
-        systemModule.ModuleScope.Define("ExceptionType", RuntimeType.Type, new TypeVal(RuntimeType.Exception));
-        systemModule.ModuleScope.Define("Class", RuntimeType.Type, new TypeVal(RuntimeType.Class));
-        systemModule.ModuleScope.Define("Type", RuntimeType.Type, new TypeVal(RuntimeType.Type));
+        var systemModule = BuildSystemModule();
         _modules["System"] = systemModule;
-        _global.Define("System", systemModuleType, systemModule);
+        _global.Define("System", systemModule.Type, systemModule);
+    }
 
-        systemModule.ModuleScope.Define("WriteLine", RuntimeType.Function, FunctionVal.FromDirect(a =>
+    /// <summary>组装 System 模块——它是唯一「用 C# 写死」的模块,其余模块都来自 .rav 文件</summary>
+    private ModuleVal BuildSystemModule()
+    {
+        var moduleType = RuntimeType.Define("System", RuntimeType.Ravel);
+        var module = new ModuleVal(moduleType, new Scope(_global));
+        var scope = module.ModuleScope;
+
+        void Def(string name, RuntimeType type, RuntimeValue value) => scope.Define(name, type, value);
+        void DefType(string name, RuntimeType type) => Def(name, RuntimeType.Type, new TypeVal(type));
+        void DefFn(string name, FunctionVal fn) => Def(name, RuntimeType.Function, fn);
+        void DefControl(string name, ControlKind kind, int arity) => DefFn(name, new ControlFunction(kind, arity, RList<RuntimeValue>.Empty));
+
+        // ---- 类型(System.Integer 等权威名;小写别名在 predefined.rav) ----
+        DefType("Integer", RuntimeType.Int);
+        DefType("String", RuntimeType.String);
+        DefType("Bool", RuntimeType.Bool);
+        DefType("Float", RuntimeType.Float);
+        DefType("BigInteger", RuntimeType.BigInt);
+        DefType("Fraction", RuntimeType.Fraction);
+        DefType("BigFraction", RuntimeType.BigFraction);
+        DefType("List", RuntimeType.List);
+        DefType("Set", RuntimeType.Set);
+        DefType("Dict", RuntimeType.Dict);
+        DefType("Object", RuntimeType.Object);
+        DefType("Function", RuntimeType.Function);
+        DefType("Void", RuntimeType.Void);
+        DefType("Class", RuntimeType.Class);
+        DefType("Type", RuntimeType.Type);
+        DefType("ValueTypeVal", RuntimeType.ValueType);
+        DefType("AnyType", RuntimeType.Any);
+        DefType("EveryType", RuntimeType.Every);
+        DefType("ExceptionType", RuntimeType.Exception);
+
+        // ---- 常量 ----
+        Def("True", RuntimeType.Bool, new BoolVal(true));
+        Def("False", RuntimeType.Bool, new BoolVal(false));
+        Def("Default", RuntimeType.Every, DefaultVal.Instance);
+
+        // ---- 控制内建:收满参数后由求值器推控制帧 ----
+        DefControl("While", ControlKind.While, 2);
+        DefControl("If", ControlKind.If, 3);
+        DefControl("With", ControlKind.With, 2);
+        DefControl("Foreach", ControlKind.Foreach, 2);
+        DefControl("CallCC", ControlKind.CallCC, 1);
+        DefControl("Using", ControlKind.Using, 1);
+        DefControl("Eval", ControlKind.Eval, 1);
+
+        // ---- 输出 ----
+        DefFn("WriteLine", FunctionVal.From(a =>
         {
             Console.WriteLine(Show(a));
             return VoidVal.Instance;
         }));
-        systemModule.ModuleScope.Define("Write", RuntimeType.Function, FunctionVal.FromDirect(a =>
+        DefFn("Write", FunctionVal.From(a =>
         {
             Console.Write(Show(a));
             return VoidVal.Instance;
         }));
-        systemModule.ModuleScope.Define("ReadLine", RuntimeType.Function,
-            FunctionVal.FromDirect(_ => new StringVal(Console.ReadLine() ?? "")));
-        systemModule.ModuleScope.Define("True", RuntimeType.Bool, new BoolVal(true));
-        systemModule.ModuleScope.Define("False", RuntimeType.Bool, new BoolVal(false));
-        systemModule.ModuleScope.Define("Default", RuntimeType.Every, DefaultVal.Instance);
-        systemModule.ModuleScope.Define("While", RuntimeType.Function, new ControlFunction(ControlKind.While, 2, RList<RuntimeValue>.Empty));
-        systemModule.ModuleScope.Define("If", RuntimeType.Function, new ControlFunction(ControlKind.If, 3, RList<RuntimeValue>.Empty));
-        systemModule.ModuleScope.Define("CallCC", RuntimeType.Function, new ControlFunction(ControlKind.CallCC, 1, RList<RuntimeValue>.Empty));
-        systemModule.ModuleScope.Define("ValueTypeVal", RuntimeType.Type, new TypeVal(RuntimeType.ValueType));
-        systemModule.ModuleScope.Define("TypeOf", RuntimeType.Function, FunctionVal.FromTrampolined(a =>
-            ToDone(new TypeVal(a.Type))));
-        systemModule.ModuleScope.Define("RandInt", RuntimeType.Function, FunctionVal.FromTrampolined2((lo, hi) =>
+        DefFn("ReadLine", FunctionVal.From(_ => new StringVal(Console.ReadLine() ?? "")));
+
+        // ---- 反射 / 作用域 ----
+        DefFn("TypeOf", FunctionVal.From(a => new TypeVal(a.Type)));
+        DefFn("currentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
+        DefFn("unsafe", FunctionVal.From(_ =>
+        {
+            UnsafeDepth++;
+            return VoidVal.Instance;
+        }));
+
+        // ---- 其他核心函数 ----
+        DefFn("RandInt", FunctionVal.From((lo, hi) =>
         {
             if (lo is not IntVal l) throw new RuntimeException("randint 需要 int 参数(最小值)");
             if (hi is not IntVal h) throw new RuntimeException("randint 需要 int 参数(最大值)");
-            return ToDone(new IntVal(Random.Shared.Next(l.Value, h.Value)));
+            return new IntVal(Random.Shared.Next(l.Value, h.Value));
         }));
-        systemModule.ModuleScope.Define("With", RuntimeType.Function, new ControlFunction(ControlKind.With, 2, RList<RuntimeValue>.Empty));
-        systemModule.ModuleScope.Define("RavelMod", RuntimeType.Function, FunctionVal.FromDirect(a =>
-        {
-            var name = ((StringVal)a).Value;
-            if (!_modules.TryGetValue(name, out var mv))
-            {
-                var mt = RuntimeType.Define(name, RuntimeType.Ravel);
-                mv = new ModuleVal(mt, new Scope(_global));
-                _modules[name] = mv;
-                _global.Define(name, mt, mv);
-            }
-
-            SetAmbientScope(mv.ModuleScope);
-            return VoidVal.Instance;
-        }));
-        systemModule.ModuleScope.Define("Using", RuntimeType.Function, new ControlFunction(ControlKind.Using, 1, RList<RuntimeValue>.Empty));
-
-        // ---- 内置函数 ----
-        systemModule.ModuleScope.Define("unsafe", RuntimeType.Function, FunctionVal.FromDirect(_ =>
-        {
-            Current!.UnsafeDepth++;
-            return VoidVal.Instance;
-        }));
-        systemModule.ModuleScope.Define("property", RuntimeType.Function, FunctionVal.FromTrampolined2((g, s) =>
+        DefFn("property", FunctionVal.From((g, s) =>
         {
             if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数");
             if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数");
-            return ToDone(new PropertyVal(gf, sf));
+            return new PropertyVal(gf, sf);
         }));
-        systemModule.ModuleScope.Define("Foreach", RuntimeType.Function, new ControlFunction(ControlKind.Foreach, 2, RList<RuntimeValue>.Empty));
-        systemModule.ModuleScope.Define("currentScope", RuntimeType.Function, FunctionVal.FromDirect(_ =>
-            new ScopeVal(Current!.CurrentScope)));
-        systemModule.ModuleScope.Define("Eval", RuntimeType.Function, new ControlFunction(ControlKind.Eval, 1, RList<RuntimeValue>.Empty));
-        systemModule.ModuleScope.Define("Assert", RuntimeType.Function, FunctionVal.FromTrampolined2((cond, msg) =>
+        DefFn("Assert", FunctionVal.From((cond, msg) =>
         {
             if (cond is not BoolVal b) throw new RuntimeException("assert 需要 bool 参数");
-            var ok = b.Value;
-            var m = msg is StringVal s ? s.Value : "assertion failed: " + Show(cond);
-            if (!ok) throw new RuntimeException(m);
-            return ToDone(VoidVal.Instance);
+            if (!b.Value) throw new RuntimeException(msg is StringVal s ? s.Value : "assertion failed: " + Show(cond));
+            return VoidVal.Instance;
         }));
-        systemModule.ModuleScope.Define("Exit", RuntimeType.Function, FunctionVal.FromDirect(a =>
+        DefFn("Exit", FunctionVal.From(a => throw new ExitException(a is StringVal s ? s.Value : "")));
+        DefFn("RavelMod", FunctionVal.From(a => EnterModule(((StringVal)a).Value)));
+
+        return module;
+    }
+
+    /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里</summary>
+    private RuntimeValue EnterModule(string name)
+    {
+        if (!_modules.TryGetValue(name, out var mv))
         {
-            var msg = a is StringVal s ? s.Value : "";
-            throw new ExitException(msg);
-        }));
+            var mt = RuntimeType.Define(name, RuntimeType.Ravel);
+            mv = new ModuleVal(mt, new Scope(_global));
+            _modules[name] = mv;
+            _global.Define(name, mt, mv);
+        }
+
+        SetAmbientScope(mv.ModuleScope);
+        return VoidVal.Instance;
     }
 }

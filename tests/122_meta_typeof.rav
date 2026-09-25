@@ -1,13 +1,13 @@
 # todo
 # metaclass: typeof 检查链
 MyMeta ::= class class {
-    init ctor := (parent: type block: function) => {
+    init := (parent: type block: function) => {
         base.init parent block
         this
     }
 }
-A ::= MyMeta object { init ctor := () => { 0; }; }
-B ::= class { init ctor := () => { 0; }; }
+A ::= MyMeta object { init := () => { 0; }; }
+B ::= class { init := () => { 0; }; }
 # metaclass 创建的类
 print (typeof A)
 # 普通类

@@ -18,7 +18,7 @@ print_tree := (t: object prefix: string) => {
         if { p.name == t.name && s.name != t.name; } {
             k += 1;
             is_last := k == total;
-            m := s.Metaclass ()
+            m := typeof s
             label := s.name + " [" + m.name + "]"
             if { is_last; } {
                 print (prefix + "└── " + label);

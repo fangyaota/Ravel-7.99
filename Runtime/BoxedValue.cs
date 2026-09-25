@@ -1,18 +1,20 @@
 namespace Ravel.Runtime;
 
-public class BoxedValue(RuntimeValue value)
+/// <summary>成员访问包装器:把「取成员」的门禁(unreadable / outdated / core / private-protected)
+/// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。</summary>
+public class BoxedValue(RuntimeValue value, Interpreter interp)
 {
     public RuntimeValue Value { get; } = value;
 
     /// <summary>若 value 的 name 成员是 by 属性,返回其 getter(已做访问控制);否则返回 null。调用方走 CallInto 派发</summary>
-    public static FunctionVal? TryGetByGetter(RuntimeValue value, string name)
+    public static FunctionVal? TryGetByGetter(Interpreter interp, RuntimeValue value, string name)
     {
         if (value is ObjectVal obj)
         {
             var vr = obj.Scope.LookupField(name);
             if (vr == null || !vr.HasAttr("by")) return null;
-            CheckObjectReadAccess(obj, vr, name);
-            return new BoxedValue(vr.Value).GetMember("get").Value as FunctionVal;
+            new BoxedValue(obj, interp).CheckObjectReadAccess(obj, vr, name);
+            return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
         }
 
         if (value is ModuleVal mv)
@@ -20,8 +22,8 @@ public class BoxedValue(RuntimeValue value)
             if (!mv.ModuleScope.Contains(name)) return null;
             var vr = mv.ModuleScope.Lookup(name);
             if (!vr.HasAttr("by")) return null;
-            CheckModuleReadAccess(mv, vr, name);
-            return new BoxedValue(vr.Value).GetMember("get").Value as FunctionVal;
+            new BoxedValue(mv, interp).CheckModuleReadAccess(mv, vr, name);
+            return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
         }
 
         return null;
@@ -35,23 +37,20 @@ public class BoxedValue(RuntimeValue value)
             var op = name[8..];
             var opMethod = Value.Type.TryLookupMethod(op);
             if (opMethod != null)
-                return new BoxedValue(RuntimeType.BindMethod(opMethod, Value));
+                return new BoxedValue(RuntimeType.BindMethod(opMethod, Value), interp);
         }
 
         if (Value is PropertyVal pv)
         {
-            if (name == "get") return new BoxedValue(pv.Getter);
-            if (name == "set") return new BoxedValue(pv.Setter);
+            if (name == "get") return new BoxedValue(pv.Getter, interp);
+            if (name == "set") return new BoxedValue(pv.Setter, interp);
         }
 
-        if (Value is ModuleVal mv)
+        if (Value is ModuleVal mv && mv.ModuleScope.Contains(name))
         {
-            if (mv.ModuleScope.Contains(name))
-            {
-                var vr = mv.ModuleScope.Lookup(name);
-                CheckModuleReadAccess(mv, vr, name);
-                return new BoxedValue(vr.Value);
-            }
+            var vr = mv.ModuleScope.Lookup(name);
+            CheckModuleReadAccess(mv, vr, name);
+            return new BoxedValue(vr.Value, interp);
         }
 
         if (Value is ObjectVal obj)
@@ -60,61 +59,61 @@ public class BoxedValue(RuntimeValue value)
             if (vr != null)
             {
                 CheckObjectReadAccess(obj, vr, name);
-                return new BoxedValue(vr.Value);
+                return new BoxedValue(vr.Value, interp);
             }
         }
 
-        if (Value is TypeVal tv && name == "name")
+        // 类型名 / 函数名:字段之外的两个伪成员
+        if (name == "name")
         {
-            return new BoxedValue(new StringVal(tv.Value.Name));
-        }
-
-        if (Value is FunctionVal fn && name == "name")
-        {
-            return new BoxedValue(new StringVal(fn.Name ?? ""));
+            if (Value is TypeVal tv) return new BoxedValue(new StringVal(tv.Value.Name), interp);
+            if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);
         }
 
         var method = Value.Type.LookupMethod(name);
-        return new BoxedValue(RuntimeType.BindMethod(method, Value));
+        return new BoxedValue(RuntimeType.BindMethod(method, Value), interp);
     }
 
-    private static void CheckModuleReadAccess(ModuleVal mv, Variable vr, string name)
+    /// <summary>模块成员:private/protected 要求当前作用域链能走到该模块</summary>
+    private void CheckModuleReadAccess(ModuleVal mv, Variable vr, string name)
     {
-        if (vr.HasAttr("unreadable"))
-            throw new RuntimeException($"变量 '{name}' 不可读取");
-        if (vr.HasAttr("outdated"))
-            Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
-        if (vr.HasAttr("private") || vr.HasAttr("protected"))
-        {
-            var cur = Interpreter.Current?.CurrentScope;
-            bool ok = false;
-            while (cur != null)
-            {
-                if (cur == mv.ModuleScope)
-                {
-                    ok = true;
-                    break;
-                }
-
-                cur = cur.Parent;
-            }
-
-            if (!ok)
-                throw new RuntimeException($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
-        }
+        CheckUnreadable(vr, name);
+        WarnIfOutdated(vr, name);
+        if ((vr.HasAttr("private") || vr.HasAttr("protected")) && !IsInsideModule(mv))
+            throw AccessDenied(vr, name);
     }
 
-    private static void CheckObjectReadAccess(ObjectVal obj, Variable vr, string name)
+    private void CheckObjectReadAccess(ObjectVal obj, Variable vr, string name)
     {
-        if (vr.HasAttr("unreadable"))
-            throw new RuntimeException($"变量 '{name}' 不可读取");
-        if (vr.HasAttr("core") && Interpreter.Current!.UnsafeDepth == 0)
+        CheckUnreadable(vr, name);
+        if (vr.HasAttr("core") && interp.UnsafeDepth == 0)
             throw new RuntimeException($"变量 '{name}' 是核心字段，需要 unsafe");
+        WarnIfOutdated(vr, name);
+        if (!interp.CheckFieldAccess(vr, obj))
+            throw AccessDenied(vr, name);
+    }
+
+    private bool IsInsideModule(ModuleVal mv)
+    {
+        for (var cur = interp.CurrentScope; cur != null; cur = cur.Parent)
+            if (cur == mv.ModuleScope) return true;
+        return false;
+    }
+
+    private static void CheckUnreadable(Variable vr, string name)
+    {
+        if (vr.HasAttr("unreadable"))
+            throw new RuntimeException($"变量 '{name}' 不可读取");
+    }
+
+    private static void WarnIfOutdated(Variable vr, string name)
+    {
         if (vr.HasAttr("outdated"))
             Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
-        if (!Interpreter.CheckFieldAccess(vr, obj))
-            throw new RuntimeException($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
     }
+
+    private static RuntimeException AccessDenied(Variable vr, string name)
+        => new($"变量 '{name}' 是{(vr.HasAttr("private") ? "私有的" : "受保护的")}");
 
     public override string ToString() => Value.ToString();
 }
