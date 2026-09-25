@@ -47,11 +47,37 @@ public partial class Interpreter
                 case ControlFrame cf: StepControl(cf); break;
             }
         }
-        catch (RuntimeException ex) when (!ex.Located)
+        catch (RuntimeException ex)
         {
-            // 只有最内层的 StepOnce 会补:内层补过之后 Located 为真,外层不再覆盖成更外侧的位置
-            throw Locate(ex, _top);
+            // 只在最内层处理一次:补过位置之后 Located 为真,外层不再覆盖成更外侧的位置
+            if (ex.Located) throw;
+
+            Locate(ex, _top);
+            if (HandToRavelHandler(ex)) return;   // 交给 Ravel 的 handler,异常到此为止
+            throw;                                // 没人接 → 冒泡给 CLI 打报告
         }
+    }
+
+    /// <summary>把运行时错误交给 Ravel 层的 handler(`try.rav` 的 handlerStack 栈顶)。
+    /// 有 handler 就调它、异常不再冒泡成 C# 异常——这样 `Ex.try { 1 + true } {...}` 也能接住,
+    /// 而不是只有显式 `Ex.throw` 才接得住。没有就抛,由 CLI 打带位置和调用栈的报告。</summary>
+    private bool HandToRavelHandler(RuntimeException ex)
+    {
+        // try.rav 第一行就 `ravel "Ex"`,所以 handlerStack 在 Ex 模块里;也接受放全局的写法
+        var stack = (_global.TryLookup("Ex")?.Value as ModuleVal)?.ModuleScope.TryLookup("handlerStack")?.Value
+                        as ListVal
+                    ?? _global.TryLookup("handlerStack")?.Value as ListVal;
+        if (stack == null) return false;
+        if (stack.Elements.Count == 0) return false;
+        if (stack.Elements[0] is not FunctionVal handler) return false;
+
+        // 先把 handler 弹出栈再调它(和 try.rav 的 `handlerStack.Remove 0 e` 一致)。
+        // 不弹的话,handler 自己出错时会又被交给同一个 handler,无限递归。
+        stack.Elements.RemoveAt(0);
+
+        // handler 体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
+        CallInto(_top.Parent ?? _top, handler, new ExceptionVal(ex.Message));
+        return true;
     }
 
     /// <summary>给运行时错误补上位置和 Ravel 层调用栈。帧链本身就是调用栈,沿它收集即可。</summary>

@@ -1,0 +1,12 @@
+# expect-error
+# handler 自己出错时不该无限递归:求值器调用 handler 前已把它弹出栈,
+# 所以这时栈是空的,错误照常冒泡成报告(而不是转回同一个 handler)。
+# 回归时会挂死而不是报错,所以这个用例用 expect-error 就够。
+using "try.rav"
+Ex.try {
+    print (missingVar)
+} (e: Exception) => {
+    print ("inner: " + string e)
+    print (1 + true)
+}
+print "unreachable"
