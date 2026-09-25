@@ -31,8 +31,13 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Modules.cs  模块路径解析与加载(references + 搜索目录、循环引用检测)
   Interpreter.System.cs   RegisterBuiltins + System 模块
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
-  Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表
-  RuntimeValue.cs         值基类 + RuntimeException/TypeMismatch/Exit
+  Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;
+                          Frame.cs 还有 ControlFrame.Arg<T> 和 ArgNames(控制帧参数的类型化取值)
+  RuntimeValue.cs         值基类(含 IsClosure) + 全部 Ravel 层异常:
+                          RuntimeException / TypeMismatchException / ExitException /
+                          SyntaxException + SourceSpot(位置)
+  Attr.cs                 修饰符名常量(readonly/override/…/core),解析器和门禁共用
+  ErrorReport.cs          错误渲染(位置 + 源码行 + 插入符 + 调用栈),运行时/语法错误共用
   RuntimeType.cs                 类型系统
   RuntimeType.Initializers.cs    内建类型转换器/class 创建/CollectBodies
   RuntimeType.Methods.cs / Operators.cs   方法表(存 FunctionVal)/运算符
@@ -41,6 +46,8 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Values/                        FunctionVal(基类,Body 即「参数→结果」)/LambdaVal/BlockVal/
                                  TypeVal/ControlFunction/BuiltinMethodVal/BoundClassOp/
                                  ComposeVal/PartialCtor/ContinuationVal/ObjectVal/.../各基础值
+                                 BoolVal 也继承 FunctionVal(类型表里 Bool <: Function,见「两个坑」)
+                                 FractionVal/BigFractionVal 构造即约分
 Lexer.cs / Ast.cs / Token.cs / TokenType.cs
 Parser.cs                       入口 + token 辅助(Peek/Consume/ParseError)
   Parser.Statements.cs          语句:定义/赋值/运算符定义
