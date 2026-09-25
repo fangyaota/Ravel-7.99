@@ -50,9 +50,22 @@ public partial class RuntimeType
 
             // 模块(Ravel 实例):字段 = 模块作用域里的变量,排在类型方法前面
             if (s is ModuleVal mv)
+            {
                 foreach (var kv in mv.ModuleScope.Variables)
                     if (seen.Add(kv.Key))
                         all.Add(new StringVal(kv.Key));
+            }
+            // 对象:字段 = 实例作用域里的数据字段(和 print 显示的是同一批)。
+            // 以前只特判了模块,对象这边漏了,于是 `obj.Fields ()` 只给类型方法——
+            // 名字叫 Fields 却拿不到字段。方法仍会由下面那圈并进来。
+            else if (s is ObjectVal ov)
+            {
+                foreach (var kv in ov.Scope.Variables)
+                    if (kv.Value.Value is not FunctionVal &&
+                        kv.Key is not ("this" or "base" or "parent" or "thistype" or "block") &&
+                        seen.Add(kv.Key))
+                        all.Add(new StringVal(kv.Key));
+            }
 
             // 任何值都再并上类型方法(沿继承链到 object),去重
             for (var t = s.Type; ; t = t.Parent)

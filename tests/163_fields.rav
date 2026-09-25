@@ -1,0 +1,10 @@
+# obj.Fields () 该给字段。以前只特判了模块,对象那边漏了,
+# 于是它只返回类型方法——名字叫 Fields 却拿不到字段。
+# 字段排在前,方法(含 init)和 this 不进字段列表,类型方法仍会并进来。
+C := class { init := () => { 0; }; x: int = 1; s: string = "hi"; m := () => { x; }; }
+c := C ()
+print (c.Fields ())
+print ((1).Fields ())
+# --- expected ---
+# [x s ToString Copy Fields]
+# [+ - * / % == != < > <= >= & | ^ ToString Copy Fields]
