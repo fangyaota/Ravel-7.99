@@ -127,9 +127,17 @@ public partial class RuntimeType
         DefineOp(Int, "|", (a, b) => new IntVal(((IntVal)a).Value | Operand<IntVal>(b, "|").Value));
         DefineOp(Int, "^", (a, b) => new IntVal(((IntVal)a).Value ^ Operand<IntVal>(b, "^").Value));
 
-        // 函数交替 |（左失败则右）→ Alternate 控制帧
+        // 函数交替 |（前一个不收这个参数就试下一个）→ Alternate 控制帧。
+        // 左边已经是交替时**摊平**成一个分支列表:`x | y | z` 解析成 `(x | y) | z`,
+        // 嵌套着写的话内层是在外层 try 之外才抛 TypeMismatchException 的
+        // (CallInto 只推帧,不调用),外层那个 catch 早返回了 —— 第三个分支永远试不到。
         DefineOp(Function, "|", (a, b) =>
-            new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b)));
+        {
+            var branches = a is ControlFunction { Kind: ControlKind.Alternate } chain
+                ? chain.Args.Add(b)
+                : RList<RuntimeValue>.Empty.Add(a).Add(b);
+            return new ControlFunction(ControlKind.Alternate, 1, branches);
+        });
     }
 
     /// <summary>整除的除数。不查的话 C# 会抛 DivideByZeroException,

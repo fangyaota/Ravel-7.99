@@ -98,27 +98,40 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    /// <summary>函数交替:先试 f,类型不匹配则试 g</summary>
+    /// <summary>函数交替 `f | g | h`:按顺序试,第一个收得下这个参数的分支胜出。
+    ///
+    /// 分支在 `|` 那边就摊平成一个列表(见 `RuntimeType.Operators` 的 Function.|),
+    /// 所以这里一个帧顺序试完即可。**不能嵌套着试**:`CallInto` 只推帧、不当场调用,
+    /// 内层交替的 TypeMismatchException 是在外层这个 try 之外才抛的,
+    /// 外层 catch 早返回了 —— 那样第三个分支永远试不到。
+    /// `Args = [分支…, 参数]`。</summary>
     private void StepAlternate(ControlFrame cf)
     {
-        if (cf.Count == 0)
+        if (cf.Count > 0)
         {
-            var f = cf.Arg<RuntimeValue>(0, "|");
-            var g = cf.Arg<RuntimeValue>(1, "|");
-            var arg = cf.Arg<RuntimeValue>(2, "|");
-            try
-            {
-                CallInto(cf, f, arg);
-            }
-            catch (TypeMismatchException)
-            {
-                CallInto(cf, g, arg);
-            }
-
+            Return(cf, cf.Result(0));
             return;
         }
 
-        Return(cf, cf.Result(0));
+        var arg = cf.Args.Last;
+        var n = cf.Args.Count - 1;          // 前面全是候选分支
+        TypeMismatchException? last = null;
+
+        for (var i = 0; i < n; i++)
+        {
+            try
+            {
+                // 参数类型对不上会在 CallInto 里**同步**抛出,于是就地接着试下一支
+                CallInto(cf, cf.Args.At(i), arg);
+                return;
+            }
+            catch (TypeMismatchException ex)
+            {
+                last = ex;
+            }
+        }
+
+        throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last?.Message}）");
     }
 
     /// <summary>类实例化:沿祖先链(顶祖先→自身)依次跑每层类体(只跑 Body,不跑各层 init),
