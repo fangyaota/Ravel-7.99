@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 using System.IO;
 
@@ -9,24 +9,24 @@ public partial class Interpreter
     /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>
     public Scope CurrentScope { get; set; }
 
-    /// <summary>内建类型名 → RuntimeType 速查表</summary>
-    private static readonly Dictionary<string, RuntimeType> TypeRegistry = new()
+    /// <summary>内建类型名 → ObjectVal 速查表</summary>
+    private static readonly Dictionary<string, ObjectVal> TypeRegistry = new()
     {
-        ["object"] = RuntimeType.Object,
-        ["int"] = RuntimeType.Int,
-        ["bool"] = RuntimeType.Bool,
-        ["string"] = RuntimeType.String,
-        ["function"] = RuntimeType.Function,
-        ["list"] = RuntimeType.List,
-        ["void"] = RuntimeType.Void,
-        ["type"] = RuntimeType.Type,
-        ["Any"] = RuntimeType.Any,
-        ["float"] = RuntimeType.Float,
-        ["bigint"] = RuntimeType.BigInt,
-        ["fraction"] = RuntimeType.Fraction,
-        ["bigfraction"] = RuntimeType.BigFraction,
-        ["set"] = RuntimeType.Set,
-        ["dict"] = RuntimeType.Dict,
+        ["object"] = BuiltinClasses.Object,
+        ["int"] = BuiltinClasses.Int,
+        ["bool"] = BuiltinClasses.Bool,
+        ["string"] = BuiltinClasses.String,
+        ["function"] = BuiltinClasses.Function,
+        ["list"] = BuiltinClasses.List,
+        ["void"] = BuiltinClasses.Void,
+        ["type"] = BuiltinClasses.Type,
+        ["Any"] = BuiltinClasses.Any,
+        ["float"] = BuiltinClasses.Float,
+        ["bigint"] = BuiltinClasses.BigInt,
+        ["fraction"] = BuiltinClasses.Fraction,
+        ["bigfraction"] = BuiltinClasses.BigFraction,
+        ["set"] = BuiltinClasses.Set,
+        ["dict"] = BuiltinClasses.Dict,
     };
 
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>
@@ -34,7 +34,7 @@ public partial class Interpreter
     {
         _global = new Scope();
         CurrentScope = _global;
-        RuntimeType.ResetUserTypes();   // 别让上一个 Interpreter 建的类漏进本实例的 Subtypes
+        BuiltinClasses.ResetUserTypes();   // 别让上一个 Interpreter 建的类漏进本实例的 Subtypes
         RegisterBuiltins();
         LoadPredefined();
     }
@@ -81,17 +81,17 @@ public partial class Interpreter
     public RuntimeValue Interpret(Program p) => RunStack(p);
 
     /// <summary>按名称解析类型：先查作用域，再查类型注册表</summary>
-    private RuntimeType ResolveType(string n, Scope? extra = null)
+    private ObjectVal ResolveType(string n, Scope? extra = null)
     {
         if (extra != null)
         {
             var v = extra.TryLookup(n);
-            if (v?.Value is TypeVal tv) return tv.Value;
+            if (v?.Value is ObjectVal { IsClass: true } cls) return cls;
         }
 
         if (TypeRegistry.TryGetValue(n, out var t)) return t;
         var v2 = CurrentScope.TryLookup(n);
-        if (v2?.Value is TypeVal tv2) return tv2.Value;
+        if (v2?.Value is ObjectVal { IsClass: true } cls2) return cls2;
         throw new RuntimeException($"未知的类型: {n}");
     }
 

@@ -2,8 +2,10 @@
 
 using System.Linq;
 
-public partial class RuntimeType
+/// <summary>内置方法的注册（端口自旧的 RuntimeType.Methods.cs）。</summary>
+internal static partial class BuiltinClasses
 {
+
     /// <summary>注册各内置类型的方法(按类型分组,加方法时直接跳对应那块)</summary>
     private static void RegisterMethods()
     {
@@ -64,13 +66,13 @@ public partial class RuntimeType
                         all.Add(new StringVal(kv.Key));
             }
 
-            // 任何值都再并上类型方法(沿继承链到 object),去重
-            for (var t = s.Type; ; t = t.Parent)
+            // 任何值都再并上类型方法(沿原型链到 object),去重
+            for (var t = s.Type; t != null; t = t.Parent)
             {
                 foreach (var n in t.MethodNames)
                     if (seen.Add(n))
                         all.Add(new StringVal(n));
-                if (t == t.Parent) break;
+                if (t.Parent == t) break;
             }
 
             return new ListVal(all);
@@ -202,44 +204,44 @@ public partial class RuntimeType
 
     private static void RegisterTypeMethods()
     {
-        Type.DefineMethod("name", (s, _) => new StringVal(((TypeVal)s).Value.DisplayName));
+        // 这里**不能**再注册 `name` 方法:类名现在是类对象 Scope 里的 `name` 成员
+        // (见 ObjectVal.Name),和它同住一个作用域的方法会把它覆盖掉。
+        // 而且那个方法本来就是死代码 —— GetMember 的 `name` 伪成员排在方法查找之前,
+        // 读 `int.name` 永远走伪成员,够不着方法。读走伪成员、写走成员赋值,行为不变。
         Type.DefineMethod("Parent", (s, _) =>
         {
-            var p = ((TypeVal)s).Value.Parent;
-            if (p == ((TypeVal)s).Value) return s;
-            return new TypeVal(p);
+            var t = (ObjectVal)s;
+            var p = t.Parent;
+            if (p == null || p == t) return s;      // 自引用(链到头)就返回自己
+            return p;
         });
         Type.DefineMethod("Is", (s, a) =>
         {
-            if (a is not TypeVal other) throw new RuntimeException("type.Is 需要 type 参数");
-            return new BoolVal(((TypeVal)s).Value.IsAssignableTo(other.Value));
+            if (a is not ObjectVal other) throw new RuntimeException("type.Is 需要 type 参数");
+            return new BoolVal(((ObjectVal)s).IsAssignableTo(other));
         });
-        Type.DefineMethod("Default", (s, _) =>
-        {
-            var tv = (TypeVal)s;
-            return ConvertDirect(tv.Value, DefaultVal.Instance);
-        });
+        Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));
         Type.DefineMethod("Initializer", (s, _) =>
         {
-            var tv = (TypeVal)s;
+            var t = (ObjectVal)s;
             return new PropertyVal(
-                FunctionVal.From(_ => (RuntimeValue?)tv.Value.Initializer ?? VoidVal.Instance),
+                FunctionVal.From(_ => (RuntimeValue?)t.Initializer ?? VoidVal.Instance),
                 FunctionVal.From(v =>
                 {
                     if (v is not FunctionVal f) throw new RuntimeException("initializer 必须是函数");
-                    tv.Value.Initializer = f;
+                    t.Initializer = f;
                     return VoidVal.Instance;
                 })
             );
         });
         Type.DefineMethod("Subtypes", (s, _) =>
         {
-            var tv = (TypeVal)s;
+            var t = (ObjectVal)s;
             var subs = new List<RuntimeValue>();
-            foreach (var t in AllTypes)
+            foreach (var sub in AllTypes)
             {
-                if (t != tv.Value && t.IsAssignableTo(tv.Value))
-                    subs.Add(new TypeVal(t));
+                if (sub != t && sub.IsAssignableTo(t))
+                    subs.Add(sub);
             }
 
             return new ListVal(subs);
@@ -296,9 +298,9 @@ public partial class RuntimeType
             var scope = ((ScopeVal)s).Scope;
             return FunctionVal.From(tv =>
             {
-                if (tv is not TypeVal t)
+                if (tv is not ObjectVal t)
                     throw new RuntimeException("scope.Define 需要 type 参数");
-                scope.Define(name.Value, t.Value, VoidVal.Instance);
+                scope.Define(name.Value, t, VoidVal.Instance);
                 return VoidVal.Instance;
             });
         });

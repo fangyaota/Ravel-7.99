@@ -1,9 +1,12 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
-public partial class RuntimeType
+/// <summary>内置运算符的注册（端口自旧的 RuntimeType.Operators.cs）。
+/// 接收者是类对象，注册就是往它的 Scope 里 DefineMethod。</summary>
+internal static partial class BuiltinClasses
 {
+
     /// <summary>把二元运算符注册为名字是符号的方法（op 如 "+"、"=="）</summary>
-    private static void DefineOp(RuntimeType type, string op, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
+    private static void DefineOp(ObjectVal type, string op, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
         => type.DefineMethod(op, impl);
 
     /// <summary>把操作数收成想要的运行时值类型。类型不对时报 Ravel 错误——
@@ -115,8 +118,9 @@ public partial class RuntimeType
         DefineOp(String, "!=", (a, b) => new BoolVal(((StringVal)a).Value != Operand<StringVal>(b, "!=").Value));
         // string 拼接
         DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + Operand<StringVal>(b, "+").Value));
-        DefineOp(Type, "==", (a, b) => new BoolVal(((TypeVal)a).Value == Operand<TypeVal>(b, "==").Value));
-        DefineOp(Type, "!=", (a, b) => new BoolVal(((TypeVal)a).Value != Operand<TypeVal>(b, "!=").Value));
+        // 类对象自己就是那个值,直接按身份比(和 ObjectVal.Equals 一致)
+        DefineOp(Type, "==", (a, b) => new BoolVal((ObjectVal)a == Operand<ObjectVal>(b, "==")));
+        DefineOp(Type, "!=", (a, b) => new BoolVal((ObjectVal)a != Operand<ObjectVal>(b, "!=")));
 
         // bool 逻辑运算符
         DefineOp(Bool, "&", (a, b) => new BoolVal(((BoolVal)a).Value && Operand<BoolVal>(b, "&").Value));

@@ -1,8 +1,8 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 public record DictVal(Dictionary<string, RuntimeValue> Entries) : RuntimeValue
 {
-    public override RuntimeType Type => RuntimeType.Dict;
+    public override ObjectVal Type => BuiltinClasses.Dict;
     public override string ToString() => ShowDepth.Guard(() =>
     {
         var pairs = new List<string>();

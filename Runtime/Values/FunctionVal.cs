@@ -1,14 +1,14 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>函数值——Scope 绑定在实例上，可随时更换。
 /// Body 一律是同步的「参数 → 结果」:求值器用帧栈表达延迟,不需要 Step 包装。</summary>
-public record FunctionVal : RuntimeValue
+public record FunctionVal : RuntimeValue, IFunction
 {
     public Func<RuntimeValue, RuntimeValue> Body { get; set; }
     public virtual string? Name { get; set; }
     public Scope Scope { get; set; }
 
-    public override RuntimeType Type => RuntimeType.Function;
+    public override ObjectVal Type => BuiltinClasses.Function;
     public override string ToString() => Name != null ? "<function " + Name + ">" : "<function>";
 
     /// <summary>需要捕获作用域时用(scope 参与签名,Body 里可读 Scope)</summary>

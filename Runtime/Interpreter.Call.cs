@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>调用分派:把「函数值 + 一个参数」变成帧栈上的一步。
 /// sink 是结果接收帧——同步值走 sink.WithResult,延迟求值(块/类/控制/续延)把 sink 当作新帧的父。</summary>
@@ -19,16 +19,25 @@ public partial class Interpreter
                 if (!arg.Type.IsAssignableTo(lam.ParamType))
                     throw new TypeMismatchException($"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
                 var lamScope = lam.Scope.Push();
-                lamScope.Define("self", RuntimeType.Function, lam);
+                lamScope.Define("self", BuiltinClasses.Function, lam);
                 lamScope.Define(lam.ParamName, lam.ParamType, arg);
                 _top = new BlockExecFrame(lam.Block) { Parent = sink, Scope = lamScope };
                 break;
             case BlockVal blk:
                 _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.Scope.Push() };
                 break;
-            case TypeVal t:
-                CallTypeInto(sink, t, arg);
+            case ObjectVal ov:
+            {
+                // Ravel 层"能不能调用"的判据就是**有没有 `call` 成员** ——
+                // 引擎因此不需要知道"什么是类",interface/shape 也可以建在同一套判据上
+                if (ov.Scope.LookupField(ObjectVal.CallMember)?.Value is not FunctionVal raw)
+                    throw new RuntimeException($"值 {ov} 不是函数，不能调用");
+                var bound = ObjectVal.BindMethod(raw, ov);
+                // 内置的 call 是 BoundCall,交给实例化那条路;用户自己定义的 call 直接同步调
+                if (bound is BoundCall bc) CallClassInto(sink, bc.Self, arg);
+                else _top = sink.WithResult(bound.Body(arg));
                 break;
+            }
             case ComposeVal comp:
             {
                 var cargs = RList<RuntimeValue>.Empty.Add(comp.Original).Add(comp.Block).Add(arg).Add(new BoolVal(comp.IsPrepend));
@@ -66,10 +75,16 @@ public partial class Interpreter
         }
     }
 
-    private void CallTypeInto(Frame sink, TypeVal t, RuntimeValue arg)
+    /// <summary>调用一个类对象 = 实例化它。
+    ///
+    /// 两条路(S1 阶段):
+    /// - 有类体(用户类)→ 推 ClassInit 控制帧:建 scope、跑各层类体、调 init
+    /// - 只有 Initializer(内置类)→ 同步转换器
+    ///
+    /// S2 会把两条合成一条:内置类也在预设类体里定义 `init`,构造一律交出 init 的返回值。</summary>
+    private void CallClassInto(Frame sink, ObjectVal t, RuntimeValue arg)
     {
-        // 用户 class:Body 非空 → 推类构造控制帧(StepClassInit)
-        if (t.Value.Body != null)
+        if (t.Body != null)
         {
             _top = new ControlFrame(ControlKind.ClassInit, RList<RuntimeValue>.Empty.Add(t).Add(arg), VoidVal.Instance)
             {
@@ -79,11 +94,10 @@ public partial class Interpreter
             return;
         }
 
-        // 内建类型:同步构造器(转换器)
-        var init = t.Value.Initializer;
+        var init = t.Initializer;
         // DisplayName 而不是 Name:用户类的名字是空的(`C := class {...}` 没有名字),
         // 直接插 Name 会报成「类型  不能作为构造器调用」,两个空格中间什么都没有
-        if (init == null) throw new RuntimeException($"类型 {t.Value.DisplayName} 不能作为构造器调用");
+        if (init == null) throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用");
         _top = sink.WithResult(init.Body(arg));
     }
 

@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>分数。**构造时就约分**,负号统一归到分子。
 ///
@@ -13,7 +13,7 @@ public record FractionVal : RuntimeValue
 {
     public int Num { get; }
     public int Den { get; }
-    public override RuntimeType Type => RuntimeType.Fraction;
+    public override ObjectVal Type => BuiltinClasses.Fraction;
 
     public FractionVal(int num, int den)
     {

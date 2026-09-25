@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>成员访问包装器:把「取成员」的门禁(unreadable / outdated / core / private-protected)
 /// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。</summary>
@@ -33,7 +33,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     {
         // 运算符访问：`1.+` / `"a".==` → 返回绑好 self 的函数。类型层注册的(内置或类运算符)优先。
         if (OperatorSymbols.IsSymbol(name) && Value.Type.TryLookupMethod(name) is { } opMethod)
-            return new BoxedValue(RuntimeType.BindMethod(opMethod, Value), interp);
+            return new BoxedValue(ObjectVal.BindMethod(opMethod, Value), interp);
 
         if (Value is PropertyVal pv)
         {
@@ -48,25 +48,32 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
             return new BoxedValue(vr.Value, interp);
         }
 
+        // 类对象 / 函数的 `name` 是伪成员,排在字段查找前面 —— 类对象的 `name` 成员存的是空串
+        // (`C := class {...}` 没有名字),对外要显示 DisplayName(空名字退化成 "class")。
+        // 读写的不对称和以前一致:读显示名、写落成员(见 StepMemberAssign 的 name 特判)。
+        if (name == "name")
+        {
+            if (Value is ObjectVal { IsClass: true } cls) return new BoxedValue(new StringVal(cls.DisplayName), interp);
+            if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);
+        }
+
         if (Value is ObjectVal obj)
         {
             var vr = obj.Scope.LookupField(name);
             if (vr != null)
             {
                 CheckObjectReadAccess(obj, vr, name);
-                return new BoxedValue(vr.Value, interp);
+                // 自绑定成员(类对象的 Scope 里装着内置方法/类运算符工厂)要绑上接收者;
+                // 实例 scope 里的是已经捕获好作用域的 lambda,原样返回
+                var v = vr.Value;
+                return new BoxedValue(
+                    v is ISelfBinding && v is FunctionVal sf ? ObjectVal.BindMethod(sf, Value) : v,
+                    interp);
             }
         }
 
-        // 类型名 / 函数名:字段之外的两个伪成员
-        if (name == "name")
-        {
-            if (Value is TypeVal tv) return new BoxedValue(new StringVal(tv.Value.DisplayName), interp);
-            if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);
-        }
-
         var method = Value.Type.LookupMethod(name);
-        return new BoxedValue(RuntimeType.BindMethod(method, Value), interp);
+        return new BoxedValue(ObjectVal.BindMethod(method, Value), interp);
     }
 
     /// <summary>读变量的通用门禁:unreadable / core / outdated。

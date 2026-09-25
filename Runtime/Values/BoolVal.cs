@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>bool 值。它**必须是 FunctionVal** —— 类型表里 `Bool &lt;: Function`
 /// (true/false 可调用:`true {a} {b}` 选一个块跑),值这边不跟上就会出现
@@ -9,6 +9,6 @@ namespace Ravel.Runtime;
 /// Body 不会被调用:求值器在 CallInto 里按类型分派(见 BoolVal 分支)。</summary>
 public record BoolVal(bool Value) : FunctionVal(null!, (_, _) => VoidVal.Instance)
 {
-    public override RuntimeType Type => RuntimeType.Bool;
+    public override ObjectVal Type => BuiltinClasses.Bool;
     public override string ToString() => Value.ToString().ToLower();
 }

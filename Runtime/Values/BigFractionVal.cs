@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>大数分数。和 <see cref="FractionVal"/> 一样**构造时就约分**、负号归分子
 /// (理由见那边:显示一致 + 结构相等和 `==` 不能两套答案)。
@@ -7,7 +7,7 @@ public record BigFractionVal : RuntimeValue
 {
     public System.Numerics.BigInteger Num { get; }
     public System.Numerics.BigInteger Den { get; }
-    public override RuntimeType Type => RuntimeType.BigFraction;
+    public override ObjectVal Type => BuiltinClasses.BigFraction;
 
     public BigFractionVal(System.Numerics.BigInteger num, System.Numerics.BigInteger den)
     {

@@ -1,7 +1,7 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 public record SetVal(HashSet<RuntimeValue> Elements) : RuntimeValue
 {
-    public override RuntimeType Type => RuntimeType.Set;
+    public override ObjectVal Type => BuiltinClasses.Set;
     public override string ToString() => ShowDepth.Guard(() => "{" + string.Join(" ", Elements) + "}");
 }

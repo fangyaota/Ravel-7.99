@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>节点状态机:每个 AST 节点一个 NodeFrame,按 Results.Count 分阶段推进(求子节点 → 汇总)。
 /// 需要「调用函数拿结果」的节点把 sink 传 nf.Parent(结果直接流进父帧),不再回到本帧。</summary>
@@ -7,12 +7,12 @@ public partial class Interpreter
     /// <summary>隐式转换:失败返回 null,把失败原因从 out 带走。
     /// 原因要带——`x: int = bigint 9999999999999` 光说「无法将 BigInt 赋值给 Integer」,
     /// 看不出是「类型根本不支持转换」还是「转得动但这个值超出 int 范围」,后者才是真话。</summary>
-    private static RuntimeValue? TryConvert(RuntimeValue val, RuntimeType target, out string? why)
+    private static RuntimeValue? TryConvert(RuntimeValue val, ObjectVal target, out string? why)
     {
         try
         {
             why = null;
-            return RuntimeType.ConvertDirect(target, val);
+            return BuiltinClasses.ConvertDirect(target, val);
         }
         catch (RuntimeException ex)
         {
@@ -139,7 +139,7 @@ public partial class Interpreter
     private static RuntimeValue Negate(RuntimeValue v) => v switch
     {
         // -int.MinValue 翻不过来(2147483648 装不下),别静默回绕成它自己
-        IntVal i => RuntimeType.Narrow(-(long)i.Value, $"-({i.Value})"),
+        IntVal i => BuiltinClasses.Narrow(-(long)i.Value, $"-({i.Value})"),
         FloatVal f => new FloatVal(-f.Value),
         BigIntVal b => new BigIntVal(-b.Value),
         FractionVal fr => new FractionVal(-fr.Num, fr.Den),
@@ -239,9 +239,11 @@ public partial class Interpreter
         if (v.Attrs != null)
             foreach (var a in v.Attrs)
                 vr.SetAttr(a);
-        if (v.Named && val is FunctionVal fn)
+        // `::=` 同时给函数和**类对象**命名:两者的 Name 都实现自 IFunction
+        // (类对象的落在它 Scope 的 `name` 成员上)
+        if (v.Named && val is IFunction named)
         {
-            fn.Name = v.Name;
+            named.Name = v.Name;
         }
 
         // 运算符没有别名可言:符号本身就是变量名(`+ := f` 定义的就是 `+`)

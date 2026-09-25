@@ -1,7 +1,7 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>用户 lambda:调用时推 body 帧(不再用闭包 rawBody)。Scope=捕获的闭包作用域;Block=lambda 体</summary>
-public sealed record LambdaVal(string ParamName, RuntimeType ParamType, BlockExpr Block)
+public sealed record LambdaVal(string ParamName, ObjectVal ParamType, BlockExpr Block)
     : FunctionVal(null!, (_, _) => VoidVal.Instance)
 {
     // record 自动生成的 ToString 会把 Body/Scope/Block 这些实现细节全 dump 出来,

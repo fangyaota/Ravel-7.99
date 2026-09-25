@@ -41,7 +41,6 @@ internal static class ArgNames
     public static string Of(Type t) => t switch
     {
         _ when t == typeof(BlockVal) => "代码块",
-        _ when t == typeof(TypeVal) => "类型",
         _ when t == typeof(StringVal) => " string",
         _ when t == typeof(ObjectVal) => "对象",
         _ when t == typeof(BoolVal) => " bool",

@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>二元运算与赋值:算术/比较走类型方法表,`=` 分派给变量或成员写入。
 /// 节点状态机见 Interpreter.Nodes.cs。</summary>
@@ -91,7 +91,7 @@ public partial class Interpreter
             var op = bin.Op[..1];
             var fn = left.Type.TryLookupMethod(op);
             if (fn == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
-            var bound = RuntimeType.BindMethod(fn, left);
+            var bound = ObjectVal.BindMethod(fn, left);
             if (fn is not BuiltinMethodVal)
             {
                 var target = bin.Left is IdentifierExpr id2 ? id2.Name : null;
@@ -111,7 +111,7 @@ public partial class Interpreter
         // 运算符本身总是先过词法/语法的,所以「查不到方法」只可能是**左边的类型**没定义它。
         // 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。
         if (builtin == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{bin.Op}'");
-        var bound2 = RuntimeType.BindMethod(builtin, left);
+        var bound2 = ObjectVal.BindMethod(builtin, left);
         if (builtin is BuiltinMethodVal)
             Return(nf, bound2.Body(right));
         else
@@ -143,7 +143,7 @@ public partial class Interpreter
         {
             var fn = field.Value.Type.TryLookupMethod(op)
                      ?? throw new RuntimeException($"类型 {field.Value.Type} 不支持运算符 '{op}'");
-            var bound = RuntimeType.BindMethod(fn, field.Value);
+            var bound = ObjectVal.BindMethod(fn, field.Value);
 
             if (fn is BuiltinMethodVal)
             {
@@ -182,7 +182,7 @@ public partial class Interpreter
             var left = nf.Result(2);
             var fn = left.Type.TryLookupMethod(op)
                      ?? throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
-            CallInto(nf, RuntimeType.BindMethod(fn, left), nf.Result(1));
+            CallInto(nf, ObjectVal.BindMethod(fn, left), nf.Result(1));
             return;
         }
 

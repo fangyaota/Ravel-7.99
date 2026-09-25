@@ -1,9 +1,10 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>运行时值的抽象基类</summary>
 public abstract record RuntimeValue
 {
-    public abstract RuntimeType Type { get; }
+    /// <summary>这个值的类对象(元类链上的创建者)。`typeof X` 取的就是它。</summary>
+    public abstract ObjectVal Type { get; }
 
     /// <summary>这是个真的闭包(方法 / lambda / 内置函数 / 块 / 类型),而不是**恰好**
     /// 落在 Function 类型下的数据值吗?

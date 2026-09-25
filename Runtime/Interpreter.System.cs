@@ -14,39 +14,40 @@ public partial class Interpreter
     /// <summary>组装 System 模块——它是唯一「用 C# 写死」的模块,其余模块都来自 .rav 文件</summary>
     private ModuleVal BuildSystemModule()
     {
-        var moduleType = RuntimeType.Define("System", RuntimeType.Ravel);
+        var moduleType = BuiltinClasses.NewModuleClass("System", BuiltinClasses.Ravel);
         var module = new ModuleVal(moduleType, new Scope(_global));
         var scope = module.ModuleScope;
 
-        void Def(string name, RuntimeType type, RuntimeValue value) => scope.Define(name, type, value);
-        void DefType(string name, RuntimeType type) => Def(name, RuntimeType.Type, new TypeVal(type));
-        void DefFn(string name, FunctionVal fn) => Def(name, RuntimeType.Function, fn);
+        void Def(string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);
+        // 类对象自己就是那个值,不再包一层
+        void DefType(string name, ObjectVal type) => Def(name, BuiltinClasses.Type, type);
+        void DefFn(string name, FunctionVal fn) => Def(name, BuiltinClasses.Function, fn);
         void DefControl(string name, ControlKind kind, int arity) => DefFn(name, new ControlFunction(kind, arity, RList<RuntimeValue>.Empty));
 
         // ---- 类型(System.Integer 等权威名;小写别名在 predefined.rav) ----
-        DefType("Integer", RuntimeType.Int);
-        DefType("String", RuntimeType.String);
-        DefType("Bool", RuntimeType.Bool);
-        DefType("Float", RuntimeType.Float);
-        DefType("BigInteger", RuntimeType.BigInt);
-        DefType("Fraction", RuntimeType.Fraction);
-        DefType("BigFraction", RuntimeType.BigFraction);
-        DefType("List", RuntimeType.List);
-        DefType("Set", RuntimeType.Set);
-        DefType("Dict", RuntimeType.Dict);
-        DefType("Object", RuntimeType.Object);
-        DefType("Function", RuntimeType.Function);
-        DefType("Void", RuntimeType.Void);
-        DefType("Type", RuntimeType.Type);
-        DefType("ValueTypeVal", RuntimeType.ValueType);
-        DefType("AnyType", RuntimeType.Any);
-        DefType("EveryType", RuntimeType.Every);
-        DefType("ExceptionType", RuntimeType.Exception);
+        DefType("Integer", BuiltinClasses.Int);
+        DefType("String", BuiltinClasses.String);
+        DefType("Bool", BuiltinClasses.Bool);
+        DefType("Float", BuiltinClasses.Float);
+        DefType("BigInteger", BuiltinClasses.BigInt);
+        DefType("Fraction", BuiltinClasses.Fraction);
+        DefType("BigFraction", BuiltinClasses.BigFraction);
+        DefType("List", BuiltinClasses.List);
+        DefType("Set", BuiltinClasses.Set);
+        DefType("Dict", BuiltinClasses.Dict);
+        DefType("Object", BuiltinClasses.Object);
+        DefType("Function", BuiltinClasses.Function);
+        DefType("Void", BuiltinClasses.Void);
+        DefType("Type", BuiltinClasses.Type);
+        DefType("ValueTypeVal", BuiltinClasses.ValueType);
+        DefType("AnyType", BuiltinClasses.Any);
+        DefType("EveryType", BuiltinClasses.Every);
+        DefType("ExceptionType", BuiltinClasses.Exception);
 
         // ---- 常量 ----
-        Def("True", RuntimeType.Bool, new BoolVal(true));
-        Def("False", RuntimeType.Bool, new BoolVal(false));
-        Def("Default", RuntimeType.Every, DefaultVal.Instance);
+        Def("True", BuiltinClasses.Bool, new BoolVal(true));
+        Def("False", BuiltinClasses.Bool, new BoolVal(false));
+        Def("Default", BuiltinClasses.Every, DefaultVal.Instance);
 
         // ---- 控制内建:收满参数后由求值器推控制帧 ----
         // if/while/foreach 不在这里——它们在 predefined.rav 用 Ravel 写(靠可调用的 true/false + callcc)
@@ -69,7 +70,7 @@ public partial class Interpreter
         DefFn("ReadLine", FunctionVal.From(_ => new StringVal(Console.ReadLine() ?? "")));
 
         // ---- 反射 / 作用域 ----
-        DefFn("TypeOf", FunctionVal.From(a => new TypeVal(a.Type)));
+        DefFn("TypeOf", FunctionVal.From(a => a.Type));
         DefFn("currentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
         // 标记**当前**作用域:core 检查沿作用域链往上找标记,所以函数返回后标记自然失效
         DefFn("unsafe", FunctionVal.From(_ =>
@@ -122,7 +123,7 @@ public partial class Interpreter
 
         if (!_modules.TryGetValue(name, out var mv))
         {
-            var mt = RuntimeType.Define(name, RuntimeType.Ravel);
+            var mt = BuiltinClasses.NewModuleClass(name, BuiltinClasses.Ravel);
             mv = new ModuleVal(mt, new Scope(_global));
             _modules[name] = mv;
             _global.Define(name, mt, mv);

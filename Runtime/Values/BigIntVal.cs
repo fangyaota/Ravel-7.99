@@ -1,7 +1,7 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 public record BigIntVal(System.Numerics.BigInteger Value) : RuntimeValue
 {
-    public override RuntimeType Type => RuntimeType.BigInt;
+    public override ObjectVal Type => BuiltinClasses.BigInt;
     public override string ToString() => Value.ToString();
 }

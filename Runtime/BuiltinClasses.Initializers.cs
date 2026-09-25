@@ -1,7 +1,14 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
-public partial class RuntimeType
+/// <summary>内置转换器（"调用这个类时算出什么值"）的注册。
+/// 端口自旧的 RuntimeType.Initializers.cs。
+///
+/// `Initializer` 是 S1 阶段的临时桥：有它的类走同步转换、交出转换器的返回值；
+/// 没有它的类走"实例化并交出实例"。两条路 S2 会合成为一条
+/// （内置类也在类体里定义 `init`，构造交出 init 的返回值）。</summary>
+internal static partial class BuiltinClasses
 {
+
     // ============================================================
     //  类型构造器 / 转换器
     // ============================================================
@@ -30,7 +37,7 @@ public partial class RuntimeType
         => FunctionVal.From(cast);
 
     /// <summary>仅支持 default → 默认值的构造器（集合等不可直接构造的类型）</summary>
-    private static FunctionVal MakeDefaultCaster(RuntimeType type)
+    private static FunctionVal MakeDefaultCaster(ObjectVal type)
         => MakeCaster(val => val is DefaultVal
             ? ConvertDirect(type, val)
             : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用"));
@@ -149,7 +156,7 @@ public partial class RuntimeType
         => new ExceptionVal(val.ToString());
 
     /// <summary>同步类型转换（隐式转换用）：失败抛异常，仅支持安全转换</summary>
-    internal static RuntimeValue ConvertDirect(RuntimeType target, RuntimeValue val)
+    internal static RuntimeValue ConvertDirect(ObjectVal target, RuntimeValue val)
     {
         if (val is DefaultVal)
         {
@@ -203,49 +210,11 @@ public partial class RuntimeType
         {
             if (a is BlockVal block)
                 return CreateClass(Object, block);
-            if (a is TypeVal parent)
+            if (a is ObjectVal parent)
                 return FunctionVal.From(b =>
                     b is BlockVal bb
-                        ? CreateClass(parent.Value, bb)
+                        ? CreateClass(parent, bb)
                         : throw new RuntimeException("class 需要代码块参数"));
             throw new RuntimeException("class 参数必须是类型或代码块");
         });
-
-    /// <summary>创建类：建 RuntimeType，存 body，扫描用符号定义的运算符注册到方法表。
-    /// 元类是 `Type` —— 没有单独的 Class 类型了,`typeof Person` 和 `typeof int` 都是 Type。</summary>
-    private static TypeVal CreateClass(RuntimeType parent, BlockVal block)
-    {
-        var newType = Define("", parent);
-        newType.Metaclass = Type;
-        newType.Body = block;
-        // 类体里用符号定义的运算符(`+ := f` 定义、`+ = f` 覆盖)注册到类型的方法表
-        foreach (var stmt in block.Block.Statements)
-        {
-            var op = stmt switch
-            {
-                VarDefinition v when v.IsOperator => v.Name,
-                Assignment a when OperatorSymbols.IsSymbol(a.Name) => a.Name,
-                _ => null,
-            };
-            if (op != null) newType.DefineClassOperator(op);
-        }
-        return new TypeVal(newType);
-    }
-
-    /// <summary>沿 Parent 链收集各层类体，返回「顶祖先 → 自身」。Body == null 的层(内建类型)不入列且到此为止。
-    /// Parent/Body 创建后不可变,所以这是纯函数,可随帧推进反复调用。</summary>
-    internal static List<BlockVal> CollectBodies(RuntimeType type)
-    {
-        var layers = new List<BlockVal>();
-        for (var t = type; ; t = t.Parent)
-        {
-            var body = t.Body;
-            if (body == null) break;
-            layers.Add(body);
-            if (t.Parent == t) break;
-        }
-
-        layers.Reverse();
-        return layers;
-    }
 }

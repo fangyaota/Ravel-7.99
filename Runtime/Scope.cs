@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 public class Scope(Scope? parent = null)
 {
@@ -16,7 +16,7 @@ public class Scope(Scope? parent = null)
         return null;
     }
 
-    public Variable Define(string name, RuntimeType typeConstraint, RuntimeValue initialValue)
+    public Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
     {
         if (_vars.ContainsKey(name)) throw new RuntimeException($"变量 '{name}' 已定义");
         var v = new Variable(name, typeConstraint, initialValue);
@@ -24,7 +24,7 @@ public class Scope(Scope? parent = null)
         return v;
     }
 
-    public Variable DefineOrReplace(string name, RuntimeType typeConstraint, RuntimeValue initialValue)
+    public Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
     {
         var v = new Variable(name, typeConstraint, initialValue);
         _vars[name] = v;

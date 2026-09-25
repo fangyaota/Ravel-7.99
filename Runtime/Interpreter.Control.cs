@@ -31,7 +31,7 @@ public partial class Interpreter
         {
             var copy = obj switch
             {
-                ObjectVal ov => RuntimeType.CopyObject(ov),
+                ObjectVal ov => BuiltinClasses.CopyObject(ov),
                 ListVal lv => new ListVal([.. lv.Elements]),
                 SetVal sv => new SetVal([.. sv.Elements]),
                 DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries)),
@@ -100,7 +100,7 @@ public partial class Interpreter
 
     /// <summary>函数交替 `f | g | h`:按顺序试,第一个收得下这个参数的分支胜出。
     ///
-    /// 分支在 `|` 那边就摊平成一个列表(见 `RuntimeType.Operators` 的 Function.|),
+    /// 分支在 `|` 那边就摊平成一个列表(见 `BuiltinClasses.Operators` 的 Function.|),
     /// 所以这里一个帧顺序试完即可。**不能嵌套着试**:`CallInto` 只推帧、不当场调用,
     /// 内层交替的 TypeMismatchException 是在外层这个 try 之外才抛的,
     /// 外层 catch 早返回了 —— 那样第三个分支永远试不到。
@@ -141,9 +141,9 @@ public partial class Interpreter
     /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。</summary>
     private void StepClassInit(ControlFrame cf)
     {
-        var type = cf.Arg<TypeVal>(0, "class").Value;
+        var type = cf.Arg<ObjectVal>(0, "class");
         var arg = cf.Arg<RuntimeValue>(1, "class");
-        var bodies = RuntimeType.CollectBodies(type); // 顶祖先 → 自身,≥ 1 层
+        var bodies = BuiltinClasses.CollectBodies(type); // 顶祖先 → 自身,≥ 1 层
 
         if (cf.Count == 0)
         {

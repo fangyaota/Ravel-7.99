@@ -1,9 +1,9 @@
-namespace Ravel;
+﻿namespace Ravel;
 
 using Ravel.Runtime;
 
 /// <summary>可自定义的运算符符号。类体里直接用符号定义(`+ := f` 定义、`+ = f` 覆盖),
-/// 符号本身就是实例里的成员名,所以 `a.+` 能取到它。集合与 RuntimeType.Operators 注册的内置运算符一致。</summary>
+/// 符号本身就是实例里的成员名,所以 `a.+` 能取到它。集合与 BuiltinClasses.Operators 注册的内置运算符一致。</summary>
 public static class OperatorSymbols
 {
     public static readonly HashSet<string> All =
