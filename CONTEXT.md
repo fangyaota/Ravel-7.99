@@ -7,9 +7,9 @@ Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 
 ## 编译运行
 
 ```bash
-rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish -c Debug -o out
-                                         # 先删 out/：增量 publish 有时不更新它,
-                                         # 会跑到陈旧产物、得出假的结论
+rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c Debug -o out
+     # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
+     # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
 dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav      # 单文件
 dotnet out/ravel.dll                    # REPL

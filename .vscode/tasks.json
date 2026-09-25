@@ -49,9 +49,10 @@
             "label": "publish",
             "command": "dotnet",
             "type": "process",
+            // 用 Ravel.csproj 而不是 .sln:带 -o 发布 sln 会报 NETSDK1194
             "args": [
                 "publish",
-                "${workspaceFolder}/Ravel.sln",
+                "${workspaceFolder}/Ravel.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],

@@ -1,0 +1,77 @@
+add ::= (x: int) => { x + 1; }
+print (add.name)
+print (typeof add.name)
+print "hello"
+System.Write "no newline"
+print ""
+print (typeof [1 2 3])
+print (typeof {1 2 3})
+print (typeof {a:1 b:2})
+print (typeof ())
+print (int.name)
+print (string.name)
+print (typeof 42)
+print (typeof "hello")
+print (int.Parent ())
+print (int.Is ValueType)
+print (int.Is string)
+print (int.Subtypes ())
+print (int.Default ())
+print (int "42")
+print (string 100)
+print (bool 0)
+print (float 3)
+print ()
+print default
+print (int default)
+print (string default)
+print (bool default)
+print (list default)
+print (bigint 12345678901234567890)
+print (fraction 3 4)
+print (bigfraction 123 456)
+print (1 + 2)
+print (5 - 3)
+print (4 * 2)
+print (10 / 3)
+print (10.0 / 3)
+print (7 % 3)
+print (1 == 2)
+print (1 != 2)
+print (3 < 5)
+print (5 > 3)
+print (3 <= 3)
+print (3 == 3.0)
+print (true && false)
+print (true || false)
+print (!true)
+print (3 & 1)
+print (3 | 1)
+print (3 ^ 1)
+print ("hello " + "world")
+print ("say \"hi\"")
+print ("line1\nline2")
+print ("c:\path\file")
+print ("ab
+cd")
+print (true == true)
+print ("a" != "b")
+x := 10
+x += 5
+print x
+x -= 3
+print x
+x *= 2
+print x
+x /= 4
+print x
+x %= 4
+print x
+print (1.+ 5)
+print (true.^ true)
+dd := 2.+
+print (dd 3)
+ee := +.2
+print (ee 5)
+print ((+.(2 * 3)) 10)
+print ((+.1) 41)
