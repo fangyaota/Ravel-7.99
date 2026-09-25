@@ -74,13 +74,13 @@ public partial class RuntimeType
 
         // Fraction 运算符
         DefineOp(Fraction, "+",
-            (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db + nb * da, da * db)));
+            (a, b) => FractionBinOp(a, b, (na, da, nb, db) => MakeFraction(na * db + nb * da, da * db)));
         DefineOp(Fraction, "-",
-            (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db - nb * da, da * db)));
-        DefineOp(Fraction, "*", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * nb, da * db)));
+            (a, b) => FractionBinOp(a, b, (na, da, nb, db) => MakeFraction(na * db - nb * da, da * db)));
+        DefineOp(Fraction, "*", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => MakeFraction(na * nb, da * db)));
         DefineOp(Fraction, "/", (a, b) => FractionBinOp(a, b, (na, da, nb, db) =>
             nb != 0
-                ? new FractionVal(na * db, da * nb)
+                ? MakeFraction(na * db, da * nb)
                 : throw new RuntimeException("运算符 '/' 的除数为零")));
 
         // BigFraction 运算符
@@ -164,13 +164,25 @@ public partial class RuntimeType
         _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
     };
 
-    private static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<int, int, int, int, RuntimeValue> f)
+    /// <summary>分数的分子分母**在 long 里**参与运算:两个 int 相乘再收窄会静默回绕
+    /// (`fraction 100000 1 * fraction 100000 1` 从前得到 1410065408/1),
+    /// 而 int×int 的积一定装得进 long,所以这一层够用。收窄交给 <see cref="MakeFraction"/>。</summary>
+    private static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<long, long, long, long, RuntimeValue> f)
     {
-        int na = a is FractionVal fa ? fa.Num : Operand<IntVal>(a, "分数运算").Value;
-        int da = a is FractionVal fa2 ? fa2.Den : 1;
-        int nb = b is FractionVal fb ? fb.Num : Operand<IntVal>(b, "分数运算").Value;
-        int db = b is FractionVal fb2 ? fb2.Den : 1;
+        long na = a is FractionVal fa ? fa.Num : Operand<IntVal>(a, "分数运算").Value;
+        long da = a is FractionVal fa2 ? fa2.Den : 1;
+        long nb = b is FractionVal fb ? fb.Num : Operand<IntVal>(b, "分数运算").Value;
+        long db = b is FractionVal fb2 ? fb2.Den : 1;
         return f(na, da, nb, db);
+    }
+
+    /// <summary>分数运算的结果收窄回 int32。fraction 是 32 位的类型,装不下就明说改用 bigfraction,
+    /// 别静默回绕。</summary>
+    private static RuntimeValue MakeFraction(long num, long den)
+    {
+        if (num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue)
+            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）");
+        return new FractionVal((int)num, (int)den);
     }
 
     private static RuntimeValue BigFractionBinOp(RuntimeValue a, RuntimeValue b,
