@@ -235,39 +235,44 @@ internal static partial class BuiltinClasses
         });
     }
 
+    /// <summary>取接收者当函数用。**不能硬转 `(FunctionVal)s`**:类对象的元类链里有
+    /// `Function`(type <: function),所以 `Fields ()` 会把 Function 的方法列成类的可用方法,
+    /// 而类对象是 `ObjectVal` —— 硬转就抛 InvalidCastException 漏到顶层。
+    /// 换句话说,这是 BoolVal 那个「类型说有、值却接不住」的**反向**同款。</summary>
+    private static FunctionVal AsFunction(RuntimeValue s, string what)
+        => s as FunctionVal ?? throw new RuntimeException($"{what} 只对函数有意义，{s.Type} 不行");
+
     private static void RegisterFunctionMethods()
     {
+        // Name / scope 走 IFunction:函数和类对象都有这两个,不用转
         Function.DefineMethod("Name", (s, a) =>
         {
-            var fn = (FunctionVal)s;
+            var f = (IFunction)s;
             if (a is StringVal sv)
             {
-                fn.Name = sv.Value;
+                f.Name = sv.Value;
                 return VoidVal.Instance;
             }
 
-            return new StringVal(fn.Name ?? "");
+            return new StringVal(f.Name ?? "");
         });
-        Function.DefineMethod("scope", (s, _) =>
-        {
-            var fn = (FunctionVal)s;
-            return new ScopeVal(fn.Scope ?? new Scope());
-        });
+        Function.DefineMethod("scope", (s, _) => new ScopeVal(((IFunction)s).Scope ?? new Scope()));
+        // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
         Function.DefineMethod("setScope", (s, a) =>
         {
             if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
-            ((FunctionVal)s).Scope = sv.Scope;
+            AsFunction(s, "setScope").Scope = sv.Scope;
             return VoidVal.Instance;
         });
         Function.DefineMethod("prepend", (s, a) =>
         {
             if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
-            return ((FunctionVal)s).Prepend(p);
+            return AsFunction(s, "prepend").Prepend(p);
         });
         Function.DefineMethod("append", (s, a) =>
         {
             if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
-            return ((FunctionVal)s).Append(p);
+            return AsFunction(s, "append").Append(p);
         });
     }
 

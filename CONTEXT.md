@@ -177,7 +177,7 @@ Object (parent=自己)
 |---|---|
 | `parent` | 父类对象（原型链上游；自引用 = 链到头） |
 | `block` | 类体——实例化时重跑的配方 |
-| `name` | 类名（`C := class {...}` 的是空串，只有 `::=` 会命名） |
+| `name` | 类名（`C := class {...}` 的**成员值是空串**，只有 `::=` 会命名；但 `C.name` 读出来是显示名，空名字退化成 `class` —— 读写不对称，见 BoxedValue 的 `name` 伪成员） |
 | `call` | **"可调用"的凭据**（见下） |
 
 `RuntimeValue.Type` 返回这个对象的**元类**（创建它的那个类对象），`typeof X` 就是取它。
@@ -192,7 +192,9 @@ Object (parent=自己)
                         沿 X 的 parent 链逐层跑各层 block
                         在 scope 里 LookupField("init") 找构造器
                         调它，并把【它返回什么就是什么】作为结果
-④ 建类     class P { body } ≡ type P { body }
+④ 建类     X := class { body }        ← 父类默认 object
+           X := class Parent { body }  ← 父类 Parent(必须已经存在)
+           ≡ 把 class 换成 type 完全等价(两者是同一个值)
 ```
 
 - **`IsClass`**（我自己是不是一个类）判据是「**元类继承自 `type`**」——走类型关系，
@@ -398,7 +400,6 @@ int.name          # "Integer"
 int.Parent ()     # ValueType
 int.Is ValueType  # true
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
-int.Initializer () # Property 代理(getter=构造器,setter=设构造器)
 
 # 对象
 obj.Fields ()     # 数据字段名 + 类型方法名(对象=实例字段在前;模块=作用域变量在前)

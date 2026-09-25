@@ -43,12 +43,20 @@ public partial class Interpreter
                 // 引擎因此不需要知道"什么是类",interface/shape 也可以建在同一套判据上
                 if (ov.Scope.LookupField(ObjectVal.CallMember)?.Value is not FunctionVal raw)
                     throw new RuntimeException($"值 {ov} 不是函数，不能调用");
-                var bound = ObjectVal.BindMethod(raw, ov);
-                // 内置的 call 是 BoundCall,交给实例化那条路;用户自己定义的 call 直接同步调
-                if (bound is BoundCall bc) CallClassInto(sink, bc.Self, arg);
-                else _top = sink.WithResult(bound.Body(arg));
+
+                // 自绑定成员(内置的 call 是 BuiltinMethodVal)要先绑上 self;绑完是 BoundCall,
+                // 交给实例化那条路。**不能无条件 BindMethod**:用户自己写的 `call` 是个普通
+                // lambda,而 BindMethod 假定 `Body(self)` 返回函数体 —— LambdaVal 的 Body 是占位,
+                // 会抛 InvalidCastException 漏到顶层。
+                var call = raw is ISelfBinding ? ObjectVal.BindMethod(raw, ov) : raw;
+                if (call is BoundCall bc) CallClassInto(sink, bc.Self, arg);
+                else CallInto(sink, call, arg);
                 break;
             }
+            case BoundCall bc:
+                // `call` 成员绑上 self 之后的产物:调用它 = 实例化 self
+                CallClassInto(sink, bc.Self, arg);
+                break;
             case ComposeVal comp:
             {
                 var cargs = RList<RuntimeValue>.Empty.Add(comp.Original).Add(comp.Block).Add(arg).Add(new BoolVal(comp.IsPrepend));

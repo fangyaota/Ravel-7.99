@@ -115,7 +115,8 @@ Object (parent = 自身)
 
 **没有 `Class` 类型**：`class` 就是 `type` 的别名（`predefined.rav` 里 `class := System.Type`），
 两者是同一个值，所以 `typeof Person`（用户类）和 `typeof int`（内置类型）都是 `Type`。
-用户类是 `RuntimeType`，它的父类是 `Object`、元类是 `Type`。
+用户类也是同一个表示（`Runtime/Values/ObjectVal.cs`，见「七、类」），
+它的父类是 `Object`、元类是 `Type`。
 
 `Any` 和 `Every` 画在最后只是排版方便——它们的父类型是**自己**，不是 `Object`
 （`object.Subtypes ()` 里没有它们）。权威快照见 `tests/125_type_tree.rav`。
@@ -486,155 +487,240 @@ s.Contains [1]         # false —— 新造的 [1] 不是集合里那个
 
 ## 七、类
 
-### 7.1 基本定义
+### 7.1 类就是一个对象
 
 ```ravel
 Person ::= class {
-    init := () => {
-        name = ""
-        age = 0
-    }
+    init := () => { this; }
     name: string = ""
     age: int = 0
 }
 p := Person ()
 p.name = "Alice"
-print (p.name)   # Alice
+print (p.name)           # Alice
+print (Person.name)      # Person
+print (typeof p)         # Person
+print (typeof Person)    # Type
 ```
 
-构造器就是名字叫 `init` 的那个变量。一个类最多一个；类里不写就向上找父类的，
-整条继承链都没有则报「类型 X 没有构造器（init）」。
+**没有 `Class` 类型，也没有单独的「类」表示。** `class` 和 `type` 是**同一个值**
+（`print (class == type)` 打出 `true`），所以 `Person ::= class { ... }` 和
+`Person ::= type { ... }` 建出来的是同一个东西。
 
-**`init` 是变量名，不是修饰符**。旧写法 `init ctor := ...` 会被专门拦下来：
+一个类**就是一个普通对象**——实例和类用的是同一个表示
+（`Runtime/Values/ObjectVal.cs`），「这是不是一个类」由它作用域里的几个成员决定：
 
-```
-Error: 构造器不用 init 修饰符，直接写 `init := () => { ... }`
-```
+| 成员 | 含义 | 怎么看 |
+|---|---|---|
+| `parent` | 父类对象（链的上游） | `print (Person.Parent ())` → `Object` |
+| `block` | 类体——实例化时重跑的配方 | `typeof Person.block` 是 `Block` |
+| `name` | 类名 | `Person.name` → `"Person"` |
+| `call` | **"可调用"的凭据** | 有它才写得出 `Person ()` |
 
-字段用 `:=` 定义、用 `=` 改值。对象建好之后**也能加字段**——`obj.field := v` 是
-定义语句的成员版，字段不存在就新建、存在就整条替换（类型约束随之更新）：
+`typeof X` 取的是**创建 X 的那个类对象**（元类）：`typeof p` 是 `Person`，
+`typeof Person` 是 `Type`；`type` 的元类是它自己，链在那里到头。所以「类是实例的类、
+类自己也有类」不需要另一套机制——**建类就是调用一个类对象**，和普通构造调用走同一条路
+（见 7.10）。
+
+### 7.2 init 是构造器：必须以 this 收尾
+
+构造器就是类体里那个名字叫 `init` 的变量。一个类最多一个，没有按参数类型重载。
+
+**`init` 交出的返回值就是构造的结果**，所以约定以 `this` 收尾：
 
 ```ravel
-p.nickname := "Al"     # 新增字段
-print (p.nickname)     # Al
-p.name := "Bob"        # 覆盖已有字段
+Good ::= class {
+    init := () => {
+        x = 1
+        this;                # ← 交出去的就是这个对象
+    }
+    x: int = 0
+}
+print ((Good ()).x)          # 1
 ```
 
-`=` 只用于改**已存在**的字段，给不存在的字段赋值会报「对象没有字段」——
-想新建就得用 `:=`。新字段的类型约束来自值的类型，之后 `p.nickname = 5` 会报类型错误。
+忘了写就**静默**拿到 `()`——块的值是最后一条语句的值，而赋值语句的值是 `()`：
 
-已存在的字段用 `:=` 覆盖时仍受 `private`/`protected`/`core` 约束；
-`readonly` 会被绕过——这和变量的 `x := v` 一致（`:=` 是重定义，会换掉整条声明）。
+```ravel
+Bad ::= class {
+    init := () => { x = 1; }     # 最后一句是赋值,没有 this
+    x: int = 0
+}
+print (typeof (Bad ()))          # Void —— 不是 Bad
+```
 
-字段的复合赋值和变量一样好用：`p.age += 1`，以及 `-=` `*=` `/=` `%=`。
-左边只求值一次，所以 `(f ()).n += 1` 不会把 `f` 调两遍。
-`by` 属性也支持——读走 getter、写走 setter，和 `p.age = v` 一致。
+不报错，只是对象不见了。同一个坑还有两种长相：`init` 以 `print` 收尾、
+以及元类的 `init` 忘了交出 `parentInit` 建出来的那个类（见 7.10）。
 
-### 7.2 构造器与参数
+`init` **是变量名，不是修饰符**。旧写法会被专门拦下来：
+
+```ravel
+C ::= class { init ctor := () => { this; } }
+```
+
+```
+Error: 构造器不再用 init 修饰符，直接写 `init := () => { ... }`
+```
+
+### 7.3 构造器与参数
 
 ```ravel
 Point ::= class {
     init := (x0: int y0: int) => {
         x = x0
         y = y0
+        this;
     }
     x: int = 0
     y: int = 0
 }
-p := Point 3 4          # 和普通函数一样柯里化：((Point 3) 4)
-print (p.x)             # 3
+p := Point 3 4           # 和普通函数一样柯里化:((Point 3) 4)
+print (p.x)              # 3
 
-half := Point 10        # 少参：拿到一个「还要参数的构造器」
-q := half 20            # 补上参数才得到对象
-print (q.x)             # 10
-print (q.y)             # 20
+half := Point 10         # 少给一个参数 → 半成品构造器
+q := half 20
+print (q.y)              # 20
 ```
 
-构造器调用和普通函数走同一条柯里化路径：对象在第一次调用时就建好（类体已跑、`this` 已绑），
-`init` 每收到一个参数就往下走一层；`init` 还没应用完就返回一个「半成品构造器」，
-应用完了才把对象交出来。所以：
+构造器调用和普通函数走**同一条柯里化路径**（`tests/147_ctor_curry.rav`）：
+对象在第一次调用时就建好（类体已跑、`this` 已绑），`init` 每收到一个参数就往下走一层；
+参数没收齐交出的是函数，收齐了才交出 `init` 的返回值。
 
-- `Point 3 4` 一次写全 —— 正常用法
-- `half := Point 10` 再 `half 20` —— 也合法，等价于 `Point 10 20`
-- ⚠️ 同一个半成品被调用多次会作用在**同一个对象**上（它捕获的是第一次调用时建的那个对象），
-  要独立对象就写 `Point 10 1` 和 `Point 10 2`，而不是复用一个 `half`
+⚠️ 同一个半成品被调用多次，会作用在**同一个对象**上（接着上面的 `half` / `q`）：
 
-一个类只有一个构造器，**没有按参数类型重载**。若确实要按参数分派，在 `init` 里自己判断：
+```ravel
+r := half 30
+q.y = 99
+print (r.y)              # 99 —— q 和 r 是同一个对象
+```
+
+要独立对象就写 `Point 10 20` 和 `Point 10 30`，别复用同一个 `half`。
+
+一个类只有一个构造器，**没有按参数类型重载**。要按参数分派就在 `init` 里自己判断：
 
 ```ravel
 Flex ::= class {
     init := (v: object) => {
         x = 0
-        if { typeof v == int; } { x = int v; } { 0; }
+        if { typeof v == int; } { x = int v; } { x = 0 - 1; }
+        this;
     }
     x: int = 0
 }
+print ((Flex 7).x)       # 7
+print ((Flex "hi").x)    # -1
 ```
 
-### 7.3 继承
+### 7.4 继承
 
 ```ravel
 Animal ::= class {
-    init := () => { 0; }
+    init := () => { name = "from-init"; this; }
     name: string = "?"
 }
 Dog ::= class Animal {
-    init := () => {
-        name = "dog"
-        breed = "husky"
-    }
+    init := () => { breed = "husky"; this; }
     breed: string = ""
 }
 d := Dog ()
-print (d.name)     # dog
-print (d.breed)    # husky
-print ((Animal ()).name)  # ?  —— 父类实例不受影响
+print (d.name)      # ?       —— 父类 init 里的赋值不生效
+print (d.breed)     # husky
 ```
 
-继承是**平铺**的，不是链式查找：`Dog ()` 时会依次跑 `Animal` 的类体、再跑 `Dog` 的类体，
-所有字段落在同一个作用域里，所以子类能直接读写父类的字段。
+继承是**平铺**的：`Dog ()` 时沿 parent 链从顶祖先到自己**依次跑每一层类体**，
+所有层的字段落在**同一个实例作用域**里，所以子类能直接读写父类的字段。
 
-几条规则：
+- **父类的 `init` 不会自动调用。** 初始值要写在字段声明上（`name: string = "?"`），
+  写在父类 `init` 里的赋值不生效——上面 `d.name` 是 `"?"`，不是 `"from-init"`。
+- **只调用最具体的那一层 `init`**：子类没写就落回父类的。
 
-- **父类的 init 不会自动调用**。初始值写在字段声明上（`name: string = "?"`），
-  写在父类 init 里的赋值不会生效。
-- **只调用最具体的那一层 init**。`Dog` 自己写了 init 就调 `Dog` 的；
-  `Dog` 没写就向上找，用 `Animal` 的（整条链都没有才报「没有构造器」）。
-- **子类重声明同名字段是覆盖**：`:=` 就是定义。
-- 想改从父类继承来的字段，直接赋值即可（`name = "dog"`）。
+  ```ravel
+  NoInit ::= class Animal {
+      breed: string = ""
+  }
+  print ((NoInit ()).name)      # from-init —— 用的是 Animal 那一层
+  ```
 
-没有 `base`。父类实例不需要（也无法）由子类手工构造。
+  整条链都没有则报「没有构造器」：
 
-### 7.4 修饰符
+  ```ravel
+  Bare ::= class { x: int = 1; }
+  Bare ()     # Error: 类型 Bare 没有构造器（init）
+  ```
+- **子类重声明同名字段就是覆盖**（`:=` 是定义）。
+- 想改从父类继承来的字段，直接赋值即可（`breed = "husky"`）。
+- **没有 `base`**，也不需要：父类实例不由子类手工构造。
+
+### 7.5 ::= 命名
+
+```ravel
+Named ::= class { init := () => { this; } }
+print (Named.name)      # Named
+
+Anon := class { init := () => { this; } }
+print (Anon.name)       # class —— 没名字,读到的是显示名
+print (string (Anon))   # class
+```
+
+`::=` 定义变量、顺手把变量名写进那个类对象；`:=` 建的类**没有名字**，
+显示和报错时退化成 `class`（`Anon.name` 读到的就是这个显示名；真改名要写
+`Anon.name = "Foo"`，那是往成员里写）。内置类型都自带名字（`int.name` → `"Integer"`）。
+
+### 7.6 字段与修饰符
+
+字段用 `:=` 定义、用 `=` 改值。对象建好之后**也能加字段**——`obj.field := v` 是定义语句的
+成员版：字段不存在就新建，存在就整条替换（类型约束随之更新）。
+
+```ravel
+P ::= class {
+    init := () => { this; }
+    age: int = 0
+}
+p := P ()
+p.nickname := "Al"      # 新增字段
+print (p.nickname)      # Al
+p.age += 5              # 成员复合赋值,左边只求值一次
+print (p.age)           # 5
+```
+
+`=` 只能改**已存在**的字段，给不存在的字段赋值会报「对象没有字段」。
+新字段的类型约束来自值的类型，之后 `p.nickname = 5` 会报：
+
+```
+Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
+```
+
+字段的复合赋值和变量一样好用：`+=` `-=` `*=` `/=` `%=`，左边只求值一次
+（`(f ()).n += 1` 不会把 `f` 调两遍）；`by` 属性也支持（读走 getter、写走 setter）。
 
 | 修饰符 | 作用 |
 |--------|------|
 | `public` | 外部可访问（默认）|
 | `private` | 仅本对象内部可访问 |
 | `protected` | 类内 + 子类实例可访问 |
-| `readonly` | `=` 赋值时报「无法给只读变量赋值」（`:=` 重定义仍可绕过，见 7.1）|
+| `readonly` | `=` 赋值时报「无法给只读变量赋值」（`:=` 重定义仍可绕过，和变量的 `x := v` 一致）|
 | `unreadable` | 读取时报「变量 'x' 不可读取」|
 | `outdated` | 读取时往 stderr 打一行 `[outdated] 'x' is deprecated` |
-| `core` | 读写都需要先 `unsafe ()` |
-| `by` | 属性（getter/setter）|
+| `core` | 读写都需要先 `unsafe ()`，见「十一、常见陷阱」 |
+| `by` | 属性（getter/setter），见 7.7 |
 | `override` / `new` | 解析器接受，但求值器不做任何检查（纯注解）|
 
-**`init` 不在表里**——它只是构造器的名字，不是修饰符（见 7.1）。
+**`init` 不在表里**——它只是构造器的名字，不是修饰符（见 7.2）。
 
 ```ravel
 C ::= class {
-    init := () => { _age = 0; }
+    init := () => { _age = 0; this; }
     public name: string = "n"
     private _age: int = 0
     readonly id: int = 1
 }
 ```
 
-### 7.5 by 属性
+### 7.7 by 属性
 
 ```ravel
 Person ::= class {
-    init := () => { _name = ""; }
+    init := () => { _name = ""; this; }
     _name: string = ""
     by name := property (() => { _name; }) ((v: string) => { _name = v; })
 }
@@ -646,129 +732,148 @@ print (p.name)      # getter → "Alice"
 `property getter setter` 两个参数都是函数。
 
 ⚠️ `by` 声明必须写在**类体一级**，不能写在 `init` 里面——`init` 是个 lambda，
-它的块有自己的局部作用域，写在里面的 `by name := ...` 挂不到对象上，
-`p.name` 会报「对象没有字段 'name'」。`init` 只负责给 `_name` 赋初值。
+它的块有自己的局部作用域，写在里面的 `by name := ...` 挂不到对象上，`p.name` 只会报
 
-### 7.6 with（浅拷贝修改）
+```
+Error: 类型 'Person' 没有方法 'name'
+```
+
+`init` 只负责给 `_name` 赋初值。
+
+### 7.8 with（浅拷贝修改）
 
 ```ravel
+Person ::= class {
+    init := () => { _name = ""; this; }
+    _name: string = ""
+    by name := property (() => { _name; }) ((v: string) => { _name = v; })
+}
 p := Person ()
+p.name = "Alice"
 p2 := with p { name = "Bob"; }
+print (p2.name)     # Bob
+print (p.name)      # Alice —— 原对象没动
 ```
 
 `with` 浅拷贝对象，在副本上执行块，返回副本。
 
-### 7.7 object 方法
-
-```ravel
-p.Copy ()      # 浅拷贝
-p.ToString ()  # 字符串表示
-```
-
-`p.Fields ()` 列出**实例字段名在前、类型方法名在后**：
+### 7.9 object 方法
 
 ```ravel
 Person ::= class {
-    init := () => { name = "x"; }
+    init := () => { this; }
     name: string = ""
     age: int = 0
 }
 p := Person ()
+p.Copy ()             # 浅拷贝
+p.ToString ()         # 字符串表示
 print (p.Fields ())   # [name age ToString Copy Fields]
 ```
 
+`p.Fields ()` 列出**实例字段名在前、类型方法名在后**：
 模块（`ravel`/`using` 建立的）则把作用域里的变量排在最前。
 不论哪种值，类型自己的方法（沿继承链到 `object`）都会并进来。
+`parent` / `block` / `call` / `init` 这些机制成员不会出现。
 
----
+### 7.10 元类
 
-## 八、metaclass
-
-> ⚠️ **只有 8.1 可用，8.2 以下全部未实现。** 除非明说，本节代码块都是**目标语义**，
-> 原样粘过去跑不通。原因：创建类要用的 `base.init parent block` 依赖**已被移除的 `base`**，
-> 目前没有替代手段（对应用例 117/118/121/122 一直是 `# todo`）。
-> 元类这条路要重启，得先另立一套建类机制。
-
-### 8.1 概念（可用）
-
-metaclass 是"类的类"。`typeof` 返回创建它的那个构造器对应的类型：
+**父类是 `type` 的类就是元类**：它继承了 `type` 那层「建类」的 init，
+所以它建出来的东西是**类**，不是实例。
 
 ```ravel
-typeof Person     # Type     (Person 由 class 创建,而 class 就是 type)
-typeof int        # Type     (内置类型也由 type 创建)
-typeof MyClass    # MyMeta   (MyClass 由 MyMeta 创建)  ← 未实现,见下
-```
-
-**没有 `Class` 类型**（以前 `typeof Person` 给 `Class`，现在是 `Type`）：
-`class` 只是 `type` 的别名，两者同一个值。所以 8.1 这条反射能跑，
-只有"用户元类建出来的类，`typeof` 回元类"依赖下面那套机制，用不了。
-
-### 8.2 创建 metaclass（未实现）
-
-```ravel
-# ⚠️ 目标语义，跑不通
-LoggedMeta ::= class class {
-    init := (parent: type block: function) => {
-        print "creating..."
-        base.init parent block
-        this
+MyMeta ::= class type {
+    private parentInit := init;          # 覆盖之前先把继承来的那层存下来
+    init = (parent: type body: function) => {
+        parentInit parent body
+    } | (body: function) => {
+        parentInit object body
     }
 }
-```
-
-- `class class` 想表达「拿 `type` 这个值（`class` 就是它）当父类，建一个新的类构造器」
-- `base.init parent block` 想调那层父类的 init 来创建实际的类
-- `this` 指向正在被创建的类构造器
-
-**实际**：这整段落不了地。`base` 已移除，第二行的 `base.init` 无解；
-而且上面这段 `class class {...}` 本身就报 `Error: 类型不匹配`。
-
-### 8.3 使用 metaclass（未实现）
-
-```ravel
-# ⚠️ 目标语义，跑不通
-MyClass ::= LoggedMeta {
-    init := () => { 0; }
+MyClass ::= MyMeta {
+    init := () => { 0; this; }
     x: int = 42
 }
-typeof MyClass   # LoggedMeta
-c := MyClass ()
-print (c.x)      # 42
+print (typeof MyMeta)         # Type   —— 它自己由 class 建
+print (typeof MyClass)        # MyMeta —— 它由 MyMeta 建
+print ((MyClass ()).x)        # 42
 ```
 
-`LoggedMeta` 建不出来（8.2），所以这一段连带不可用。
+- **不需要 `base`**：super 调用退化成「覆盖之前先把继承来的 `init` 取出来」，
+  `private parentInit := init;` 就是这个惯用法。`parentInit parent body` 就是
+  「走默认那套建类逻辑」，它返回建出来的那个类。
+- **两分支 `|`** 让「带父类」和「不带父类」两种写法都能用，靠**参数类型**分流：
+  `MyMeta Base { ... }` 走第一支，`MyMeta { ... }` 走第二支（不带父类时默认 `object`）。
+  `Base` 可以是任何类对象，包括别处建的普通类。
+- `init` 在类体里读到的是**继承来的那个**（预设类体先跑、把 `init` 落进同一个实例作用域），
+  而 `init = ...` 改的是这个实例作用域的副本，`type` 本身不受影响。
+- 元类的 `init` 同样**交出返回值**，所以最后一句得是 `parentInit ...` 或 `this`——
+  以 `print` 收尾就会拿到 `()`（见 7.2）。
 
-### 8.4 无 init 的 metaclass（未实现）
-
-```ravel
-# ⚠️ 目标语义，跑不通
-M ::= class class { x: int = 1 }
-C ::= M { init := () => { 0; }; }
-```
-
-**实际**：`Error: class 需要代码块参数`，位置指第二个 `class`。
-除了元类机制本身缺失，这里还踩了「代码块 vs 字典」的坑：`{ x: int = 1 }` 单行且形如
-`IDENT :`，被解析成 **Dict** 而不是块（见 6.4）。要写成块就得换行或加 `;`。
-
-### 8.5 接口（未实现）
+在 `init` 里挂钩建类过程（`tests/118_metaclass_print.rav`）：
 
 ```ravel
-# ⚠️ 目标语义，跑不通
-IEnumerable := interface {
-    count: function = () => { 0; }
+LoggingMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        print "meta: creating..."
+        r := parentInit parent body
+        print "meta: done"
+        r
+    } | (body: function) => {
+        print "meta: creating..."
+        r := parentInit object body
+        print "meta: done"
+        r
+    }
 }
+M2 ::= LoggingMeta object {
+    init := () => { 0; this; }
+    name: string = "hello"
+}
+m := M2 ()
+print (m.name)
+# meta: creating...
+# meta: done
+# hello
 ```
 
-**`interface` 不存在**——它不在 System 模块里，也不在 `predefined.rav` 的别名表里，
-原样写会报 `Error: 未定义的变量 'interface'`。
-`lib/std.rav` 里有个大写 `Interface`，但那个文件是**死文件**（没被加载，且它自己也靠
-`base.init`）。眼下要接口式的东西，只能用鸭子类型（直接调方法）或自定义运算符。
+`class class { ... }` 是同一件事的简写（第二个 `class` 是父类）：
+
+```ravel
+M ::= class class { x: int = 1; }
+C := M { init := () => { 0; this; }; y: int = 2 }
+print (typeof C)      # M
+print ((C ()).y)      # 2
+```
+
+typeof 链（`MyMeta` 沿用上面的）：
+
+```
+typeof 实例   →  它的类
+typeof 类     →  建它的那个类(元类)
+typeof type   →  type 自己(自指,链的起点)
+```
+
+```ravel
+A ::= MyMeta object { init := () => { 0; this; }; }
+B ::= class { init := () => { 0; this; }; }
+print (typeof A)          # MyMeta
+print (typeof B)          # Type
+print (typeof MyMeta)     # Type
+print (typeof (A ()))     # A
+print (typeof (B ()))     # B
+```
+
+最后一条护栏：**没写 `init` 的类不会被当成类再建一次**。引擎找构造器只看实例作用域那一层
+（不走原型链），所以 `Bare ()` 报的是「类型 Bare 没有构造器（init）」，
+不会掉进 `type` 那层的建类逻辑。
 
 ---
 
-## 九、模块
+## 八、模块
 
-### 9.1 创建模块
+### 8.1 创建模块
 
 ```ravel
 ravel "MyMath"
@@ -777,7 +882,7 @@ ravel ""
 print (MyMath.pi)
 ```
 
-### 9.2 导入文件
+### 8.2 导入文件
 
 ```ravel
 references = ["/path/to/libs/"]
@@ -786,7 +891,7 @@ using "other.rav"
 
 `using` 只加载一次，循环引用报错。
 
-### 9.3 System 模块
+### 8.3 System 模块
 
 内置模块，解释器启动时创建。PascalCase 类型名在此：
 
@@ -800,7 +905,7 @@ System.ReadLine ()
 
 ---
 
-## 十、异常
+## 九、异常
 
 ```ravel
 Ex.try {
@@ -813,7 +918,7 @@ Ex.try {
 exit "fatal error"
 ```
 
-### 10.1 报错长什么样
+### 9.1 报错长什么样
 
 运行时错误会带**位置**和**调用栈**，跨文件时也能看出是哪一层、在哪个文件。
 `tests/152_error_report.rav` 的全文与输出：
@@ -849,7 +954,7 @@ Error: 未预期的字符 '$'
 
 ---
 
-## 十一、内置函数速查
+## 十、内置函数速查
 
 | 函数 | 说明 |
 |------|------|
@@ -862,7 +967,7 @@ Error: 未预期的字符 '$'
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |
 
-## 十二、常见陷阱
+## 十一、常见陷阱
 
 ### 单行代码块需要 `;`
 
@@ -916,12 +1021,25 @@ init ctor := () => { x = 0; }   # ❌ 没有 init 修饰符这种写法了
 旧写法会被专门拦下来：
 
 ```
-Error: 构造器不用 init 修饰符，直接写 `init := () => { ... }`
+Error: 构造器不再用 init 修饰符，直接写 `init := () => { ... }`
 ```
 
-### metaclass 的父类型（未实现）
+还有一条比它更安静：**`init` 必须以 `this` 收尾**，否则构造交出的是块的值
+（最后一条语句的值），悄悄变成 `()`。见 7.2。
 
-这里原本讲 `MyMeta ::= MetaMeta object { ... }` 里父类型怎么选、`base.init` 走哪一层。
-**`base` 已经移除，整段都没法用了**——原样写只会得到
-`Error: 未定义的变量 'MetaMeta'`（`MetaMeta` 从来不是内置的）。
-元类建类目前没有替代机制，详见「八、metaclass」。
+### 元类要收得下「带父类」和「不带父类」两种写法
+
+`MyMeta { ... }` 的父类默认是 `object`；想要别的父类得写 `MyMeta Base { ... }`，
+而这条路走的是 `init` 里 `(parent: type body: function)` 那一支。只写一支就会：
+
+```ravel
+MyMeta ::= class type {
+    private parentInit := init;
+    init = (body: function) => { parentInit object body; }   # 少了收 parent 的那一支
+}
+Base ::= class { ... }
+Sub ::= MyMeta Base { ... }     # Error: class 需要代码块参数
+```
+
+再加一条：`|` 要跟在第一个 lambda 的 `}` 后面（同一行），另起一行以 `|` 开头会报
+`Error: 需要表达式，但得到'|'`。

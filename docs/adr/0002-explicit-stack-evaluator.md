@@ -6,6 +6,10 @@
 > ⚠️ **本文件记录的是当时的决策，部分细节已被后续重构取代。** 仍准确的：帧链/显式栈/`RList`/
 > `StepOnce` 循环、以及「控制内建 = 纯数据」的思路。已经不成立的：
 > - **§3 的 `Trampolined(arg) 拿值`** —— 那个 API 现在叫 `Body(arg)`；`Step`/`Done` 整个删了。
+> - **§3 分派表里的 `TypeVal`（`Body != null`）那一行** —— 类现在就是 `ObjectVal`，
+>   判据是「值自己那层有没有 `call` 成员」：内置的 `call`（`BoundCall`）推 ClassInit 帧，
+>   用户定义的直接同步调。表里也还缺后来加的 `NativeClosure` / `PartialCtor` /
+>   `BoolVal`（true/false 收两个块）几格，权威清单见 `CONTEXT.md` 的「求值器架构」。
 > - **§5 的单发/多发之分** —— callcc 已统一成一套语义（续延 = callcc 之后的剩余计算，
 >   调用即丢弃当前帧链、从捕获点继续），`CallccActive` 与「多发重跑局部 onDone」都已删除。
 >   详见 `CONTEXT.md` 的「控制流」。

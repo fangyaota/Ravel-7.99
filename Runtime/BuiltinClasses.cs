@@ -56,7 +56,7 @@ internal static partial class BuiltinClasses
     ///
     /// 这是"可调用"的唯一判据（见 `ObjectVal.HasCall`），于是引擎不必知道"什么是类"。
     /// 也正因为它是普通成员，用户/未来的 interface 可以自己定义 `call` 来造可调用的东西。</summary>
-    internal static readonly FunctionVal Call = FunctionVal.From(self => new BoundCall((ObjectVal)self));
+    internal static readonly FunctionVal Call = new ClassCallFactory();
 
     /// <summary>所有已注册的类对象（内置 + 用户定义），供 Subtypes 反射</summary>
     internal static readonly List<ObjectVal> AllTypes = [];

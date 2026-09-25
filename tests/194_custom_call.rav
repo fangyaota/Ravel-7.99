@@ -1,0 +1,23 @@
+# 用户自己定义的 `call` 也能造出可调用的对象 —— 这是 interface / shape 的地基
+# (从前这里会抛 C# 的 InvalidCastException:BindMethod 假定绑定完一定是函数体,
+#  而 lambda 的 Body 是占位。所以只对**自绑定**成员(内置方法)才绑)
+Adder := class {
+    init := () => { this; }
+    call := (n: int) => { n + 1; }
+}
+a := Adder ()
+print (a 41)
+# 类对象上的 Function 方法:它的元类链里有 Function,所以 Fields () 会列出来,
+# 但不能硬转成 FunctionVal —— 该报 Ravel 错误,不是 InvalidCastException
+C ::= class { init := () => { this; }; }
+print (C.Name ())
+print (typeof (C.scope ()))
+C.name = "Renamed"          # 类名是 `name` 成员(Name 是 Type 那层的方法,不给赋值)
+print (C.Name ())
+print (C.name)
+# --- expected ---
+# 42
+# C
+# Scope
+# Renamed
+# Renamed
