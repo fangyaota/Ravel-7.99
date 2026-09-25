@@ -168,12 +168,23 @@ true || false    # true   (短路或)
 
 `&` `|` `^` 可重载。
 
-### 3.5 字符串拼接
+### 3.5 字符串拼接与转义
 
 ```ravel
 "hello " + "world"   # "hello world"
 "ab" * 3   # 报错！字符串不支持 *
 ```
+
+字符串里的转义：`\"` `\\` `\n` `\t` `\r`。不认识的转义**连同反斜杠原样保留**，
+所以 Windows 路径不用双写：
+
+```ravel
+print ("say \"hi\"")        # say "hi"
+print ("line1\nline2")      # 分两行
+print ("c:\path\file")      # c:\path\file —— \p \f 不认识，原样留着
+```
+
+字符串可以跨行（直接换行即可），不需要续行符。
 
 ### 3.6 比较 Bool / String
 
