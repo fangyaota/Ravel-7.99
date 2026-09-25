@@ -16,7 +16,8 @@ public partial class Interpreter
                     _top = sink.WithResult(cf.Accumulate(arg));
                 break;
             case LambdaVal lam:
-                if (!arg.Type.IsAssignableTo(lam.ParamType)) throw new TypeMismatchException();
+                if (!arg.Type.IsAssignableTo(lam.ParamType))
+                    throw new TypeMismatchException($"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
                 var lamScope = lam.Scope.Push();
                 lamScope.Define("self", RuntimeType.Function, lam);
                 lamScope.Define(lam.ParamName, lam.ParamType, arg);
