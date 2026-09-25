@@ -36,7 +36,7 @@ print (C.name)
 # 无类体的类: 类型 Object 不能作为构造器调用
 # 实例读 call: 类型 'D' 没有方法 'call'
 # int 读 call: 类型 'Integer' 没有方法 'call'
-# 类取 scope: scope 只对函数有意义，Type 不行
 # C
+# 类取 scope: scope 只对函数有意义，Type 不行
 # Renamed
 # Renamed
