@@ -41,8 +41,12 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Values/                        FunctionVal(基类,Body 即「参数→结果」)/LambdaVal/BlockVal/
                                  TypeVal/ControlFunction/BuiltinMethodVal/BoundClassOp/
                                  ComposeVal/PartialCtor/ContinuationVal/ObjectVal/.../各基础值
-Parser.cs / Parser.Holes.cs / Lexer.cs / Ast.cs / Token.cs / TokenType.cs
-                                (Parser.Holes.cs = `_` 占位符消糖那趟 AST 改写)
+Lexer.cs / Ast.cs / Token.cs / TokenType.cs
+Parser.cs                       入口 + token 辅助(Peek/Consume/ParseError)
+  Parser.Statements.cs          语句:定义/赋值/运算符定义
+  Parser.Expressions.cs         优先级链(管道→逻辑→比较→加减→乘除)
+  Parser.Atoms.cs               基本单元 + 括号/块/集合/字典
+  Parser.Holes.cs               `_` 占位符消糖那趟 AST 改写
 Testing/GoldenTestRunner.cs     golden test 运行器(解析/执行/比对/汇报)
 Repl/                           REPL 前端
   NeoInteractor.cs        外壳:多页缓冲 + 光标 + 主菜单(编辑/运行/读写/普通 REPL)
