@@ -2,7 +2,7 @@
 # 以前 CopyScope 只是浅拷贝,方法(lambda)的闭包 Scope 仍指向原实例,
 # 于是 `副本.set 99` 改的是原对象的字段——`with` 完全白拷。
 C := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     v: int = 1
     set := (n: int) => { v = n; }
     get := () => { v; }

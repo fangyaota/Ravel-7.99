@@ -1,6 +1,6 @@
 # core 字段:类体里用裸标识符读,没进 unsafe 就该拦住(和 c.secret 一个待遇)
 C := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     core secret: int = 42
     peek := () => { print secret; }
 }

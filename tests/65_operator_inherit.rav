@@ -1,6 +1,6 @@
-Node := class { init := () => { 0; }; }
+Node := class { init := () => { 0; this; }; }
 Child := class Node {
-    init := () => { 0; }
+    init := () => { 0; this; }
     v: int = 42
     + := (x: int) => { v + x; }
 }
@@ -9,12 +9,12 @@ print (c + 8)
 
 # 子类用 `+ = f` 覆盖父类层定义的运算符(父类自己不受影响)
 Base := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     n: int = 1
     + := (x: int) => { n + x; }
 }
 Derived := class Base {
-    init := () => { 0; }
+    init := () => { 0; this; }
     + = (x: int) => { n * 100 + x; }
 }
 d := Derived ()

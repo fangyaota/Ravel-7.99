@@ -1,4 +1,4 @@
 # metaclass 无 init — 不可调用（同普通类）
 M ::= class class { x: int = 1; }
-C := M { init := () => { 0; }; y: int = 2 }
+C := M { init := () => { 0; this; }; y: int = 2 }
 # expect-error

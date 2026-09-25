@@ -4,10 +4,11 @@ MyMeta ::= class class {
     init := (parent: type block: function) => {
         base.init parent block
         this
+        this;
     }
 }
-A ::= MyMeta object { init := () => { 0; }; }
-B ::= class { init := () => { 0; }; }
+A ::= MyMeta object { init := () => { 0; this; }; }
+B ::= class { init := () => { 0; this; }; }
 # metaclass 创建的类
 print (typeof A)
 # 普通类

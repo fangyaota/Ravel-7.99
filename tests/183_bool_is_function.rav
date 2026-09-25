@@ -7,7 +7,7 @@ print (true { 1; } { 2; })
 print ((typeof true).Is function)
 # 反过来,bool 是**数据**不是闭包,不能因为它是 FunctionVal 就被当成方法/半成品构造器
 C := class {
-    init := () => { true; }
+    init := () => { true; this; }
     flag: bool = true
     n: int = 5
 }

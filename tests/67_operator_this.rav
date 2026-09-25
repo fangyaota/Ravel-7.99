@@ -1,5 +1,5 @@
 B := class {
-    init := () => { this.val = 10; }
+    init := () => { this.val = 10; this; }
     val: int = 0
     + := (x: int) => { val + x; }
     * := (x: int) => { this.val * x; }

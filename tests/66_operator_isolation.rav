@@ -1,5 +1,5 @@
 A := class {
-    init := () => { this.n = 1; }
+    init := () => { this.n = 1; this; }
     n: int = 0
     + := (x: int) => { n + x; }
 }

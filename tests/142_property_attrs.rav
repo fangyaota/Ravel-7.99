@@ -1,7 +1,7 @@
 # Property.Attrs —— 属性的 attrs 会跟着 Property 值走
 # (原来靠 C.Proto () 拿实例 scope,但 Proto 已不存在,得在类方法里用 currentScope ())
 C := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     readonly x: int = 42
     probe := () => {
         p := (currentScope ()).Lookup "x"

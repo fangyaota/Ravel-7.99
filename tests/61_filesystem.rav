@@ -4,6 +4,7 @@ Node := class {
     init := () => {
         this.name = ""
         this.size = 0
+        this;
     }
     name: string = ""
     size: int = 0
@@ -15,6 +16,7 @@ Node := class {
 File := class Node {
     init := () => {
         content = ""
+        this;
     }
     content: string = ""
     read := () => { content; }
@@ -31,6 +33,7 @@ File := class Node {
 Folder := class Node {
     init := () => {
         children = []
+        this;
     }
     children: list = []
 

@@ -1,6 +1,6 @@
 # property C# factory
 C := class {
-    init := () => { this._val = 0; }
+    init := () => { this._val = 0; this; }
     _val: int = 0
     by val := property (() => { _val; }) ((v: int) => { _val = v; })
     get := () => { val; }

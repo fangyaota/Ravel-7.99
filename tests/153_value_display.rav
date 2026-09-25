@@ -1,7 +1,7 @@
 # 值和容器的打印形式
 
 # 对象:类名 + 数据字段。方法(含 init)和 this/base 这些机制字段不显示
-C := class { init := () => { 0; }; x: int = 1; s: string = "hi"; }
+C := class { init := () => { 0; this; }; x: int = 1; s: string = "hi"; }
 c := C ()
 print c
 print ([c c])

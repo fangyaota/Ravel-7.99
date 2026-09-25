@@ -14,7 +14,7 @@ print (f.name)
 g := f.append { print " there"; }
 g ()
 Point := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     x: int = 0
     y: int = 0
 }
@@ -34,7 +34,7 @@ r := with p {
 }
 print (r.x)
 Point := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     x: int = 0
     y: int = 0
 }
@@ -51,12 +51,13 @@ r := with p {
 }
 print (r.x)
 Animal := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     name: string = ""
 }
 Dog := class Animal {
     init := () => {
         breed = ""
+        this;
     }
     breed: string = ""
 }
@@ -75,6 +76,7 @@ Multi := class {
         if { typeof v == int; } {
             x = int v
         } { 0; }
+        this;
     }
     x: int = 0
     y: int = 0

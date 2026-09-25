@@ -2,7 +2,7 @@
 # 曾经 StepIdent 自己抄了一份门禁、漏抄 core 那条 —— `c.secret` 被拦住,
 # 类体里直接写 `secret` 却读得到,等于绕开整个 core 机制。
 C := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     core secret: int = 42
     show := () => { unsafe (); print secret; }
 }

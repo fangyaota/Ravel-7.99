@@ -4,10 +4,11 @@ HasDefaults ::= class class {
     init := (parent: type block: function) => {
         c := base.init parent block
         c
+        this;
     }
 }
 Person ::= HasDefaults {
-    init := () => { name = "?"; age = 0; }
+    init := () => { name = "?"; age = 0; this; }
     name: string = ""
     age: int = 0
 }

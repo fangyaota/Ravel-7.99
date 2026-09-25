@@ -3,7 +3,7 @@
 # core 检查全关掉 —— 在无关函数里调一次就能从外部随便读核心字段。
 using "try.rav"
 C := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     core secret: int = 42
     peek := () => { unsafe (); print secret; }
 }

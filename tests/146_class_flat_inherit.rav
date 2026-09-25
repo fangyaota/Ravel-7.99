@@ -1,12 +1,12 @@
 # 平铺继承:各层类体的字段落在同一个作用域,不做链式查找
 # 1) 子类重声明同名字段 → 覆盖父类层;子类没声明的 → 从父类层可见
 Base := class {
-    init := () => { 0; }
+    init := () => { 0; this; }
     x: int = 1
     y: int = 5
 }
 Child := class Base {
-    init := () => { 0; }
+    init := () => { 0; this; }
     x: int = 100
 }
 c := Child ()
@@ -15,20 +15,20 @@ print (c.y)
 
 # 2) 父类 init 不自动调用:父类 init 里的赋值不生效,初始值看字段声明
 Deferred := class {
-    init := () => { v = 10; }
+    init := () => { v = 10; this; }
     v: int = 0
 }
-Child2 := class Deferred { init := () => { 0; } }
+Child2 := class Deferred { init := () => { 0; this; } }
 c2 := Child2 ()
 print (c2.v)
 
 # 3) 只有最具体层的 init 被调用;祖先的 init 不跑
 A := class {
-    init := () => { a = 1; }
+    init := () => { a = 1; this; }
     a: int = 0
 }
 B := class A {
-    init := () => { b = 2; }
+    init := () => { b = 2; this; }
     b: int = 0
 }
 obj := B ()
