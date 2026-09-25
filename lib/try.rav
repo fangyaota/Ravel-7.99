@@ -2,7 +2,9 @@ ravel "Ex"
 
 handlerStack: list = []
 
-throw := (e: Exception) => {
+# throw / try 标 readonly(handlerStack 是**状态**,故意留可写):
+# 它们是这个模块的 API,被覆盖掉异常处理就整个变了样。
+readonly throw := (e: Exception) => {
     if { handlerStack.Count () == 0; } {
         exit (e.ToString ())
     } {
@@ -10,7 +12,7 @@ throw := (e: Exception) => {
     }
 }
 
-try := (body: function) => {
+readonly try := (body: function) => {
     (handler: function) => {
         result := callcc (ok: function) => {
             handlerStack.Insert 0 (e: Exception) => {

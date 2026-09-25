@@ -744,6 +744,10 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 | `private` | 仅本对象内部可访问 |
 | `protected` | 类内 + 子类实例可访问 |
 | `readonly` | `=` 赋值时报「无法给只读变量赋值」（`:=` 重定义仍可绕过，和变量的 `x := v` 一致）|
+
+`lib/` 里的 API 都标了 `readonly`：`predefined.rav` 的语言级别名（`print` / `true` /
+`if` / …）、`Math` 与 `Ex` 的函数。**状态**没标（`Ex.handlerStack` / `references`）——
+那些本来就该能改。
 | `unreadable` | 读取时报「变量 'x' 不可读取」|
 | `outdated` | 读取时往 stderr 打一行 `[outdated] 'x' is deprecated` |
 | `core` | 读写都需要先 `unsafe ()`，见「十一、常见陷阱」 |

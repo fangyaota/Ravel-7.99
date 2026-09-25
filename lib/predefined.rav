@@ -1,49 +1,52 @@
 ﻿references: list = []
 
 # ── 别名 ──
-int := System.Integer
-string := System.String
-bool := System.Bool
-float := System.Float
-bigint := System.BigInteger
-fraction := System.Fraction
-bigfraction := System.BigFraction
-list := System.List
-set := System.Set
-dict := System.Dict
-object := System.Object
-class := System.Type  # 别名:没有单独的 Class 类型
-function := System.Function
-type := System.Type
-void := System.Void
-Any := System.AnyType
-Every := System.EveryType
-Exception := System.ExceptionType
-ValueType := System.ValueTypeVal
+# 都标 readonly:这些是**语言级名字**(`int` / `print` / `true` / …),被顺手覆盖掉
+# 整门语言就变了样。`=` 赋值会报「无法给只读变量赋值」;
+# 真要换掉得用 `:=` 重新定义(那条路和普通变量一致,见教程的 readonly 一节)。
+readonly int := System.Integer
+readonly string := System.String
+readonly bool := System.Bool
+readonly float := System.Float
+readonly bigint := System.BigInteger
+readonly fraction := System.Fraction
+readonly bigfraction := System.BigFraction
+readonly list := System.List
+readonly set := System.Set
+readonly dict := System.Dict
+readonly object := System.Object
+readonly class := System.Type  # 别名:没有单独的 Class 类型
+readonly function := System.Function
+readonly type := System.Type
+readonly void := System.Void
+readonly Any := System.AnyType
+readonly Every := System.EveryType
+readonly Exception := System.ExceptionType
+readonly ValueType := System.ValueTypeVal
 
-print := System.WriteLine
-true := System.True
-false := System.False
-NaN := System.NaN
-Inf := System.Inf
-default := System.Default
-callcc := System.CallCC
-typeof := System.TypeOf
-assert := System.Assert
-eval := System.Eval
-randint := System.RandInt
-with := System.With
-ravel := System.RavelMod
-using := System.Using
-exit := System.Exit
-input := System.ReadLine
-unsafe := System.unsafe
-currentScope := System.currentScope
-property := System.property
+readonly print := System.WriteLine
+readonly true := System.True
+readonly false := System.False
+readonly NaN := System.NaN
+readonly Inf := System.Inf
+readonly default := System.Default
+readonly callcc := System.CallCC
+readonly typeof := System.TypeOf
+readonly assert := System.Assert
+readonly eval := System.Eval
+readonly randint := System.RandInt
+readonly with := System.With
+readonly ravel := System.RavelMod
+readonly using := System.Using
+readonly exit := System.Exit
+readonly input := System.ReadLine
+readonly unsafe := System.unsafe
+readonly currentScope := System.currentScope
+readonly property := System.property
 
 # ── 控制流:用 Ravel 写,不占控制帧 ──
 # 条件当值用:true/false 可调用,收两个块返回选中那个的结果
-if := (c: function t: function e: function) => {
+readonly if := (c: function t: function e: function) => {
     cond := c ()
     assert (typeof cond == bool) ("if 的条件必须是 bool，得到 " + string (typeof cond))
     cond t e
@@ -52,7 +55,7 @@ if := (c: function t: function e: function) => {
 # callcc 写成独立语句:续延被调用时只是「这条语句完成」,不会重跑它,
 # 所以 again 始终是那个续延;again 0 丢弃当前帧链跳回 callcc 之后 → 帧链不随迭代增长。
 # (写成 again := callcc (k) => { k; } 的话,恢复时会重跑赋值、again 被覆盖成 0,循环建立不起来)
-while := (c: function body: function) => {
+readonly while := (c: function body: function) => {
     again := (x: int) => { x; }
     callcc (k: function) => { again = k; }
     # 条件必须写在恢复点(callcc 那条语句)之后,否则 again 0 跳回来时不会重求,变成只判一次
@@ -61,7 +64,7 @@ while := (c: function body: function) => {
     if { cond; } { body (); again 0; } { 0; }
 }
 
-foreach := (xs: object f: function) => {
+readonly foreach := (xs: object f: function) => {
     assert (typeof xs == list) ("foreach 需要 list，得到 " + string (typeof xs))
     i := 0
     while { i < xs.Count (); } { f (xs.At i); i += 1; }

@@ -14,9 +14,11 @@
 
 ravel "Math"
 
-square := (x: ValueType) => { x * x; }
-cube := (x: ValueType) => { x * x * x; }
+# 四个都标 readonly:它们是这个模块的 API,顺手 `square = …` 覆盖掉会让后面
+# 所有调用者算错。`=` 会报「无法给只读变量赋值」,要换得用 `:=` 重新定义。
+readonly square := (x: ValueType) => { x * x; }
+readonly cube := (x: ValueType) => { x * x * x; }
 
 # 角度与弧度换算 —— 三角函数的输入输出都是弧度,这两个是常用的转接
-deg := (rad: ValueType) => { rad * 180 / pi; }
-rad := (deg: ValueType) => { deg * pi / 180; }
+readonly deg := (rad: ValueType) => { rad * 180 / pi; }
+readonly rad := (deg: ValueType) => { deg * pi / 180; }
