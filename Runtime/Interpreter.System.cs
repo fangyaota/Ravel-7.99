@@ -98,7 +98,7 @@ public partial class Interpreter
             return VoidVal.Instance;
         }));
         DefFn("Exit", FunctionVal.From(a => throw new ExitException(a is StringVal s ? s.Value : "")));
-        DefFn("RavelMod", FunctionVal.From(a => EnterModule(((StringVal)a).Value)));
+        DefFn("RavelMod", FunctionVal.From(a => EnterModule(As<StringVal>(a, "ravel 的模块名").Value)));
 
         return module;
     }

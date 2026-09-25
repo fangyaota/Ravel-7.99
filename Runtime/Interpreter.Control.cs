@@ -67,7 +67,7 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            var path = ((StringVal)cf.Args.At(0)).Value;
+            var path = As<StringVal>(cf.Args.At(0), "using 的文件路径").Value;
             var ast = LoadModuleAst(path);
             if (ast == null)
             {
@@ -86,7 +86,7 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            var code = ((StringVal)cf.Args.At(0)).Value;
+            var code = As<StringVal>(cf.Args.At(0), "eval 的代码").Value;
             _top = new BlockExecFrame(Parser.ParseBlock(code)) { Parent = cf, Scope = cf.Scope };
             return;
         }

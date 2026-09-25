@@ -95,6 +95,19 @@ public partial class Interpreter
         return false;
     }
 
+    /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
+    /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>
+    private static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
+        => v as T ?? throw new RuntimeException($"{what}需要 {RavelName<T>()}，得到 {v.Type}");
+
+    /// <summary>C# 值类型 → 报错文案里该说的 Ravel 类型名</summary>
+    private static string RavelName<T>() => typeof(T) == typeof(StringVal) ? "string"
+        : typeof(T) == typeof(IntVal) ? "int"
+        : typeof(T) == typeof(BoolVal) ? "bool"
+        : typeof(T) == typeof(ListVal) ? "list"
+        : typeof(T) == typeof(DictVal) ? "dict"
+        : typeof(T).Name;
+
     /// <summary>值转字符串（Ravel 语义）</summary>
     private static string Show(RuntimeValue v) => v.ToString();
 }

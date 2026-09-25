@@ -34,9 +34,9 @@ public partial class RuntimeType
         DefineOp(Int, "/", (a, b) =>
         {
             if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value / fb.Value);
-            return new IntVal(((IntVal)a).Value / Operand<IntVal>(b, "/").Value);
+            return new IntVal(((IntVal)a).Value / NonZero(Operand<IntVal>(b, "/").Value, "/"));
         });
-        DefineOp(Int, "%", (a, b) => new IntVal(((IntVal)a).Value % Operand<IntVal>(b, "%").Value));
+        DefineOp(Int, "%", (a, b) => new IntVal(((IntVal)a).Value % NonZero(Operand<IntVal>(b, "%").Value, "%")));
 
         // float 运算符
         DefineOp(Float, "+", (a, b) => new FloatVal(AsFloat(a) + AsFloat(b)));
@@ -49,8 +49,8 @@ public partial class RuntimeType
         DefineOp(BigInt, "+", (a, b) => new BigIntVal(AsBigInt(a) + AsBigInt(b)));
         DefineOp(BigInt, "-", (a, b) => new BigIntVal(AsBigInt(a) - AsBigInt(b)));
         DefineOp(BigInt, "*", (a, b) => new BigIntVal(AsBigInt(a) * AsBigInt(b)));
-        DefineOp(BigInt, "/", (a, b) => new BigIntVal(AsBigInt(a) / AsBigInt(b)));
-        DefineOp(BigInt, "%", (a, b) => new BigIntVal(AsBigInt(a) % AsBigInt(b)));
+        DefineOp(BigInt, "/", (a, b) => new BigIntVal(AsBigInt(a) / NonZero(AsBigInt(b), "/")));
+        DefineOp(BigInt, "%", (a, b) => new BigIntVal(AsBigInt(a) % NonZero(AsBigInt(b), "%")));
 
         // Fraction 运算符
         DefineOp(Fraction, "+",
@@ -58,7 +58,10 @@ public partial class RuntimeType
         DefineOp(Fraction, "-",
             (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db - nb * da, da * db)));
         DefineOp(Fraction, "*", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * nb, da * db)));
-        DefineOp(Fraction, "/", (a, b) => FractionBinOp(a, b, (na, da, nb, db) => new FractionVal(na * db, da * nb)));
+        DefineOp(Fraction, "/", (a, b) => FractionBinOp(a, b, (na, da, nb, db) =>
+            nb != 0
+                ? new FractionVal(na * db, da * nb)
+                : throw new RuntimeException("运算符 '/' 的除数为零")));
 
         // BigFraction 运算符
         DefineOp(BigFraction, "+",
@@ -68,7 +71,10 @@ public partial class RuntimeType
         DefineOp(BigFraction, "*",
             (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * nb, da * db)));
         DefineOp(BigFraction, "/",
-            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) => new BigFractionVal(na * db, da * nb)));
+            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) =>
+                nb.IsZero
+                    ? throw new RuntimeException("运算符 '/' 的除数为零")
+                    : new BigFractionVal(na * db, da * nb)));
 
         // 比较运算符 — 数字
         foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })
@@ -105,6 +111,14 @@ public partial class RuntimeType
         DefineOp(Function, "|", (a, b) =>
             new ControlFunction(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b)));
     }
+
+    /// <summary>整除的除数。不查的话 C# 会抛 DivideByZeroException,
+    /// 用户看到的是英文的 "Attempted to divide by zero."</summary>
+    private static int NonZero(int d, string op)
+        => d != 0 ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零");
+
+    private static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
+        => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零");
 
     private static double AsDouble(RuntimeValue v) => v switch
     {

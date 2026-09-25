@@ -9,7 +9,7 @@ public partial class Interpreter
     {
         var refs = new List<string>();
         var rv = _global.TryLookup("references");
-        if (rv?.Value is ListVal lv) refs.AddRange(lv.Elements.Select(e => ((StringVal)e).Value));
+        if (rv?.Value is ListVal lv) refs.AddRange(lv.Elements.Select(e => As<StringVal>(e, "references 的元素").Value));
         refs.AddRange(ModuleSearchPath.Defaults);
 
         // 两轮:先在整个搜索路径里找原样文件名,再找补了 .rav 的(精确名优先于补后缀)

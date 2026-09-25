@@ -496,7 +496,7 @@ public partial class Interpreter
         var rv = nf.Result(1);
         if (obj2 is FunctionVal fn2 && ma.Member == "name")
         {
-            fn2.Name = ((StringVal)rv).Value;
+            fn2.Name = As<StringVal>(rv, "函数名").Value;
             Return(nf, rv);
             return;
         }
