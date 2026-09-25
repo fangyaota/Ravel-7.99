@@ -75,7 +75,7 @@ typeof "hello"   # String
 int.Parent ()          # ValueType  — 父类型
 int.Is ValueType       # true       — 子类型检查
 int.Is string          # false
-int.Subtypes ()        # [String BigInt ...]  — 所有子类型
+int.Subtypes ()        # [Every]  — 所有子类型(Integer 没有自己的子类)
 int.Default ()         # 0           — 默认值
 ```
 
@@ -103,9 +103,10 @@ list default   # []
 
 ```
 Object
-├── ValueType → Integer Float String BigInt Fraction BigFraction
-├── Function → Bool Block Type → Class → List Set Dict Ravel (及用户类)
-├── Void Exception
+├── ValueType → Integer Float String BigInt Fraction BigFraction   (并列)
+├── Function → Bool  Block  Type → Class                          (及用户类)
+├── List  Set  Dict
+├── Void  Exception
 ├── Any (顶类型)
 └── Every (底类型，default 的类)
 ```

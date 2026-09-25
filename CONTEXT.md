@@ -86,17 +86,14 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 ```
 Object (parent=self)
 ├── ValueType
-│   ├── Integer
-│   ├── Float
-│   └── String → BigInt → Fraction → BigFraction
+│   └── Integer / Float / String / BigInt / Fraction / BigFraction   (并列,不是链)
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
-│   ├── Block
+│   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
 │   └── Type
 │       └── Class
-│           ├── List / Set / Dict / Ravel
-│           └── 用户 metaclass
-├── Void / Exception
+├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Class
+├── Void / Exception / Ravel(模块) / Scope / Property
 ├── Any (顶类型, parent=null)
 └── Every (底类型, parent=null)
 ```
