@@ -1,42 +1,45 @@
-# 用户自己定义的 `call` 也能造出可调用的对象 —— 这是 interface / shape 的地基
-# (从前这里会抛 C# 的 InvalidCastException:BindMethod 假定绑定完一定是函数体,
-#  而 lambda 的 Body 是占位。所以只对**自绑定**成员(内置方法)才绑)
-Adder := class {
+# 「能不能调」是**类型关系**,不是"某个成员名在不在"。
+#
+# 从前类对象能在 Scope 里塞一个 `call` 成员当"可调用"的凭据,于是用户也能照抄这招
+# 让自己写的对象变得可调用。那条路连同 `call` 这个机制名一起删了:
+# 类对象现在**就是函数**(ClassVal : FunctionVal),而普通对象不是。
+#
+# 于是 `call` 退化成普通成员名 —— 叫它什么都可以,只是不再代表"能调"。
+using "try.rav"
+C ::= class { init := () => { this; }; }
+a := C ()
+# 对象不是函数:自己那层有没有 `call` 都一样
+Ex.try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
+Ex.try { System.Object (); } (e: Exception) => { print ("无类体的类: " + string e); }
+# `call` 只是普通名字:没定义过就读不到(沿类型链也找不到,它不是方法)
+Ex.try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
+Ex.try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
+# 自定义 `call` 成员现在只能当普通成员用 —— 读得到,但不让对象变可调用
+Adder ::= class {
     init := () => { this; }
     call := (n: int) => { n + 1; }
 }
-a := Adder ()
-print (a 41)
-# 判据是**自己那层**有没有 `call`:对象是扁平的,成员就在它自己的 scope 里。
-# 而 `call`/`parent`/`block`/`name`/`init` 是**类对象自己身上的数据、不是方法**,
-# 所以实例沿类型链**找不到**它们 —— `d.call` 报"没有方法",不是"读得到但调不动"。
-using "try.rav"
-Ex.try { a (); } (e: Exception) => { print ("自有 call 收错参数: " + string e); }
-D ::= class { init := () => { this; }; }
-Ex.try { D () (); } (e: Exception) => { print ("实例: " + string e); }
-Ex.try { System.Object (); } (e: Exception) => { print ("无类体的类: " + string e); }
-# 实例沿类型链找不到 `call`(它不是方法) —— 非对象 receiver 也因此不会撞硬转
-Ex.try { (D ()).call; } (e: Exception) => { print ("实例读 call: " + string e); }
-Ex.try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
-# 类对象上的 Function 方法:它的元类链里有 Function,所以 Fields () 会列出来,
-# 但不能硬转成 FunctionVal —— 该报 Ravel 错误,不是 InvalidCastException
-C ::= class { init := () => { this; }; }
+ad := Adder ()
+f := ad.call
+print (f 41)
+Ex.try { ad 41; } (e: Exception) => { print ("自定义 call 也不行: " + string e); }
+# 类对象是函数(ClassVal : FunctionVal),所以 Function 那层的方法对它可用 ——
+# 而且不需要"硬转成 FunctionVal"(它本来就是),不会抛 C# 的 InvalidCastException
 print (C.Name ())
-# 捕获作用域只有**函数**有 —— 类对象是 ObjectVal,不再冒充"有作用域"。
-# 从前 `IFunction` 上挂着个 `Scope`,函数说那是捕获作用域、对象说那是成员作用域,
-# 一个成员名焊了两个概念,于是 `C.scope ()` 会把类的成员表当"作用域"返回。
-Ex.try { C.scope (); } (e: Exception) => { print ("类取 scope: " + string e); }
-C.name = "Renamed"          # 类名是 `name` 成员(Name 是 Type 那层的方法,不给赋值)
+# `scope ()` 取的是**捕获作用域**,类对象没有(它不是闭包),给个空的。
+# 从前这里报「scope 只对函数有意义,Type 不行」—— 那时类对象不是函数,是另一套判据。
+print (C.scope ())
+C.name = "Renamed"          # 类名是 `name` 成员(Name 是 Function 那层的方法,不给赋值)
 print (C.Name ())
 print (C.name)
 # --- expected ---
-# 42
-# 自有 call 收错参数: 参数 'n' 需要 Integer，得到 Void
-# 实例: 值 D {} 不是函数，不能调用
+# 实例不能调: 值 C {} 不是函数，不能调用
 # 无类体的类: 类型 Object 不能作为构造器调用
-# 实例读 call: 类型 'D' 没有方法 'call'
+# 实例读 call: 类型 'C' 没有方法 'call'
 # int 读 call: 类型 'Integer' 没有方法 'call'
+# 42
+# 自定义 call 也不行: 值 Adder {} 不是函数，不能调用
 # C
-# 类取 scope: scope 只对函数有意义，Type 不行
+# <scope>
 # Renamed
 # Renamed

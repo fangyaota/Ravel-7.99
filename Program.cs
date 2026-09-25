@@ -55,6 +55,9 @@ static void RunFile(string path)
     {
         // 走到这里说明解释器自己有 bug:该转成 RuntimeException/SyntaxException 的没转
         Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}");
+        // 上面那句故意不带栈,免得刷屏;但解释器自己的 bug 只能靠栈才查得下去
+        // (递归到栈溢出这类尤其如此,消息里什么线索都没有)。要的时候开这个开关。
+        if (Environment.GetEnvironmentVariable("RAVEL_TRACE") == "1") Console.WriteLine(ex.StackTrace);
     }
 
     Console.WriteLine();

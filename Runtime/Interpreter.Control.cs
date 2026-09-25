@@ -149,14 +149,23 @@ public partial class Interpreter
     /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。</summary>
     private void StepClassInit(ControlFrame cf)
     {
-        var type = cf.Arg<ObjectVal>(0, "class");
+        var type = cf.Arg<ClassVal>(0, "class");
         var arg = cf.Arg<RuntimeValue>(1, "class");
         var bodies = BuiltinClasses.CollectBodies(type); // 顶祖先 → 自身,≥ 1 层
 
         if (cf.Count == 0)
         {
             var instanceScope = new Scope(type.ClassBody!.CaptureScope);
-            var obj = new ObjectVal(type, instanceScope);
+            // 造出来的东西是类还是实例,取决于**被实例化的那个类**是不是 `type` 的子类
+            // (走 parent 原型链,不是元类链):
+            //   `type { body }` → `type <: type` 自反 → 造出来的就是类对象(ClassVal)
+            //   `MyMeta := class type {…}` → MyMeta <: type → 同上
+            //   `C := class {…}` 的实例 → C 的 parent 链是 `C → object`,不含 type → 普通实例
+            // 注意这只定下**中间对象**的类型:构造最终交出的是 init 的返回值(见下面 Return),
+            // 所以只有"init 以 this 收尾"的用户类/元类才真把这个对象交出去。
+            ObjectVal obj = type.IsAssignableTo(BuiltinClasses.Type)
+                ? new ClassVal(type, instanceScope)
+                : new ObjectVal(type, instanceScope);
             instanceScope.Define("this", type, obj);
             _top = new BlockExecFrame(bodies[0].Block)
             {

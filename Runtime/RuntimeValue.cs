@@ -6,16 +6,21 @@ public abstract record RuntimeValue
     /// <summary>这个值的类对象(元类链上的创建者)。`typeof X` 取的就是它。</summary>
     public abstract ObjectVal Type { get; }
 
-    /// <summary>这是个真的闭包(方法 / lambda / 内置函数 / 块 / 类型),而不是**恰好**
+    /// <summary>这是个真的闭包(方法 / lambda / 内置函数 / 块),而不是**恰好**
     /// 落在 Function 类型下的数据值吗?
     ///
-    /// **判据不能用 `is FunctionVal`**:类型表里 `Bool &lt;: Function`——true/false 可调用,
-    /// `true {a} {b}` 选一个块跑——所以 BoolVal 也是 FunctionVal。它那个 Body 只是占位、
-    /// 从不被调用(求值器在 CallInto 里按类型先分派掉了)。凡是需要区分
-    /// 「方法 vs 数据字段」「还差参数的构造器 vs 返回值」的地方都得走这个属性,
-    /// 否则 bool 会被当成方法:字段从 `Fields ()`/`print obj` 里消失,
-    /// `init := () => { true; }` 的对象也会被当成半成品构造器交出去。</summary>
-    public bool IsClosure => this is FunctionVal and not BoolVal;
+    /// **判据不能用 `is FunctionVal`**,有两个反例:
+    /// - 类型表里 `Bool &lt;: Function`——true/false 可调用,`true {a} {b}` 选一个块跑——
+    ///   所以 BoolVal 也是 FunctionVal。它那个 Body 只是占位、从不被调用
+    ///   (求值器在 CallInto 里按类型先分派掉了)。
+    /// - 类对象也是 FunctionVal(见 <see cref="ClassVal"/>)。它是**数据**:`C := class {…}`
+    ///   建出来的那个类必须原样交出去,不能被当成"还差参数的构造器"再包一层。
+    ///
+    /// 凡是需要区分「方法 vs 数据字段」「还差参数的构造器 vs 返回值」的地方都得走这个属性,
+    /// 否则 bool 会被当成方法(字段从 `Fields ()`/`print obj` 里消失),
+    /// `init := () => { true; }` 的对象会被当成半成品构造器交出去,
+    /// 而 `class {…}` 拿到的会是一个 PartialCtor 而不是类。</summary>
+    public bool IsClosure => this is FunctionVal and not (BoolVal or ClassVal);
 
     /// <summary>取成员用的作用域 —— 「我作为一个对象」的那半边:我身上挂着哪些成员。
     ///

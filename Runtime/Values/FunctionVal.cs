@@ -26,19 +26,21 @@ public record FunctionVal : ObjectVal
 
     /// <summary>函数的元类恒为 `Function`。
     ///
-    /// 这里允许 `ClassType` 为 null 并**懒回填**:静态初始化期间 `BuiltinClasses.Function`
-    /// 还没造出来(`BuiltinClasses.Call` 是字段初始化器,排在静态 ctor 体之前,
-    /// 它就是个 `ClassCallFactory : FunctionVal`),ctor 里只能先记 null。
+    /// 允许 `ClassType` 为 null 并**懒回填**:构造函数是在基类 ctor 之后才填自己的,
+    /// 而基类 ctor 里那句 `ClassType = BuiltinClasses.Function` 有可能撞上静态初始化
+    /// —— 那时 `Function` 还是 null,读它得到 null 而不是异常,所以这里必须能兜住。
     /// **别在 ctor 里读 `BuiltinClasses.X` 并假定它已就绪。**</summary>
     public override ObjectVal Type => ClassType ??= BuiltinClasses.Function;
 
     public override string ToString() => Name != null ? "<function " + Name + ">" : "<function>";
 
-    /// <summary>需要捕获作用域时用(captureScope 参与签名,Body 里可读 CaptureScope)</summary>
-    public FunctionVal(Scope captureScope, Func<Scope, RuntimeValue, RuntimeValue> rawBody)
-        : base(null!, new Scope())
+    /// <summary>需要捕获作用域时用(captureScope 参与签名,Body 里可读 CaptureScope)。
+    /// `members` 只有 <see cref="ClassVal"/> 用得上 —— 类对象的成员表由调用方备好(实例作用域)。</summary>
+    public FunctionVal(Scope captureScope, Func<Scope, RuntimeValue, RuntimeValue> rawBody, Scope? members = null)
+        : base(null!, members ?? new Scope())
     {
         // 基类 ctor 的 `?? this` 是给根元类 `type` 留的自指,函数得改回 Function。
+        // (ClassVal 的 ctor 随后会把它改成元类。)
         ClassType = BuiltinClasses.Function;
         CaptureScope = captureScope;
         Body = a => rawBody(CaptureScope, a);

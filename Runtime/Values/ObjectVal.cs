@@ -13,16 +13,19 @@
 /// 沿原型链的查找见 <see cref="LookupInChain{T}"/>。</summary>
 public record ObjectVal : RuntimeValue, IFunction
 {
-    /// <summary>元类(创建者)。`null` 传进来表示**自指**——只有 `type` 是这样(根元类).
-    /// 建内置类对象的时候 `type` 还没造出来,所以先当自指、之后由 BuiltinClasses 回填,
-    /// 因此这里给 internal set。</summary>
-    public ObjectVal ClassType { get; internal set; }
+    /// <summary>元类(创建者)。**类型是 `ClassVal`** —— 能当元类的必然是类对象,
+    /// 于是"ClassType 一定是个类"由编译器看着。
+    ///
+    /// 允许为 null 的只有 `FunctionVal` 那一支(它先调基类 ctor 再填自己,静态初始化期间
+    /// `BuiltinClasses.Function` 也还没造出来),读的时候走 `Type` 就会回填。
+    /// 自指只有 <see cref="ClassVal"/> 能表达(它自己就是类),所以那里是 `?? this`。</summary>
+    public ClassVal ClassType { get; internal set; }
 
     public Scope Scope { get; }
 
-    public ObjectVal(ObjectVal? classType, Scope scope)
+    public ObjectVal(ClassVal? classType, Scope scope)
     {
-        ClassType = classType ?? this;
+        ClassType = classType!;
         Scope = scope;
     }
 
@@ -33,8 +36,8 @@ public record ObjectVal : RuntimeValue, IFunction
     internal const string ParentMember = "parent";
     internal const string BlockMember = "block";
     internal const string NameMember = "name";
-    internal const string CallMember = "call";
     internal const string InitMember = "init";
+    internal const string ThisMember = "this";
 
     public override ObjectVal Type => ClassType;
 
@@ -110,13 +113,21 @@ public record ObjectVal : RuntimeValue, IFunction
     }
 
     /// <summary>机制成员名 —— 它们**不是方法**:是类对象自己身上的数据(原型链指针、类体、
-    /// 可调用的凭据、构造器)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
+    /// 构造器、`this`)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
     ///
     /// `Fields ()` 列方法时排掉它们、`TryLookupMethod` 找方法时也要排掉 —— **两处必须同一份定义**。
-    /// 这个漏过一回:`call` 装到每个类对象上之后,`(5).call` / `().call` 会沿链找到它,
-    /// 再把它当方法绑到非对象 receiver 上,`(ObjectVal)self` 硬转就抛 InvalidCastException。</summary>
+    /// 这个漏过一回:机制成员被沿链找到、再被当方法绑到非对象 receiver 上,
+    /// `(ObjectVal)self` 硬转就抛 InvalidCastException。
+    ///
+    /// `this` 是**类对象**才会有的一个:类对象就是 `type` 的实例,而实例化时
+    /// `instanceScope.Define("this", …)` —— 那份实例作用域**正是这个类对象的成员表**。
+    /// 从前它没被列成方法是撞运气:那个值不是 FunctionVal。类对象现在也是 FunctionVal 了
+    /// (见 <see cref="ClassVal"/>),不排掉的话 `Fields ()` 会多出一个 `this`。
+    ///
+    /// `call` 从前也在这个名单里 —— 它现在是普通成员名了(类对象不再靠它表示"可调用"),
+    /// 用户叫 `call` 的方法照常列出来。</summary>
     internal static bool IsMethodName(string n)
-        => n is not (BlockMember or CallMember or ParentMember or NameMember or InitMember);
+        => n is not (BlockMember or ParentMember or NameMember or InitMember or ThisMember);
 
     /// <summary>沿原型链查方法(存的是"self → (arg → impl)"的自绑定函数)。
     /// 机制成员直接返回 null —— 见 <see cref="IsMethodName"/>。</summary>
@@ -183,7 +194,7 @@ public record ObjectVal : RuntimeValue, IFunction
         {
             // 只列数据字段:方法(含 init)是噪音;parent/block 是类才有的机制成员
             if (kv.Value.Value.IsClosure) continue;
-            if (kv.Key is "this" or ParentMember or "base" or "thistype" or BlockMember or CallMember) continue;
+            if (kv.Key is "this" or ParentMember or "base" or "thistype" or BlockMember) continue;
             if (fields.Count == MaxFields) { fields.Add("..."); break; }
             fields.Add(kv.Key + " = " + Brief(kv.Value.Value));
         }

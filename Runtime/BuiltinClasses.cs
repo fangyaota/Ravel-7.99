@@ -14,52 +14,45 @@
 internal static partial class BuiltinClasses
 {
     // 顶类型
-    public static readonly ObjectVal Object;
+    public static readonly ClassVal Object;
 
     // 值类型分支（不可变）
-    public static readonly ObjectVal ValueType;
-    public static readonly ObjectVal Int;
-    public static readonly ObjectVal Float;
-    public static readonly ObjectVal Bool;
-    public static readonly ObjectVal String;
-    public static readonly ObjectVal BigInt;
-    public static readonly ObjectVal Fraction;
-    public static readonly ObjectVal BigFraction;
+    public static readonly ClassVal ValueType;
+    public static readonly ClassVal Int;
+    public static readonly ClassVal Float;
+    public static readonly ClassVal Bool;
+    public static readonly ClassVal String;
+    public static readonly ClassVal BigInt;
+    public static readonly ClassVal Fraction;
+    public static readonly ClassVal BigFraction;
 
     // 引用类型分支（可变/有行为）
-    public static readonly ObjectVal Function;
-    public static readonly ObjectVal Block;
-    public static readonly ObjectVal List;
-    public static readonly ObjectVal Set;
-    public static readonly ObjectVal Dict;
+    public static readonly ClassVal Function;
+    public static readonly ClassVal Block;
+    public static readonly ClassVal List;
+    public static readonly ClassVal Set;
+    public static readonly ClassVal Dict;
 
     // void — 唯一值 ()
-    public static readonly ObjectVal Void;
+    public static readonly ClassVal Void;
 
     /// <summary>元类型 —— 所有类型的类型，也是"建类"这个动作本身（`class` 是它的别名）。
     /// 它的元类是**它自己**（自指，元类链的起点）。用户类直接挂在它下面。</summary>
-    public static readonly ObjectVal Type;
+    public static readonly ClassVal Type;
 
     // 底类型 — 为所有类的子类，default 是其唯一实例；不在继承树里，IsAssignableTo 全局特判
-    public static readonly ObjectVal Every;
+    public static readonly ClassVal Every;
 
     // 顶类型 — 任何类型都可赋值给它
-    public static readonly ObjectVal Any;
+    public static readonly ClassVal Any;
 
-    public static readonly ObjectVal Exception;
-    public static readonly ObjectVal Ravel;
-    public static readonly ObjectVal ScopeType;
-    public static readonly ObjectVal Property;
-
-    /// <summary>`call` 成员的值——**新建实例的责任**。所有类对象装的都是它，只是绑的 self 不同：
-    /// `C ()` 拿 self=C 造 C 的实例；`type { body }` 拿 self=type，而它的实例就是类。
-    ///
-    /// 这是"可调用"的唯一判据（见 `ObjectVal.HasCall`），于是引擎不必知道"什么是类"。
-    /// 也正因为它是普通成员，用户/未来的 interface 可以自己定义 `call` 来造可调用的东西。</summary>
-    internal static readonly FunctionVal Call = new ClassCallFactory();
+    public static readonly ClassVal Exception;
+    public static readonly ClassVal Ravel;
+    public static readonly ClassVal ScopeType;
+    public static readonly ClassVal Property;
 
     /// <summary>所有已注册的类对象（内置 + 用户定义），供 Subtypes 反射</summary>
-    internal static readonly List<ObjectVal> AllTypes = [];
+    internal static readonly List<ClassVal> AllTypes = [];
 
     /// <summary>AllTypes 里内置类占多少——静态构造器填完后定下来，Reset 时按它切</summary>
     private static int _builtinCount;
@@ -192,13 +185,14 @@ internal static partial class BuiltinClasses
     /// 构造交出 init 的返回值,所以这就是"建出来的那个类"。
     ///
     /// 装完顺手登记进 AllTypes(`Subtypes ()` 反射要用)并扫类体里用符号定义的运算符。</summary>
-    private static RuntimeValue Install(Scope scope, ObjectVal parent, RuntimeValue body)
+    private static ClassVal Install(Scope scope, ObjectVal parent, RuntimeValue body)
     {
         if (body is not BlockVal blk) throw new RuntimeException("class 需要代码块参数");
-        var self = (ObjectVal)scope.Lookup("this").Value;
+        // 正在被装成的这个对象**必然是 ClassVal**:这段只在实例化 `type` 或它的子类时跑,
+        // 而 StepClassInit 正是按"被实例化的类 <: type"来决定造 ClassVal 的。
+        var self = (ClassVal)scope.Lookup("this").Value;
         self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
         self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk);
-        self.Scope.DefineOrReplace(ObjectVal.CallMember, Function, Call);   // "可调用"的凭据
         self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
         AllTypes.Add(self);
 
@@ -216,19 +210,18 @@ internal static partial class BuiltinClasses
         return self;
     }
 
-    private static ObjectVal New(string name)
+    private static ClassVal New(string name)
     {
-        var t = new ObjectVal(null, new Scope());   // null → ClassType 先自指
+        var t = new ClassVal(null, new Scope());   // null → ClassType 先自指
         t.Scope.Define(ObjectVal.NameMember, null!, new StringVal(name));
         return t;
     }
 
     /// <summary>第二趟：挂 parent、回填元类。约束这时才给得上（String/Object 已经存在）。</summary>
-    private static void Link(ObjectVal t, ObjectVal parent, ObjectVal meta)
+    private static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
     {
         t.ClassType = meta;
         t.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
-        t.Scope.DefineOrReplace(ObjectVal.CallMember, Function, Call);
         t.Scope.LookupField(ObjectVal.NameMember)!.TypeConstraint = String;
     }
 
@@ -239,11 +232,10 @@ internal static partial class BuiltinClasses
     /// <summary>建一个模块的类对象（`ravel "M"` / System 模块用）。模块也是类型，
     /// 但它的成员住在 `ModuleVal.ModuleScope` 里而不是这类对象自己的 Scope ——
     /// 所以不登记进 AllTypes（每个 Interpreter 都重建一份，登记只会累积）。</summary>
-    internal static ObjectVal NewModuleClass(string name, ObjectVal parent)
+    internal static ClassVal NewModuleClass(string name, ObjectVal parent)
     {
-        var t = new ObjectVal(Type, new Scope());
+        var t = new ClassVal(Type, new Scope());
         t.Scope.Define(ObjectVal.ParentMember, Object, parent);
-        t.Scope.Define(ObjectVal.CallMember, Function, Call);
         t.Scope.Define(ObjectVal.NameMember, String, new StringVal(name));
         return t;
     }

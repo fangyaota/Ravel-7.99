@@ -48,6 +48,7 @@ internal static class ArgNames
         _ when t == typeof(StringVal) => " string",
         _ when t == typeof(ObjectVal) => "对象",
         _ when t == typeof(BoolVal) => " bool",
+        _ when t == typeof(ClassVal) => "类",        // 比 FunctionVal 更具体,要排在它前面
         _ when t == typeof(FunctionVal) => "函数",
         _ => "值",
     };

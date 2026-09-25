@@ -4,12 +4,6 @@
 public sealed record BuiltinMethodVal(Func<RuntimeValue, RuntimeValue, RuntimeValue> Impl)
     : FunctionVal(null!, (_, self) => FunctionVal.From(arg => Impl(self, arg))), ISelfBinding;
 
-/// <summary>`call` 成员的值 —— **新建实例的责任**。自绑定:读出来要绑上接收者,
-/// 绑完是 <see cref="BoundCall"/>,`CallInto` 见到它就走实例化那条路。
-/// 所有类对象装的都是它,只是绑的 self 不同(`C ()` 拿 C;`type { body }` 拿 type)。</summary>
-public sealed record ClassCallFactory()
-    : FunctionVal(null!, (_, self) => new BoundCall((ObjectVal)self)), ISelfBinding;
-
 /// <summary>类运算符工厂:存的是"self → BoundClassOp",读成员时要绑接收者。
 /// 和 BuiltinMethodVal 一样是自绑定成员,区别是它不直接算而是推 ClassOp 帧到实例里找实现。</summary>
 public sealed record ClassOperatorFactory(string OpName)
