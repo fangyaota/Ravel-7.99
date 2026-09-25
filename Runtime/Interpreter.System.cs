@@ -47,6 +47,10 @@ public partial class Interpreter
         // ---- 常量 ----
         Def("True", BuiltinClasses.Bool, new BoolVal(true));
         Def("False", BuiltinClasses.Bool, new BoolVal(false));
+        // 特殊浮点值。和 True/False 同款:系统模块里的一个值,`predefined.rav` 给全局别名
+        // (`-Inf` 不用另设,一元 `-` 对 Float 就是取负)
+        Def("NaN", BuiltinClasses.Float, new FloatVal(double.NaN));
+        Def("Inf", BuiltinClasses.Float, new FloatVal(double.PositiveInfinity));
         Def("Default", BuiltinClasses.Every, DefaultVal.Instance);
 
         // ---- 控制内建:收满参数后由求值器推控制帧 ----

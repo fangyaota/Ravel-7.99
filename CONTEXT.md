@@ -165,7 +165,7 @@ Object (parent=自己)
 
 （`if`/`while`/`foreach` 不在 System 模块里——它们在 `lib/predefined.rav` 用 Ravel 写。）
 
-**值**: True False Default
+**值**: True False Default NaN Inf（特殊浮点值；`-Inf` 用一元 `-`）
 
 ## Math 模块
 

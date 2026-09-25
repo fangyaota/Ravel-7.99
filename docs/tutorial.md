@@ -50,7 +50,7 @@ name := input ()           # 读一行输入
 | 类型 | 说明 | 字面量 |
 |------|------|--------|
 | Integer | 整数 | `42` `-1` |
-| Float | 浮点 | `3.14` `5.0` |
+| Float | 浮点 | `3.14` `5.0` `Inf` `NaN` |
 | Bool | 布尔 | `true` `false` |
 | String | 字符串 | `"hello"` |
 | List | 列表 | `[1 2 3]` |
@@ -161,6 +161,11 @@ bigfraction 123 456   # 大数分数
 ```
 
 整数和浮点可以混用：`3 == 3.0` → `true`。
+
+特殊浮点值 `NaN` / `Inf`（`-Inf` 就是 `-Inf`，一元 `-` 对浮点取负）按 IEEE 来：
+**`NaN` 不等于自己**（`NaN == NaN` 是 `false`），`Inf` 参与运算照常（`1 / Inf` → `0`，
+`Inf - Inf` → `NaN`）。它们打印成 `NaN` / `Inf` / `-Inf`（ASCII，不是 `∞`），
+`int Inf` 这类越界转换报的是「数值 Inf 超出 int 范围」。
 
 ### 3.3 类型判定 is / isnot
 
@@ -1030,6 +1035,7 @@ Error: 未预期的字符 '$'
 | `print x` | 输出 x 并换行 |
 | `input ()` | 读一行 |
 | `typeof x` | 返回 x 的类型 |
+| `NaN` `Inf` | 特殊浮点值（和 `true` 同款：System 里的值 + 全局别名） |
 | `x is T` | 类型判定（`isnot` 取反；`x.is` / `is.T` 也成立） |
 | `exit msg` | 退出程序 |
 | `eval "code"` | 执行字符串 |

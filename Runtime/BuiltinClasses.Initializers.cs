@@ -56,7 +56,8 @@ internal static partial class BuiltinClasses
     {
         if (double.IsNaN(v)) throw new RuntimeException("NaN 不能转换为 int");
         if (v < int.MinValue || v > int.MaxValue)
-            throw new RuntimeException($"数值 {v} 超出 int 范围（int 是 32 位，大数用 bigint）");
+            // 插值用 FloatVal 而不是裸 double:后者的无穷是"∞",值的形式该是 ASCII
+            throw new RuntimeException($"数值 {new FloatVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）");
         return new IntVal((int)v);
     }
 
