@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 public record ObjectVal(RuntimeType ClassType, Scope Scope) : RuntimeValue
 {
@@ -15,7 +15,7 @@ public record ObjectVal(RuntimeType ClassType, Scope Scope) : RuntimeValue
         foreach (var kv in Scope.Variables)
         {
             // 只列数据字段:方法(含 init)是噪音,this/base 是机制内部的
-            if (kv.Value.Value is FunctionVal) continue;
+            if (kv.Value.Value.IsClosure) continue;
             if (kv.Key is "this" or "parent" or "base" or "thistype" or "block") continue;
             if (fields.Count == MaxFields) { fields.Add("..."); break; }
             fields.Add(kv.Key + " = " + Brief(kv.Value.Value));

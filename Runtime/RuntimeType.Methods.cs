@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 using System.Linq;
 
@@ -58,7 +58,7 @@ public partial class RuntimeType
             else if (s is ObjectVal ov)
             {
                 foreach (var kv in ov.Scope.Variables)
-                    if (kv.Value.Value is not FunctionVal &&
+                    if (!kv.Value.Value.IsClosure &&
                         kv.Key is not ("this" or "base" or "parent" or "thistype" or "block") &&
                         seen.Add(kv.Key))
                         all.Add(new StringVal(kv.Key));

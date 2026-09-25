@@ -166,7 +166,7 @@ public partial class Interpreter
         // Count 超过层数:init 已返回(用 > 而非 == :callcc 续延重入可能把 Count 顶过头)。
         // Results 里前面几项是各层类体的返回值,最后一项才是 init 的——所以取 Last 而不是 Result(0)。
         // init 若还返回函数(多参构造器只喂了一部分)就交出半成品,让它继续收参数,和普通函数一样柯里化
-        Return(cf, cf.Last is FunctionVal rest ? new PartialCtor(inst, rest) : inst);
+        Return(cf, cf.Last is FunctionVal rest && rest.IsClosure ? new PartialCtor(inst, rest) : inst);
     }
 
     /// <summary>半成品构造器继续收参数:喂给 init 的剩余部分,应用完才交出对象</summary>
@@ -179,7 +179,7 @@ public partial class Interpreter
             return;
         }
 
-        Return(cf, cf.Result(0) is FunctionVal rest ? new PartialCtor(target, rest) : target);
+        Return(cf, cf.Result(0) is FunctionVal rest && rest.IsClosure ? new PartialCtor(target, rest) : target);
     }
 
     /// <summary>prepend/append 合成:先跑块再调原函数,或先调原函数再跑块</summary>

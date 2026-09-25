@@ -18,7 +18,20 @@ else
 
 static void RunFile(string path)
 {
-    var source = File.ReadAllText(path);
+    string source;
+    try
+    {
+        source = File.ReadAllText(path);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+    {
+        // 不接的话 `ravel nosuchfile.rav` 会甩一坨 .NET 堆栈出来,
+        // 那是给开发者看的,不是给写 .rav 的人看的
+        Console.WriteLine($"读不到文件 '{path}': {ex.Message}");
+        Environment.ExitCode = 1;
+        return;
+    }
+
     Console.WriteLine($"── {path} ──");
     Console.WriteLine(source.Trim());
     Console.WriteLine("── Output ──");

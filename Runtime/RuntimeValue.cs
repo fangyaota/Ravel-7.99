@@ -4,6 +4,17 @@ namespace Ravel.Runtime;
 public abstract record RuntimeValue
 {
     public abstract RuntimeType Type { get; }
+
+    /// <summary>这是个真的闭包(方法 / lambda / 内置函数 / 块 / 类型),而不是**恰好**
+    /// 落在 Function 类型下的数据值吗?
+    ///
+    /// **判据不能用 `is FunctionVal`**:类型表里 `Bool &lt;: Function`——true/false 可调用,
+    /// `true {a} {b}` 选一个块跑——所以 BoolVal 也是 FunctionVal。它那个 Body 只是占位、
+    /// 从不被调用(求值器在 CallInto 里按类型先分派掉了)。凡是需要区分
+    /// 「方法 vs 数据字段」「还差参数的构造器 vs 返回值」的地方都得走这个属性,
+    /// 否则 bool 会被当成方法:字段从 `Fields ()`/`print obj` 里消失,
+    /// `init := () => { true; }` 的对象也会被当成半成品构造器交出去。</summary>
+    public bool IsClosure => this is FunctionVal and not BoolVal;
 }
 
 /// <summary>Ravel 运行时错误。抛出点只管给消息——位置和调用栈由求值器在异常冒泡到
