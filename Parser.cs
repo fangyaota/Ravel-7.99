@@ -22,7 +22,7 @@ public partial class Parser(List<Token> tokens, string? source = null)
     /// <summary>词法 + 语法一步到位(调用方不必重复 new Lexer/new Parser 两行)。
     /// fileName 会挂到块上,求值器报错时用它指出是哪个文件。</summary>
     public static Program ParseSource(string source, string? fileName = null)
-        => new Parser(new Lexer(source).Tokenize(), fileName).Parse();
+        => new Parser(new Lexer(source, fileName).Tokenize(), fileName).Parse();
 
     /// <summary>同上,但结果作为块(模块体 / eval 代码片段用)</summary>
     public static BlockExpr ParseBlock(string source, string? fileName = null)
@@ -807,9 +807,11 @@ public partial class Parser(List<Token> tokens, string? source = null)
         }
     }
 
-    private Exception ParseError(string message)
+    /// <summary>位置不再写进消息里——ErrorReport 会画 `--> file:line:col` 和插入符,
+    /// 重复写一遍只是噪音。`附近` 也由插入符接管(读不到源文件的 eval 片段除外)。</summary>
+    private SyntaxException ParseError(string message)
     {
         var token = IsAtEnd() ? tokens[^1] : Peek();
-        return new Exception($"语法错误 {token.Line}:{token.Column}: {message}\n  附近: {token.Lexeme}");
+        return new SyntaxException(message, new SourceSpot(source, token.Line, token.Column));
     }
 }

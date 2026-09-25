@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，70 passed / 0 failed / 4 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，73 passed / 0 failed / 4 todo。
 
 ## 编译运行
 
@@ -59,7 +59,7 @@ lib/
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
                           (元类特性还没实现,4 个 todo 全是它:117/118/121/122)
 
-tests/                    74 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    77 个 golden test(普通 + expect-error + todo + fixture)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -83,6 +83,21 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
   每层留 5~6 个帧(BlockExecFrame + 各语句/表达式),合起来约 1KB,
   20 万层要 250MB 上下。所以它在默认堆下跑得通,在测试用的
   DOTNET_GCHeapHardLimit=0x10000000(256MB)下会 OOM。没有尾调用优化,长递归就是吃内存。
+
+## 数字字面量
+
+`NumberLiteral` 存的是**原始文本**（`Lexeme`），不是 `double`——double 只有 15~17 位有效数字，
+大整数中转一手就丢精度。求值时才定类型（`Interpreter.MakeNumber`）：
+
+- 有小数点 → `Float`
+- 没有小数点且装得下 int32 → `Integer`
+- 没有小数点但超了 → `BigInt`（所以 `typeof 2147483648` 是 `BigInt`）
+
+后缀 `bigint` 是**构造器**（`bigint 123` 把值转成 BigInt），和字面量的类型推断是两回事。
+
+一元 `-` 按数值类型逐个翻转（`Negate`），不走 `0 - x`——Int 的 `-` 只认 Float 右操作数。
+Int 与右操作数的二元运算按宽度升级（`IntOp`）：`float > bigint > int`，
+所以 `1 + bigint 2` 和 `bigint 2 + 1` 都得到 BigInt。
 
 ## 类型层次
 
@@ -283,7 +298,18 @@ Error: 未定义的变量 'nope'
   出错位置则精确到当前求值的节点。
 - 渲染在 `Runtime/ErrorReport.cs`：路径取相对 cwd、分隔符统一 `/`——报告短，
   且让 `tests/152_error_report.rav` 能精确比对（不是 `# expect-error` 那样只看前缀）。
+- **语法错误也走这份渲染**（`SyntaxException`，见 `RuntimeValue.cs`）：位置来自 token、
+  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/174_syntax_error_report.rav`）。
+  它以前是个裸的 `System.Exception`，于是 CLI / 测试运行器分不清「用户代码写错了」
+  和「解释器有 bug」——两者都落在同一个 `catch (Exception)` 里。现在三个类型各归各位：
+  `RuntimeException`（求值期）/ `SyntaxException`（词法语法期）/ `ExitException`（exit 解栈），
+  落到兜底 `catch (Exception)` 的一律打 `!! 解释器内部错误`。
 
 ## 测试
 
-74 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 70 passed / 0 failed / 4 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+77 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 73 passed / 0 failed / 4 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+
+- `expect-error` 只看 `output.StartsWith("Error:")`，所以**解释器自己漏出来的 C# 异常不算数**：
+  `CaptureOutput` 给非 `RuntimeException`/`SyntaxException`/`ExitException` 的异常加了
+  `!! C# 异常 …` 前缀，它不以 `Error:` 开头，会直接把用例判 FAIL。加这个前缀当场就抓到过 6 个
+  漏出的异常（其中 4 个是语法错误没有类型、2 个是 exit 没被单独接住）——现在两者都有正式类型了。

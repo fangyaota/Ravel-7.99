@@ -69,21 +69,32 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         return new BoxedValue(RuntimeType.BindMethod(method, Value), interp);
     }
 
+    /// <summary>读变量的通用门禁:unreadable / core / outdated。
+    ///
+    /// 裸标识符(`Interpreter.StepIdent`)和成员/模块访问必须走同一套,否则门禁是漏的——
+    /// 曾经 `c.secret` 被 core 拦住、而类体里直接写 `secret` 却读得到,
+    /// 因为 StepIdent 自己抄了一份门禁、漏抄了 core 那条。
+    ///
+    /// private/protected 不在这里判:那要看「当前作用域能否走到该对象/模块」,得先有 owner。</summary>
+    internal static void GateRead(Variable v, string name, Interpreter interp)
+    {
+        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{name}' 不可读取");
+        if (v.HasAttr(Attr.Core) && interp.UnsafeDepth == 0)
+            throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe");
+        if (v.HasAttr(Attr.Outdated)) Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
+    }
+
     /// <summary>模块成员:private/protected 要求当前作用域链能走到该模块</summary>
     private void CheckModuleReadAccess(ModuleVal mv, Variable vr, string name)
     {
-        CheckUnreadable(vr, name);
-        WarnIfOutdated(vr, name);
+        GateRead(vr, name, interp);
         if ((vr.HasAttr(Attr.Private) || vr.HasAttr(Attr.Protected)) && !IsInsideModule(mv))
             throw AccessDenied(vr, name);
     }
 
     private void CheckObjectReadAccess(ObjectVal obj, Variable vr, string name)
     {
-        CheckUnreadable(vr, name);
-        if (vr.HasAttr(Attr.Core) && interp.UnsafeDepth == 0)
-            throw new RuntimeException($"变量 '{name}' 是核心字段，需要 unsafe");
-        WarnIfOutdated(vr, name);
+        GateRead(vr, name, interp);
         if (!interp.CheckFieldAccess(vr, obj))
             throw AccessDenied(vr, name);
     }
@@ -93,18 +104,6 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         for (var cur = interp.CurrentScope; cur != null; cur = cur.Parent)
             if (cur == mv.ModuleScope) return true;
         return false;
-    }
-
-    private static void CheckUnreadable(Variable vr, string name)
-    {
-        if (vr.HasAttr(Attr.Unreadable))
-            throw new RuntimeException($"变量 '{name}' 不可读取");
-    }
-
-    private static void WarnIfOutdated(Variable vr, string name)
-    {
-        if (vr.HasAttr(Attr.Outdated))
-            Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
     }
 
     private static RuntimeException AccessDenied(Variable vr, string name)

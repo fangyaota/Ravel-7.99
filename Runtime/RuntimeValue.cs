@@ -27,3 +27,17 @@ public sealed class TypeMismatchException() : RuntimeException("类型不匹配"
 
 /// <summary>exit 专用异常——不被 EvalCall 捕获，直接向上抛出</summary>
 public class ExitException(string message) : Exception(message);
+
+/// <summary>错误在源码里的位置。运行时错误和语法错误都要报位置、都要画那行源码和插入符,
+/// 所以位置单独成一个值,渲染只有一份实现(见 <see cref="ErrorReport"/>)。</summary>
+/// <param name="File">源文件名;null / 空 表示 eval、REPL 这类没有真实文件的片段</param>
+public sealed record SourceSpot(string? File, int Line, int Column);
+
+/// <summary>语法/词法错误:源码本身写错了,不是程序跑出来的。
+/// 位置来自 token、也没有 Ravel 调用栈可讲——所以它和 <see cref="RuntimeException"/> 分开:
+/// 以前它只是个裸的 System.Exception,于是调用方分不清「用户代码写错了」和「解释器有 bug」,
+/// 测试运行器更是把两者都当普通的 Error 放行。</summary>
+public sealed class SyntaxException(string message, SourceSpot spot) : Exception(message)
+{
+    public SourceSpot Spot { get; } = spot;
+}

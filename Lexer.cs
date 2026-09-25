@@ -1,6 +1,9 @@
 namespace Ravel;
 
-public class Lexer(string source)
+using Ravel.Runtime;
+
+/// <summary>词法分析。file 只用来给报错标位置(见 SyntaxException),不参与切词。</summary>
+public class Lexer(string source, string? file = null)
 {
     private int _pos;
     private int _line = 1;
@@ -129,7 +132,7 @@ public class Lexer(string source)
                 continue;
             }
 
-            throw new Exception($"未预期的字符 '{c}'，位置 {_line}:{_col}");
+            throw new SyntaxException($"未预期的字符 '{c}'", new SourceSpot(file, _line, _col));
         }
 
         tokens.Add(new Token(TokenType.EndOfFile, "", _line, _col));

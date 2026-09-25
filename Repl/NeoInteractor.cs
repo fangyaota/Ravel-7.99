@@ -243,9 +243,17 @@ public class NeoInteractor
         {
             PrintError(ErrorReport.Format(ex));
         }
-        catch (Exception ex)
+        catch (SyntaxException ex)
+        {
+            PrintError(ErrorReport.Format(ex));
+        }
+        catch (ExitException ex)
         {
             PrintError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            PrintError($"解释器内部错误 {ex.GetType().Name}: {ex.Message}");
         }
         Pause();
     }
@@ -282,9 +290,17 @@ public class NeoInteractor
             {
                 Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
             }
-            catch (Exception ex)
+            catch (SyntaxException ex)
+            {
+                Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
+            }
+            catch (ExitException ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}");
             }
 
             buffer = "";

@@ -30,9 +30,18 @@ static void RunFile(string path)
     {
         Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
     }
-    catch (Exception ex)
+    catch (SyntaxException ex)
+    {
+        Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
+    }
+    catch (ExitException ex)
     {
         Console.WriteLine($"Error: {ex.Message}");
+    }
+    catch (Exception ex)
+    {
+        // 走到这里说明解释器自己有 bug:该转成 RuntimeException/SyntaxException 的没转
+        Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}");
     }
 
     Console.WriteLine();

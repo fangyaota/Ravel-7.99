@@ -75,9 +75,22 @@ internal static class GoldenTestRunner
         {
             return "Error: " + ErrorReport.Format(ex);
         }
+        catch (SyntaxException ex)
+        {
+            // 语法错误也是「用户代码的问题」,和运行时错误一样算正常的 Error 输出
+            return "Error: " + ErrorReport.Format(ex);
+        }
+        catch (ExitException ex)
+        {
+            // exit 用异常解栈,测试里当一个正常终结
+            return "Error: " + ex.Message;
+        }
         catch (Exception ex)
         {
-            return "Error: " + ex.Message;
+            // C# 异常漏出来了——解释器里的 bug,不是 Ravel 层的错误。
+            // 前缀故意不叫 "Error:",否则 `# expect-error` 的用例会被它蒙混过关
+            // (判据只是 output.StartsWith("Error:"))。
+            return $"!! C# 异常 {ex.GetType().Name} 漏到顶层(不该出现,应转成 RuntimeException): {ex.Message}";
         }
         finally
         {

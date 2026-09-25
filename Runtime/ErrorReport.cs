@@ -17,27 +17,36 @@ public static class ErrorReport
     public static string OneLine(RuntimeException ex) => ex.Message;
 
     public static string Format(RuntimeException ex)
-    {
-        var sb = new System.Text.StringBuilder(ex.Message);
+        => Render(ex.Message, new SourceSpot(ex.File, ex.Line, ex.Column), ex.Trace);
 
-        if (ex.Line > 0)
+    /// <summary>语法错误走同一份渲染。它没有 Ravel 调用栈——源码本身就没解析成功。</summary>
+    public static string Format(SyntaxException ex) => Render(ex.Message, ex.Spot, []);
+
+    /// <summary>位置 + 源码行 + 插入符 + 调用栈。两个 Format 都收到这里,免得画两遍。</summary>
+    private static string Render(string message, SourceSpot spot, IReadOnlyList<string> trace)
+    {
+        var sb = new System.Text.StringBuilder(message);
+
+        if (spot.Line > 0)
         {
-            var where = ex.File is { } f ? $"{ShortPath(f)}:{ex.Line}:{ex.Column}" : $"{ex.Line}:{ex.Column}";
+            var where = spot.File is { Length: > 0 } f
+                ? $"{ShortPath(f)}:{spot.Line}:{spot.Column}"
+                : $"{spot.Line}:{spot.Column}";
             sb.Append("\n  --> ").Append(where);
 
-            if (SourceLine(ex) is { } src)
+            if (SourceLine(spot) is { } src)
             {
-                var num = ex.Line.ToString();
+                var num = spot.Line.ToString();
                 sb.Append("\n  ").Append(num).Append(" | ").Append(src);
                 sb.Append("\n  ").Append(new string(' ', num.Length)).Append(" | ")
-                  .Append(new string(' ', Math.Max(0, ex.Column - 1))).Append('^');
+                  .Append(new string(' ', Math.Max(0, spot.Column - 1))).Append('^');
             }
         }
 
-        if (ex.Trace.Count > 0)
+        if (trace.Count > 0)
         {
-            sb.Append("\n  调用栈 (").Append(ex.Trace.Count).Append(" 层):");
-            foreach (var t in ex.Trace) sb.Append("\n    在 ").Append(t);
+            sb.Append("\n  调用栈 (").Append(trace.Count).Append(" 层):");
+            foreach (var t in trace) sb.Append("\n    在 ").Append(t);
         }
 
         return sb.ToString();
@@ -63,18 +72,18 @@ public static class ErrorReport
     }
 
     /// <summary>取出出错那一行的源码。文件不在/Eval 片段取不到就返回 null</summary>
-    private static string? SourceLine(RuntimeException ex)
+    private static string? SourceLine(SourceSpot spot)
     {
-        if (ex.File is not { } path || ex.Line < 1) return null;
+        if (spot.File is not { Length: > 0 } path || spot.Line < 1) return null;
         try
         {
             if (!File.Exists(path)) return null;
             using var reader = new StreamReader(path);
-            for (int i = 1; i <= ex.Line; i++)
+            for (int i = 1; i <= spot.Line; i++)
             {
                 var line = reader.ReadLine();
                 if (line == null) return null;
-                if (i == ex.Line) return line.Length > 200 ? line[..200] : line;
+                if (i == spot.Line) return line.Length > 200 ? line[..200] : line;
             }
         }
         catch (IOException)

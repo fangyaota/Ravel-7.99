@@ -58,8 +58,7 @@ public partial class Interpreter
         if (nf.Count > 0) return;
         var v = nf.Scope.LookupVar(id.Name);
         if (v == null) throw new RuntimeException($"未定义的变量 '{id.Name}'");
-        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{id.Name}' 不可读取");
-        if (v.HasAttr(Attr.Outdated)) Console.Error.WriteLine("[outdated] " + id.Name);
+        BoxedValue.GateRead(v, id.Name, this);   // 和成员访问共用一套门禁,别各抄一份
         if (v.HasAttr(Attr.By))
         {
             var getter = new BoxedValue(v.Value, this).GetMember("get").Value;
