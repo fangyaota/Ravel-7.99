@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，49 passed / 0 failed / 7 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，50 passed / 0 failed / 7 todo。
 
 ## 编译运行
 
@@ -53,7 +53,7 @@ lib/
   std.rav                 Property + interface
   try.rav                 异常处理
 
-tests/                    56 个 golden test(普通 + expect-error + todo + fixture)
+tests/                    57 个 golden test(普通 + expect-error + todo + fixture)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
@@ -127,6 +127,7 @@ Object (parent=self)
 - `class Parent { fields + init }` 是**唯一**用户类型构造器，产物是 `ObjectVal`。
 - **构造器就是名字叫 `init` 的变量**（类体里写 `init := () => {...}`），不是修饰符——曾经写过 `init ctor := ...`，已废弃。一个类最多一个构造器，没有按参数类型重载；要分派就在 `init` 里自己判断。
 - `type` 禁止创建类型，退化为元类型（`typeof` 结果、类型注解、类型值）。
+- **`C := class {...}` 建的类型没有名字**（只有 `::=` 会命名）。显示和报错时走 `RuntimeType.DisplayName`，空名字退化成 `class`——否则错误信息会变成「类型 '' 不支持运算符」这种没法读的东西。`Type.name` / `typeof c` 的显示 / `print obj` 都取它。
 - 内置类型是 C# 硬编码（元类 `type`），实例是 C# record。
 - **元类 = 创建者**：`Type` 自指；`Class` 的元类是 `Type`；`class` 建的类元类是 `Class`；用户元类 M 建的类元类是 M。
 - **继承是平铺的**：子类实例化时沿 `RuntimeType.Parent` 链从顶祖先到自身依次跑**每层类体**，所有层的字段落在**同一个 instance scope**里，所以字段查找只需一层（`Scope.LookupField` 不走链、不走词法链）。
@@ -271,4 +272,4 @@ Error: 未定义的变量 'nope'
 
 ## 测试
 
-56 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 49 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+57 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 50 passed / 0 failed / 7 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。

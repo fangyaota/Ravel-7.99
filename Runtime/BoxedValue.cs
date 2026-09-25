@@ -61,7 +61,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         // 类型名 / 函数名:字段之外的两个伪成员
         if (name == "name")
         {
-            if (Value is TypeVal tv) return new BoxedValue(new StringVal(tv.Value.Name), interp);
+            if (Value is TypeVal tv) return new BoxedValue(new StringVal(tv.Value.DisplayName), interp);
             if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);
         }
 

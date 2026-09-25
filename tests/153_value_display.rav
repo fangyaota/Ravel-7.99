@@ -6,6 +6,11 @@ c := C ()
 print c
 print ([c c])
 
+# `:=` 建的类没有名字(只有 `::=` 命名),显示和报错时退化成 "class",
+# 而不是空串——否则错误信息是「类型 '' 不支持运算符」
+print (typeof c).name
+print (typeof c)
+
 # 函数统一是 <function>; ::= 命名的带上名字。
 # 以前这些 record 会吐 C# 的自动 dump(System.Func`2[Ravel.Runtime...])
 print ((x: int) => { x; })
@@ -26,6 +31,8 @@ print ({1 2 3})
 # --- expected ---
 # class { x = 1, s = hi }
 # [class { x = 1, s = hi } class { x = 1, s = hi }]
+# class
+# class
 # <function>
 # <function add>
 # [[[...]]]

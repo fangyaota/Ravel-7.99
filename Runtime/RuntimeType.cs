@@ -166,7 +166,7 @@ public partial class RuntimeType
 
     /// <summary>沿继承链查找方法，找不到抛异常</summary>
     public FunctionVal LookupMethod(string name)
-        => TryLookupMethod(name) ?? throw new RuntimeException($"类型 '{Name}' 没有方法 '{name}'");
+        => TryLookupMethod(name) ?? throw new RuntimeException($"类型 '{DisplayName}' 没有方法 '{name}'");
 
     /// <summary>绑定方法 self：方法值存为 Curried(self, arg)，绑 self 得等待 arg 的函数</summary>
     public static FunctionVal BindMethod(FunctionVal methodFn, RuntimeValue self)
@@ -200,5 +200,9 @@ public partial class RuntimeType
         return new RuntimeType(name, parent ?? Object);
     }
 
-    public override string ToString() => Name;
+    /// <summary>显示用的名字。`C := class {...}` 建的类型**没有名字**(只有 `::=` 会命名),
+    /// 空名字会让报错变成「类型 '' 不支持运算符」,所以显示时退化成 "class"。</summary>
+    internal string DisplayName => Name.Length > 0 ? Name : "class";
+
+    public override string ToString() => DisplayName;
 }

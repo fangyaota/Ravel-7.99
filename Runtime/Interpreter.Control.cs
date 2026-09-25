@@ -155,7 +155,7 @@ public partial class Interpreter
             // 构造器就是实例作用域里名为 init 的那个:各层平铺在同一 scope,
             // 子类的 init 覆盖父类的,所以直接找名字 = 只调最具体层声明的那个
             var init = inst.Scope.LookupField("init")?.Value as FunctionVal
-                       ?? throw new RuntimeException($"类型 {type.Name} 没有构造器（init）");
+                       ?? throw new RuntimeException($"类型 {type.DisplayName} 没有构造器（init）");
             CallInto(cf, init, arg);
             return;
         }

@@ -7,10 +7,10 @@ public record ObjectVal(RuntimeType ClassType, Scope Scope) : RuntimeValue
 
     public override RuntimeType Type => ClassType;
 
-    /// <summary>`C { x = 1, s = "hi" }`。`:=` 定义的类没有名字(只有 `::=` 命名),那时用 `class`。</summary>
+    /// <summary>`C { x = 1, s = "hi" }`。类名取 DisplayName(`:=` 建的类没有名字,显示成 class)。</summary>
     public override string ToString()
     {
-        var name = ClassType.Name.Length > 0 ? ClassType.Name : "class";
+        var name = ClassType.DisplayName;
         var fields = new List<string>();
         foreach (var kv in Scope.Variables)
         {
@@ -28,7 +28,7 @@ public record ObjectVal(RuntimeType ClassType, Scope Scope) : RuntimeValue
     /// 这里跟着展开的话,`a.Add a` 这种自引用会直接把栈打爆。</summary>
     private static string Brief(RuntimeValue v) => v switch
     {
-        ObjectVal o => (o.ClassType.Name.Length > 0 ? o.ClassType.Name : "class") + " {...}",
+        ObjectVal o => o.ClassType.DisplayName + " {...}",
         ListVal l => "[" + l.Elements.Count + " 项]",
         SetVal s => "{" + s.Elements.Count + " 项}",
         DictVal d => "{" + d.Entries.Count + " 项}",

@@ -6,30 +6,37 @@ public partial class RuntimeType
     private static void DefineOp(RuntimeType type, string op, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
         => type.DefineMethod(op, impl);
 
+    /// <summary>把操作数收成想要的运行时值类型。类型不对时报 Ravel 错误——
+    /// 直接写 `((IntVal)b)` 会抛 C# 的 InvalidCastException,消息里全是
+    /// `Ravel.Runtime.BoolVal` 这种实现细节,`1 + true` 就长这样。
+    /// 左操作数不用过这里:它由方法表保证(查的就是该类型的方法)。</summary>
+    private static T Operand<T>(RuntimeValue v, string op) where T : RuntimeValue
+        => v as T ?? throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
+
     private static void RegisterOperators()
     {
         // int 运算符
         DefineOp(Int, "+", (a, b) =>
         {
             if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value + fb.Value);
-            return new IntVal(((IntVal)a).Value + ((IntVal)b).Value);
+            return new IntVal(((IntVal)a).Value + Operand<IntVal>(b, "+").Value);
         });
         DefineOp(Int, "-", (a, b) =>
         {
             if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value - fb.Value);
-            return new IntVal(((IntVal)a).Value - ((IntVal)b).Value);
+            return new IntVal(((IntVal)a).Value - Operand<IntVal>(b, "-").Value);
         });
         DefineOp(Int, "*", (a, b) =>
         {
             if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value * fb.Value);
-            return new IntVal(((IntVal)a).Value * ((IntVal)b).Value);
+            return new IntVal(((IntVal)a).Value * Operand<IntVal>(b, "*").Value);
         });
         DefineOp(Int, "/", (a, b) =>
         {
             if (b is FloatVal fb) return new FloatVal(((IntVal)a).Value / fb.Value);
-            return new IntVal(((IntVal)a).Value / ((IntVal)b).Value);
+            return new IntVal(((IntVal)a).Value / Operand<IntVal>(b, "/").Value);
         });
-        DefineOp(Int, "%", (a, b) => new IntVal(((IntVal)a).Value % ((IntVal)b).Value));
+        DefineOp(Int, "%", (a, b) => new IntVal(((IntVal)a).Value % Operand<IntVal>(b, "%").Value));
 
         // float 运算符
         DefineOp(Float, "+", (a, b) => new FloatVal(AsFloat(a) + AsFloat(b)));
@@ -75,24 +82,24 @@ public partial class RuntimeType
         }
 
         // bool 比较
-        DefineOp(Bool, "==", (a, b) => new BoolVal(((BoolVal)a).Value == ((BoolVal)b).Value));
-        DefineOp(Bool, "!=", (a, b) => new BoolVal(((BoolVal)a).Value != ((BoolVal)b).Value));
+        DefineOp(Bool, "==", (a, b) => new BoolVal(((BoolVal)a).Value == Operand<BoolVal>(b, "==").Value));
+        DefineOp(Bool, "!=", (a, b) => new BoolVal(((BoolVal)a).Value != Operand<BoolVal>(b, "!=").Value));
         // string 比较
-        DefineOp(String, "==", (a, b) => new BoolVal(((StringVal)a).Value == ((StringVal)b).Value));
-        DefineOp(String, "!=", (a, b) => new BoolVal(((StringVal)a).Value != ((StringVal)b).Value));
+        DefineOp(String, "==", (a, b) => new BoolVal(((StringVal)a).Value == Operand<StringVal>(b, "==").Value));
+        DefineOp(String, "!=", (a, b) => new BoolVal(((StringVal)a).Value != Operand<StringVal>(b, "!=").Value));
         // string 拼接
-        DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + ((StringVal)b).Value));
-        DefineOp(Type, "==", (a, b) => new BoolVal(((TypeVal)a).Value == ((TypeVal)b).Value));
-        DefineOp(Type, "!=", (a, b) => new BoolVal(((TypeVal)a).Value != ((TypeVal)b).Value));
+        DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + Operand<StringVal>(b, "+").Value));
+        DefineOp(Type, "==", (a, b) => new BoolVal(((TypeVal)a).Value == Operand<TypeVal>(b, "==").Value));
+        DefineOp(Type, "!=", (a, b) => new BoolVal(((TypeVal)a).Value != Operand<TypeVal>(b, "!=").Value));
 
         // bool 逻辑运算符
-        DefineOp(Bool, "&", (a, b) => new BoolVal(((BoolVal)a).Value && ((BoolVal)b).Value));
-        DefineOp(Bool, "|", (a, b) => new BoolVal(((BoolVal)a).Value || ((BoolVal)b).Value));
-        DefineOp(Bool, "^", (a, b) => new BoolVal(((BoolVal)a).Value ^ ((BoolVal)b).Value));
+        DefineOp(Bool, "&", (a, b) => new BoolVal(((BoolVal)a).Value && Operand<BoolVal>(b, "&").Value));
+        DefineOp(Bool, "|", (a, b) => new BoolVal(((BoolVal)a).Value || Operand<BoolVal>(b, "|").Value));
+        DefineOp(Bool, "^", (a, b) => new BoolVal(((BoolVal)a).Value ^ Operand<BoolVal>(b, "^").Value));
         // int 位运算符
-        DefineOp(Int, "&", (a, b) => new IntVal(((IntVal)a).Value & ((IntVal)b).Value));
-        DefineOp(Int, "|", (a, b) => new IntVal(((IntVal)a).Value | ((IntVal)b).Value));
-        DefineOp(Int, "^", (a, b) => new IntVal(((IntVal)a).Value ^ ((IntVal)b).Value));
+        DefineOp(Int, "&", (a, b) => new IntVal(((IntVal)a).Value & Operand<IntVal>(b, "&").Value));
+        DefineOp(Int, "|", (a, b) => new IntVal(((IntVal)a).Value | Operand<IntVal>(b, "|").Value));
+        DefineOp(Int, "^", (a, b) => new IntVal(((IntVal)a).Value ^ Operand<IntVal>(b, "^").Value));
 
         // 函数交替 |（左失败则右）→ Alternate 控制帧
         DefineOp(Function, "|", (a, b) =>
@@ -125,9 +132,9 @@ public partial class RuntimeType
 
     private static RuntimeValue FractionBinOp(RuntimeValue a, RuntimeValue b, Func<int, int, int, int, RuntimeValue> f)
     {
-        int na = a is FractionVal fa ? fa.Num : ((IntVal)a).Value;
+        int na = a is FractionVal fa ? fa.Num : Operand<IntVal>(a, "分数运算").Value;
         int da = a is FractionVal fa2 ? fa2.Den : 1;
-        int nb = b is FractionVal fb ? fb.Num : ((IntVal)b).Value;
+        int nb = b is FractionVal fb ? fb.Num : Operand<IntVal>(b, "分数运算").Value;
         int db = b is FractionVal fb2 ? fb2.Den : 1;
         return f(na, da, nb, db);
     }
@@ -136,9 +143,9 @@ public partial class RuntimeType
         Func<System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger,
             System.Numerics.BigInteger, RuntimeValue> f)
     {
-        var na = a is BigFractionVal bfa ? bfa.Num : a is BigIntVal bia ? bia.Value : ((IntVal)a).Value;
+        var na = a is BigFractionVal bfa ? bfa.Num : a is BigIntVal bia ? bia.Value : Operand<IntVal>(a, "大分数运算").Value;
         var da = a is BigFractionVal bfa2 ? bfa2.Den : 1;
-        var nb = b is BigFractionVal bfb ? bfb.Num : b is BigIntVal bib ? bib.Value : ((IntVal)b).Value;
+        var nb = b is BigFractionVal bfb ? bfb.Num : b is BigIntVal bib ? bib.Value : Operand<IntVal>(b, "大分数运算").Value;
         var db = b is BigFractionVal bfb2 ? bfb2.Den : 1;
         return f(na, da, nb, db);
     }

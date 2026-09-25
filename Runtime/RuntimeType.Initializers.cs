@@ -31,7 +31,7 @@ public partial class RuntimeType
     private static FunctionVal MakeDefaultCaster(RuntimeType type)
         => MakeCaster(val => val is DefaultVal
             ? ConvertDirect(type, val)
-            : throw new RuntimeException($"类型 {type.Name} 不能作为构造器调用"));
+            : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用"));
 
     private static RuntimeValue CastToInt(RuntimeValue val)
     {

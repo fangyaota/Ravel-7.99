@@ -186,7 +186,7 @@ public partial class RuntimeType
 
     private static void RegisterTypeMethods()
     {
-        Type.DefineMethod("name", (s, _) => new StringVal(((TypeVal)s).Value.Name));
+        Type.DefineMethod("name", (s, _) => new StringVal(((TypeVal)s).Value.DisplayName));
         Type.DefineMethod("Parent", (s, _) =>
         {
             var p = ((TypeVal)s).Value.Parent;

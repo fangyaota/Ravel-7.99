@@ -51,6 +51,23 @@ print (p.n)
 p.n *= 2
 print (p.n)
 print (p.n += 9)
+# 变量形式的复合赋值走 CallAssign 帧(和对象字段那条路不同):算完写回变量。
+# 之前这条路径零覆盖。
+V := class {
+    init := () => { 0; }
+    v: int = 0
+    + := (o: V) => {
+        r := V ()
+        r.v = v + o.v
+        r
+    }
+}
+x := V ()
+x.v = 7
+y := V ()
+y.v = 10
+x += y
+print (x.v)
 # --- expected ---
 # 15
 # 12
@@ -63,3 +80,4 @@ print (p.n += 9)
 # 15
 # 30
 # 39
+# 17
