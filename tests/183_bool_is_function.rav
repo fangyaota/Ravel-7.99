@@ -15,6 +15,13 @@ c := C ()
 print c
 print (c.Fields ())
 print (typeof c)
+# 相等性按值:`true` 和 `1 == 1` 算出来的 true 必须是同一个东西。
+# 它是 FunctionVal,所以不显式写就会落到 ObjectVal 的身份比较上
+# (record 合成的那个从前被 `Body` 里每次新建的捕获委托挡住了,一样是错的):
+# `{true}.Contains (1 == 1)` 会给 false,而 `{1 2 3}.Contains (1 + 2)` 给 true。
+print ({true}.Contains (1 == 1))
+print ({true false true}.Count ())
+print (typeof true)
 # --- expected ---
 # <scope>
 # <function>
@@ -23,3 +30,6 @@ print (typeof c)
 # class { flag = true, n = 5 }
 # [flag n ToString Copy Fields]
 # class
+# true
+# 2
+# Bool
