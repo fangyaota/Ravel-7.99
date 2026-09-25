@@ -89,7 +89,7 @@ public partial class Interpreter
         if (bin.Op is "+=" or "-=" or "*=" or "/=" or "%=")
         {
             var op = bin.Op[..1];
-            var fn = left.Type.TryLookupMethod(op);
+            var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal;
             if (fn == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
             var bound = ObjectVal.BindMethod(fn, left);
             if (fn is not BuiltinMethodVal)
@@ -107,7 +107,7 @@ public partial class Interpreter
             return;
         }
 
-        var builtin = left.Type.TryLookupMethod(bin.Op);
+        var builtin = left.Type.MemberScope.LookupField(bin.Op)?.Value as FunctionVal;
         // 运算符本身总是先过词法/语法的,所以「查不到方法」只可能是**左边的类型**没定义它。
         // 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。
         if (builtin == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{bin.Op}'");
@@ -143,7 +143,7 @@ public partial class Interpreter
 
         if (nf.Count == 2)
         {
-            var fn = field.Value.Type.TryLookupMethod(op)
+            var fn = field.Value.Type.MemberScope.LookupField(op)?.Value as FunctionVal
                      ?? throw new RuntimeException($"类型 {field.Value.Type} 不支持运算符 '{op}'");
             var bound = ObjectVal.BindMethod(fn, field.Value);
 
@@ -182,7 +182,7 @@ public partial class Interpreter
         if (nf.Count == 3)
         {
             var left = nf.Result(2);
-            var fn = left.Type.TryLookupMethod(op)
+            var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal
                      ?? throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
             CallInto(nf, ObjectVal.BindMethod(fn, left), nf.Result(1));
             return;

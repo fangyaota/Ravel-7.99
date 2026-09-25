@@ -41,8 +41,24 @@ public record ObjectVal : RuntimeValue, IFunction
 
     public override ObjectVal Type => ClassType;
 
-    /// <summary>对象的成员就在它自己的 Scope 里(对象是扁平的)</summary>
-    public override Scope MemberScope => Scope;
+    /// <summary>取成员:先自己那层(对象是扁平的),miss 了沿类链兜底(方法住在类那层)。
+    /// 两段合成一个只读视图,见 <see cref="MemberView"/>。
+    ///
+    /// 注意它**不是** <see cref="Scope"/> 本身:后者是"只查一层"的实例作用域,
+    /// 写路径(定义/赋值)仍然直接对 `Scope` 走,视图只是读的门面。</summary>
+    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type);
+
+    private Scope? _memberScope;
+
+    /// <summary>「**以我为类型**的那些值」的成员表:我自己那层 + 沿 parent 链的上游。
+    ///
+    /// 和 <see cref="MemberScope"/> 不是一回事 —— 那是"以**值**的身份取成员",
+    /// 所以还要再往我的**元类**链上找(`C.Fields ()` 能看到 `type` 那层的方法)。
+    /// 原子值(它没有自己的成员表)借的是这一个。</summary>
+    internal Scope InstanceMembers => _instanceMembers ??= new MemberView(null, this);
+
+    private Scope? _instanceMembers;
+
     public override bool HasOwnMembers => true;
 
 
@@ -97,21 +113,6 @@ public record ObjectVal : RuntimeValue, IFunction
     //  成员查找 / 类型判定
     // ============================================================
 
-    /// <summary>沿原型链找成员,找不到返回 null。与 <see cref="Scope.LookupField"/> 的区别:
-    /// 那个是**一层**(实例的字段),这个是**一条链**(类的方法要沿 parent 找)。
-    ///
-    /// 自引用(`object`/`Every`/`Any` 的 parent 是自己)要就地停,否则转不出去。</summary>
-    internal T? LookupInChain<T>(string name) where T : RuntimeValue
-    {
-        for (var t = this; t != null; t = t.Parent)
-        {
-            if (t.Scope.LookupField(name)?.Value is T hit) return hit;
-            if (t.Parent == t) break;      // 链到头
-        }
-
-        return null;
-    }
-
     /// <summary>机制成员名 —— 它们**不是方法**:是类对象自己身上的数据(原型链指针、类体、
     /// 构造器、`this`)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
     ///
@@ -128,15 +129,6 @@ public record ObjectVal : RuntimeValue, IFunction
     /// 用户叫 `call` 的方法照常列出来。</summary>
     internal static bool IsMethodName(string n)
         => n is not (BlockMember or ParentMember or NameMember or InitMember or ThisMember);
-
-    /// <summary>沿原型链查方法(存的是"self → (arg → impl)"的自绑定函数)。
-    /// 机制成员直接返回 null —— 见 <see cref="IsMethodName"/>。</summary>
-    public FunctionVal? TryLookupMethod(string name)
-        => IsMethodName(name) ? LookupInChain<FunctionVal>(name) : null;
-
-    /// <summary>沿原型链查方法,找不到抛异常</summary>
-    public FunctionVal LookupMethod(string name)
-        => TryLookupMethod(name) ?? throw new RuntimeException($"类型 '{DisplayName}' 没有方法 '{name}'");
 
     /// <summary>this 是否兼容 target?即 this &lt;: target。底类型 Every 全局特判(它是所有类的子类)。</summary>
     public bool IsAssignableTo(ObjectVal target)
@@ -164,7 +156,8 @@ public record ObjectVal : RuntimeValue, IFunction
     internal void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
         => Scope.DefineOrReplace(name, BuiltinClasses.Function, new BuiltinMethodVal(impl));
 
-    /// <summary>注册类运算符:op 为符号("+")。存自绑函数——self 绑定得 BoundClassOp,走 CallInto 推 ClassOp 帧</summary>
+    /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
+    /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。</summary>
     internal void DefineClassOperator(string op)
         => Scope.DefineOrReplace(op, BuiltinClasses.Function, new ClassOperatorFactory(op));
 

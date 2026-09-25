@@ -5,7 +5,8 @@ public sealed record BuiltinMethodVal(Func<RuntimeValue, RuntimeValue, RuntimeVa
     : FunctionVal(null!, (_, self) => FunctionVal.From(arg => Impl(self, arg))), ISelfBinding;
 
 /// <summary>类运算符工厂:存的是"self → BoundClassOp",读成员时要绑接收者。
-/// 和 BuiltinMethodVal 一样是自绑定成员,区别是它不直接算而是推 ClassOp 帧到实例里找实现。</summary>
+/// 和 BuiltinMethodVal 一样是自绑定成员,区别是它不直接算而是推 ClassOp 帧到实例里找实现 ——
+/// 所以它**不吃**同步快路径,两个标记因此不能合并(见 <see cref="ISelfBinding"/>)。</summary>
 public sealed record ClassOperatorFactory(string OpName)
     : FunctionVal(null!, (_, self) => new BoundClassOp((ObjectVal)self, OpName)), ISelfBinding;
 

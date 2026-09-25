@@ -32,7 +32,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     public BoxedValue GetMember(string name)
     {
         // 运算符访问：`1.+` / `"a".==` → 返回绑好 self 的函数。类型层注册的(内置或类运算符)优先。
-        if (OperatorSymbols.IsSymbol(name) && Value.Type.TryLookupMethod(name) is { } opMethod)
+        if (OperatorSymbols.IsSymbol(name) && Value.Type.MemberScope.LookupField(name)?.Value is FunctionVal opMethod)
             return new BoxedValue(ObjectVal.BindMethod(opMethod, Value), interp);
 
         if (Value is PropertyVal pv)
@@ -57,30 +57,23 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
             if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);
         }
 
-        // 在这个值**自己的成员作用域**里找:对象是它的实例 scope(扁平的、只有一层);
-        // 原子值(IntVal/DefaultVal/…)自己没有成员,借的是类那层表。
-        //
-        // 借表时**只认方法名**:那张表里还躺着 `parent`/`block`/`call`/`name`/`init`
-        // ——它们是**类自己的数据**,不是"这个值的成员"(对象读自己那层不受这条限制,
-        // 那层本来就是它自己的)。不挡的话 `(5).call` 会摸到 `Integer` 的 `call`。
-        if (Value is ObjectVal || ObjectVal.IsMethodName(name))
-        {
-            var member = Value.MemberScope.LookupField(name);
-            if (member != null)
-            {
-                // 门禁只对对象做:借来的类成员表里放的是内置方法,没有 core/private 可言
-                if (Value is ObjectVal obj) CheckObjectReadAccess(obj, member, name);
-                // 自绑定成员(类对象的 Scope 里装着内置方法/类运算符工厂)要绑上接收者;
-                // 实例 scope 里的是已经捕获好作用域的 lambda,原样返回
-                var v = member.Value;
-                return new BoxedValue(
-                    v is ISelfBinding && v is FunctionVal sf ? ObjectVal.BindMethod(sf, Value) : v,
-                    interp);
-            }
-        }
+        // **唯一一次查找**:`MemberScope` 自己知道该怎么找 ——
+        // 对象是"自己那层(扁平) → 沿类链兜底",原子值是"只有沿类链那半"(那层是算出来的,
+        // 不落地成字段,所以值相等保得住)。机制名的过滤在 MemberView 里,不在这。
+        var member = Value.MemberScope.LookupField(name);
+        if (member == null)
+            throw new RuntimeException($"类型 '{Value.Type.DisplayName}' 没有方法 '{name}'");
 
-        var method = Value.Type.LookupMethod(name);
-        return new BoxedValue(ObjectVal.BindMethod(method, Value), interp);
+        // 门禁只对对象做:借来的类成员表里放的是内置方法,没有 core/private 可言
+        if (Value is ObjectVal obj) CheckObjectReadAccess(obj, member, name);
+        // 内置方法存的是"self → 结果",读出来要先绑接收者;
+        // 实例 scope 里的是已经捕获好作用域的 lambda,原样返回。
+        // 判据是 ISelfBinding 而**不是** `is BuiltinMethodVal`:类运算符工厂也要绑,
+        // 但绑完是 `BoundClassOp`(推 ClassOp 帧的标记)而不是能直接算的值。
+        var v = member.Value;
+        return new BoxedValue(
+            v is ISelfBinding && v is FunctionVal sf ? ObjectVal.BindMethod(sf, Value) : v,
+            interp);
     }
 
     /// <summary>读变量的通用门禁:unreadable / core / outdated。

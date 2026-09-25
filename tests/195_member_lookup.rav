@@ -1,0 +1,51 @@
+# 成员查找只有**一条路**:`Value.MemberScope`,由 MemberView 一次走完两段 ——
+#   ① 值自己那层(对象是它的实例作用域,扁平)
+#   ② 沿**类对象**的 parent 链兜底(方法住在类那层,`Fields` 在 `object` 上)
+#
+# 原子值没有 ① —— 那就是"伪 Scope":它只有 ②,而 ② 是**算出来的**、不落地成字段,
+# 所以值相等不受影响(`IntVal(1) == IntVal(1)` 依旧成立,集合去重也照常)。
+#
+# 从前这两段是分开的两条路(先查自己的表,miss 了再 `Type.LookupMethod`),而且
+# 哪一段生效还取决于 receiver 是不是 ObjectVal。
+using "try.rav"
+# ②:原子值的成员全在类那层,沿链一样够得到(包括定义在 `object` 上的)
+print ((5).Fields ())
+print ([1 2 3].Count ())
+print ("abcd".Length ())
+print (true.ToString ())
+# 伪 Scope 不落地成字段 —— 值相等与集合去重照旧
+print (1 == 1)
+print ({1 2 1}.Count ())
+# 运算符当成员读也走②(问的是**类型**那张表):`(5).+` 就是 Integer 的 `+`
+print ((5).+ 2)
+# 机制名是**类对象自己身上的数据**,不沿链"继承" —— 报"没有方法",不是"读得到但不对"。
+# 不挡的话 `(5).parent` 会拿到 `ValueType`,`(5).block` 会拿到 Integer 的类体。
+Ex.try { (5).parent; } (e: Exception) => { print ("(5).parent: " + string e); }
+Ex.try { (5).block; } (e: Exception) => { print ("(5).block: " + string e); }
+Ex.try { (5).init; } (e: Exception) => { print ("(5).init: " + string e); }
+# 对象:①优先(自己那层就是它的字段/方法),miss 了才走②
+C ::= class { init := () => { this; }; x: int = 7; m := () => { 9; }; }
+c := C ()
+print c.x
+print (c.m ())
+# 运算符走的是**类型**那张表,不是值的成员表 —— 所以类对象之间比的是身份,
+# 而不是 `Integer` 那层"数值相等"(那会把 class 当数字算)
+print (typeof c == C)
+print (typeof c == typeof (C ()))
+print (typeof c == int)
+# --- expected ---
+# [+ - * / % == != < > <= >= & | ^ ToString Copy Fields]
+# 3
+# 4
+# true
+# true
+# 2
+# 7
+# (5).parent: 类型 'Integer' 没有方法 'parent'
+# (5).block: 类型 'Integer' 没有方法 'block'
+# (5).init: 类型 'Integer' 没有方法 'init'
+# 7
+# 9
+# true
+# true
+# false
