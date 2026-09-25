@@ -1,6 +1,6 @@
 # 旧写法 `init ctor := ...` 给一句能读的报错
 # 不拦的话会被当表达式 `init ctor` 求值,报「未定义的变量 'init'」——看不出哪里错了
 C := class {
-    init ctor := () => { 0 }
+    init ctor := () => { 0; }
 }
 # expect-error

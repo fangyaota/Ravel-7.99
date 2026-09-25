@@ -257,17 +257,17 @@ public partial class Parser
         return new DictLiteral(entries) { Line = line, Column = col };
     }
 
-    /// <summary>强制解析为代码块——后面不是 block（单行无换行，即集合/字典）时报错</summary>
-    /// <summary>`=>` 后面的块。这里**不做** HasNewlineBeforeClose 那套判断——
-    /// 那条规则是给 ParseBrace 用的(表达式位置要分出 Set/Dict/Block),
-    /// 而 lambda 体必须是块,没有歧义。从前照抄了那条规则,于是 `() => { x + 1 }`
-    /// 报「lambda body 需要代码块」,得写成 `{ x + 1; }` 才行——
-    /// 教程里满篇的单行 lambda 全是错的,`tests/59`/`72` 更是被它抢先报错、
-    /// 根本没测到自己要测的 readonly/unreadable。</summary>
+    /// <summary>强制解析为代码块。**单行必须用 `;` 收尾** —— 块和集合/字典在没换行时
+    /// 长得一样(`{ x }` 是集合、`{ a: 1 }` 是字典),`;` 和换行都是 Newline token,
+    /// 它才是「这是块」的标记。这条规则对 lambda 体同样成立:`=> { x }` 是错的,
+    /// `=> { x; }` 才对。(曾经去掉过这里的检查,以为 `=>` 后面块是强制的、
+    /// 没有歧义——语言规则不该按解析器好不好写来定。)</summary>
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
         Consume(TokenType.LeftBrace, $"需要 '{{' for {context}");
+        if (!HasNewlineBeforeClose(TokenType.RightBrace))
+            throw ParseError($"{context} 需要代码块（单行要用 ';' 收尾，多行要换行）");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }

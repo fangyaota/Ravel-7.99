@@ -2,7 +2,7 @@
 C := class {
     init := () => { 0; }
     core secret: int = 42
-    peek := () => { print secret }
+    peek := () => { print secret; }
 }
 c := C ()
 c.peek ()
