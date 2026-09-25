@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>控制帧状态机:每个控制内建一个 ControlFrame,Args 存已收集的块/参数,
 /// Results 与 State 记录推进进度(约定:Args 全程不变,进度看 Count/State)。</summary>
@@ -23,12 +23,10 @@ public partial class Interpreter
         }
     }
 
-    private static BlockVal GetBlock(RuntimeValue v) => (BlockVal)v;
-
     private void StepWith(ControlFrame cf)
     {
-        var obj = cf.Args.At(0);
-        var body = GetBlock(cf.Args.At(1));
+        var obj = cf.Arg<RuntimeValue>(0, "with");
+        var body = cf.Arg<BlockVal>(1, "with");
         if (cf.Count == 0)
         {
             var copy = obj switch
@@ -54,7 +52,7 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            CallInto(cf, cf.Args.At(0), new ContinuationVal(cf));
+            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(cf));
             return;
         }
 
@@ -69,7 +67,7 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            var path = As<StringVal>(cf.Args.At(0), "using 的文件路径").Value;
+            var path = cf.Arg<StringVal>(0, "using").Value;
             var ast = LoadModuleAst(path);
             if (ast == null)
             {
@@ -91,7 +89,7 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            var code = As<StringVal>(cf.Args.At(0), "eval 的代码").Value;
+            var code = cf.Arg<StringVal>(0, "eval").Value;
             _top = new BlockExecFrame(Parser.ParseBlock(code)) { Parent = cf, Scope = cf.Scope };
             return;
         }
@@ -104,9 +102,9 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            var f = cf.Args.At(0);
-            var g = cf.Args.At(1);
-            var arg = cf.Args.At(2);
+            var f = cf.Arg<RuntimeValue>(0, "|");
+            var g = cf.Arg<RuntimeValue>(1, "|");
+            var arg = cf.Arg<RuntimeValue>(2, "|");
             try
             {
                 CallInto(cf, f, arg);
@@ -129,8 +127,8 @@ public partial class Interpreter
     /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。</summary>
     private void StepClassInit(ControlFrame cf)
     {
-        var type = ((TypeVal)cf.Args.At(0)).Value;
-        var arg = cf.Args.At(1);
+        var type = cf.Arg<TypeVal>(0, "class").Value;
+        var arg = cf.Arg<RuntimeValue>(1, "class");
         var bodies = RuntimeType.CollectBodies(type); // 顶祖先 → 自身,≥ 1 层
 
         if (cf.Count == 0)
@@ -174,10 +172,10 @@ public partial class Interpreter
     /// <summary>半成品构造器继续收参数:喂给 init 的剩余部分,应用完才交出对象</summary>
     private void StepCtorApply(ControlFrame cf)
     {
-        var target = (ObjectVal)cf.Args.At(2);
+        var target = cf.Arg<ObjectVal>(2, "CtorApply");
         if (cf.Count == 0)
         {
-            CallInto(cf, cf.Args.At(0), cf.Args.At(1));
+            CallInto(cf, cf.Arg<FunctionVal>(0, "CtorApply"), cf.Arg<RuntimeValue>(1, "CtorApply"));
             return;
         }
 
@@ -187,10 +185,10 @@ public partial class Interpreter
     /// <summary>prepend/append 合成:先跑块再调原函数,或先调原函数再跑块</summary>
     private void StepCompose(ControlFrame cf)
     {
-        var original = cf.Args.At(0);
-        var block = GetBlock(cf.Args.At(1));
-        var arg = cf.Args.At(2);
-        var isPrepend = ((BoolVal)cf.Args.At(3)).Value;
+        var original = cf.Arg<RuntimeValue>(0, "Compose");
+        var block = cf.Arg<BlockVal>(1, "Compose");
+        var arg = cf.Arg<RuntimeValue>(2, "Compose");
+        var isPrepend = cf.Arg<BoolVal>(3, "Compose").Value;
         if (isPrepend)
         {
             if (cf.Count == 0)
@@ -228,9 +226,9 @@ public partial class Interpreter
     /// <summary>类运算符:在实例作用域里找同名的成员(符号就是成员名),调它</summary>
     private void StepClassOp(ControlFrame cf)
     {
-        var self = (ObjectVal)cf.Args.At(0);
-        var arg = cf.Args.At(1);
-        var op = ((StringVal)cf.Args.At(2)).Value;
+        var self = cf.Arg<ObjectVal>(0, "ClassOp");
+        var arg = cf.Arg<RuntimeValue>(1, "ClassOp");
+        var op = cf.Arg<StringVal>(2, "ClassOp").Value;
         if (cf.Count == 0)
         {
             var impl = FindClassOperator(self.Scope, op)
@@ -246,11 +244,11 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            CallInto(cf, cf.Args.At(0), cf.Args.At(1));
+            CallInto(cf, cf.Arg<FunctionVal>(0, "CallAssign"), cf.Arg<RuntimeValue>(1, "CallAssign"));
             return;
         }
 
-        cf.Scope.Assign(((StringVal)cf.Args.At(2)).Value, cf.Result(0));
+        cf.Scope.Assign(cf.Arg<StringVal>(2, "CallAssign").Value, cf.Result(0));
         Return(cf, cf.Result(0));
     }
 
@@ -258,11 +256,11 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            CallInto(cf, cf.Args.At(0), cf.Args.At(1));
+            CallInto(cf, cf.Arg<FunctionVal>(0, "CallReturn"), cf.Arg<RuntimeValue>(1, "CallReturn"));
             return;
         }
 
-        Return(cf, cf.Args.At(2));
+        Return(cf, cf.Arg<RuntimeValue>(2, "CallReturn"));
     }
 
     /// <summary>找实例里这个符号的运算符实现。符号就是成员名(`+ := f` 定义的就是 `+`),
