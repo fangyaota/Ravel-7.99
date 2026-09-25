@@ -31,6 +31,9 @@ public partial class Interpreter
         {
             var copy = obj switch
             {
+                // 函数/类对象不是"带字段的数据":`with` 对它们等于原样(块跑在调用点的词法作用域里)。
+                // 这条必须排在 ObjectVal 之前 —— FunctionVal 现在**也是** ObjectVal。
+                FunctionVal => obj,
                 ObjectVal ov => BuiltinClasses.CopyObject(ov),
                 ListVal lv => new ListVal([.. lv.Elements]),
                 SetVal sv => new SetVal([.. sv.Elements]),
@@ -38,7 +41,12 @@ public partial class Interpreter
                 _ => obj
             };
             var newCf = cf with { State = copy };
-            var bodyScope = copy is ObjectVal ov2 ? ov2.Scope.Push() : body.Scope.Push();
+            // 只有**真的拷出了副本**的那些,块才跑在副本的成员表里;其余(原子值、函数、上面没列的)
+            // 跑在 body 自己的捕获作用域里。判据不能写 `copy is ObjectVal` —— 函数也是 ObjectVal,
+            // 那样会把块的作用域换成函数自己的成员表。
+            var bodyScope = !ReferenceEquals(copy, obj) && copy is ObjectVal ov2
+                ? ov2.Scope.Push()
+                : body.CaptureScope.Push();
             _top = new BlockExecFrame(body.Block) { Parent = newCf, Scope = bodyScope };
             return;
         }
@@ -147,7 +155,7 @@ public partial class Interpreter
 
         if (cf.Count == 0)
         {
-            var instanceScope = new Scope(type.Body!.Scope);
+            var instanceScope = new Scope(type.ClassBody!.CaptureScope);
             var obj = new ObjectVal(type, instanceScope);
             instanceScope.Define("this", type, obj);
             _top = new BlockExecFrame(bodies[0].Block)
@@ -214,7 +222,7 @@ public partial class Interpreter
         {
             if (cf.Count == 0)
             {
-                _top = new BlockExecFrame(block.Block) { Parent = cf, Scope = block.Scope.Push() };
+                _top = new BlockExecFrame(block.Block) { Parent = cf, Scope = block.CaptureScope.Push() };
                 return;
             }
 
@@ -237,7 +245,7 @@ public partial class Interpreter
 
         if (cf.Count == 1)
         {
-            _top = new BlockExecFrame(block.Block) { Parent = cf, Scope = block.Scope.Push() };
+            _top = new BlockExecFrame(block.Block) { Parent = cf, Scope = block.CaptureScope.Push() };
             return;
         }
 

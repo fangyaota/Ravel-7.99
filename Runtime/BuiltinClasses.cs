@@ -185,7 +185,7 @@ internal static partial class BuiltinClasses
         var twoArg = new NativeClosure("parent", Type, (scope, parent) =>
             FunctionVal.From(body => Install(scope, (ObjectVal)parent, body)));
         var oneArg = new NativeClosure("body", Function, (scope, body) => Install(scope, Object, body));
-        Type.Body = PresetBody(("init", Alternate(twoArg, oneArg)));
+        Type.ClassBody = PresetBody(("init", Alternate(twoArg, oneArg)));
     }
 
     /// <summary>把 (parent, body) 装到 self 上,self 于是是一个类。返回 self ——
@@ -262,7 +262,7 @@ internal static partial class BuiltinClasses
         for (var t = type; ; t = t.Parent)
         {
             if (t == null) break;
-            var body = t.Body;
+            var body = t.ClassBody;
             if (body == null) break;
             layers.Add(body);
             if (t.Parent == t) break;

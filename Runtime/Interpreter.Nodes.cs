@@ -213,7 +213,7 @@ public partial class Interpreter
 
     private void StepLambda(NodeFrame nf, LambdaExpr lam)
     {
-        var lam2 = new LambdaVal(lam.Param.Name, ResolveType(lam.Param.TypeName, nf.Scope), lam.Body) { Scope = nf.Scope };
+        var lam2 = new LambdaVal(lam.Param.Name, ResolveType(lam.Param.TypeName, nf.Scope), lam.Body) { CaptureScope = nf.Scope };
         Return(nf, lam2);
     }
 

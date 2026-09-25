@@ -38,6 +38,9 @@ internal static partial class BuiltinClasses
                 case ListVal v: return new ListVal([.. v.Elements]);
                 case SetVal v: return new SetVal([.. v.Elements]);
                 case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries));
+                // 函数/类对象"拷"出来只会变成一个不可调用的普通对象 —— 原样交回。
+                // 排在 ObjectVal 之前:FunctionVal 现在也是 ObjectVal。
+                case FunctionVal v: return v;
                 case ObjectVal v: return CopyObject(v);
                 default: return s;
             }
@@ -257,12 +260,12 @@ internal static partial class BuiltinClasses
             return new StringVal(f.Name ?? "");
         });
         // 捕获作用域是**函数独有**的:对象没有捕获作用域,它那半边叫 MemberScope
-        Function.DefineMethod("scope", (s, _) => new ScopeVal(AsFunction(s, "scope").Scope ?? new Scope()));
+        Function.DefineMethod("scope", (s, _) => new ScopeVal(AsFunction(s, "scope").CaptureScope ?? new Scope()));
         // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
         Function.DefineMethod("setScope", (s, a) =>
         {
             if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
-            AsFunction(s, "setScope").Scope = sv.Scope;
+            AsFunction(s, "setScope").CaptureScope = sv.Scope;
             return VoidVal.Instance;
         });
         Function.DefineMethod("prepend", (s, a) =>
@@ -351,13 +354,13 @@ internal static partial class BuiltinClasses
     /// `by` 属性要连 getter/setter 一起——它们也是 lambda,只是装在 PropertyVal 里。</summary>
     private static RuntimeValue Rebind(RuntimeValue value, Scope dst) => value switch
     {
-        LambdaVal lam => lam with { Scope = dst },
+        LambdaVal lam => lam with { CaptureScope = dst },
         PropertyVal pv => pv with { Getter = RebindFn(pv.Getter, dst), Setter = RebindFn(pv.Setter, dst) },
         _ => value,
     };
 
     private static FunctionVal RebindFn(FunctionVal f, Scope dst)
-        => f is LambdaVal lam ? lam with { Scope = dst } : f;
+        => f is LambdaVal lam ? lam with { CaptureScope = dst } : f;
 
     /// <summary>拷贝一个对象:新实例 scope(方法闭包重绑,见 CopyScope)+ `this` 指向副本。
     /// `with` 和 `obj.Copy ()` 都要这一套——漏掉重绑 `this` 的话,副本里写 `this.v = n`

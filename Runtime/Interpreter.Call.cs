@@ -18,7 +18,7 @@ public partial class Interpreter
             case LambdaVal lam:
                 if (!arg.Type.IsAssignableTo(lam.ParamType))
                     throw new TypeMismatchException($"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
-                var lamScope = lam.Scope.Push();
+                var lamScope = lam.CaptureScope.Push();
                 lamScope.Define("self", BuiltinClasses.Function, lam);
                 lamScope.Define(lam.ParamName, lam.ParamType, arg);
                 _top = new BlockExecFrame(lam.Block) { Parent = sink, Scope = lamScope };
@@ -35,27 +35,8 @@ public partial class Interpreter
                 break;
             }
             case BlockVal blk:
-                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.Scope.Push() };
+                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.CaptureScope.Push() };
                 break;
-            case ObjectVal ov:
-            {
-                // "能不能调用"就是**自己那层有没有 `call` 成员**。
-                //
-                // **对象是扁平的**:它的成员就在它自己的 scope 里,直接在对象里找就行,
-                // 不沿原型链。沿链只适用于"函数类的东西取方法"(方法挂在类型上,
-                // 见 BoxedValue.GetMember 的兜底)—— `call` 是"我带着能造的牌子",
-                // 不是从类那儿继承来的方法,所以不适用。
-                //
-                // 想清楚这一点,`c.call` 读得到(那是个**函数成员**,走方法那条路)
-                // 而 `c ()` 不行(判据看自己那层)就不是矛盾:两者问的是不同的问题。
-                if (ov.Scope.LookupField(ObjectVal.CallMember)?.Value is not FunctionVal raw)
-                    throw new RuntimeException($"值 {ov} 不是函数，不能调用");
-
-                var call = raw is ISelfBinding ? ObjectVal.BindMethod(raw, ov) : raw;
-                if (call is BoundCall bc) CallClassInto(sink, bc.Self, arg);
-                else CallInto(sink, call, arg);
-                break;
-            }
             case BoundCall bc:
                 // `call` 成员绑上 self 之后的产物:调用它 = 实例化 self
                 CallClassInto(sink, bc.Self, arg);
@@ -88,8 +69,31 @@ public partial class Interpreter
             case PartialBool pb:
                 if (arg is not BlockVal elseBlock) throw new RuntimeException("true/false 需要两个代码块");
                 var chosen = pb.Value ? pb.Then : elseBlock;
-                _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.Scope.Push() };
+                _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope.Push() };
                 break;
+            // **ObjectVal 兜底必须排在最后,而且必须排掉函数**:`FunctionVal` 现在也是 `ObjectVal`,
+            // 排在前面会把上面那些函数分支全吃掉(编译器直接报 CS8120),不排掉函数则会把
+            // "普通 FunctionVal 走 default: 直接算 Body"这条也吃掉 —— 症状是所有内置方法调用
+            // 都报「值 <function> 不是函数,不能调用」。
+            case ObjectVal ov when ov is not FunctionVal:
+            {
+                // "能不能调用"就是**自己那层有没有 `call` 成员**。
+                //
+                // **对象是扁平的**:它的成员就在它自己的 scope 里,直接在对象里找就行,
+                // 不沿原型链。沿链只适用于"函数类的东西取方法"(方法挂在类型上,
+                // 见 BoxedValue.GetMember 的兜底)—— `call` 是"我带着能造的牌子",
+                // 不是从类那儿继承来的方法,所以不适用。
+                //
+                // 想清楚这一点,`c.call` 读得到(那是个**函数成员**,走方法那条路)
+                // 而 `c ()` 不行(判据看自己那层)就不是矛盾:两者问的是不同的问题。
+                if (ov.Scope.LookupField(ObjectVal.CallMember)?.Value is not FunctionVal raw)
+                    throw new RuntimeException($"值 {ov} 不是函数，不能调用");
+
+                var call = raw is ISelfBinding ? ObjectVal.BindMethod(raw, ov) : raw;
+                if (call is BoundCall bc) CallClassInto(sink, bc.Self, arg);
+                else CallInto(sink, call, arg);
+                break;
+            }
             default:
                 if (fn is not FunctionVal fv) throw new RuntimeException($"值 {fn} 不是函数，不能调用");
                 _top = sink.WithResult(fv.Body(arg));
@@ -105,7 +109,7 @@ public partial class Interpreter
     /// 没有类体的类型(Every/Any/Ravel/Scope/Property/Object…)照旧不能当构造器调。</summary>
     private void CallClassInto(Frame sink, ObjectVal t, RuntimeValue arg)
     {
-        if (t.Body == null)
+        if (t.ClassBody == null)
             throw new RuntimeException(t.IsClass
                 ? $"类型 {t.DisplayName} 不能作为构造器调用"        // 是类,但没类体(Every/Any/Object/…)
                 : $"值 {t} 不是类，不能这样调用");                  // 找到了 call,可它不是类

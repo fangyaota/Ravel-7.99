@@ -55,14 +55,20 @@ public record ObjectVal : RuntimeValue, IFunction
     /// - 实例的元类是它的类,而那个类的 parent 链走到 `Object` 就停、够不着 `type` ✗
     ///
     /// 走的是**类型关系**,不是"某个成员名在不在"——后者是鸭子类型该管的事,
-    /// 会跟 interface/shape 的判据混在一起。</summary>
-    public bool IsClass => ClassType.IsAssignableTo(BuiltinClasses.Type);
+    /// 会跟 interface/shape 的判据混在一起。
+    ///
+    /// 走 <see cref="RuntimeValue.Type"/> 而不是 `ClassType`:`FunctionVal` 的 ClassType
+    /// 是懒回填的,直接读可能拿到 null(`Brief` 会对每个 ObjectVal 型字段求这个值)。</summary>
+    public bool IsClass => Type.IsAssignableTo(BuiltinClasses.Type);
     /// <summary>父类对象(原型链的上游)。自引用(如 `object`/`Every`/`Any`)表示链到头。</summary>
     public ObjectVal? Parent => Scope.LookupField(ParentMember)?.Value as ObjectVal;
 
     /// <summary>类体——实例化时重跑的配方。可写:内置类的预设类体是 C# 侧装上去的
-    /// (见 BuiltinClasses.PresetBody),用户类的类体由 `type` 的 init 装(见 Install)。</summary>
-    public BlockVal? Body
+    /// (见 BuiltinClasses.PresetBody),用户类的类体由 `type` 的 init 装(见 Install)。
+    ///
+    /// 名字不叫 `Body`:`FunctionVal` 已经占了那一个(函数的同步体),而类对象现在**也是**
+    /// `FunctionVal`(见 <see cref="ClassVal"/>)。两个"体"住同一个类型上,各叫各的。</summary>
+    public BlockVal? ClassBody
     {
         get => Scope.LookupField(BlockMember)?.Value as BlockVal;
         set
@@ -191,7 +197,10 @@ public record ObjectVal : RuntimeValue, IFunction
     {
         // 类对象显示名字,实例显示 `类名 {...}`
         ObjectVal { IsClass: true } o => o.DisplayName,
-        ObjectVal o => o.ClassType.DisplayName + " {...}",
+        // 函数排在实例之前:FunctionVal 也是 ObjectVal,按实例展开会打出一串成员
+        FunctionVal f => f.ToString(),
+        // 走 `Type` 而不是 `ClassType` —— 只有它保证非 null(见 FunctionVal.Type 的懒回填)
+        ObjectVal o => o.Type.DisplayName + " {...}",
         ListVal l => "[" + l.Elements.Count + " 项]",
         SetVal s => "{" + s.Elements.Count + " 项}",
         DictVal d => "{" + d.Entries.Count + " 项}",

@@ -10,7 +10,7 @@ public record BlockVal : FunctionVal
         : base(null!, (_, _) => VoidVal.Instance)
     {
         Block = block;
-        Scope = captureScope;
+        CaptureScope = captureScope;
     }
 
     public override string ToString() => "<block>";
