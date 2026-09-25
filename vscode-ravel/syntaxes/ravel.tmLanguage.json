@@ -1,0 +1,81 @@
+{
+    "name": "Ravel",
+    "scopeName": "source.ravel",
+    "patterns": [
+        { "include": "#strings" },
+        { "include": "#comments" },
+        { "include": "#numbers" },
+        { "include": "#operator-decl" },
+        { "include": "#modifiers" },
+        { "include": "#constants" },
+        { "include": "#operators" },
+        { "include": "#support" }
+    ],
+    "repository": {
+        "strings": {
+            "patterns": [
+                {
+                    "begin": "\"",
+                    "end": "\"",
+                    "name": "string.quoted.double.ravel",
+                    "patterns": [
+                        { "match": "\\\\.", "name": "constant.character.escape.ravel" }
+                    ]
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                { "match": "#.*$", "name": "comment.line.number-sign.ravel" }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                { "match": "\\b\\d+(\\.\\d+)?\\b", "name": "constant.numeric.ravel" }
+            ]
+        },
+        "operator-decl": {
+            "patterns": [
+                {
+                    "match": "\\b(operator)([-+*/%<>=!&|^]+)",
+                    "captures": {
+                        "1": { "name": "storage.modifier.ravel" },
+                        "2": { "name": "keyword.operator.ravel" }
+                    }
+                }
+            ]
+        },
+        "modifiers": {
+            "patterns": [
+                {
+                    "match": "\\b(readonly|override|new|public|private|protected|outdated|unreadable|by|core|thistype|block)\\b",
+                    "name": "storage.modifier.ravel"
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                { "match": "\\b(true|false|default)\\b", "name": "constant.language.ravel" }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                { "match": "::=|::|:=|=>|<\\||==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=", "name": "keyword.operator.ravel" },
+                { "match": "[-+*/%&|^!<>=]", "name": "keyword.operator.ravel" },
+                { "match": "[:.,]", "name": "punctuation.separator.ravel" }
+            ]
+        },
+        "support": {
+            "patterns": [
+                {
+                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|function|type|void|Any|Every|Exception|ValueType)\\b",
+                    "name": "support.type.ravel"
+                },
+                {
+                    "match": "\\b(print|while|if|foreach|callcc|typeof|assert|eval|randint|with|ravel|using|exit|input|unsafe|currentScope|property)\\b",
+                    "name": "support.function.ravel"
+                }
+            ]
+        }
+    }
+}

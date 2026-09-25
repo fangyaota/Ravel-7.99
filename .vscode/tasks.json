@@ -2,6 +2,38 @@
     "version": "2.0.0",
     "tasks": [
         {
+            // Ctrl+Shift+B 的默认任务:先编译,再拿当前 .rav 文件跑一遍
+            "label": "ravel: 运行当前文件",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "${workspaceFolder}/bin/Debug/net8.0/ravel.dll",
+                "${file}"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "build",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "group": { "kind": "build", "isDefault": true }
+        },
+        {
+            // 用例需要 256MB 堆上限:40_callcc 的长循环靠它来卡住退化成 O(N) 帧链的实现
+            "label": "ravel: 全量测试",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "${workspaceFolder}/bin/Debug/net8.0/ravel.dll",
+                "test"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": { "DOTNET_GCHeapHardLimit": "0x10000000" }
+            },
+            "dependsOn": "build",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+        },
+        {
             "label": "build",
             "command": "dotnet",
             "type": "process",

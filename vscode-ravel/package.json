@@ -1,0 +1,91 @@
+{
+    "name": "ravel-language",
+    "displayName": "Ravel",
+    "description": "Ravel 语言支持：语法高亮 + 运行 .rav 文件",
+    "version": "0.1.0",
+    "publisher": "ravel",
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "main": "./extension.js",
+    "activationEvents": [
+        "onLanguage:ravel",
+        "onCommand:ravel.runFile",
+        "onCommand:ravel.runTests",
+        "onCommand:ravel.openRepl"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "ravel",
+                "aliases": [
+                    "Ravel",
+                    "ravel"
+                ],
+                "extensions": [
+                    ".rav"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "ravel",
+                "scopeName": "source.ravel",
+                "path": "./syntaxes/ravel.tmLanguage.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "ravel.runFile",
+                "title": "运行当前 .rav 文件",
+                "category": "Ravel"
+            },
+            {
+                "command": "ravel.runTests",
+                "title": "运行全量测试",
+                "category": "Ravel"
+            },
+            {
+                "command": "ravel.openRepl",
+                "title": "打开 REPL",
+                "category": "Ravel"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "ravel.runFile",
+                    "when": "resourceLangId == ravel",
+                    "group": "navigation@1"
+                }
+            ]
+        },
+        "keybindings": [
+            {
+                "command": "ravel.runFile",
+                "key": "ctrl+alt+r",
+                "when": "editorLangId == ravel"
+            }
+        ],
+        "configuration": {
+            "title": "Ravel",
+            "properties": {
+                "ravel.ravelDll": {
+                    "type": "string",
+                    "default": "",
+                    "description": "ravel.dll 的路径。留空则在工作区里自动搜索（out/ 与 bin/ 优先）。"
+                },
+                "ravel.heapHardLimit": {
+                    "type": "string",
+                    "default": "0x10000000",
+                    "description": "跑测试时设的 DOTNET_GCHeapHardLimit（256MB）。测试里的长循环靠它来暴露帧链退化。留空则不设。"
+                }
+            }
+        }
+    }
+}
