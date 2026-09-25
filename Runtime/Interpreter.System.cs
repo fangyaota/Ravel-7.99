@@ -108,9 +108,19 @@ public partial class Interpreter
         return module;
     }
 
-    /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里</summary>
+    /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里。
+    /// `ravel ""` 是**回全局作用域**——文档就是这么用的(`ravel "MyMath"` … `ravel ""` … 引用它)。</summary>
     private RuntimeValue EnterModule(string name)
     {
+        // 空名字特判成「回全局」。不特判的话会建出一个**名字叫 "" 的模块**,
+        // 后面的定义全落在那儿;而模块作用域只挂到 _global 上,所以那些定义
+        // 从别的模块根本看不见:`ravel ""` 之后 `b := 2`,再 `ravel "A"` 就读不到 b。
+        if (name.Length == 0)
+        {
+            SetAmbientScope(_global);
+            return VoidVal.Instance;
+        }
+
         if (!_modules.TryGetValue(name, out var mv))
         {
             var mt = RuntimeType.Define(name, RuntimeType.Ravel);

@@ -1,0 +1,21 @@
+# ravel "" 是「回全局作用域」,不是「建一个名字叫空串的模块」
+# 后者会让 ravel "" 之后的定义落进那个幽灵模块 —— 模块作用域只挂到 _global 上,
+# 所以从别的模块根本看不见它们。
+x := 0
+ravel "A"
+a := 1
+ravel ""
+b := 2
+# b 落在全局:从 A 看得见(A 的作用域挂到 _global)
+ravel "A"
+print b
+print a
+ravel ""
+print (A.Fields ())
+# 全局的定义也还都在
+print x
+# --- expected ---
+# 2
+# 1
+# [a ToString Copy Fields]
+# 0
