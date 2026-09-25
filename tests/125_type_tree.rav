@@ -1,5 +1,6 @@
-# todo
-# 递归类型树（带 [元类] 标注）
+# 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
+# 所以类的实例显类型名、类本身显 Class 的创建者 Type。
+# 注意 Ravel 下挂着 System / Ex —— 模块也是类型,它们由 RuntimeType.Define 建。
 print_tree := (t: object prefix: string) => {
     subs := t.Subtypes ()
     total := 0
@@ -44,15 +45,14 @@ print_tree object ""
 # │   └── BigFraction [Type]
 # ├── Function [Type]
 # │   ├── Bool [Type]
+# │   ├── Block [Type]
 # │   └── Type [Type]
-# │       └── Class [Class]
-# │           └── Interface [Class]
+# │       └── Class [Type]
 # ├── List [Type]
 # ├── Set [Type]
 # ├── Dict [Type]
 # ├── Void [Type]
 # ├── Ravel [Type]
-# ├── Any [Type]
 # ├── Exception [Type]
 # ├── Scope [Type]
 # └── Property [Type]

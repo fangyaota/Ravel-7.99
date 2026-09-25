@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，69 passed / 0 failed / 5 todo。
+Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 已移植替换，见 [ADR-0002](adr/0002-explicit-stack-evaluator.md)）。C# 实现，70 passed / 0 failed / 4 todo。
 
 ## 编译运行
 
@@ -57,7 +57,7 @@ lib/
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
-                          (元类特性还没实现,5 个 todo 全是它:117/118/121/122/125)
+                          (元类特性还没实现,4 个 todo 全是它:117/118/121/122)
 
 tests/                    74 个 golden test(普通 + expect-error + todo + fixture)
 
@@ -133,9 +133,11 @@ Object (parent=self)
 - `class Parent { fields + init }` 是**唯一**用户类型构造器，产物是 `ObjectVal`。
 - **构造器就是名字叫 `init` 的变量**（类体里写 `init := () => {...}`），不是修饰符——曾经写过 `init ctor := ...`，已废弃。一个类最多一个构造器，没有按参数类型重载；要分派就在 `init` 里自己判断。
 - `type` 禁止创建类型，退化为元类型（`typeof` 结果、类型注解、类型值）。
-- 用户类会被 `RuntimeType.Define` 登记进静态的 `AllTypes`,所以 `Subtypes ()` 反射看得到它们。
-  代价:每执行一次 `class {...}` 表达式就多一个类型对象,且永不回收——REPL 里反复"运行"同一段
-  代码会累积(可忽略,但要知道)。
+- 用户类会被 `RuntimeType.Define` 登记进 `AllTypes`,`Subtypes ()` 才反射得到它们
+  (只登记用户类:模块类型 System/Ex 每个 Interpreter 都重建一份,登记只会累积)。
+  `AllTypes` 是静态表,而一个进程里会跑多个 Interpreter,所以**每个 Interpreter 构造时
+  调 `ResetUserTypes ()` 清掉上一个留下的**——否则上一个建过的类会出现在下一个的
+  `Subtypes ()` 里(测试之间就会互相看见,类型树快照这类用例直接失效)。
 - **`C := class {...}` 建的类型没有名字**（只有 `::=` 会命名）。显示和报错时走 `RuntimeType.DisplayName`，空名字退化成 `class`——否则错误信息会变成「类型 '' 不支持运算符」这种没法读的东西。`Type.name` / `typeof c` 的显示 / `print obj` 都取它。
 - 内置类型是 C# 硬编码（元类 `type`），实例是 C# record。
 - **元类 = 创建者**：`Type` 自指；`Class` 的元类是 `Type`；`class` 建的类元类是 `Class`；用户元类 M 建的类元类是 M。
@@ -284,4 +286,4 @@ Error: 未定义的变量 'nope'
 
 ## 测试
 
-74 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 69 passed / 0 failed / 5 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。
+74 个 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现。当前 70 passed / 0 failed / 4 todo。普通测试已按特性合并为 7 个文件：`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`(模块/eval/类/with/throw)·`98_types`(类型/反射/大数/作用域)·`99_collections`。expect-error 与 todo 因语义必须独立。

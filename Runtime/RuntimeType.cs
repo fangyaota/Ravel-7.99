@@ -71,6 +71,9 @@ public partial class RuntimeType
     /// <summary>所有已注册类型（内置 + 用户定义）</summary>
     internal static readonly List<RuntimeType> AllTypes = [];
 
+    /// <summary>AllTypes 里内置类型占多少——静态构造器填完后定下来,Reset 时按它切</summary>
+    private static int _builtinCount;
+
     // 静态初始化
     static RuntimeType()
     {
@@ -135,6 +138,8 @@ public partial class RuntimeType
                      Ravel, Any, Every, Exception, ScopeType, Property
                  })
             AllTypes.Add(t);
+
+        _builtinCount = AllTypes.Count;
     }
 
     /// <summary>注册内置同步方法（在该类型上）：BuiltinMethodVal 标记，分派走快速同步路径</summary>
@@ -199,9 +204,17 @@ public partial class RuntimeType
     public static RuntimeType Define(string name, RuntimeType? parent = null)
     {
         var t = new RuntimeType(name, parent ?? Object);
-        AllTypes.Add(t);
+        // 只登记用户类(class 建的,名字是空的)。模块类型(System/Ex)每个
+        // Interpreter 都重建一份,登记进去只会累积。
+        if (name.Length == 0) AllTypes.Add(t);
         return t;
     }
+
+    /// <summary>清掉已登记的用户类(内置的留着,见 _builtinCount)。
+    /// Subtypes 依赖这张表,而一个进程里可能跑好几个 Interpreter(测试每个文件一个、
+    /// REPL 反复 new),不清的话上一个建过的类会出现在下一个的 Subtypes 里。</summary>
+    internal static void ResetUserTypes()
+        => AllTypes.RemoveRange(_builtinCount, AllTypes.Count - _builtinCount);
 
     /// <summary>显示用的名字。`C := class {...}` 建的类型**没有名字**(只有 `::=` 会命名),
     /// 空名字会让报错变成「类型 '' 不支持运算符」,所以显示时退化成 "class"。</summary>

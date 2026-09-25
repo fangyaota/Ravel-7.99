@@ -34,6 +34,7 @@ public partial class Interpreter
     {
         _global = new Scope();
         CurrentScope = _global;
+        RuntimeType.ResetUserTypes();   // 别让上一个 Interpreter 建的类漏进本实例的 Subtypes
         RegisterBuiltins();
         LoadPredefined();
     }
