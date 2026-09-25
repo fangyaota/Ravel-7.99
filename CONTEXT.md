@@ -223,6 +223,7 @@ add.name   # "add"
 ```ravel
 {1 2 3}     # Set  (无换行)
 {a:1 b:2}   # Dict (无换行 + IDENT:)
+{}          # 空字典(单行;空块本来就禁止,所以没有歧义)
 {a; b;}     # Block (有分号/换行)
 ```
 
@@ -233,7 +234,7 @@ add.name   # "add"
 int.name          # "Integer"
 int.Parent ()     # ValueType
 int.Is ValueType  # true
-int.Subtypes ()   # [String BigInt ...]
+int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
 int.Initializer () # Property 代理(getter=构造器,setter=设构造器)
 
 # 对象
