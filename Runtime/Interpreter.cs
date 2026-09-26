@@ -44,7 +44,10 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）</summary>
+    /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）。
+    ///
+    /// **找不到就报错**,不静默跳过:别名(`print` / `true` / `int` / …)和控制流全在那个文件里,
+    /// 空着手往下跑的话,用户拿到的是「未定义的变量 'print'」—— 指不到真正的原因。</summary>
     private void LoadPredefined()
     {
         foreach (var d in ModuleSearchPath.Defaults)
@@ -56,6 +59,10 @@ public partial class Interpreter
                 return;
             }
         }
+
+        throw new RuntimeException(
+            "找不到 lib/predefined.rav（别名与控制流都在那里）。搜过:"
+            + string.Join(" ", ModuleSearchPath.Defaults));
     }
 
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
@@ -101,15 +108,7 @@ public partial class Interpreter
     /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
     /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>
     private static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
-        => v as T ?? throw new RuntimeException($"{what}需要 {RavelName<T>()}，得到 {v.Type}");
-
-    /// <summary>C# 值类型 → 报错文案里该说的 Ravel 类型名</summary>
-    private static string RavelName<T>() => typeof(T) == typeof(StringVal) ? "string"
-        : typeof(T) == typeof(IntVal) ? "int"
-        : typeof(T) == typeof(BoolVal) ? "bool"
-        : typeof(T) == typeof(ListVal) ? "list"
-        : typeof(T) == typeof(DictVal) ? "dict"
-        : typeof(T).Name;
+        => v as T ?? throw new RuntimeException($"{what}需要{ArgNames.Of(typeof(T))}，得到 {v.Type}");
 
     /// <summary>值转字符串（Ravel 语义）</summary>
     private static string Show(RuntimeValue v) => v.ToString();

@@ -39,13 +39,21 @@ public record ControlFrame(ControlKind Kind, RList<RuntimeValue> Args, RuntimeVa
     }
 }
 
-/// <summary>C# 值类型 → 报错文案里该说的 Ravel 说法</summary>
+/// <summary>C# 值类型 → 报错文案里该说的 Ravel 说法。**全库只此一份** ——
+/// `Frame.Arg&lt;T&gt;`(「第 N 个参数需要 X」)和 `Interpreter.As&lt;T&gt;`(「X 需要 Y」)共用。
+///
+/// 拉丁名带一个**前导空格**、中文名不带:两处的模板都是 `需要{名字}`,这样拼出来
+/// 「需要 string」和「需要对象」都自然。从前这是两张平行的表(另一张在 Interpreter.cs,
+/// 叫 `RavelName`),措辞各写一套,还会把 `ClassVal` 这种 C# 名字漏进消息里。</summary>
 internal static class ArgNames
 {
     public static string Of(Type t) => t switch
     {
         _ when t == typeof(BlockVal) => "代码块",
         _ when t == typeof(StringVal) => " string",
+        _ when t == typeof(IntVal) => " int",
+        _ when t == typeof(ListVal) => " list",
+        _ when t == typeof(DictVal) => " dict",
         _ when t == typeof(ObjectVal) => "对象",
         _ when t == typeof(BoolVal) => " bool",
         _ when t == typeof(ClassVal) => "类",        // 比 FunctionVal 更具体,要排在它前面

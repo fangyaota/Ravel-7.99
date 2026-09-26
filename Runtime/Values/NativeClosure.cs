@@ -9,7 +9,7 @@ namespace Ravel.Runtime;
 ///
 /// 分派走 `CallInto`(和 LambdaVal 一样自己推作用域),自身不驱动求值。</summary>
 public sealed record NativeClosure(string ParamName, ObjectVal ParamType, Func<Scope, RuntimeValue, RuntimeValue> Fn)
-    : FunctionVal(null!, (_, _) => VoidVal.Instance)
+    : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("NativeClosure"))
 {
     /// <summary>盖掉 record 的自动 dump:体是 C#(写不出 Ravel 源码),所以只报参数。</summary>
     public override string ToString()

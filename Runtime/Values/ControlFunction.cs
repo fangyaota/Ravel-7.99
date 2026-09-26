@@ -7,7 +7,7 @@ public enum ControlKind { With, CallCC, Using, Eval, Alternate, ClassInit, Compo
 /// <summary>控制内建值:最终阶段是纯数据(Kind+Arity+已收集参数),求值器识别后推控制帧。
 /// Body 只是占位——CallInto 在 default 分支之前就匹配了 ControlFunction。</summary>
 public sealed record ControlFunction(ControlKind Kind, int Arity, RList<RuntimeValue> Args)
-    : FunctionVal(null!, (_, _) => VoidVal.Instance)
+    : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("ControlFunction"))
 {
     /// <summary>未收满参数时累积,返回新的 ControlFunction</summary>
     public ControlFunction Accumulate(RuntimeValue a) => this with { Args = Args.Add(a) };

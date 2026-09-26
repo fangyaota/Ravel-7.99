@@ -1054,6 +1054,8 @@ Error: 未预期的字符 '$'
 | `print x` | 输出 x 并换行 |
 | `input ()` | 读一行 |
 | `typeof x` | 返回 x 的类型 |
+| `f.body ()` | 函数的体（Block；没有体的给空块） |
+| `f.scope ()` | 捕获作用域（Scope；类对象没有，给空 Scope） |
 | `NaN` `Inf` | 特殊浮点值（和 `true` 同款：System 里的值 + 全局别名） |
 | `x is T` | 类型判定（`isnot` 取反；`x.is` / `is.T` 也成立） |
 | `exit msg` | 退出程序 |

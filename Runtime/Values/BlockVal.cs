@@ -8,7 +8,7 @@ public record BlockVal : FunctionVal
 
     /// <summary>Body 不会被调用——求值器在 CallInto 里按类型分派,推 BlockExecFrame</summary>
     public BlockVal(BlockExpr block, Scope captureScope)
-        : base(null!, (_, _) => VoidVal.Instance)
+        : base(null!, (_, _) => FunctionVal.PlaceholderBody("BlockVal"))
     {
         Block = block;
         CaptureScope = captureScope;

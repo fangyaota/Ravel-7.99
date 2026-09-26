@@ -26,8 +26,8 @@ Ex.try { ad 41; } (e: Exception) => { print ("自定义 call 也不行: " + stri
 # 类对象是函数(ClassVal : FunctionVal),所以 Function 那层的方法对它可用 ——
 # 而且不需要"硬转成 FunctionVal"(它本来就是),不会抛 C# 的 InvalidCastException
 print (C.Name ())
-# `scope ()` 取的是**捕获作用域**,类对象没有(它不是闭包),给个空的。
-# 从前这里报「scope 只对函数有意义,Type 不行」—— 那时类对象不是函数,是另一套判据。
+# `scope ()` 取的是**捕获作用域**。类对象没有(它不是闭包),给一个**空 Scope** ——
+# 类型恒定:拿到的永远是能当作用域用的东西,不是 `()`(见 tests/202)。
 print (C.scope ())
 C.name = "Renamed"          # 类名是 `name` 成员(Name 是 Function 那层的方法,不给赋值)
 print (C.Name ())

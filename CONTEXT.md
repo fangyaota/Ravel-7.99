@@ -100,7 +100,9 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 
 - 整个程序一个块根帧,`StepOnce()` 扁平循环逐帧推进,C# 栈恒平。
 - 每节点状态机按 `Results.Count` 推进;`Return` 把结果交给父帧。
-- 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`NativeClosure`(同上,但体是 C#)/`BlockVal`/`ClassVal`(**类对象,调它 = 实例化**)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
+- 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`NativeClosure`(同上,但体是 C#)/`BlockVal`/`ClassVal`(**类对象,调它 = 实例化**)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink
+(被分派掉的那些值,`Body` 是 `FunctionVal.PlaceholderBody` —— **真被调到就报错**,
+不再静默交出 `()`,也不让硬转抛 C# 异常:漏一个 `case` 要当场出声)。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;**交出的是 `init` 的返回值**(约定 `this`),`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂。
 - callcc 只有一套语义:续延 = callcc 之后的剩余计算;调用它 = 丢弃当前帧链、从捕获点继续(详见「控制流」)。
@@ -493,6 +495,8 @@ int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueTy
 obj.Fields ()     # **这个值有哪些成员**:自己那层照单全收(字段和方法一视同仁),
                   # 再并上类型链上的方法名。只排掉 `this`(它是值自己,不是成员)
 obj.Copy ()       # 浅拷贝
+f.body ()         # 函数/类的体(Block);没有体的给**空块** —— 类型恒定,不用 `()` 顶替
+f.scope ()        # 捕获作用域(Scope);类对象没有,同样给空 Scope
 obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
 obj.+             # 取绑定好 self 的运算符函数(符号就是成员名)

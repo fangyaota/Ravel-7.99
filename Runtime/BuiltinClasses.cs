@@ -159,6 +159,11 @@ internal static partial class BuiltinClasses
         return new BlockVal(new BlockExpr(stmts) { Line = 1, Column = 1, Source = "<preset>" }, new Scope());
     }
 
+    /// <summary>「没有体」时交出去的那个**空块** —— 类型恒定,别拿 `()` 顶替。
+    /// 见 `Function.body`。</summary>
+    internal static readonly BlockVal EmptyBody =
+        new(new BlockExpr([]) { Line = 1, Column = 1 }, new Scope());
+
     /// <summary>把两个候选做成 `|` 交替(和 `Function.|` 同一个机制,只是从 C# 侧构造)。
     /// 分流靠 TypeMismatchException —— 第一支的参数类型对不上就试第二支,见 StepAlternate。</summary>
     internal static ControlFunction Alternate(RuntimeValue a, RuntimeValue b)

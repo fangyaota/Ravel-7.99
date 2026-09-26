@@ -46,6 +46,15 @@ public record FunctionVal : ObjectVal
         Body = a => rawBody(CaptureScope, a);
     }
 
+    /// <summary>占位体 —— 给那些**由求值器按类型先分派**的值用(LambdaVal/BlockVal/BoolVal/
+    /// 控制内建/续延/…,见 `CallInto` 的分派表)。它们的 `Body` 永远不该被调用。
+    ///
+    /// 真被调到了,说明**漏了一个 case**(或谁把它们传给了 `BindMethod`)—— 报错,
+    /// 不要交出 `()` 也不要让硬转抛 C# 异常:后者漏到顶层会把程序打掉,前者是静默的错答案。
+    /// 这两个坑都真出过。</summary>
+    public static RuntimeValue PlaceholderBody(string what)
+        => throw new RuntimeException($"{what} 的 Body 不该被调用 —— 它由求值器按类型分派(见 CallInto)，这里漏了一个 case");
+
     /// <summary>单参内置函数(最常见)</summary>
     public static FunctionVal From(Func<RuntimeValue, RuntimeValue> f)
         => new(null!, (_, a) => f(a));

@@ -236,8 +236,20 @@ internal static partial class BuiltinClasses
 
             return new StringVal(f.Name ?? "");
         });
-        // 捕获作用域是**函数独有**的:对象没有捕获作用域,它那半边叫 MemberScope
+        // 捕获作用域是**函数独有**的:对象没有捕获作用域,它那半边叫 MemberScope。
+        // 没有捕获作用域的值(类对象不是闭包)给一个**空 Scope** —— **类型恒定是 Scope**,
+        // 不拿 `()` 顶替,也不报错:`x.scope ()` 拿到的东西该始终能当作用域用。
         Function.DefineMethod("scope", (s, _) => new ScopeVal(AsFunction(s, "scope").CaptureScope ?? new Scope()));
+        // body:这个函数/类的**体**。同样类型恒定是 Block —— 没有体的(内置方法、
+        // 原生闭包、没类体的内建类)给一个**空块**,而不是 `()`:`f.body` 始终能当块用
+        // (`(f.body) 1` 就是跑一遍它)。
+        Function.DefineMethod("body", (s, _) => s switch
+        {
+            LambdaVal lam => new BlockVal(lam.Block, lam.CaptureScope),
+            ClassVal c => c.ClassBody ?? EmptyBody,
+            BlockVal b => b,
+            _ => EmptyBody,
+        });
         // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
         Function.DefineMethod("setScope", (s, a) =>
         {
