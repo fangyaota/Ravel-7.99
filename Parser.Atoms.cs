@@ -108,7 +108,7 @@ public partial class Parser
             {
                 // () => {...}  语法糖 →  (_:void) => {...}
                 var body = ParseMandatoryBlock("lambda body");
-                return new LambdaExpr(new Parameter("_", "void"), body) { Line = line, Column = col };
+                return new LambdaExpr(new Parameter("_", new IdentifierExpr("void") { Line = line, Column = col }), body) { Line = line, Column = col };
             }
 
             // () 独立 → void 字面量
@@ -124,8 +124,7 @@ public partial class Parser
                 var pName = tokens[_pos].Lexeme;
                 _pos++; // IDENT
                 _pos++; // :
-                var pType = Consume(TokenType.Identifier, "参数需要类型名").Lexeme;
-                @params.Add(new Parameter(pName, pType));
+                @params.Add(new Parameter(pName, ParseTypeAnnotation()));
                 SkipNewlines();
             }
 

@@ -23,8 +23,7 @@ VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前
 
 ```
 Runtime/                         求值器按职责拆成多个 partial class 文件
-  Interpreter.cs          入口/类型表/ResolveType/ThrowRavel/CheckFieldAccess
-                          (ResolveType 只认作用域:类型名就是普通变量;注解只收单个标识符)
+  Interpreter.cs          入口/ThrowRavel/CheckFieldAccess
   Interpreter.Stack.cs    帧栈推进循环(StepOnce/Return/PushChild + 块执行)
   Interpreter.Nodes.cs    节点状态机(每 AST 节点一个 NodeFrame,按 Results.Count 分阶段)
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
@@ -498,6 +497,9 @@ obj.Copy ()       # 浅拷贝
 f.Body ()         # 函数/类的体(Block);没有体的给**空块** —— 类型恒定,不用 `()` 顶替
 f.Scope ()        # 捕获作用域(Scope);类对象没有,同样给空 Scope
 obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
+# 类型注解是个表达式(求值在定义处/参数创建处):
+#   `x: int = v`            一个名字(可带 . 成员访问)
+#   `x: (pick ()) = v`      括号里的任意表达式 —— 括号必需,否则 `f ()` 会和下一个参数撞
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
 obj.+             # 取绑定好 self 的运算符函数(符号就是成员名)
 

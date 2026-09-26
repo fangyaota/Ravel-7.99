@@ -2,9 +2,9 @@ namespace Ravel.Runtime;
 
 /// <summary>用户 lambda:调用时推 body 帧(不再用闭包 rawBody)。CaptureScope=捕获的闭包作用域;Block=lambda 体。
 ///
-/// `ParamType` 是**解析后**的类对象(参数检查用它),`ParamTypeName` 是**源码里写的**那个名字
-/// (`int` 而不是 `Integer`)—— 打印函数时要把代码还原成作者写的样子。</summary>
-public sealed record LambdaVal(string ParamName, string ParamTypeName, ObjectVal ParamType, BlockExpr Block)
+/// `ParamType` 是**求值后**的类对象(参数检查用它),`ParamTypeExpr` 是**源码里写的**那个表达式
+/// (`int` 而不是 `Integer`;也可能是个算出来的类型)—— 打印函数时要把代码还原成作者写的样子。</summary>
+public sealed record LambdaVal(string ParamName, Expression ParamTypeExpr, ObjectVal ParamType, BlockExpr Block)
     : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("LambdaVal"))
 {
     /// <summary>打印成**它的代码** + **柯里化已经收下的实参**:

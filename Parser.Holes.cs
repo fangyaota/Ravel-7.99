@@ -46,7 +46,7 @@ public partial class Parser
         {
             var block = new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
                 { Line = body.Line, Column = body.Column };
-            body = new LambdaExpr(new Parameter("_" + i, "object"), block) { Line = body.Line, Column = body.Column };
+            body = new LambdaExpr(new Parameter("_" + i, new IdentifierExpr("object") { Line = body.Line, Column = body.Column }), block) { Line = body.Line, Column = body.Column };
         }
 
         return body;

@@ -86,8 +86,19 @@ string := C            # 遮蔽掉内置名
 z: string = 5          # ← 这里的 string 指的是 C
 ```
 
-而注解**只收一个标识符** —— `x: System.List` 写不了（那是语法错误），先 `list := System.List`
-或者直接用 `list`。
+注解本身是个**表达式**，求值在定义处（变量）或创建处（参数）做一次：
+
+```ravel
+pick := (flag: bool) => { if { flag; } { int; } { float; } }
+a: (pick true) = 5      # 注解算出 Integer
+b: (pick false) = 5     # 算出 Float
+f := (x: (pick true)) => { x; }   # 参数注解同理
+```
+
+写法两种：**一个名字**（可带 `.` 成员访问），或**括号里的任意表达式**。
+括号是必需的，不是可选 —— 不带括号的 `f ()` 会和「下一个参数/字段」撞上
+（`(x: int y: int)` 里的 `int y` 会被当成一次调用）。所以 `x: System.List` 仍然写不了，
+要在括号里：`x: (System.List)`。
 
 ### 2.3 类型反射
 

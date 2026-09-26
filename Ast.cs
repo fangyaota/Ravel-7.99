@@ -29,7 +29,7 @@ public abstract record AstNode
 // --- 语句 ---
 public abstract record Statement : AstNode;
 
-public record VarDefinition(string Name, string? TypeAnnotation, Expression Value, List<string>? Attrs = null, bool Named = false) : Statement
+public record VarDefinition(string Name, Expression? TypeAnnotation, Expression Value, List<string>? Attrs = null, bool Named = false) : Statement
 {
     public bool HasAttr(string a) => Attrs?.Contains(a) ?? false;
     /// <summary>构造器:靠名字识别(类体里写 `init := () => {...}`),不再用 init 修饰符</summary>
@@ -76,7 +76,9 @@ public record BlockExpr(List<Statement> Statements) : Expression
 }
 
 // --- 辅助 ---
-public record Parameter(string Name, string TypeName);
+/// <summary>参数。类型是**表达式**(常见是一个名字,也可以是括号里的表达式),
+/// 求值在那个 lambda 被创建时做 —— 见 <see cref="VarDefinition.TypeAnnotation"/>。</summary>
+public record Parameter(string Name, Expression Type);
 
 // --- 程序根 ---
 public record Program(List<Statement> Statements) : AstNode

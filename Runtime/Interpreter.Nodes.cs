@@ -50,7 +50,7 @@ public partial class Interpreter
             case SetLiteral sl: StepSet(nf, sl.Elements); break;
             case DictLiteral dl: StepDict(nf, dl.Entries); break;
             case BlockExpr b: if (nf.Count == 0) Return(nf, new BlockVal(b, nf.Scope)); break;
-            case LambdaExpr lam: if (nf.Count == 0) StepLambda(nf, lam); break;
+            case LambdaExpr lam: StepLambda(nf, lam); break;   // 分相推进(注解要先求值),别加 Count==0 的守卫
             case VarDefinition v: StepVarDef(nf, v); break;
             case Assignment a: StepAssign(nf, a); break;
             case ExpressionStatement es: if (nf.Count == 0) PushChild(nf, es.Expr); else Return(nf, nf.Result(0)); break;
@@ -211,22 +211,48 @@ public partial class Interpreter
         Return(nf, new DictVal(dict));
     }
 
+    /// <summary>lambda 的参数注解是个**表达式**,在建这个 lambda 的时候求值一次。
+    /// 常见写法就是一个类型名(`int`),也可以是算出来的(`(pickType ())`)。</summary>
     private void StepLambda(NodeFrame nf, LambdaExpr lam)
     {
-        var lam2 = new LambdaVal(lam.Param.Name, lam.Param.TypeName, ResolveType(lam.Param.TypeName, nf.Scope), lam.Body) { CaptureScope = nf.Scope };
-        Return(nf, lam2);
+        if (nf.Count == 0)
+        {
+            PushChild(nf, lam.Param.Type);
+            return;
+        }
+
+        var pt = AsClass(nf.Result(0), lam.Param.Name);
+        Return(nf, new LambdaVal(lam.Param.Name, lam.Param.Type, pt, lam.Body) { CaptureScope = nf.Scope });
     }
+
+    /// <summary>注解求出来的值得是个类对象。
+    ///
+    /// 注解是表达式,所以"名字打错"会在求值那一步就报(未定义的变量),到这里只剩
+    /// "算出来的东西不是类型"这一种失败。</summary>
+    private static ObjectVal AsClass(RuntimeValue v, string what)
+        => v as ObjectVal is { IsClass: true } cls
+            ? cls
+            : throw new RuntimeException($"'{what}' 的类型注解要是个类型，得到 {v.Type}");
 
     private void StepVarDef(NodeFrame nf, VarDefinition v)
     {
-        if (nf.Count == 0)
+        // 有注解就先求注解(它是个表达式,可能算出一个类),再求值 —— 阶段由 Count 推进
+        var hasType = v.TypeAnnotation != null;
+        if (hasType && nf.Count == 0)
+        {
+            PushChild(nf, v.TypeAnnotation!);
+            return;
+        }
+
+        var valueAt = hasType ? 1 : 0;
+        if (nf.Count == valueAt)
         {
             PushChild(nf, v.Value);
             return;
         }
 
-        var val = nf.Result(0);
-        var dt = v.TypeAnnotation != null ? ResolveType(v.TypeAnnotation, nf.Scope) : val.Type;
+        var val = nf.Result(valueAt);
+        var dt = hasType ? AsClass(nf.Result(0), v.Name) : val.Type;
         if (v.TypeAnnotation != null && !val.Type.IsAssignableTo(dt))
         {
             var cv = TryConvert(val, dt, out var why);

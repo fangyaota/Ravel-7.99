@@ -161,6 +161,30 @@ public partial class Parser
         return new Assignment(sym.Lexeme, ParseExpression()) { Line = sym.Line, Column = sym.Column };
     }
 
+    /// <summary>类型标注:**一个名字**(可带 `.` 成员访问),或**括号里的任意表达式**。
+    ///
+    /// 括号是必需的,不是可选:不带括号的 `f ()` 会和"下一个参数/字段"的写法撞上 ——
+    /// `(x: int y: int)` 里那个 `int y` 会被解析成一次调用。有了括号就能写"算出来的类型":
+    ///
+    ///     a: (CallMeToGetARandomType ()) = 0
+    ///     a: (if { flag; } { int; } { float; }) = 0
+    ///
+    /// 注解是一个**表达式**,求值发生在定义处(变量)或 lambda 创建处(参数)。</summary>
+    private Expression ParseTypeAnnotation()
+    {
+        if (Check(TokenType.LeftParen)) return ParsePrimary();   // (任意表达式) —— ParsePrimary 自己吃掉右括号
+
+        var t = Consume(TokenType.Identifier, "注解需要一个类型名，或者括号里的表达式");
+        Expression e = new IdentifierExpr(t.Lexeme) { Line = t.Line, Column = t.Column };
+        while (Match(TokenType.Dot))
+        {
+            var m = Consume(TokenType.Identifier, "'.' 后需要成员名");
+            e = new MemberAccess(e, m.Lexeme) { Line = t.Line, Column = t.Column };
+        }
+
+        return e;
+    }
+
     /// <summary>name := expr  |  name: Type = expr</summary>
     private Statement ParseDefinition(List<string>? attrs = null)
     {
@@ -191,7 +215,7 @@ public partial class Parser
             col = nameToken.Column;
         }
 
-        string? typeAnnotation = null;
+        Expression? typeAnnotation = null;
         bool autoName = false;
 
         if (ReservedWords.Contains(name))
@@ -204,8 +228,7 @@ public partial class Parser
         else if (Match(TokenType.ColonColon))
         {
             autoName = true;
-            var typeToken = Consume(TokenType.Identifier, "'::' 后需要类型名");
-            typeAnnotation = typeToken.Lexeme;
+            typeAnnotation = ParseTypeAnnotation();
             Consume(TokenType.Equal, "类型注解后需要 '='");
         }
         else if (Match(TokenType.ColonEqual))
@@ -214,8 +237,7 @@ public partial class Parser
         }
         else if (Match(TokenType.Colon))
         {
-            var typeToken = Consume(TokenType.Identifier, "':' 后需要类型名");
-            typeAnnotation = typeToken.Lexeme;
+            typeAnnotation = ParseTypeAnnotation();
             Consume(TokenType.Equal, "类型注解后需要 '='");
         }
         else

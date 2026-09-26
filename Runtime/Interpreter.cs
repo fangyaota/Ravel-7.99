@@ -68,23 +68,6 @@ public partial class Interpreter
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
     public RuntimeValue Interpret(Program p) => RunStack(p);
 
-    /// <summary>按名称解析类型 —— **只查作用域**(词法链,一直到 `_global`)。
-    ///
-    /// 类型名就是普通变量:`predefined.rav` 里 `int := System.Integer` 那一批。
-    /// 所以这个名字查到的**必须是个类对象**,查到别的就报错。
-    ///
-    /// 注解**只收一个标识符**(`x: int`),写不了 `System.List` 那种点号路径 ——
-    /// 所以内置名的别名必须先定义好,`predefined.rav` 自己的注解才有来源。
-    /// 那个文件里 `references: list = []` 因此写在别名**之后**(位置是有讲究的,见那里的注释)。
-    /// 从前它在第一行,于是这里不得不兜一张 15 条的内置类型表;现在不需要了。</summary>
-    private ObjectVal ResolveType(string n, Scope? extra = null)
-    {
-        var v = (extra ?? CurrentScope).TryLookup(n) ?? throw new RuntimeException($"未知的类型: {n}");
-        return v.Value is ObjectVal { IsClass: true } cls
-            ? cls
-            : throw new RuntimeException($"'{n}' 不是类型（它是个 {v.Value.Type}）");
-    }
-
     /// <summary>Ravel 错误:抛 RuntimeException(路由到 Ex.throw 后续再做)</summary>
     internal void ThrowRavel(string msg) => throw new RuntimeException(msg);
 

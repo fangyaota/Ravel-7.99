@@ -20,11 +20,11 @@ internal static class AstPrinter
     /// 一条完整的参数表,而不是露馅成嵌套的 `(a) => { (b) => { … } }`。</summary>
     public static string Signature(LambdaVal lam)
     {
-        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeName) };
+        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr) };
         var body = lam.Block;
         while (Next(body) is { } inner)
         {
-            parts.Add(Param(inner.Param.Name, inner.Param.TypeName));
+            parts.Add(Param(inner.Param.Name, inner.Param.Type));
             body = inner.Body;
         }
 
@@ -36,7 +36,8 @@ internal static class AstPrinter
     private static LambdaExpr? Next(BlockExpr body)
         => body.Statements is [ExpressionStatement { Expr: LambdaExpr inner }] ? inner : null;
 
-    private static string Param(string name, string typeName) => name + ": " + typeName;
+    /// <summary>参数:`名字: 注解`。注解本身是表达式,照源码渲染(常见就是一个名字)。</summary>
+    private static string Param(string name, Expression type) => name + ": " + Expr(type);
 
     /// <summary>渲染一个块:`{ a := 1; f a; }`。
     /// 每条语句带分号 —— 单行块在 Ravel 里本来就要写 `;`(见 `Parser.ParseMandatoryBlock`),
@@ -51,7 +52,7 @@ internal static class AstPrinter
     {
         VarDefinition v =>
             v.Name
-            + (v.TypeAnnotation != null ? ": " + v.TypeAnnotation : "")
+            + (v.TypeAnnotation != null ? ": " + Expr(v.TypeAnnotation) : "")
             + (v.Named ? " ::= " : " := ")
             + Expr(v.Value),
         Assignment a => a.Name + " = " + Expr(a.Value),
@@ -73,7 +74,7 @@ internal static class AstPrinter
         BinaryExpr b => Expr(b.Left) + " " + b.Op + " " + Expr(b.Right),
         UnaryExpr u => u.Op + Atom(u.Operand),
         PipeExpr p => Expr(p.Left) + " <| " + Expr(p.Right),
-        LambdaExpr lam => "(" + Param(lam.Param.Name, lam.Param.TypeName) + ") => " + Block(lam.Body),
+        LambdaExpr lam => "(" + Param(lam.Param.Name, lam.Param.Type) + ") => " + Block(lam.Body),
         BlockExpr b => Block(b),
         HoleExpr h => "_" + h.Index,
         // 内置类的预设类体里是 C# 造好的值,没有源码可还原
