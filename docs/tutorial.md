@@ -69,6 +69,18 @@ typeof "hello"   # String
 
 类型名是 PascalCase，小写是别名。`System.Integer` 是权威名。
 
+**注解里的名字就是作用域里的那个变量**（`int := System.Integer` 只是 `predefined.rav`
+里的普通赋值），所以：
+
+```ravel
+C ::= class { init := (n: int) => { n; } }
+string := C            # 遮蔽掉内置名
+z: string = 5          # ← 这里的 string 指的是 C
+```
+
+而注解**只收一个标识符** —— `x: System.List` 写不了（那是语法错误），先 `list := System.List`
+或者直接用 `list`。
+
 ### 2.3 类型反射
 
 ```ravel
