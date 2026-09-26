@@ -18,7 +18,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
             var vr = mv.ModuleScope.Lookup(name);
             if (!vr.HasAttr(Attr.By)) return null;
             new BoxedValue(mv, interp).CheckModuleReadAccess(mv, vr, name);
-            return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
+            return new BoxedValue(vr.Value, interp).GetMember("Get").Value as FunctionVal;
         }
 
         if (value is ObjectVal obj)
@@ -26,7 +26,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
             var vr = obj.Scope.LookupField(name);
             if (vr == null || !vr.HasAttr(Attr.By)) return null;
             new BoxedValue(obj, interp).CheckObjectReadAccess(obj, vr, name);
-            return new BoxedValue(vr.Value, interp).GetMember("get").Value as FunctionVal;
+            return new BoxedValue(vr.Value, interp).GetMember("Get").Value as FunctionVal;
         }
 
         return null;
@@ -40,8 +40,8 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
 
         if (Value is PropertyVal pv)
         {
-            if (name == "get") return new BoxedValue(pv.Getter, interp);
-            if (name == "set") return new BoxedValue(pv.Setter, interp);
+            if (name == "Get") return new BoxedValue(pv.Getter, interp);
+            if (name == "Set") return new BoxedValue(pv.Setter, interp);
         }
 
         if (Value is ModuleVal mv && mv.ModuleScope.Contains(name))

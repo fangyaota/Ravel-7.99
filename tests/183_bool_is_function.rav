@@ -1,8 +1,8 @@
 # 类型表里 Bool <: Function,值这边也必须跟上 —— 否则「类型说有这个方法、值却接不住」
 # 从前 BoolVal 是裸的 RuntimeValue,继承来的 Function 方法拿到 self 是 BoolVal,
 # `(FunctionVal)s` 直接抛 InvalidCastException(不是 RuntimeException,Ravel 的 try 接不住)
-print (true.scope ())
-print (true.prepend { 1; })
+print (true.Scope ())
+print (true.Prepend { 1; })
 print (true { 1; } { 2; })
 print ((typeof true).Is function)
 # 反过来,bool 是**数据**不是闭包,不能因为它是 FunctionVal 就被当成方法/半成品构造器

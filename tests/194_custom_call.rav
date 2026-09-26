@@ -9,11 +9,11 @@ using "try.rav"
 C ::= class { init := () => { this; }; }
 a := C ()
 # 对象不是函数:自己那层有没有 `call` 都一样
-Ex.try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
-Ex.try { System.Object (); } (e: Exception) => { print ("无类体的类: " + string e); }
+Ex.Try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
+Ex.Try { System.Object (); } (e: Exception) => { print ("无类体的类: " + string e); }
 # `call` 只是普通名字:没定义过就读不到(沿类型链也找不到,它不是方法)
-Ex.try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
-Ex.try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
+Ex.Try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
+Ex.Try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
 # 自定义 `call` 成员现在只能当普通成员用 —— 读得到,但不让对象变可调用
 Adder ::= class {
     init := () => { this; }
@@ -22,13 +22,13 @@ Adder ::= class {
 ad := Adder ()
 f := ad.call
 print (f 41)
-Ex.try { ad 41; } (e: Exception) => { print ("自定义 call 也不行: " + string e); }
+Ex.Try { ad 41; } (e: Exception) => { print ("自定义 call 也不行: " + string e); }
 # 类对象是函数(ClassVal : FunctionVal),所以 Function 那层的方法对它可用 ——
 # 而且不需要"硬转成 FunctionVal"(它本来就是),不会抛 C# 的 InvalidCastException
 print (C.Name ())
 # `scope ()` 取的是**捕获作用域**。类对象没有(它不是闭包),给一个**空 Scope** ——
 # 类型恒定:拿到的永远是能当作用域用的东西,不是 `()`(见 tests/202)。
-print (C.scope ())
+print (C.Scope ())
 C.name = "Renamed"          # 类名是 `name` 成员(Name 是 Function 那层的方法,不给赋值)
 print (C.Name ())
 print (C.name)

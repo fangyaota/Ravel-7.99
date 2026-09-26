@@ -2,12 +2,12 @@ using "try.rav"
 using "math.rav"
 
 print "=== Math ==="
-print (Math.pi)
-print (Math.square 5)
+print (Math.Pi)
+print (Math.Square 5)
 
 print "=== Try ==="
-Ex.try {
-    Ex.throw (Exception "test error")
+Ex.Try {
+    Ex.Throw (Exception "test error")
 } (e: Exception) => {
     print "caught!"
 }

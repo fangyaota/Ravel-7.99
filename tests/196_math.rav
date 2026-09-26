@@ -3,68 +3,68 @@
 # 建模块的时候填进去 —— 在那之前 `Math` 根本不是一个名字。
 # `lib/math.rav` 另外补 Ravel 说得清楚的几个(square/cube/deg/rad)。
 using "try.rav"
-Ex.try { Math.pi; } (e: Exception) => { print ("还没引用: " + string e); }
+Ex.Try { Math.Pi; } (e: Exception) => { print ("还没引用: " + string e); }
 using "math.rav"
 
 # ---- 常量 ----
-print (Math.pi)
-print (Math.tau)
-print (Math.e)
+print (Math.Pi)
+print (Math.Tau)
+print (Math.E)
 
 # ---- 三角(弧度) ----
-print (Math.sin 0)
-print (Math.cos 0)
-print (Math.atan2 1 1)
+print (Math.Sin 0)
+print (Math.Cos 0)
+print (Math.Atan2 1 1)
 
 # ---- 取整:round 是**四舍五入**,不是 .NET 默认的"银行家舍入"(否则 2.5 → 2) ----
-print (Math.floor 3.7)
-print (Math.ceil 1.1)
-print (Math.trunc (-3.7))
-print (Math.round 2.5)
-print (Math.roundTo 3.14159 2)
+print (Math.Floor 3.7)
+print (Math.Ceil 1.1)
+print (Math.Trunc (-3.7))
+print (Math.Round 2.5)
+print (Math.RoundTo 3.14159 2)
 
 # ---- 幂与对数 ----
-print (Math.sqrt 16)
-print (Math.sqrt (fraction 1 4))
-print (Math.cbrt 27)
-print (Math.pow 2 10)
-print (Math.log Math.e)
-print (Math.log2 8)
-print (Math.log10 1000)
-print (Math.logBase 8 2)
-print (Math.hypot 3 4)
+print (Math.Sqrt 16)
+print (Math.Sqrt (fraction 1 4))
+print (Math.Cbrt 27)
+print (Math.Pow 2 10)
+print (Math.Log Math.E)
+print (Math.Log2 8)
+print (Math.Log10 1000)
+print (Math.LogBase 8 2)
+print (Math.Hypot 3 4)
 
 # ---- 保型的那几个:交回原始实参,不折成 double。
 #      `abs -5` 还是 int,`max 3 bigint …` 还是 bigint ----
-print (Math.abs (-5))
-print (typeof (Math.abs (-5)))
-print (typeof (Math.abs (-2.5)))
-print (Math.abs (bigint "-7"))
-print (Math.min 3 7)
-print (Math.max 3 (bigint "9999999999999"))
-print (typeof (Math.max 3 (bigint "9999999999999")))
-print (Math.clamp 15 0 10)
-print (Math.minMagnitude (-5) 3)
-print (Math.fma 2 3 4)
+print (Math.Abs (-5))
+print (typeof (Math.Abs (-5)))
+print (typeof (Math.Abs (-2.5)))
+print (Math.Abs (bigint "-7"))
+print (Math.Min 3 7)
+print (Math.Max 3 (bigint "9999999999999"))
+print (typeof (Math.Max 3 (bigint "9999999999999")))
+print (Math.Clamp 15 0 10)
+print (Math.MinMagnitude (-5) 3)
+print (Math.Fma 2 3 4)
 
 # ---- 参数收**任何数值**,内部按 double 算 —— 和 `<` 那批运算符同一个口径 ----
-print (Math.sign (-3.2))
-print (Math.sign 0)
-print (Math.sin 1)
+print (Math.Sign (-3.2))
+print (Math.Sign 0)
+print (Math.Sin 1)
 
 # ---- lib/math.rav 那层:Ravel 能表达的那几个 ----
-print (Math.square 5)
-print (Math.square 2.5)
-print (Math.cube 3)
-print (Math.deg Math.pi)
-print (Math.rad 180)
+print (Math.Square 5)
+print (Math.Square 2.5)
+print (Math.Cube 3)
+print (Math.Deg Math.Pi)
+print (Math.Rad 180)
 
 # ---- C# 会抛异常的地方自己先拦:那些异常不是 RuntimeException,
 #      Ravel 的 try 接不住,会一路把程序打掉(见 randint 的先例) ----
-Ex.try { Math.sin "a"; } (e: Exception) => { print ("sin: " + string e); }
-Ex.try { Math.roundTo 3.14 20; } (e: Exception) => { print ("roundTo: " + string e); }
-Ex.try { Math.clamp 5 10 0; } (e: Exception) => { print ("clamp: " + string e); }
-Ex.try { Math.sign (0.0 / 0.0); } (e: Exception) => { print ("sign: " + string e); }
+Ex.Try { Math.Sin "a"; } (e: Exception) => { print ("Sin: " + string e); }
+Ex.Try { Math.RoundTo 3.14 20; } (e: Exception) => { print ("RoundTo: " + string e); }
+Ex.Try { Math.Clamp 5 10 0; } (e: Exception) => { print ("Clamp: " + string e); }
+Ex.Try { Math.Sign (0.0 / 0.0); } (e: Exception) => { print ("Sign: " + string e); }
 print "done"
 # --- expected ---
 # 还没引用: 未定义的变量 'Math'
@@ -106,8 +106,8 @@ print "done"
 # 27
 # 180
 # 3.141592653589793
-# sin: sin 需要数值参数，得到 String
-# roundTo: roundTo 的小数位数要在 0..15，得到 20
-# clamp: clamp 的下界 10 不能大于上界 0
-# sign: sign 的 NaN 没有符号
+# Sin: Sin 需要数值参数，得到 String
+# RoundTo: RoundTo 的小数位数要在 0..15，得到 20
+# Clamp: Clamp 的下界 10 不能大于上界 0
+# Sign: Sign 的 NaN 没有符号
 # done

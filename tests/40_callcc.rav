@@ -117,8 +117,8 @@ print total
 
 using "try.rav"
 result := 0
-Ex.try {
-    Ex.throw (Exception "boom")
+Ex.Try {
+    Ex.Throw (Exception "boom")
     result = 1
 } (e: Exception) => {
     result = 99

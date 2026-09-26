@@ -79,8 +79,8 @@ a: Any = 5
 print a
 a = "changed"
 print a
-print (Math.e)
-print (Math.cube 3)
+print (Math.E)
+print (Math.Cube 3)
 print ("abc" + "def")
 print ("abc" == "abc")
 print ("abc" != "abd")
@@ -107,8 +107,8 @@ c.check ()
 s := currentScope ()
 s.Define "x" int
 p := s.Lookup "x"
-p.set 42
-print (p.get ())
+p.Set 42
+print (p.Get ())
 s2 := s.Push ()
 print (typeof s2)
 d := s.Variables ()

@@ -1,4 +1,4 @@
 # 未捕获异常 → exit
 using "try.rav"
-Ex.throw (Exception "uncaught")
+Ex.Throw (Exception "uncaught")
 # expect-error

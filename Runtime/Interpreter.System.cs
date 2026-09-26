@@ -39,10 +39,10 @@ public partial class Interpreter
         DefType("Function", BuiltinClasses.Function);
         DefType("Void", BuiltinClasses.Void);
         DefType("Type", BuiltinClasses.Type);
-        DefType("ValueTypeVal", BuiltinClasses.ValueType);
-        DefType("AnyType", BuiltinClasses.Any);
-        DefType("EveryType", BuiltinClasses.Every);
-        DefType("ExceptionType", BuiltinClasses.Exception);
+        DefType("ValueType", BuiltinClasses.ValueType);
+        DefType("Any", BuiltinClasses.Any);
+        DefType("Every", BuiltinClasses.Every);
+        DefType("Exception", BuiltinClasses.Exception);
 
         // ---- 常量 ----
         Def("True", BuiltinClasses.Bool, new BoolVal(true));
@@ -75,9 +75,9 @@ public partial class Interpreter
 
         // ---- 反射 / 作用域 ----
         DefFn("TypeOf", FunctionVal.From(a => a.Type));
-        DefFn("currentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
+        DefFn("CurrentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
         // 标记**当前**作用域:core 检查沿作用域链往上找标记,所以函数返回后标记自然失效
-        DefFn("unsafe", FunctionVal.From(_ =>
+        DefFn("Unsafe", FunctionVal.From(_ =>
         {
             UnsafeScopes.Add(CurrentScope);
             return VoidVal.Instance;
@@ -94,7 +94,7 @@ public partial class Interpreter
                 throw new RuntimeException($"randint 的最小值 {l.Value} 不能大于最大值 {h.Value}");
             return new IntVal(Random.Shared.Next(l.Value, h.Value));
         }));
-        DefFn("property", FunctionVal.From((g, s) =>
+        DefFn("Property", FunctionVal.From((g, s) =>
         {
             if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数");
             if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数");

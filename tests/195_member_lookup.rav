@@ -20,9 +20,9 @@ print ({1 2 1}.Count ())
 print ((5).+ 2)
 # 机制名是**类对象自己身上的数据**,不沿链"继承" —— 报"没有方法",不是"读得到但不对"。
 # 不挡的话 `(5).parent` 会拿到 `ValueType`,`(5).block` 会拿到 Integer 的类体。
-Ex.try { (5).parent; } (e: Exception) => { print ("(5).parent: " + string e); }
-Ex.try { (5).block; } (e: Exception) => { print ("(5).block: " + string e); }
-Ex.try { (5).init; } (e: Exception) => { print ("(5).init: " + string e); }
+Ex.Try { (5).parent; } (e: Exception) => { print ("(5).parent: " + string e); }
+Ex.Try { (5).block; } (e: Exception) => { print ("(5).block: " + string e); }
+Ex.Try { (5).init; } (e: Exception) => { print ("(5).init: " + string e); }
 # 对象:①优先(自己那层就是它的字段/方法),miss 了才走②
 C ::= class { init := () => { this; }; x: int = 7; m := () => { 9; }; }
 c := C ()

@@ -5,9 +5,9 @@
 #  这里仍然在前置 assert 里拦,因为库函数想报的是「foreach 需要 list」这个语境。)
 # 这里用 try 逐个测:运行时错误现在也能被接住,所以一个文件就能覆盖三条。
 using "try.rav"
-Ex.try { if { 1; } { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
-Ex.try { while { 1; } { 0; } } (e: Exception) => { print ("2: " + string e); }
-Ex.try { foreach 5 (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
+Ex.Try { if { 1; } { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { while { 1; } { 0; } } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { foreach 5 (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
 print "after"
 # --- expected ---
 # 1: if 的条件必须是 bool，得到 Integer

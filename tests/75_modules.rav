@@ -5,13 +5,13 @@ print ("aaa".== "bbb")
 print (3.+ 4)
 print (10.- 3)
 b := { print "world"; }
-c := b.prepend { print "hello"; }
+c := b.Prepend { print "hello"; }
 c ()
 f := () => { print "hi"; }
 print ("[" + f.name + "]")
 f.name = "hello"
 print (f.name)
-g := f.append { print " there"; }
+g := f.Append { print " there"; }
 g ()
 Point := class {
     init := () => { 0; this; }
@@ -88,21 +88,21 @@ print (a.y)
 print (b.x)
 print (b.y)
 using "try.rav"
-Ex.try {
-    Ex.throw (Exception "boom")
+Ex.Try {
+    Ex.Throw (Exception "boom")
 } (e: Exception) => {
     print "caught"
 }
 print "done"
 using "try.rav"
-Ex.try {
-    Ex.throw (Exception "oops")
+Ex.Try {
+    Ex.Throw (Exception "oops")
 } (e: Exception) => {
     print "caught"
 }
 print "done"
 using "try.rav"
-result := Ex.try {
+result := Ex.Try {
     42
 } (e: Exception) => {
     0
@@ -119,26 +119,26 @@ print result
 eval "F := (a: int) => { a * 2; }"
 print (F 5)
 ravel "Math"
-pi := 3.14159
-square := (x: int) => { x * x; }
+Pi := 3.14159
+Square := (x: int) => { x * x; }
 ravel ""
-print (Math.pi)
-print (Math.square 5)
+print (Math.Pi)
+print (Math.Square 5)
 using "math.rav"
-print (Math.pi)
-print (Math.square 6)
+print (Math.Pi)
+print (Math.Square 6)
 using "math.rav"
 ravel "Math"
-tau := 6.28318
+Tau := 6.28318
 ravel ""
-print (Math.pi)
-print (Math.tau)
-references = ["./tests/"]
+print (Math.Pi)
+print (Math.Tau)
+References = ["./tests/"]
 using "132_mod_simple.rav"
 print "first done"
 using "132_mod_simple.rav"
 print "second done"
-references = ["./tests/"]
+References = ["./tests/"]
 using "132_mod_simple.rav"
 print "done"
 # --- expected ---

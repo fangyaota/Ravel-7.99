@@ -3,7 +3,7 @@
 using "try.rav"
 f := (n: int) => { n; }
 # 注意 `{ f "abc"; }` 的分号:这是**表达式位置**的块,少了它会被当成 Set
-Ex.try { f "abc"; } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { f "abc"; } (e: Exception) => { print ("1: " + string e); }
 # | 交替靠 TypeMismatchException 分流,消息变长不影响它
 g := f | (s: string) => { 0 - 1; }
 print (g "abc")

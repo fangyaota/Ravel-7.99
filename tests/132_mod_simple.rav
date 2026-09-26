@@ -1,4 +1,4 @@
-references = ["./tests/"]
+References = ["./tests/"]
 print "mod start"
 z: int = 7
 print "mod end"

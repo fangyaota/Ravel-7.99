@@ -2,14 +2,14 @@
 # (原来还测 fn.setType 和 C.Proto (),但 setType 和 Proto 都已不存在——
 #  ADR-0001 里「Proto / Instantiate」本来就被判定为泄漏抽象、建议砍掉)
 f := () => { print "hi"; }
-print (typeof (f.scope ()))
+print (typeof (f.Scope ()))
 
 # setScope:把函数的闭包 scope 换成实例 scope,于是函数能读到实例字段。
 # 拿实例 scope 得在类方法里用 currentScope ()——外面没有 API 能拿到它。
 C := class {
     init := () => { 0; this; }
     x: int = 99
-    attach := (fn: function) => { fn.setScope (currentScope ()); }
+    attach := (fn: function) => { fn.SetScope (currentScope ()); }
 }
 g := () => { x; }
 c := C ()

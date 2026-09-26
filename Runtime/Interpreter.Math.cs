@@ -50,69 +50,69 @@ public partial class Interpreter
             => Fn(name, FunctionVal.From((a, b) => new FloatVal(f(Num(a, name), Num(b, name)))));
 
         // ---- 常量 ----
-        Def("pi", BuiltinClasses.Float, new FloatVal(Math.PI));
-        Def("e", BuiltinClasses.Float, new FloatVal(Math.E));
-        Def("tau", BuiltinClasses.Float, new FloatVal(Math.Tau));
+        Def("Pi", BuiltinClasses.Float, new FloatVal(Math.PI));
+        Def("E", BuiltinClasses.Float, new FloatVal(Math.E));
+        Def("Tau", BuiltinClasses.Float, new FloatVal(Math.Tau));
 
         // ---- 三角 ----
-        D("sin", Math.Sin);
-        D("cos", Math.Cos);
-        D("tan", Math.Tan);
-        D("asin", Math.Asin);
-        D("acos", Math.Acos);
-        D("atan", Math.Atan);
-        D2("atan2", Math.Atan2);          // atan2 y x(参数顺序同 C#:先 y 后 x)
+        D("Sin", Math.Sin);
+        D("Cos", Math.Cos);
+        D("Tan", Math.Tan);
+        D("Asin", Math.Asin);
+        D("Acos", Math.Acos);
+        D("Atan", Math.Atan);
+        D2("Atan2", Math.Atan2);          // atan2 y x(参数顺序同 C#:先 y 后 x)
 
         // ---- 双曲 ----
-        D("sinh", Math.Sinh);
-        D("cosh", Math.Cosh);
-        D("tanh", Math.Tanh);
-        D("asinh", Math.Asinh);
-        D("acosh", Math.Acosh);
-        D("atanh", Math.Atanh);
+        D("Sinh", Math.Sinh);
+        D("Cosh", Math.Cosh);
+        D("Tanh", Math.Tanh);
+        D("Asinh", Math.Asinh);
+        D("Acosh", Math.Acosh);
+        D("Atanh", Math.Atanh);
 
         // ---- 幂与对数 ----
-        D("sqrt", Math.Sqrt);
-        D("cbrt", Math.Cbrt);
-        D("exp", Math.Exp);
-        D("log", Math.Log);               // 自然对数(和 System.Math 一致)
-        D("log2", Math.Log2);
-        D("log10", Math.Log10);
-        D2("pow", Math.Pow);
-        D2("logBase", Math.Log);          // logBase x b = 以 b 为底
-        Fn("hypot", FunctionVal.From((a, b) => new FloatVal(Hypot(Num(a, "hypot"), Num(b, "hypot")))));
+        D("Sqrt", Math.Sqrt);
+        D("Cbrt", Math.Cbrt);
+        D("Exp", Math.Exp);
+        D("Log", Math.Log);               // 自然对数(和 System.Math 一致)
+        D("Log2", Math.Log2);
+        D("Log10", Math.Log10);
+        D2("Pow", Math.Pow);
+        D2("LogBase", Math.Log);          // logBase x b = 以 b 为底
+        Fn("Hypot", FunctionVal.From((a, b) => new FloatVal(Hypot(Num(a, "hypot"), Num(b, "hypot")))));
 
         // ---- 取整 ----
-        D("floor", Math.Floor);
-        D("ceil", Math.Ceiling);
-        D("trunc", Math.Truncate);
+        D("Floor", Math.Floor);
+        D("Ceil", Math.Ceiling);
+        D("Trunc", Math.Truncate);
         // 四舍五入,不是 .NET 默认的"银行家舍入"(`round 2.5` → 3,不是 2)
-        D("round", x => Math.Round(x, MidpointRounding.AwayFromZero));
-        Fn("roundTo", FunctionVal.From((v, digits) =>
+        D("Round", x => Math.Round(x, MidpointRounding.AwayFromZero));
+        Fn("RoundTo", FunctionVal.From((v, digits) =>
         {
-            if (digits is not IntVal d) throw new RuntimeException($"roundTo 的小数位数需要 int，得到 {digits.Type}");
+            if (digits is not IntVal d) throw new RuntimeException($"RoundTo 的小数位数需要 int，得到 {digits.Type}");
             // Math.Round 的 digits 只收 0..15,越界抛的是 C# 的 ArgumentOutOfRangeException
-            if (d.Value is < 0 or > 15) throw new RuntimeException($"roundTo 的小数位数要在 0..15，得到 {d.Value}");
+            if (d.Value is < 0 or > 15) throw new RuntimeException($"RoundTo 的小数位数要在 0..15，得到 {d.Value}");
             return new FloatVal(Math.Round(Num(v, "roundTo"), d.Value, MidpointRounding.AwayFromZero));
         }));
 
         // ---- 保型的那几个:交回原始实参,不折成 double ----
-        Fn("abs", FunctionVal.From(Abs));
-        Fn("sign", FunctionVal.From(Sign));
-        Fn("min", FunctionVal.From((a, b) => Num(a, "min") <= Num(b, "min") ? a : b));
-        Fn("max", FunctionVal.From((a, b) => Num(a, "max") >= Num(b, "max") ? a : b));
-        Fn("minMagnitude", FunctionVal.From((a, b) =>
+        Fn("Abs", FunctionVal.From(Abs));
+        Fn("Sign", FunctionVal.From(Sign));
+        Fn("Min", FunctionVal.From((a, b) => Num(a, "min") <= Num(b, "min") ? a : b));
+        Fn("Max", FunctionVal.From((a, b) => Num(a, "max") >= Num(b, "max") ? a : b));
+        Fn("MinMagnitude", FunctionVal.From((a, b) =>
             Math.Abs(Num(a, "minMagnitude")) <= Math.Abs(Num(b, "minMagnitude")) ? a : b));
-        Fn("maxMagnitude", FunctionVal.From((a, b) =>
+        Fn("MaxMagnitude", FunctionVal.From((a, b) =>
             Math.Abs(Num(a, "maxMagnitude")) >= Math.Abs(Num(b, "maxMagnitude")) ? a : b));
-        Fn("clamp", FunctionVal.From((x, lo, hi) =>
+        Fn("Clamp", FunctionVal.From((x, lo, hi) =>
         {
             double l = Num(lo, "clamp"), h = Num(hi, "clamp"), v = Num(x, "clamp");
             // Math.Clamp 在下界大于上界时抛的是 C# 的 ArgumentException
-            if (l > h) throw new RuntimeException($"clamp 的下界 {lo} 不能大于上界 {hi}");
+            if (l > h) throw new RuntimeException($"Clamp 的下界 {lo} 不能大于上界 {hi}");
             return v < l ? lo : v > h ? hi : x;
         }));
-        Fn("fma", FunctionVal.From((a, b, c) =>
+        Fn("Fma", FunctionVal.From((a, b, c) =>
             new FloatVal(Math.FusedMultiplyAdd(Num(a, "fma"), Num(b, "fma"), Num(c, "fma")))));
     }
 
@@ -142,7 +142,7 @@ public partial class Interpreter
         BigIntVal bi => new BigIntVal(System.Numerics.BigInteger.Abs(bi.Value)),
         FractionVal fr => new FractionVal(Math.Abs(fr.Num), fr.Den),          // 分母恒正,符号在分子上
         BigFractionVal bf => new BigFractionVal(System.Numerics.BigInteger.Abs(bf.Num), bf.Den),
-        _ => throw new RuntimeException($"abs 需要数值参数，得到 {v.Type}"),
+        _ => throw new RuntimeException($"Abs 需要数值参数，得到 {v.Type}"),
     };
 
     /// <summary>`sign`:负 -1 / 零 0 / 正 1(int)。NaN 没有符号,报 Ravel 错误
@@ -151,11 +151,11 @@ public partial class Interpreter
     {
         IntVal i => new IntVal(Math.Sign(i.Value)),
         FloatVal f => double.IsNaN(f.Value)
-            ? throw new RuntimeException("sign 的 NaN 没有符号")
+            ? throw new RuntimeException("Sign 的 NaN 没有符号")
             : new IntVal(Math.Sign(f.Value)),
         BigIntVal bi => new IntVal(bi.Value.Sign),
         FractionVal fr => new IntVal(Math.Sign(fr.Num)),
         BigFractionVal bf => new IntVal(bf.Num.Sign),
-        _ => throw new RuntimeException($"sign 需要数值参数，得到 {v.Type}"),
+        _ => throw new RuntimeException($"Sign 需要数值参数，得到 {v.Type}"),
     };
 }

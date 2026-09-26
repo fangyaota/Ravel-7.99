@@ -36,7 +36,7 @@ print ((typeof 1).Is int)   # 想比"是不是这个类型"用 `Is`(类对象上
 
 # ---- 右边得是个类型 ----
 using "try.rav"
-Ex.try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
+Ex.Try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
 print "done"
 # --- expected ---
 # true

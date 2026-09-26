@@ -67,7 +67,7 @@ public partial class Interpreter
         BoxedValue.GateRead(v, id.Name, this);   // 和成员访问共用一套门禁,别各抄一份
         if (v.HasAttr(Attr.By))
         {
-            var getter = new BoxedValue(v.Value, this).GetMember("get").Value;
+            var getter = new BoxedValue(v.Value, this).GetMember("Get").Value;
             if (getter is FunctionVal gf) CallInto(nf.Parent!, gf, VoidVal.Instance);
             else Return(nf, v.Value);
         }
@@ -267,7 +267,7 @@ public partial class Interpreter
                 throw new RuntimeException($"字段 '{a.Name}' 是核心字段，需要 unsafe");
             if (field.HasAttr(Attr.By))
             {
-                var setter = new BoxedValue(field.Value, this).GetMember("set").Value;
+                var setter = new BoxedValue(field.Value, this).GetMember("Set").Value;
                 if (setter is FunctionVal sf)
                 {
                     PushCallReturn(nf.Parent!, sf, val, val);

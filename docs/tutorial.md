@@ -69,6 +69,14 @@ typeof "hello"   # String
 
 类型名是 PascalCase，小写是别名。`System.Integer` 是权威名。
 
+**成员（方法/字段）一律 PascalCase**：`obj.Fields ()`、`f.Scope ()`、`Math.Sin x`、`Ex.Throw e`。
+两处例外，都是有意留的小写：
+
+- **全局别名** —— `print`、`true`、`if`、`typeof`、`randint`…… 它们是 `predefined.rav` 里的名字，
+  更像"语言的关键词"而不是谁的成员。
+- **机制成员** —— `parent` / `block` / `name` / `init` / `this`。它们和同类的方法
+  （`Parent` / `Name`）**靠大小写区分**：`C.parent` 是原型链指针，`C.Parent ()` 是那个方法。
+
 **注解里的名字就是作用域里的那个变量**（`int := System.Integer` 只是 `predefined.rav`
 里的普通赋值），所以：
 
@@ -758,7 +766,7 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 | `readonly` | `=` 和 `:=` 都报错：「无法给只读变量赋值」/「无法重新定义只读变量」。块里的 `:=` 是另开局部变量（遮蔽），不受影响 |
 
 `lib/` 里的 API 都标了 `readonly`：`predefined.rav` 的语言级别名（`print` / `true` /
-`if` / …）、`Math` 与 `Ex` 的函数。**状态**没标（`Ex.handlerStack` / `references`）——
+`if` / …）、`Math` 与 `Ex` 的函数。**状态**没标（`Ex.HandlerStack` / `References`）——
 那些本来就该能改。
 
 为什么连 `:=` 也挡：`:=` 换掉的是**整个 Variable**，attrs 跟着老的那个一起没 ——
@@ -946,13 +954,13 @@ print (typeof (B ()))     # B
 ravel "MyMath"
 pi := 3.14
 ravel ""
-print (MyMath.pi)
+print (MyMath.Pi)
 ```
 
 ### 8.2 导入文件
 
 ```ravel
-references = ["/path/to/libs/"]
+References = ["/path/to/libs/"]
 using "other.rav"
 ```
 
@@ -976,12 +984,12 @@ System.ReadLine ()
 
 ```ravel
 using "math.rav"
-Math.pi            # 3.141592653589793
-Math.sin 0         # 0（三角函数收弧度）
-Math.sqrt 16       # 4
-Math.round 2.5     # 3（四舍五入，不是银行家舍入）
-Math.abs (-5)      # 5（还是 int —— 保型的几个交回原始实参）
-Math.clamp 15 0 10 # 10
+Math.Pi            # 3.141592653589793
+Math.Sin 0         # 0（三角函数收弧度）
+Math.Sqrt 16       # 4
+Math.Round 2.5     # 3（四舍五入，不是银行家舍入）
+Math.Abs (-5)      # 5（还是 int —— 保型的几个交回原始实参）
+Math.Clamp 15 0 10 # 10
 ```
 
 常量 `pi` / `e` / `tau`，其余见「十、内置函数速查」。`Math` 收任何数值
@@ -990,8 +998,8 @@ Math.clamp 15 0 10 # 10
 `lib/math.rav` 另外补了 Ravel 能表达的几个（同一次 `using` 一起到位）：
 
 ```ravel
-Math.square 5      # 25
-Math.deg Math.pi   # 180（角度↔弧度）
+Math.Square 5      # 25
+Math.Deg Math.Pi   # 180（角度↔弧度）
 ```
 
 `using "math.rav"` 之前 `Math` 不是一个名字 —— 会报「未定义的变量 'Math'」。
@@ -1001,8 +1009,8 @@ Math.deg Math.pi   # 180（角度↔弧度）
 ## 九、异常
 
 ```ravel
-Ex.try {
-    Ex.throw (Exception "oops")
+Ex.Try {
+    Ex.Throw (Exception "oops")
 } (e: Exception) => {
     print "caught"
 }
@@ -1054,8 +1062,8 @@ Error: 未预期的字符 '$'
 | `print x` | 输出 x 并换行 |
 | `input ()` | 读一行 |
 | `typeof x` | 返回 x 的类型 |
-| `f.body ()` | 函数的体（Block；没有体的给空块） |
-| `f.scope ()` | 捕获作用域（Scope；类对象没有，给空 Scope） |
+| `f.Body ()` | 函数的体（Block；没有体的给空块） |
+| `f.Scope ()` | 捕获作用域（Scope；类对象没有，给空 Scope） |
 | `NaN` `Inf` | 特殊浮点值（和 `true` 同款：System 里的值 + 全局别名） |
 | `x is T` | 类型判定（`isnot` 取反；`x.is` / `is.T` 也成立） |
 | `exit msg` | 退出程序 |
@@ -1068,15 +1076,15 @@ Error: 未预期的字符 '$'
 
 | 函数 | 说明 |
 |------|------|
-| `Math.pi` `Math.e` `Math.tau` | 常量 |
-| `Math.sin x` `cos` `tan` `asin` `acos` `atan` | 三角（弧度） |
-| `Math.atan2 y x` | 两参数反正切 |
-| `Math.sinh` `cosh` `tanh` `asinh` `acosh` `atanh` | 双曲 |
-| `Math.sqrt` `cbrt` `exp` `log` `log2` `log10` | 幂与对数 |
-| `Math.pow x y` `Math.logBase x b` `Math.hypot x y` | 两参数 |
-| `Math.floor` `ceil` `trunc` `round` | 取整（`roundTo x n` 保留 n 位） |
-| `Math.abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参 |
-| `Math.minMagnitude` `maxMagnitude` `fma` | 按绝对值比 / `a*b+c` |
+| `Math.Pi` `Math.E` `Math.Tau` | 常量 |
+| `Math.Sin x` `cos` `tan` `asin` `acos` `atan` | 三角（弧度） |
+| `Math.Atan2 y x` | 两参数反正切 |
+| `Math.Sinh` `cosh` `tanh` `asinh` `acosh` `atanh` | 双曲 |
+| `Math.Sqrt` `cbrt` `exp` `log` `log2` `log10` | 幂与对数 |
+| `Math.Pow x y` `Math.LogBase x b` `Math.Hypot x y` | 两参数 |
+| `Math.Floor` `ceil` `trunc` `round` | 取整（`roundTo x n` 保留 n 位） |
+| `Math.Abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参 |
+| `Math.MinMagnitude` `maxMagnitude` `fma` | 按绝对值比 / `a*b+c` |
 
 同一次 `using "math.rav"` 还带来 `square` `cube` `deg` `rad`。
 

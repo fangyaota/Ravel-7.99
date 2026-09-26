@@ -1,8 +1,8 @@
-# 运行时错误(不只是显式 Ex.throw)也能被 try 接住。
-# 求值器在异常冒泡到最内层时,把它交给 try.rav 的 handlerStack 栈顶 handler;
+# 运行时错误(不只是显式 Ex.Throw)也能被 try 接住。
+# 求值器在异常冒泡到最内层时,把它交给 try.rav 的 HandlerStack 栈顶 handler;
 # 调用前先把 handler 弹出栈——否则 handler 自己出错时会又交给它,无限递归。
 using "try.rav"
-Ex.try {
+Ex.Try {
     print (1 + true)
 } (e: Exception) => {
     print ("caught: " + string e)

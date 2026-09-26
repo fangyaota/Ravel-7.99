@@ -1,9 +1,9 @@
-# eval 里的语法错误要能被 Ex.try 接住
+# eval 里的语法错误要能被 Ex.Try 接住
 # 从前来的是 SyntaxException,而 Ravel 的 handler 只认 RuntimeException ——
 # eval 一段用户输入就能把程序打死。现在 StepOnce 把它转成 RuntimeException 再分发。
 using "try.rav"
-Ex.try { eval "1 +"; } (e: Exception) => { print ("A[" + string e + "]"); }
-Ex.try { eval "print )"; } (e: Exception) => { print ("B[" + string e + "]"); }
+Ex.Try { eval "1 +"; } (e: Exception) => { print ("A[" + string e + "]"); }
+Ex.Try { eval "print )"; } (e: Exception) => { print ("B[" + string e + "]"); }
 print "after"
 # 报错里不该出现 Token.ToString() 那种调试格式(EndOfFile() at 1:4)
 # --- expected ---

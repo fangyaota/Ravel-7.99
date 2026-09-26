@@ -8,7 +8,7 @@ public partial class Interpreter
     private string? ResolveModulePath(string path)
     {
         var refs = new List<string>();
-        var rv = _global.TryLookup("references");
+        var rv = _global.TryLookup("References");
         if (rv?.Value is ListVal lv) refs.AddRange(lv.Elements.Select(e => As<StringVal>(e, "references 的元素").Value));
         refs.AddRange(ModuleSearchPath.Defaults);
 

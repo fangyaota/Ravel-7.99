@@ -31,13 +31,13 @@ print ([NaN Inf])
 print ({a: Inf})
 print (string Inf)
 print (string NaN)
-print (Math.floor NaN)
-print (Math.sqrt Inf)
+print (Math.Floor NaN)
+print (Math.Sqrt Inf)
 
 # 折不成 int:报错而不是静默(以前 double 那条是"饱和"转换,一个字都不说)
 using "try.rav"
-Ex.try { int Inf; } (e: Exception) => { print ("int Inf: " + string e); }
-Ex.try { int NaN; } (e: Exception) => { print ("int NaN: " + string e); }
+Ex.Try { int Inf; } (e: Exception) => { print ("int Inf: " + string e); }
+Ex.Try { int NaN; } (e: Exception) => { print ("int NaN: " + string e); }
 print "done"
 # --- expected ---
 # NaN

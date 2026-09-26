@@ -2,10 +2,10 @@
 # 从前 `int 9999999999999` 抛 C# 的 OverflowException 一路漏到顶层(程序直接崩),
 # `int (float 1e30)` 静默饱和成 2147483647 —— 两个都不说一个字。
 using "try.rav"
-Ex.try { int 9999999999999; } (e: Exception) => { print ("1: " + string e); }
-Ex.try { int (bigint 2147483648); } (e: Exception) => { print ("2: " + string e); }
-Ex.try { int (float 100000000000000000000.0); } (e: Exception) => { print ("3: " + string e); }
-Ex.try { int (bigfraction 2147483648 1); } (e: Exception) => { print ("4: " + string e); }
+Ex.Try { int 9999999999999; } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { int (bigint 2147483648); } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { int (float 100000000000000000000.0); } (e: Exception) => { print ("3: " + string e); }
+Ex.Try { int (bigfraction 2147483648 1); } (e: Exception) => { print ("4: " + string e); }
 # 装得下的照常
 print (int 2147483647)
 print (int (bigint 0 - 2147483648))

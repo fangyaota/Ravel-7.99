@@ -29,7 +29,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Nodes.cs    节点状态机(每 AST 节点一个 NodeFrame,按 Results.Count 分阶段)
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
-  Interpreter.Modules.cs  模块路径解析与加载(references + 搜索目录、循环引用检测)
+  Interpreter.Modules.cs  模块路径解析与加载(References + 搜索目录、循环引用检测)
   Interpreter.System.cs   RegisterBuiltins + System 模块
   Interpreter.Math.cs           Math 模块(常量/三角/双曲/幂对数/取整/极值)
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
@@ -40,7 +40,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
                           SyntaxException + SourceSpot(位置)
   Attr.cs                 修饰符名常量(readonly/override/…/core),解析器和门禁共用
                            `lib/` 的 API 都标 readonly(语言级别名/模块函数);
-                           **状态**故意不标(Ex.handlerStack / references)。
+                           **状态**故意不标(Ex.HandlerStack / References)。
                            readonly 连 `:=` 一起挡(`Scope.DefineOrReplace` 里查本层):
                            `:=` 换掉整个 Variable,attrs 会跟着老的那个没
   ErrorReport.cs          错误渲染(位置 + 源码行 + 插入符 + 调用栈),运行时/语法错误共用
@@ -77,7 +77,7 @@ Program.cs                      CLI 入口(REPL / test / 单文件)
 
 lib/
   predefined.rav          别名 + 控制流 + using(启动时自动加载)
-  try.rav                 异常处理:handlerStack + callcc 实现 Ex.try/Ex.throw
+  try.rav                 异常处理:HandlerStack + callcc 实现 Ex.Try/Ex.Throw
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
@@ -164,7 +164,7 @@ Object (parent=自己)
 
 **类型**: Integer String Bool Float BigInteger Fraction BigFraction
         List Set Dict Object Void Function Type
-        AnyType EveryType ExceptionType ValueTypeVal
+        Any Every Exception ValueType
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
         CallCC Exit With RavelMod Using unsafe
@@ -495,8 +495,8 @@ int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueTy
 obj.Fields ()     # **这个值有哪些成员**:自己那层照单全收(字段和方法一视同仁),
                   # 再并上类型链上的方法名。只排掉 `this`(它是值自己,不是成员)
 obj.Copy ()       # 浅拷贝
-f.body ()         # 函数/类的体(Block);没有体的给**空块** —— 类型恒定,不用 `()` 顶替
-f.scope ()        # 捕获作用域(Scope);类对象没有,同样给空 Scope
+f.Body ()         # 函数/类的体(Block);没有体的给**空块** —— 类型恒定,不用 `()` 顶替
+f.Scope ()        # 捕获作用域(Scope);类对象没有,同样给空 Scope
 obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
 obj.+             # 取绑定好 self 的运算符函数(符号就是成员名)
@@ -547,7 +547,7 @@ Error: 未定义的变量 'missing'
   落到兜底 `catch (Exception)` 的一律打 `!! 解释器内部错误`。
 - **`eval` 里的语法错误对 Ravel 层是可接的**：`StepOnce` 另有一个 `catch (SyntaxException)`，
   把它转成 `RuntimeException` 再走同一套 handler 分发。不转的话
-  `Ex.try { eval "1 +" } {...}` 不生效——handler 只认 `RuntimeException`——
+  `Ex.Try { eval "1 +" } {...}` 不生效——handler 只认 `RuntimeException`——
   eval 一段用户输入就能撂倒整个程序。没人接时仍抛原异常，CLI 按语法错误渲染。
   `eval` 的块带合成名 `<eval>`（`ErrorReport.ShortPath` 认这种虚拟名，不当路径解析）。
 

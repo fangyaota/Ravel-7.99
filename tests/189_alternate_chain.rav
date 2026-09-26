@@ -8,12 +8,12 @@ f := (a: int) => { "int"; } | (a: string) => { "str"; } | (a: bool) => { "bool";
 print (f 1)
 print (f "x")
 print (f true)
-Ex.try { f 1.5; } (e: Exception) => { print ("none: " + string e); }
+Ex.Try { f 1.5; } (e: Exception) => { print ("none: " + string e); }
 # 两个分支照旧
 g := (a: int) => { "int"; } | (a: string) => { "str"; }
 print (g 1)
 print (g "x")
-Ex.try { g true; } (e: Exception) => { print ("none: " + string e); }
+Ex.Try { g true; } (e: Exception) => { print ("none: " + string e); }
 # 四个分支
 h := (a: int) => { 0; } | (a: string) => { 1; } | (a: bool) => { 2; } | (a: float) => { 3; }
 print (h 1)

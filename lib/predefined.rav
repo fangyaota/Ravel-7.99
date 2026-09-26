@@ -17,15 +17,15 @@ readonly class := System.Type  # 别名:没有单独的 Class 类型
 readonly function := System.Function
 readonly type := System.Type
 readonly void := System.Void
-readonly Any := System.AnyType
-readonly Every := System.EveryType
-readonly Exception := System.ExceptionType
-readonly ValueType := System.ValueTypeVal
+readonly Any := System.Any
+readonly Every := System.Every
+readonly Exception := System.Exception
+readonly ValueType := System.ValueType
 
 # 用户自定义的模块搜索目录。**位置是有讲究的**:它写在别名之后 ——
 # 注解里的名字就是作用域里的变量,而 `list` 要到上面几行才定义。
 # (从前它在第一行,于是注解解析不得不内置一张 15 条的类型表来兜底;见 ResolveType。)
-references: list = []
+References: list = []
 
 readonly print := System.WriteLine
 readonly true := System.True
@@ -43,9 +43,9 @@ readonly ravel := System.RavelMod
 readonly using := System.Using
 readonly exit := System.Exit
 readonly input := System.ReadLine
-readonly unsafe := System.unsafe
-readonly currentScope := System.currentScope
-readonly property := System.property
+readonly unsafe := System.Unsafe
+readonly currentScope := System.CurrentScope
+readonly property := System.Property
 
 # ── 控制流:用 Ravel 写,不占控制帧 ──
 # 条件当值用:true/false 可调用,收两个块返回选中那个的结果

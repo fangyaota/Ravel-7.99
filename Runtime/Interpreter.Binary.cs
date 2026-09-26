@@ -173,7 +173,7 @@ public partial class Interpreter
 
         if (nf.Count == 2)
         {
-            if (new BoxedValue(prop, this).GetMember("get").Value is not FunctionVal getter)
+            if (new BoxedValue(prop, this).GetMember("Get").Value is not FunctionVal getter)
                 throw new RuntimeException($"字段 '{member}' 的 getter 不是函数");
             CallInto(nf, getter, VoidVal.Instance);
             return;
@@ -190,7 +190,7 @@ public partial class Interpreter
 
         if (nf.Count == 4)
         {
-            if (new BoxedValue(prop, this).GetMember("set").Value is not FunctionVal setter)
+            if (new BoxedValue(prop, this).GetMember("Set").Value is not FunctionVal setter)
                 throw new RuntimeException($"字段 '{member}' 的 setter 不是函数");
             CallInto(nf, setter, nf.Result(3));
             return;
@@ -273,7 +273,7 @@ public partial class Interpreter
                      ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         if (field2.HasAttr(Attr.By))
         {
-            var setter = new BoxedValue(field2.Value, this).GetMember("set").Value;
+            var setter = new BoxedValue(field2.Value, this).GetMember("Set").Value;
             if (setter is FunctionVal sf)
             {
                 PushCallReturn(nf.Parent!, sf, rv, rv);

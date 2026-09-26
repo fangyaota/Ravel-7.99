@@ -239,11 +239,11 @@ internal static partial class BuiltinClasses
         // 捕获作用域是**函数独有**的:对象没有捕获作用域,它那半边叫 MemberScope。
         // 没有捕获作用域的值(类对象不是闭包)给一个**空 Scope** —— **类型恒定是 Scope**,
         // 不拿 `()` 顶替,也不报错:`x.scope ()` 拿到的东西该始终能当作用域用。
-        Function.DefineMethod("scope", (s, _) => new ScopeVal(AsFunction(s, "scope").CaptureScope ?? new Scope()));
+        Function.DefineMethod("Scope", (s, _) => new ScopeVal(AsFunction(s, "Scope").CaptureScope ?? new Scope()));
         // body:这个函数/类的**体**。同样类型恒定是 Block —— 没有体的(内置方法、
         // 原生闭包、没类体的内建类)给一个**空块**,而不是 `()`:`f.body` 始终能当块用
         // (`(f.body) 1` 就是跑一遍它)。
-        Function.DefineMethod("body", (s, _) => s switch
+        Function.DefineMethod("Body", (s, _) => s switch
         {
             LambdaVal lam => new BlockVal(lam.Block, lam.CaptureScope),
             ClassVal c => c.ClassBody ?? EmptyBody,
@@ -251,21 +251,21 @@ internal static partial class BuiltinClasses
             _ => EmptyBody,
         });
         // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
-        Function.DefineMethod("setScope", (s, a) =>
+        Function.DefineMethod("SetScope", (s, a) =>
         {
             if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
-            AsFunction(s, "setScope").CaptureScope = sv.Inner;
+            AsFunction(s, "SetScope").CaptureScope = sv.Inner;
             return VoidVal.Instance;
         });
-        Function.DefineMethod("prepend", (s, a) =>
+        Function.DefineMethod("Prepend", (s, a) =>
         {
             if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
-            return AsFunction(s, "prepend").Prepend(p);
+            return AsFunction(s, "Prepend").Prepend(p);
         });
-        Function.DefineMethod("append", (s, a) =>
+        Function.DefineMethod("Append", (s, a) =>
         {
             if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
-            return AsFunction(s, "append").Append(p);
+            return AsFunction(s, "Append").Append(p);
         });
     }
 

@@ -3,7 +3,7 @@
 #   · 作用域里那个名字是**类** → 用它(哪怕它叫 int/string 这种内置名)
 #   · 是别的东西        → **报错**,不悄悄退回内置表
 # 后者从前是静默的:作用域里 `int` 是个 5,`x: int` 照样按 Integer 走,一个字都不说。
-# 内置表现在只做**引导**(predefined.rav 第一行 `references: list = []` 要用到还没定义的 `list`)。
+# 内置表现在只做**引导**(predefined.rav 第一行 `References: list = []` 要用到还没定义的 `list`)。
 using "try.rav"
 
 # 遮蔽成非类型:报错
@@ -12,7 +12,7 @@ f := () => {
     y: int = 5
     y;
 }
-Ex.try { f (); } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { f (); } (e: Exception) => { print ("1: " + string e); }
 
 # 遮蔽成一个类:注解就指它(这条消息说明 dt 是 C —— 内置转换器不认用户类,才报的转换错)
 g := () => {
@@ -21,7 +21,7 @@ g := () => {
     z: string = 5
     z;
 }
-Ex.try { g (); } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { g (); } (e: Exception) => { print ("2: " + string e); }
 
 # 没遮蔽时照旧
 h := () => { w: int = 7; w; }
