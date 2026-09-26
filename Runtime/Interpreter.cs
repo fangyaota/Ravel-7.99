@@ -10,6 +10,9 @@ public partial class Interpreter
     public Scope CurrentScope { get; set; }
 
     /// <summary>内建类型名 → ObjectVal 速查表</summary>
+    /// <summary>15 个内置类型名 → 类对象。**只在作用域里还没有那个名字时兜底** ——
+    /// `predefined.rav` 自己的注解要用(`references: list = []` 在第一行,
+    /// 而 `list := System.List` 在下面几行),那是引导,不是"内置优先"。</summary>
     private static readonly Dictionary<string, ObjectVal> TypeRegistry = new()
     {
         ["object"] = BuiltinClasses.Object,
@@ -80,19 +83,27 @@ public partial class Interpreter
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
     public RuntimeValue Interpret(Program p) => RunStack(p);
 
-    /// <summary>按名称解析类型：先查作用域，再查类型注册表</summary>
+    /// <summary>按名称解析类型:**作用域说了算**,内置表只在作用域里还没这个名字时兜底。
+    ///
+    /// 类型名就是普通变量 —— `predefined.rav` 里 `int := System.Integer` 那一批。
+    /// 所以查到的东西**必须是个类对象**;查到了但不是类就报错,不悄悄退回内置表:
+    /// 静默兜底会让"作用域里的名字"和"注解里的名字"说两套话(`int := 5` 之后
+    /// `x: int` 照样按 Integer 走,一个字都不说)。
+    ///
+    /// 那张 <see cref="TypeRegistry"/> 是**引导**用的,不是"内置优先":`predefined.rav`
+    /// 第一行就是 `references: list = []`,而 `list := System.List` 要到下面几行才定义 ——
+    /// 它自己的注解得先有个来源。名字一旦在作用域里出现,这里就再不看那张表了。</summary>
     private ObjectVal ResolveType(string n, Scope? extra = null)
     {
-        if (extra != null)
-        {
-            var v = extra.TryLookup(n);
-            if (v?.Value is ObjectVal { IsClass: true } cls) return cls;
-        }
+        var v = (extra ?? CurrentScope).TryLookup(n);
+        if (v == null)
+            return TypeRegistry.TryGetValue(n, out var t)
+                ? t
+                : throw new RuntimeException($"未知的类型: {n}");
 
-        if (TypeRegistry.TryGetValue(n, out var t)) return t;
-        var v2 = CurrentScope.TryLookup(n);
-        if (v2?.Value is ObjectVal { IsClass: true } cls2) return cls2;
-        throw new RuntimeException($"未知的类型: {n}");
+        return v.Value is ObjectVal { IsClass: true } cls
+            ? cls
+            : throw new RuntimeException($"'{n}' 不是类型（它是个 {v.Value.Type}）");
     }
 
     /// <summary>Ravel 错误:抛 RuntimeException(路由到 Ex.throw 后续再做)</summary>

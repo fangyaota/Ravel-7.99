@@ -24,6 +24,7 @@ VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前
 ```
 Runtime/                         求值器按职责拆成多个 partial class 文件
   Interpreter.cs          入口/类型表/ResolveType/ThrowRavel/CheckFieldAccess
+                          (ResolveType 只认作用域;内置类型表只做引导,见那里的注释)
   Interpreter.Stack.cs    帧栈推进循环(StepOnce/Return/PushChild + 块执行)
   Interpreter.Nodes.cs    节点状态机(每 AST 节点一个 NodeFrame,按 Results.Count 分阶段)
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
