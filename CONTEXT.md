@@ -39,7 +39,9 @@ Runtime/                         求值器按职责拆成多个 partial class �
                           SyntaxException + SourceSpot(位置)
   Attr.cs                 修饰符名常量(readonly/override/…/core),解析器和门禁共用
                            `lib/` 的 API 都标 readonly(语言级别名/模块函数);
-                           **状态**故意不标(Ex.handlerStack / references)
+                           **状态**故意不标(Ex.handlerStack / references)。
+                           readonly 连 `:=` 一起挡(`Scope.DefineOrReplace` 里查本层):
+                           `:=` 换掉整个 Variable,attrs 会跟着老的那个没
   ErrorReport.cs          错误渲染(位置 + 源码行 + 插入符 + 调用栈),运行时/语法错误共用
   BuiltinClasses.cs              内置**类对象**树(建树分两趟)+ 预设类体 + 默认建类逻辑
   BuiltinClasses.{Methods,Operators,Initializers}.cs   内置方法/运算符/转换器的注册

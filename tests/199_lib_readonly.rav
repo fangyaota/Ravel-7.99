@@ -1,32 +1,32 @@
-# lib/ 里的 API 都标了 readonly。理由是这些名字**被顺手覆盖掉不会报错、只会让后面
-# 所有调用者算错** —— 语言级别名(`print` / `true` / `if` /…)被覆盖掉整门语言就变样。
+# lib/ 里的 API 都标了 readonly —— **`=` 和 `:=` 两条路都堵死**。
+# 理由是这些名字被顺手覆盖掉不会报错、只会让后面所有调用者算错,
+# 而 `:=` 从前能绕过:`true = 1` 报错、`true := 1` 静默成功,而且 readonly
+# 跟着老的那个 Variable 一起没了 —— 同一个"只读"两条路两个答案。
 # 而**状态**故意留可写(`Ex.handlerStack` / `references`),那些本来就该能改。
 using "try.rav"
 using "math.rav"
-Ex.try { print = 1; } (e: Exception) => { print ("别名: " + string e); }
-Ex.try { int = float; } (e: Exception) => { print ("类型别名: " + string e); }
+Ex.try { print = 1; } (e: Exception) => { print ("赋值: " + string e); }
 Ex.try { true = false; } (e: Exception) => { print ("常量: " + string e); }
-Ex.try { if = 1; } (e: Exception) => { print ("控制流: " + string e); }
-Ex.try { Math.square = 1; } (e: Exception) => { print ("模块函数: " + string e); }
-Ex.try { Ex.throw = 1; } (e: Exception) => { print ("异常 API: " + string e); }
+Ex.try { Math.square := 1; } (e: Exception) => { print ("重新定义: " + string e); }
+Ex.try { Ex.throw := 1; } (e: Exception) => { print ("模块 API: " + string e); }
 
 # 状态不是 API:照旧可写
 Ex.handlerStack = [1]
 print (Ex.handlerStack)
 print (references)
 
-# 只读挡的是 `=`,挡不住 `:=` —— 那是"重新定义",和普通变量一致(见教程 readonly 一节)
-true := 1
-print true
+# 只查**本层**:块里的 `:=` 是另开一个局部变量(遮蔽),不是重新定义 —— 这条不拦
+f := () => { print := 9; print; }
+print (f ())
+print (print is function)
 print "done"
 # --- expected ---
-# 别名: 无法给只读变量 'print' 赋值
-# 类型别名: 无法给只读变量 'int' 赋值
+# 赋值: 无法给只读变量 'print' 赋值
 # 常量: 无法给只读变量 'true' 赋值
-# 控制流: 无法给只读变量 'if' 赋值
-# 模块函数: 无法给只读变量 'square' 赋值
-# 异常 API: 无法给只读变量 'throw' 赋值
+# 重新定义: 无法重新定义只读变量 'square'
+# 模块 API: 无法重新定义只读变量 'throw'
 # [1]
 # []
-# 1
+# 9
+# true
 # done

@@ -743,11 +743,14 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 | `public` | 外部可访问（默认）|
 | `private` | 仅本对象内部可访问 |
 | `protected` | 类内 + 子类实例可访问 |
-| `readonly` | `=` 赋值时报「无法给只读变量赋值」（`:=` 重定义仍可绕过，和变量的 `x := v` 一致）|
+| `readonly` | `=` 和 `:=` 都报错：「无法给只读变量赋值」/「无法重新定义只读变量」。块里的 `:=` 是另开局部变量（遮蔽），不受影响 |
 
 `lib/` 里的 API 都标了 `readonly`：`predefined.rav` 的语言级别名（`print` / `true` /
 `if` / …）、`Math` 与 `Ex` 的函数。**状态**没标（`Ex.handlerStack` / `references`）——
 那些本来就该能改。
+
+为什么连 `:=` 也挡：`:=` 换掉的是**整个 Variable**，attrs 跟着老的那个一起没 ——
+不挡的话 `true = 1` 报错、`true := 1` 静默成功，同一个「只读」两条路两个答案。
 | `unreadable` | 读取时报「变量 'x' 不可读取」|
 | `outdated` | 读取时往 stderr 打一行 `[outdated] 'x' is deprecated` |
 | `core` | 读写都需要先 `unsafe ()`，见「十一、常见陷阱」 |

@@ -26,6 +26,13 @@ public class Scope(Scope? parent = null)
 
     public virtual Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
     {
+        // **只读变量不许重新定义** —— `:=` 换掉的是整个 Variable,attrs(readonly/core/private…)
+        // 跟着老的那个一起没,于是"只读"就成了一道能随手绕过的门:
+        //     true = 1        → 无法给只读变量 'true' 赋值      ✓ 拦住了
+        //     true := 1       → 从前静默成功,而且 readonly 就此消失
+        // 只查**本层**:在外层作用域里 `x := 1` 是新开一个局部变量(遮蔽),不是重新定义。
+        if (_vars.TryGetValue(name, out var old) && old.HasAttr(Attr.Readonly))
+            throw new RuntimeException($"无法重新定义只读变量 '{name}'");
         var v = new Variable(name, typeConstraint, initialValue);
         _vars[name] = v;
         return v;
