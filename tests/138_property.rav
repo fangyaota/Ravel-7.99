@@ -31,6 +31,17 @@ Ex.Try { d.bad += 1; } (e: Exception) => { print ("3: " + string e); }
 Ex.Try { d.read (); } (e: Exception) => { print ("4: " + string e); }
 Ex.Try { d.write 1; } (e: Exception) => { print ("5: " + string e); }
 
+# 例外只有 `default`:它是**属性的默认值**(一对什么都不做的 getter/setter,见 tests/212),
+# 槽里于是有个能读能写、只是都不做事的属性。别的非 property 值(上面那些 bad)照旧报错。
+DL ::= class {
+    init := () => { 0; this; }
+    by dl: int = default
+}
+dl := DL ()
+print (dl.dl)
+print (dl.dl = 1)
+print (dl.dl)
+
 # `by a: int = …` 的注解管的是**写进来的值**(和普通字段一个道理):
 # 从前这条注解会被拿去比那个 PropertyVal,一实例化就报「无法将 Property 赋值给 Integer」。
 E ::= class {
@@ -150,6 +161,9 @@ print (t.added)
 # 3: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
 # 4: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
 # 5: 'bad' 标了 by，但它的值不是 property（Integer 上没有 setter）
+# ()
+# 1
+# ()
 # 1
 # 7
 # 9

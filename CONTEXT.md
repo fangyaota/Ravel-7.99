@@ -452,6 +452,13 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 | `by a` / `by a.x`（`SlotExpr`，表达式）| **取出那份 property 本身**：不过 getter，拿到的是普通值 |
 
 后两条是"属性本身"那半边（绕开 getter/setter），前两条是"属性值"那半边。
+
+**`default` 是"属性的默认值"**（`BuiltinClasses.DefaultProperty`，五个写入点共用
+`Nodes.cs` 的 `SlotValue`）：一对什么都不做的 `FunctionVal` —— `Get = () => { (); }`、
+`Set = (_: object) => { (); }`。和 `int default` 给 0、`function default` 给空函数同一个道理。
+所以 `by a: int = default` 的槽里是个**能读能写、都不做事**的属性（读 `()`、写丢掉），
+它**没有状态**，因此 `CopyScope` 让副本和原件共享同一个是对的。别的非 `property` 值
+（`by bad := 5`）不在此列 —— 第一次读/写照旧当场报错。
 `SlotExpr` **不能把整条路径当普通表达式求** —— `by c.n` 求 `c.n` 就走 getter 了，
 那正是要绕开的；所以 `by a` 直接查变量、`by a.x` 只求接收者 `c`。门禁和成员读同一套。
 

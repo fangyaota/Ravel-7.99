@@ -255,6 +255,9 @@ public partial class Interpreter
         var isBy = v.Attrs?.Contains(Attr.By) ?? false;
 
         var val = nf.Result(valueAt);
+        // `by a: T = default`:那个 `default` 是**属性的默认值**(一对什么都不做的
+        // getter/setter),不是 int 的 0 —— 注解管的是写进来的值,和这一份无关。
+        if (isBy) val = SlotValue(val);
         // 普通字段:注解管的是这一份值,当场比对/隐式转换。
         // `by`:值是个 PropertyVal,注解管的是**属性那个值** ——
         // 拿它去比的话,`by n: int = property …` 一实例化就报「无法将 Property 赋值给 Integer」,
@@ -332,6 +335,14 @@ public partial class Interpreter
             throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）");
     }
 
+    /// <summary>要放进槽里的值:`default` 换成**属性的默认值**(一对什么都不做的 getter/setter,
+    /// 见 <see cref="BuiltinClasses.DefaultProperty"/>),其余原样。
+    ///
+    /// 别的非 property 值不在这儿管 —— `by bad := 5` 那种第一次读/写时会报出来,
+    /// 保持"当场报错、别静默"那条。**声明和换槽(四个分支)共用这一处**。</summary>
+    private static RuntimeValue SlotValue(RuntimeValue v)
+        => v is DefaultVal ? BuiltinClasses.DefaultProperty() : v;
+
     /// <summary>`by a = X` / `by a.x = X` —— **换掉槽里的那份 property**(不走旧 setter);
     /// `:=` 那种是**在那个对象上把槽建出来**(`by a.x := X`)。和 <see cref="StepSlot"/>(取槽)
     /// 对称:同一个"槽路径",一边读一边写。
@@ -356,6 +367,7 @@ public partial class Interpreter
             if (v == null)
             {
                 if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'");
+                val = SlotValue(val);
                 v = nf.Scope.DefineOrReplace(id.Name, BuiltinClasses.Any, val);
                 v.SetAttr(Attr.By);
                 Return(nf, val);
@@ -365,7 +377,7 @@ public partial class Interpreter
             if (v.HasAttr(Attr.Core) && !IsUnsafe)
                 throw new RuntimeException($"字段 '{id.Name}' 是核心字段，需要 unsafe");
             CheckSlot(v, id.Name);
-            v.ReplaceSlot(val);
+            v.ReplaceSlot(SlotValue(val));
             Return(nf, val);
             return;
         }
@@ -391,6 +403,7 @@ public partial class Interpreter
         if (sa.Define)
         {
             // `:=`:在那个对象上建槽(成员不存在也行,和 `obj.a := v` 一条规矩:定义不查门禁)
+            val2 = SlotValue(val2);
             var made = obj.Scope.DefineOrReplace(ma.Member, BuiltinClasses.Any, val2);
             made.SetAttr(Attr.By);
             Return(nf, val2);
@@ -400,7 +413,7 @@ public partial class Interpreter
         var field = obj.Scope.LookupField(ma.Member) ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
-        field.ReplaceSlot(val2);
+        field.ReplaceSlot(SlotValue(val2));
         Return(nf, val2);
     }
 

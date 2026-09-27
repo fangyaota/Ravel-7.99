@@ -1061,14 +1061,46 @@ print (p.name)      # getter → "Alice"
 
 `property getter setter` 两个参数都是函数。
 
-`by` 和 `property` 是**两半**：`by` 是那个标记，值得由 `property` 造出来。写错了（比如
-`by v := 5`）读写都当场报同一句话 —— 从前裸读会把那个值悄悄交出去、裸写什么都不发生：
+`by` 和 `property` 是**两半**：`by` 是那个标记，值得由 `property` 造出来 —— **或者 `default`**
+（见下）。别的值（比如 `by v := 5`）读写都当场报同一句话 —— 从前裸读会把那个值悄悄交出去、
+裸写什么都不发生：
 
 ```ravel
 by v := 5
 v          # Error: 'v' 标了 by，但它的值不是 property（Integer 上没有 getter）
 v = 1      # Error: 'v' 标了 by，但它的值不是 property（Integer 上没有 setter）
 ```
+
+### 属性的默认值（`= default`）
+
+`default` 是这类值的"空"，和 `int default` 给 `0`、`function default` 给空函数一个道理：
+**属性的默认值**就是一对什么都不做的函数
+
+```
+Get = () => { (); }
+Set = (_ : object) => { (); }
+```
+
+于是 `by a: int = default` 得到一个**能读能写、只是都不做事**的属性：读出来是 `()`、
+写进去丢掉（不报错）。这正好是"先声明、之后再装实现"要的形状：
+
+```ravel
+Trait ::= class {
+    init := () => { 0; this; }
+    by a: int = default          # 先给个空实现
+}
+t := Trait ()
+print (t.a)                      # ()
+t.a = 1                          # 丢掉了（不报错）
+by t.a = property (() => { 100; }) ((v: int) => { print "收到"; })   # 换上真实现
+print (t.a)                      # 100
+```
+
+⚠️ **写进去是静默丢掉的**：默认实现什么都不做，所以别指望它留下了什么。
+它是"还没有实现"的占位，不是带初值的自动属性（Ravel 没有后者 —— 想要存值就自己写
+`_a` + `property (() => { _a; }) ((v) => { _a = v; })`）。
+
+它没有状态，所以 `with` / `Copy ()` 让副本和原件共享同一个也无害。
 
 **可以标类型**：`by n: int = property g s` —— 注解管的是**写进来的值**（和普通字段一个
 道理：Ravel 只约束赋值，从不检查某个函数返回什么）。所以 getter 返回什么没人管，

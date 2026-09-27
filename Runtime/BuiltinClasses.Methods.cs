@@ -284,6 +284,21 @@ internal static partial class BuiltinClasses
         });
     }
 
+    /// <summary>**属性的默认值** —— 一对什么都不做的函数:
+    ///
+    ///     Get = () => { (); }
+    ///     Set = (_ : object) => { (); }
+    ///
+    /// 和 `int default` 给 `0`、`function default` 给空函数是同一个道理:
+    /// `by a: int = default` 里那个 `default` 就是它 —— 槽里先放一个**能读能写、
+    /// 但什么都不做**的属性(读出来是 `()`、写进去丢掉),之后用 `by a = property g s`
+    /// 把真实现换上。
+    ///
+    /// 它**没有状态**,所以 `with` / `Copy ()` 让副本和原件共享同一个也无害
+    /// (`CopyScope` 那条复制路不用为它做任何事)。</summary>
+    internal static PropertyVal DefaultProperty()
+        => new(FunctionVal.From(_ => VoidVal.Instance), FunctionVal.From(_ => VoidVal.Instance));
+
     /// <summary>把一个变量包成 property(getter 读、setter 写),attrs 原样带上。
     /// `scope.Lookup` 和 `scope.Variables` 都要这一套 —— 从前各写了一遍。
     ///
