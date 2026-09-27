@@ -1413,6 +1413,11 @@ myImplement.Dispose ()
 use myImplement          # 在你 use 的这个作用域里重新生效
 ```
 
+#### 只有 `is` 认接口
+
+类型注解走的是继承链，接口不在这条链上，所以 `x : myTrait = u` 会报「无法将 myClass 赋值给 myTrait」。
+要按接口判定就写 `u is myTrait`（实现本身反过来天然成立：`myImplement is myTrait` 为真）。
+
 #### 叠几个实现
 
 同一个作用域里 `use` 两次：**后 use 的先试**，它没有那个名字时再回头试前一个。
