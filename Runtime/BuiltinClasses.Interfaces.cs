@@ -60,53 +60,57 @@ internal static partial class BuiltinClasses
     /// 所以这一个值可以给所有接口共用。</summary>
     private static FunctionVal _interfaceInit = null!;
 
-    /// <summary>`interface` 的 init。四种写法加"造实现"都落在**一个**参数上,而且第二三个参数是
-    /// **可选**的(`interface 某接口 [A B] { … }`),所以在 C# 里按形状判 ——
+    /// <summary>`interface` 的 init,按参数类型分流(和 `type` 那套一个路子):
     ///
-    /// 用 `Alternate` 也能写:第二个参数前面再挂一个分流器(代码块一支、要求表一支;
-    /// 两次**先后**应用,不是嵌套,那条"不能嵌套"的禁忌管不着)。只是那样要两个分流器、
-    /// 六个小闭包,而且杂七杂八的输入会落到「| 的 N 个分支都不收这个参数」上 ——
-    /// 想把"后面能跟什么"和"只能继承接口"分成两句话说,还得再加一支兜底。
-    /// 这套手写的一眼看得出:先代码块、再要求表、再接口(可带要求表)、剩下的归"造实现"或报错。
+    ///     interface { … }                  代码块 —— 不继承、不要求
+    ///     interface 某接口 { … }            接口 —— 继承一个父
+    ///     interface 某接口 [A B] { … }      接口,后面再跟一张**要求**表
+    ///     myTrait 某个类 { … }              类 —— 造实现(本体不是 `interface` 时)
     ///
-    ///     interface { … }                  不继承、不要求
-    ///     interface 某接口 { … }            一个父(**继承**:槽并进来、`<:` 成立)
-    ///     interface 某接口 [A B] { … }      一个父 + 一串**要求**(前置条件)
-    ///     interface [A B] { … }            只有要求
-    ///     myTrait 某个类 { … }              造实现(本体不是 `interface` 时)
+    /// 「要求」和「父」是两回事:父是**继承**(槽并进来、`<:` 成立),要求是**前置条件** ——
+    /// 实现这个接口的类必须**已经**有那些接口的实现(槽不并、`<:` 不成立,只查在不在;
+    /// 查在造实现那一步,见 `StepImplMake`)。光有要求、没写父的 `interface [A B] { … }` **不收**。
     ///
-    /// 「要求」和「父」是两回事:父是继承,要求是"实现这个接口的类必须**已经**有那些接口的实现"
-    /// —— 槽不并进来、`<:` 也不成立,只查在不在(查在造实现那一步,见 `StepImplMake`)。</summary>
+    /// **顺序是载荷**:接口和类是同一支(都声明 `Type`,进到分支体里靠"谁在造"再分),
+    /// 得排在代码块那支前面 —— `ClassVal : FunctionVal`,反过来类对象和接口都会被它吃掉。
+    ///
+    /// 第二三个参数是**可选**的,所以接口那支交出去的又是**一个小分流器**(要求表 / 代码块)
+    /// —— 那是先后两次应用,不是嵌套;那条"不能嵌套"管的是同一个帧里试分支。</summary>
     private static void InstallInterfaceInit()
     {
-        _interfaceInit = new NativeClosure("_", Any, (scope, arg) =>
+        // 接口 / 类:一个类型,接着等代码块(接口还允许先来一张要求表)
+        var ofArg = new NativeClosure("of", Type, (scope, of) =>
         {
             // 本体(`this` 的类型)就是"谁在造":`interface …` 时它是 `Interface` 自己,
             // `某接口 某个类 { … }` 时它是那个接口 —— 靠它把"接口继承"和"类实现"分开。
             var driver = ((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type;
 
-            if (arg is BlockVal blk)
-                return BuildInterface(scope, null, [], blk);
+            if (of is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface))
+                return Alternate(
+                    new NativeClosure("requires", List, (_, rs) =>
+                        FunctionVal.From(body => BuildInterface(scope, o, Requirements((ListVal)rs), body))),
+                    new NativeClosure("body", Function, (_, body) => BuildInterface(scope, o, [], body)));
 
-            if (arg is ListVal list)
-                return FunctionVal.From(body => BuildInterface(scope, null, Requirements(list), body));
-
-            if (arg is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface))
-                return FunctionVal.From(next => next is ListVal reqs
-                    ? FunctionVal.From(body => BuildInterface(scope, o, Requirements(reqs), body))
-                    : BuildInterface(scope, o, [], next));
-
-            // 到这儿:既不是代码块、不是要求表、也不是接口 —— 要么是"给某个类实现"(造实现),
-            // 要么是 `interface` 用错了
             if (driver == Interface)
-                throw new RuntimeException(arg is ObjectVal { IsClass: true }
-                    ? $"`interface` 只能继承接口（{arg} 是个类）；要给某个类实现接口就写成 `某个接口 那个类 {{ … }}`"
-                    : "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）"
-                      + $"或一串要求（`interface [A B] {{ … }}`），得到 {arg.Type}");
+                throw new RuntimeException($"`interface` 只能继承接口（{of} 是个类）；"
+                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`");
 
-            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(arg));
+            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(of));
         });
 
+        // 代码块:不继承、不要求
+        var bodyArg = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, null, [], body));
+
+        // 光有要求、没写父 —— 不收
+        var listArg = new NativeClosure("requires", List, (_, _) => throw new RuntimeException(
+            "要求得跟在父接口后面：`interface 那个接口 [A B] { … }`"));
+
+        // 别的:把能写什么说全(不然只会得到「| 的 N 个分支都不收这个参数」)
+        var junkArg = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
+            "`interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），"
+            + $"得到 {v.Type}"));
+
+        _interfaceInit = Alternate(ofArg, bodyArg, listArg, junkArg);
         Interface.ClassBody = PresetCtor(_interfaceInit);
     }
 

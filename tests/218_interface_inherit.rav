@@ -2,7 +2,8 @@
 #
 #     supTrait    ::= interface myTrait { by c : int = default }        # 一个父(继承)
 #     masterTrait ::= interface supTrait [IEnumerable] { () }           # 父 + 要求
-#     reqOnly     ::= interface [IEnumerable] { () }                    # 只有要求
+#
+# 光有要求、没写父的 `interface [A B] { … }` 不收(要求得跟在父后面)。
 #
 # 「父」和「要求」是两回事:
 # - 父是**继承**:槽并进来(`by … = default` 抄进子接口的类体)、`<:` 成立;
@@ -25,10 +26,6 @@ masterTrait ::= interface supTrait [IEnumerable] {
     ()
 }
 
-reqOnly ::= interface [IEnumerable] {
-    ()
-}
-
 # ---- 谁继承谁 ----
 print (supTrait.Parent ())
 print (masterTrait.Parent ())
@@ -36,9 +33,8 @@ print (supTrait <: myTrait)
 print (masterTrait <: supTrait)
 print (masterTrait <: myTrait)
 
-# ---- 要求不是继承:<: 不成立 ----
+# ---- 要求不是继承:`<:` 不成立 ----
 print (masterTrait <: IEnumerable)
-print (reqOnly <: IEnumerable)
 
 
 C ::= class {
@@ -75,21 +71,6 @@ print (u is IEnumerable)
 foreach u (v: int) => { print ("each " + string v); }
 print (C.GetImplements ())
 
-# ---- 只有要求的接口:同样得先有那一份实现 ----
-try {
-    impl (reqOnly D {
-        ()
-    })
-} (e: Exception) => { print ("2: " + string e); }
-impl (IEnumerable D {
-    by GetEnumerator = property (() => { () => { Enumerator [instance.y]; }; }) ((v: function) => { (); })
-})
-impl (reqOnly D {
-    ()
-})
-print (D () is reqOnly)
-print (D () is IEnumerable)
-
 # ---- 同名槽:自己的说了算 ----
 SameTrait ::= interface myTrait {
     by a : string = default
@@ -119,13 +100,15 @@ try {
 try {
     interface C { () }
 } (err: Exception) => { print ("6: " + string err); }
+try {
+    interface [IEnumerable] { () }
+} (err: Exception) => { print ("7: " + string err); }
 # --- expected ---
 # myTrait
 # supTrait
 # true
 # true
 # true
-# false
 # false
 # 1: `masterTrait` 要求 C 已经实现了 IEnumerable（先给它 impl/use 一条）
 # 10
@@ -135,12 +118,10 @@ try {
 # true
 # each 5
 # [masterTrait supTrait myTrait IEnumerable]
-# 2: `reqOnly` 要求 D 已经实现了 IEnumerable（先给它 impl/use 一条）
-# true
-# true
 # hi
 # 3: 类型错误: 无法将 Integer 赋值给 'a' (声明为 String)
 # 5
-# 4: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）或一串要求（`interface [A B] { … }`），得到 Integer
+# 4: `interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），得到 Integer
 # 5: 要求表里得全是接口，第 2 个是 Integer
 # 6: `interface` 只能继承接口（C 是个类）；要给某个类实现接口就写成 `某个接口 那个类 { … }`
+# 7: 要求得跟在父接口后面：`interface 那个接口 [A B] { … }`

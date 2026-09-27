@@ -520,7 +520,6 @@ IEnumerator ::= interface { by MoveNext : function = default
   ```ravel
   supTrait    ::= interface myTrait { by c : int = default }   # 一个父(继承)
   masterTrait ::= interface supTrait [IEnumerable] { () }      # 父 + 要求
-  reqOnly     ::= interface [IEnumerable] { () }               # 只有要求
   ```
 
   **父是继承**:槽取并集(父的 + 自己的;同名以自己写的为准),`<:` 沿着继承走
@@ -533,9 +532,10 @@ IEnumerator ::= interface { by MoveNext : function = default
 
   实现上:链上挂那一个父(`parent`,类型树/`Subtypes ()`/成员查找/实例化全照旧),
   父的**声明**在造子接口时抄进它的类体(`BakeInterfaceInit`),于是"接口的形"自足 ——
-  `StepImplMake` 那两段照旧;`interface` 的 init 是**一个 C# 分流器**(四种写法都在一个参数上,
-  而且第二三个可选,`Alternate` 表达不了):代码块 / 要求表 / 接口〔后面可再跟一张要求表〕/
-  类〔造实现〕/ 兜底报错。
+  `StepImplMake` 那两段照旧;`interface` 的 init 走 `Alternate`:接口与类合成一支
+  (都声明 `Type`,进到体里靠"谁在造"再分;排在代码块那支前面,不然 `ClassVal : FunctionVal`
+  会把它们吃掉)、代码块一支、光有要求的一支(专门说"要求得跟在父后面")、兜底一支
+  —— 接口那支交出去的又是**一个小分流器**(要求表 / 代码块):先后两次应用,不是嵌套。
 
 - **两个方向的查询**(都在 `Type` 上,所以任何类型对象、接口对象都有):
   - `T.GetImplements ()` —— 这个类型**现在**实现了哪些接口(接口对象组成的 list);
