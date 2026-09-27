@@ -1172,6 +1172,10 @@ someone.nick = "Bob"      # 走装上去的那个 setter
 「'plain' 不是 by 属性」）；`by a.x` **取**值那种只在表达式里写（语句开头只有换槽的写法，
 `by a.x` 单独一行没有落脚点）。
 
+**`readonly` 对 by 槽一样管**：`readonly by r := property g s` 之后，`r = 1`、`r += 1`、
+`by r = …` 三条路都报「无法给只读变量 'r' 赋值」（赋值走的是 setter，不经过变量那条路，
+所以这三处各自问了一次）。
+
 ⚠️ `by` 声明必须写在**类体一级**，不能写在 `init` 里面——`init` 是个 lambda，
 它的块有自己的局部作用域，写在里面的 `by name := ...` 挂不到对象上，`p.name` 只会报
 

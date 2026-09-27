@@ -130,9 +130,13 @@ public partial class Parser
         if (attrs.Count > 0)
         {
             // `by a = X` / `by a.x = X`:换掉槽里的那份 property(见 SlotAssign)。
-            // 只有 `by` 有这个形态:别的修饰符后面跟 `=` 还是错的(`readonly x = 5`)——
+            // 只有 `by` 这一个修饰符有这个形态:别的修饰符后面跟 `=` 还是错的(`readonly x = 5`)——
             // `by` 特殊在它修饰的那个名字可以**是个属性槽**,而槽里的东西是可以换的。
-            if (attrs.Contains(Attr.By) && IsSlotAssignStart())
+            //
+            // **必须 `attrs.Count == 1`**:SlotAssign 那条路不接别的修饰符,混着写会
+            // 把它们**静默丢掉**(`readonly by r := property …` 里的 readonly 就是这么没的)。
+            // 带别的修饰符时落回 `ParseDefinition`,那边会把 attrs 一个个装上。
+            if (attrs.Count == 1 && attrs.Contains(Attr.By) && IsSlotAssignStart())
                 return ParseSlotAssign();
 
             // 语句开头的 `by a.x` 取槽没地方落脚(那是**表达式**,见 SlotExpr)

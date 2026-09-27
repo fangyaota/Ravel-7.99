@@ -468,6 +468,14 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 就是报错（从前四条路三个答案，其中裸读会静默交出那个值、裸写什么都不发生）。
 
 attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`Attrs ()` 也读那一份。
+**`readonly` 对 by 槽也管**：`Variable.CheckWritable` 是写入侧的公共门，
+`Assign` / `ReplaceSlot` / `WriteVariable` 的 by 分支 / `StepByCompoundAssign` 的写那步
+四处都问它（by 那半走 setter，不经过 `Assign`，漏一处"只读"就漏一个口子）。
+
+**`SlotAssign` 那条路只接 `by` 一个修饰符**（`Parser.Statements.cs` 的
+`attrs.Count == 1 && attrs.Contains(Attr.By) && IsSlotAssignStart()`）：混着别的修饰符
+（`readonly by r := property …`）会落回 `ParseDefinition`，那边才把 attrs 一个个装上 ——
+曾经不查这一条时，`readonly` 会被 SlotAssign 静默丢掉。
 
 **类型注解**（`by n: int = …`）管的是**写进来的值**：`StepVarDef` 对 `by` 声明**不**拿注解去比
 那份值（比了就是「无法将 Property 赋值给 Integer」），而是把注解记成约束，由写入那侧

@@ -207,7 +207,9 @@ public partial class Interpreter
 
         if (nf.Count == 4)
         {
-            // 算好的新值也要过 `by a: int` 那道约束(和普通赋值一条路,见 WriteVariable)
+            // 算好的新值也要过 `by a: int` 那道约束、以及 readonly
+            // (和普通赋值一条路,见 WriteVariable)
+            field.CheckWritable();
             field.CheckAssignable(nf.Result(3));
             CallInto(nf, PropertySetter(prop, member), nf.Result(3));
             return;

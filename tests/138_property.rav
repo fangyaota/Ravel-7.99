@@ -151,6 +151,25 @@ print (by t.added)
 # `=` 那边的正例:槽已经在了,换掉它
 by t.added = property (() => { 43; }) ((v: int) => { 0; })
 print (t.added)
+
+# readonly 对 by 槽也管:赋值走的是 setter(不经过 `Variable.Assign`),
+# 漏了的话"只读"在属性上就是句空话。`by` 那条路一个都不放过:赋值/复合赋值/换槽。
+Ro ::= class {
+    init := () => { _r = 1; this; }
+    _r: int = 1
+    readonly by r := property (() => { _r; }) ((v: int) => { _r = v; })
+    readonly by d: int = default
+}
+ro := Ro ()
+print (ro.r)
+Ex.Try { ro.r = 9; } (e2: Exception) => { print ("14: " + string e2); }
+Ex.Try { ro.r += 1; } (e2: Exception) => { print ("15: " + string e2); }
+Ex.Try { by ro.r = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("16: " + string e2); }
+Ex.Try { ro.d = 2; } (e2: Exception) => { print ("17: " + string e2); }
+print (ro.r)
+# 混着别的修饰符的换槽写法没有定义(`=` 那条只在**只有** by 时才是换槽)——
+# 从前这种会被当成换槽、然后把它静默丢掉
+Ex.Try { eval "readonly by z = 1"; } (e2: Exception) => { print ("18: " + string e2); }
 # --- expected ---
 # 99
 # 7
@@ -196,3 +215,10 @@ print (t.added)
 # [init added is isnot ToString Copy Fields]
 # <property>
 # 43
+# 1
+# 14: 无法给只读变量 'r' 赋值
+# 15: 无法给只读变量 'r' 赋值
+# 16: 无法给只读变量 'r' 赋值
+# 17: 无法给只读变量 'd' 赋值
+# 1
+# 18: 修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）

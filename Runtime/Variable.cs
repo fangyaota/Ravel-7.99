@@ -15,9 +15,18 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
 
     public void Assign(RuntimeValue newValue)
     {
-        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
+        CheckWritable();
         CheckAssignable(newValue);
         Value = newValue;
+    }
+
+    /// <summary>这个变量能不能写。**每个写入点都得问它一次** ——
+    /// `by` 属性的赋值走的是 setter(`WriteVariable` / `StepByCompoundAssign` 推的那帧),
+    /// 不经过 <see cref="Assign"/>;漏了的话 `readonly` 在属性上就是句空话。
+    /// (从前 `Assign` 和 <see cref="ReplaceSlot"/> 各抄了一遍那句消息。)</summary>
+    public void CheckWritable()
+    {
+        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
     }
 
     /// <summary>换掉槽里的东西(`by a = X`)。
@@ -28,7 +37,7 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
     /// readonly 照样挡(只读的是这个槽,不只是它的值)。</summary>
     public void ReplaceSlot(RuntimeValue newValue)
     {
-        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
+        CheckWritable();
         Value = newValue;
     }
 

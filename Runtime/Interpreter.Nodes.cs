@@ -457,6 +457,9 @@ public partial class Interpreter
         {
             // `by a: int = …` 的注解在这一侧执行 —— 和普通字段一样,约束的是**写进来的值**。
             // (读那一侧不管:Ravel 从不检查某个函数返回什么,getter 也一样。)
+            // readonly 也在这侧:赋值走的是 setter,不经过 `Variable.Assign`,
+            // 不问的话"只读"在属性上就是句空话。
+            field.CheckWritable();
             field.CheckAssignable(val);
             PushCallReturn(nf.Parent!, PropertySetter(field.Value, field.Name), val, val);
             return;
