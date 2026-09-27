@@ -58,8 +58,17 @@ s := Sub ()
 print s.a
 print (s is T)
 
+# 实现的副本:`Dispose` 读出来时才绑接收者,所以绑的是**副本自己**,不误伤原件
+copy := one.Copy ()
+use copy
+print c.a
+copy.Dispose ()
+print c.a
+
 # 不是实现的东西
 Ex.Try { use 5; } (e: Exception) => { print ("3: " + string e); }
+# `interface 某个类型 { … }` 是"接口继承"的意思 —— 还没这东西,当场报出来
+Ex.Try { eval "interface int {\n    by q : int = default\n}"; } (e: Exception) => { print ("4: " + string e); }
 # --- expected ---
 # 2
 # 20
@@ -74,4 +83,7 @@ Ex.Try { use 5; } (e: Exception) => { print ("3: " + string e); }
 # 2: 类型 'C' 没有方法 'a'
 # 1
 # true
+# 1
+# 1
 # 3: use 要的是「接口 类 实现」造出来的实现，得到 Integer
+# 4: `interface` 后面要跟一个代码块（`interface { … }` 才是造接口）；实现写成 `myTrait myClass { … }`，第一个得是接口（用 `interface { … }` 造出来的那个）

@@ -219,6 +219,14 @@ public partial class Interpreter
     private void StepImplMake(ControlFrame cf)
     {
         var trait = cf.Arg<ClassVal>(0, "ImplMake");
+
+        // `interface 某个类型 { … }` 也落得到这儿(第一个参数是个类型,类型上对得上),
+        // 但那是"接口继承接口"的意思,还没这东西 —— 当场说清楚,别造一个 trait = interface 的怪东西
+        if (trait == BuiltinClasses.Interface)
+            throw new RuntimeException(
+                "`interface` 后面要跟一个代码块（`interface { … }` 才是造接口）；"
+                + "实现写成 `myTrait myClass { … }`，第一个得是接口（用 `interface { … }` 造出来的那个）");
+
         var target = cf.Arg<ObjectVal>(1, "ImplMake");
         var body = cf.Arg<BlockVal>(2, "ImplMake");
 

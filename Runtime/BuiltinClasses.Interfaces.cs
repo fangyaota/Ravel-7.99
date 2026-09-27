@@ -64,18 +64,25 @@ internal static partial class BuiltinClasses
                 // 所以 `this` 是它的一个实例(ClassVal),它的 Type 才是接口本身那个类对象。
                 .Add(((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type)
                 .Add(target)));
-        var oneArg = new NativeClosure("body", Function, (scope, body) => Install(scope, Interface, body));
+        var oneArg = new NativeClosure("body", Function, (scope, body) =>
+        {
+            var trait = Install(scope, Interface, body);
+            // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
+            // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
+            // **拿到的那个实现** —— `Copy ()` / `with` 出来的副本绑的是它自己,不会误伤原件。
+            trait.DefineMethod(DisposeMember, (self, _) => DisposeImplementation((ObjectVal)self));
+            return trait;
+        });
         Interface.ClassBody = PresetCtor(Alternate(twoArg, oneArg));
     }
 
-    /// <summary>实现对象的最后一道装填:目标类、代号、`Dispose`、`this`。
-    /// 槽和 `instance` 的位子是前面两段类体跑出来的,这里不碰。</summary>
+    /// <summary>实现对象的最后一道装填:目标类、代号、`this`。
+    /// 槽和 `instance` 的位子是前面两段类体跑出来的,这里不碰;`Dispose` 挂在接口那份上。</summary>
     internal static void FinishImplementation(ObjectVal impl, ObjectVal target)
     {
         impl.Scope.Define(TargetMember, Type, target);
         impl.Scope.Define(GenerationMember, Int, new IntVal(0)).SetAttr(Attr.Unreadable);
         impl.Scope.Define(ObjectVal.ThisMember, impl.Type, impl);
-        impl.Scope.Define(DisposeMember, Function, FunctionVal.From(_ => DisposeImplementation(impl)));
     }
 
     /// <summary>`use impl`:把实现登记进**当前作用域**。登记在 scope 上(不是类上、不是名字上),
