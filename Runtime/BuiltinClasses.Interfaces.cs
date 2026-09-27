@@ -37,8 +37,12 @@ internal static partial class BuiltinClasses
     internal const string InstanceMember = "instance";
     /// <summary>实现对象身上的目标类(`myTrait myClass { … }` 的那个 `myClass`)。</summary>
     internal const string TargetMember = "target";
-    /// <summary>实现对象登记过哪些作用域(ScopeVal 的列表),`Dispose` 按它摘登记。</summary>
-    internal const string UsedMember = "used";
+    /// <summary>实现的**代号**:每 `Dispose` 一次 +1,登记表里的每条都记着"登记时它几岁"。
+    /// 这样 `Dispose` 只需把自己加一岁(O(1)、幂等、在哪个作用域调都一样)—— 已经登记过的
+    /// 那些**统统作废**,而之后在哪 `use` 就在哪重新记一条新的(那个作用域于是又活了)。
+    /// 不做成"从每个登记过的作用域里摘掉":那要记一份 (实现 × 作用域) 的账,
+    /// 在循环里调一次带 `use` 的函数就会一直长,而 scope 一消失那笔账还没法销。</summary>
+    internal const string GenerationMember = "generation";
     /// <summary>登记表挂在**作用域**上。名字里的 `$` 不在 Ravel 标识符字符集里
     /// (见 Lexer 的 ReadIdentifier:只认字母/数字/下划线),所以用户写不出这个名字,永远不会撞
     /// (`use` 这个名字本身已经是全局只读别名了,更不能拿来做键)。</summary>
@@ -64,19 +68,18 @@ internal static partial class BuiltinClasses
         Interface.ClassBody = PresetCtor(Alternate(twoArg, oneArg));
     }
 
-    /// <summary>实现对象的最后一道装填:目标类、登记表、`Dispose`、`this`。
+    /// <summary>实现对象的最后一道装填:目标类、代号、`Dispose`、`this`。
     /// 槽和 `instance` 的位子是前面两段类体跑出来的,这里不碰。</summary>
     internal static void FinishImplementation(ObjectVal impl, ObjectVal target)
     {
         impl.Scope.Define(TargetMember, Type, target);
-        var used = new ListVal([]);
-        impl.Scope.Define(UsedMember, List, used).SetAttr(Attr.Unreadable);
+        impl.Scope.Define(GenerationMember, Int, new IntVal(0)).SetAttr(Attr.Unreadable);
         impl.Scope.Define(ObjectVal.ThisMember, impl.Type, impl);
         impl.Scope.Define(DisposeMember, Function, FunctionVal.From(_ => DisposeImplementation(impl)));
     }
 
     /// <summary>`use impl`:把实现登记进**当前作用域**。登记在 scope 上(不是类上、不是名字上),
-    /// 于是它随作用域在/不在;`Dispose` 只是提前摘掉。返回实现本身,方便接着写别的。</summary>
+    /// 于是它随作用域在/不在。返回实现本身,方便接着写别的。</summary>
     internal static RuntimeValue Use(Interpreter interp, RuntimeValue v)
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
@@ -85,6 +88,9 @@ internal static partial class BuiltinClasses
         return impl;
     }
 
+    /// <summary>登记一条:把 `[实现, 登记时代号]` 放进这个作用域的表里。
+    /// 同一个实现在同一个作用域只留最新那一条(重 `use` 就是"在这儿重新登记一次",
+    /// 于是被 `Dispose` 作废过的实现在这个作用域里又生效了,别的作用域不受影响)。</summary>
     internal static void RegisterUse(Scope scope, ObjectVal impl)
     {
         if (scope.LookupField(UseRegMember)?.Value is not ListVal reg)
@@ -93,23 +99,30 @@ internal static partial class BuiltinClasses
             scope.DefineOrReplace(UseRegMember, List, reg).SetAttr(Attr.Unreadable);
         }
 
-        if (!reg.Elements.Any(x => ReferenceEquals(x, impl))) reg.Elements.Add(impl);
-
-        // 实现这一侧记下登记过哪些作用域,`Dispose` 靠它摘
-        if (impl.Scope.LookupField(UsedMember)?.Value is ListVal used
-            && !used.Elements.Any(x => x is ScopeVal sv && sv.Inner == scope))
-            used.Elements.Add(new ScopeVal(scope));
+        reg.Elements.RemoveAll(x => x is ListVal e && e.Elements.Count > 0 && ReferenceEquals(e.Elements[0], impl));
+        reg.Elements.Add(new ListVal([impl, new IntVal(Generation(impl))]));
     }
 
-    /// <summary>`Dispose ()`:把 `used` 里每个作用域上的登记摘掉。可重复调(第二次没东西可摘)。</summary>
+    /// <summary>`Dispose ()`:把实现加一岁,已经登记过的那些条目统统作废。O(1)、幂等、
+    /// 在哪个作用域调都一样 —— 取消的是这个实现。</summary>
     private static RuntimeValue DisposeImplementation(ObjectVal impl)
     {
-        if (impl.Scope.LookupField(UsedMember)?.Value is ListVal used)
-            foreach (var e in used.Elements)
-                if (e is ScopeVal sv && sv.Inner.LookupField(UseRegMember)?.Value is ListVal reg)
-                    reg.Elements.RemoveAll(x => ReferenceEquals(x, impl));
-
+        if (impl.Scope.LookupField(GenerationMember) is { } gen)
+            gen.Assign(new IntVal(((IntVal)gen.Value).Value + 1));
         return VoidVal.Instance;
+    }
+
+    private static int Generation(ObjectVal impl)
+        => impl.Scope.LookupField(GenerationMember)?.Value is IntVal g ? g.Value : 0;
+
+    /// <summary>这条登记还作数吗:实现还在、代号没被 `Dispose` 顶掉。</summary>
+    private static bool IsLiveEntry(RuntimeValue entry, out ObjectVal impl)
+    {
+        impl = null!;
+        if (entry is not ListVal e || e.Elements.Count < 2) return false;
+        if (e.Elements[0] is not ObjectVal o) return false;
+        impl = o;
+        return e.Elements[1] is IntVal g && g.Value == Generation(o);
     }
 
     /// <summary>接口槽的兜底查找。**常规查找先说话**:自己那层 + 类链(还有类型那层的运算符)里
@@ -132,7 +145,7 @@ internal static partial class BuiltinClasses
 
             for (var i = reg.Elements.Count - 1; i >= 0; i--)
             {
-                if (reg.Elements[i] is not ObjectVal impl) continue;
+                if (!IsLiveEntry(reg.Elements[i], out var impl)) continue;
                 if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
                 if (!receiver.Type.IsAssignableTo(target)) continue;
 
@@ -166,7 +179,7 @@ internal static partial class BuiltinClasses
             if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
 
             foreach (var e in reg.Elements)
-                if (e is ObjectVal impl && impl.Type == trait
+                if (IsLiveEntry(e, out var impl) && impl.Type == trait
                     && impl.Scope.LookupField(TargetMember)?.Value is ObjectVal target
                     && obj.Type.IsAssignableTo(target))
                     return true;

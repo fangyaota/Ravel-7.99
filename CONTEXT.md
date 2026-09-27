@@ -102,8 +102,6 @@ lib/
                           **没有继承关系**,只是同样有 Bind/Map 所以能进 do 块
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
-  std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
-                          (元类特性还没实现,todo 用例全是它:117/118/121/122)
 
 tests/                    golden test(普通 + expect-error + todo + fixture),个数以目录为准
 
@@ -164,6 +162,7 @@ Object (parent=自己)
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
 │   └── Type          ← 用户类挂这下面(类自己没名字,显示成 class)
+│       └── Interface ← `interface`;它造的"接口"也是类对象,挂它下面
 ├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
 ├── Void / Exception / Ravel(模块) / Scope / Property
 ├── Any (顶类型, parent=自己)
@@ -184,11 +183,11 @@ Object (parent=自己)
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
 **类型**: Integer String Bool Float BigInteger Fraction BigFraction
-        List Set Dict Object Void Function Type
+        List Set Dict Object Void Function Type Interface
         Any Every Exception ValueType
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
-        CallCC Exit With RavelMod Using unsafe
+        CallCC Exit With RavelMod Using Use unsafe
         property currentScope
 
 （`if`/`while`/`foreach`/`cacher`/`Some`/`None` 不在 System 模块里——它们在
@@ -484,6 +483,55 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 （`WriteVariable` / `StepByCompoundAssign` 过 `Variable.CheckAssignable`）执行 ——
 和普通字段一样，约束在赋值侧，读侧不管（Ravel 从不检查函数返回什么）。
 `by a := …` 不带注解时约束记 `Any`（别把 `PropertyVal` 自己的 `Property` 当约束，那会把写入全挡回去）。
+
+## 接口(interface)与实现(use)
+
+```ravel
+myTrait ::= interface {
+    by a : int = default
+    by b : function = default
+}
+myImplement := myTrait myClass {
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+}
+use myImplement          # 只在这个作用域里生效
+u := myClass ()
+u.a = 1
+myImplement.Dispose ()   # 提前取消
+```
+
+机制全在 `Runtime/BuiltinClasses.Interfaces.cs`,**求值器只多了一个控制帧**:
+
+- `interface` 是内置类对象、`parent` 是 `type`(`Link(Interface, Type, Type)`)⇒ `interface is type`,
+  而 `interface { … }` 造出来的是**类对象** `myTrait`(元类是 `Interface`)。它的**类体**就是接口的
+  "形"(那批 `by a : int = default`)。`Interface.ClassBody` 的 `init` 是 `Alternate(twoArg, oneArg)`,
+  **twoArg 必须排在前面**:`ClassVal : FunctionVal` 且 `Type <: Function`,反了的话
+  `(body: Function)` 会先把 `myTrait myClass` 里的类对象吃掉(然后报「class 需要代码块参数」)。
+- `myTrait myClass { … }` 推 `ControlKind.ImplMake` 帧(`StepImplMake`):**接口类体与实现块依次跑在
+  同一个 scope 里**(先摆槽、再换槽),那个 scope 就是实现对象的成员表 —— **槽住在实现里**,
+  建一次一直用;`instance` 是那个 scope 里的一个变量,每次要被服务的实例换上去(换的只有它)。
+  两段都要推帧才能跑,而原生闭包的体是同步的 —— 这就是它非要一个控制帧的原因。
+- `use impl`(`System.Use`)把实现登记进**当前作用域**的一个成员(键 `use$impls`;`$` 不在标识符
+  字符集里,用户写不出这个名字,永远不会撞)。登记在 scope 上而不是类上,于是效果**随作用域在/不在**。
+  表里每条是 `[实现, 登记时代号]`;实现的成员 `generation` 每 `Dispose` 一次 +1,于是"取消"是
+  O(1) 的作废(老条目全失效),之后在哪 `use` 就在哪重新登记一条(那个作用域又活了)—— 不用记
+  (实现 × 作用域) 那笔账,也就不怕在循环里 `use`。
+- 读写 `x.a` 的兜底在 `BuiltinClasses.TraitSlot`:常规成员表(`MemberScope`,含类链)里没有这个名字时
+  才去沿 `CurrentScope` 的词法链找生效中的实现(同 scope 里后 use 的先试、目标类收得下就认),
+  找到就把 `instance` 换成 x,再把那条槽交出去(读走 getter、写走 setter,和普通 by 成员一条路)。
+  落点:读 `BoxedValue.TryGetByGetter`;写 `StepMemberAssign` / `StepCompoundAssign` /
+  `StepSlotAssign` / `StepSlot`。**`myClass` 这个名字一个字没动**:不建子类、不换绑定、不往它身上
+  加成员(所以 `x : myClass = u`、`print u`、`u.Fields ()` 照旧,`Fields ()` 里也**没有** a/b)。
+- `x is myTrait` 的兜底是 `BuiltinClasses.HasTrait`,同一个判据。它挂在 `StepBinaryOp` 里而**不是**
+  运算符的 C# 体里 —— 内置运算符的体是纯 C#,拿不到解释器也就拿不到当前作用域;只接**内置**那一支,
+  类里写过 `is := f` 的照旧走自己的实现。(`Type.Is` 问的是"类型",不参与这一条。)
+- 接口里 `= default` 的槽,实现没填就是那个"什么都不做"的默认属性(读 `()`、写丢掉)—— 和 `default`
+  本来的语义一致。
+- 两条已知代价:实现 scope 的词法父是**实现块**的捕获作用域(接口体与实现体通常写在同一处);
+  `instance` 只有一个,同一时刻一个实现只服务一个实例。
+
+测试 —— 213(端到端:读写、`is`、`Fields`、类型约束、Dispose)、214(作用域、叠加、子类、`use 5`)、
+125(类型树上多一个 `Interface`)。
 
 ## 多参数 lambda
 
