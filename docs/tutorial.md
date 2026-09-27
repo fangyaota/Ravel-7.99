@@ -519,7 +519,23 @@ print (add2 3)            # <function (y: int) => { x + y; } applied x=3>
 ### 5.7 缓存函数的返回结果（cacher）
 
 `cacher count f` 把 `f` 的返回结果记下来，同一组实参再来就直接给记下的那个 —— 不再重算。
-`count` 是 **`f` 的参数个数**：
+`count` 是 **`f` 的参数个数**。
+
+最典型的用法是给递归函数自己套上缓存（函数体里读的是外层那个名字，调用时才解析，
+所以把缓存版的名字给它，递归的每一层就都走缓存了）：
+
+```ravel
+FibCalls := 0
+fib: object = 0
+fib = cacher 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { fib (n - 1) + fib (n - 2); } })
+print (fib 25)          # 75025
+print FibCalls          # 26 —— 没缓存是 242785 次
+```
+
+（`fib: object = 0` 那行的标注别省：`:=` 会把类型钉在初值的类型上，而这里得先有个名字
+让它能被递归引用、再换成缓存版。）
+
+基本用法（注释标出哪几次是命中）：
 
 ```ravel
 Calls := 0

@@ -75,6 +75,14 @@ thunk := cacher 1 (() => { NoArgCalls += 1; "expensive"; })
 print (thunk ())
 print (thunk ())
 print ("算了几次: " + string NoArgCalls)
+
+# 正经用途:递归函数自己走缓存。函数体里读的是**外层那个名字**(调用时才解析),
+# 所以只要把缓存版的名字给它,递归的每一层都会经过缓存。
+FibCalls := 0
+fib: object = 0
+fib = cacher 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { fib (n - 1) + fib (n - 2); } })
+print (fib 25)
+print ("斐波那契算了几次: " + string FibCalls)
 # --- expected ---
 # 10
 # 10
@@ -110,3 +118,5 @@ print ("算了几次: " + string NoArgCalls)
 # expensive
 # expensive
 # 算了几次: 1
+# 75025
+# 斐波那契算了几次: 26
