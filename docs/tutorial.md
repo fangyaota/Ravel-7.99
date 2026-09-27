@@ -433,7 +433,23 @@ foreach [1 2 3] (x: int) => { print x; }
 ```
 
 `foreach` 也是库函数（`predefined.rav` 里用 `while` 写的）。它吃的是 **`IEnumerable`** ——
-这是个用 `interface` 写出来的库级接口，三种容器都实现了它（见 6.4 与 7.11）：
+这是个用 `interface` 写出来的库级接口，形状**照 C#**：
+
+```ravel
+IEnumerable ::= interface { by GetEnumerator : function = default }
+IEnumerator ::= interface { by MoveNext : function = default
+                            by Current  : object   = default }
+```
+
+`GetEnumerator ()` 交回一个枚举器，枚举器 `MoveNext ()` 往前走一步（返回还有没有）、
+`Current` 是当前那个。`foreach` 展开就是这个循环：
+
+```ravel
+e := xs.GetEnumerator ()
+while { e.MoveNext (); } { f (e.Current); }
+```
+
+三种容器都实现了它（见 6.4 与 7.11），所以：
 
 ```ravel
 foreach {1 2 3}  (x: int) => { print x; }     # set 也行
@@ -442,7 +458,14 @@ foreach 5 (x: int) => { print x; }
 # foreach 需要 IEnumerable（list / set / dict），得到 Integer
 ```
 
-自己的类实现一条 `IEnumerable`（`by Items` 交回一个给元素表的函数）也能进 `foreach`。
+**每次进来都新开一个枚举器**，所以嵌套遍历同一串值互不打扰（和 C# 一样）。
+自己的类只要交回一个枚举器（库里的 `Enumerator` 拿来就能用）也能进 `foreach`：
+
+```ravel
+use (IEnumerable MyThing {
+    by GetEnumerator = property (() => { () => { Enumerator [1 2 3]; }; }) ((v: function) => { (); })
+})
+```
 
 ### 4.4 早期退出
 
@@ -836,6 +859,9 @@ d.Has "a"         # true
 | `All p` `Any p` | 是不是都满足 / 有没有满足的 |
 | `Find p` | 第一个满足的(没有就**报错**) |
 | `SortBy f` | 按键排(`f` 交回键;**稳定**) |
+
+三种容器都是 `IEnumerable`（见 4.3 的枚举器形状）：`foreach` 能遍历它们，
+`(xs: IEnumerable) => …` 这样的注解也收得下它们。
 
 三条规矩:
 
@@ -1439,8 +1465,9 @@ print (u is myTrait)     # true
 
 三件事：
 
-1. **`interface { … }` 造出一个类型**（接口本身）。`myTrait is type` 为真：接口继承于 `type`，
-   类型树上就挂在 `Type` 下面。
+1. **`interface { … }` 造出一个类型**（接口本身）。它**继承自 `object`**、而**类型是 `interface`** ——
+   和 C# 一样，接口不是"继承了一个叫 `Interface` 的基类"：`myTrait.Parent ()` 是 `object`，
+   而 `typeof myTrait` 是 `Interface`（`myTrait is interface` 成立，类型树上也这么标）。
 2. **`myTrait myClass { … }` 造一个实现**。块里用 `by a = property …` 把接口声明的槽**换掉**
    （所以写 `=`，不是 `:=`）；块里有个 `instance`，就是"当下这个实例"。
 3. **`use impl` 把它登记在当前位置的作用域里**。从此这里 `u.a` / `u.b` 都走实现那条槽；
@@ -1527,6 +1554,12 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 
 同一个作用域里 `use` 两次：**后 use 的先试**，它没有那个名字时再回头试前一个。
 接口里写了 `= default` 而实现没填的槽，就是那个"什么都不做"的默认属性 —— 读出来是 `()`。
+
+#### 库里的例子：`IEnumerable`
+
+`predefined.rav` 末尾那两条就是拿这套写的（见 4.3 与 6.4）：`IEnumerable` 只声明
+`by GetEnumerator`，`IEnumerator` 只声明 `by MoveNext` / `by Current`，
+三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、`(xs: IEnumerable) => …` 收得下它们。
 
 ---
 
@@ -1715,8 +1748,13 @@ v := s.At 0          # ✅ 用临时变量断开
 v.Count ()           # 2
 ```
 
-`()` 也是个字面量，所以 `xs.Items ().Fold 0 f` 是 `xs.Items (().Fold 0 f)` ——
-报「'Void' 没有方法 'Fold'」。同样落到变量上（或自己加括号：`(xs.Items ()).Fold 0 f`）。
+`()` 也是个字面量，所以 `xs.GetEnumerator ().MoveNext ()` 是 `xs.GetEnumerator (().MoveNext ())` ——
+报「'Void' 没有方法 'MoveNext'」。同样落到变量上（这就是 `foreach` 里为什么先 `e := …`）：
+
+```ravel
+e := xs.GetEnumerator ()     # ✅ 先拿到手
+while { e.MoveNext (); } { f (e.Current); }
+```
 
 ### `:=` vs `=` vs `::=`
 

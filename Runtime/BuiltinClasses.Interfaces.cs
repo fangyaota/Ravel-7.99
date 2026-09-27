@@ -55,24 +55,60 @@ internal static partial class BuiltinClasses
     ///
     /// 第二支收满两个参数后推 <see cref="ControlKind.ImplMake"/> 控制帧:造实现要把**两段类体**
     /// 跑在实现 scope 里,而原生闭包的体是同步的,推不了帧。</summary>
+    /// <summary>接口自己的 `init`(`Alternate(twoArg, oneArg)`)。**每个接口的类体里都会塞一份**
+    /// ——见下面 `BakeInterfaceInit` 的说明。它是无状态的(只看 `this` 的类型和参数),
+    /// 所以这一个值可以给所有接口共用。</summary>
+    private static ControlFunction _interfaceInit = null!;
+
     private static void InstallInterfaceInit()
     {
         var twoArg = new NativeClosure("target", Type, (scope, target) =>
             new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty
                 // 接口本体 = `this` 的**类型**:`myTrait myClass …` 是实例化 `myTrait`,
-                // 所以 `this` 是它的一个实例(ClassVal),它的 Type 才是接口本身那个类对象。
+                // 所以 `this` 是它的一个实例,它的 Type 才是接口本身那个类对象。
                 .Add(((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type)
                 .Add(target)));
         var oneArg = new NativeClosure("body", Function, (scope, body) =>
         {
-            var trait = Install(scope, Interface, body);
+            var trait = Install(scope, Object, body);
+            BakeInterfaceInit(trait, body);
             // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
             // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
             // **拿到的那个实现** —— `Copy ()` / `with` 出来的副本绑的是它自己,不会误伤原件。
             trait.DefineMethod(DisposeMember, (self, _) => DisposeImplementation((ObjectVal)self));
             return trait;
         });
-        Interface.ClassBody = PresetCtor(Alternate(twoArg, oneArg));
+        _interfaceInit = Alternate(twoArg, oneArg);
+        Interface.ClassBody = PresetCtor(_interfaceInit);
+    }
+
+    /// <summary>把接口自己的 `init` 塞进这个接口的**类体**(定义在用户写的那段前面)。
+    ///
+    /// 为什么非这样不可:接口对象的 parent 是 **`object`**(和 C# 一样 —— 接口不是"继承了一个叫
+    /// Interface 的基类"),于是它继承不到 `Interface` 那个预设类体里的 `init`。而
+    /// `myTrait myClass { … }` 是**实例化 myTrait**,得在它自己的类体里找得到这个 `init`。
+    /// 塞进去之后:实例化时照跑(造实现),而 `StepImplMake` 拿它当"接口的形"跑那一步时,
+    /// 也只是在实现 scope 里多出一个没人看的 `init` 成员(不是 `by` 槽,所以不会被接口槽的
+    /// 查找接管)。
+    ///
+    /// 类体必须是新的 BlockExpr(带用户那份的 Source/行列):原样改 `block` 会动到用户写的
+    /// 那个 BlockExpr,`Source` 也就丢了。</summary>
+    private static void BakeInterfaceInit(ObjectVal trait, RuntimeValue body)
+    {
+        if (body is not BlockVal blk) return;
+        var init = new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(_interfaceInit))
+        {
+            Line = blk.Block.Line,
+            Column = blk.Block.Column,
+        };
+        trait.ClassBody = new BlockVal(
+            new BlockExpr([init, .. blk.Block.Statements])
+            {
+                Line = blk.Block.Line,
+                Column = blk.Block.Column,
+                Source = blk.Block.Source,
+            },
+            blk.CaptureScope);
     }
 
     /// <summary>实现对象的最后一道装填:目标类、代号、`this`。

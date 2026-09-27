@@ -198,9 +198,14 @@ internal static partial class BuiltinClasses
     private static ClassVal Install(Scope scope, ObjectVal parent, RuntimeValue body)
     {
         if (body is not BlockVal blk) throw new RuntimeException("class 需要代码块参数");
-        // 正在被装成的这个对象**必然是 ClassVal**:这段只在实例化 `type` 或它的子类时跑,
+        // 正在被装成的这个对象**一般是 ClassVal**:这段在实例化 `type` 或它的子类时跑,
         // 而 StepClassInit 正是按"被实例化的类 <: type"来决定造 ClassVal 的。
-        var self = (ClassVal)scope.Lookup(ObjectVal.ThisMember).Value;
+        // 但**接口**是个例外:`IEnumerable { … }` 造出来的接口 parent 是 object(和 C# 一样),
+        // 所以"给接口再套一个代码块"这种写法会走到这儿而 `this` 只是个普通对象 ——
+        // 硬转就是 C# 的 InvalidCastException(不是 RuntimeException,`try` 接不住,一路打穿到顶层),
+        // 所以改成说人话的 Ravel 错误。
+        if (scope.Lookup(ObjectVal.ThisMember).Value is not ClassVal self)
+            throw new RuntimeException("这个类型不能再套一个代码块来建类（它是个接口：接口是用 `interface { … }` 造的）");
         self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
         self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk);
         self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));

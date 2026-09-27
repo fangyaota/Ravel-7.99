@@ -496,24 +496,35 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 
 ## 接口(interface)与实现(use)
 
-**库里第一个用它的:`IEnumerable`**(`lib/predefined.rav` 末尾一段)。形状只有一条槽:
+**库里第一个用它的:`IEnumerable` / `IEnumerator`**(`lib/predefined.rav` 末尾一段)。形状照 C#:
 
 ```ravel
-IEnumerable ::= interface { by Items : function = default }
+IEnumerable ::= interface { by GetEnumerator : function = default }
+IEnumerator ::= interface { by MoveNext : function = default
+                            by Current  : object   = default }
 ```
 
-`Items` 交回一个函数,调用它给出"按顺序排好的元素表"。三种容器各 `impl` 一遍
+`GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
+`Current` 是当前那个(C# 里是属性,这边也做成属性)。库里的 `Enumerator` 就是"拿一串值"的
+通用枚举器,谁有现成的一串值谁就能拿它当枚举器。三种容器各 `impl` 一遍
 (用 `impl` 而不是 `use`:全局登记,库加载时就生效),于是:
 
 - `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{a: 1} is IEnumerable` 都成立;
 - `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
-- **`foreach` 改走这条接口** —— 从前它只吃 list(`assert (typeof xs == list)`),
-  现在 `xs.Items ()` 拿元素表,set / dict 一样能遍历(字典遍历的是值);
-- 用户自己的类实现一条 `use (IEnumerable MyClass { by Items = property … })` 就能进 `foreach`。
+- **`foreach` 改走这条接口**:`e := xs.GetEnumerator ()` + `while { e.MoveNext (); } { f e.Current }`
+  —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
+  一样能遍历(字典遍历的是值);**每次进来新开一个枚举器**,所以嵌套遍历同一串值互不打扰;
+- 用户自己的类实现一条 `use (IEnumerable MyClass { by GetEnumerator = property … })` 就能进 `foreach`。
 
-**接口只承诺它自己那几条槽**(这里是 `Items`)。序列方法(`Map`/`Where`/`Fold`…)挂在**具体容器**上,
-所以通用函数里要先 `xs.Items ()` 落到那串值再往下用 —— 这样任何实现者都吃得住
-(`tests/217` 就是这么写的)。
+**接口对象继承自 `object`,但类型是 `interface`** —— 和 C# 一样,接口不是"继承了一个叫
+`Interface` 的基类",所以 `IEnumerable.Parent ()` 是 `object`;而 `typeof IEnumerable` 是
+`Interface`(`is interface` 成立)。为此 `BuiltinClasses.BakeInterfaceInit` 把接口自己的
+`init` 塞进**每个接口的类体**:原样靠"parent 链上有 `Interface`"是继承不到那个预设类体的,
+而 `myTrait myClass { … }` 是实例化 `myTrait`,必须在自己类体里找得到 `init`。
+
+**接口只承诺它自己那几条槽**。序列方法(`Map`/`Where`/`Fold`…)挂在**具体容器**上,所以通用
+函数里按接口的契约写(`GetEnumerator` / `MoveNext` / `Current`),或先落到那串值再往下用 ——
+这样任何实现者都吃得住(`tests/217` 就是这么写的)。
 
 库里的用例先放上面,下面从形状讲起:
 

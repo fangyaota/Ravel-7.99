@@ -1,36 +1,43 @@
-# `IEnumerable` —— 第一个用 `interface` 写出来的**库级接口**(predefined.rav)。
+# `IEnumerable` / `IEnumerator` —— 用 `interface` 写出来的库级接口(predefined.rav),形状照 C#:
 #
-#     IEnumerable ::= interface { by Items : function = default }
+#     IEnumerable ::= interface { by GetEnumerator : function = default }
+#     IEnumerator ::= interface { by MoveNext : function = default
+#                                 by Current    : object   = default }
 #
-# 接口本身只说"有这么一条槽":`Items` 交回一个函数,调用它给出一串元素。
-# 三种容器在库里各 `impl` 一遍(全局登记,所以处处生效),于是
-# `xs is IEnumerable` 成立、`(xs: IEnumerable) => …` 收得下它们、`foreach` 也认它们。
-# 自己的类也能实现:`use` 一条实现即可。
+# `GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
+# `Current` 是当前那个(C# 里它是属性,这边也做成属性)。库里的 `Enumerator` 就是拿一串值
+# 做的通用枚举器。
+#
+# 接口对象**继承自 object**(和 C# 一样:接口不是"继承了一个叫 Interface 的基类"),
+# 但它的**类型是 interface** —— `typeof IEnumerable` 是 `Interface`。
+# 三种容器各 `impl` 一条,于是 `is` / 注解 / `foreach` 都认它们。
 
-# ---- 谁是可枚举的 ----
+# ---- 它是什么 ----
+print (IEnumerable.Parent ())
+print (typeof IEnumerable)
+print (IEnumerable is interface)
 print ([1 2 3] is IEnumerable)
-print ({1 2 3} is IEnumerable)
-print ({a: 1 b: 2} is IEnumerable)
-print (5 is IEnumerable)
 print ("abc" is IEnumerable)
-print (IEnumerable is interface)     # 它自己是个接口(继承于 type)
 
-# ---- foreach 不再只吃 list:走的就是这条接口 ----
+# ---- 枚举器本身,和 C# 一个用法 ----
+e := [4 5].GetEnumerator ()
+print (e is IEnumerator)
+while { e.MoveNext (); } { print (e.Current); }
+print (e.MoveNext ())          # 走完了再问就是 false
+print ([9].GetEnumerator () is IEnumerator)   # 每次都新开一个,互不打扰
+
+# ---- foreach 就是照这个形状写的 ----
 foreach [1 2 3] (x: int) => { print ("list " + string x); }
-foreach {1 2} (x: int) => { print ("set " + string x); }
 foreach {a: 7 b: 8} (v: int) => { print ("dict " + string v); }
+foreach [1 2] (x: int) => { foreach [10 20] (y: int) => { print (string x + "-" + string y); } }
 
-# ---- 槽本身:Items 交回一个函数,调用它拿到整串 ----
-print ([4 5].Items ())
-
-# ---- 注解、参数也认接口,于是通用函数写得出来 ----
-# 接口承诺的是 `Items`(一串元素)。序列方法(Map/Where/Fold…)挂在具体容器上,
-# 所以通用函数先 `Items ()` 拿到那串,再往下用 —— 这样**任何**实现者都吃得住。
-# (先落到一个局部再往下写:`xs.Items ().Fold …` 会被读成 `xs.Items (().Fold …)`
-#  —— `.` 绑得比"挨着写"紧,和 `f x.y` 是 `f (x.y)` 一个道理。)
+# ---- 注解、参数也认接口,通用函数写得出来 ----
+# 接口承诺的就是"给我一个枚举器",所以通用函数按枚举器的用法写 —— 任何实现者都吃得住。
 total := (xs: IEnumerable) => {
-    items := xs.Items ()
-    items.Fold 0 (acc: int x: int) => { acc + x; }
+    acc := 0
+    it := xs.GetEnumerator ()
+    while { it.MoveNext (); } { acc += it.Current; }
+    acc
 }
 print (total [1 2 3])
 print (total {4 5})
@@ -41,54 +48,46 @@ Seq ::= class {
     n : int = 0
     init := (k: int) => { n = k; this; }
 }
-
-# `use` 一条实现:这个作用域里 Seq 就是 IEnumerable 了(要全局就用 `impl`)
-# 注意 `property g s` 要写在**同一行** —— 换行就是两条语句了,槽里会只剩半截 `property`
-# (报错是「'Items' 标了 by,但它的值不是 property」,不难查,但白跑一趟)
+# 交回一个枚举器就行 —— 库里的 `Enumerator` 拿来就能用。
+# (`property g s` 要写在**同一行**:换行就是两条语句,槽里会只剩半截 `property`)
 use (IEnumerable Seq {
-    by Items = property (() => { () => { [instance.n (instance.n + 1) (instance.n + 2)]; }; }) ((v: function) => { (); })
+    by GetEnumerator = property (() => { () => { Enumerator [instance.n (instance.n + 1) (instance.n + 2)]; }; }) ((v: function) => { (); })
 })
-
 s := Seq 7
 print (s is IEnumerable)
-print (s.Items ())
-foreach s (x: int) => { print ("mine " + string x); }
 print (total s)
+foreach s (x: int) => { print ("mine " + string x); }
 
 # ---- 不是可枚举的:报错说清楚要什么 ----
-try {
-    foreach 5 (x: int) => { 0; }
-} (e: Exception) => {
-    print ("1: " + string e)
-}
-try {
-    foreach "abc" (c: string) => { 0; }
-} (e: Exception) => {
-    print ("2: " + string e)
-}
+try { foreach 5 (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string e2); }
+try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + string e2); }
 # --- expected ---
-# true
+# Object
+# Interface
 # true
 # true
 # false
+# true
+# 4
+# 5
 # false
 # true
 # list 1
 # list 2
 # list 3
-# set 1
-# set 2
 # dict 7
 # dict 8
-# [4 5]
+# 1-10
+# 1-20
+# 2-10
+# 2-20
 # 6
 # 9
 # 3
 # true
-# [7 8 9]
+# 24
 # mine 7
 # mine 8
 # mine 9
-# 24
 # 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
 # 2: foreach 需要 IEnumerable（list / set / dict），得到 String
