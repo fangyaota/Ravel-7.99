@@ -50,6 +50,9 @@ Runtime/                         求值器按职责拆成多个 partial class �
   BuiltinClasses.cs              内置**类对象**树(建树分两趟)+ 预设类体 + 默认建类逻辑
   BuiltinClasses.{Methods,Operators,Initializers}.cs   内置方法/运算符/转换器的注册
                                  (成员直接进各自类对象的 Scope,没有单独的"方法表")
+  BuiltinClasses.Interfaces.cs   接口与实现(interface / use / impl / Dispose)
+  BuiltinClasses.Sequences.cs    三种容器共用的序列方法 —— 将来 `IEnumerable` 那一层
+                                 (收函数的那批是控制帧,见 Interpreter.Control 的 StepSeqOp)
   Scope.cs / Variable.cs         作用域
   BoxedValue.cs                  成员访问
   Values/                        
@@ -611,6 +614,38 @@ add.name   # "add"
 (这里曾经去掉过检查,理由是「`=>` 后面块是强制的、没有歧义」——那是按解析器好不好写
 在想问题。语言规则该由语言定;当时改完连 `tests/59`/`72` 都从「被语法错误抢先报错」
 变成了「靠语法错误通过」,两个用例始终没测到自己要测的 readonly/unreadable。)
+
+## 序列方法(三种容器共用的一层)
+
+`list` / `set` / `dict` 上那些**只跟元素顺序有关**的方法(`Count` / `IsEmpty` / `Any` /
+`Contains` / `First` / `Last` / `ToList` / `ToSet` / `Distinct` / `Reverse` / `Take` / `Skip` /
+`Concat` / `Join` / `Sum` / `Min` / `Max`,以及收函数的 `Each` / `Map` / `Where` / `Fold` /
+`All` / `Any p` / `Find` / `SortBy`)**只有一份实现**,注册给三种容器
+(`Runtime/BuiltinClasses.Sequences.cs`),每种容器只回答一件事:**怎么按枚举顺序把元素取出来**
+(`items` —— 字典给的是值)。
+
+这就是将来 `IEnumerable` 那一层:接口出来了就把注册点从三处并到一处、`items` 改成问接口要,
+**方法体一个字不用改**。`Concat` / `Union` 这些收"别的容器"的地方已经先按这个形状写了 ——
+`ElementsOf` 就是今天版的"接受任何可枚举"。
+
+两批的分界是**要不要调用户函数**:
+
+- 不调的:普通内置方法,纯 C# 当场算;
+- 调的(`Each`/`Map`/`Where`/`Fold`/`All`/`Any`/`Find`/`SortBy`):成员值是 `SeqMethod`
+  (`ISelfBinding`),读出来绑好接收者就交出 `ControlFunction` → 求值器推 `ControlKind.SeqOp` 帧。
+  **非这样不可**:原生闭包是同步的 C# 调用,而调 Ravel 函数 = 往帧栈上推帧
+  (见 `Interpreter.Control.cs` 的 `StepSeqOp`,一个元素一步)。
+
+规矩(都照 C# / Linq 对齐):
+
+- 变换与查询**交回新的 list**(今天"一串值"就是 list),要 set 自己 `ToSet ()`;
+- 顺序类的(`First`/`Last`/`Take`/`Skip`/`Reverse`)按**枚举顺序** —— set / dict 的顺序是
+  它们枚举器给的,不是插入顺序;
+- 比大小一律走 `<`(`Less`),比不了**报错并说出两边**(`[1 "a"].Max ()` → 「比不了 Integer 与 String」)。
+  排序经 `SortByKey`:先拿第一个量一遍再排 —— .NET 会把比较器抛的异常包成
+  `InvalidOperationException`,那不是 RuntimeException,Ravel 的 `try` 接不住;
+- 字典的"元素"是**值**(按键找用 `Has` / `Keys ()`);
+- 空容器:`First` / `Last` / `Min` / `Max` / `Find`(没找到)**报错**,`Sum ()` 给 0。
 
 ## core 字段与 unsafe ()
 

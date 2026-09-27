@@ -16,6 +16,7 @@ public partial class Interpreter
             case ControlKind.Alternate: StepAlternate(cf); break;
             case ControlKind.ClassInit: StepClassInit(cf); break;
             case ControlKind.ImplMake: StepImplMake(cf); break;
+            case ControlKind.SeqOp: StepSeqOp(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
             case ControlKind.ClassOp: StepClassOp(cf); break;
             case ControlKind.CallAssign: StepCallAssign(cf); break;
@@ -251,6 +252,166 @@ public partial class Interpreter
         BuiltinClasses.FinishImplementation(self, target);
         Return(cf, self);
     }
+
+    /// <summary>容器上"逐个跑一遍"的那批方法:Each / Map / Where / Fold / All / Any / Find / SortBy
+    /// (成员值是 <see cref="SeqMethod"/>,读出来绑好接收者就交出这个帧)。
+    ///
+    /// 一步一个元素,每步调一次用户函数,收回来的结果接着走 —— 所以它们只能是控制帧:
+    /// 原生闭包**调不了 Ravel 函数**(那是帧栈的活)。
+    ///
+    /// `Args` = [容器, 模式, 函数(+ Fold 的初值)];`State` = 一个 ListVal:
+    /// [0] = 元素表(进来时取一次就不再多问容器 —— 否则每步都重新枚举一遍),
+    /// [1] = 攒的东西(各模式:Map/Where/SortBy 攒一个 list、Fold 攒累积值、All 攒 bool、
+    /// Find 攒"找到的那个元素"、Each 不用)。`Count` = 已经调过几次函数。
+    ///
+    /// 顺序就是 `ElementsOf` 给的顺序(将来 `IEnumerable` 出来,这里改成问枚举器要)。
+    /// 提前收工:All 撞上 false、Any 撞上 true、Find 找到第一个 —— 剩下的元素不再调函数。</summary>
+    private void StepSeqOp(ControlFrame cf)
+    {
+        var self = cf.Arg<RuntimeValue>(0, "SeqOp");
+        var mode = (SeqMode)cf.Arg<IntVal>(1, "SeqOp").Value;
+        var label = SeqMethod.Label(mode);
+
+        // 头一步:备好 [元素表, 累加器]。`State` 是 init-only,所以只能整帧换一个 ——
+        // `_top` 也要跟着换:后面 CallInto 的 sink 得收这个新的,不然结果会落到那个
+        // 还揣着 VoidVal 的旧帧上。
+        if (cf.State is not ListVal state)
+        {
+            cf = cf with { State = NewSeqState(mode, self, cf) };
+            _top = cf;
+            state = (ListVal)cf.State;
+        }
+
+        var elems = ((ListVal)state.Elements[0]).Elements;
+        var acc = state.Elements[1];
+
+        // 函数在第几个参数上:Fold 收两个(初值在前、函数在后),别的都只收函数
+        var fnAt = mode == SeqMode.Fold ? 3 : 2;
+
+        // `Any` 两种用法共用一个名字(C# 的 `Any()` / `Any(pred)` 也是这样):给个 `()` 就是
+        // "有没有元素",给函数就是"有没有满足的"。别的模式没有无参形式,给别的就报错。
+        if (cf.Arg<RuntimeValue>(fnAt, label) is not FunctionVal fn)
+        {
+            if (mode == SeqMode.Any && cf.Arg<RuntimeValue>(fnAt, label) is VoidVal)
+            {
+                Return(cf, new BoolVal(elems.Count > 0));
+                return;
+            }
+
+            throw new RuntimeException($"{label} 需要一个函数参数，得到 {cf.Arg<RuntimeValue>(fnAt, label).Type}");
+        }
+
+        var done = cf.Count;                     // 已经调过几次
+
+        if (mode == SeqMode.Fold)
+        {
+            // 每个元素两步:先 `f 累积值`(拿回一个还在等元素的函数),再喂这个元素
+            if (done > 0 && done % 2 == 0) state.Elements[1] = acc = cf.Last;
+            if (done % 2 == 1)
+            {
+                CallInto(cf, cf.Last, elems[done / 2]);
+                return;
+            }
+
+            if (done / 2 >= elems.Count)
+            {
+                Return(cf, acc);
+                return;
+            }
+
+            CallInto(cf, fn, acc);
+            return;
+        }
+
+        // 其余模式:一个元素一步。先把上一步的结果收下
+        if (done > 0)
+        {
+            var got = cf.Last;
+            var elem = elems[done - 1];
+            switch (mode)
+            {
+                case SeqMode.Each:
+                    break;
+                case SeqMode.Map:
+                    ((ListVal)acc).Elements.Add(got);
+                    break;
+                case SeqMode.SortBy:
+                    // 攒「键 + 元素」一对,最后按键排(键留着,元素才是要交出去的)
+                    ((ListVal)acc).Elements.Add(new ListVal([got, elem]));
+                    break;
+                case SeqMode.Where:
+                    if (Yes(got, label)) ((ListVal)acc).Elements.Add(elem);
+                    break;
+                case SeqMode.All:
+                    if (!Yes(got, label))
+                    {
+                        Return(cf, new BoolVal(false));
+                        return;
+                    }
+
+                    break;
+                case SeqMode.Any:
+                    if (Yes(got, label))
+                    {
+                        Return(cf, new BoolVal(true));
+                        return;
+                    }
+
+                    break;
+                case SeqMode.Find:
+                    if (Yes(got, label))
+                    {
+                        Return(cf, elem);
+                        return;
+                    }
+
+                    break;
+            }
+        }
+
+        if (done < elems.Count)
+        {
+            CallInto(cf, fn, elems[done]);
+            return;
+        }
+
+        Return(cf, SeqResult(mode, acc));
+    }
+
+    /// <summary>各模式开局的累加器(Fold 的初值是它的第 4 个参数)。</summary>
+    private static ListVal NewSeqState(SeqMode mode, RuntimeValue self, ControlFrame cf)
+        => new([
+            new ListVal(BuiltinClasses.ElementsOf(self, SeqMethod.Label(mode))),
+            mode switch
+            {
+                SeqMode.Map or SeqMode.Where or SeqMode.SortBy => new ListVal([]),
+                SeqMode.All => new BoolVal(true),
+                SeqMode.Any => new BoolVal(false),
+                SeqMode.Fold => cf.Arg<RuntimeValue>(2, "Fold"),   // `Fold 初值 函数`:初值在前
+                _ => VoidVal.Instance,
+            },
+        ]);
+
+    /// <summary>谓词要交回 bool —— 不是就当场说清楚(别把 `()` 当假)。</summary>
+    private static bool Yes(RuntimeValue got, string label)
+        => got is BoolVal b
+            ? b.Value
+            : throw new RuntimeException($"{label} 的函数要交回 bool，得到 {got.Type}");
+
+    /// <summary>收工时交出去的东西。Find 没找到是**错误**(「没有满足的」和「找到一个是 ()」
+    /// 不该长得一样);SortBy 这时候按键排(稳定)。</summary>
+    private static RuntimeValue SeqResult(SeqMode mode, RuntimeValue acc) => mode switch
+    {
+        SeqMode.Each => VoidVal.Instance,
+        SeqMode.All => new BoolVal(true),
+        SeqMode.Any => new BoolVal(false),
+        SeqMode.Find => throw new RuntimeException("Find: 没有满足条件的元素"),
+        // SortBy 攒的是「键 + 元素」对:按键排(稳定),交出去的是**元素**
+        SeqMode.SortBy => new ListVal([.. BuiltinClasses
+            .SortByKey(((ListVal)acc).Elements, p => ((ListVal)p).Elements[0]).Elements
+            .Select(p => ((ListVal)p).Elements[1])]),
+        _ => acc,
+    };
 
     /// <summary>半成品构造器继续收参数:喂给 init 的剩余部分,应用完才交出对象</summary>
     private void StepCtorApply(ControlFrame cf)

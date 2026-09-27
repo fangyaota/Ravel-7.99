@@ -20,6 +20,9 @@ internal static partial class BuiltinClasses
         RegisterSequenceMethods(List, s => [.. ((ListVal)s).Elements]);
         RegisterSequenceMethods(Set, s => [.. ((SetVal)s).Elements]);
         RegisterSequenceMethods(Dict, s => [.. ((DictVal)s).Entries.Values]);
+        RegisterHigherOrderMethods(List);
+        RegisterHigherOrderMethods(Set);
+        RegisterHigherOrderMethods(Dict);
         RegisterTypeMethods();
         RegisterFunctionMethods();
         RegisterScopeMethods();
@@ -126,13 +129,8 @@ internal static partial class BuiltinClasses
             ((ListVal)s).Elements.Clear();
             return VoidVal.Instance;
         });
-        // 排序**交回新的**(和 Map/Where 那批一个规矩),而且是**稳定**的
-        // (List.Sort 不稳定,所以走 OrderBy;相等的元素保持原来的先后)
-        List.DefineMethod("Sort", (s, _) =>
-        {
-            var cmp = Comparer<RuntimeValue>.Create((a, b) => Less(a, b) ? -1 : Less(b, a) ? 1 : 0);
-            return new ListVal([.. ((ListVal)s).Elements.OrderBy(x => x, cmp)]);
-        });
+        // 排序**交回新的**(和 Map/Where 那批一个规矩),稳定的,比不了当场说人话(见 SortByKey)
+        List.DefineMethod("Sort", (s, _) => SortByKey(((ListVal)s).Elements, x => x));
     }
 
     private static void RegisterSetMethods()

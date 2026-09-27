@@ -796,7 +796,53 @@ d.Set "c" 3
 d.Has "a"         # true
 ```
 
-### 6.4 集合的相等性是「同一个对象」
+### 6.4 序列方法(三种容器共用)
+
+这些方法只跟**元素顺序**有关、跟容器是什么无关,所以 list / set / dict 都有同一份
+(字典的元素是**值**)。名字照 C# 的集合 / Linq API 起:
+
+| 方法 | 说明 |
+|------|------|
+| `Count ()` `IsEmpty ()` `Any ()` | 个数 / 空不空 / 有没有 |
+| `Contains v` | 元素里有它(原子值按值比、容器按身份比) |
+| `First ()` `Last ()` | 头一个 / 末一个(空容器**报错**) |
+| `Take n` `Skip n` | 前 n 个 / 跳过前 n 个 |
+| `Distinct ()` `Reverse ()` `Concat ys` | 去重 / 倒过来 / 接上另一串 |
+| `Sum ()` `Min ()` `Max ()` | 求和 / 最小 / 最大(比大小走 `<`,比不了报错) |
+| `Join sep` | 拼成字符串 |
+| `ToList ()` `ToSet ()` | 换容器 |
+| `Each f` | 每个跑一遍(结果丢掉) |
+| `Map f` | 变换(C# 的 `Select`) |
+| `Where p` | 过滤(`p` 得交回 bool) |
+| `Fold init f` | 折叠(C# 的 `Aggregate(seed, f)`;`f 累积值 元素`) |
+| `All p` `Any p` | 是不是都满足 / 有没有满足的 |
+| `Find p` | 第一个满足的(没有就**报错**) |
+| `SortBy f` | 按键排(`f` 交回键;**稳定**) |
+
+三条规矩:
+
+- **变换和查询交回新的 list**,原容器不动;要 set 就 `.ToSet ()`;
+- 顺序类的按**枚举顺序** —— set / dict 的顺序是它们枚举器给的,别当插入顺序用;
+- 比大小一律走 `<`:数值之间能混着比、字符串按序数比,别的类型**当场报错**。
+
+```ravel
+[1 2 3 4].Map (x: int) => { x * 10; }                 # [10 20 30 40]
+[1 2 3 4].Where (x: int) => { x % 2 == 0; }           # [2 4]
+[1 2 3 4].Fold 0 (acc: int x: int) => { acc + x; }    # 10
+[5 2 9].SortBy (x: int) => { 0 - x; }                 # [9 5 2] —— 降序
+{"a" "bb"}.Max ()                                     # bb
+{a: 3 b: 1}.Min ()                                    # 1 —— 字典的元素是值
+```
+
+**list 还有**带下标的:`At i` / `Set i v` / `Insert i v` / `RemoveAt i`(`Remove i` 是同一件事)/
+`IndexOf v` / `AddRange xs` / `Sort ()` / `Clear ()`。
+
+**set 还有**集合代数:`Union` / `Intersect` / `Except` / `IsSubsetOf` / `Add` / `Remove` / `Clear`。
+
+**dict 还有**:`Get k`(没有就报错)/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` /
+`Remove k` / `Keys ()` / `Values ()` / `Clear ()`。
+
+### 6.5 集合的相等性是「同一个对象」
 
 `int`/`string`/`bool`/`float`/`bigint`/`fraction` 这些值比较的是**值本身**，
 所以 `{1 2 2}` 只有 2 个元素。但 `list`/`set`/`dict` 比较的是**身份**（是不是同一个对象）：
@@ -811,7 +857,7 @@ s.Contains [1]         # false —— 新造的 [1] 不是集合里那个
 （往集合里放个列表、回头再改那个列表，集合的哈希就对不上了）。
 要比内容就自己写循环，或先把集合转成别的东西。
 
-### 6.5 代码块 vs 集合
+### 6.6 代码块 vs 集合
 
 ```ravel
 {1 2 3}        # Set（单行无分号）

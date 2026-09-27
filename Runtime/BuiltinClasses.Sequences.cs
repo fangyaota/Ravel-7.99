@@ -32,7 +32,6 @@ internal static partial class BuiltinClasses
         // `Count` / `IsEmpty` / `Any` —— 三种容器本来各有一份 `Count`,现在并到这儿
         type.DefineMethod("Count", (s, _) => new IntVal(items(s).Count));
         type.DefineMethod("IsEmpty", (s, _) => new BoolVal(items(s).Count == 0));
-        type.DefineMethod("Any", (s, _) => new BoolVal(items(s).Count > 0));
         type.DefineMethod("First", (s, _) => Nth(items(s), 0, "First"));
         type.DefineMethod("Last", (s, _) => Nth(items(s), items(s).Count - 1, "Last"));
         // 元素里有没有它:原子值按值比、容器按身份比(和 Set 本身的判据一致)。
@@ -75,6 +74,27 @@ internal static partial class BuiltinClasses
         type.DefineMethod("Max", (s, _) => Extreme(items(s), "Max", keepLess: false));
     }
 
+    /// <summary>高阶那批:收 Ravel 函数的那些。它们的成员值不是普通内置方法,而是
+    /// <see cref="SeqMethod"/> —— 读出来绑好接收者,交出去的是个**控制帧**
+    /// (原生闭包调不了 Ravel 函数),见 Interpreter.Control.cs 的 `StepSeqOp`。
+    ///
+    /// 名字照 Linq:`Select` → `Map`、`Aggregate(seed, f)` → `Fold`、`OrderBy` → `SortBy`、
+    /// `Any(pred)` → `Any p`(和 `Any ()` 共用一个名字)、`First(pred)` → `Find`。</summary>
+    private static void RegisterHigherOrderMethods(ObjectVal type)
+    {
+        DefineSeq(type, "Each", SeqMode.Each, 3);
+        DefineSeq(type, "Map", SeqMode.Map, 3);
+        DefineSeq(type, "Where", SeqMode.Where, 3);
+        DefineSeq(type, "All", SeqMode.All, 3);
+        DefineSeq(type, "Any", SeqMode.Any, 3);
+        DefineSeq(type, "Find", SeqMode.Find, 3);
+        DefineSeq(type, "SortBy", SeqMode.SortBy, 3);
+        DefineSeq(type, "Fold", SeqMode.Fold, 4);      // 收两个:初值 + 函数(和 Aggregate(seed, f) 一致)
+    }
+
+    private static void DefineSeq(ObjectVal type, string name, SeqMode mode, int arity)
+        => type.Scope.DefineOrReplace(name, Function, new SeqMethod(mode, arity) { Name = name });
+
     /// <summary>任何容器的元素(按枚举顺序)。`Concat` 收别的容器时用它 ——
     /// 这是"C# 里接受 `IEnumerable`"这一步的临时形状,等接口出来了就换成接口。</summary>
     internal static List<RuntimeValue> ElementsOf(RuntimeValue v, string what) => v switch
@@ -84,6 +104,32 @@ internal static partial class BuiltinClasses
         DictVal d => [.. d.Entries.Values],
         _ => throw new RuntimeException($"{what} 需要 list / set / dict，得到 {v.Type}"),
     };
+
+    /// <summary>按键排序(**稳定** —— 相等的元素保持原来的先后,`OrderBy` 就是稳定的)。
+    /// 排之前拿第一个当尺子量一遍:`Min`/`Max`/`Sort` 比不了时要说人话
+    /// (`[1 "a"].Sort ()` → 「比不了 Integer 与 String」),而不是让比较器在 .NET 里炸 ——
+    /// 那边会把异常包成 `InvalidOperationException("Failed to compare two elements…")`,
+    /// 那不是 RuntimeException,Ravel 层的 `try` 接不住,一路漏到顶层打成"解释器内部错误"。
+    ///
+    /// `key` 是取排序键(`Sort` 就是元素自己,`SortBy` 是用户那个函数交回来的)。</summary>
+    internal static ListVal SortByKey(IEnumerable<RuntimeValue> xs, Func<RuntimeValue, RuntimeValue> key)
+    {
+        var list = xs.ToList();
+        if (list.Count > 0)
+            foreach (var x in list)
+                Less(key(x), key(list[0]));      // 先把"比不了"挑出来
+
+        var cmp = Comparer<RuntimeValue>.Create((a, b) =>
+            Less(key(a), key(b)) ? -1 : Less(key(b), key(a)) ? 1 : 0);
+        try
+        {
+            return new ListVal([.. list.OrderBy(x => x, cmp)]);
+        }
+        catch (InvalidOperationException)
+        {
+            throw new RuntimeException("排序时比不了:元素之间类型不一致");
+        }
+    }
 
     /// <summary>第 n 个元素,越界报错(空的 First/Last 是**错误**,不是 `()` ——
     /// 「没有第一个」和「第一个是空」不该长得一样)。</summary>
@@ -105,12 +151,22 @@ internal static partial class BuiltinClasses
             ? m.Impl(a, b)
             : throw new RuntimeException($"'{op}' 不支持 {a.Type}（{a.Type} 与 {b.Type} 之间）");
 
-    /// <summary>比大小:走 `<` 那个内置运算符 —— `Min` / `Max` / `Sort` 同一个口径。
-    /// 比不了就报错(不是 false):`[[1] [2]].Min ()` 该说"比不了 List",而不是给个元素。</summary>
-    private static bool Less(RuntimeValue a, RuntimeValue b)
+    /// <summary>比大小:走 `<` 那个内置运算符 —— `Min` / `Max` / `Sort` / `SortBy` 同一个口径。
+    /// 比不了就**报错**(不是给个 false、也不是给个元素),而且**两边都说出来**:
+    /// 底下的运算符只会说"我不支持 X 操作数",而调用方问的是"这两个能不能比",
+    /// `[1 "a"].Max ()` 得一眼看出是 Integer 和 String 撞上了。</summary>
+    internal static bool Less(RuntimeValue a, RuntimeValue b)
     {
-        if (a.Type.MemberScope.LookupField("<")?.Value is BuiltinMethodVal m && m.Impl(a, b) is BoolVal r)
-            return r.Value;
+        if (a.Type.MemberScope.LookupField("<")?.Value is BuiltinMethodVal m)
+            try
+            {
+                if (m.Impl(a, b) is BoolVal r) return r.Value;
+            }
+            catch (RuntimeException)
+            {
+                // 落到下面统一报"比不了 X 与 Y"(运算符自己的那句话只说了一半)
+            }
+
         throw new RuntimeException($"比不了 {a.Type} 与 {b.Type}");
     }
 
