@@ -15,6 +15,7 @@ public partial class Interpreter
             case ControlKind.Eval: StepEval(cf); break;
             case ControlKind.Alternate: StepAlternate(cf); break;
             case ControlKind.ClassInit: StepClassInit(cf); break;
+            case ControlKind.ImplMake: StepImplMake(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
             case ControlKind.ClassOp: StepClassOp(cf); break;
             case ControlKind.CallAssign: StepCallAssign(cf); break;
@@ -203,6 +204,44 @@ public partial class Interpreter
         // 而元类的 init 可以建出一个类再交出来(或返回别的什么)。
         // init 若还返回函数(多参构造器只喂了一部分)就交出半成品,和普通函数一样柯里化。
         Return(cf, cf.Last is FunctionVal rest && rest.IsClosure ? new PartialCtor(inst, rest) : cf.Last);
+    }
+
+    /// <summary>造实现对象(`myTrait myClass { 实现体 }`)。阶段由 Count 推进:
+    /// 0=建实现对象(它的成员表就是这个 scope)、推**接口类体**,1=推**实现体**,2=收尾并交出去。
+    ///
+    /// 两段跑在**同一个 scope** 里:接口类体先把 `by a : int = default` 那些槽摆好,实现体再
+    /// `by a = property …` 把它们换掉 —— 所以实现体里写的是"换"(`=`),不是"建"(`:=`)。
+    /// 实现体里创建的 lambda 捕获的正是这个 scope,于是它们看得见 `instance`
+    /// (那个变量要到用的时候才被换成某个实例,见 BuiltinClasses.TraitSlot)。
+    ///
+    /// 词法父取**实现体**的捕获作用域:接口体与实现体通常写在同一处,而实现体更可能就近
+    /// 引用外面的名字。收尾用 <see cref="BuiltinClasses.FinishImplementation"/>。</summary>
+    private void StepImplMake(ControlFrame cf)
+    {
+        var trait = cf.Arg<ClassVal>(0, "ImplMake");
+        var target = cf.Arg<ObjectVal>(1, "ImplMake");
+        var body = cf.Arg<BlockVal>(2, "ImplMake");
+
+        if (cf.Count == 0)
+        {
+            var impl = new ObjectVal(trait, new Scope(body.CaptureScope));
+            _top = new BlockExecFrame(trait.ClassBody!.Block)
+            {
+                Parent = cf with { State = impl },
+                Scope = impl.Scope
+            };
+            return;
+        }
+
+        var self = (ObjectVal)cf.State;
+        if (cf.Count == 1)
+        {
+            _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = self.Scope };
+            return;
+        }
+
+        BuiltinClasses.FinishImplementation(self, target);
+        Return(cf, self);
     }
 
     /// <summary>半成品构造器继续收参数:喂给 init 的剩余部分,应用完才交出对象</summary>

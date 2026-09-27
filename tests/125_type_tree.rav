@@ -19,6 +19,7 @@ Types.PrintTree object
 # │   ├── Bool [Type]
 # │   ├── Block [Type]
 # │   └── Type [Type]
+# │       └── Interface [Type]
 # ├── List [Type]
 # ├── Set [Type]
 # ├── Dict [Type]

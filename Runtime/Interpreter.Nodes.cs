@@ -321,7 +321,10 @@ public partial class Interpreter
         var target = nf.Result(0);
         if (target is not ObjectVal obj)
             throw new RuntimeException($"`by` 只能取对象身上的属性，得到 {target.Type}");
-        var field = obj.Scope.LookupField(ma.Member) ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+        // 取槽本身(`by x.a`)也认接口实现那条:作用域里没有生效的实现时才是「没有字段」
+        var field = obj.Scope.LookupField(ma.Member)
+                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)
+                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         BoxedValue.GateRead(field, ma.Member, this);
         if (!CheckFieldAccess(field, obj)) throw BoxedValue.AccessDenied(field, ma.Member);
         CheckSlot(field, ma.Member);
@@ -410,7 +413,9 @@ public partial class Interpreter
             return;
         }
 
-        var field = obj.Scope.LookupField(ma.Member) ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+        var field = obj.Scope.LookupField(ma.Member)
+                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)
+                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
         field.ReplaceSlot(SlotValue(val2));

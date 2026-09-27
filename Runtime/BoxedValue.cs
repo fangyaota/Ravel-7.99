@@ -18,6 +18,8 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         var vr = value is ModuleVal mv
             ? mv.Scope.Contains(name) ? mv.Scope.Lookup(name) : null
             : obj.Scope.LookupField(name);
+        // 本层没有这个成员 → 问当前作用域里生效的接口实现(模块不参与:接口实现是给实例用的)
+        if (vr == null && value is not ModuleVal) vr = BuiltinClasses.TraitSlot(interp, obj, name);
         if (vr == null || !vr.HasAttr(Attr.By)) return null;
 
         var boxed = new BoxedValue(value, interp);

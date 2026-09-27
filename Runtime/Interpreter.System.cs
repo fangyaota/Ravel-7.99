@@ -39,6 +39,7 @@ public partial class Interpreter
         DefType("Function", BuiltinClasses.Function);
         DefType("Void", BuiltinClasses.Void);
         DefType("Type", BuiltinClasses.Type);
+        DefType("Interface", BuiltinClasses.Interface);
         DefType("ValueType", BuiltinClasses.ValueType);
         DefType("Any", BuiltinClasses.Any);
         DefType("Every", BuiltinClasses.Every);
@@ -75,6 +76,8 @@ public partial class Interpreter
 
         // ---- 反射 / 作用域 ----
         DefFn("TypeOf", FunctionVal.From(a => a.Type));
+        // 接口实现:`use impl` 把实现登记进**当前作用域**(它随作用域在/不在)。见 BuiltinClasses.Interfaces.cs
+        DefFn("Use", FunctionVal.From(a => BuiltinClasses.Use(this, a)));
         DefFn("CurrentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
         // 标记**当前**作用域:core 检查沿作用域链往上找标记,所以函数返回后标记自然失效
         DefFn("Unsafe", FunctionVal.From(_ =>

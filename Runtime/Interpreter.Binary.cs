@@ -118,6 +118,17 @@ public partial class Interpreter
         }
 
         var (bound, builtin) = BindOperator(left, bin.Op);
+
+        // `is` / `isnot` 的接口兜底:实现住在**当前作用域**里,而内置运算符的体是纯 C#(拿不到解释器),
+        // 所以这一半只能挂在这儿 —— 判据本身在 BuiltinClasses.HasTrait,和实现那条查找共用一份。
+        // 只接**内置**那一支:类里写过 `is := f` 的照旧走它自己的实现(ClassOp 帧)。
+        if (builtin && bin.Op is "is" or "isnot" && right is ObjectVal trait)
+        {
+            var hit = left.Type.IsAssignableTo(trait) || BuiltinClasses.HasTrait(this, left, trait);
+            Return(nf, new BoolVal(bin.Op == "is" ? hit : !hit));
+            return;
+        }
+
         if (builtin) Return(nf, bound.Body(right));
         else CallInto(nf.Parent!, bound, right);
     }
@@ -156,6 +167,7 @@ public partial class Interpreter
         var ov = (ObjectVal)nf.Result(0);
 
         var field = ov.Scope.LookupField(ma.Member)
+                    ?? BuiltinClasses.TraitSlot(this, ov, ma.Member)
                     ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         CheckMemberAccess(field, ov, ma.Member);
 
@@ -254,7 +266,9 @@ public partial class Interpreter
             var ov = (ObjectVal)obj;
             // `:=` 是定义:字段不存在也放行(到 count==2 时新建)。已存在的字段照样受 core/访问控制约束,
             // 否则 `:=` 就成了绕过封装的万能钥匙。
-            var field = ov.Scope.LookupField(ma.Member);
+            // 本层没有就问接口实现:作用域里有生效的实现时,`u.a = 1` 落在实现那条槽上。
+            var field = ov.Scope.LookupField(ma.Member)
+                        ?? BuiltinClasses.TraitSlot(this, ov, ma.Member);
             if (field == null)
             {
                 if (!isDefine) throw new RuntimeException($"对象没有字段 '{ma.Member}'");
@@ -288,7 +302,9 @@ public partial class Interpreter
         }
 
         // count==1 已查过字段存在,这里再兜一次:字段在右侧求值期间被删掉时不至于 NRE
+        // (接口实现那条也再兜一次:两次都只算"当前作用域里有没有生效的实现",结果一致)
         var field2 = ov2.Scope.LookupField(ma.Member)
+                     ?? BuiltinClasses.TraitSlot(this, ov2, ma.Member)
                      ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         WriteVariable(nf, field2, rv);
     }

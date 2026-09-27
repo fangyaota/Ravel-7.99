@@ -50,6 +50,8 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Ravel;
     public static readonly ClassVal ScopeType;
     public static readonly ClassVal Property;
+    // 接口 — `interface`(见 BuiltinClasses.Interfaces.cs)。parent 是 `type`。
+    public static readonly ClassVal Interface;
 
     /// <summary>所有已注册的类对象（内置 + 用户定义），供 Subtypes 反射</summary>
     internal static readonly List<ClassVal> AllTypes = [];
@@ -79,6 +81,7 @@ internal static partial class BuiltinClasses
         Ravel = New("Ravel");
         ScopeType = New("Scope");
         Property = New("Property");
+        Interface = New("Interface");
         Exception = New("Exception");
         Every = New("Every");
         Any = New("Any");
@@ -113,6 +116,8 @@ internal static partial class BuiltinClasses
         Link(ScopeType, Object, Type);
         Link(Property, Object, Type);
         Link(Exception, Object, Type);
+        // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
+        Link(Interface, Type, Type);
         // 底类型/顶类型：parent 自引用（链到自己就停）
         Link(Every, Every, Type);
         Link(Any, Any, Type);
@@ -125,13 +130,15 @@ internal static partial class BuiltinClasses
         RegisterInitializers();
         // ---- type 的 init:默认的建类逻辑(必须在 Type/Object/Function 都挂好之后) ----
         InstallTypeInit();
+        // ---- interface 的 init:借着上面那套(它的类体也要 Alternate/Install) ----
+        InstallInterfaceInit();
 
         // ---- 收集所有内置类（供 Subtypes 反射） ----
         foreach (var t in new[]
                  {
                      Object, ValueType, Int, Float, Bool, String, BigInt,
                      Fraction, BigFraction, Function, Block,
-                     List, Set, Dict, Void, Type,
+                     List, Set, Dict, Void, Type, Interface,
                      Ravel, Any, Every, Exception, ScopeType, Property
                  })
             AllTypes.Add(t);

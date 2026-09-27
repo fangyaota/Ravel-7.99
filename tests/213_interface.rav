@@ -1,0 +1,73 @@
+# 接口(interface)+ 实现 + use。带用法和期望输出的草稿是 myMetaClass.rav。
+#
+# `myTrait ::= interface { by a : int = default … }` —— interface 内置、继承于 type,
+# 所以造出来的 myTrait 也是个**类对象**(`myTrait is type`),它的类体就是接口的"形"。
+# `myTrait myClass { … }` 造一个**实现**:接口类体与实现块依次跑在同一个 scope 里
+# (先摆槽、再换槽),那个 scope 就是实现的成员表 —— **槽住在实现里**。
+# `use myImplement` 把实现登记进**当前作用域**:从此这里 `u.a` / `u.b` 走实现那条槽,
+# 实现 scope 里的 `instance` 每次被换成当前这个实例(槽本身不动)。出了作用域就回到「没有方法」。
+using "try.rav"
+
+myTrait ::= interface {
+    by a : int = default
+    by b : function = default
+}
+
+myClass ::= class {
+    x : int = 0
+}
+
+myImplement := myTrait myClass {
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+    by b = property (() => { () => { print "myTrait.b override"; } }) ((v: function) => { (); })
+}
+
+# use 之前:`a` 不是 myClass 的东西
+u := myClass ()
+Ex.Try { print u.a; } (e: Exception) => { print ("1: " + string e); }
+
+use myImplement
+
+# 读写都走实现那条槽(a 的 getter/setter 看的是 instance,也就是 u)
+print u.a
+print (u.a = 7)
+print u.x
+print u.a
+u.b ()
+
+# 接口是"套在实例上的视图":use 之前造的实例照样算;判定也在作用域内为真
+print (u is myTrait)
+print (u is myClass)
+print (myImplement is myTrait)
+
+# 槽不在实例身上(它住在实现里)
+print (u.Fields ())
+
+# 换个实例:换的只有 instance,槽不动
+v := myClass ()
+v.a = 99
+print (v.a)
+print (u.a)
+
+# 类型约束来自接口那条声明(`by a : int`)
+Ex.Try { u.a = "str"; } (e: Exception) => { print ("2: " + string e); }
+
+myImplement.Dispose ()
+Ex.Try { print u.a; } (e: Exception) => { print ("3: " + string e); }
+print (u is myTrait)
+# --- expected ---
+# 1: 类型 'myClass' 没有方法 'a'
+# 0
+# 7
+# 7
+# 7
+# myTrait.b override
+# true
+# true
+# true
+# [init x is isnot ToString Copy Fields]
+# 99
+# 7
+# 2: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
+# 3: 类型 'myClass' 没有方法 'a'
+# false
