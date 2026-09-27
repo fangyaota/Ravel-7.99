@@ -33,5 +33,4 @@ public sealed class RList<T>
     }
 
     public T Last => Head;
-    public bool IsEmpty => Count == 0;
 }
