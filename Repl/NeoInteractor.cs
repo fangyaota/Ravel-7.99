@@ -10,13 +10,11 @@ using System.Text;
 /// 视图渲染在 <see cref="ReplView"/>,会话持久化在 <see cref="ReplSession"/>。</summary>
 public class NeoInteractor
 {
-    public List<List<string>> Paras { get; set; }
-    public List<string> Lines
-    {
-        get => Paras[Cursor_z];
-        set => Paras[Cursor_z] = value;
-    }
-    public Dictionary<int, string> RenderedLines { get; set; } = new();
+    // 三个都不给 setter:整条替换从不发生(`Paras` 只在构造器里赋值,
+    // 另外两个只被索引/增删改),留个 setter 只是让人以为有人会那么写。
+    public List<List<string>> Paras { get; }
+    public List<string> Lines => Paras[Cursor_z];
+    public Dictionary<int, string> RenderedLines { get; } = new();
     private string CurrentLine
     {
         get => Lines[Cursor_y];
@@ -163,8 +161,6 @@ public class NeoInteractor
             {
                 map[result].action();
             }
-            // ExitException 也接:「退出」菜单项是自己调的 Environment.Exit,
-            // 菜单项内部跑出来的 exit 不该把没保存的缓冲区一起带走
             catch (Exception ex)
             {
                 AnsiConsole.MarkupLine($"[red]出错了：{ex.Message.EscapeMarkup()}[/]");
@@ -252,20 +248,23 @@ public class NeoInteractor
                 }
             }
         }
-        catch (Exception ex) when (ex is RuntimeException or SyntaxException)
-        {
-            PrintError(ErrorReport.Format(ex));
-        }
-        catch (ExitException ex)
-        {
-            PrintError(ex.Message);
-        }
         catch (Exception ex)
         {
-            PrintError($"解释器内部错误 {ex.GetType().Name}: {ex.Message}");
+            PrintError(FailureText(ex));
         }
         Pause();
     }
+
+    /// <summary>用户代码失败时给人看的那一句 —— `EvaluateTryCompile` 和 `RunRepl` 都要,
+    /// 从前各写了一套三条 catch,连"内部错误"那句的措辞都不一样(一处带 `!!` 一处不带)。</summary>
+    private static string FailureText(Exception ex) => ex switch
+    {
+        // exit 不是错误:它是「这一句到此为止」,和 CLI 一样报消息本身
+        ExitException e => "Error: " + e.Message,
+        RuntimeException or SyntaxException => "Error: " + ErrorReport.Format(ex),
+        // 走到这里说明解释器自己有 bug:该转成 RuntimeException 的没转
+        _ => $"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}",
+    };
 
     /// <summary>多行错误报告逐行上色——整串 EscapeMarkup 会把换行也吃掉</summary>
     private static void PrintError(string report)
@@ -295,17 +294,9 @@ public class NeoInteractor
                 if (result is not VoidVal)
                     Console.WriteLine($"==> {result}");
             }
-            catch (Exception ex) when (ex is RuntimeException or SyntaxException)
-            {
-                Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
-            }
-            catch (ExitException ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-            }
             catch (Exception ex)
             {
-                Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine(FailureText(ex));
             }
 
             buffer = "";
@@ -389,8 +380,7 @@ public class NeoInteractor
                 }
                 ClearAndRender();
                 RenderEditTips();
-                last_y = Cursor_y;
-                continue;
+                continue;   // 下一轮的 `int last_y = Cursor_y` 会重新取,不必在这儿存一次
             }
             switch (input.Key)
             {
@@ -401,26 +391,25 @@ public class NeoInteractor
             {
                 continue;
             }
-            InsertNewLineIfEmpty();
+            EnsureLine();
             CurrentLine = CurrentLine.Insert(Cursor_x, input.KeyChar.ToString());
             Cursor_x++;
             CursorClamp();
 
-            FlushRenderedLine(last_y);
+            // 一行就够:Cursor_y 在这条路上动不了(唯一会加行的 EnsureLine 不动光标)
             FlushRenderedLine(Cursor_y);
             ClearAndRender();
             RenderEditTips();
         }
     }
 
-    private bool InsertNewLineIfEmpty()
+    /// <summary>空页先垫一行 —— 没有它 `Lines[Cursor_y]` 直接越界。</summary>
+    private void EnsureLine()
     {
         if (Lines.Count == 0)
         {
             Lines.Insert(Cursor_y, "");
-            return true;
         }
-        return false;
     }
 
     private bool CursorEdit(ConsoleKeyInfo input)
@@ -538,7 +527,7 @@ public class NeoInteractor
                 CursorClamp();
                 return true;
             case ConsoleKey.Tab:
-                InsertNewLineIfEmpty();
+                EnsureLine();
                 CurrentLine = CurrentLine.Insert(Cursor_x, "    ");
                 Cursor_x += 4;
                 return true;

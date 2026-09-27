@@ -19,7 +19,9 @@ internal static class ReplSession
         }
         catch
         {
-            pages = null;
+            // 文件坏掉/读不出来:pages 还是 null,下面按"空白页"处理。
+            // 从前这儿写的是 `pages = null;` —— 它证明不了任何事:Deserialize 抛的话
+            // 连赋值都没发生,那个变量本来就是 null。
         }
 
         if (pages == null || pages.Count == 0) return [new()];
