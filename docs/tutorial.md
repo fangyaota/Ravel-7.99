@@ -663,6 +663,63 @@ do {
 print (do { v :< Some 10; Some (v * 2); }.Value ())    # 20
 ```
 
+### 5.10 IO（把效果做成值）
+
+`Io.PutStrLn "hi"` **什么都不打印** —— 它交出的是一份**说明书**（一个 `Io.Action`）。
+直到 `Perform ()` 那一刻，效果才真的发生：
+
+```ravel
+using "io.rav"
+
+Hello := Io.PutStrLn "hello"
+print "还没跑"
+Hello.Perform ()        # 打印发生在这
+print "跑完了"
+```
+
+```
+还没跑
+hello
+跑完了
+```
+
+说明书可以传、可以拼、可以放着不跑，也可以跑第二遍（`Perform ()` 再来一次就是再来一遍）。
+于是「要做什么」和「做」分成两件事 —— `do { … }` 拼出来的那一长串，在 `Perform ()`
+之前一个字符都还没输出：
+
+```ravel
+Main := do {
+    name :< Io.GetLine
+    _ :< Io.PutStrLn ("你好 " + name)
+    Io.PutStrLn "再见"
+}
+print "还没跑"
+Main.Perform ()
+```
+
+这就是 IO Monad：`Action` 是说明书的类型，`Bind` 把两份说明书订成一份，所以 `:<` 直接能用。
+注意「Monad」在这里是**形状**（有 `Bind` / `Map`）而不是类型 —— `Action` 和 5.8 那个
+`Monad` 没有继承关系，只是都能进 `do` 块。
+
+| 名字 | 做什么 |
+|------|--------|
+| `Io.Action f` | 造一份说明书（`f` 收 `()`、交出一个值，**在 `Perform` 时才被调用**）|
+| `.Perform ()` | 跑它。效果世界的边界 |
+| `.Map f` / `.Bind f` | 结果过一道纯函数 / 接上另一份说明书（`Bind` 摊平）|
+| `Io.Return v` | 不做效果，只交出 `v` |
+| `Io.PutStrLn s` / `Io.PutStr` | 打印（带 / 不带换行）|
+| `Io.GetLine` | 读一行。它是**一个值**，每次 `Perform` 都真读一次 |
+| `Io.Foreach xs f` | 对表里每个元素造一份说明书并依次执行 |
+
+IO 里**没有「落空」这回事**：每一步都跑，值一路往下传（和 `Monad` 的短路正好相反）。
+括号规则和 5.8 一样 —— `.Perform` 要贴给调用的**结果**，就得把那个调用括起来：
+
+```ravel
+(Io.Foreach [1 2 3] ((x: int) => { Io.PutStrLn (string x); })).Perform ()
+r := (Io.Return 20).Map ((x: int) => { x + 1; })    # 或者先绑个名字
+print (r.Perform ())                                # 21
+```
+
 ---
 
 ## 六、集合

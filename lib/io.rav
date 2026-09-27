@@ -1,0 +1,60 @@
+# IO 模块 —— **要显式引用才有**:`using "io.rav"` 之后 `Io.xxx` 才是一个名字。
+#
+# 把"要做的效果"做成一个**值**(一份说明书),而不是当场做:
+#
+#     Hello := Io.PutStrLn "hello"     # 这一句什么都不打印
+#     Hello.Perform ()                 # 打印发生在这
+#
+# 说明书可以传、可以拼、可以放着不跑,也可以跑第二遍 —— 效果只在 `Perform ()` 那一刻发生。
+# 于是"要做什么"和"做"分成两件事:`do { … }` 拼出来的那一长串,在 `Perform ()` 之前
+# 一个字符都还没输出。
+#
+# 这就是 IO Monad:`Action` 是说明书的类型,`Bind` 把两份说明书订成一份,
+# 所以 `do { x :< GetLine; … }` 直接能用(`:<` 脱糖成的就是 `.Bind`)。
+# 注意"Monad"在这里是**形状**(有 Bind / Map)而不是类型:Action 与 predefined.rav 里
+# 那个 Monad 没有任何继承关系,只是都能进 do 块而已。
+
+ravel "Io"
+
+# 一份"要做的效果"。里面包的那个函数收 `()`、交出一个值 ——
+# 效果发生在**它被调用**的时候,而不是 Action 被造出来的时候。
+Action ::= class {
+    Effect: function = () => { (); }        # 干什么:收 ()、交出一个值
+
+    # 跑它。**这是效果世界的边界**:调用之前什么都没发生,调用之后全发生了。
+    Perform := () => { Effect (); }
+
+    # 映射:结果过一道纯函数(纯的那步不必是"说明书")
+    Map := (f: function) => { Action (() => { f (Effect ()); }) }
+
+    # 绑定:先跑自己,把结果交给 f;f 回一份新的说明书,再跑那份。
+    # **摊平** —— 交出去的是后一份的**结果**,不会套成"说明书的说明书"。
+    Bind := (f: function) => {
+        Action (() => {
+            Next := f (Effect ())
+            Next.Perform ()
+        })
+    }
+
+    init := (effect: function) => { Effect = effect; this; }
+}
+
+# ── 现成的效果 ──
+# 都标 readonly:它们是这个模块的 API,顺手覆盖掉会让调用者的代码悄悄换意思。
+
+# 交出一个值,不做任何效果(`Return 5` 就是"这一步的结果是 5")
+readonly Return := (v: object) => { Action (() => { v; }) }
+
+# 打印。注意 `PutStrLn "hi"` 只是**造了一份说明书**,什么都不打印
+readonly PutStrLn := (s: object) => { Action (() => { print s; (); }) }
+readonly PutStr := (s: object) => { Action (() => { System.Write s; (); }) }
+
+# 读一行。它是**一个值**(不是函数):每次 Perform 都真读一次
+readonly GetLine := Action (() => { input (); })
+
+# 对表里每个元素造一份说明书并依次执行 —— 一串效果。
+# (写成一次 Perform 里跑一个 foreach,而不是把 Foreach 做成递归的 Bind 链:
+#  说明书之间没有依赖,没必要为每一步摊一层。)
+readonly Foreach := (xs: list f: function) => {
+    Action (() => { foreach xs (x: object) => { (f x).Perform (); }; (); })
+}

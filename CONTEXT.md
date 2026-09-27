@@ -94,6 +94,10 @@ lib/
                           两个类型都进 AllTypes(`Subtypes ()` 看得到)
   try.rav                 异常处理:HandlerStack + callcc 实现 Ex.Try/Ex.Throw
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
+  io.rav                  Io 模块(IO Monad):`Action` 把"要做的效果"做成值,
+                          `Perform ()` 才真跑;Return/PutStrLn/PutStr/GetLine/Foreach。
+                          `using "io.rav"` 引入 —— 它和 predefined 里那个 Monad
+                          **没有继承关系**,只是同样有 Bind/Map 所以能进 do 块
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
   std.rav                 ⚠️ 死文件:没被加载,且唯一的 Interface 靠已移除的 base
