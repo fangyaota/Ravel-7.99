@@ -160,29 +160,17 @@ public partial class Parser
     /// <summary>一元 ! -  .成员访问  和函数调用</summary>
     private Expression ParseCall(bool allowCall = true)
     {
-        // 一元 !
-        if (Match(TokenType.Bang))
+        // 一元 ! 和 -(都往本层递归,所以 `! !x` / `- -1` 写得出来)。
+        // 位置取**运算符**那个 token:从前是把操作数解析完才回头 Previous(),
+        // 拿到的是操作数的最后一个 token,报错时插入符指在算式末尾。
+        if (Match(TokenType.Bang) || Match(TokenType.Minus))
         {
-            var operand = ParseCall(allowCall);
-            return new UnaryExpr("!", operand) { Line = Previous().Line, Column = Previous().Column };
+            var op = Previous();
+            return new UnaryExpr(op.Lexeme, ParseCall(allowCall)) { Line = op.Line, Column = op.Column };
         }
 
-        // 一元 -
-        if (Match(TokenType.Minus))
-        {
-            var operand = ParseCall(allowCall);
-            return new UnaryExpr("-", operand) { Line = Previous().Line, Column = Previous().Column };
-        }
-
-        var expr = ParsePrimary();
-
-        // .成员访问  — 在空格调用之前处理
-        while (Match(TokenType.Dot))
-        {
-            var member = ParseMemberName();
-            expr = new MemberAccess(expr, member) { Line = expr.Line, Column = expr.Column };
-        }
-
+        // .成员访问 — 在空格调用之前处理
+        var expr = ParseMemberChain(ParsePrimary());
         if (!allowCall) return expr;
 
         // f a b c  →  ((f a) b) c  柯里化。
@@ -190,14 +178,7 @@ public partial class Parser
         // (节形式的 `f is.int` 除外,那是参数)。
         while (StartsPrimary() && !IsInfixWordOperator())
         {
-            var arg = ParsePrimary();
-            while (Match(TokenType.Dot))
-            {
-                var mem = ParseMemberName();
-                arg = new MemberAccess(arg, mem) { Line = arg.Line, Column = arg.Column };
-            }
-
-            expr = new CallExpr(expr, arg)
+            expr = new CallExpr(expr, ParseMemberChain(ParsePrimary()))
             {
                 Line = expr.Line,
                 Column = expr.Column,
@@ -205,6 +186,18 @@ public partial class Parser
         }
 
         return expr;
+    }
+
+    /// <summary>主表达式后面挂的一串 `.成员`(`a.b.c`)。实参和函数各要用一次。</summary>
+    private Expression ParseMemberChain(Expression e)
+    {
+        while (Match(TokenType.Dot))
+        {
+            var member = ParseMemberName();
+            e = new MemberAccess(e, member) { Line = e.Line, Column = e.Column };
+        }
+
+        return e;
     }
 
 }
