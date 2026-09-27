@@ -48,7 +48,7 @@
         "modifiers": {
             "patterns": [
                 {
-                    "match": "\\b(readonly|override|new|public|private|protected|outdated|unreadable|by|core|thistype|block)\\b",
+                    "match": "\\b(readonly|public|private|protected|outdated|unreadable|by|core|thistype|block)\\b",
                     "name": "storage.modifier.ravel"
                 }
             ]
@@ -60,7 +60,7 @@
         },
         "operators": {
             "patterns": [
-                { "match": "::=|::|:=|=>|<\\||==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=", "name": "keyword.operator.ravel" },
+                { "match": "::=|::|:=|=>|=<|<\\||==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=", "name": "keyword.operator.ravel" },
                 { "match": "[-+*/%&|^!<>=]", "name": "keyword.operator.ravel" },
                 { "match": "[:.,]", "name": "punctuation.separator.ravel" }
             ]
@@ -68,11 +68,11 @@
         "support": {
             "patterns": [
                 {
-                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|function|type|void|Any|Every|Exception|ValueType)\\b",
+                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|function|type|void|Any|Every|Exception|ValueType|Cacher|Monad)\\b",
                     "name": "support.type.ravel"
                 },
                 {
-                    "match": "\\b(print|while|if|foreach|callcc|typeof|assert|eval|randint|with|ravel|using|exit|input|unsafe|currentScope|property)\\b",
+                    "match": "\\b(print|while|if|foreach|do|cacher|Some|None|callcc|typeof|assert|eval|randint|with|ravel|using|exit|input|unsafe|currentScope|property)\\b",
                     "name": "support.function.ravel"
                 }
             ]
