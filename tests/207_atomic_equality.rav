@@ -1,0 +1,46 @@
+# 原子值之间比相等。
+#
+# `Type` 那一层的 `==`/`!=` 是给**类对象**按身份比用的,但它挂在元类链上 ——
+# `MemberView` 查完值自己那一层还要往它的元类走,于是 `()`(Void)、`default`(Every)、
+# 异常值这些**原子值**也走得到它。那个实现把两边都硬转成了 ObjectVal:
+#
+#     print (() == ())
+#     !! 解释器内部错误 InvalidCastException: Unable to cast ... VoidVal ... ObjectVal
+#
+# 直接把程序打掉,而且不是 RuntimeException,Ravel 的 `Ex.try` 也接不住。
+# (cacher 拿 `()` 当实参去比的时候撞上了它,见 tests/206。)
+using "try.rav"
+print (() == ())
+print (() != ())
+print (default == default)
+print (default != default)
+print (() == default)          # 两个原子值但类型不同 -> 不相等,不报错
+
+C := class { init := () => { 0; this; }; }
+print (C == C)
+print (C == type)
+print ([1] == [1])             # 容器按身份:另建一个就不相等
+one := [1]
+print (one == one)
+
+# 异常值按值比(消息一样就相等)
+Ex.Try { Ex.Throw "boom"; } (e: Exception) => { print (e == e); }
+Ex.Try { Ex.Throw "boom"; } (e: Exception) => { print (e == "boom"); }
+
+# 一边是对象一边不是 -> 报「不支持操作数」,和别的运算符一个口径,不静默给 false
+Ex.Try { print (C == 5); } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { print ([1] == ()); } (e: Exception) => { print ("2: " + string e); }
+# --- expected ---
+# true
+# false
+# true
+# false
+# false
+# true
+# false
+# false
+# true
+# true
+# false
+# 1: 运算符 '==' 不支持 Integer 操作数
+# 2: 运算符 '==' 不支持 Void 操作数

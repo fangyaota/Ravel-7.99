@@ -134,8 +134,8 @@ internal static partial class BuiltinClasses
         DefineOp(Object, "isnot", (a, b) => new BoolVal(!IsA(a, b, "isnot")));
 
         // 类对象自己就是那个值,直接按身份比(和 ObjectVal.Equals 一致)
-        DefineOp(Type, "==", (a, b) => new BoolVal((ObjectVal)a == Operand<ObjectVal>(b, "==")));
-        DefineOp(Type, "!=", (a, b) => new BoolVal((ObjectVal)a != Operand<ObjectVal>(b, "!=")));
+        DefineOp(Type, "==", (a, b) => new BoolVal(SameValue(a, b, "==")));
+        DefineOp(Type, "!=", (a, b) => new BoolVal(!SameValue(a, b, "!=")));
 
         // bool 逻辑运算符
         DefineOp(Bool, "&", (a, b) => new BoolVal(((BoolVal)a).Value && Operand<BoolVal>(b, "&").Value));
@@ -184,6 +184,23 @@ internal static partial class BuiltinClasses
 
     private static double AsDouble(RuntimeValue v, string op)
         => TryAsDouble(v, out var d) ? d : throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
+
+    /// <summary>`Type` 那层 `==` / `!=` 的实现:<see cref="ObjectVal"/> 按**身份**比,
+    /// 原子值按**值**比(`()` 是单例,异常值比消息)。
+    ///
+    /// **两边都不能硬转 `ObjectVal`** —— 这条运算符是沿**元类链**兜底找来的
+    /// (`MemberView` 查完值自己那一层,还要往它的元类走),于是 `()`(Void)、
+    /// `default`(Every)、异常值这些**原子值**也走得到它:硬转会抛 C# 的
+    /// InvalidCastException 漏到顶层,`print (() == ())` 从前就是这么把程序打掉的
+    /// (它不是 RuntimeException,Ravel 的 `Ex.try` 也接不住)。
+    ///
+    /// 一边是对象一边不是 -> 报「不支持操作数」,和别的运算符一个口径,不静默给 false。</summary>
+    private static bool SameValue(RuntimeValue a, RuntimeValue b, string op) => (a, b) switch
+    {
+        (ObjectVal oa, ObjectVal ob) => ReferenceEquals(oa, ob),
+        (not ObjectVal, not ObjectVal) => a.Equals(b),
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数"),
+    };
 
     /// <summary>`is` / `isnot` 的实现:值的类型是不是(是某个类型的子类型)。
     /// 返回 bool,由调用点决定要不要取反 —— `isnot` 是同一个判据,不是两套。</summary>
