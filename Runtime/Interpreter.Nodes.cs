@@ -248,10 +248,19 @@ public partial class Interpreter
             return;
         }
 
+        // `by` 声明的注解说的是**写进来的值**的类型,不是那个 PropertyVal 自己的类型 ——
+        // 所以两边都不按普通字段那套办(见下面两处注释)。
+        var isBy = v.Attrs?.Contains(Attr.By) ?? false;
+
         var val = nf.Result(valueAt);
-        var dt = hasType ? AsClass(nf.Result(0), v.Name) : val.Type;
+        // 普通字段:注解管的是这一份值,当场比对/隐式转换。
+        // `by`:值是个 PropertyVal,注解管的是**属性那个值** ——
+        // 拿它去比的话,`by n: int = property …` 一实例化就报「无法将 Property 赋值给 Integer」,
+        // 而写的人根本没写过 Property。没写注解就记 Any:写什么都行(不然后面写入会被
+        // `Property` 这个约束全挡回去)。
+        var dt = hasType ? AsClass(nf.Result(0), v.Name) : isBy ? BuiltinClasses.Any : val.Type;
         // 没写注解时 dt 就是值自己的类型,一定"可赋值" —— 不必再判一次注解在不在
-        if (!val.Type.IsAssignableTo(dt))
+        if (!isBy && !val.Type.IsAssignableTo(dt))
         {
             var cv = TryConvert(val, dt, out var why);
             if (cv != null) val = cv;
@@ -311,6 +320,9 @@ public partial class Interpreter
     {
         if (field.HasAttr(Attr.By))
         {
+            // `by a: int = …` 的注解在这一侧执行 —— 和普通字段一样,约束的是**写进来的值**。
+            // (读那一侧不管:Ravel 从不检查某个函数返回什么,getter 也一样。)
+            field.CheckAssignable(val);
             PushCallReturn(nf.Parent!, PropertySetter(field.Value, field.Name), val, val);
             return;
         }

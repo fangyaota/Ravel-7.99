@@ -435,6 +435,12 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 
 attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`Attrs ()` 也读那一份。
 
+**类型注解**（`by n: int = …`）管的是**写进来的值**：`StepVarDef` 对 `by` 声明**不**拿注解去比
+那份值（比了就是「无法将 Property 赋值给 Integer」），而是把注解记成约束，由写入那侧
+（`WriteVariable` / `StepByCompoundAssign` 过 `Variable.CheckAssignable`）执行 ——
+和普通字段一样，约束在赋值侧，读侧不管（Ravel 从不检查函数返回什么）。
+`by a := …` 不带注解时约束记 `Any`（别把 `PropertyVal` 自己的 `Property` 当约束，那会把写入全挡回去）。
+
 ## 多参数 lambda
 
 ```ravel

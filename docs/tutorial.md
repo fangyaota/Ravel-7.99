@@ -1065,6 +1065,18 @@ v          # Error: 'v' 标了 by，但它的值不是 property（Integer 上没
 v = 1      # Error: 'v' 标了 by，但它的值不是 property（Integer 上没有 setter）
 ```
 
+**可以标类型**：`by n: int = property g s` —— 注解管的是**写进来的值**（和普通字段一个
+道理：Ravel 只约束赋值，从不检查某个函数返回什么）。所以 getter 返回什么没人管，
+写错类型当场报错：
+
+```ravel
+by n: int = property (() => { _n; }) ((q: int) => { _n = q; })
+c.n = 7         # ok
+c.n = "str"     # Error: 类型错误: 无法将 String 赋值给 'n' (声明为 Integer)
+```
+
+不标类型就是 `Any`，写什么都行。
+
 ⚠️ `by` 声明必须写在**类体一级**，不能写在 `init` 里面——`init` 是个 lambda，
 它的块有自己的局部作用域，写在里面的 `by name := ...` 挂不到对象上，`p.name` 只会报
 

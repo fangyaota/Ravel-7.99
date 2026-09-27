@@ -30,6 +30,31 @@ Ex.Try { d.bad = 1; } (e: Exception) => { print ("2: " + string e); }
 Ex.Try { d.bad += 1; } (e: Exception) => { print ("3: " + string e); }
 Ex.Try { d.read (); } (e: Exception) => { print ("4: " + string e); }
 Ex.Try { d.write 1; } (e: Exception) => { print ("5: " + string e); }
+
+# `by a: int = …` 的注解管的是**写进来的值**(和普通字段一个道理):
+# 从前这条注解会被拿去比那个 PropertyVal,一实例化就报「无法将 Property 赋值给 Integer」。
+E ::= class {
+    init := () => { 0; this; }
+    _n: int = 1
+    _f: float = 1.0
+    _s: object = ""
+    by n: int = property (() => { _n; }) ((q: int) => { _n = q; })
+    by loose := property (() => { _s; }) ((q: object) => { _s = q; })
+    by lying: string = property (() => { 42; }) ((q: object) => { 0; })
+    by m: int = property (() => { _f; }) ((q: object) => { _f = q; })
+}
+e := E ()
+print (e.n)
+e.n = 7
+print (e.n)
+print (e.n = 9)
+Ex.Try { e.n = "str"; } (e2: Exception) => { print ("6: " + string e2); }
+Ex.Try { e.m += 1; } (e2: Exception) => { print ("7: " + string e2); }
+# 没写注解 = 写什么都行(`:=` 定义时那个约束是 Any,不是 Property)
+e.loose = "anything"
+print (e.loose)
+# 读那侧不管:注解约束的是"谁能写进来"(Ravel 从不检查函数返回什么,getter 也一样)
+print (e.lying)
 # --- expected ---
 # 99
 # 7
@@ -40,3 +65,10 @@ Ex.Try { d.write 1; } (e: Exception) => { print ("5: " + string e); }
 # 3: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
 # 4: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
 # 5: 'bad' 标了 by，但它的值不是 property（Integer 上没有 setter）
+# 1
+# 7
+# 9
+# 6: 类型错误: 无法将 String 赋值给 'n' (声明为 Integer)
+# 7: 类型错误: 无法将 Float 赋值给 'm' (声明为 Integer)
+# anything
+# 42
