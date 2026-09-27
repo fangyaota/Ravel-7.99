@@ -34,10 +34,10 @@ public record ObjectVal : RuntimeValue
 
     // 成员名——机制内部用,别在 C# 里到处写字符串
     internal const string ParentMember = "parent";
-    /// <summary>**多父**(接口继承)那张表:链上只挂第一个父(`parent`),其余的都记在这儿。
-    /// 只有"写了多个父"的接口才有这一条;别的类型读它就是 null,`Parents ()` 那时给 `[Parent ()]`。
-    /// 照旧是**成员**(不是 C# 字段),所以复制/`Fields ()` 那套一并照旧。</summary>
-    internal const string ParentsMember = "parents";
+    /// <summary>接口的**要求**表(`interface 某接口 [A B] { … }`):实现这个接口的类,
+    /// **必须已经**有那些接口的实现。和 `parent` 是两回事 —— 父是**继承**(槽并进来、`<:` 成立),
+    /// 要求是**前置条件**(槽不并、只查有没有;见 `StepImplMake`)。只有写了要求的接口才有这一条。</summary>
+    internal const string RequiresMember = "requires";
     internal const string BlockMember = "block";
     internal const string NameMember = "name";
     internal const string InitMember = "init";
@@ -143,13 +143,11 @@ public record ObjectVal : RuntimeValue
     /// `call` 从前也在这个名单里 —— 它现在是普通成员名了(类对象不再靠它表示"可调用"),
     /// 用户叫 `call` 的方法照常列出来。</summary>
     internal static bool IsMethodName(string n)
-        => n is not (BlockMember or ParentMember or ParentsMember or NameMember or InitMember or ThisMember);
+        => n is not (BlockMember or ParentMember or RequiresMember or NameMember or InitMember or ThisMember);
 
     /// <summary>this 是否兼容 target?即 this &lt;: target。底类型 Every 全局特判(它是所有类的子类)。
     ///
-    /// 走两处:**parent 原型链**(一根),以及多父接口那张 <see cref="ParentsMember"/> 表 ——
-    /// 接口继承时链上只挂第一个父,其余的都记在表里(BuiltinClasses.Interfaces.cs)。
-    /// 接口不可能成环(`A ::= interface B {…}` 要求 B 先存在),所以递归不用防环。</summary>
+    /// 就走 **parent 原型链**那一根 —— 接口也只继承一个父,和类一样。</summary>
     public bool IsAssignableTo(ObjectVal target)
     {
         if (this == BuiltinClasses.Every) return true;
@@ -159,11 +157,6 @@ public record ObjectVal : RuntimeValue
             if (t == target) return true;
             if (t.Parent == t) break;      // 自引用(object/Every/Any)= 链到头
         }
-
-        if (Scope.LookupField(ParentsMember)?.Value is ListVal parents)
-            foreach (var p in parents.Elements)
-                if (p is ObjectVal po && po.IsAssignableTo(target))
-                    return true;
 
         return false;
     }

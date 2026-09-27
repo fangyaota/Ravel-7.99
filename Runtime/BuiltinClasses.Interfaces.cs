@@ -58,83 +58,88 @@ internal static partial class BuiltinClasses
     /// <summary>接口自己的 `init`(`Alternate(twoArg, oneArg)`)。**每个接口的类体里都会塞一份**
     /// ——见下面 `BakeInterfaceInit` 的说明。它是无状态的(只看 `this` 的类型和参数),
     /// 所以这一个值可以给所有接口共用。</summary>
-    private static ControlFunction _interfaceInit = null!;
+    private static FunctionVal _interfaceInit = null!;
 
+    /// <summary>`interface` 的 init。四种写法都在**一个**参数上分流,而且第二三个参数是**可选**的
+    /// (`interface 某接口 [A B] { … }`),`Alternate` 那套(靠参数类型逐支试)表达不了这种形状,
+    /// 所以直接 C# 里判:
+    ///
+    ///     interface { … }                  不继承、不要求
+    ///     interface 某接口 { … }            一个父(**继承**:槽并进来、`<:` 成立)
+    ///     interface 某接口 [A B] { … }      一个父 + 一串**要求**(前置条件)
+    ///     interface [A B] { … }            只有要求
+    ///     myTrait 某个类 { … }              造实现(本体不是 `interface` 时)
+    ///
+    /// 「要求」和「父」是两回事:父是继承,要求是"实现这个接口的类必须**已经**有那些接口的实现"
+    /// —— 槽不并进来、`<:` 也不成立,只查在不在(查在造实现那一步,见 `StepImplMake`)。</summary>
     private static void InstallInterfaceInit()
     {
-        // 1) `interface [supTrait IEnumerable] { … }` —— 继承一串接口
-        var parentsArg = new NativeClosure("parents", List, (scope, ps) =>
-            FunctionVal.From(body => BuildInterface(scope, InterfaceParents(ps), body)));
-
-        // 2) `interface 某个类型 { … }` —— 类型是**接口**就继承它;是**普通类**就成了实现
-        //    (`myTrait myClass { … }`,和从前一样走 ImplMake)
-        var ofArg = new NativeClosure("of", Type, (scope, of) =>
+        _interfaceInit = new NativeClosure("_", Any, (scope, arg) =>
         {
-            // 本体(`this` 的类型)就是"谁在造":`interface X { … }` 时它是 `Interface` 自己,
-            // `myTrait MyClass { … }` 时它是那个接口。靠它把"接口继承"和"类实现"分开 ——
-            // 两者都长成"一个类型 + 一个代码块"。
+            // 本体(`this` 的类型)就是"谁在造":`interface …` 时它是 `Interface` 自己,
+            // `某接口 某个类 { … }` 时它是那个接口 —— 靠它把"接口继承"和"类实现"分开。
             var driver = ((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type;
 
-            if (of is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface))
-                return FunctionVal.From(body => BuildInterface(scope, [o], body));
+            if (arg is BlockVal blk)
+                return BuildInterface(scope, null, [], blk);
 
+            if (arg is ListVal list)
+                return FunctionVal.From(body => BuildInterface(scope, null, Requirements(list), body));
+
+            if (arg is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface))
+                return FunctionVal.From(next => next is ListVal reqs
+                    ? FunctionVal.From(body => BuildInterface(scope, o, Requirements(reqs), body))
+                    : BuildInterface(scope, o, [], next));
+
+            // 到这儿:既不是代码块、不是要求表、也不是接口 —— 要么是"给某个类实现"(造实现),
+            // 要么是 `interface` 用错了
             if (driver == Interface)
-                throw new RuntimeException($"`interface` 只能继承接口（{of} 是个类）；"
-                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`");
+                throw new RuntimeException(arg is ObjectVal { IsClass: true }
+                    ? $"`interface` 只能继承接口（{arg} 是个类）；要给某个类实现接口就写成 `某个接口 那个类 {{ … }}`"
+                    : "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）"
+                      + $"或一串要求（`interface [A B] {{ … }}`），得到 {arg.Type}");
 
-            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(of));
+            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(arg));
         });
 
-        // 3) `interface { … }` —— 不继承
-        var bodyArg = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, [], body));
-
-        // 4) 都不匹配:把能写什么说全(否则只会得到「| 的 3 个分支都不收这个参数」)
-        var otherArg = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
-            "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）"
-            + $"或一串接口（`interface [A B] {{ … }}`），得到 {v.Type}"));
-
-        _interfaceInit = Alternate(parentsArg, ofArg, bodyArg, otherArg);
         Interface.ClassBody = PresetCtor(_interfaceInit);
     }
 
-    /// <summary>接口表(`[supTrait IEnumerable]`)的每一项都得是个**接口** ——
-    /// 接口只继承接口(照 C#:类是"实现",不是"继承")。</summary>
-    private static List<ObjectVal> InterfaceParents(RuntimeValue v)
+    /// <summary>要求表(`[A B]`)的每一项都得是个**接口**;空表就是不要求。</summary>
+    private static List<ObjectVal> Requirements(ListVal list)
     {
-        var items = ((ListVal)v).Elements;
-        if (items.Count == 0)
-            throw new RuntimeException("接口表是空的：只继承一个就直接写 `interface 那个接口 { … }`");
-
-        var parents = new List<ObjectVal>();
-        for (var i = 0; i < items.Count; i++)
+        var reqs = new List<ObjectVal>();
+        for (var i = 0; i < list.Elements.Count; i++)
         {
-            if (items[i] is not ObjectVal { Type: var meta } o || !meta.IsAssignableTo(Interface))
-                throw new RuntimeException($"接口表里得全是接口，第 {i + 1} 个是 {items[i].Type}");
-            parents.Add(o);
+            if (list.Elements[i] is not ObjectVal { Type: var meta } o || !meta.IsAssignableTo(Interface))
+                throw new RuntimeException($"要求表里得全是接口，第 {i + 1} 个是 {list.Elements[i].Type}");
+            reqs.Add(o);
         }
 
-        return parents;
+        return reqs;
     }
 
     /// <summary>造一个接口:`interface { … }`(无父)、`interface 某接口 { … }`(一个父)、
-    /// `interface [A B] { … }`(多个父)。
+    /// 或者再加一串要求(`interface 某接口 [A B] { … }`)。
     ///
-    /// **链上只挂写的第一个** —— 类型树、`Subtypes ()`、成员查找、实例化全都靠那一根链,
-    /// 多挂不了;其余的父记在 <see cref="ObjectVal.ParentsMember"/> 那张表里,只由
-    /// `IsAssignableTo`(于是 `is` / 注解 / `<:` / 两个查询)额外看一眼。
+    /// `parent` 就是链上那个(没有 = `object`)—— 类型树、`Subtypes ()`、成员查找、实例化
+    /// 全照旧靠它;`requires` 记在 <see cref="ObjectVal.RequiresMember"/> 里,**只**给
+    /// `StepImplMake` 查前置条件用(不进槽、不进 `<:`)。
     ///
-    /// 类体则把各父的**声明**接在自己前面一起烤(见 <see cref="BakeInterfaceInit"/>),
-    /// 于是这个接口的"形"是自足的:`myTrait myClass { … }` 推它一把就拿到了全部槽,
-    /// `StepImplMake` 一行都不用改。</summary>
-    private static RuntimeValue BuildInterface(Scope scope, List<ObjectVal> parents, RuntimeValue body)
+    /// 类体把父的**声明**接在自己前面一起烤(见 <see cref="BakeInterfaceInit"/>)——
+    /// 于是这个接口的"形"是自足的:`myTrait myClass { … }` 推它一把就拿到了全部槽。</summary>
+    private static RuntimeValue BuildInterface(Scope scope, ObjectVal? parent, List<ObjectVal> requires, RuntimeValue body)
     {
-        var trait = Install(scope, parents.Count > 0 ? parents[0] : Object, body);
+        if (body is not BlockVal blk)
+            throw new RuntimeException($"接口的体得是个代码块（`interface … {{ … }}`），得到 {body.Type}");
 
-        if (parents.Count > 0)
-            trait.Scope.DefineOrReplace(ObjectVal.ParentsMember, List, new ListVal([.. parents]))
+        var trait = Install(scope, parent ?? Object, blk);
+
+        if (requires.Count > 0)
+            trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, List, new ListVal([.. requires]))
                 .SetAttr(Attr.Unreadable);
 
-        BakeInterfaceInit(trait, body, parents);
+        BakeInterfaceInit(trait, blk, parent);
 
         // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
         // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
@@ -143,7 +148,7 @@ internal static partial class BuiltinClasses
         return trait;
     }
 
-    /// <summary>把接口自己的 `init`(以及各父的**声明**)烤进这个接口的**类体**。
+    /// <summary>把接口自己的 `init`(以及父的**声明**)烤进这个接口的**类体**。
     ///
     /// 为什么非烤 `init`:接口对象的 parent 是 **`object`**(和 C# 一样 —— 接口不是"继承了一个
     /// 叫 Interface 的基类"),于是它继承不到 `Interface` 那个预设类体里的 `init`。而
@@ -152,21 +157,18 @@ internal static partial class BuiltinClasses
     /// 也只是在实现 scope 里多出一个没人看的 `init` 成员(不是 `by` 槽,所以不会被接口槽的
     /// 查找接管)。
     ///
-    /// 为什么把各父的声明也接上:多父时 `parent` 只挂得下第一个,槽却要是**并集** ——
-    /// 把父的那些 `by … = default` 抄进来最省事,而且**父自己早就把它的父抄进来了**,
-    /// 所以一层不落。抄的时候跳过每个父烤在最前面的那个 `init`。
+    /// 为什么把父的声明也接上:槽要**并集**(父的那个是它"形"的一部分)—— 把父的那些
+    /// `by … = default` 抄进来最省事,而且**父自己早就把它的父抄进来了**,所以一层不落。
+    /// 抄的时候跳过父烤在最前面的那个 `init`(每个接口的类体都以它开头)。
     /// 父的在前、自己的在后:同名槽由后写的说了算(`DefineOrReplace`)。
     ///
     /// 类体必须是新的 BlockExpr(带用户那份的 Source/行列):原样改 `block` 会动到用户写的
     /// 那个 BlockExpr,`Source` 也就丢了。</summary>
-    private static void BakeInterfaceInit(ObjectVal trait, RuntimeValue body, List<ObjectVal> parents)
+    private static void BakeInterfaceInit(ObjectVal trait, BlockVal blk, ObjectVal? parent)
     {
-        if (body is not BlockVal blk) return;
-
         var statements = new List<Statement>();
-        foreach (var p in parents)
-            if (p.ClassBody is { } pb)
-                statements.AddRange(pb.Block.Statements.Skip(1));   // 跳过父烤的那个 init
+        if (parent?.ClassBody is { } pb)
+            statements.AddRange(pb.Block.Statements.Skip(1));   // 跳过父烤的那个 init
 
         statements.AddRange(blk.Block.Statements);
 
@@ -323,31 +325,21 @@ internal static partial class BuiltinClasses
         return new ListVal(found);
     }
 
-    /// <summary>一个接口**自己以及它继承的所有接口**,按"先自己、再父的书写顺序"排。
+    /// <summary>一个接口**自己以及它继承的所有接口**,按"先自己、再往上"排。
     ///
-    /// 链上和 `parents` 表都要走:多父接口的父在表里(链上只有第一个),无父接口/普通类
-    /// 则沿链走到 `object` —— 那一头不是接口,自然被滤掉,所以普通类拿到的是空表。</summary>
+    /// 沿链走(**要求**不算 —— 要求是前置条件,不是继承:一个类实现它得自己另外 impl 一条,
+    /// 那条本来就登记着,查询自然会看到)。走到 `object` 那头不是接口,滤掉,
+    /// 所以普通类拿到的是空表。</summary>
     private static List<ObjectVal> InterfaceClosure(ObjectVal type)
     {
         var found = new List<ObjectVal>();
-
-        void Walk(ObjectVal t)
+        for (var t = type; t != null; t = t.Parent)
         {
             if (t.Type.IsAssignableTo(Interface) && !found.Any(x => ReferenceEquals(x, t)))
                 found.Add(t);
-
-            if (t.Scope.LookupField(ObjectVal.ParentsMember)?.Value is ListVal ps)
-            {
-                foreach (var e in ps.Elements)
-                    if (e is ObjectVal po) Walk(po);
-            }
-            else if (t.Parent is { } chain && chain != t)
-            {
-                Walk(chain);
-            }
+            if (t.Parent == t) break;
         }
 
-        Walk(type);
         return found;
     }
 

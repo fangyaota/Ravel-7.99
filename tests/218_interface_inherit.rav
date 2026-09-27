@@ -1,14 +1,15 @@
-# 接口继承:一个父、多个父。
+# 接口继承:**一个父**,外加一串**要求**。
 #
-#     supTrait  ::= interface myTrait { … }                 # 一个父
-#     masterTrait ::= interface [supTrait IEnumerable] { () }  # 多个父(列表字面量;`{ () }` 是空体)
+#     supTrait    ::= interface myTrait { by c : int = default }        # 一个父(继承)
+#     masterTrait ::= interface supTrait [IEnumerable] { () }           # 父 + 要求
+#     reqOnly     ::= interface [IEnumerable] { () }                    # 只有要求
 #
-# 规矩(照 C#):
-# - 槽取**并集**(父的 + 自己的;同名以自己写的为准);
-# - `Parent ()` 给**链上第一个**(链只能挂一个:类型树、`Subtypes ()`、成员查找、实例化全照旧),
-#   全表看 `Parents ()` —— 谁都有,永不空(普通类给 `[Object]`、`int` 给 `[ValueType]`);
-# - `A <: B` 把那张父表也算上,所以 `masterTrait <: myTrait` 成立;
-# - **实现了子接口 = 也实现了它的父接口**:`is` / 注解 / `foreach` / 两个查询全跟着认。
+# 「父」和「要求」是两回事:
+# - 父是**继承**:槽并进来(`by … = default` 抄进子接口的类体)、`<:` 成立;
+# - 要求是**前置条件**:实现这个接口的类必须**已经**有那些接口的实现 —— 槽不并、
+#   `<:` 也不成立(`masterTrait <: IEnumerable` 是 false),只在造实现那一步查有没有。
+#
+# `Parent ()` 给链上那个(接口也只继承一个),`Parents ()` 包成 list,谁都有、永不空。
 
 myTrait ::= interface {
     by a : int = default
@@ -20,35 +21,54 @@ supTrait ::= interface myTrait {
     by d : function = default
 }
 
-masterTrait ::= interface [supTrait IEnumerable] {
+masterTrait ::= interface supTrait [IEnumerable] {
     ()
 }
 
-# ---- 谁继承了谁 ----
+reqOnly ::= interface [IEnumerable] {
+    ()
+}
+
+# ---- 谁继承谁 ----
 print (supTrait.Parent ())
 print (supTrait.Parents ())
 print (masterTrait.Parent ())
 print (masterTrait.Parents ())
-print (myTrait.Parents ())
 print (supTrait <: myTrait)
 print (masterTrait <: supTrait)
-print (masterTrait <: myTrait)          # 传递着也算
+print (masterTrait <: myTrait)
+
+# ---- 要求不是继承:<: 不成立 ----
 print (masterTrait <: IEnumerable)
-print (supTrait <: masterTrait)
+print (reqOnly <: IEnumerable)
 
 # ---- 别的类型问 Parents (),也永远有一项 ----
+print (myTrait.Parents ())
 print (int.Parents ())
 print (object.Parents ())
+
 C ::= class {
     x : int = 0
 }
-print (C.Parents ())
+D ::= class {
+    y : int = 0
+}
 
-# ---- 实现子接口:父的槽也是它要提供的(这儿 a/c 走实现,别的留 default)----
+# ---- 要求是前置条件:还没实现 IEnumerable 就造实现 → 报错 ----
+try {
+    impl (masterTrait C {
+        by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+        by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
+    })
+} (e: Exception) => { print ("1: " + string e); }
+
+# ---- 先给它一条 IEnumerable 的实现,再实现 masterTrait ----
+impl (IEnumerable C {
+    by GetEnumerator = property (() => { () => { Enumerator [instance.x]; }; }) ((v: function) => { (); })
+})
 impl (masterTrait C {
     by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
     by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
-    by GetEnumerator = property (() => { () => { Enumerator [instance.x (instance.x + 1)]; }; }) ((v: function) => { (); })
 })
 
 u := C ()
@@ -59,85 +79,79 @@ print (u is supTrait)
 print (u is myTrait)
 print (u is IEnumerable)
 foreach u (v: int) => { print ("each " + string v); }
-
-# ---- 两个查询:实现了子接口 = 也实现了父 ----
 print (C.GetImplements ())
-print (myTrait.GetImplementors ())
-print (supTrait.GetImplementors ())
-print (masterTrait.GetImplementors ())
 
-# ---- 同名槽:子接口写的说了算 ----
+# ---- 只有要求的接口:同样得先有那一份实现 ----
+try {
+    impl (reqOnly D {
+        ()
+    })
+} (e: Exception) => { print ("2: " + string e); }
+impl (IEnumerable D {
+    by GetEnumerator = property (() => { () => { Enumerator [instance.y]; }; }) ((v: function) => { (); })
+})
+impl (reqOnly D {
+    ()
+})
+print (D () is reqOnly)
+print (D () is IEnumerable)
+
+# ---- 同名槽:自己的说了算 ----
 SameTrait ::= interface myTrait {
     by a : string = default
 }
-D ::= class {
+E ::= class {
     s : string = ""
 }
-impl (SameTrait D {
+impl (SameTrait E {
     by a = property (() => { instance.s; }) ((v: string) => { instance.s = v; })
 })
-d := D ()
-d.a = "hi"
-print d.a
-Ex.Try { d.a = 5; } (e: Exception) => { print ("1: " + string e); }
+e := E ()
+e.a = "hi"
+print e.a
+try { e.a = 5; } (err: Exception) => { print ("3: " + string err); }
 
 # ---- 注解、参数(和 `is` 同一个判据) ----
-takeMaster := (xs: masterTrait) => { xs.a; }
-print (takeMaster u)
 takeBase := (xs: myTrait) => { xs.a; }
 print (takeBase u)
-takeIter := (xs: IEnumerable) => {
-    n := 0
-    e := xs.GetEnumerator ()
-    while { e.MoveNext (); } { n += 1; }
-    n
-}
-print (takeIter u)
 
 # ---- 写错了要报得清楚 ----
 try {
     interface 5 { () }
-} (e: Exception) => { print ("2: " + string e); }
+} (err: Exception) => { print ("4: " + string err); }
 try {
-    interface [myTrait 5] { () }
-} (e: Exception) => { print ("3: " + string e); }
-try {
-    interface [] { () }
-} (e: Exception) => { print ("4: " + string e); }
+    interface supTrait [myTrait 5] { () }
+} (err: Exception) => { print ("5: " + string err); }
 try {
     interface C { () }
-} (e: Exception) => { print ("5: " + string e); }
+} (err: Exception) => { print ("6: " + string err); }
 # --- expected ---
 # myTrait
 # [myTrait]
 # supTrait
-# [supTrait IEnumerable]
-# [Object]
-# true
+# [supTrait]
 # true
 # true
 # true
 # false
+# false
+# [Object]
 # [ValueType]
 # [Object]
-# [Object]
+# 1: `masterTrait` 要求 C 已经实现了 IEnumerable（先给它 impl/use 一条）
 # 10
 # true
 # true
 # true
 # true
 # each 5
-# each 6
 # [masterTrait supTrait myTrait IEnumerable]
-# [C]
-# [C]
-# [C]
+# 2: `reqOnly` 要求 D 已经实现了 IEnumerable（先给它 impl/use 一条）
+# true
+# true
 # hi
-# 1: 类型错误: 无法将 Integer 赋值给 'a' (声明为 String)
+# 3: 类型错误: 无法将 Integer 赋值给 'a' (声明为 String)
 # 5
-# 5
-# 2
-# 2: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）或一串接口（`interface [A B] { … }`），得到 Integer
-# 3: 接口表里得全是接口，第 2 个是 Integer
-# 4: 接口表是空的：只继承一个就直接写 `interface 那个接口 { … }`
-# 5: `interface` 只能继承接口（C 是个类）；要给某个类实现接口就写成 `某个接口 那个类 { … }`
+# 4: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）或一串要求（`interface [A B] { … }`），得到 Integer
+# 5: 要求表里得全是接口，第 2 个是 Integer
+# 6: `interface` 只能继承接口（C 是个类）；要给某个类实现接口就写成 `某个接口 那个类 { … }`

@@ -233,6 +233,15 @@ public partial class Interpreter
 
         if (cf.Count == 0)
         {
+            // 「要求」是**前置条件**:这个类得**已经**有那几个接口的实现(查当下作用域里有没有
+            // 生效中的)。放在造实现这一步,是因为"已经实现"是作用域里的事(实现登记在 scope 上),
+            // 而这里手里正好有求值器。
+            if (trait.Scope.LookupField(ObjectVal.RequiresMember)?.Value is ListVal reqs)
+                foreach (var r in reqs.Elements)
+                    if (r is ObjectVal rt && !BuiltinClasses.HasTrait(this, target, rt))
+                        throw new RuntimeException($"`{trait.DisplayName}` 要求 {target.DisplayName} "
+                            + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）");
+
             var impl = new ObjectVal(trait, new Scope(body.CaptureScope));
             _top = new BlockExecFrame(trait.ClassBody!.Block)
             {

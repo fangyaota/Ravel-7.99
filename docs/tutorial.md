@@ -1561,31 +1561,37 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 `by GetEnumerator`，`IEnumerator` 只声明 `by MoveNext` / `by Current`，
 三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、`(xs: IEnumerable) => …` 收得下它们。
 
-#### 接口也能继承接口
-
-一个父直接写，多个父写成一串（括号是列表）：
+#### 接口也能继承接口（外加一串要求）
 
 ```ravel
 myTrait ::= interface {
     by a : int = default
 }
 
-supTrait ::= interface myTrait {          # 一个父
+supTrait ::= interface myTrait {                 # 一个父
     by c : int = default
 }
 
-masterTrait ::= interface [supTrait IEnumerable] {   # 多个父；`{ () }` 是空体
+masterTrait ::= interface supTrait [IEnumerable] {   # 父 + 要求；`{ () }` 是空体
     ()
 }
 ```
 
-- **槽取并集**：`masterTrait` 的槽是 `a`/`c`/`GetEnumerator`（同名以**自己写的**为准）；
-- `supTrait <: myTrait`、`masterTrait <: IEnumerable`（`<:` 和 `is` 都沿着继承走）；
-- **实现了子接口 = 也实现了它的父接口**（照 C#）：`impl masterTrait 某个类 { … }` 之后，
-  那个类的实例 `is supTrait` / `is myTrait` / `is IEnumerable` 全成立，
-  `foreach` 也直接能遍历它（如果父里有 `IEnumerable`），`u.GetImplements ()` 连父接口一起列；
-- `Parent ()` 给**链上第一个**，全表看 `Parents ()`（谁都有：普通类 `[Object]`、
-  `int` `[ValueType]`）。类型树按 `Parent ()` 画，所以多父接口只画出第一条边。
+- **父是继承**：`masterTrait` 的槽是 `a`/`c`（父的 + 自己的；同名以**自己写的**为准），
+  `masterTrait <: supTrait`、`<: myTrait` 都成立；实现了子接口也就实现了父接口
+  （`is` / 注解 / `foreach` / 两个查询全认）。
+- **要求是前置条件**：实现 `masterTrait` 的类必须**已经**有 `IEnumerable` 的实现
+  —— 槽**不**并进来、`<: IEnumerable` 也**不**成立，只在造实现那一步查有没有：
+
+  ```ravel
+  masterTrait 某个类 { … }
+  # masterTrait 要求 某个类 已经实现了 IEnumerable（先给它 impl/use 一条）
+  ```
+
+  （写 `use` 还是 `impl` 由你：要求查的是"当下这个作用域里有没有生效中的实现"。）
+- 只写要求不写父也行：`interface [IEnumerable] { … }`。
+- `Parent ()` 给链上那个父，`Parents ()` 包成 list 给你（谁都有：普通类 `[Object]`、
+  `int` `[ValueType]`、`object` `[Object]`）。
 
 #### 查一个类型现在实现了什么
 
