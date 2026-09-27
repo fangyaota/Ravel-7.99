@@ -1561,6 +1561,32 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 `by GetEnumerator`，`IEnumerator` 只声明 `by MoveNext` / `by Current`，
 三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、`(xs: IEnumerable) => …` 收得下它们。
 
+#### 接口也能继承接口
+
+一个父直接写，多个父写成一串（括号是列表）：
+
+```ravel
+myTrait ::= interface {
+    by a : int = default
+}
+
+supTrait ::= interface myTrait {          # 一个父
+    by c : int = default
+}
+
+masterTrait ::= interface [supTrait IEnumerable] {   # 多个父；`{ () }` 是空体
+    ()
+}
+```
+
+- **槽取并集**：`masterTrait` 的槽是 `a`/`c`/`GetEnumerator`（同名以**自己写的**为准）；
+- `supTrait <: myTrait`、`masterTrait <: IEnumerable`（`<:` 和 `is` 都沿着继承走）；
+- **实现了子接口 = 也实现了它的父接口**（照 C#）：`impl masterTrait 某个类 { … }` 之后，
+  那个类的实例 `is supTrait` / `is myTrait` / `is IEnumerable` 全成立，
+  `foreach` 也直接能遍历它（如果父里有 `IEnumerable`），`u.GetImplements ()` 连父接口一起列；
+- `Parent ()` 给**链上第一个**，全表看 `Parents ()`（谁都有：普通类 `[Object]`、
+  `int` `[ValueType]`）。类型树按 `Parent ()` 画，所以多父接口只画出第一条边。
+
 #### 查一个类型现在实现了什么
 
 `T.GetImplements ()`（`Type` 上的方法）给出一份**当下**的快照 —— 接口对象组成的 list：

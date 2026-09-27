@@ -1,0 +1,143 @@
+# 接口继承:一个父、多个父。
+#
+#     supTrait  ::= interface myTrait { … }                 # 一个父
+#     masterTrait ::= interface [supTrait IEnumerable] { () }  # 多个父(列表字面量;`{ () }` 是空体)
+#
+# 规矩(照 C#):
+# - 槽取**并集**(父的 + 自己的;同名以自己写的为准);
+# - `Parent ()` 给**链上第一个**(链只能挂一个:类型树、`Subtypes ()`、成员查找、实例化全照旧),
+#   全表看 `Parents ()` —— 谁都有,永不空(普通类给 `[Object]`、`int` 给 `[ValueType]`);
+# - `A <: B` 把那张父表也算上,所以 `masterTrait <: myTrait` 成立;
+# - **实现了子接口 = 也实现了它的父接口**:`is` / 注解 / `foreach` / 两个查询全跟着认。
+
+myTrait ::= interface {
+    by a : int = default
+    by b : function = default
+}
+
+supTrait ::= interface myTrait {
+    by c : int = default
+    by d : function = default
+}
+
+masterTrait ::= interface [supTrait IEnumerable] {
+    ()
+}
+
+# ---- 谁继承了谁 ----
+print (supTrait.Parent ())
+print (supTrait.Parents ())
+print (masterTrait.Parent ())
+print (masterTrait.Parents ())
+print (myTrait.Parents ())
+print (supTrait <: myTrait)
+print (masterTrait <: supTrait)
+print (masterTrait <: myTrait)          # 传递着也算
+print (masterTrait <: IEnumerable)
+print (supTrait <: masterTrait)
+
+# ---- 别的类型问 Parents (),也永远有一项 ----
+print (int.Parents ())
+print (object.Parents ())
+C ::= class {
+    x : int = 0
+}
+print (C.Parents ())
+
+# ---- 实现子接口:父的槽也是它要提供的(这儿 a/c 走实现,别的留 default)----
+impl (masterTrait C {
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+    by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
+    by GetEnumerator = property (() => { () => { Enumerator [instance.x (instance.x + 1)]; }; }) ((v: function) => { (); })
+})
+
+u := C ()
+u.a = 5
+print u.c
+print (u is masterTrait)
+print (u is supTrait)
+print (u is myTrait)
+print (u is IEnumerable)
+foreach u (v: int) => { print ("each " + string v); }
+
+# ---- 两个查询:实现了子接口 = 也实现了父 ----
+print (C.GetImplements ())
+print (myTrait.GetImplementors ())
+print (supTrait.GetImplementors ())
+print (masterTrait.GetImplementors ())
+
+# ---- 同名槽:子接口写的说了算 ----
+SameTrait ::= interface myTrait {
+    by a : string = default
+}
+D ::= class {
+    s : string = ""
+}
+impl (SameTrait D {
+    by a = property (() => { instance.s; }) ((v: string) => { instance.s = v; })
+})
+d := D ()
+d.a = "hi"
+print d.a
+Ex.Try { d.a = 5; } (e: Exception) => { print ("1: " + string e); }
+
+# ---- 注解、参数(和 `is` 同一个判据) ----
+takeMaster := (xs: masterTrait) => { xs.a; }
+print (takeMaster u)
+takeBase := (xs: myTrait) => { xs.a; }
+print (takeBase u)
+takeIter := (xs: IEnumerable) => {
+    n := 0
+    e := xs.GetEnumerator ()
+    while { e.MoveNext (); } { n += 1; }
+    n
+}
+print (takeIter u)
+
+# ---- 写错了要报得清楚 ----
+try {
+    interface 5 { () }
+} (e: Exception) => { print ("2: " + string e); }
+try {
+    interface [myTrait 5] { () }
+} (e: Exception) => { print ("3: " + string e); }
+try {
+    interface [] { () }
+} (e: Exception) => { print ("4: " + string e); }
+try {
+    interface C { () }
+} (e: Exception) => { print ("5: " + string e); }
+# --- expected ---
+# myTrait
+# [myTrait]
+# supTrait
+# [supTrait IEnumerable]
+# [Object]
+# true
+# true
+# true
+# true
+# false
+# [ValueType]
+# [Object]
+# [Object]
+# 10
+# true
+# true
+# true
+# true
+# each 5
+# each 6
+# [masterTrait supTrait myTrait IEnumerable]
+# [C]
+# [C]
+# [C]
+# hi
+# 1: 类型错误: 无法将 Integer 赋值给 'a' (声明为 String)
+# 5
+# 5
+# 2
+# 2: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（`interface 某接口 { … }`）或一串接口（`interface [A B] { … }`），得到 Integer
+# 3: 接口表里得全是接口，第 2 个是 Integer
+# 4: 接口表是空的：只继承一个就直接写 `interface 那个接口 { … }`
+# 5: `interface` 只能继承接口（C 是个类）；要给某个类实现接口就写成 `某个接口 那个类 { … }`

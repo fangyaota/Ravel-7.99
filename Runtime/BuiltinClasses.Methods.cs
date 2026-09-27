@@ -242,6 +242,18 @@ internal static partial class BuiltinClasses
             if (p == null || p == t) return s;      // 自引用(链到头)就返回自己
             return p;
         });
+        // 直接继承的那些。**谁都有,永不空**:接口给那张 `parents` 表(多父时链上只挂第一个),
+        // 别的类型给 `[Parent ()]` —— 普通类 `[Object]`、`int` `[ValueType]`、`object` `[Object]`
+        // (自引用那条"链到头"的老规矩,和 `Parent ()` 一个口径)。
+        Type.DefineMethod("Parents", (s, _) =>
+        {
+            var t = (ObjectVal)s;
+            if (t.Scope.LookupField(ObjectVal.ParentsMember)?.Value is ListVal ps)
+                return new ListVal([.. ps.Elements]);
+
+            var p = t.Parent;
+            return new ListVal([p == null || p == t ? t : p]);
+        });
         // `Is` 这个**方法**删掉了:它问类型、`is` 问值,两个长得像的东西各管一头,
         // 最常踩的是拿实例去调(`C.Is (C ())` 从前静默给 false,读起来还像"这个实例是不是 C")。
         // 要问类型之间的关系就用运算符:`int <: object` / `object :> int`(两边都得是类型);

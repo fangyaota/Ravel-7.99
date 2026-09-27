@@ -174,6 +174,16 @@ internal static partial class BuiltinClasses
     internal static ControlFunction Alternate(RuntimeValue a, RuntimeValue b)
         => new(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b));
 
+    /// <summary>N 个候选的交替(接口那个 init 要三支:接口表 / 一个类型 / 代码块)。
+    /// `Arity` 恒为 1:这一段是**一个**参数上的分流,分支个数由参数表长度带,
+    /// 和 `Function.|` 摊平出来的那种是同一个东西(它也是这么堆的)。</summary>
+    internal static ControlFunction Alternate(params RuntimeValue[] branches)
+    {
+        var args = RList<RuntimeValue>.Empty;
+        foreach (var b in branches) args = args.Add(b);
+        return new ControlFunction(ControlKind.Alternate, 1, args);
+    }
+
     /// <summary>`type` 的 init —— **新建实例/新建类这件事的默认逻辑**,也是元类要委托的那一层。
     ///
     /// 两分支(和用户在 Ravel 里写 `(parent: Type body) => ... | (body) => ...` 完全一样):

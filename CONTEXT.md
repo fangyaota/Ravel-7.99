@@ -515,6 +515,25 @@ IEnumerator ::= interface { by MoveNext : function = default
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
   一样能遍历(字典遍历的是值);**每次进来新开一个枚举器**,所以嵌套遍历同一串值互不打扰;
 - 用户自己的类实现一条 `use (IEnumerable MyClass { by GetEnumerator = property … })` 就能进 `foreach`。
+- **接口能继承接口**,一个或多个:
+
+  ```ravel
+  supTrait ::= interface myTrait { by c : int = default }
+  masterTrait ::= interface [supTrait IEnumerable] { () }   # 多父写成一串;`{ () }` 是空体
+  ```
+
+  槽取**并集**(父的 + 自己的;同名以自己写的为准),`A <: B` 沿着继承走
+  (`masterTrait <: myTrait` 成立),而**实现了子接口就等于实现了它的父接口**(照 C#):
+  `u is supTrait` / `is IEnumerable` / 注解 / `foreach` / 两个查询全认。
+  实现上:链上只挂**写的第一个**父(`parent`,类型树/`Subtypes ()`/成员查找/实例化全照旧),
+  其余记在 `parents` 那张表里,只有 `IsAssignableTo`(于是 `is` / 注解 / `<:` / 查询)多看一眼;
+  父接口的**声明**在造子接口时就抄进了它的类体(`BakeInterfaceInit`),所以那句
+  "接口的形"仍然自足 —— `StepImplMake` 一行没改(`interface` 的 init 从两支变四支:
+  接口表 / 一个类型〔接口=继承、类=实现〕/ 代码块 / 兜底报错)。
+  `T.Parent ()` 给链上那一个,`T.Parents ()` 给全表(谁都有:普通类 `[Object]`、
+  `int` `[ValueType]`、`object` `[Object]`)。
+  **已知代价**:`Types.PrintTree` 按 `Parent ()` 画,所以多父接口只画出第一条边
+  (`Subtypes ()` / `Parents ()` 仍是全的)。
 - **两个方向的查询**(都在 `Type` 上,所以任何类型对象、接口对象都有):
   - `T.GetImplements ()` —— 这个类型**现在**实现了哪些接口(接口对象组成的 list);
   - `I.GetImplementors ()` —— **现在**哪些类型实现了这个接口(目标类组成的 list);
@@ -717,6 +736,7 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 int.name          # "Integer"
 int.Parent ()     # ValueType
 int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
+int.Parents ()    # [ValueType] —— 直接继承的那些;接口多父时给全表(见「接口与实现」)
 1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
 I.GetImplementors () # 反过来:**现在**哪些类型实现了这个接口
