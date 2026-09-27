@@ -116,7 +116,7 @@ public partial class Parser
 
         Consume(TokenType.RightBrace, "do 块末尾需要 '}'");
         if (stmts.Count == 0) throw ParseError("do 块里得有语句");
-        if (stmts[^1] is BindStatement) throw ParseError("do 块的最后一条语句要是个值（不能以 '=<' 收尾）");
+        if (stmts[^1] is BindStatement) throw ParseError("do 块的最后一条语句要是个值（不能以 ':<' 收尾）");
 
         // 从最后一条往前折:`rest` 始终是"后面那些语句"折出来的那段
         Expression rest = Block([stmts[^1]], at);
@@ -360,8 +360,8 @@ public partial class Parser
     {
         SkipNewlines();
         var list = new List<Statement>();
-        // 块是新的语境:外层 do 的 `=<` 不该漏进来。漏了的话
-        // `(y: int) => { y =< m; }` 会被当成绑定,而绑定只活在 do 的折叠过程里 ——
+        // 块是新的语境:外层 do 的 `:<` 不该漏进来。漏了的话
+        // `(y: int) => { y :< m; }` 会被当成绑定,而绑定只活在 do 的折叠过程里 ——
         // 留下一个没人认识的 BindStatement 一路带进求值器。
         var outerDo = _doDepth;
         _doDepth = 0;

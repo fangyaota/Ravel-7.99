@@ -72,7 +72,7 @@ Lexer.cs / Ast.cs / Token.cs / TokenType.cs
                                 和 Lexeme(给人看的文本)不是一回事
                                 字符串没收到尾的引号 = 语法错误(从前静默吞掉后面全部源码)
 Parser.cs                       入口 + token 辅助(Peek/Consume/ParseError)
-  Parser.Statements.cs          语句:定义/赋值/运算符定义/`x =< m`(只在 do 里放行)
+  Parser.Statements.cs          语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
   Parser.Expressions.cs         优先级链(管道→逻辑→比较→加减→乘除)
   Parser.Atoms.cs               基本单元 + 括号/块/集合/字典 + `do { … }` 折成 Bind 链
   Parser.Holes.cs               `_` 占位符消糖那趟 AST 改写

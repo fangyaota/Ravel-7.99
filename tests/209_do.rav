@@ -1,18 +1,18 @@
 # do { … }:把一串"从 Monad 里取值"的语句折成 Bind 链。
 #
-#     do { x =< m1; y =< m2; Some (x + y); }
+#     do { x :< m1; y :< m2; Some (x + y); }
 #     ≡  m1.Bind ((x: object) => { m2.Bind ((y: object) => { Some (x + y); }); })
 #
-# 所以它没有任何运行时支持:链是解析期就地长出来的,`=<` 只是那个"把这个值绑个名字"的记号。
+# 所以它没有任何运行时支持:链是解析期就地长出来的,`:<` 只是那个"把这个值绑个名字"的记号。
 using "try.rav"
 
 # 一条绑定 + 一个结果(单行写就得用 `;` 收尾,和普通块一样)
-print (do { v =< Some 10; Some (v * 2); }.Value ())
+print (do { v :< Some 10; Some (v * 2); }.Value ())
 
 # 两条绑定:后一条用的是前一条取出来的值
 print (do {
-    x =< Some 3
-    y =< Some 4
+    x :< Some 3
+    y :< Some 4
     Some (x + y)
 }.Value ())
 
@@ -20,54 +20,54 @@ print (do {
 Calls := 0
 counted := (a: int b: int) => { Calls += 1; if { b == 0; } { None; } { Some (a / b); } }
 print (do {
-    a =< counted 100 10
-    b =< counted a 0
-    c =< counted b 5
+    a :< counted 100 10
+    b :< counted a 0
+    c :< counted b 5
     Some c
 }.IsSome ())
 print ("算了几次: " + string Calls)
 
 # 块里可以有普通语句 —— 它们落在同一个 lambda 体里,还能改绑来的那个名字
 print (do {
-    x =< Some 2
+    x :< Some 2
     y := x * 2
     y += 1
     Some y
 }.Value ())
 
 # 取出来的值可以是任何东西
-print (do { s =< Some "hi"; Some (s + "!"); }.Value ())
+print (do { s :< Some "hi"; Some (s + "!"); }.Value ())
 
 # 上个 do 的结果本身还能接着绑(摊平:不会套成 Some (Some …))
 print (do {
-    inner =< Some (Some 7)
-    v =< inner
+    inner :< Some (Some 7)
+    v :< inner
     Some (v + 1)
 }.Value ())
 
 # 落在 None 上就直接短路 —— 连最后一个 Some 都不构造,拿到的就是共用那个 None
-print (do { x =< None; Some (x + 1); } == None)
+print (do { x :< None; Some (x + 1); } == None)
 
 # 外面套一层:do 只是个表达式,当参数、当返回值都行
-pick := (b: bool) => { if { b; } { do { x =< Some 1; Some x; }; } { None; } }
+pick := (b: bool) => { if { b; } { do { x :< Some 1; Some x; }; } { None; } }
 print ((pick true).Value ())
 print ((pick false).IsSome ())
 
-# `=<` 是词法里的一个 token,所以 `x < -1`(小于负一)一点不受影响
+# `:<` 是词法里的一个 token,所以 `x < -1`(小于负一)一点不受影响
 print (5 < -1)
 print (-1 < 5)
 
 # do 只是语法糖:打印一个含 do 的函数,看到的是脱糖后的 Bind 链
 # (取成员的接收者是一次调用时打印器会套括号 —— `f a.b` 读起来是 `f (a.b)`)
-show ::= (x: int) => { do { y =< Some x; Some (y + 1); } }
+show ::= (x: int) => { do { y :< Some x; Some (y + 1); } }
 print show
 
 # 语法错误:三种写法当场报出来,不是留到运行时
-Ex.Try { eval "x =< Some 1"; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { eval "do { x =< Some 1; }"; } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { eval "x :< Some 1"; } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { eval "do { x :< Some 1; }"; } (e: Exception) => { print ("2: " + string e); }
 Ex.Try { eval "do { }"; } (e: Exception) => { print ("3: " + string e); }
 # 绑到一个不是 Monad 的东西上:没有 Bind 方法
-Ex.Try { eval "do { x =< 5; Some x; }"; } (e: Exception) => { print ("4: " + string e); }
+Ex.Try { eval "do { x :< 5; Some x; }"; } (e: Exception) => { print ("4: " + string e); }
 # --- expected ---
 # 20
 # 7
@@ -82,7 +82,7 @@ Ex.Try { eval "do { x =< 5; Some x; }"; } (e: Exception) => { print ("4: " + str
 # false
 # true
 # <function show (x: int) => { (Some x).Bind ((y: object) => { Some (y + 1); }); }>
-# 1: '=<' 只能写在 do { … } 里
-# 2: do 块的最后一条语句要是个值（不能以 '=<' 收尾）
+# 1: ':<' 只能写在 do { … } 里
+# 2: do 块的最后一条语句要是个值（不能以 ':<' 收尾）
 # 3: do 块里得有语句
 # 4: 类型 'Integer' 没有方法 'Bind'

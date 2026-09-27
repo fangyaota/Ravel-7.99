@@ -27,7 +27,7 @@ public enum TokenType
     Arrow,         // =>
     Equal,         // =
     PipeLeft,      // <|
-    BindArrow,     // =<  do 块里的取值绑定(`x =< m`;只在 do 里认)
+    BindArrow,     // :<  do 块里的取值绑定(`x :< m`;只在 do 里认)
 
     // 比较
     EqualEqual,    // ==
