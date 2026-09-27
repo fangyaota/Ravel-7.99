@@ -220,7 +220,7 @@ public partial class Interpreter
         if (nf.Count == 1)
         {
             var obj = nf.Result(0);
-            if (obj is FunctionVal fn && ma.Member == "name")
+            if (obj is FunctionVal fn && ma.Member == ObjectVal.NameMember)
             {
                 PushChild(nf, bin.Right);
                 return;
@@ -249,7 +249,7 @@ public partial class Interpreter
 
         var obj2 = nf.Result(0);
         var rv = nf.Result(1);
-        if (obj2 is FunctionVal fn2 && ma.Member == "name")
+        if (obj2 is FunctionVal fn2 && ma.Member == ObjectVal.NameMember)
         {
             fn2.Name = As<StringVal>(rv, "函数名").Value;
             Return(nf, rv);

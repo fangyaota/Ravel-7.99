@@ -48,7 +48,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         // 类对象 / 函数的 `name` 是伪成员,排在字段查找前面 —— 类对象的 `name` 成员存的是空串
         // (`C := class {...}` 没有名字),对外要显示 DisplayName(空名字退化成 "class")。
         // 读写的不对称和以前一致:读显示名、写落成员(见 StepMemberAssign 的 name 特判)。
-        if (name == "name")
+        if (name == ObjectVal.NameMember)
         {
             if (Value is ObjectVal { IsClass: true } cls) return new BoxedValue(new StringVal(cls.DisplayName), interp);
             if (Value is FunctionVal fn) return new BoxedValue(new StringVal(fn.Name ?? ""), interp);

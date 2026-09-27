@@ -31,14 +31,8 @@ public abstract record Statement : AstNode;
 
 public record VarDefinition(string Name, Expression? TypeAnnotation, Expression Value, List<string>? Attrs = null, bool Named = false) : Statement
 {
-    public bool HasAttr(string a) => Attrs?.Contains(a) ?? false;
-    /// <summary>构造器:靠名字识别(类体里写 `init := () => {...}`),不再用 init 修饰符</summary>
-    public bool IsInit => Name == "init";
     /// <summary>运算符:靠名字识别——类体里直接写符号(`+ := f` / `+ = f`)</summary>
     public bool IsOperator => OperatorSymbols.IsSymbol(Name);
-    public bool IsReadonly => HasAttr(Attr.Readonly);
-    public bool IsOverride => HasAttr(Attr.Override);
-    public bool IsNew => HasAttr(Attr.New);
 }
 public record Assignment(string Name, Expression Value) : Statement;
 public record ExpressionStatement(Expression Expr) : Statement;
@@ -69,7 +63,7 @@ public record VoidLiteral : Expression;
 
 /// <summary>直接求值成一个 C# 侧造好的值。给内置类的**预设类体**用 —— 那些成员
 /// (类型转换器、`type` 的默认建类函数)是 C# 函数,写不出 Ravel 源码来。
-/// 造类体走 BuiltinClasses.PresetBody。</summary>
+/// 造类体走 BuiltinClasses.PresetCtor。</summary>
 public record LiteralExpr(RuntimeValue Value) : Expression;
 public record HoleExpr(int Index) : Expression;
 public record BlockExpr(List<Statement> Statements) : Expression
