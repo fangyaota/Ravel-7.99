@@ -82,6 +82,28 @@ print (s.Fields ())
 plain := 1
 Ex.Try { by plain = 2; } (e2: Exception) => { print ("8: " + string e2); }
 Ex.Try { by nope = 2; } (e2: Exception) => { print ("9: " + string e2); }
+
+# `by a` / `by a.x`:取**槽里的 property 本身**,不过 getter(和 `by a = X` 对称的那一半)。
+# 拿到手就是个普通值 —— 能存进表里、传给别的函数,还能自己 `.Get ()` / `.Set v`。
+GetCalls := 0
+P ::= class {
+    init := () => { _v = 1; this; }
+    _v: int = 1
+    by v := property (() => { GetCalls += 1; _v; }) ((q: int) => { _v = q; })
+}
+pp := P ()
+p1 := by pp.v
+print p1
+print ("取完 getter 被调了 " + string GetCalls + " 次")
+p1.Set 9
+print (pp.v)
+print (by pp.v == p1)
+Bag := []
+Bag.Add (by pp.v)
+print ((Bag.At 0).Get ())
+print ("至此 getter 被调了 " + string GetCalls + " 次")
+Ex.Try { print (by pp._v); } (e2: Exception) => { print ("10: " + string e2); }
+Ex.Try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
 # --- expected ---
 # 99
 # 7
@@ -107,3 +129,11 @@ Ex.Try { by nope = 2; } (e2: Exception) => { print ("9: " + string e2); }
 # [init _n n swap is isnot ToString Copy Fields]
 # 8: `by plain = …` 要求 'plain' 是个 by 属性（换掉槽里的 property）
 # 9: 未定义的变量 'nope'
+# <property>
+# 取完 getter 被调了 0 次
+# 9
+# true
+# 9
+# 至此 getter 被调了 2 次
+# 10: '_v' 不是 by 属性（`by` 取/换的是槽里的 property）
+# 11: 'plain' 不是 by 属性（`by` 取/换的是槽里的 property）

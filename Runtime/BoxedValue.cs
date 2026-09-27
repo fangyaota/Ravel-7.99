@@ -111,7 +111,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         return false;
     }
 
-    private static RuntimeException AccessDenied(Variable vr, string name)
+    internal static RuntimeException AccessDenied(Variable vr, string name)
         => new($"变量 '{name}' 是{(vr.HasAttr(Attr.Private) ? "私有的" : "受保护的")}");
 
     public override string ToString() => Value.ToString();

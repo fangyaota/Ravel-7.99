@@ -447,7 +447,12 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 |---|---|
 | `by a := property g s` / `by a: int = …` | **定义槽**：`a` 从此是个属性（注解管写进来的值）|
 | `a = v` / `obj.a = v` | 给属性赋值：过 setter |
-| `by a = X`（`Assignment.By`）| **换掉槽里的那份 property**：`Variable.ReplaceSlot`，不过旧 setter、不查约束 |
+| `by a = X`（`Assignment.By`，语句）| **换掉槽里的那份 property**：`Variable.ReplaceSlot`，不过旧 setter、不查约束 |
+| `by a` / `by a.x`（`SlotExpr`，表达式）| **取出那份 property 本身**：不过 getter，拿到的是普通值 |
+
+后两条是"属性本身"那半边（绕开 getter/setter），前两条是"属性值"那半边。
+`SlotExpr` **不能把整条路径当普通表达式求** —— `by c.n` 求 `c.n` 就走 getter 了，
+那正是要绕开的；所以 `by a` 直接查变量、`by a.x` 只求接收者 `c`。门禁和成员读同一套。
 
 四条读写路各问一次那个 attr：裸读（`StepIdent`）、成员读（`TryGetByGetter`）、
 写（`WriteVariable`）、复合赋值（`StepByCompoundAssign`，先过 getter 读、算完过 setter 写）。

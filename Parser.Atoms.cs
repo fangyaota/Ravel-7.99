@@ -18,6 +18,14 @@ public partial class Parser
         if (Check(TokenType.Identifier) && Peek().Lexeme == "do" && NextType() == TokenType.LeftBrace)
             return Nested(ParseDo);
 
+        // `by a` / `by a.x` —— 取槽里的那份 property 本身(不过 getter;见 SlotExpr)。
+        // 只在**表达式**位置认:语句开头的 `by` 是修饰符(声明或换槽那条路)。
+        if (Check(TokenType.Identifier) && Peek().Lexeme == "by" && NextType() == TokenType.Identifier)
+        {
+            _pos++;                                     // by
+            return new SlotExpr(ParseMemberChain(ParsePrimary())) { Line = Previous().Line, Column = Previous().Column };
+        }
+
         // 运算符节 `+.2` / `is.int` —— 左操作数留空,等价于 `_ + 2` / `_ is int`
         // (脱糖成同一个 lambda)。右操作数只吃一个 primary(含成员访问),
         // 所以 `+.2 + 3` 是 `(+.2) + 3`。

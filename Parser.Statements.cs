@@ -134,9 +134,10 @@ public partial class Parser
             // `by` 特殊在它修饰的那个名字可以**是个属性槽**,而槽里的东西是可以换的。
             if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Equal))
                 return ParseByAssign();
-            // `by obj.a = …`(换别的对象上的槽)没有名字可写,现在只认变量名
+            // 语句开头的 `by a.x` 没法落脚:`by a.x` 是**表达式**(取槽,见 SlotExpr),
+            // 得放在能用值的地方;换槽那种(`by obj.a = …`)现在也只认变量名
             if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Dot))
-                throw ParseError("`by a = …` 里的 a 得是个变量名（成员那种还不支持）");
+                throw ParseError("语句开头只有 `by a = …`(换槽)这一种；`by a.x`(取槽)是个表达式，得放在能用值的地方（比如 `p := by a.x`）");
 
             // `readonly x := 1`(修饰符 + 名字)或 `readonly := 1`(修饰符自己当名字)
             if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))

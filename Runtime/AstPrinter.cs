@@ -72,6 +72,7 @@ internal static class AstPrinter
         // 取成员的**接收者**若本身是一次调用,必须套括号:`f a.b` 读起来是 `f (a.b)`
         // (实参位置只吃"主表达式 + 取成员"),而这里要说的是 `(f a).b` —— do 块脱糖出来的
         // `m.Bind (…)` 全是这个形状,不套括号打印出来是另一个意思。
+        SlotExpr sl => "by " + Expr(sl.Path),
         MemberAccess m => (m.Object is CallExpr ? "(" + Expr(m.Object) + ")" : Atom(m.Object))
                           + "." + m.Member,
         CallExpr c => Atom(c.Function) + " " + Atom(c.Argument),

@@ -39,6 +39,7 @@ public partial class Interpreter
             case NumberLiteral nn: if (nf.Count == 0) Return(nf, MakeNumber(nn)); break;
             case StringLiteral ss: if (nf.Count == 0) Return(nf, new StringVal(ss.Value)); break;
             case VoidLiteral: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
+            case SlotExpr slot: StepSlot(nf, slot); break;
             case LiteralExpr le: if (nf.Count == 0) Return(nf, le.Value); break;
             case IdentifierExpr id: StepIdent(nf, id); break;
             case BinaryExpr bin: StepBinary(nf, bin); break;
@@ -281,6 +282,53 @@ public partial class Interpreter
 
         // 运算符没有别名可言:符号本身就是变量名(`+ := f` 定义的就是 `+`)
         Return(nf, VoidVal.Instance);
+    }
+
+    /// <summary>`by a` / `by a.x` —— **取槽里的那份 property 本身**(不过 getter)。
+    /// 和 `by a = X`(换槽)对称:写那边不过 setter,这边不过 getter。
+    ///
+    /// **不能把整条路径当普通表达式求** —— `by c.n` 求 `c.n` 就已经走 getter 了,
+    /// 那正是要绕开的东西(而且白调一次 getter,它有副作用的话就出鬼了)。
+    /// 所以:`by a` 连值都不求,直接查变量;`by c.n` 只求**接收者** `c`。
+    ///
+    /// 门禁和成员读一样走一遍(core 要 unsafe、private 要能走到那个对象)——
+    /// 不然 `by` 就成了绕过封装读私有字段的后门。
+    ///
+    /// 0=求接收者(只有成员那种要) 1=查那个槽。</summary>
+    private void StepSlot(NodeFrame nf, SlotExpr slot)
+    {
+        // `by a`:变量槽
+        if (slot.Path is IdentifierExpr id)
+        {
+            var v = nf.Scope.LookupVar(id.Name) ?? throw new RuntimeException($"未定义的变量 '{id.Name}'");
+            CheckSlot(v, id.Name);
+            Return(nf, v.Value);
+            return;
+        }
+
+        // `by a.x`:成员槽 —— 只求接收者
+        var ma = (MemberAccess)slot.Path;
+        if (nf.Count == 0)
+        {
+            PushChild(nf, ma.Object);
+            return;
+        }
+
+        var target = nf.Result(0);
+        if (target is not ObjectVal obj)
+            throw new RuntimeException($"`by` 只能取对象身上的属性，得到 {target.Type}");
+        var field = obj.Scope.LookupField(ma.Member) ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+        BoxedValue.GateRead(field, ma.Member, this);
+        if (!CheckFieldAccess(field, obj)) throw BoxedValue.AccessDenied(field, ma.Member);
+        CheckSlot(field, ma.Member);
+        Return(nf, field.Value);
+    }
+
+    /// <summary>这个变量是不是 by 槽。不是就别让它从这儿过 —— `by` 只对属性有意义。</summary>
+    private static void CheckSlot(Variable v, string name)
+    {
+        if (!v.HasAttr(Attr.By))
+            throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）");
     }
 
     /// <summary>变量赋值 `x = v`。语句位置(<see cref="Assignment"/> 节点)和表达式位置

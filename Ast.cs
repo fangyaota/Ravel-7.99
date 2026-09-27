@@ -74,6 +74,15 @@ public record DictEntry(string Key, Expression Value);
 public record DictLiteral(List<DictEntry> Entries) : Expression;
 public record VoidLiteral : Expression;
 
+/// <summary>`by a` / `by a.x` —— **取槽里的那份 property 本身**(不过 getter)。
+///
+/// 和 `by a = X`(换槽,见 <see cref="Assignment.By"/>)对称的那一半:写那边不过 setter,
+/// 这边不过 getter。拿到手的是那个 `property` 值,可以当普通值传出去、也可以
+/// `p.Get ()` / `p.Set v` 自己调。
+///
+/// `Path` 要么是个名字(变量槽),要么是 `对象.成员`(那边得先求出对象)。</summary>
+public record SlotExpr(Expression Path) : Expression;
+
 /// <summary>直接求值成一个 C# 侧造好的值。给内置类的**预设类体**用 —— 那些成员
 /// (类型转换器、`type` 的默认建类函数)是 C# 函数,写不出 Ravel 源码来。
 /// 造类体走 BuiltinClasses.PresetCtor。</summary>
