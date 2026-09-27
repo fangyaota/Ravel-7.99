@@ -78,5 +78,6 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
     public override Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
         => throw ReadOnly();
 
-    public override void Assign(string name, RuntimeValue value) => throw ReadOnly();
+    public override void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
+        => throw ReadOnly();
 }

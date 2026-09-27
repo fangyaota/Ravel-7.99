@@ -44,10 +44,10 @@ public class Scope(Scope? parent = null)
     /// <summary>查找变量，找不到返回 null（不抛异常）</summary>
     public Variable? TryLookup(string name) => Find(name);
 
-    public virtual void Assign(string name, RuntimeValue value)
+    public virtual void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
     {
         var v = Find(name) ?? throw new RuntimeException($"无法给未定义变量 '{name}' 赋值");
-        v.Assign(value);
+        v.Assign(value, alsoAccepts);
     }
 
     public Scope Push() => new(this);

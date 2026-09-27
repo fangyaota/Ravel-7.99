@@ -6,6 +6,9 @@
 # (先摆槽、再换槽),那个 scope 就是实现的成员表 —— **槽住在实现里**。
 # `use myImplement` 把实现登记进**当前作用域**:从此这里 `u.a` / `u.b` 走实现那条槽,
 # 实现 scope 里的 `instance` 每次被换成当前这个实例(槽本身不动)。出了作用域就回到「没有方法」。
+#
+# **类型注解也认接口**(注解、参数、写入走同一条判据:`Accepts` = 名义链够得着,或者
+# 当前作用域里有生效中的实现把它接上)。
 using "try.rav"
 
 myTrait ::= interface {
@@ -22,9 +25,10 @@ myImplement := myTrait myClass {
     by b = property (() => { () => { print "myTrait.b override"; } }) ((v: function) => { (); })
 }
 
-# use 之前:`a` 不是 myClass 的东西
+# use 之前:`a` 不是 myClass 的东西,注解也还不认这个接口
 u := myClass ()
 Ex.Try { print u.a; } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { early : myTrait = u; print early; } (e: Exception) => { print ("2: " + string e); }
 
 use myImplement
 
@@ -40,6 +44,19 @@ print (u is myTrait)
 print (u is myClass)
 print (myImplement is myTrait)
 
+# 注解、参数都认接口
+typed : myTrait = u
+print (typed is myTrait)
+print typed.a
+take := (v: myTrait) => { v.a; }
+print (take u)
+print (take (myClass ()))   # 接口是"视图":实现生效期间,**任何** myClass 实例都算 myTrait
+Ex.Try { take 5; } (e: Exception) => { print ("3: " + string e); }
+otherClass ::= class {
+    y : int = 0
+}
+Ex.Try { take (otherClass ()); } (e: Exception) => { print ("4: " + string e); }
+
 # 槽不在实例身上(它住在实现里)
 print (u.Fields ())
 
@@ -50,13 +67,15 @@ print (v.a)
 print (u.a)
 
 # 类型约束来自接口那条声明(`by a : int`)
-Ex.Try { u.a = "str"; } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { u.a = "str"; } (e: Exception) => { print ("5: " + string e); }
 
 myImplement.Dispose ()
-Ex.Try { print u.a; } (e: Exception) => { print ("3: " + string e); }
+Ex.Try { print u.a; } (e: Exception) => { print ("6: " + string e); }
 print (u is myTrait)
+Ex.Try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + string e); }
 # --- expected ---
 # 1: 类型 'myClass' 没有方法 'a'
+# 2: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
 # 0
 # 7
 # 7
@@ -65,9 +84,16 @@ print (u is myTrait)
 # true
 # true
 # true
+# true
+# 7
+# 7
+# 0
+# 3: 参数 'v' 需要 myTrait，得到 Integer
+# 4: 参数 'v' 需要 myTrait，得到 otherClass
 # [init x is isnot ToString Copy Fields]
 # 99
 # 7
-# 2: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
-# 3: 类型 'myClass' 没有方法 'a'
+# 5: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
+# 6: 类型 'myClass' 没有方法 'a'
 # false
+# 7: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait

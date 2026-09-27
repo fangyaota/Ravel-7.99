@@ -332,7 +332,7 @@ public partial class Interpreter
             return;
         }
 
-        cf.Scope.Assign(cf.Arg<StringVal>(2, "CallAssign").Value, cf.Result(0));
+        cf.Scope.Assign(cf.Arg<StringVal>(2, "CallAssign").Value, cf.Result(0), ViaTrait(cf.Result(0)));
         Return(cf, cf.Result(0));
     }
 

@@ -265,7 +265,8 @@ public partial class Interpreter
         // `Property` 这个约束全挡回去)。
         var dt = hasType ? AsClass(nf.Result(0), v.Name) : isBy ? BuiltinClasses.Any : val.Type;
         // 没写注解时 dt 就是值自己的类型,一定"可赋值" —— 不必再判一次注解在不在
-        if (!isBy && !val.Type.IsAssignableTo(dt))
+        // (Accepts 里那半"接口也算数"正是 `x : myTrait = u` 需要的)
+        if (!isBy && !Accepts(val, dt))
         {
             var cv = TryConvert(val, dt, out var why);
             if (cv != null) val = cv;
@@ -446,7 +447,7 @@ public partial class Interpreter
             return;
         }
 
-        nf.Scope.Assign(name, val);
+        nf.Scope.Assign(name, val, ViaTrait(val));
         Return(nf, val);
     }
 
@@ -465,12 +466,12 @@ public partial class Interpreter
             // readonly 也在这侧:赋值走的是 setter,不经过 `Variable.Assign`,
             // 不问的话"只读"在属性上就是句空话。
             field.CheckWritable();
-            field.CheckAssignable(val);
+            field.CheckAssignable(val, ViaTrait(val));
             PushCallReturn(nf.Parent!, PropertySetter(field.Value, field.Name), val, val);
             return;
         }
 
-        field.Assign(val);
+        field.Assign(val, ViaTrait(val));
         Return(nf, val);
     }
 

@@ -16,7 +16,7 @@ public partial class Interpreter
                     _top = sink.WithResult(cf.Accumulate(arg));
                 break;
             case LambdaVal lam:
-                if (!arg.Type.IsAssignableTo(lam.ParamType))
+                if (!Accepts(arg, lam.ParamType))
                     throw new TypeMismatchException($"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
                 var lamScope = lam.CaptureScope.Push();
                 lamScope.Define("self", BuiltinClasses.Function, lam);
@@ -26,7 +26,7 @@ public partial class Interpreter
             case NativeClosure nc:
             {
                 // 和 LambdaVal 同款:先查参数类型(交替机制靠它分流),再在**调用点作用域**里跑
-                if (!arg.Type.IsAssignableTo(nc.ParamType))
+                if (!Accepts(arg, nc.ParamType))
                     throw new TypeMismatchException($"参数 '{nc.ParamName}' 需要 {nc.ParamType}，得到 {arg.Type}");
                 var ncScope = _top.Scope.Push();
                 ncScope.Define("self", BuiltinClasses.Function, nc);

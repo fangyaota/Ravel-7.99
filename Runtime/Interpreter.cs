@@ -84,6 +84,16 @@ public partial class Interpreter
         return false;
     }
 
+    /// <summary>这个值算不算 target 类型的值 —— **接口也算数**:名义继承链够不着时,再看当前作用域里
+    /// 有没有生效中的实现把它接到 target 上(判据同 `x is T`,见 `BuiltinClasses.HasTrait`)。
+    /// 类型检查(注解、参数)一律走这一条:接口不在继承链上,但"在这个作用域里实现了"就该收下。</summary>
+    private bool Accepts(RuntimeValue value, ObjectVal target)
+        => value.Type.IsAssignableTo(target) || BuiltinClasses.HasTrait(this, value, target);
+
+    /// <summary>把"接口也算数"那半递给 <see cref="Variable.CheckAssignable"/> / `Assign` 当补充判据。
+    /// 是个委托:名义链够得着就不问它(接口那一问要走一遍作用域链)。</summary>
+    private Func<ObjectVal, bool> ViaTrait(RuntimeValue value) => t => BuiltinClasses.HasTrait(this, value, t);
+
     /// <summary>取 `by` 属性值上的 getter / setter。
     ///
     /// 标了 `by` 却没有那两个函数(值不是 `property g s` 造的)就是**用错了** —— 报错,

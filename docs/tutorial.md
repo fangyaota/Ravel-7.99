@@ -1413,10 +1413,23 @@ myImplement.Dispose ()
 use myImplement          # 在你 use 的这个作用域里重新生效
 ```
 
-#### 只有 `is` 认接口
+#### 注解也认接口
 
-类型注解走的是继承链，接口不在这条链上，所以 `x : myTrait = u` 会报「无法将 myClass 赋值给 myTrait」。
-要按接口判定就写 `u is myTrait`（实现本身反过来天然成立：`myImplement is myTrait` 为真）。
+判定和类型检查用的是同一个判据，所以在实现生效期间，接口可以当注解使：
+
+```ravel
+typed : myTrait = u            # 可以（实现不在作用域里时，这一行会报类型不匹配）
+print typed.a                  # 0
+
+take := (v: myTrait) => { v.a; }
+print (take u)                 # 0 —— 参数注解同理
+print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间任何 myClass 实例都算
+```
+
+`myImplement` 自己反过来天然成立：`myImplement is myTrait` 为真（它的类型就是那个接口）。
+`Dispose ()` 之后的赋值照旧报「无法将 myClass 赋值给 myTrait」—— 和 `u.a` 一起失效。
+
+`Type.Is`（`myTrait.Is u`）问的是"类型"，仍是名义判定，不认接口。
 
 #### 叠几个实现
 

@@ -525,10 +525,15 @@ myImplement.Dispose ()   # 提前取消
 - `x is myTrait` 的兜底是 `BuiltinClasses.HasTrait`,同一个判据。它挂在 `StepBinaryOp` 里而**不是**
   运算符的 C# 体里 —— 内置运算符的体是纯 C#,拿不到解释器也就拿不到当前作用域;只接**内置**那一支,
   类里写过 `is := f` 的照旧走自己的实现。
-- **只有 `is` 认接口**:类型注解和参数检查走的是 `IsAssignableTo`(名义继承链),所以
-  `x : myTrait = u` 仍然报「无法将 C 赋值给 T」(`Type.Is` 也一样,它问的是"类型")。
-  要按接口判定就写 `u is myTrait` —— 这一条是**故意**只挂在 `is` 上的,免得"用过实现"悄悄
-  让别处的类型检查也放行。
+- **接口也算类型,判定与类型检查同一个判据**(`BuiltinClasses.HasTrait`:当前作用域里有生效中的
+  实现、目标类收得下这个值)。挂点四处:读写成员的兜底 `TraitSlot`;`is`/`isnot`(在
+  `StepBinaryOp` 里 —— 内置运算符的体是纯 C#,拿不到解释器);**注解**与**参数**
+  (解释器的 `Accepts`,落在 `StepVarDef` / `CallInto` 两处);**写入口**
+  (`ViaTrait` 当 `Variable.CheckAssignable` / `Assign` / `Scope.Assign` 的补充判据)。
+  于是 `x : myTrait = u`、`(v: myTrait) => …`、`by h : myTrait = property …` 在实现生效期间
+  都通得过,出了作用域(或 `Dispose` 之后)照旧报「无法将 … 赋值给 myTrait」。
+  这**不动 `IsAssignableTo`**(纯函数,拿不到解释器也就拿不到当前作用域),
+  **`Type.Is`(`myTrait.Is u`)也仍是名义判定** —— 它问的是"类型",不参与这一条。
 - 接口里 `= default` 的槽,实现没填就是那个"什么都不做"的默认属性(读 `()`、写丢掉)—— 和 `default`
   本来的语义一致。
 - 三条已知代价:① 实现 scope 的词法父是**实现块**的捕获作用域(接口体与实现体通常写在同一处);

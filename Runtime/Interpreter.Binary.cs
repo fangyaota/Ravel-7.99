@@ -149,7 +149,7 @@ public partial class Interpreter
         }
 
         var r = bound.Body(right);
-        nf.Scope.Assign(target.Name, r);
+        nf.Scope.Assign(target.Name, r, ViaTrait(r));
         Return(nf, r);
     }
 
@@ -183,7 +183,7 @@ public partial class Interpreter
             if (builtin)
             {
                 var r = bound.Body(nf.Result(1));
-                field.Assign(r);
+                field.Assign(r, ViaTrait(r));
                 Return(nf, r);
                 return;
             }
@@ -193,7 +193,7 @@ public partial class Interpreter
         }
 
         // count 3:类运算符算完了 → 写回
-        field.Assign(nf.Result(2));
+        field.Assign(nf.Result(2), ViaTrait(nf.Result(2)));
         Return(nf, nf.Result(2));
     }
 
@@ -222,7 +222,7 @@ public partial class Interpreter
             // 算好的新值也要过 `by a: int` 那道约束、以及 readonly
             // (和普通赋值一条路,见 WriteVariable)
             field.CheckWritable();
-            field.CheckAssignable(nf.Result(3));
+            field.CheckAssignable(nf.Result(3), ViaTrait(nf.Result(3)));
             CallInto(nf, PropertySetter(prop, member), nf.Result(3));
             return;
         }

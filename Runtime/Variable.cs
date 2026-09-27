@@ -13,10 +13,10 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
     public void SetAttr(string a) => _attrs.Add(a);
     public IEnumerable<string> Attrs => _attrs;
 
-    public void Assign(RuntimeValue newValue)
+    public void Assign(RuntimeValue newValue, Func<ObjectVal, bool>? alsoAccepts = null)
     {
         CheckWritable();
-        CheckAssignable(newValue);
+        CheckAssignable(newValue, alsoAccepts);
         Value = newValue;
     }
 
@@ -45,10 +45,16 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
     ///
     /// 单独的,因为 **`by` 属性的写入也要过这一关**:`by n: int = property …` 里那个注解
     /// 管的就是"谁能写进来",而那条路不经过 <see cref="Assign"/>(它调的是 setter)。
-    /// 两处各写一份措辞,迟早分叉。</summary>
-    public void CheckAssignable(RuntimeValue newValue)
+    /// 两处各写一份措辞,迟早分叉。
+    ///
+    /// `alsoAccepts` 是**要当前作用域才能回答**的那半:接口不在继承链上,但当前作用域里
+    /// 有生效中的实现把它接到这个值上时,注解也该收下(判据见 `BuiltinClasses.HasTrait`,
+    /// 和 `x is T` 同一个)。Variable 拿不到解释器,所以那一半由调用方递进来;
+    /// **名义链够不着时才问它**,不传就照旧只按名义链判。</summary>
+    public void CheckAssignable(RuntimeValue newValue, Func<ObjectVal, bool>? alsoAccepts = null)
     {
         if (TypeConstraint == BuiltinClasses.Any || newValue.Type.IsAssignableTo(TypeConstraint)) return;
+        if (alsoAccepts != null && alsoAccepts(TypeConstraint)) return;
         throw new RuntimeException(
             "类型错误: 无法将 " + newValue.Type + " 赋值给 '" + Name + "' (声明为 " + TypeConstraint + ")");
     }
