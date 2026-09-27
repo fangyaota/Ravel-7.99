@@ -15,10 +15,20 @@ readonly Throw := (e: Exception) => {
 readonly Try := (body: function) => {
     (handler: function) => {
         result := callcc (ok: function) => {
-            HandlerStack.Insert 0 (e: Exception) => {
+            mine := (e: Exception) => {
                 ok (handler e)
             }
-            ok (body ())
+            HandlerStack.Insert 0 mine
+            r := body ()
+            # **正常收尾要把自己的 handler 摘掉。** 不摘的话它会一直挂在栈上:后面**没人接**的错误
+            # 会被它接住,而它的续延停在上面那次 callcc —— 于是程序从「Try 之后」重跑一遍,
+            # 报错位置也指到那儿去,原来的错反而看不见了。
+            # (出错那条路由求值器先摘过一次,这里只管正常收尾;摘之前对一下身份,
+            #  免得摘掉别人新压上来的那个。)
+            if { HandlerStack.Count () == 0; } { 0; } {
+                if { (HandlerStack.At 0) == mine; } { HandlerStack.Remove 0; } { 0; }
+            }
+            ok r
         }
         result
     }
