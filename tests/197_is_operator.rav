@@ -57,7 +57,6 @@ print (superOf int)
 print (int.<: object)
 
 # ---- 右边得是个类型 ----
-using "try.rav"
 Ex.Try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
 print "done"
 # --- expected ---

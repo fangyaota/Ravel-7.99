@@ -2,7 +2,6 @@
 # 常量 + 三角/双曲/幂对数/取整/极值),它们挂在 `lib/math.rav` 那句 `ravel "Math"`
 # 建模块的时候填进去 —— 在那之前 `Math` 根本不是一个名字。
 # `lib/math.rav` 另外补 Ravel 说得清楚的几个(square/cube/deg/rad)。
-using "try.rav"
 Ex.Try { Math.Pi; } (e: Exception) => { print ("还没引用: " + string e); }
 using "math.rav"
 

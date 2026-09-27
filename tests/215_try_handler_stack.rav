@@ -3,7 +3,6 @@
 # 从前只在"出错"那条路上摘(求值器调 handler 前先弹),**正常收尾不摘** —— 于是那个 handler
 # 一直挂在 HandlerStack 上:后面**没人接**的错误会被它接住,而它的续延停在上面那次 callcc,
 # 结果程序从「Try 之后」重跑一遍,报错位置也指到那儿去,原来的错反而看不见了。
-using "try.rav"
 
 print (Ex.HandlerStack.Count ())
 Ex.Try { print "in try"; } (e: Exception) => { print ("1: " + string e); }

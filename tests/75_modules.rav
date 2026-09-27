@@ -87,21 +87,18 @@ print (a.x)
 print (a.y)
 print (b.x)
 print (b.y)
-using "try.rav"
 Ex.Try {
     Ex.Throw (Exception "boom")
 } (e: Exception) => {
     print "caught"
 }
 print "done"
-using "try.rav"
 Ex.Try {
     Ex.Throw (Exception "oops")
 } (e: Exception) => {
     print "caught"
 }
 print "done"
-using "try.rav"
 result := Ex.Try {
     42
 } (e: Exception) => {

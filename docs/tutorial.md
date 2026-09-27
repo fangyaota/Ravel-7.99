@@ -1528,6 +1528,8 @@ Math.Deg Math.Pi   # 180（角度↔弧度）
 
 ## 九、异常
 
+`Ex` 是**自带的**（`predefined.rav` 末尾那段 `ravel "Ex"` 建的），不用 `using`：
+
 ```ravel
 Ex.Try {
     Ex.Throw (Exception "oops")

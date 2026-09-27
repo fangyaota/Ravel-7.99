@@ -3,7 +3,6 @@
 # 而 `:=` 从前能绕过:`true = 1` 报错、`true := 1` 静默成功,而且 readonly
 # 跟着老的那个 Variable 一起没了 —— 同一个"只读"两条路两个答案。
 # 而**状态**故意留可写(`Ex.HandlerStack` / `References`),那些本来就该能改。
-using "try.rav"
 using "math.rav"
 Ex.Try { print = 1; } (e: Exception) => { print ("赋值: " + string e); }
 Ex.Try { true = false; } (e: Exception) => { print ("常量: " + string e); }

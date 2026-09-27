@@ -1,5 +1,4 @@
 # property C# factory
-using "try.rav"
 C := class {
     init := () => { this._val = 0; this; }
     _val: int = 0

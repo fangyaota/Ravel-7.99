@@ -2,7 +2,6 @@
 # 不约分有两个后果:显示成 "2/4" "4/4" 这种;更要命的是 record 的结构相等
 # 认为 `1/2` 和 `2/4` 是两个不同的值,于是 {fraction 1 2, fraction 2 4} 有 2 个元素,
 # 而 `fraction 1 2 == fraction 2 4` 又是 true —— 同一件事两套答案。
-using "try.rav"
 print (fraction 2 4)
 print (fraction 1 2 + fraction 1 2)
 print (fraction 1 2 * fraction 2 3)

@@ -92,7 +92,9 @@ lib/
                           `Monad`(Some/None:Has/Inner 两个字段 + IsSome/Value/Bind/Map/Where…);
                           `cacher` / `Some` / `None` 是小写/构造子名
                           两个类型都进 AllTypes(`Subtypes ()` 看得到)
-  try.rav                 异常处理:HandlerStack + callcc 实现 Ex.Try/Ex.Throw
+                          末尾一段 `ravel "Ex"` … `ravel ""`:异常处理(HandlerStack + callcc
+                          实现 Ex.Try/Ex.Throw)。从前是单独的 try.rav,并进来了 ——
+                          `Ex` 人人都有,不必每个文件 `using "try.rav"`
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;tests/125 跑的就是它

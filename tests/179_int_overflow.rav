@@ -1,7 +1,6 @@
 # int 转换的越界与 NaN:报错,不要静默饱和/崩掉
 # 从前 `int 9999999999999` 抛 C# 的 OverflowException 一路漏到顶层(程序直接崩),
 # `int (float 1e30)` 静默饱和成 2147483647 —— 两个都不说一个字。
-using "try.rav"
 Ex.Try { int 9999999999999; } (e: Exception) => { print ("1: " + string e); }
 Ex.Try { int (bigint 2147483648); } (e: Exception) => { print ("2: " + string e); }
 Ex.Try { int (float 100000000000000000000.0); } (e: Exception) => { print ("3: " + string e); }

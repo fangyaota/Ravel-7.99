@@ -197,4 +197,46 @@ Monad ::= class {
 readonly Some := (v: object) => { Monad true v; }
 readonly None := Monad false ()
 
-using "try.rav"
+
+# ── 异常:Ex 模块 ──
+# 从前这是单独的 lib/try.rav,由文件末尾一句 `using "try.rav"` 拉进来 —— 那意味着**每个**
+# 想用 `Ex.Try` 的文件都得先写一句 `using "try.rav"`,而它其实是人人都有的一份(启动时就加载了)。
+# 并进来:少了 37 处样板,也少了一个文件。`ravel "Ex"` / `ravel ""` 是"这段落进 Ex 模块 / 回全局"
+# (见教程的模块一节;末尾那句不能省,不然这之后的定义会落进 Ex)。
+ravel "Ex"
+
+HandlerStack: list = []
+
+# throw / try 标 readonly(HandlerStack 是**状态**,故意留可写):
+# 它们是这个模块的 API,被覆盖掉异常处理就整个变了样。
+readonly Throw := (e: Exception) => {
+    if { HandlerStack.Count () == 0; } {
+        exit (e.ToString ())
+    } {
+        HandlerStack.Remove 0 e
+    }
+}
+
+readonly Try := (body: function) => {
+    (handler: function) => {
+        result := callcc (ok: function) => {
+            mine := (e: Exception) => {
+                ok (handler e)
+            }
+            HandlerStack.Insert 0 mine
+            r := body ()
+            # **正常收尾要把自己的 handler 摘掉。** 不摘的话它会一直挂在栈上:后面**没人接**的错误
+            # 会被它接住,而它的续延停在上面那次 callcc —— 于是程序从「Try 之后」重跑一遍,
+            # 报错位置也指到那儿去,原来的错反而看不见了。
+            # (出错那条路由求值器先摘过一次,这里只管正常收尾;摘之前对一下身份,
+            #  免得摘掉别人新压上来的那个。)
+            if { HandlerStack.Count () == 0; } { 0; } {
+                if { (HandlerStack.At 0) == mine; } { HandlerStack.Remove 0; } { 0; }
+            }
+            ok r
+        }
+        result
+    }
+}
+
+ravel ""

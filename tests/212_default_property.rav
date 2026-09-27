@@ -6,7 +6,6 @@
 # 和 `int default` 给 0、`function default` 给空函数是同一个道理。
 # 于是"先声明、之后再装实现"这套写法通了(trait 要的正是这个形状):默认那份能读能写,
 # 只是都不做事 —— 读出来是 (), 写进去丢掉。之后用 `by a = property g s` 换掉它。
-using "try.rav"
 
 Trait ::= class {
     init := () => { 0; this; }

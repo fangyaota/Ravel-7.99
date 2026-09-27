@@ -7,7 +7,6 @@
 #
 # 从前这两段是分开的两条路(先查自己的表,miss 了再 `Type.LookupMethod`),而且
 # 哪一段生效还取决于 receiver 是不是 ObjectVal。
-using "try.rav"
 # ②:原子值的成员全在类那层,沿链一样够得到(包括定义在 `object` 上的)
 print ((5).Fields ())
 print ([1 2 3].Count ())

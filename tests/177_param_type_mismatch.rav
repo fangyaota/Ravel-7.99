@@ -1,6 +1,5 @@
 # lambda 参数类型不对:消息要说清哪个参数、要什么、得到什么
 # 从前固定是四个字「类型不匹配」,调用失败时完全看不出错在哪
-using "try.rav"
 f := (n: int) => { n; }
 # 注意 `{ f "abc"; }` 的分号:这是**表达式位置**的块,少了它会被当成 Set
 Ex.Try { f "abc"; } (e: Exception) => { print ("1: " + string e); }

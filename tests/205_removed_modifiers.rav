@@ -2,7 +2,6 @@
 # (语言里既没有重载也没有重定义检查,写上去等于没写)。
 # 不拦的话 `override x := 1` 会被当表达式 `override x` 求值,报「未定义的变量 'override'」,
 # 看不出是这个修饰符没了 —— 所以删的同时留一句明白话。
-using "try.rav"
 Ex.Try { eval "override x := 1"; } (e: Exception) => { print ("1: " + string e); }
 Ex.Try { eval "new y := 2"; } (e: Exception) => { print ("2: " + string e); }
 # 而它们照样是普通名字(不是保留字):定义、读、当成员名都行

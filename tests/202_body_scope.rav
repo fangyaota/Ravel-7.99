@@ -14,7 +14,6 @@ print (typeof (g.Body ()))
 print ((g.Body ()) 0)          # 跑一遍那个块(块忽略参数;它读的是**捕获**的 base)
 # 注意:体里读**参数**的话不能这样单独跑 —— 参数活在调用作用域里,不在捕获作用域里
 h := (n: int) => { n; }
-using "try.rav"
 Ex.Try { (h.Body ()) 0; } (e: Exception) => { print ("参数不在捕获里: " + string e); }
 
 # 类对象:体是类体;内建类没类体 → 空块

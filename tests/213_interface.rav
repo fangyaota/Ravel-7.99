@@ -9,7 +9,6 @@
 #
 # **类型注解也认接口**(注解、参数、写入走同一条判据:`Accepts` = 名义链够得着,或者
 # 当前作用域里有生效中的实现把它接上)。
-using "try.rav"
 
 myTrait ::= interface {
     by a : int = default

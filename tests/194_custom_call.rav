@@ -5,7 +5,6 @@
 # 类对象现在**就是函数**(ClassVal : FunctionVal),而普通对象不是。
 #
 # 于是 `call` 退化成普通成员名 —— 叫它什么都可以,只是不再代表"能调"。
-using "try.rav"
 C ::= class { init := () => { this; }; }
 a := C ()
 # 对象不是函数:自己那层有没有 `call` 都一样

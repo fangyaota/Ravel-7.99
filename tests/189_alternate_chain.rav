@@ -3,7 +3,6 @@
 # 于是外层帧 try 里那句 CallInto 只**推**了内层的帧就返回了,内层两分支都失败时
 # 抛的 TypeMismatchException 已经在外层 try 之外 —— 第三个分支永远试不到。
 # 现在 `|` 会把链条摊平成一个分支列表,一个帧顺序试完。
-using "try.rav"
 f := (a: int) => { "int"; } | (a: string) => { "str"; } | (a: bool) => { "bool"; }
 print (f 1)
 print (f "x")

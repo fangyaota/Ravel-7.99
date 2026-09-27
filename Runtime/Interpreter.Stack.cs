@@ -72,12 +72,13 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>把运行时错误交给 Ravel 层的 handler(`try.rav` 的 handlerStack 栈顶)。
+    /// <summary>把运行时错误交给 Ravel 层的 handler(`predefined.rav` 末尾那个 `Ex` 模块的
+    /// HandlerStack 栈顶)。
     /// 有 handler 就调它、异常不再冒泡成 C# 异常——这样 `Ex.try { 1 + true } {...}` 也能接住,
     /// 而不是只有显式 `Ex.throw` 才接得住。没有就抛,由 CLI 打带位置和调用栈的报告。</summary>
     private bool HandToRavelHandler(RuntimeException ex)
     {
-        // try.rav 第一行就 `ravel "Ex"`,所以 handlerStack 在 Ex 模块里;也接受放全局的写法
+        // predefined.rav 那段先 `ravel "Ex"`,所以 HandlerStack 在 Ex 模块里;也接受放全局的写法
         var stack = (_global.TryLookup("Ex")?.Value as ModuleVal)?.Scope.TryLookup("HandlerStack")?.Value
                         as ListVal
                     ?? _global.TryLookup("HandlerStack")?.Value as ListVal;
@@ -85,7 +86,7 @@ public partial class Interpreter
         if (stack.Elements.Count == 0) return false;
         if (stack.Elements[0] is not FunctionVal handler) return false;
 
-        // 先把 handler 弹出栈再调它(和 try.rav 的 `handlerStack.Remove 0 e` 一致)。
+        // 先把 handler 弹出栈再调它(和 `Ex.Throw` 里的 `HandlerStack.Remove 0 e` 一致)。
         // 不弹的话,handler 自己出错时会又被交给同一个 handler,无限递归。
         stack.Elements.RemoveAt(0);
 

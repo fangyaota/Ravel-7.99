@@ -4,7 +4,6 @@
 #     ≡  m1.Bind ((x: object) => { m2.Bind ((y: object) => { Some (x + y); }); })
 #
 # 所以它没有任何运行时支持:链是解析期就地长出来的,`:<` 只是那个"把这个值绑个名字"的记号。
-using "try.rav"
 
 # 一条绑定 + 一个结果(单行写就得用 `;` 收尾,和普通块一样)
 print (do { v :< Some 10; Some (v * 2); }.Value ())

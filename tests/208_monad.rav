@@ -5,7 +5,6 @@
 # 写法上注意两处括号(都是柯里化那套规则的正常结果):
 #   1) `(Some 5).Map …` —— 紧邻的参数位置上 `Some 5.Map` 会被读成 `Some (5.Map)`
 #   2) `((Some 5).Map f).Value ()` —— 不给 Map 的结果套括号,`.Value` 会贴到 f 上
-using "try.rav"
 
 # 两种情况的类型相同,`is` 分不出来;问有没有值用 IsSome ()
 print ((Some 5) is Monad)

@@ -1,6 +1,5 @@
 # cacher count f:按实参缓存 f 的返回结果(记忆化)。`count` 是 **f 的参数个数**。
 # 缓存有没有生效,靠函数体里的副作用跑了几次来证明 —— 否则"命中"和"重算"看不出区别。
-using "try.rav"
 
 Calls := 0
 slow := (x: int) => { Calls += 1; x * 10; }

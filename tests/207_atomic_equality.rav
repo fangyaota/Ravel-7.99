@@ -9,7 +9,6 @@
 #
 # 直接把程序打掉,而且不是 RuntimeException,Ravel 的 `Ex.try` 也接不住。
 # (cacher 拿 `()` 当实参去比的时候撞上了它,见 tests/206。)
-using "try.rav"
 print (() == ())
 print (() != ())
 print (default == default)

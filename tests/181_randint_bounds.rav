@@ -1,6 +1,5 @@
 # randint 的最小值大于最大值:C# 的 Random.Next 会抛 ArgumentOutOfRangeException,
 # 那是 C# 异常,绕过 Ravel 的 try 一路漏到顶层把程序打掉
-using "try.rav"
 Ex.Try { randint 5 1; } (e: Exception) => { print ("1: " + string e); }
 Ex.Try { randint "a" 1; } (e: Exception) => { print ("2: " + string e); }
 # 合法调用照常(两端相等时 Next 返回那个值)
