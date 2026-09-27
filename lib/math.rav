@@ -9,16 +9,17 @@
 # ⚠️ 别在这里重定义 pi / e / tau:C# 侧已经填好了,`Define` 会报「变量 'pi' 已定义」。
 # 而且那份精度更高(3.141592653589793,不是 3.14159)。
 #
-# 参数标成 ValueType 而不是 float:Ravel 的 lambda 参数**不做隐式转换**,
-# 标 float 就只收 float,而 `square 5`、`deg 90` 这种整数写法必须能用。
+# 参数标成 INumber(predefined.rav 里那个空槽接口,五种数值类型都实现了它):
+# Ravel 的 lambda 参数**不做隐式转换**,标 float 就只收 float,而 `square 5`、
+# `deg 90` 这种整数写法必须能用;从前标的是 ValueType,那个连 String 都收。
 
 ravel "Math"
 
 # 四个都标 readonly:它们是这个模块的 API,顺手 `square = …` 覆盖掉会让后面
 # 所有调用者算错。`=` 会报「无法给只读变量赋值」,要换得用 `:=` 重新定义。
-readonly Square := (x: ValueType) => { x * x; }
-readonly Cube := (x: ValueType) => { x * x * x; }
+readonly Square := (x: INumber) => { x * x; }
+readonly Cube := (x: INumber) => { x * x * x; }
 
 # 角度与弧度换算 —— 三角函数的输入输出都是弧度,这两个是常用的转接
-readonly Deg := (rad: ValueType) => { rad * 180 / Pi; }
-readonly Rad := (deg: ValueType) => { deg * Pi / 180; }
+readonly Deg := (rad: INumber) => { rad * 180 / Pi; }
+readonly Rad := (deg: INumber) => { deg * Pi / 180; }

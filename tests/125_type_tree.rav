@@ -28,6 +28,7 @@ Types.PrintTree object
 # ├── Exception [Type]
 # ├── Scope [Type]
 # ├── Property [Type]
+# ├── INumber [Interface]
 # ├── IEnumerable [Interface]
 # ├── IEnumerator [Interface]
 # ├── Enumerator [Type]

@@ -121,7 +121,7 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # mine 8
 # mine 9
 # [IEnumerable]
-# []
+# [INumber]
 # [IEnumerable]
 # [IEnumerable]
 # [Seq Dict Set List]

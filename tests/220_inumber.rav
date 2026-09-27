@@ -1,0 +1,51 @@
+# `INumber` —— predefined.rav 里那个**空槽接口**:五种数值类型都实现了它。
+#
+# 用处是给"要一个数"的参数当注解(见 lib/math.rav 的 `Square` / `Cube` / `Deg` / `Rad`)。
+# 从前那种地方标的是 `ValueType`,那个连 String 都收(`String <: ValueType`),
+# 字符串乘不起来;标 `float` 又只收 float —— 参数注解不做隐式转换。
+using "math.rav"
+
+# ---- 谁算数 ----
+print (5 is INumber)
+print (2.5 is INumber)
+print (bigint 5 is INumber)
+print ((fraction 1 3) is INumber)
+print ((bigfraction 1 3) is INumber)
+print ("a" is INumber)
+print (true is INumber)
+print ([1] is INumber)
+print (typeof 5 <: INumber)          # 类型那一侧也认(和 `is` 同一个判据)
+
+# ---- 两个查询都看得见它 ----
+print (int.GetImplements ())
+print (INumber.GetImplementors ())
+
+# ---- math.rav 那四个现在收 INumber ----
+print (Math.Square 5)
+print (Math.Square 2.5)
+print (Math.Cube 3)
+print (Math.Deg Math.Pi)
+print (Math.Rad 180)
+
+# ---- 不是数的当场说清楚(而不是让它烂在 `x * x` 里) ----
+try { print (Math.Square "a"); } (e: Exception) => { print ("1: " + string e); }
+try { print (Math.Square true); } (e: Exception) => { print ("2: " + string e); }
+# --- expected ---
+# true
+# true
+# true
+# true
+# true
+# false
+# false
+# false
+# true
+# [INumber]
+# [BigFraction Fraction BigInt Float Integer]
+# 25
+# 6.25
+# 27
+# 180
+# 3.141592653589793
+# 1: 参数 'x' 需要 INumber，得到 String
+# 2: 参数 'x' 需要 INumber，得到 Bool

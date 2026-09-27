@@ -496,7 +496,11 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 
 ## 接口(interface)与实现(use)
 
-**库里第一个用它的:`IEnumerable` / `IEnumerator`**(`lib/predefined.rav` 末尾一段)。形状照 C#:
+**库里已经在用的两个:`INumber`** —— 最简单的那个,**一个槽都没有**,只是"这个类型是数"的标记
+(五种数值类型各 `impl` 一条,于是 `(x: INumber)` 收得下 `int 5` 也收得下 `float 5.0`;
+`lib/math.rav` 那四个函数用它,从前标的是 `ValueType` —— 那个连 String 都收)。
+
+**`IEnumerable` / `IEnumerator`**(`lib/predefined.rav` 末尾一段)。形状照 C#:
 
 ```ravel
 IEnumerable ::= interface { by GetEnumerator : function = default }

@@ -70,6 +70,33 @@ readonly while := (c: function body: function) => {
     if { cond; } { body (); again 0; } { 0; }
 }
 
+# ── 数值:谁算数 ──
+# 五种数值类型都实现了它,于是 `(x: INumber)` 收得下 `int 5`、也收得下 `float 5.0`。
+# 从前这种地方标的是 `ValueType` —— 那个连 String 都收(`String <: ValueType`),
+# 而字符串乘不起来;标 `float` 又只收 float(参数注解不做隐式转换)。
+#
+# 它是个**空槽接口**:只说"这个类型是数",没有别的要求 —— 所以接口体和每个实现体
+# 都是个空块(`{ () }`:`{}` 单行是空字典,多行空块本来就禁止)。
+INumber ::= interface {
+    ()
+}
+
+impl (INumber int {
+    ()
+})
+impl (INumber float {
+    ()
+})
+impl (INumber bigint {
+    ()
+})
+impl (INumber fraction {
+    ()
+})
+impl (INumber bigfraction {
+    ()
+})
+
 # ── 序列:任何"能按顺序把元素交出来"的东西 ──
 # 这是第一个用 `interface` 写出来的**库级接口**。三种容器在下面各实现一遍,于是:
 #   * `xs is IEnumerable` 对 list / set / dict 成立;

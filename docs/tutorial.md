@@ -1557,7 +1557,9 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 
 #### 库里的例子：`IEnumerable`
 
-`predefined.rav` 末尾那两条就是拿这套写的（见 4.3 与 6.4）：`IEnumerable` 只声明
+库里已经有两个:`INumber`（最简单的——**一个槽都没有**,只是"这个类型是数"的标记:
+五种数值类型各 `impl` 一条,于是 `(x: INumber)` 收得下 `int 5` 也收得下 `float 5.0`,
+`lib/math.rav` 那四个函数就标的它）、以及 `IEnumerable` / `IEnumerator`（见 4.3 与 6.4）：`IEnumerable` 只声明
 `by GetEnumerator`，`IEnumerator` 只声明 `by MoveNext` / `by Current`，
 三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、`(xs: IEnumerable) => …` 收得下它们。
 
