@@ -40,6 +40,7 @@ public partial class Interpreter
             case StringLiteral ss: if (nf.Count == 0) Return(nf, new StringVal(ss.Value)); break;
             case VoidLiteral: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
             case SlotExpr slot: StepSlot(nf, slot); break;
+            case SlotAssign sa: StepSlotAssign(nf, sa); break;
             case LiteralExpr le: if (nf.Count == 0) Return(nf, le.Value); break;
             case IdentifierExpr id: StepIdent(nf, id); break;
             case BinaryExpr bin: StepBinary(nf, bin); break;
@@ -53,7 +54,7 @@ public partial class Interpreter
             case BlockExpr b: if (nf.Count == 0) Return(nf, new BlockVal(b, nf.Scope)); break;
             case LambdaExpr lam: StepLambda(nf, lam); break;   // 分相推进(注解要先求值),别加 Count==0 的守卫
             case VarDefinition v: StepVarDef(nf, v); break;
-            case Assignment a: StepAssign(nf, a.Name, a.Value, a.By); break;
+            case Assignment a: StepAssign(nf, a.Name, a.Value); break;
             case ExpressionStatement es: if (nf.Count == 0) PushChild(nf, es.Expr); else Return(nf, nf.Result(0)); break;
             // 走到这里说明 AST 里有个节点类型没接上状态机——报出节点类型才查得下去
             default: throw new RuntimeException($"无法求值的节点类型: {nf.Node.GetType().Name}");
@@ -331,13 +332,85 @@ public partial class Interpreter
             throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）");
     }
 
+    /// <summary>`by a = X` / `by a.x = X` —— **换掉槽里的那份 property**(不走旧 setter);
+    /// `:=` 那种是**在那个对象上把槽建出来**(`by a.x := X`)。和 <see cref="StepSlot"/>(取槽)
+    /// 对称:同一个"槽路径",一边读一边写。
+    ///
+    /// 三段(成员那种):0=求接收者 1=求新值 2=换。变量那种少第一段。
+    /// 门禁和成员写一样(`core` 要 unsafe、`private` 要能走到那个对象);
+    /// **不带 `:=` 时目标必须已经是 by 属性** —— 不然 `by obj.nope = …` 会悄悄多出个成员,
+    /// 那正是"赋值要求字段已存在"这条规矩要挡的(`:=` 才是定义)。</summary>
+    private void StepSlotAssign(NodeFrame nf, SlotAssign sa)
+    {
+        // 变量槽:`by a = X`
+        if (sa.Path is IdentifierExpr id)
+        {
+            if (nf.Count == 0)
+            {
+                PushChild(nf, sa.Value);
+                return;
+            }
+
+            var val = nf.Result(0);
+            var v = nf.Scope.LookupVar(id.Name);
+            if (v == null)
+            {
+                if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'");
+                v = nf.Scope.DefineOrReplace(id.Name, BuiltinClasses.Any, val);
+                v.SetAttr(Attr.By);
+                Return(nf, val);
+                return;
+            }
+
+            if (v.HasAttr(Attr.Core) && !IsUnsafe)
+                throw new RuntimeException($"字段 '{id.Name}' 是核心字段，需要 unsafe");
+            CheckSlot(v, id.Name);
+            v.ReplaceSlot(val);
+            Return(nf, val);
+            return;
+        }
+
+        // 成员槽:`by a.x = X` —— 先求接收者,再求新值
+        var ma = (MemberAccess)sa.Path;
+        if (nf.Count == 0)
+        {
+            PushChild(nf, ma.Object);
+            return;
+        }
+
+        if (nf.Count == 1)
+        {
+            PushChild(nf, sa.Value);
+            return;
+        }
+
+        var target = nf.Result(0);
+        if (target is not ObjectVal obj)
+            throw new RuntimeException($"`by` 只能换对象身上的属性，得到 {target.Type}");
+        var val2 = nf.Result(1);
+        if (sa.Define)
+        {
+            // `:=`:在那个对象上建槽(成员不存在也行,和 `obj.a := v` 一条规矩:定义不查门禁)
+            var made = obj.Scope.DefineOrReplace(ma.Member, BuiltinClasses.Any, val2);
+            made.SetAttr(Attr.By);
+            Return(nf, val2);
+            return;
+        }
+
+        var field = obj.Scope.LookupField(ma.Member) ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+        CheckMemberAccess(field, obj, ma.Member);
+        CheckSlot(field, ma.Member);
+        field.ReplaceSlot(val2);
+        Return(nf, val2);
+    }
+
     /// <summary>变量赋值 `x = v`。语句位置(<see cref="Assignment"/> 节点)和表达式位置
     /// (BinaryExpr 的 `=`)都走这里 —— 别再各写一份:从前表达式那份**根本没赋值**
     /// (只把右值交出去),`print (x = 5)` 会打印 5 而 `x` 一点没变。
     ///
     /// 0=求右值 1=写。名字找不到就交给 <see cref="Scope.Assign"/>,由它报「未定义」。
-    /// `by` 那种(`by x = …`)走的是另一条:换槽,不是赋值。</summary>
-    private void StepAssign(NodeFrame nf, string name, Expression value, bool by = false)
+    /// `by x = …` 那种(换槽)走的是另一条:<see cref="StepSlotAssign"/>。</summary>
+    private void StepAssign(NodeFrame nf, string name, Expression value)
     {
         if (nf.Count == 0)
         {
@@ -351,20 +424,10 @@ public partial class Interpreter
         {
             if (field.HasAttr(Attr.Core) && !IsUnsafe)
                 throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe");
-            if (by)
-            {
-                if (!field.HasAttr(Attr.By))
-                    throw new RuntimeException($"`by {name} = …` 要求 '{name}' 是个 by 属性（换掉槽里的 property）");
-                field.ReplaceSlot(val);
-                Return(nf, val);
-                return;
-            }
-
             WriteVariable(nf, field, val);
             return;
         }
 
-        if (by) throw new RuntimeException($"未定义的变量 '{name}'");
         nf.Scope.Assign(name, val);
         Return(nf, val);
     }

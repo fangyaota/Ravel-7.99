@@ -447,7 +447,8 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 |---|---|
 | `by a := property g s` / `by a: int = …` | **定义槽**：`a` 从此是个属性（注解管写进来的值）|
 | `a = v` / `obj.a = v` | 给属性赋值：过 setter |
-| `by a = X`（`Assignment.By`，语句）| **换掉槽里的那份 property**：`Variable.ReplaceSlot`，不过旧 setter、不查约束 |
+| `by a = X` / `by a.x = X`（`SlotAssign`，语句）| **换掉槽里的那份 property**：`Variable.ReplaceSlot`，不过旧 setter、不查约束 |
+| `by a.x := X`（同上，`Define`）| **在那个对象上建槽**：`DefineOrReplace` + `SetAttr(By)`，成员不存在也行（`:=` 定义 / `=` 换，和别处一个规矩）|
 | `by a` / `by a.x`（`SlotExpr`，表达式）| **取出那份 property 本身**：不过 getter，拿到的是普通值 |
 
 后两条是"属性本身"那半边（绕开 getter/setter），前两条是"属性值"那半边。

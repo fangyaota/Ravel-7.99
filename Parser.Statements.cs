@@ -129,15 +129,15 @@ public partial class Parser
 
         if (attrs.Count > 0)
         {
-            // `by x = v`:换掉槽里的那份 property(见 ParseByAssign)。
+            // `by a = X` / `by a.x = X`:换掉槽里的那份 property(见 SlotAssign)。
             // 只有 `by` 有这个形态:别的修饰符后面跟 `=` 还是错的(`readonly x = 5`)——
             // `by` 特殊在它修饰的那个名字可以**是个属性槽**,而槽里的东西是可以换的。
-            if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Equal))
-                return ParseByAssign();
-            // 语句开头的 `by a.x` 没法落脚:`by a.x` 是**表达式**(取槽,见 SlotExpr),
-            // 得放在能用值的地方;换槽那种(`by obj.a = …`)现在也只认变量名
+            if (attrs.Contains(Attr.By) && IsSlotAssignStart())
+                return ParseSlotAssign();
+
+            // 语句开头的 `by a.x` 取槽没地方落脚(那是**表达式**,见 SlotExpr)
             if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Dot))
-                throw ParseError("语句开头只有 `by a = …`(换槽)这一种；`by a.x`(取槽)是个表达式，得放在能用值的地方（比如 `p := by a.x`）");
+                throw ParseError("语句开头只有换/建槽的写法（`by a.x = …` / `by a.x := …`）；取槽的 `by a.x` 是个表达式，得放在能用值的地方（比如 `p := by a.x`）");
 
             // `readonly x := 1`(修饰符 + 名字)或 `readonly := 1`(修饰符自己当名字)
             if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))
@@ -286,20 +286,35 @@ public partial class Parser
         };
     }
 
-    /// <summary>`by a = 表达式` —— **换掉槽里的那份 property**:不走旧属性的 setter,
-    /// 也不查类型约束(`by a: int = …` 那个约束管的是"写进属性的值",而这里换的是属性本身)。
+    /// <summary>这个位置是 `by 名字[.成员] = …` / `… := …` 吗?
     ///
-    /// 和 `a = v`(过 setter)是两件不同的事,所以单独一个形状;`by a := property …`
-    /// 仍然是"定义这个槽"。</summary>
-    private Statement ParseByAssign()
+    /// 只看 token、不动 AST(所以不存 `_pos` 再还回去那套):`by` 后面要么 `:`(注解,走定义)
+    /// 要么这个形状(换/建槽),看 `名字` 后面那个 token 就分得清。</summary>
+    private bool IsSlotAssignStart()
     {
-        var name = Consume(TokenType.Identifier, "需要变量名");
-        Consume(TokenType.Equal, "需要 '='");
+        if (!Check(TokenType.Identifier)) return false;
+        var i = _pos + 1;
+        while (i + 1 < tokens.Count && tokens[i].Type == TokenType.Dot && tokens[i + 1].Type == TokenType.Identifier)
+            i += 2;
+        return i < tokens.Count && tokens[i].Type is TokenType.Equal or TokenType.ColonEqual;
+    }
+
+    /// <summary>`by a = 表达式` / `by a.x = 表达式`(`:=` 那种是**在那个对象上建槽**)——
+    /// 换掉槽里的那份 property:不走旧属性的 setter,也不查类型约束
+    /// (`by a: int = …` 那个约束管的是"写进属性的值",而这里换的是属性本身)。
+    /// 和 `by a` / `by a.x`(取槽)对称,左边都是同一个"槽路径"。
+    ///
+    /// 和 `a = v`(过 setter)、`by a := property …`(定义槽)是三件不同的事。</summary>
+    private Statement ParseSlotAssign()
+    {
+        var path = ParseMemberChain(ParsePrimary());
+        var define = Match(TokenType.ColonEqual);
+        if (!define) Consume(TokenType.Equal, "需要 '=' 或 ':='");
         _holeCount = 0;
         var value = ParseExpression();
         SkipNewlines();
         if (HasHoles(value)) value = DesugarHoles(value);
-        return new Assignment(name.Lexeme, value, By: true) { Line = name.Line, Column = name.Column };
+        return new SlotAssign(path, value, define) { Line = path.Line, Column = path.Column };
     }
 
     private Statement ParseAssignment()

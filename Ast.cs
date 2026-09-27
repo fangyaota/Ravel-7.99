@@ -34,12 +34,18 @@ public record VarDefinition(string Name, Expression? TypeAnnotation, Expression 
     /// <summary>运算符:靠名字识别——类体里直接写符号(`+ := f` / `+ = f`)</summary>
     public bool IsOperator => OperatorSymbols.IsSymbol(Name);
 }
-/// <summary>赋值 `x = v`。
+/// <summary>赋值 `x = v`</summary>
+public record Assignment(string Name, Expression Value) : Statement;
+
+/// <summary>`by a = X` / `by a.x = X` —— **换掉槽里的那份 property**:不走旧 setter,
+/// 也不查类型约束(`by a: int = …` 那个约束管的是"写进属性的值",而这里换的是属性本身)。
 ///
-/// `By` 是 `by x = v` 那种写法(`by` 修饰符后面直接跟 `=`,见 `ParseByAssign`):
-/// **换掉槽里的那份 property**,而不是给属性赋值 —— 不走旧的 setter,也不查类型约束
-/// (那个约束管的是"写进属性的值",而这里换的是属性本身)。</summary>
-public record Assignment(string Name, Expression Value, bool By = false) : Statement;
+/// `Define` 是 `by a.x := X` 那种(`:=` 定义):**在那个对象上把槽建出来**(成员还不存在时用)。
+/// 和语言里别处一个规矩:`:=` 定义、`=` 赋值 —— 只是这儿定义的是"一个属性槽"。
+/// 不带 `Define` 时目标必须已经是 by 属性,不然 `by obj.nope = …` 会悄悄多出个成员。
+///
+/// `Path` 和 <see cref="SlotExpr"/> 一模一样:变量名,或 `对象.成员`。</summary>
+public record SlotAssign(Expression Path, Expression Value, bool Define = false) : Statement;
 public record ExpressionStatement(Expression Expr) : Statement;
 
 /// <summary>`名字 =&lt; 表达式`:do 块里的"从这个 Monad 里取值"。

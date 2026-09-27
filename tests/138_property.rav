@@ -104,6 +104,42 @@ print ((Bag.At 0).Get ())
 print ("至此 getter 被调了 " + string GetCalls + " 次")
 Ex.Try { print (by pp._v); } (e2: Exception) => { print ("10: " + string e2); }
 Ex.Try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
+
+# `by a.x = X`:换**别的对象**上的槽(和取槽那边的 `by a.x` 对称,同一个槽路径)
+Old2 := 0
+New2 := 0
+Q ::= class {
+    init := () => { _q = 1; this; }
+    _q: int = 1
+    by q: int = property (() => { _q; }) ((v: int) => { Old2 += 1; _q = v; })
+}
+qq := Q ()
+R ::= class {
+    init := () => { 0; this; }
+    swapOn := (o: object) => {
+        by o.q = property (() => { 1000; }) ((v: int) => { New2 += 1; })
+    }
+}
+r := R ()
+print (qq.q)
+r.swapOn qq
+print (qq.q)
+qq.q = 5
+print ("旧 " + string Old2 + " 新 " + string New2)
+Ex.Try { by qq._q = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("12: " + string e2); }
+Ex.Try { by qq.nope = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("13: " + string e2); }
+
+# `by a.x := X` 在**那个对象上建槽**(成员不存在也行)—— `:=` 定义 / `=` 换,
+# 和语言里别处一个规矩;所以 `=` 那条撞上不存在的成员才报错(上面那条 13)
+T ::= class { init := () => { 0; this; }; }
+t := T ()
+by t.added := property (() => { 42; }) ((v: int) => { 0; })
+print (t.added)
+print (t.Fields ())
+print (by t.added)
+# `=` 那边的正例:槽已经在了,换掉它
+by t.added = property (() => { 43; }) ((v: int) => { 0; })
+print (t.added)
 # --- expected ---
 # 99
 # 7
@@ -127,7 +163,7 @@ Ex.Try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
 # 700
 # 换之后 旧 1 新 1
 # [init _n n swap is isnot ToString Copy Fields]
-# 8: `by plain = …` 要求 'plain' 是个 by 属性（换掉槽里的 property）
+# 8: 'plain' 不是 by 属性（`by` 取/换的是槽里的 property）
 # 9: 未定义的变量 'nope'
 # <property>
 # 取完 getter 被调了 0 次
@@ -137,3 +173,12 @@ Ex.Try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
 # 至此 getter 被调了 2 次
 # 10: '_v' 不是 by 属性（`by` 取/换的是槽里的 property）
 # 11: 'plain' 不是 by 属性（`by` 取/换的是槽里的 property）
+# 1
+# 1000
+# 旧 0 新 1
+# 12: '_q' 不是 by 属性（`by` 取/换的是槽里的 property）
+# 13: 对象没有字段 'nope'
+# 42
+# [init added is isnot ToString Copy Fields]
+# <property>
+# 43
