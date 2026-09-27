@@ -95,12 +95,25 @@ public partial class Interpreter
     ///
     /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
     /// 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。</summary>
-    private static (FunctionVal Bound, bool Builtin) BindOperator(RuntimeValue left, string op)
+    private (FunctionVal Bound, bool Builtin) BindOperator(RuntimeValue left, string op)
     {
-        var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal
-                 ?? throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
+        var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal;
+        if (fn == null && left is ObjectVal o && HasTraitOperator(o, op))
+            return (new BoundTraitOp(o, op), false);      // 槽运算符:两级,交给 TraitOp 帧
+
+        if (fn == null)
+            throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
+
         return (ObjectVal.BindMethod(fn, left), fn is BuiltinMethodVal);
     }
+
+    /// <summary>这个对象身上有没有**槽运算符**(`by + := property g s`)。两处:自己那层
+    /// (类体/实现体里写的),以及生效中的接口实现(`interface { by + := … }` 落在实现身上)。
+    /// 只认 `by` 槽 —— 随手定义的普通 `+ := f` 仍归类运算符那条路(由 `Install` 静态扫出来
+    /// 装成 `ClassOperatorFactory`),这里不抢。</summary>
+    private bool HasTraitOperator(ObjectVal self, string op)
+        => (self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
+           || BuiltinClasses.TraitSlot(this, self, op) != null;
 
     private void StepBinaryOp(NodeFrame nf, BinaryExpr bin)
     {

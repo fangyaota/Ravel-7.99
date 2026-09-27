@@ -297,6 +297,11 @@ public partial class Parser
     /// 要么这个形状(换/建槽),看 `名字` 后面那个 token 就分得清。</summary>
     private bool IsSlotAssignStart()
     {
+        // 运算符也能当槽名(`by + := property …`:接口里声明它、实现里换掉它)。符号后面
+        // 直接跟定义符/赋值符,没有 `.` 那一串 —— 槽路径本来就短。
+        if (IsOperatorToken(Peek().Type) && _pos + 1 < tokens.Count)
+            return tokens[_pos + 1].Type is TokenType.Equal or TokenType.ColonEqual;
+
         if (!Check(TokenType.Identifier)) return false;
         var i = _pos + 1;
         while (i + 1 < tokens.Count && tokens[i].Type == TokenType.Dot && tokens[i + 1].Type == TokenType.Identifier)
@@ -312,7 +317,19 @@ public partial class Parser
     /// 和 `a = v`(过 setter)、`by a := property …`(定义槽)是三件不同的事。</summary>
     private Statement ParseSlotAssign()
     {
-        var path = ParseMemberChain(ParsePrimary());
+        // 运算符符号本身就是成员名,所以它也能当槽路径(`by + = …` / `by + := …`)。
+        // 这条不走 ParsePrimary —— 那会把 `+` 当成运算符节的开头(`+.2` 那种)。
+        Expression path;
+        if (IsOperatorToken(Peek().Type))
+        {
+            var sym = Peek();
+            _pos++;
+            path = new IdentifierExpr(sym.Lexeme) { Line = sym.Line, Column = sym.Column };
+        }
+        else
+        {
+            path = ParseMemberChain(ParsePrimary());
+        }
         var define = Match(TokenType.ColonEqual);
         if (!define) Consume(TokenType.Equal, "需要 '=' 或 ':='");
         _holeCount = 0;

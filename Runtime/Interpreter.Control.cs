@@ -19,6 +19,7 @@ public partial class Interpreter
             case ControlKind.SeqOp: StepSeqOp(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
             case ControlKind.ClassOp: StepClassOp(cf); break;
+            case ControlKind.TraitOp: StepTraitOp(cf); break;
             case ControlKind.CallAssign: StepCallAssign(cf); break;
             case ControlKind.CallReturn: StepCallReturn(cf); break;
             case ControlKind.CtorApply: StepCtorApply(cf); break;
@@ -492,6 +493,41 @@ public partial class Interpreter
         }
 
         Return(cf, cf.Result(0));
+    }
+
+    /// <summary>**槽运算符**(`by + := property g s`):`a + b` 走到这儿。
+    ///
+    /// 和类运算符的区别:那一格的值是 **property** —— 读它走 getter,getter 交回的是运算符函数,
+    /// 再拿那个函数收右操作数。所以两级,一个帧里走完(阶段由 Count 推):
+    /// 0 = 找槽、推 getter;1 = 拿上一步的函数收右操作数;2 = 交出去。
+    ///
+    /// 槽在哪儿:**自己那层先说话**(类体里写的 `by + := …`),没有才问生效中的接口实现
+    /// (`interface { by + := … }`,实现体跑一遍就落在实现身上)。两处都只看 `by` 槽。
+    /// `Args = [接收者, 右操作数, 符号]`。</summary>
+    private void StepTraitOp(ControlFrame cf)
+    {
+        var self = cf.Arg<ObjectVal>(0, "TraitOp");
+        var arg = cf.Arg<RuntimeValue>(1, "TraitOp");
+        var op = cf.Arg<StringVal>(2, "TraitOp").Value;
+
+        if (cf.Count == 0)
+        {
+            var slot = self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By)
+                ? own
+                : BuiltinClasses.TraitSlot(this, self, op)
+                  ?? throw new RuntimeException($"对象没有运算符 '{op}'");
+
+            CallInto(cf, PropertyGetter(slot.Value, op), VoidVal.Instance);   // 读槽 → 运算符函数
+            return;
+        }
+
+        if (cf.Count == 1)
+        {
+            CallInto(cf, cf.Last, arg);                                      // 用它收右操作数
+            return;
+        }
+
+        Return(cf, cf.Last);
     }
 
     private void StepCallAssign(ControlFrame cf)

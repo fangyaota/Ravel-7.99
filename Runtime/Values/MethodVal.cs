@@ -17,6 +17,18 @@ public sealed record BoundClassOp(ObjectVal Self, string OpName) : FunctionVal(n
     public override string ToString() => "<function " + OpName + ">";
 }
 
+/// <summary>绑定的**槽运算符**(`by + := property g s`):调用时推 TraitOp 帧。
+///
+/// 和 <see cref="BoundClassOp"/> 的区别在于那一格的**值是 property**:用它的运算符要两级 ——
+/// 先读槽(推 getter)拿到运算符函数,再拿那个函数收右操作数。所以它单独占一个帧,
+/// 别去挤 ClassOp 那条(那边一级就够,但两条路的阶段数不一样,合在一起就得靠旗子分辨)。
+///
+/// 槽在哪儿由 TraitOp 帧自己重新找(自己的那层 → 生效中的接口实现),和 ClassOp 一个路子。</summary>
+public sealed record BoundTraitOp(ObjectVal Self, string OpName) : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("BoundTraitOp"))
+{
+    public override string ToString() => "<function " + OpName + ">";
+}
+
 /// <summary>类型查询的两个方向(名字对应 `Type` 上那两个方法):
 /// <see cref="Implements"/> = "这个类型现在实现了哪些接口",
 /// <see cref="Implementors"/> = "哪些类型现在实现了这个接口"。</summary>

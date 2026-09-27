@@ -51,6 +51,12 @@ public partial class Interpreter
             case BoundClassOp bco:
                 PushClassOp(sink, bco.OpName, bco.Self, arg);
                 break;
+            case BoundTraitOp bto:
+                _top = new ControlFrame(ControlKind.TraitOp,
+                    RList<RuntimeValue>.Empty.Add(bto.Self).Add(arg).Add(new StringVal(bto.OpName)),
+                    VoidVal.Instance)
+                { Parent = sink, Scope = sink.Scope };
+                break;
             // `T.GetImplements ()` / `I.GetImplementors ()` —— 类型与接口之间那两个方向的问题。
             // **当场算**:实现是登记在作用域里的,而求值器手里正好有当前作用域(内置方法的体没有),
             // 所以和 BoundClassOp 一样做成"按值分派"的一格。

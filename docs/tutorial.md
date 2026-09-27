@@ -1591,6 +1591,37 @@ masterTrait ::= interface supTrait [IEnumerable] {   # 父 + 要求；`{ () }` �
   （写 `use` 还是 `impl` 由你：要求查的是"当下这个作用域里有没有生效中的实现"。）
 - 要求得**跟在父后面**：光写 `interface [IEnumerable] { … }`（没父）不收。
 
+#### 槽里也能放运算符
+
+接口声明一条 `by + := property g s`,实现这个接口的类就有了那个运算符:
+
+```ravel
+T ::= interface {
+    by a : int = default
+    by + := property (() => { (o: object) => { instance.a + 100; }; }) ((v: function) => { (); })
+}
+C ::= class { x : int = 0 }
+
+use (T C {
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+    by + = property (() => { (o: object) => { instance.x * 2; }; }) ((v: function) => { (); })
+})
+
+u := C ()
+u.a = 5
+print (u + 1)     # 10 —— 实现里换掉的那条
+print (u.+ 7)     # 10 —— 节形式一样走槽
+u += 3            # 复合赋值:算子交回同类型的东西才写得回去
+```
+
+- 那一格的**值是 property**,所以"用"它是**两级**:读槽(走 getter)拿到运算符函数,再用它收右操作数;
+- 实现在块里用 `by + = …` **换掉**它(和普通槽一个写法);类体里直接写 `by * := property …` 也行(不经接口);
+- **看得见的东西不一样**:trait 那边是 `instance`,类体里自己那条是 `this`;
+- 和槽一样**随作用域在/不在**:出了 `use` 那个作用域,`u + 1` 又回到「类型 C 不支持运算符 '+'」;
+- 只有默认值(`by + := default`)时是那对什么都不做的 getter/setter,用起来报「值 () 不是函数」——响亮,不静默。
+
+(裸的 `+ := f` 仍然是**类运算符**那条路,不受这里影响。)
+
 #### 查一个类型现在实现了什么
 
 `T.GetImplements ()`（`Type` 上的方法）给出一份**当下**的快照 —— 接口对象组成的 list：
