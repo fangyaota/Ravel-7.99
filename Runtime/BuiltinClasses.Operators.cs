@@ -122,6 +122,13 @@ internal static partial class BuiltinClasses
         DefineOp(String, "!=", (a, b) => new BoolVal(((StringVal)a).Value != Operand<StringVal>(b, "!=").Value));
         // string 拼接
         DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + Operand<StringVal>(b, "+").Value));
+        // 字符串的序:**按序数比**(ordinal,和 C# 的 `string.CompareOrdinal` 一个口径),
+        // 不跟当前区域设置走 —— 后者会让同一段程序换台机器就换个结果。
+        // 有了它,`Min` / `Max` / `Sort` 那批序列方法对字符串也成立。
+        DefineOp(String, "<", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, "<").Value) < 0));
+        DefineOp(String, ">", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, ">").Value) > 0));
+        DefineOp(String, "<=", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, "<=").Value) <= 0));
+        DefineOp(String, ">=", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, ">=").Value) >= 0));
         // 类型判定 `is` / `isnot` —— 注册在 Object 上,于是**任何值**都有
         // (每个类的 parent 链都到 Object)。判据就是类型树上的 `IsAssignableTo`:
         //   `1 is int`     Integer <: Integer          ✓

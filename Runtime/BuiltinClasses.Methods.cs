@@ -15,6 +15,11 @@ internal static partial class BuiltinClasses
         RegisterListMethods();
         RegisterSetMethods();
         RegisterDictMethods();
+        // 序列方法:三种容器共用那一份(将来 IEnumerable 的落点)。
+        // `items` = 「按枚举顺序取出元素」——字典给的是**值**(按键找用 `Has` / `Keys ()`)
+        RegisterSequenceMethods(List, s => [.. ((ListVal)s).Elements]);
+        RegisterSequenceMethods(Set, s => [.. ((SetVal)s).Elements]);
+        RegisterSequenceMethods(Dict, s => [.. ((DictVal)s).Entries.Values]);
         RegisterTypeMethods();
         RegisterFunctionMethods();
         RegisterScopeMethods();
@@ -59,7 +64,6 @@ internal static partial class BuiltinClasses
 
     private static void RegisterListMethods()
     {
-        List.DefineMethod("Count", (s, _) => new IntVal(((ListVal)s).Elements.Count));
         List.DefineMethod("At", (s, a) =>
         {
             var lst = Indexed(s, a, "list.At");
@@ -98,11 +102,41 @@ internal static partial class BuiltinClasses
                 return VoidVal.Instance;
             });
         });
+
+        // 下面这些是**列表才有**的:要么带下标,要么依赖"顺序是有意义的"
+        // (集合/字典没有这条 —— 所以它们只在序列方法那一批里出现,见 BuiltinClasses.Sequences.cs)
+        List.DefineMethod("IndexOf", (s, a) => new IntVal(((ListVal)s).Elements.IndexOf(a)));
+        // `RemoveAt i` 和 `Remove i` 是同一件事:名字对齐 C#(`List.RemoveAt` 按下标、
+        // `List.Remove` 按值),老名字留着 —— 库里(HandlerStack)和好几个用例都在用
+        List.DefineMethod("RemoveAt", (s, a) =>
+        {
+            var lst = Indexed(s, a, "list.RemoveAt");
+            var idx = ((IntVal)a).Value;
+            var v = lst.Elements[idx];
+            lst.Elements.RemoveAt(idx);
+            return v;
+        });
+        List.DefineMethod("AddRange", (s, a) =>
+        {
+            ((ListVal)s).Elements.AddRange(ElementsOf(a, "AddRange"));
+            return VoidVal.Instance;
+        });
+        List.DefineMethod("Clear", (s, _) =>
+        {
+            ((ListVal)s).Elements.Clear();
+            return VoidVal.Instance;
+        });
+        // 排序**交回新的**(和 Map/Where 那批一个规矩),而且是**稳定**的
+        // (List.Sort 不稳定,所以走 OrderBy;相等的元素保持原来的先后)
+        List.DefineMethod("Sort", (s, _) =>
+        {
+            var cmp = Comparer<RuntimeValue>.Create((a, b) => Less(a, b) ? -1 : Less(b, a) ? 1 : 0);
+            return new ListVal([.. ((ListVal)s).Elements.OrderBy(x => x, cmp)]);
+        });
     }
 
     private static void RegisterSetMethods()
     {
-        Set.DefineMethod("Count", (s, _) => new IntVal(((SetVal)s).Elements.Count));
         Set.DefineMethod("Add", (s, a) =>
         {
             ((SetVal)s).Elements.Add(a);
@@ -113,13 +147,32 @@ internal static partial class BuiltinClasses
             ((SetVal)s).Elements.Remove(a);
             return VoidVal.Instance;
         });
-        Set.DefineMethod("Contains", (s, a) =>
-            new BoolVal(((SetVal)s).Elements.Contains(a)));
+        Set.DefineMethod("Clear", (s, _) =>
+        {
+            ((SetVal)s).Elements.Clear();
+            return VoidVal.Instance;
+        });
+        // 集合代数(C# 的 HashSet 同名方法):交回**新的 set**,原集合不动
+        Set.DefineMethod("Union", (s, a) => new SetVal([.. ((SetVal)s).Elements, .. ElementsOf(a, "Union")]));
+        Set.DefineMethod("Intersect", (s, a) =>
+        {
+            var other = ElementsOf(a, "Intersect").ToHashSet();
+            return new SetVal([.. ((SetVal)s).Elements.Where(other.Contains)]);
+        });
+        Set.DefineMethod("Except", (s, a) =>
+        {
+            var other = ElementsOf(a, "Except").ToHashSet();
+            return new SetVal([.. ((SetVal)s).Elements.Where(x => !other.Contains(x))]);
+        });
+        Set.DefineMethod("IsSubsetOf", (s, a) =>
+        {
+            var other = ElementsOf(a, "IsSubsetOf").ToHashSet();
+            return new BoolVal(((SetVal)s).Elements.All(other.Contains));
+        });
     }
 
     private static void RegisterDictMethods()
     {
-        Dict.DefineMethod("Count", (s, _) => new IntVal(((DictVal)s).Entries.Count));
         Dict.DefineMethod("Get", (s, a) =>
         {
             if (a is not StringVal key) throw new RuntimeException("dict.Get 需要 string 参数");
@@ -154,6 +207,27 @@ internal static partial class BuiltinClasses
             foreach (var v in ((DictVal)s).Entries.Values)
                 vals.Add(v);
             return new ListVal(vals);
+        });
+        Dict.DefineMethod("Remove", (s, a) =>
+        {
+            if (a is not StringVal key) throw new RuntimeException("dict.Remove 需要 string 键");
+            return new BoolVal(((DictVal)s).Entries.Remove(key.Value));   // 有没有删掉(C# 也交回 bool)
+        });
+        Dict.DefineMethod("HasValue", (s, a) => new BoolVal(((DictVal)s).Entries.ContainsValue(a)));
+        // `d.GetOr "k" 0` —— 有就取值,没有就给替代值(C# 的 GetValueOrDefault)。
+        // 默认的 `Get` 是**响亮**的(键不存在就报错),这个是"明知可能没有"时用的。
+        Dict.DefineMethod("GetOr", (s, a) =>
+        {
+            if (a is not StringVal key) throw new RuntimeException("dict.GetOr 需要 string 键");
+            var d = (DictVal)s;
+            return d.Entries.TryGetValue(key.Value, out var v)
+                ? FunctionVal.From(_ => v)        // 有:替代值收下但不用
+                : FunctionVal.From(fallback => fallback);
+        });
+        Dict.DefineMethod("Clear", (s, _) =>
+        {
+            ((DictVal)s).Entries.Clear();
+            return VoidVal.Instance;
         });
     }
 
