@@ -84,13 +84,14 @@ internal static partial class BuiltinClasses
         impl.Scope.Define(ObjectVal.ThisMember, impl.Type, impl);
     }
 
-    /// <summary>`use impl`:把实现登记进**当前作用域**。登记在 scope 上(不是类上、不是名字上),
-    /// 于是它随作用域在/不在。返回实现本身,方便接着写别的。</summary>
-    internal static RuntimeValue Use(Interpreter interp, RuntimeValue v)
+    /// <summary>把实现登记进 `into` 那个作用域:`use` 给的是**当前作用域**(随作用域在/不在),
+    /// `impl` 给的是**全局作用域**(每个作用域链都到全局,于是处处生效)。
+    /// `caller` 只用来拼报错文案(是 `use` 还是 `impl` 写错了)。返回实现本身。</summary>
+    internal static RuntimeValue Use(Interpreter interp, RuntimeValue v, Scope into, string caller)
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
-            throw new RuntimeException($"use 要的是「接口 类 实现」造出来的实现，得到 {v.Type.DisplayName}");
-        RegisterUse(interp.CurrentScope, impl);
+            throw new RuntimeException($"{caller} 要的是「接口 类 实现」造出来的实现，得到 {v.Type.DisplayName}");
+        RegisterUse(into, impl);
         return impl;
     }
 

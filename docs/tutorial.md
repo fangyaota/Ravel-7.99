@@ -1417,6 +1417,19 @@ Ex.Try { w := myClass (); print w.a; } (e: Exception) => { print (string e); }
 # 类型 'myClass' 没有方法 'a' —— 外面没 use 过
 ```
 
+要**处处生效**就用 `impl`（它登记在全局作用域上，任何作用域都看得到）：
+
+```ravel
+globalize := () => {
+    impl myImplement        # 写在函数里，但生效范围是全局
+}
+globalize ()
+print ((myClass ()).a)      # 0 —— 函数外面也生效
+myImplement.Dispose ()      # 取消和 use 一样
+```
+
+（顶层写 `use` 和写 `impl` 是一回事 —— 顶层那个作用域就是全局。差别只在函数体、模块里写的时候。）
+
 `Dispose ()` 提前取消（在哪个作用域调都一样，取消的是这个实现）；已经造出来的实例不残留什么
 （槽从来没写到实例上过）。取消了之后想再用，`use` 一次就行：
 
@@ -1578,7 +1591,8 @@ Error: 未预期的字符 '$'
 | `callcc fn` | 续延 |
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |
-| `use impl` | 在**当前作用域**启用一个接口实现（`impl.Dispose ()` 取消；见 7.11） |
+| `use impl` | 在**当前作用域**启用一个接口实现（`实现.Dispose ()` 取消；见 7.11） |
+| `impl 实现` | 同上，但**全局**生效（登记在全局作用域上） |
 
 ### Math（`using "math.rav"` 之后可用）
 

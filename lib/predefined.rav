@@ -43,6 +43,7 @@ readonly with := System.With
 readonly ravel := System.RavelMod
 readonly using := System.Using
 readonly use := System.Use  # 在**当前作用域**里启用一个接口实现(出去就没了)
+readonly impl := System.Impl  # 启用一个接口实现,**全局**(登记在全局作用域,处处生效)
 readonly exit := System.Exit
 readonly input := System.ReadLine
 readonly unsafe := System.Unsafe

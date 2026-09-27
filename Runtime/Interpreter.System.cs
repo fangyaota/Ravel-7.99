@@ -76,8 +76,10 @@ public partial class Interpreter
 
         // ---- 反射 / 作用域 ----
         DefFn("TypeOf", FunctionVal.From(a => a.Type));
-        // 接口实现:`use impl` 把实现登记进**当前作用域**(它随作用域在/不在)。见 BuiltinClasses.Interfaces.cs
-        DefFn("Use", FunctionVal.From(a => BuiltinClasses.Use(this, a)));
+        // 接口实现:`use` 登记进**当前作用域**(随作用域在/不在),`impl` 登记进**全局作用域**
+        // (每个作用域链都到全局,于是处处生效)。两个共用一套登记与查找,见 BuiltinClasses.Interfaces.cs
+        DefFn("Use", FunctionVal.From(a => BuiltinClasses.Use(this, a, CurrentScope, "use")));
+        DefFn("Impl", FunctionVal.From(a => BuiltinClasses.Use(this, a, _global, "impl")));
         DefFn("CurrentScope", FunctionVal.From(_ => new ScopeVal(CurrentScope)));
         // 标记**当前**作用域:core 检查沿作用域链往上找标记,所以函数返回后标记自然失效
         DefFn("Unsafe", FunctionVal.From(_ =>

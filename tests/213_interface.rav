@@ -73,6 +73,11 @@ myImplement.Dispose ()
 Ex.Try { print u.a; } (e: Exception) => { print ("6: " + string e); }
 print (u is myTrait)
 Ex.Try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + string e); }
+
+# 草稿最后那句:`impl` 是**全局**的 use(登记在全局作用域上,所有作用域都算)
+impl myImplement
+print u.a
+myImplement.Dispose ()
 # --- expected ---
 # 1: 类型 'myClass' 没有方法 'a'
 # 2: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
@@ -97,3 +102,4 @@ Ex.Try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + st
 # 6: 类型 'myClass' 没有方法 'a'
 # false
 # 7: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
+# 7

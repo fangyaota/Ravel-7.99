@@ -72,7 +72,7 @@
                     "name": "support.type.ravel"
                 },
                 {
-                    "match": "\\b(print|while|if|foreach|do|cacher|Some|None|callcc|typeof|assert|eval|randint|with|ravel|using|use|exit|input|unsafe|currentScope|property)\\b",
+                    "match": "\\b(print|while|if|foreach|do|cacher|Some|None|callcc|typeof|assert|eval|randint|with|ravel|using|use|impl|exit|input|unsafe|currentScope|property)\\b",
                     "name": "support.function.ravel"
                 }
             ]
