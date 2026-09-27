@@ -101,24 +101,33 @@ public partial class Interpreter
 
         if (bin.Op is "+=" or "-=" or "*=" or "/=" or "%=")
         {
-            if (bin.Left is not IdentifierExpr target)
-                throw new RuntimeException("复合赋值目标必须是变量");
-            var (bound, builtin) = BindOperator(left, bin.Op[..1]);
-            if (!builtin)
-            {
-                PushCallAssign(nf, bound, right, target.Name);
-                return;
-            }
-
-            var r = bound.Body(right);
-            nf.Scope.Assign(target.Name, r);
-            Return(nf, r);
+            StepCompoundAssignVar(nf, bin, left, right);
             return;
         }
 
-        var (opFn, opBuiltin) = BindOperator(left, bin.Op);
-        if (opBuiltin) Return(nf, opFn.Body(right));
-        else CallInto(nf.Parent!, opFn, right);
+        var (bound, builtin) = BindOperator(left, bin.Op);
+        if (builtin) Return(nf, bound.Body(right));
+        else CallInto(nf.Parent!, bound, right);
+    }
+
+    /// <summary>变量的复合赋值 `a += v`(字段那种见 <see cref="StepCompoundAssign"/>)。
+    /// 目标必须是**变量名**,不是任意表达式 —— 要写回去,得知道写给谁。
+    ///
+    /// 内置同步方法当场算、当场写;类运算符得推 CallAssign 帧(算完由那个帧写回)。</summary>
+    private void StepCompoundAssignVar(NodeFrame nf, BinaryExpr bin, RuntimeValue left, RuntimeValue right)
+    {
+        if (bin.Left is not IdentifierExpr target)
+            throw new RuntimeException("复合赋值目标必须是变量");
+        var (bound, builtin) = BindOperator(left, bin.Op[..1]);
+        if (!builtin)
+        {
+            PushCallAssign(nf, bound, right, target.Name);
+            return;
+        }
+
+        var r = bound.Body(right);
+        nf.Scope.Assign(target.Name, r);
+        Return(nf, r);
     }
 
     /// <summary>成员复合赋值 `a.b += v`:先求对象(只求一次),再读成员、算、写回。
@@ -269,19 +278,6 @@ public partial class Interpreter
         // count==1 已查过字段存在,这里再兜一次:字段在右侧求值期间被删掉时不至于 NRE
         var field2 = ov2.Scope.LookupField(ma.Member)
                      ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
-        if (field2.HasAttr(Attr.By))
-        {
-            var setter = new BoxedValue(field2.Value, this).GetMember("Set").Value;
-            if (setter is FunctionVal sf)
-            {
-                PushCallReturn(nf.Parent!, sf, rv, rv);
-                return;
-            }
-
-            Return(nf, rv);
-            return;
-        }
-
-        field2.Assign(rv);
-        Return(nf, rv);
-    }}
+        WriteVariable(nf, field2, rv, rv);
+    }
+}

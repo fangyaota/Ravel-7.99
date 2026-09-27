@@ -291,26 +291,35 @@ public partial class Interpreter
         {
             if (field.HasAttr(Attr.Core) && !IsUnsafe)
                 throw new RuntimeException($"字段 '{a.Name}' 是核心字段，需要 unsafe");
-            if (field.HasAttr(Attr.By))
-            {
-                var setter = new BoxedValue(field.Value, this).GetMember("Set").Value;
-                if (setter is FunctionVal sf)
-                {
-                    PushCallReturn(nf.Parent!, sf, val, val);
-                    return;
-                }
-
-                Return(nf, val);
-                return;
-            }
-
-            field.Assign(val);
-            Return(nf, VoidVal.Instance);
+            WriteVariable(nf, field, val, VoidVal.Instance);
             return;
         }
 
         nf.Scope.Assign(a.Name, val);
         Return(nf, VoidVal.Instance);
+    }
+
+    /// <summary>写一个变量/字段:`by` 属性要把值过一遍 setter(取 `Set` 成员、推 CallReturn 帧),
+    /// 其余直接落。变量赋值(`x = v`)和成员赋值(`a.x = v`)共用这一条 —— 从前两处各写了一遍,
+    /// 连"setter 不是函数"的兜底都一模一样。</summary>
+    /// <param name="plainResult">普通字段那条路交出去的**表达式值**:变量赋值给 `()`、
+    /// 成员赋值给新值(既有语义如此,没顺手改)。by 那条路一律交新值。</param>
+    private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val, RuntimeValue plainResult)
+    {
+        if (field.HasAttr(Attr.By))
+        {
+            if (new BoxedValue(field.Value, this).GetMember("Set").Value is FunctionVal setter)
+            {
+                PushCallReturn(nf.Parent!, setter, val, val);
+                return;
+            }
+
+            Return(nf, val);
+            return;
+        }
+
+        field.Assign(val);
+        Return(nf, plainResult);
     }
 
 }

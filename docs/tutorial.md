@@ -124,6 +124,17 @@ bool default   # false
 
 `bool` 只认 bool 和 `default`——数字**没有**到 bool 的转换，`bool 0` 会报「无法转换为 bool」。
 
+**标注位置上的隐式转换和显式转换是同一张表**：`x: int = <别的类型>` 走的就是
+`int <别的类型>`，转得动就转、转不动才报「类型不匹配」。
+
+```ravel
+x: int = 3.9            # 3（截断）
+y: bigint = "123"       # 123
+z: int = fraction 7 2   # 3
+n: int = true           # 1
+bad: int = NaN          # 报「NaN 不能转换为 int」
+```
+
 ### 2.5 空值
 
 ```ravel

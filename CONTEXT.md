@@ -23,7 +23,7 @@ VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前
 
 ```
 Runtime/                         求值器按职责拆成多个 partial class 文件
-  Interpreter.cs          入口/ThrowRavel/CheckFieldAccess
+  Interpreter.cs          入口/CheckFieldAccess/As<T>/Show
   Interpreter.Stack.cs    帧栈推进循环(StepOnce/Return/PushChild + 块执行)
   Interpreter.Nodes.cs    节点状态机(每 AST 节点一个 NodeFrame,按 Results.Count 分阶段)
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
@@ -42,15 +42,17 @@ Runtime/                         求值器按职责拆成多个 partial class �
                            **状态**故意不标(Ex.HandlerStack / References)。
                            readonly 连 `:=` 一起挡(`Scope.DefineOrReplace` 里查本层):
                            `:=` 换掉整个 Variable,attrs 会跟着老的那个没
-  ErrorReport.cs          错误渲染(位置 + 源码行 + 插入符 + 调用栈),运行时/语法错误共用
+  ErrorReport.cs          错误渲染(位置 + 源码行 + 插入符 + 调用栈);
+                          `Format(Exception)` 一个入口管运行时/语法两种错误
+                          (CLI/REPL/测试运行器共五处调用点因此各少一条重复的 catch)
   BuiltinClasses.cs              内置**类对象**树(建树分两趟)+ 预设类体 + 默认建类逻辑
   BuiltinClasses.{Methods,Operators,Initializers}.cs   内置方法/运算符/转换器的注册
                                  (成员直接进各自类对象的 Scope,没有单独的"方法表")
   Scope.cs / Variable.cs         作用域
   BoxedValue.cs                  成员访问
   Values/                        
-    IFunction.cs                 **可调用**的抽象:FunctionVal 和 ObjectVal 都实现它
     ClassVal.cs                  **类对象**;`ClassVal : FunctionVal`,自己就是可调用的那个东西
+                                 (没有 IFunction 这类"可调用"接口了 —— 判据就是"是不是函数")
     ObjectVal.cs                 **非原子值的基类**:带一张真实的成员表(Scope)
     FunctionVal.cs               `: ObjectVal`;Body 即「参数→结果」,CaptureScope 是捕获作用域
     MemberView.cs                **取成员的唯一入口**:自己那层 → 沿类对象 parent 链兜底
