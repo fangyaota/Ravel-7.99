@@ -297,17 +297,13 @@ internal static partial class BuiltinClasses
                 vr.Assign(v);
                 return VoidVal.Instance;
             }),
-            [.. vr.Attrs]);
+            vr);
 
     private static void RegisterPropertyMethods()
     {
+        // attrs 只有一份,在变量上(见 PropertyVal.Var);裸的 property 没挂变量 -> 空表
         Property.DefineMethod("Attrs", (s, _) =>
-        {
-            var pv = (PropertyVal)s;
-            return pv.Attrs != null
-                ? new ListVal([.. pv.Attrs.Select(a => new StringVal(a))])
-                : new ListVal([]);
-        });
+            new ListVal([.. (((PropertyVal)s).Var?.Attrs ?? []).Select(a => new StringVal(a))]));
     }
 
     /// <summary>拷贝作用域（with / Copy 用）：逐字段浅拷贝，词法父照搬。

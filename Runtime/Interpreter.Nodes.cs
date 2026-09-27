@@ -52,7 +52,7 @@ public partial class Interpreter
             case BlockExpr b: if (nf.Count == 0) Return(nf, new BlockVal(b, nf.Scope)); break;
             case LambdaExpr lam: StepLambda(nf, lam); break;   // 分相推进(注解要先求值),别加 Count==0 的守卫
             case VarDefinition v: StepVarDef(nf, v); break;
-            case Assignment a: StepAssign(nf, a); break;
+            case Assignment a: StepAssign(nf, a.Name, a.Value); break;
             case ExpressionStatement es: if (nf.Count == 0) PushChild(nf, es.Expr); else Return(nf, nf.Result(0)); break;
             // 走到这里说明 AST 里有个节点类型没接上状态机——报出节点类型才查得下去
             default: throw new RuntimeException($"无法求值的节点类型: {nf.Node.GetType().Name}");
@@ -67,14 +67,11 @@ public partial class Interpreter
         BoxedValue.GateRead(v, id.Name, this);   // 和成员访问共用一套门禁,别各抄一份
         if (v.HasAttr(Attr.By))
         {
-            var getter = new BoxedValue(v.Value, this).GetMember("Get").Value;
-            if (getter is FunctionVal gf) CallInto(nf.Parent!, gf, VoidVal.Instance);
-            else Return(nf, v.Value);
+            CallInto(nf.Parent!, PropertyGetter(v.Value, id.Name), VoidVal.Instance);
+            return;
         }
-        else
-        {
-            Return(nf, v.Value);
-        }
+
+        Return(nf, v.Value);
     }
 
     private void StepCall(NodeFrame nf, CallExpr call)
@@ -277,49 +274,49 @@ public partial class Interpreter
         Return(nf, VoidVal.Instance);
     }
 
-    private void StepAssign(NodeFrame nf, Assignment a)
+    /// <summary>变量赋值 `x = v`。语句位置(<see cref="Assignment"/> 节点)和表达式位置
+    /// (BinaryExpr 的 `=`)都走这里 —— 别再各写一份:从前表达式那份**根本没赋值**
+    /// (只把右值交出去),`print (x = 5)` 会打印 5 而 `x` 一点没变。
+    ///
+    /// 0=求右值 1=写。名字找不到就交给 <see cref="Scope.Assign"/>,由它报「未定义」。</summary>
+    private void StepAssign(NodeFrame nf, string name, Expression value)
     {
         if (nf.Count == 0)
         {
-            PushChild(nf, a.Value);
+            PushChild(nf, value);
             return;
         }
 
         var val = nf.Result(0);
-        var field = nf.Scope.LookupVar(a.Name);
+        var field = nf.Scope.LookupVar(name);
         if (field != null)
         {
             if (field.HasAttr(Attr.Core) && !IsUnsafe)
-                throw new RuntimeException($"字段 '{a.Name}' 是核心字段，需要 unsafe");
-            WriteVariable(nf, field, val, VoidVal.Instance);
+                throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe");
+            WriteVariable(nf, field, val);
             return;
         }
 
-        nf.Scope.Assign(a.Name, val);
-        Return(nf, VoidVal.Instance);
+        nf.Scope.Assign(name, val);
+        Return(nf, val);
     }
 
-    /// <summary>写一个变量/字段:`by` 属性要把值过一遍 setter(取 `Set` 成员、推 CallReturn 帧),
-    /// 其余直接落。变量赋值(`x = v`)和成员赋值(`a.x = v`)共用这一条 —— 从前两处各写了一遍,
-    /// 连"setter 不是函数"的兜底都一模一样。</summary>
-    /// <param name="plainResult">普通字段那条路交出去的**表达式值**:变量赋值给 `()`、
-    /// 成员赋值给新值(既有语义如此,没顺手改)。by 那条路一律交新值。</param>
-    private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val, RuntimeValue plainResult)
+    /// <summary>写一个变量/字段:`by` 属性要把值过一遍 setter(推 CallReturn 帧,setter 跑完
+    /// 才算完),其余直接落。变量赋值(`x = v`)和成员赋值(`a.x = v`)共用这一条 ——
+    /// 从前两处各写了一遍,连"setter 不是函数"的兜底都一模一样。
+    ///
+    /// 交出去的表达式值**一律是赋进去的那个值**:从前变量赋值给 `()`、成员赋值给新值、
+    /// 而 `by` 属性那条又给新值 —— 同一个动作三个答案,现在只剩一个。</summary>
+    private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val)
     {
         if (field.HasAttr(Attr.By))
         {
-            if (new BoxedValue(field.Value, this).GetMember("Set").Value is FunctionVal setter)
-            {
-                PushCallReturn(nf.Parent!, setter, val, val);
-                return;
-            }
-
-            Return(nf, val);
+            PushCallReturn(nf.Parent!, PropertySetter(field.Value, field.Name), val, val);
             return;
         }
 
         field.Assign(val);
-        Return(nf, plainResult);
+        Return(nf, val);
     }
 
 }

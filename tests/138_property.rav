@@ -1,4 +1,5 @@
 # property C# factory
+using "try.rav"
 C := class {
     init := () => { this._val = 0; this; }
     _val: int = 0
@@ -8,5 +9,34 @@ C := class {
 c := C ()
 c.val = 99
 print (c.get ())
+
+# 赋值交出去的值:by 属性那条一直是新值,现在普通变量/字段也统一成新值(tests/148)
+print (c.val = 7)
+print (c.get ())
+print (c._val)
+
+# `by` 的值必须由 `property getter setter` 造。标了 by 却给别的东西,四条读写路
+# 从前各有各的下场:`d.bad` 报「没有方法 'Get'」,而**裸读**会把那个值悄悄交出去、
+# **裸写**更是什么都不发生。现在四条路报同一句话。
+D ::= class {
+    init := () => { 0; this; }
+    by bad := 5
+    read := () => { bad; }
+    write := (q: int) => { bad = q; }
+}
+d := D ()
+Ex.Try { d.bad; } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { d.bad = 1; } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { d.bad += 1; } (e: Exception) => { print ("3: " + string e); }
+Ex.Try { d.read (); } (e: Exception) => { print ("4: " + string e); }
+Ex.Try { d.write 1; } (e: Exception) => { print ("5: " + string e); }
 # --- expected ---
 # 99
+# 7
+# 7
+# 7
+# 1: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
+# 2: 'bad' 标了 by，但它的值不是 property（Integer 上没有 setter）
+# 3: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
+# 4: 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
+# 5: 'bad' 标了 by，但它的值不是 property（Integer 上没有 setter）

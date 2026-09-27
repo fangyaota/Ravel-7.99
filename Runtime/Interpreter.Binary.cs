@@ -15,6 +15,19 @@ public partial class Interpreter
             return;
         }
 
+        // 变量赋值在**表达式位置**也成立(`print (x = 5)` / `f (x = 5)`):
+        // 左边是名字,不必求它的值。从前这种形状落到 StepBinaryOp 的 `=` 分支 ——
+        // 那里**只交出右值、根本不赋值**:写得出来、跑得过去、什么都没发生。
+        if (bin is { Left: IdentifierExpr id } && bin.Op == "=")
+        {
+            StepAssign(nf, id.Name, bin.Right);
+            return;
+        }
+
+        // 定义不在这里:变量的 `:=` 是**语句**(见 ParseDefinition),写成表达式就是说错了
+        if (bin is { Left: IdentifierExpr } && bin.Op == ":=")
+            throw new RuntimeException("变量的定义（':='）是语句，不能当表达式用（赋值才是：'='）");
+
         // 成员复合赋值 a.x += v —— 要留住对象,不能走下面「先求 a.x 的值」那条路
         if ((bin.Op is "+=" or "-=" or "*=" or "/=" or "%=") && bin.Left is MemberAccess mac)
         {
@@ -93,11 +106,10 @@ public partial class Interpreter
     {
         var left = nf.Result(0);
         var right = nf.Result(1);
+        // `=` 左边不是变量也不是字段(字面量、调用结果…) —— 赋值没地方落。
+        // 从前这里是 `Return(nf, right)`:交出右值、什么都不写,静默得最彻底的一个。
         if (bin.Op == "=")
-        {
-            Return(nf, right);
-            return;
-        }
+            throw new RuntimeException("赋值的左边得是个变量名或字段，不能是别的表达式");
 
         if (bin.Op is "+=" or "-=" or "*=" or "/=" or "%=")
         {
@@ -182,9 +194,7 @@ public partial class Interpreter
 
         if (nf.Count == 2)
         {
-            if (new BoxedValue(prop, this).GetMember("Get").Value is not FunctionVal getter)
-                throw new RuntimeException($"字段 '{member}' 的 getter 不是函数");
-            CallInto(nf, getter, VoidVal.Instance);
+            CallInto(nf, PropertyGetter(prop, member), VoidVal.Instance);
             return;
         }
 
@@ -197,9 +207,7 @@ public partial class Interpreter
 
         if (nf.Count == 4)
         {
-            if (new BoxedValue(prop, this).GetMember("Set").Value is not FunctionVal setter)
-                throw new RuntimeException($"字段 '{member}' 的 setter 不是函数");
-            CallInto(nf, setter, nf.Result(3));
+            CallInto(nf, PropertySetter(prop, member), nf.Result(3));
             return;
         }
 
@@ -278,6 +286,6 @@ public partial class Interpreter
         // count==1 已查过字段存在,这里再兜一次:字段在右侧求值期间被删掉时不至于 NRE
         var field2 = ov2.Scope.LookupField(ma.Member)
                      ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
-        WriteVariable(nf, field2, rv, rv);
+        WriteVariable(nf, field2, rv);
     }
 }

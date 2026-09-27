@@ -38,6 +38,11 @@ public record ObjectVal : RuntimeValue
     internal const string NameMember = "name";
     internal const string InitMember = "init";
     internal const string ThisMember = "this";
+    /// <summary>属性(`by x := property g s`)的两个函数:读走 `Get`、写走 `Set`。
+    /// 它们**不是作用域里的成员** —— `BoxedValue.GetMember` 对 <see cref="PropertyVal"/>
+    /// 特判这两个名字。收成常量的理由和上面那几个一样:拼错一个字母编译器一句话不说。</summary>
+    internal const string GetterMember = "Get";
+    internal const string SetterMember = "Set";
     /// <summary>`thistype` 只是**保留字**(见 Parser 的 ReservedWords),不定义一个成员:
     /// 从前它由 `type` 的建类逻辑装到类对象上,和 `base` 一起随那套机制删了。</summary>
     internal const string ThisTypeMember = "thistype";

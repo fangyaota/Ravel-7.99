@@ -23,7 +23,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         var boxed = new BoxedValue(value, interp);
         if (value is ModuleVal m) boxed.CheckModuleReadAccess(m, vr, name);
         else boxed.CheckObjectReadAccess(obj, vr, name);
-        return new BoxedValue(vr.Value, interp).GetMember("Get").Value as FunctionVal;
+        return interp.PropertyGetter(vr.Value, name);
     }
 
     public BoxedValue GetMember(string name)
@@ -32,10 +32,11 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         if (OperatorSymbols.IsSymbol(name) && Value.Type.MemberScope.LookupField(name)?.Value is FunctionVal opMethod)
             return new BoxedValue(ObjectVal.BindMethod(opMethod, Value), interp);
 
+        // `p.Get` / `p.Set` —— 属性值上那两个函数是**特判**出来的,不在任何作用域里
         if (Value is PropertyVal pv)
         {
-            if (name == "Get") return new BoxedValue(pv.Getter, interp);
-            if (name == "Set") return new BoxedValue(pv.Setter, interp);
+            if (name == ObjectVal.GetterMember) return new BoxedValue(pv.Getter, interp);
+            if (name == ObjectVal.SetterMember) return new BoxedValue(pv.Setter, interp);
         }
 
         if (Value is ModuleVal mv && mv.Scope.Contains(name))

@@ -423,8 +423,17 @@ Vec := class {
 by age := property (() => { _age; }) ((v: int) => { _age = v; })
 ```
 
-实例读 `obj.age` / 写 `obj.age = v` 走 getter/setter（`CallInto` 派发，lambda getter/setter 也有效）。
-`obj.age += v` 同样走——先过 getter 读、算完再过 setter 写（`StepByCompoundAssign`）。
+`by` 是**两半拼**的：`Variable` 上的一个 attr（门禁问的是它）+ 值是个 `PropertyVal`，
+靠两个约定成员名 `Get` / `Set` 接上（`ObjectVal.GetterMember` / `SetterMember`，**不在作用域里**，
+`BoxedValue.GetMember` 对 `PropertyVal` 特判）。所以 `by` 和 `property` 互相独立：
+只写 `property` 不写 `by`，读出来就是那个 `<property>` 值本身。
+
+四条读写路各问一次那个 attr：裸读（`StepIdent`）、成员读（`TryGetByGetter`）、
+写（`WriteVariable`）、复合赋值（`StepByCompoundAssign`，先过 getter 读、算完过 setter 写）。
+**取函数一律走 `Interpreter.PropertyGetter/Setter`**：标了 `by` 而值不是 `property`
+就是报错（从前四条路三个答案，其中裸读会静默交出那个值、裸写什么都不发生）。
+
+attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`Attrs ()` 也读那一份。
 
 ## 多参数 lambda
 

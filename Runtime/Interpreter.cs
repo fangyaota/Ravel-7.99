@@ -84,6 +84,23 @@ public partial class Interpreter
         return false;
     }
 
+    /// <summary>取 `by` 属性值上的 getter / setter。
+    ///
+    /// 标了 `by` 却没有那两个函数(值不是 `property g s` 造的)就是**用错了** —— 报错,
+    /// 别静默原样交回:那样 `by v := 5` 读起来像个普通变量,`v = 1` 更是什么都不发生。
+    /// 从前四条读写路各有各的兜底:`obj.v` 报「没有方法 'Get'」,而裸读 `v` **悄悄把那个
+    /// 值交出去**、写回来还什么都不做 —— 同一个错误四个答案,现在只有一个。
+    ///
+    /// `owner` 是报错文案里的名字(变量名/字段名)。</summary>
+    internal FunctionVal PropertyGetter(RuntimeValue prop, string owner)
+        => prop is PropertyVal pv ? pv.Getter : NotAProperty(prop, "getter", owner);
+
+    internal FunctionVal PropertySetter(RuntimeValue prop, string owner)
+        => prop is PropertyVal pv ? pv.Setter : NotAProperty(prop, "setter", owner);
+
+    private static FunctionVal NotAProperty(RuntimeValue prop, string what, string owner)
+        => throw new RuntimeException($"'{owner}' 标了 by，但它的值不是 property（{prop.Type} 上没有 {what}）");
+
     /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
     /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>
     private static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
