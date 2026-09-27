@@ -84,9 +84,12 @@ Repl/                           REPL 前端
 Program.cs                      CLI 入口(REPL / test / 单文件)
 
 lib/
-  predefined.rav          别名 + 控制流 + 缓存 + using(启动时自动加载)
-                          `Cacher` 是库里唯一的**类型**(缓存:Count/Keys/Vals 三个字段),
-                          init 交出的是包装函数而不是 this;`cacher` 是小写别名
+  predefined.rav          别名 + 控制流 + 缓存 + Monad + using(启动时自动加载)
+                          库里的类型:`Cacher`(缓存:Count/Fn/Keys/Vals 四个字段,
+                            init 交出的是包装函数而不是 this)、
+                          `Monad`(Some/None:Has/Inner 两个字段 + IsSome/Value/Bind/Map/Where…);
+                          `cacher` / `Some` / `None` 是小写/构造子名
+                          两个类型都进 AllTypes(`Subtypes ()` 看得到)
   try.rav                 异常处理:HandlerStack + callcc 实现 Ex.Try/Ex.Throw
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
@@ -180,8 +183,9 @@ Object (parent=自己)
         CallCC Exit With RavelMod Using unsafe
         property currentScope
 
-（`if`/`while`/`foreach`/`cacher` 不在 System 模块里——它们在 `lib/predefined.rav` 用 Ravel 写。
-`cacher` 是那里唯一的类型：缓存做成 `Cacher` 的字段,而 `init` 交出的是包装函数。）
+（`if`/`while`/`foreach`/`cacher`/`Some`/`None` 不在 System 模块里——它们在
+`lib/predefined.rav` 用 Ravel 写。那里也定义了库里仅有的两个类型：`Cacher`(缓存)与
+`Monad`(可能没有值的包)。）
 
 **值**: True False Default NaN Inf（特殊浮点值；`-Inf` 用一元 `-`）
 

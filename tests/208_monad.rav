@@ -1,0 +1,86 @@
+# Monad:要么包着一个值(Some v),要么什么都没有(None)。
+# 链式操作用 Map / Bind / Where,它们对 None 一律原样放过 —— 中间有一环没值,
+# 后面全不用算。`Value ()` 在 None 上当场报错,不拿 () 糊弄。
+#
+# 写法上注意两处括号(都是柯里化那套规则的正常结果):
+#   1) `(Some 5).Map …` —— 紧邻的参数位置上 `Some 5.Map` 会被读成 `Some (5.Map)`
+#   2) `((Some 5).Map f).Value ()` —— 不给 Map 的结果套括号,`.Value` 会贴到 f 上
+using "try.rav"
+
+# 两种情况的类型相同,`is` 分不出来;问有没有值用 IsSome ()
+print ((Some 5) is Monad)
+print ((Some 5).IsSome ())
+print (None.IsSome ())
+print ((Some 5).IsNone ())
+print (None.IsNone ())
+print ((Some 5) == None)
+print (typeof None)
+
+# 解包
+print ((Some 5).Value ())
+print ((Some 5).ValueOr 0)
+print (None.ValueOr 0)
+Ex.Try { None.Value (); } (e: Exception) => { print ("E: " + string e); }
+
+# 没有值就换一个
+print ((None.OrElse (Some 9)).Value ())
+print (((Some 1).OrElse (Some 9)).Value ())
+
+# Map:包着装换过的值;None 上那个函数根本不会被调
+print (((Some 5).Map ((x: int) => { x * 2; })).Value ())
+print (((None.Map ((x: int) => { x * 2; }))).IsSome ())
+MapCalls := 0
+bump := (x: int) => { MapCalls += 1; x + 1; }
+print (None.Map bump)
+print ("映射函数被调了 " + string MapCalls + " 次")
+
+# Bind:把 f 的结果**摊平**接上(f 自己回一个 Monad),所以链起来不会套娃
+half := (x: int) => { if { x % 2 == 0; } { Some (x / 2); } { None; } }
+print (((Some 8).Bind half).Value ())
+print (((Some 7).Bind half).IsSome ())
+print ((((Some 8).Bind half).Bind half).Value ())
+print ((((Some 7).Bind half).Bind half).IsSome ())
+
+# Where 过滤,不满足就变成 None —— 而且就是**共用那个 None**(所以和它相等)
+print (((Some 5).Where ((x: int) => { x > 3; })).IsSome ())
+print (((Some 5).Where ((x: int) => { x > 30; })) == None)
+
+# Exists:有值且满足条件
+print ((Some 5).Exists ((x: int) => { x > 3; }))
+print ((Some 5).Exists ((x: int) => { x > 30; }))
+print (None.Exists ((x: int) => { true; }))
+
+# 串起来:中间落空一次,后面全短路(那个除法根本不会被求值)
+safeDiv := (a: int b: int) => { if { b == 0; } { None; } { Some (a / b); } }
+ok := (Some 100).Bind (safeDiv 100)
+print ((ok.Bind (safeDiv 10)).Value ())
+print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())
+# --- expected ---
+# true
+# true
+# false
+# false
+# true
+# false
+# Monad
+# 5
+# 5
+# 0
+# E: Monad.Value: 这个 Monad 里没有值（用 IsSome 先问，或改用 ValueOr）
+# 9
+# 1
+# 10
+# false
+# Monad { Has = false, Inner = () }
+# 映射函数被调了 0 次
+# 4
+# false
+# 2
+# false
+# true
+# true
+# true
+# false
+# false
+# 10
+# false

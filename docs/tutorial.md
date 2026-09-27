@@ -579,6 +579,50 @@ print (Cacher.name)              # "Cacher"
 缓存因此活得和它一样长（实例本身退场了，Scope 被函数拎着走）。
 每次 `cacher …` 都是一份**独立**的缓存，包同一个函数互不干扰。
 
+### 5.8 Monad（可能没有值的包）
+
+`Some 5` 包着一个值，`None` 什么都没有。要问有没有值用 `IsSome ()` —— 两者**类型相同**
+（都是 `Monad`），`is Monad` 分不出来：
+
+```ravel
+(Some 5).IsSome ()     # true
+None.IsSome ()         # false
+(Some 5).Value ()      # 5 —— 解包
+None.Value ()          # 报错：Monad.Value: 这个 Monad 里没有值（…）
+None.ValueOr 0         # 0 —— 解包，没有值就给默认
+```
+
+链式操作用 `Map` / `Bind` / `Where`，它们**对 `None` 一律原样放过** ——
+所以中间落空一次，后面全不用算：
+
+```ravel
+safeDiv := (a: int b: int) => { if { b == 0; } { None; } { Some (a / b); } }
+ok := (Some 100).Bind (safeDiv 100)                      # Some 1
+print ((ok.Bind (safeDiv 10)).Value ())                  # 10
+print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())   # false —— 两次除法一次都没算
+```
+
+| 方法 | 做什么 |
+|------|--------|
+| `IsSome ()` / `IsNone ()` | 有没有值 |
+| `Value ()` | 解包。`None` 上当场报错（不拿 `()` 糊弄）|
+| `ValueOr d` | 解包，没有值就给 `d` |
+| `OrElse m` | 没有值就换成 `m` |
+| `Map f` | 有值就包上 `f` 的结果；`None` 上 `f` 根本不会被调 |
+| `Bind f` | 有值就把 `f` 的结果**摊平**接上（`f` 自己得回一个 Monad），链起来不套娃 |
+| `Where p` | 不满足 `p` 就变成 `None` |
+| `Exists p` | 有值且满足 `p` |
+
+`None` 是**一个值**（单例，大家共用它），不用写 `None ()`；`(Some 5).Where (…)` 落空拿到的
+就是它，所以 `== None` 成立（对象按身份比）。
+
+**括号提醒**（柯里化那条规则的正常结果：实参只吃「主表达式 + 取成员」）：
+
+```ravel
+(Some 5).Map f              # 这对括号不能省：Some 5.Map f 是 Some (5.Map f)
+((Some 5).Map f).Value ()   # Map 的结果也要套括号，否则 .Value 会贴到 f 上
+```
+
 ---
 
 ## 六、集合
