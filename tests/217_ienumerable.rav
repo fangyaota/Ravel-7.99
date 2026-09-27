@@ -1,0 +1,94 @@
+# `IEnumerable` —— 第一个用 `interface` 写出来的**库级接口**(predefined.rav)。
+#
+#     IEnumerable ::= interface { by Items : function = default }
+#
+# 接口本身只说"有这么一条槽":`Items` 交回一个函数,调用它给出一串元素。
+# 三种容器在库里各 `impl` 一遍(全局登记,所以处处生效),于是
+# `xs is IEnumerable` 成立、`(xs: IEnumerable) => …` 收得下它们、`foreach` 也认它们。
+# 自己的类也能实现:`use` 一条实现即可。
+
+# ---- 谁是可枚举的 ----
+print ([1 2 3] is IEnumerable)
+print ({1 2 3} is IEnumerable)
+print ({a: 1 b: 2} is IEnumerable)
+print (5 is IEnumerable)
+print ("abc" is IEnumerable)
+print (IEnumerable is interface)     # 它自己是个接口(继承于 type)
+
+# ---- foreach 不再只吃 list:走的就是这条接口 ----
+foreach [1 2 3] (x: int) => { print ("list " + string x); }
+foreach {1 2} (x: int) => { print ("set " + string x); }
+foreach {a: 7 b: 8} (v: int) => { print ("dict " + string v); }
+
+# ---- 槽本身:Items 交回一个函数,调用它拿到整串 ----
+print ([4 5].Items ())
+
+# ---- 注解、参数也认接口,于是通用函数写得出来 ----
+# 接口承诺的是 `Items`(一串元素)。序列方法(Map/Where/Fold…)挂在具体容器上,
+# 所以通用函数先 `Items ()` 拿到那串,再往下用 —— 这样**任何**实现者都吃得住。
+# (先落到一个局部再往下写:`xs.Items ().Fold …` 会被读成 `xs.Items (().Fold …)`
+#  —— `.` 绑得比"挨着写"紧,和 `f x.y` 是 `f (x.y)` 一个道理。)
+total := (xs: IEnumerable) => {
+    items := xs.Items ()
+    items.Fold 0 (acc: int x: int) => { acc + x; }
+}
+print (total [1 2 3])
+print (total {4 5})
+print (total {a: 1 b: 2})
+
+# ---- 自己的类实现它 ----
+Seq ::= class {
+    n : int = 0
+    init := (k: int) => { n = k; this; }
+}
+
+# `use` 一条实现:这个作用域里 Seq 就是 IEnumerable 了(要全局就用 `impl`)
+# 注意 `property g s` 要写在**同一行** —— 换行就是两条语句了,槽里会只剩半截 `property`
+# (报错是「'Items' 标了 by,但它的值不是 property」,不难查,但白跑一趟)
+use (IEnumerable Seq {
+    by Items = property (() => { () => { [instance.n (instance.n + 1) (instance.n + 2)]; }; }) ((v: function) => { (); })
+})
+
+s := Seq 7
+print (s is IEnumerable)
+print (s.Items ())
+foreach s (x: int) => { print ("mine " + string x); }
+print (total s)
+
+# ---- 不是可枚举的:报错说清楚要什么 ----
+try {
+    foreach 5 (x: int) => { 0; }
+} (e: Exception) => {
+    print ("1: " + string e)
+}
+try {
+    foreach "abc" (c: string) => { 0; }
+} (e: Exception) => {
+    print ("2: " + string e)
+}
+# --- expected ---
+# true
+# true
+# true
+# false
+# false
+# true
+# list 1
+# list 2
+# list 3
+# set 1
+# set 2
+# dict 7
+# dict 8
+# [4 5]
+# 6
+# 9
+# 3
+# true
+# [7 8 9]
+# mine 7
+# mine 8
+# mine 9
+# 24
+# 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
+# 2: foreach 需要 IEnumerable（list / set / dict），得到 String

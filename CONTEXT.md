@@ -496,6 +496,27 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 
 ## 接口(interface)与实现(use)
 
+**库里第一个用它的:`IEnumerable`**(`lib/predefined.rav` 末尾一段)。形状只有一条槽:
+
+```ravel
+IEnumerable ::= interface { by Items : function = default }
+```
+
+`Items` 交回一个函数,调用它给出"按顺序排好的元素表"。三种容器各 `impl` 一遍
+(用 `impl` 而不是 `use`:全局登记,库加载时就生效),于是:
+
+- `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{a: 1} is IEnumerable` 都成立;
+- `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
+- **`foreach` 改走这条接口** —— 从前它只吃 list(`assert (typeof xs == list)`),
+  现在 `xs.Items ()` 拿元素表,set / dict 一样能遍历(字典遍历的是值);
+- 用户自己的类实现一条 `use (IEnumerable MyClass { by Items = property … })` 就能进 `foreach`。
+
+**接口只承诺它自己那几条槽**(这里是 `Items`)。序列方法(`Map`/`Where`/`Fold`…)挂在**具体容器**上,
+所以通用函数里要先 `xs.Items ()` 落到那串值再往下用 —— 这样任何实现者都吃得住
+(`tests/217` 就是这么写的)。
+
+库里的用例先放上面,下面从形状讲起:
+
 ```ravel
 myTrait ::= interface {
     by a : int = default

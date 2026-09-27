@@ -426,7 +426,25 @@ while { i < 5; } {
 }
 ```
 
-### 4.3 早期退出
+### 4.3 foreach
+
+```ravel
+foreach [1 2 3] (x: int) => { print x; }
+```
+
+`foreach` 也是库函数（`predefined.rav` 里用 `while` 写的）。它吃的是 **`IEnumerable`** ——
+这是个用 `interface` 写出来的库级接口，三种容器都实现了它（见 6.4 与 7.11）：
+
+```ravel
+foreach {1 2 3}  (x: int) => { print x; }     # set 也行
+foreach {a: 1}   (v: int) => { print v; }     # 字典迭代的是**值**
+foreach 5 (x: int) => { print x; }
+# foreach 需要 IEnumerable（list / set / dict），得到 Integer
+```
+
+自己的类实现一条 `IEnumerable`（`by Items` 交回一个给元素表的函数）也能进 `foreach`。
+
+### 4.4 早期退出
 
 ```ravel
 callcc (exit: function) => {
@@ -1696,6 +1714,9 @@ s.At 0.Count ()      # ❌ 报「'Integer' 没有方法 'Count'」
 v := s.At 0          # ✅ 用临时变量断开
 v.Count ()           # 2
 ```
+
+`()` 也是个字面量，所以 `xs.Items ().Fold 0 f` 是 `xs.Items (().Fold 0 f)` ——
+报「'Void' 没有方法 'Fold'」。同样落到变量上（或自己加括号：`(xs.Items ()).Fold 0 f`）。
 
 ### `:=` vs `=` vs `::=`
 

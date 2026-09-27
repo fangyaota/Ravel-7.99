@@ -70,11 +70,38 @@ readonly while := (c: function body: function) => {
     if { cond; } { body (); again 0; } { 0; }
 }
 
-readonly foreach := (xs: object f: function) => {
-    assert (typeof xs == list) ("foreach 需要 list，得到 " + string (typeof xs))
-    i := 0
-    while { i < xs.Count (); } { f (xs.At i); i += 1; }
+# ── 序列:任何"能按顺序把元素交出来"的东西 ──
+# 这是第一个用 `interface` 写出来的**库级接口**。三种容器在下面各实现一遍,于是:
+#   * `xs is IEnumerable` 对 list / set / dict 成立;
+#   * `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
+#   * `foreach` 不再只吃 list。
+# 用自己的类实现它也简单:`Items` 那条槽交回一个"给我元素表"的函数就行(见教程 7.11)。
+IEnumerable ::= interface {
+    by Items : function = default
 }
+
+readonly foreach := (xs: object f: function) => {
+    assert (xs is IEnumerable) ("foreach 需要 IEnumerable（list / set / dict），得到 " + string (typeof xs))
+    items := xs.Items ()
+    i := 0
+    while { i < items.Count (); } { f (items.At i); i += 1; }
+}
+
+# 容器怎么回答"按顺序交出来":`ToList ()` 早就在了,包一层。
+# `impl` 收的是**一个实现值**(`接口 类 { … }` 造出来的那个),所以整条要括起来 ——
+# 不括的话 `impl IEnumerable list {…}` 会被读成 `((impl IEnumerable) list) {…}`,
+# 也就是先把 `impl` 用在接口本身上(它没有 `target`,当场报错)。
+# 三种容器各来一条,且**不写成循环**:循环得用 `foreach`,而 `foreach` 此刻还用不了
+# (正是这三条在给它们实现 IEnumerable)。
+impl (IEnumerable list {
+    by Items = property (() => { () => { instance.ToList (); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable set {
+    by Items = property (() => { () => { instance.ToList (); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable dict {
+    by Items = property (() => { () => { instance.ToList (); }; }) ((v: function) => { (); })
+})
 
 # ── 缓存 ──
 
