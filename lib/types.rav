@@ -1,0 +1,59 @@
+# Types 模块 —— **要显式引用才有**:`using "types.rav"` 之后 `Types.xxx` 才是一个名字。
+#
+# 把类型树打出来(沿 `Subtypes ()` 走),和 `tests/125_type_tree.rav` 打印的是同一棵树:
+#
+#     using "types.rav"
+#     Types.PrintTree object
+#
+#     Object [Type]
+#     ├── ValueType [Type]
+#     │   ├── Integer [Type]
+#     │   └── …
+#     └── Ravel [Type]
+#
+# 每行是 `前缀 + 类型名 + [它的 typeof]` —— 方括号里是**创建者**(类对象显 `Type`,
+# 用户类的实例显它自己那个类)。行首的 `├──` / `└──` 下面那几个缩进 4 格,
+# `└──` / `├──` 后面留一竖线,画出一棵树。
+#
+# 只认**直接**子类:`Subtypes ()` 给的是所有后代,所以还要求 `Parent ()` 就是当前这个 ——
+# 另外排掉名字相同的那个(自引用的 `type`,它的 Parent 是自己)。
+
+ravel "Types"
+
+# 打印以 root 为根的类型树(连同 root 自己那一行)。标 readonly:这是这个模块的 API。
+readonly PrintTree := (root: object) => {
+    # 直接子类。顺序照 `Subtypes ()` 给的来,不重排 —— 输出才稳定。
+    children := (t: object) => {
+        subs := t.Subtypes ()
+        kids := []
+        i := 0
+        while { i < subs.Count (); } {
+            s := subs.At i
+            if { (s.Parent ()).name == t.name && s.name != t.name; } { kids.Add s; } { 0; }
+            i += 1
+        }
+        kids
+    }
+
+    # 递归自己:lambda 体里读 `walk`,调用时才解析 —— 那时它已经在作用域里了
+    walk := (t: object prefix: string) => {
+        kids := children t
+        i := 0
+        while { i < kids.Count (); } {
+            s := kids.At i
+            is_last := i == kids.Count () - 1
+            label := s.name + " [" + (typeof s).name + "]"
+            if { is_last; } {
+                print (prefix + "└── " + label)
+                walk s (prefix + "    ")
+            } {
+                print (prefix + "├── " + label)
+                walk s (prefix + "│   ")
+            }
+            i += 1
+        }
+    }
+
+    print (root.name + " [" + (typeof root).name + "]")
+    walk root ""
+}

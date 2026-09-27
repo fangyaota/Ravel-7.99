@@ -94,6 +94,8 @@ lib/
                           两个类型都进 AllTypes(`Subtypes ()` 看得到)
   try.rav                 异常处理:HandlerStack + callcc 实现 Ex.Try/Ex.Throw
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
+  types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
+                          `using "types.rav"` 引入;tests/125 跑的就是它
   io.rav                  Io 模块(IO Monad):`Action` 把"要做的效果"做成值,
                           `Perform ()` 才真跑;Return/PutStrLn/PutStr/GetLine/Foreach。
                           `using "io.rav"` 引入 —— 它和 predefined 里那个 Monad

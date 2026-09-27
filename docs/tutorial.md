@@ -124,6 +124,19 @@ int.Default ()         # 0           — 默认值
 值的类型判定用 **`is` / `isnot`** 运算符（下面 3.3 有）——`1 is int`，
 它和 `int.Is` 是同一个判据，只是站在值这边说。
 
+想整棵树一起看就用库里的 `Types.PrintTree`（`using "types.rav"`，要显式引用）：
+
+```ravel
+Types.PrintTree object
+# Object [Type]
+# ├── ValueType [Type]
+# │   ├── Integer [Type]
+# │   └── …
+# └── Ravel [Type]
+```
+
+方括号里是那个类型的 **typeof**（创建者）：类对象显 `Type`，你自己类的实例显它那个类。
+
 ### 2.4 类型转换
 
 ```ravel

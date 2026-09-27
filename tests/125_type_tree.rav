@@ -1,41 +1,11 @@
-﻿# 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
+# 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
 # 所以类的实例显类型名、类本身显 Type —— 没有单独的 Class 类型了,class 只是 type 的别名。
-# 注意 Ravel 下挂着 System / Ex —— 模块也是类型,它们由 RuntimeType.Define 建。
-# 末尾那两个(`Cacher` / `Monad`)是**库里定义的类型**(lib/predefined.rav),它们也走
-# `class {…}` 那条路,所以进 AllTypes、也就出现在这棵树上。库再加类型这几行就会变。
-print_tree := (t: object prefix: string) => {
-    subs := t.Subtypes ()
-    total := 0
-    j := 0
-    while { j < subs.Count (); } {
-        s := subs.At j
-        p := s.Parent ()
-        if { p.name == t.name && s.name != t.name; } { total += 1; } { 0; }
-        j += 1
-    }
-    k := 0
-    j := 0
-    while { j < subs.Count (); } {
-        s := subs.At j
-        p := s.Parent ()
-        if { p.name == t.name && s.name != t.name; } {
-            k += 1;
-            is_last := k == total;
-            m := typeof s
-            label := s.name + " [" + m.name + "]"
-            if { is_last; } {
-                print (prefix + "└── " + label);
-                print_tree s (prefix + "    ");
-            } {
-                print (prefix + "├── " + label);
-                print_tree s (prefix + "│   ");
-            }
-        } { 0; }
-        j += 1
-    }
-}
-print "Object [Type]"
-print_tree object ""
+# 注意 Ravel 下挂着 System / Ex —— 模块也是类型(由 BuiltinClasses.NewModuleClass 建)。
+#
+# 打印这件事本身进了库:`Types.PrintTree`(lib/types.rav)。这个用例钉的是它的输出 ——
+# 树的形状一变这里就得跟着改。
+using "types.rav"
+Types.PrintTree object
 # --- expected ---
 # Object [Type]
 # ├── ValueType [Type]
