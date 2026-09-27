@@ -14,6 +14,10 @@ public partial class Parser
 
     private Expression ParsePrimary()
     {
+        // `do { … }` —— Monad 的串联糖(见 ParseDo)
+        if (Check(TokenType.Identifier) && Peek().Lexeme == "do" && NextType() == TokenType.LeftBrace)
+            return Nested(ParseDo);
+
         // 运算符节 `+.2` / `is.int` —— 左操作数留空,等价于 `_ + 2` / `_ is int`
         // (脱糖成同一个 lambda)。右操作数只吃一个 primary(含成员访问),
         // 所以 `+.2 + 3` 是 `(+.2) + 3`。
@@ -74,6 +78,81 @@ public partial class Parser
 
         throw ParseError($"需要表达式，但得到{Describe(Peek())}");
     }
+
+    /// <summary>`do { … }` —— 把一串"从 Monad 里取值"的语句**折成 Bind 链**:
+    ///
+    /// <code>
+    /// do { x =&lt; m1; y =&lt; m2; Some (x + y); }
+    /// ≡  m1.Bind ((x: object) =&gt; { m2.Bind ((y: object) =&gt; { Some (x + y); }); })
+    /// </code>
+    ///
+    /// 每遇到一条 `名字 =&lt; 表达式`,就把它**后面剩下的全部**包成 lambda 交给 `Bind`,
+    /// 于是链在解析期就地长出来,运行时不必为这个语法添任何东西。最后一条语句
+    /// (不许是 `=&lt;`)的值就是整块的值 —— 也就是最内层那个 lambda 体的值。
+    ///
+    /// 绑定出来的变量只能标 `object`:lambda 的参数必须有注解,而这里对拿到什么一无所知。
+    /// 想要具体类型就在块里自己过一手(`n: int = x`)。</summary>
+    private Expression ParseDo()
+    {
+        var at = Peek();
+        _pos++;                                     // do
+        Consume(TokenType.LeftBrace, "do 后面需要 '{'");
+        SkipNewlines();
+
+        var stmts = new List<Statement>();
+        _doDepth++;
+        try
+        {
+            while (!Check(TokenType.RightBrace) && !IsAtEnd())
+            {
+                stmts.Add(ParseStatement());
+                SkipNewlines();
+            }
+        }
+        finally
+        {
+            _doDepth--;
+        }
+
+        Consume(TokenType.RightBrace, "do 块末尾需要 '}'");
+        if (stmts.Count == 0) throw ParseError("do 块里得有语句");
+        if (stmts[^1] is BindStatement) throw ParseError("do 块的最后一条语句要是个值（不能以 '=<' 收尾）");
+
+        // 从最后一条往前折:`rest` 始终是"后面那些语句"折出来的那段
+        Expression rest = Block([stmts[^1]], at);
+        for (var i = stmts.Count - 2; i >= 0; i--)
+        {
+            if (stmts[i] is not BindStatement bind)
+            {
+                // 普通语句就搁在折好的那段前面,它于是落在同一个 lambda 体里
+                rest = Prepend(stmts[i], rest, at);
+                continue;
+            }
+
+            var lam = new LambdaExpr(new Parameter(bind.Name, ObjectType(at)), AsBlock(rest, at))
+                { Line = at.Line, Column = at.Column };
+            rest = new CallExpr(new MemberAccess(bind.Monad, "Bind") { Line = bind.Line, Column = bind.Column },
+                lam) { Line = at.Line, Column = at.Column };
+        }
+
+        return rest;
+    }
+
+    /// <summary>合成一个 `object` 注解节点 —— do 的绑定参数只能给最宽的那个类型。</summary>
+    private static IdentifierExpr ObjectType(Token at) => new("object") { Line = at.Line, Column = at.Column };
+
+    private BlockExpr Block(List<Statement> stmts, Token at)
+        => new(stmts) { Line = at.Line, Column = at.Column, Source = source };
+
+    /// <summary>折出来的那段要当 lambda 的体,得是个块:已经是就原样,不是就包一层。</summary>
+    private BlockExpr AsBlock(Expression e, Token at)
+        => e is BlockExpr b ? b : Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
+
+    /// <summary>把一条普通语句搁到已经折好的那段**前面**。</summary>
+    private Expression Prepend(Statement s, Expression rest, Token at)
+        => rest is BlockExpr b
+            ? b with { Statements = [s, .. b.Statements] }
+            : Block([s, new ExpressionStatement(rest) { Line = rest.Line, Column = rest.Column }], at);
 
     /// <summary>嵌套深度护栏。递归下降解析器靠 C# 调用栈,而 StackOverflow *捕获不了*——
     /// 1000 层括号就能让进程直接死在 "Stack overflow." 上,连个语法错误都看不到。
@@ -281,11 +360,22 @@ public partial class Parser
     {
         SkipNewlines();
         var list = new List<Statement>();
-
-        while (!Check(TokenType.RightBrace) && !IsAtEnd())
+        // 块是新的语境:外层 do 的 `=<` 不该漏进来。漏了的话
+        // `(y: int) => { y =< m; }` 会被当成绑定,而绑定只活在 do 的折叠过程里 ——
+        // 留下一个没人认识的 BindStatement 一路带进求值器。
+        var outerDo = _doDepth;
+        _doDepth = 0;
+        try
         {
-            list.Add(ParseStatement());
-            SkipNewlines();
+            while (!Check(TokenType.RightBrace) && !IsAtEnd())
+            {
+                list.Add(ParseStatement());
+                SkipNewlines();
+            }
+        }
+        finally
+        {
+            _doDepth = outerDo;
         }
 
         Consume(TokenType.RightBrace, "代码块末尾需要 '}'");

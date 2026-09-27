@@ -69,7 +69,11 @@ internal static class AstPrinter
         ListLiteral l => "[" + Join(" ", l.Elements.Select(Expr)) + "]",
         SetLiteral s => "{" + Join(" ", s.Elements.Select(Expr)) + "}",
         DictLiteral d => "{" + Join(" ", d.Entries.Select(x => x.Key + ": " + Expr(x.Value))) + "}",
-        MemberAccess m => Atom(m.Object) + "." + m.Member,
+        // 取成员的**接收者**若本身是一次调用,必须套括号:`f a.b` 读起来是 `f (a.b)`
+        // (实参位置只吃"主表达式 + 取成员"),而这里要说的是 `(f a).b` —— do 块脱糖出来的
+        // `m.Bind (…)` 全是这个形状,不套括号打印出来是另一个意思。
+        MemberAccess m => (m.Object is CallExpr ? "(" + Expr(m.Object) + ")" : Atom(m.Object))
+                          + "." + m.Member,
         CallExpr c => Atom(c.Function) + " " + Atom(c.Argument),
         BinaryExpr b => Expr(b.Left) + " " + b.Op + " " + Expr(b.Right),
         UnaryExpr u => u.Op + Atom(u.Operand),

@@ -37,6 +37,14 @@ public record VarDefinition(string Name, Expression? TypeAnnotation, Expression 
 public record Assignment(string Name, Expression Value) : Statement;
 public record ExpressionStatement(Expression Expr) : Statement;
 
+/// <summary>`名字 =&lt; 表达式`:do 块里的"从这个 Monad 里取值"。
+///
+/// **只在 `do { … }` 里认**(解析器按 do 的深度放行),而且它不活到求值期 ——
+/// `ParseDo` 把整个块折成一串 `Bind` 之后就没它的事了。单独执行它没有语义:
+/// 值取出来给谁、后面那些语句跑不跑,全看它在链上的位置。
+/// (所以 `AstPrinter` 里没有它的分支:打印函数时看到的是**脱糖后**的 Bind 链。)</summary>
+public record BindStatement(string Name, Expression Monad) : Statement;
+
 // --- 表达式 ---
 public abstract record Expression : AstNode;
 

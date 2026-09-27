@@ -61,8 +61,31 @@ public partial class Parser
     private static readonly HashSet<string> ReservedWords =
         [ObjectVal.ThisTypeMember, ObjectVal.BlockMember, Attr.Core];
 
+    /// <summary>正处在多少个 `do { … }` 的语句里。`=<` 只有在这层里才算绑定,
+    /// 而**块会把它清零**(见 <see cref="ParseBlockStatements"/>)—— 块是新的语境,
+    /// 外层 do 的 `=<` 不该漏进一个 lambda 的体里。</summary>
+    private int _doDepth;
+
+    /// <summary>这个位置是 `名字 =&lt;` 吗?只在**语句开头**问,所以别处出现 `=&lt;`
+    /// 只是个普通的语法错误("需要表达式，但得到 '=&lt;'")。</summary>
+    private bool IsBindStart() => Check(TokenType.Identifier) && CheckNext(TokenType.BindArrow);
+
     private Statement ParseStatement()
     {
+        // `x =< m`:do 块里的取值绑定。别处写就是语法错误 —— 它没有独立语义。
+        if (IsBindStart())
+        {
+            if (_doDepth == 0) throw ParseError("'=<' 只能写在 do { … } 里");
+            var name = Consume(TokenType.Identifier, "需要变量名");
+            Consume(TokenType.BindArrow, "需要 '=<'");
+            _holeCount = 0;
+            var monad = ParseExpression();
+            SkipNewlines();
+            if (HasHoles(monad)) monad = DesugarHoles(monad);
+            SkipNewlines();
+            return new BindStatement(name.Lexeme, monad) { Line = name.Line, Column = name.Column };
+        }
+
         // 运算符定义:`+ := f`(定义) / `+ = f`(覆盖)。符号本身就是成员名。
         if (IsOperatorToken(Peek().Type) && _pos + 1 < tokens.Count)
         {
