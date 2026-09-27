@@ -246,10 +246,12 @@ internal static partial class BuiltinClasses
         // 最常踩的是拿实例去调(`C.Is (C ())` 从前静默给 false,读起来还像"这个实例是不是 C")。
         // 要问类型之间的关系就用运算符:`int <: object` / `object :> int`(两边都得是类型);
         // 要问值就用 `x is T`。
-        // `T.GetImplements ()`:这个类型现在实现了哪些接口(实现登记在作用域里,所以真正算它的是
-        // 求值器 —— 这里只挂上那个"绑好接收者、调用时由 CallInto 认出"的成员值)。
+        // 类型与接口之间的两个方向:`T.GetImplements ()`(这个类型实现了哪些接口)与
+        // `I.GetImplementors ()`(哪些类型实现了这个接口)。实现登记在作用域里,所以真正算它们的
+        // 是求值器 —— 这里只挂上那个"绑好接收者、调用时由 CallInto 认出"的成员值。
         Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));
-        Type.Scope.DefineOrReplace("GetImplements", Function, new ImplementsQuery("GetImplements"));
+        Type.Scope.DefineOrReplace("GetImplements", Function, new TraitQuery("GetImplements", TraitQueryKind.Implements));
+        Type.Scope.DefineOrReplace("GetImplementors", Function, new TraitQuery("GetImplementors", TraitQueryKind.Implementors));
         Type.DefineMethod("Subtypes", (s, _) =>
         {
             var t = (ObjectVal)s;

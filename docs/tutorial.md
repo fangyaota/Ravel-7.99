@@ -1572,8 +1572,18 @@ use (IEnumerable MyThing { by GetEnumerator = property … })
 MyThing.GetImplements ()   # [IEnumerable]
 ```
 
-出了那个作用域、或者 `Dispose ()` 之后再问就没了 —— 接口是"在这个作用域里生效"的东西，
-不是一个烙在类型上的标记。子类也算数（`实例 is 接口` 的判据本来就把子类收进来了）。
+反过来问一个接口有 `I.GetImplementors ()`：
+
+```ravel
+IEnumerable.GetImplementors ()     # [Seq Dict Set List] —— 库里那三条 + 上面 use 的 Seq
+MyIface.GetImplementors ()         # [MyThing]
+```
+
+两边都是一份"当下"的快照，同一项只列一次，顺序照查找来（由内到外、后 `use` 的先）——
+所以 `GetImplements ()` 打头的是**当下生效**的那个。出了那个作用域、或者 `Dispose ()`
+之后再问就没了 —— 接口是"在这个作用域里生效"的东西，不是一个烙在类型上的标记。
+`GetImplements` 里子类也算数（`实例 is 接口` 的判据本来就把子类收进来了）；
+`GetImplementors` 里普通类永远是空的（没人拿它当接口）。
 
 ---
 

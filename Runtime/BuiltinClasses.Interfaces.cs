@@ -245,6 +245,31 @@ internal static partial class BuiltinClasses
         return new ListVal(found);
     }
 
+    /// <summary>`I.GetImplementors ()`:`GetImplements ()` 的反面 —— **现在有哪些类型**实现了这个接口
+    /// (目标类组成的 list)。同样是一份"当下"的快照、同样只认生效中的实现。
+    ///
+    /// 普通类问它永远是空的:接口槽是"实现"挂上去的,而实现的 trait 只能是接口。
+    /// 顺序和 `GetImplements ()` 一个规矩(由内到外、后 `use` 的先),同一个目标只列一次。</summary>
+    internal static RuntimeValue Implementors(Interpreter interp, ObjectVal trait)
+    {
+        var found = new List<RuntimeValue>();
+        for (var s = interp.CurrentScope; s != null; s = s.Parent)
+        {
+            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
+
+            for (var i = reg.Elements.Count - 1; i >= 0; i--)
+            {
+                if (!IsLiveEntry(reg.Elements[i], out var impl)) continue;
+                if (!ReferenceEquals(impl.Type, trait)) continue;
+                if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
+                if (found.Any(x => ReferenceEquals(x, target))) continue;
+                found.Add(target);
+            }
+        }
+
+        return new ListVal(found);
+    }
+
     internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
         for (var s = interp.CurrentScope; s != null; s = s.Parent)

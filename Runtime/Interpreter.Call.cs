@@ -51,11 +51,13 @@ public partial class Interpreter
             case BoundClassOp bco:
                 PushClassOp(sink, bco.OpName, bco.Self, arg);
                 break;
-            // `T.GetImplements ()` —— "这个类型现在实现了哪些接口"。**当场算**:实现是登记在
-            // 作用域里的,而求值器手里正好有当前作用域(内置方法的体没有),所以和 BoundClassOp
-            // 一样做成"按值分派"的一格。
-            case BoundImplementsQuery q:
-                _top = sink.WithResult(BuiltinClasses.Implements(this, q.Self));
+            // `T.GetImplements ()` / `I.GetImplementors ()` —— 类型与接口之间那两个方向的问题。
+            // **当场算**:实现是登记在作用域里的,而求值器手里正好有当前作用域(内置方法的体没有),
+            // 所以和 BoundClassOp 一样做成"按值分派"的一格。
+            case BoundTraitQuery q:
+                _top = sink.WithResult(q.Kind == TraitQueryKind.Implements
+                    ? BuiltinClasses.Implements(this, q.Self)
+                    : BuiltinClasses.Implementors(this, q.Self));
                 break;
             case PartialCtor pc:
             {

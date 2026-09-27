@@ -515,12 +515,17 @@ IEnumerator ::= interface { by MoveNext : function = default
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
   一样能遍历(字典遍历的是值);**每次进来新开一个枚举器**,所以嵌套遍历同一串值互不打扰;
 - 用户自己的类实现一条 `use (IEnumerable MyClass { by GetEnumerator = property … })` 就能进 `foreach`。
-- **`T.GetImplements ()`** 列出这个类型**现在**实现了哪些接口(接口对象组成的 list)。
-  它是"当下"的快照:沿当前作用域找生效中的实现、目标类收得下它就记一条(判据同 `u is I`),
-  所以出了作用域 / `Dispose` 之后就列不出来;子类算(实例收得下目标)。
-  入口在 `CallInto` 的 `BoundImplementsQuery` 一格 —— 这活儿要当前作用域,而内置方法的体
-  拿不到解释器(和 `is` / 注解那两处同一个理由)。成员值本身是 `ImplementsQuery`:
-  和 `ClassOperatorFactory` 一个路子,读出来先绑接收者。
+- **两个方向的查询**(都在 `Type` 上,所以任何类型对象、接口对象都有):
+  - `T.GetImplements ()` —— 这个类型**现在**实现了哪些接口(接口对象组成的 list);
+  - `I.GetImplementors ()` —— **现在**哪些类型实现了这个接口(目标类组成的 list);
+  - 都是"当下"的快照:沿当前作用域找生效中的实现,判据同 `u is I`(目标收得下 `T` /
+    trait 就是 `I`),所以出了作用域 / `Dispose` 之后就列不出来。`GetImplements` 里子类算
+    (实例收得下目标);`GetImplementors` 里普通类永远是空的(接口槽是"实现"挂上去的,
+    而实现的 trait 只能是接口)。同一项只列一次;顺序照查找来(由内到外、后 `use` 的先),
+    所以 `GetImplements` 打头的是**当下生效**的那个。
+  - 入口在 `CallInto` 的 `BoundTraitQuery` 一格 —— 这活儿要当前作用域,而内置方法的体
+    拿不到解释器(和 `is` / 注解那两处同一个理由)。成员值本身是 `TraitQuery`(带方向):
+    和 `ClassOperatorFactory` 一个路子,读出来先绑接收者。
 
 **接口对象继承自 `object`,但类型是 `interface`** —— 和 C# 一样,接口不是"继承了一个叫
 `Interface` 的基类",所以 `IEnumerable.Parent ()` 是 `object`;而 `typeof IEnumerable` 是
@@ -714,6 +719,7 @@ int.Parent ()     # ValueType
 int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
 1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
+I.GetImplementors () # 反过来:**现在**哪些类型实现了这个接口
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
 
 # 对象

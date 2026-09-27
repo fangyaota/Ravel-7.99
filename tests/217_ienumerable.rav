@@ -67,6 +67,25 @@ print (list.GetImplements ())
 print (int.GetImplements ())
 print (Seq.GetImplements ())
 print (Sub.GetImplements ())          # 子类也算(实例收得下目标)
+# ---- I.GetImplementors ():反过来问 —— 现在哪些**类型**实现了这个接口 ----
+print (IEnumerable.GetImplementors ())
+print (IEnumerator.GetImplementors ())
+print (Seq.GetImplementors ())        # 普通类没人拿它当接口 → 空
+
+MyIface ::= interface {
+    by Go : function = default
+}
+MyThing ::= class {
+    x : int = 0
+}
+print (MyIface.GetImplementors ())
+myImpl := use (MyIface MyThing {
+    by Go = property (() => { () => { instance.x; }; }) ((v: function) => { (); })
+})
+print (MyIface.GetImplementors ())
+myImpl.Dispose ()
+print (MyIface.GetImplementors ())
+
 seqImpl.Dispose ()
 print (Seq.GetImplements ())
 
@@ -105,6 +124,12 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # []
 # [IEnumerable]
 # [IEnumerable]
+# [Seq Dict Set List]
+# [Enumerator]
+# []
+# []
+# [MyThing]
+# []
 # []
 # 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
 # 2: foreach 需要 IEnumerable（list / set / dict），得到 String
