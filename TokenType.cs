@@ -36,6 +36,8 @@ public enum TokenType
     Greater,       // >
     LessEqual,     // <=
     GreaterEqual,  // >=
+    Subtype,       // <:  A 是不是 B 的子类型(两边都是**类型**)
+    Supertype,     // :>  A 是不是 B 的父类型(同上,方向反过来)
 
     // 逻辑
     AndAnd,        // &&

@@ -174,12 +174,11 @@ internal static partial class BuiltinClasses
         else vr.Assign(instance);
     }
 
-    /// <summary>`u is myTrait` 的兜底:当前作用域里有没有一个生效中的实现,目标类收得下 `v`、
-    /// 而且它就是为那个接口做的。作用域外为假 —— 和"出去后释放"一致。</summary>
-    internal static bool HasTrait(Interpreter interp, RuntimeValue v, ObjectVal trait)
+    /// <summary>`u is myTrait` / `myClass <: myTrait` 的兜底:当前作用域里有没有一个生效中的实现,
+    /// 目标类收得下 `cls`、而且它就是为那个接口的。传的是**类型**(`u.Type` / 左边那个类型)——
+    /// 判据是"这个类的实例在这个作用域里都算那个接口"。作用域外为假 —— 和"出去后释放"一致。</summary>
+    internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
-        if (v is not ObjectVal obj) return false;
-
         for (var s = interp.CurrentScope; s != null; s = s.Parent)
         {
             if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
@@ -187,7 +186,7 @@ internal static partial class BuiltinClasses
             foreach (var e in reg.Elements)
                 if (IsLiveEntry(e, out var impl) && impl.Type == trait
                     && impl.Scope.LookupField(TargetMember)?.Value is ObjectVal target
-                    && obj.Type.IsAssignableTo(target))
+                    && cls.IsAssignableTo(target))
                     return true;
         }
 

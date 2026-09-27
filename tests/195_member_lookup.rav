@@ -34,7 +34,7 @@ print (typeof c == C)
 print (typeof c == typeof (C ()))
 print (typeof c == int)
 # --- expected ---
-# [+ - * / % == != < > <= >= & | ^ ToString is isnot Copy Fields]
+# [+ - * / % == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields]
 # 3
 # 4
 # true

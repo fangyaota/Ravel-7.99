@@ -133,6 +133,22 @@ internal static partial class BuiltinClasses
         DefineOp(Object, "is", (a, b) => new BoolVal(IsA(a, b, "is")));
         DefineOp(Object, "isnot", (a, b) => new BoolVal(!IsA(a, b, "isnot")));
 
+        // 类型**之间**:`A <: B`(A 是不是 B 的子类型)/ `A :> B`(父类型)。
+        // 和 `is` 分工清楚:`is` 收**值**("这个值是不是这个类型"),这一对两边都得是**类型对象**。
+        // 也注册在 Object 上,是为了报错能说人话(`1 <: int` 得到的是「左边得是个类型」,
+        // 而不是「类型 Integer 不支持运算符」)。接口那一半("这个类在当前作用域里算不算那个接口")
+        // 要问作用域,在求值器里补 —— 这里只给名义答案。
+        DefineOp(Object, "<:", (a, b) =>
+        {
+            var (x, y) = AsTypes(a, b, "<:");
+            return new BoolVal(x.IsAssignableTo(y));
+        });
+        DefineOp(Object, ":>", (a, b) =>
+        {
+            var (x, y) = AsTypes(a, b, ":>");
+            return new BoolVal(y.IsAssignableTo(x));
+        });
+
         // 类对象自己就是那个值,直接按身份比(和 ObjectVal.Equals 一致)
         DefineOp(Type, "==", (a, b) => new BoolVal(SameValue(a, b, "==")));
         DefineOp(Type, "!=", (a, b) => new BoolVal(!SameValue(a, b, "!=")));
@@ -201,6 +217,16 @@ internal static partial class BuiltinClasses
         (not ObjectVal, not ObjectVal) => a.Equals(b),
         _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数"),
     };
+
+    /// <summary>`<:` / `:>` 的操作数:两边都得是**类型对象**(类对象,接口也是)。
+    /// 值那一边不认 —— 那是 `is` 的活。</summary>
+    private static (ObjectVal Left, ObjectVal Right) AsTypes(RuntimeValue a, RuntimeValue b, string op)
+        => (AsType(a, op, "左"), AsType(b, op, "右"));
+
+    private static ObjectVal AsType(RuntimeValue v, string op, string side)
+        => v as ObjectVal is { IsClass: true } t
+            ? t
+            : throw new RuntimeException($"'{op}' 的{side}边得是个类型，得到 {v.Type} 的实例");
 
     /// <summary>`is` / `isnot` 的实现:值的类型是不是(是某个类型的子类型)。
     /// 返回 bool,由调用点决定要不要取反 —— `isnot` 是同一个判据,不是两套。</summary>

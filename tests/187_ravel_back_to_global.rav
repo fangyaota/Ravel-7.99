@@ -17,5 +17,5 @@ print x
 # --- expected ---
 # 2
 # 1
-# [a is isnot ToString Copy Fields]
+# [a is isnot <: :> ToString Copy Fields]
 # 0

@@ -7,11 +7,14 @@ using Ravel.Runtime;
 ///
 /// `is` / `isnot` 是**词形运算符**(类型判定):它们不是标点,所以解析器在
 /// **运算符位置**按词判定(见 `Parser.IsWordOperator`)—— 别处照样能当普通标识符用,
-/// 于是 `1.is`(等右操作数)和 `is.int`(等左操作数)两种节形式和 `a.+` / `+.2` 完全对称。</summary>
+/// 于是 `1.is`(等右操作数)和 `is.int`(等左操作数)两种节形式和 `a.+` / `+.2` 完全对称。
+///
+/// `<:` / `:>` 是**类型之间**的关系(A 是不是 B 的子类型 / 父类型),两边都得是类型对象 ——
+/// 和 `is`("值是不是这个类型")分清楚,那一对才收值。</summary>
 public static class OperatorSymbols
 {
     public static readonly HashSet<string> All =
-        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^", "is", "isnot"];
+        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^", "is", "isnot", "<:", ":>"];
 
     public static bool IsSymbol(string name) => All.Contains(name);
 }

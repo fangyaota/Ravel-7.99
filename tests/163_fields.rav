@@ -8,5 +8,5 @@ c := C ()
 print (c.Fields ())
 print ((1).Fields ())
 # --- expected ---
-# [init x s m is isnot ToString Copy Fields]
-# [+ - * / % == != < > <= >= & | ^ ToString is isnot Copy Fields]
+# [init x s m is isnot <: :> ToString Copy Fields]
+# [+ - * / % == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields]

@@ -45,6 +45,7 @@ public partial class Parser
         TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
             or TokenType.EqualEqual or TokenType.NotEqual
             or TokenType.Less or TokenType.Greater or TokenType.LessEqual or TokenType.GreaterEqual
+            or TokenType.Subtype or TokenType.Supertype
             or TokenType.And or TokenType.Pipe or TokenType.Caret => true,
         _ => false,
     };

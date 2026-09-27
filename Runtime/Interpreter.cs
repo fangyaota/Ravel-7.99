@@ -88,11 +88,11 @@ public partial class Interpreter
     /// 有没有生效中的实现把它接到 target 上(判据同 `x is T`,见 `BuiltinClasses.HasTrait`)。
     /// 类型检查(注解、参数)一律走这一条:接口不在继承链上,但"在这个作用域里实现了"就该收下。</summary>
     private bool Accepts(RuntimeValue value, ObjectVal target)
-        => value.Type.IsAssignableTo(target) || BuiltinClasses.HasTrait(this, value, target);
+        => value.Type.IsAssignableTo(target) || BuiltinClasses.HasTrait(this, value.Type, target);
 
     /// <summary>把"接口也算数"那半递给 <see cref="Variable.CheckAssignable"/> / `Assign` 当补充判据。
     /// 是个委托:名义链够得着就不问它(接口那一问要走一遍作用域链)。</summary>
-    private Func<ObjectVal, bool> ViaTrait(RuntimeValue value) => t => BuiltinClasses.HasTrait(this, value, t);
+    private Func<ObjectVal, bool> ViaTrait(RuntimeValue value) => t => BuiltinClasses.HasTrait(this, value.Type, t);
 
     /// <summary>取 `by` 属性值上的 getter / setter。
     ///

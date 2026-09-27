@@ -420,7 +420,11 @@ Vec := class {
 ```
 
 - `+ := f` **定义**；`+ = f` **覆盖**从父类层继承来的那个（父类自己不受影响）。旧写法 `operator+ add := ...` 已废弃，会报语法错误。
-- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`，以及**词形运算符** `is` / `isnot`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^`，**词形运算符** `is` / `isnot`，以及类型之间的 `<:` / `:>`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- **`<:` / `:>` 是类型之间的关系**：`A <: B`（A 是不是 B 的子类型）/ `A :> B`（父类型），
+  **两边都得是类型对象**（接口也是类型）——值那一边用 `is`。两个都注册在 `Object` 上，
+  这样 `1 <: int` 报的是「'<:' 的左边得是个类型，得到 Integer 的实例」而不是「类型不支持运算符」。
+  判据 = `IsAssignableTo`；接口那半（`myClass <: myTrait`）在求值器里补，见「接口与实现」一节。
 - **`is` / `isnot` 是词形运算符**：不是标点，所以解析器在**运算符位置**按词认
   （`Parser.IsWordOperator` / `IsInfixWordOperator`），别处照样能当标识符与成员名用 ——
   于是 `1.is`（等右操作数）和 `is.int`（等左操作数）与 `a.+` / `+.2` 完全对称。
@@ -533,9 +537,9 @@ myImplement.Dispose ()   # 提前取消
   于是 `x : myTrait = u`、`(v: myTrait) => …`、`by h : myTrait = property …` 在实现生效期间
   都通得过,出了作用域(或 `Dispose` 之后)照旧报「无法将 … 赋值给 myTrait」。
   这**不动 `IsAssignableTo`**(纯函数,拿不到解释器也就拿不到当前作用域)。
-  **`Type.Is` 也不认接口** —— 它问的是**类型对类型**(`int.Is object`:Integer 是不是 Object 的
-  子类型,参数得是个**类对象**,传实例进去现在当场报错),站在类型那一侧,看不到作用域里的实现;
-  `x is T` 才是值那一侧的判定。
+  **`myClass <: myTrait`(类型那一侧)也认**:同一个 `HasTrait`,判据是"这个类的实例在作用域里
+  都算那个接口";`(typeof x) <: myTrait` 就够不着了(类型推断不出是哪个实例),
+  那一侧用 `x is myTrait`。
 - 接口里 `= default` 的槽,实现没填就是那个"什么都不做"的默认属性(读 `()`、写丢掉)—— 和 `default`
   本来的语义一致。
 - 三条已知代价:① 实现 scope 的词法父是**实现块**的捕获作用域(接口体与实现体通常写在同一处);
@@ -628,7 +632,7 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 # 类型反射
 int.name          # "Integer"
 int.Parent ()     # ValueType
-int.Is ValueType  # true
+int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
 1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
 

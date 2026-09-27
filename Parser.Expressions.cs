@@ -108,8 +108,9 @@ public partial class Parser
         return left;
     }
 
-    /// <summary>比较 != == &lt; &gt; &lt;= &gt;=,以及类型判定 `is` / `isnot`
-    /// (`1 is int` —— 词形运算符,优先级和比较一样)</summary>
+    /// <summary>比较 != == &lt; &gt; &lt;= &gt;=,类型判定 `is` / `isnot`
+    /// (`1 is int` —— 词形运算符,优先级和比较一样),以及类型之间的 `&lt;:` / `:>`
+    /// (`int &lt;: object` —— 两边都得是**类型**)</summary>
     private Expression ParseComparison(bool allowCall = true)
     {
         var left = ParseTerm(allowCall);
@@ -117,6 +118,7 @@ public partial class Parser
         while (Match(TokenType.NotEqual) || Match(TokenType.EqualEqual) ||
                Match(TokenType.Less) || Match(TokenType.Greater) ||
                Match(TokenType.LessEqual) || Match(TokenType.GreaterEqual) ||
+               Match(TokenType.Subtype) || Match(TokenType.Supertype) ||
                MatchWordOperator())
         {
             var op = Previous().Lexeme;

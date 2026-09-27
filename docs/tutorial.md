@@ -115,14 +115,15 @@ f := (x: (pick true)) => { x; }   # 参数注解同理
 
 ```ravel
 int.Parent ()          # ValueType  — 父类型
-int.Is ValueType       # true       — 子类型检查
-int.Is string          # false
+int <: ValueType       # true       — 子类型检查
+int <: string          # false
+object :> int          # true       — 反过来问(父类型)
 int.Subtypes ()        # [Every]  — 所有子类型(Integer 没有自己的子类)
 int.Default ()         # 0           — 默认值
 ```
 
-值的类型判定用 **`is` / `isnot`** 运算符（下面 3.3 有）——`1 is int`，
-它和 `int.Is` 是同一个判据，只是站在值这边说。
+值的类型判定用 **`is` / `isnot`** 运算符（下面 3.3 有）——`1 is int`。
+两者分工：`<:` / `:>` **两边都得是类型**，`is` 左边是**值**。
 
 想整棵树一起看就用库里的 `Types.PrintTree`（`using "types.rav"`，要显式引用）：
 
@@ -266,7 +267,7 @@ isnot.string "a"  # false
 
 类对象自己也是值——它是 `type` 的实例，所以 `int is type` 是 `true`，
 而 `typeof 1 is int` 是 `false`（`typeof 1` 求出来的是类对象 `Integer`，不是 int 值）。
-要比"是不是这个类型"用类对象上的 `Is`：`(typeof 1).Is int`。
+要比"是不是这个类型"用 `<:`：`(typeof 1) <: int`。
 
 ### 3.4 逻辑
 
@@ -1429,9 +1430,9 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 `myImplement` 自己反过来天然成立：`myImplement is myTrait` 为真（它的类型就是那个接口）。
 `Dispose ()` 之后的赋值照旧报「无法将 myClass 赋值给 myTrait」—— 和 `u.a` 一起失效。
 
-`Is` 是**类型对类型**的反射（`int.Is object` 问 Integer 是不是 Object 的子类型，参数得是个类对象），
-站在类型那一侧，看不到作用域里的实现，所以它不认接口 —— `(typeof u).Is myTrait` 是 false，
-而 `u is myTrait` 是 true。
+`<:` / `:>` 问的是**类型之间**的关系，而"这个类在当前作用域里算不算那个接口"这件事要靠实例才能问
+（`u is myTrait`）—— 所以 `(typeof x) <: myTrait` 是 false，而 `x is myTrait` 是 true。
+反过来 `myClass <: myTrait`（左边给类型）**是**认的：实现生效期间它成立，`Dispose` 之后又不成立。
 
 #### 叠几个实现
 

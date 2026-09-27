@@ -32,16 +32,29 @@ print ((isnot.string) "a")  # 和上一行同一个意思:节是 lambda,接上�
 print (int is type)
 print (typeof 1 is type)
 print (typeof 1 is int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
-print ((typeof 1).Is int)   # 想比"是不是这个类型"用 `Is`(类对象上的方法)
+print ((typeof 1) <: int)   # 想比"是不是这个类型"用 `<:`(类型之间)
 
-# ---- `Is` 问的是**类型对类型**:参数得是个类对象 ----
-# 传实例进去曾经静默给 false(`C.Is (C ())` 读起来像"这个实例是不是 C",其实是
-# "C 是不是那个实例的子类型")—— 现在当场报出来。
+# ---- `<:` / `:>`:**类型之间**的关系(A 是不是 B 的子类型 / 父类型)----
+# 和 `is` 分工:`is` 左边是**值**,这一对两边都得是**类型对象**。
+print (int <: object)
+print (object :> int)
+print (int <: int)
+print (object <: int)
+print (bool <: string)
+print (int <: Any)
+print (Every <: int)
+Ex.Try { 1 <: int; } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { int <: 1; } (e: Exception) => { print ("2: " + string e); }
 C ::= class {
     n : int = 0
 }
-print ((typeof (C ())).Is C)
-Ex.Try { C.Is (C ()); } (e: Exception) => { print ("Is 要类对象: " + string e); }
+print (C <: object)
+print (C <: int)
+
+# 和别的运算符一样,也能写成节
+superOf := object.:>
+print (superOf int)
+print (int.<: object)
 
 # ---- 右边得是个类型 ----
 using "try.rav"
@@ -68,6 +81,17 @@ print "done"
 # false
 # true
 # true
-# Is 要类对象: type.Is 需要一个类对象（问“值是不是这个类型”用 `x is T`），得到 C 的实例
+# true
+# true
+# false
+# false
+# true
+# true
+# 1: '<:' 的左边得是个类型，得到 Integer 的实例
+# 2: '<:' 的右边得是个类型，得到 Integer 的实例
+# true
+# false
+# true
+# true
 # 右边不是类型: 'is' 的右边要是一个类型，得到 Integer
 # done

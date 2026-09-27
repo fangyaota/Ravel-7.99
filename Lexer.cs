@@ -59,8 +59,10 @@ public class Lexer(string source, string? file = null)
 
             // ========== 多字符运算符 ==========
 
-            // `:<` 得排在 `:` 前面(单字符那批在下面)
+            // `:<` / `:>` 得排在 `:` 前面(单字符那批在下面)
             if (TryMatch(":<", TokenType.BindArrow, tokens)) continue;
+            if (TryMatch(":>", TokenType.Supertype, tokens)) continue;
+            if (TryMatch("<:", TokenType.Subtype, tokens)) continue;
             if (TryMatch(":=", TokenType.ColonEqual, tokens)) continue;
             if (TryMatch("::=", TokenType.ColonColonEqual, tokens)) continue;
             if (TryMatch("::", TokenType.ColonColon, tokens)) continue;

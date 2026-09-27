@@ -119,14 +119,25 @@ public partial class Interpreter
 
         var (bound, builtin) = BindOperator(left, bin.Op);
 
-        // `is` / `isnot` 的接口兜底:实现住在**当前作用域**里,而内置运算符的体是纯 C#(拿不到解释器),
+        // 判定类运算符的接口兜底:实现住在**当前作用域**里,而内置运算符的体是纯 C#(拿不到解释器),
         // 所以这一半只能挂在这儿 —— 判据本身在 BuiltinClasses.HasTrait,和实现那条查找共用一份。
-        // 只接**内置**那一支:类里写过 `is := f` 的照旧走它自己的实现(ClassOp 帧)。
-        if (builtin && bin.Op is "is" or "isnot" && right is ObjectVal trait)
+        // 只接**内置**那一支:类里写过 `is := f` / `<: := f` 的照旧走它自己的实现(ClassOp 帧)。
+        // `is` / `isnot` 看**值**,`<:` / `:>` 看**类型**(两边都得是类型对象)。
+        if (builtin && right is ObjectVal rt)
         {
-            var hit = left.Type.IsAssignableTo(trait) || BuiltinClasses.HasTrait(this, left, trait);
-            Return(nf, new BoolVal(bin.Op == "is" ? hit : !hit));
-            return;
+            if (bin.Op is "is" or "isnot")
+            {
+                var hit = left.Type.IsAssignableTo(rt) || BuiltinClasses.HasTrait(this, left.Type, rt);
+                Return(nf, new BoolVal(bin.Op == "is" ? hit : !hit));
+                return;
+            }
+
+            if (bin.Op is "<:" or ":>" && left is ObjectVal { IsClass: true } lt && rt.IsClass)
+            {
+                var (x, y) = bin.Op == "<:" ? (lt, rt) : (rt, lt);
+                Return(nf, new BoolVal(x.IsAssignableTo(y) || BuiltinClasses.HasTrait(this, x, y)));
+                return;
+            }
         }
 
         if (builtin) Return(nf, bound.Body(right));

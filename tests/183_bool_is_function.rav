@@ -4,7 +4,7 @@
 print (true.Scope ())
 print (true.Prepend { 1; })
 print (true { 1; } { 2; })
-print ((typeof true).Is function)
+print ((typeof true) <: function)
 # 反过来,bool 是**数据**不是闭包,不能因为它是 FunctionVal 就被当成方法/半成品构造器
 C := class {
     init := () => { true; this; }
@@ -28,7 +28,7 @@ print (typeof true)
 # 1
 # true
 # class { flag = true, n = 5 }
-# [init flag n is isnot ToString Copy Fields]
+# [init flag n is isnot <: :> ToString Copy Fields]
 # class
 # true
 # 2

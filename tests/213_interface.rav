@@ -90,7 +90,7 @@ Ex.Try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + st
 # 0
 # 3: 参数 'v' 需要 myTrait，得到 Integer
 # 4: 参数 'v' 需要 myTrait，得到 otherClass
-# [init x is isnot ToString Copy Fields]
+# [init x is isnot <: :> ToString Copy Fields]
 # 99
 # 7
 # 5: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)

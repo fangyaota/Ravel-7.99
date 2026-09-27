@@ -51,7 +51,7 @@ print (t.a)
 # ()
 # ()
 # ()
-# [init a b is isnot ToString Copy Fields]
+# [init a b is isnot <: :> ToString Copy Fields]
 # 100
 # 装了 setter: 5
 # 42
