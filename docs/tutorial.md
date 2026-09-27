@@ -1080,13 +1080,35 @@ c.n = 7         # ok
 c.n = "str"     # Error: 类型错误: 无法将 String 赋值给 'n' (声明为 Integer)
 ```
 
-不标类型就是 `Any`，写什么都行。两种写法各有各的定义符，**`by a = property …` 是语法错误**
-（修饰符后面要么 `:=`，要么 `: 类型 =`，和有修饰符的普通声明一样）：
+不标类型就是 `Any`，写什么都行：
 
 ```ravel
 by name: string = property g s     # 标类型
 by name := property g s            # 不标（约束是 Any）
 ```
+
+### 换掉槽里的 property（`by a = X`）
+
+三件事分清楚：
+
+```ravel
+by n := property g s     # 定义**槽**：n 由此成为一个属性
+n = 1                    # 给属性赋值：过 setter
+by n = property g2 s2    # 换掉**槽里的那份 property**：不过旧 setter
+```
+
+`by n = X` 换的是属性**本身**，所以它不走旧的 setter、也不查类型约束（`by n: int = …` 的
+约束管的是"写进属性的值"，而这里换的是属性）。`by` 标记留着 —— 换完之后 `n` 照样走
+**新的** getter/setter：
+
+```ravel
+s.swap ()       # 里面是 by n = property (() => { _n * 100; }) ((q: int) => { … })
+print (s.n)     # 走新的 getter
+s.n = 7         # 走新的 setter（旧的那个一次都没跑）
+```
+
+两条护栏：目标必须**已经是个 by 属性**（`by plain = 2` 用在一个普通变量上报
+「要求 'plain' 是个 by 属性」），而且得是**变量名**（`by obj.a = …` 还不支持）。
 
 ⚠️ `by` 声明必须写在**类体一级**，不能写在 `init` 里面——`init` 是个 lambda，
 它的块有自己的局部作用域，写在里面的 `by name := ...` 挂不到对象上，`p.name` 只会报

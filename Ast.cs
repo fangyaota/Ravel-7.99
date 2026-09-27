@@ -34,7 +34,12 @@ public record VarDefinition(string Name, Expression? TypeAnnotation, Expression 
     /// <summary>运算符:靠名字识别——类体里直接写符号(`+ := f` / `+ = f`)</summary>
     public bool IsOperator => OperatorSymbols.IsSymbol(Name);
 }
-public record Assignment(string Name, Expression Value) : Statement;
+/// <summary>赋值 `x = v`。
+///
+/// `By` 是 `by x = v` 那种写法(`by` 修饰符后面直接跟 `=`,见 `ParseByAssign`):
+/// **换掉槽里的那份 property**,而不是给属性赋值 —— 不走旧的 setter,也不查类型约束
+/// (那个约束管的是"写进属性的值",而这里换的是属性本身)。</summary>
+public record Assignment(string Name, Expression Value, bool By = false) : Statement;
 public record ExpressionStatement(Expression Expr) : Statement;
 
 /// <summary>`名字 =&lt; 表达式`:do 块里的"从这个 Monad 里取值"。

@@ -55,6 +55,33 @@ e.loose = "anything"
 print (e.loose)
 # 读那侧不管:注解约束的是"谁能写进来"(Ravel 从不检查函数返回什么,getter 也一样)
 print (e.lying)
+
+# `by n = X` 换掉**槽里的那份 property**(不走旧 setter、也不查类型约束):
+# 和 `n = v`(过 setter)、`by n := property …`(定义槽)是三件事。
+OldSet := 0
+NewSet := 0
+S ::= class {
+    init := () => { _n = 1; this; }
+    _n: int = 1
+    by n: int = property (() => { _n; }) ((q: int) => { OldSet += 1; _n = q; })
+    swap := () => {
+        by n = property (() => { _n * 100; }) ((q: int) => { NewSet += 1; _n = q; })
+    }
+}
+s := S ()
+s.n = 5
+print (s.n)
+print ("换之前 旧 " + string OldSet + " 新 " + string NewSet)
+s.swap ()
+print (s.n)
+s.n = 7
+print (s.n)
+print ("换之后 旧 " + string OldSet + " 新 " + string NewSet)
+print (s.Fields ())
+# 目标必须是个 by 属性;找不到变量也报出来
+plain := 1
+Ex.Try { by plain = 2; } (e2: Exception) => { print ("8: " + string e2); }
+Ex.Try { by nope = 2; } (e2: Exception) => { print ("9: " + string e2); }
 # --- expected ---
 # 99
 # 7
@@ -72,3 +99,11 @@ print (e.lying)
 # 7: 类型错误: 无法将 Float 赋值给 'm' (声明为 Integer)
 # anything
 # 42
+# 5
+# 换之前 旧 1 新 0
+# 500
+# 700
+# 换之后 旧 1 新 1
+# [init _n n swap is isnot ToString Copy Fields]
+# 8: `by plain = …` 要求 'plain' 是个 by 属性（换掉槽里的 property）
+# 9: 未定义的变量 'nope'

@@ -441,6 +441,14 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 `BoxedValue.GetMember` 对 `PropertyVal` 特判）。所以 `by` 和 `property` 互相独立：
 只写 `property` 不写 `by`，读出来就是那个 `<property>` 值本身。
 
+三条路、三件事（别混）：
+
+| 写法 | 干什么 |
+|---|---|
+| `by a := property g s` / `by a: int = …` | **定义槽**：`a` 从此是个属性（注解管写进来的值）|
+| `a = v` / `obj.a = v` | 给属性赋值：过 setter |
+| `by a = X`（`Assignment.By`）| **换掉槽里的那份 property**：`Variable.ReplaceSlot`，不过旧 setter、不查约束 |
+
 四条读写路各问一次那个 attr：裸读（`StepIdent`）、成员读（`TryGetByGetter`）、
 写（`WriteVariable`）、复合赋值（`StepByCompoundAssign`，先过 getter 读、算完过 setter 写）。
 **取函数一律走 `Interpreter.PropertyGetter/Setter`**：标了 `by` 而值不是 `property`

@@ -129,10 +129,19 @@ public partial class Parser
 
         if (attrs.Count > 0)
         {
+            // `by x = v`:换掉槽里的那份 property(见 ParseByAssign)。
+            // 只有 `by` 有这个形态:别的修饰符后面跟 `=` 还是错的(`readonly x = 5`)——
+            // `by` 特殊在它修饰的那个名字可以**是个属性槽**,而槽里的东西是可以换的。
+            if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Equal))
+                return ParseByAssign();
+            // `by obj.a = …`(换别的对象上的槽)没有名字可写,现在只认变量名
+            if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Dot))
+                throw ParseError("`by a = …` 里的 a 得是个变量名（成员那种还不支持）");
+
             // `readonly x := 1`(修饰符 + 名字)或 `readonly := 1`(修饰符自己当名字)
             if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))
                 return ParseDefinition(attrs);
-            throw ParseError("修饰符后需要 ':='");
+            throw ParseError("修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）");
         }
 
         // 普通定义：IDENT := expr 或 IDENT : type = expr
@@ -274,6 +283,22 @@ public partial class Parser
             Line = line,
             Column = col,
         };
+    }
+
+    /// <summary>`by a = 表达式` —— **换掉槽里的那份 property**:不走旧属性的 setter,
+    /// 也不查类型约束(`by a: int = …` 那个约束管的是"写进属性的值",而这里换的是属性本身)。
+    ///
+    /// 和 `a = v`(过 setter)是两件不同的事,所以单独一个形状;`by a := property …`
+    /// 仍然是"定义这个槽"。</summary>
+    private Statement ParseByAssign()
+    {
+        var name = Consume(TokenType.Identifier, "需要变量名");
+        Consume(TokenType.Equal, "需要 '='");
+        _holeCount = 0;
+        var value = ParseExpression();
+        SkipNewlines();
+        if (HasHoles(value)) value = DesugarHoles(value);
+        return new Assignment(name.Lexeme, value, By: true) { Line = name.Line, Column = name.Column };
     }
 
     private Statement ParseAssignment()

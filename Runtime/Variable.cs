@@ -20,6 +20,18 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
         Value = newValue;
     }
 
+    /// <summary>换掉槽里的东西(`by a = X`)。
+    ///
+    /// **不走 setter,也不查类型约束** —— 那个约束管的是"写进属性的值"(`by a: int = …`),
+    /// 而这里换的是**属性本身**(一份 property 当然不是 int)。
+    /// `by` 标记留着:`a` 之后照样走新的 getter/setter。
+    /// readonly 照样挡(只读的是这个槽,不只是它的值)。</summary>
+    public void ReplaceSlot(RuntimeValue newValue)
+    {
+        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
+        Value = newValue;
+    }
+
     /// <summary>值能不能写进这个变量(按类型约束)。
     ///
     /// 单独的,因为 **`by` 属性的写入也要过这一关**:`by n: int = property …` 里那个注解

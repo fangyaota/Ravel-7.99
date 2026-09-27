@@ -55,7 +55,7 @@ internal static class AstPrinter
             + (v.TypeAnnotation != null ? ": " + Expr(v.TypeAnnotation) : "")
             + (v.Named ? " ::= " : " := ")
             + Expr(v.Value),
-        Assignment a => a.Name + " = " + Expr(a.Value),
+        Assignment a => (a.By ? "by " : "") + a.Name + " = " + Expr(a.Value),
         ExpressionStatement es => Expr(es.Expr),
         _ => "...",        // 将来加了新语句种类,打印退化成一个省略号,别把 ToString 搞炸
     };

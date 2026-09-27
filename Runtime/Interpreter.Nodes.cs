@@ -52,7 +52,7 @@ public partial class Interpreter
             case BlockExpr b: if (nf.Count == 0) Return(nf, new BlockVal(b, nf.Scope)); break;
             case LambdaExpr lam: StepLambda(nf, lam); break;   // 分相推进(注解要先求值),别加 Count==0 的守卫
             case VarDefinition v: StepVarDef(nf, v); break;
-            case Assignment a: StepAssign(nf, a.Name, a.Value); break;
+            case Assignment a: StepAssign(nf, a.Name, a.Value, a.By); break;
             case ExpressionStatement es: if (nf.Count == 0) PushChild(nf, es.Expr); else Return(nf, nf.Result(0)); break;
             // 走到这里说明 AST 里有个节点类型没接上状态机——报出节点类型才查得下去
             default: throw new RuntimeException($"无法求值的节点类型: {nf.Node.GetType().Name}");
@@ -287,8 +287,9 @@ public partial class Interpreter
     /// (BinaryExpr 的 `=`)都走这里 —— 别再各写一份:从前表达式那份**根本没赋值**
     /// (只把右值交出去),`print (x = 5)` 会打印 5 而 `x` 一点没变。
     ///
-    /// 0=求右值 1=写。名字找不到就交给 <see cref="Scope.Assign"/>,由它报「未定义」。</summary>
-    private void StepAssign(NodeFrame nf, string name, Expression value)
+    /// 0=求右值 1=写。名字找不到就交给 <see cref="Scope.Assign"/>,由它报「未定义」。
+    /// `by` 那种(`by x = …`)走的是另一条:换槽,不是赋值。</summary>
+    private void StepAssign(NodeFrame nf, string name, Expression value, bool by = false)
     {
         if (nf.Count == 0)
         {
@@ -302,10 +303,20 @@ public partial class Interpreter
         {
             if (field.HasAttr(Attr.Core) && !IsUnsafe)
                 throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe");
+            if (by)
+            {
+                if (!field.HasAttr(Attr.By))
+                    throw new RuntimeException($"`by {name} = …` 要求 '{name}' 是个 by 属性（换掉槽里的 property）");
+                field.ReplaceSlot(val);
+                Return(nf, val);
+                return;
+            }
+
             WriteVariable(nf, field, val);
             return;
         }
 
+        if (by) throw new RuntimeException($"未定义的变量 '{name}'");
         nf.Scope.Assign(name, val);
         Return(nf, val);
     }
