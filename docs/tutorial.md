@@ -267,7 +267,19 @@ isnot.string "a"  # false
 
 类对象自己也是值——它是 `type` 的实例，所以 `int is type` 是 `true`，
 而 `typeof 1 is int` 是 `false`（`typeof 1` 求出来的是类对象 `Integer`，不是 int 值）。
-要比"是不是这个类型"用 `<:`：`(typeof 1) <: int`。
+
+**类型之间**的关系用 `<:` / `:>`（两边都得是类型对象）：
+
+```ravel
+int <: object        # true   —— A 是不是 B 的子类型
+object :> int        # true   —— A 是不是 B 的父类型，方向反过来
+int <: int           # true   —— 自反
+Every <: int         # true   —— 底类型是所有类型的子类
+1 <: int             # 报错：'<:' 的左边得是个类型，得到 Integer 的实例
+```
+
+和 `is` 的分工：`is` 左边是**值**（`1 is int`），这一对两边都得是**类型**。
+写法上它和别的运算符一样，节也认：`int.<: object` / `object.:>`。
 
 ### 3.4 逻辑
 
