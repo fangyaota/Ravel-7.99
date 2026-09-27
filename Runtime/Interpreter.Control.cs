@@ -183,7 +183,15 @@ public partial class Interpreter
                        ?? throw new RuntimeException($"类型 {type.DisplayName} 没有构造器（init）");
             // 调用点用**实例作用域**:init 要能看见 `this` 和各层类体落的成员。
             // 内置类的默认建类函数(NativeClosure)正是靠这个把 parent/block 装到 self 上。
-            CallInto(cf with { Scope = inst.Scope }, init, arg);
+            //
+            // **必须改在帧自己身上**(`cf` 就是 `_top`),不能写成 `CallInto(cf with {…})`:
+            // 那种写法只换了 sink 的 scope,而 `CallInto` 里取调用点作用域的两条路走的是
+            // **`_top.Scope`**(NativeClosure 与类运算符),不是 sink 的 —— 于是直接拿
+            // NativeClosure 当 init 的类(比如 object 那个默认构造器)会报「未定义的变量 'this'」。
+            // (从前 `type` 的 init 没露馅只是碰巧:它被 `Alternate` 包着,中间那个控制帧
+            //  是拿 `sink.Scope` 建的,scope 因此蒙对了。)
+            cf.Scope = inst.Scope;
+            CallInto(cf, init, arg);
             return;
         }
 

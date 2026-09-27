@@ -305,10 +305,17 @@ RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
 
 | 类对象 | 预设类体 |
 |---|---|
+| `object` | `init := () => { this; }`（**默认构造器**，见下）|
 | `type` | `init := (parent: type body) => 装 parent/block 并返回 this` \| `(body) => parent 默认 object` |
 | `Integer` / `String` / … | `init := <CastToXxx>` |
 | `List` / `Set` / `Dict` | `init := MakeDefaultCaster`（只收 `default`） |
 | 用户类 | 用户写的 block |
+
+`object` 那份跑在**最前**（`CollectBodies` 顶祖先优先），所以任何类只要不写 `init` 就继承它 ——
+"什么都不做、把对象交出来"该是默认，和 `function default` 给空函数是一回事。
+它是 `NativeClosure`（要交出的 `this` 只在调用点作用域里）。
+**`StepClassInit` 调 init 前必须 `cf.Scope = inst.Scope`**（改在帧自己身上，不能只 `with` 一份）：
+`CallInto` 里取调用点作用域的两条路（NativeClosure / 类运算符）走的是 `_top.Scope`。
 
 于是**没有"转换器"这个特设概念**：`int 42` 得 42，走的就是「跑类体 → 找 init → 调它 →
 交出返回值」，和用户类一模一样。`CallClassInto` 也只有一条路。
@@ -338,10 +345,16 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 - 两分支让 `MyMeta { ... }`（不带父类）和 `MyMeta parent { ... }` 都能用。
 - **`init` 在类体里读到的是继承来的那个**：靠"预设类体先跑、把 `init` 落进同一个实例 scope"。
   而 `init = ...` 改的是**这个实例 scope 的副本**（预设类体每次实例化都重跑），`type` 本身不受影响。
-- **引擎找构造器用 `LookupField`（一层、不走原型链）**，所以没写 `init` 的类仍报
-  「类型 X 没有构造器（init）」，不会掉进 `type` 那层的建类逻辑。
+- **引擎找构造器用 `LookupField`（一层、不走原型链）**：各层类体都跑进同一个实例 scope，
+  谁写了 `init` 谁就在那一格里，所以拿到的是**最具体**的那份（没写就是继承来的）。
+  它不会掉进 `type` 那层的建类逻辑 —— 那层只在 `type` 及其子类被实例化时才收集。
+- **`object` 的类体里有一份默认构造器**（`init := () => { this; }`）：每个类的祖先链都到它，
+  所以谁都没写就落回它，`C ()` 不再报「没有构造器」。它跑在最前（祖先优先），
+  内建那些更具体的（`int` 的转换器、`List` 的 default 构造器）照样覆盖它。
+  没有自己类体的类型（Void/Every/Any/Scope/Property/…）仍然不能当构造器调 ——
+  那道护栏在 `CallClassInto`，看的是被实例化的那个类**自己**有没有类体。
 - 用例：`tests/117`（基本）、`118`（挂钩建类过程）、`121`（拿到类再交出去）、
-  `122`（typeof 链）、`193`（用户手写的那份）。
+  `122`（typeof 链）、`193`（用户手写的那份）、`211`（默认构造器）。
 
 ### 其余
 

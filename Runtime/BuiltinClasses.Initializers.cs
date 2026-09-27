@@ -17,6 +17,14 @@ internal static partial class BuiltinClasses
     /// <summary>给各内建类型装上预设类体（里面只定义 `init`，值是转换函数）</summary>
     private static void RegisterInitializers()
     {
+        // 默认构造器挂在 **object** 的类体上:每个类的祖先链都到它,所以任何类只要没写
+        // `init` 就继承这一份(`CollectBodies` 从顶祖先往下跑,谁写了谁覆盖掉)。
+        // 没有它的话 `C := class { 0; }` 一调就报「类型 C 没有构造器（init）」——
+        // 而"什么都不做、把对象交出来"本来就该是默认,和 `function default` 给一个
+        // 空函数(`() => { (); }`)是一个道理。
+        // 更具体的层写了就覆盖它:比如 List 的预设类体里那个只认 default 的构造器,
+        // 它跑在 object 之后,所以 `MyList default` 走的还是 List 那一份。
+        Object.ClassBody = PresetCtor(DefaultCtor());
         Int.ClassBody = PresetCtor(MakeCaster(CastToInt));
         Float.ClassBody = PresetCtor(MakeCaster(CastToFloat));
         Bool.ClassBody = PresetCtor(MakeCaster(CastToBool));
@@ -31,6 +39,14 @@ internal static partial class BuiltinClasses
         // 建类不在这里:`type` 的 init 由 InstallTypeInit 装 —— 它要用 NativeClosure
         // 看见正在构造的那个对象的 `this`,而且必须在 Object/Function/Type 都挂好之后
     }
+
+    /// <summary>默认构造器 `init := () => { this; }`:什么都不做,把正在建的那个对象交回去。
+    ///
+    /// 必须是 <see cref="NativeClosure"/>:要交出的 `this` 只在**调用点作用域**里
+    /// (那正是实例作用域),C# 侧的普通 `FunctionVal` 拿不到作用域。
+    /// 参数标 `Any`(什么都收):`Bare ()` 传进来的是 void 值、`Bare default` 是 default。</summary>
+    private static FunctionVal DefaultCtor()
+        => new NativeClosure("_", Any, (scope, _) => scope.Lookup(ObjectVal.ThisMember).Value);
 
     /// <summary>包装转换函数为单参构造器</summary>
     private static FunctionVal MakeCaster(Func<RuntimeValue, RuntimeValue> cast)

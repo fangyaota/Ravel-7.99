@@ -94,7 +94,7 @@ public partial class Interpreter
     private void CallClassInto(Frame sink, ClassVal t, RuntimeValue arg)
     {
         if (t.ClassBody == null)
-            throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用");   // 是类,但没类体(Every/Any/Object/…)
+            throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用");   // 是类,但没类体(Every/Any/Void/Ravel/Scope/Property…)
         _top = new ControlFrame(ControlKind.ClassInit, RList<RuntimeValue>.Empty.Add(t).Add(arg), VoidVal.Instance)
         {
             Parent = sink,

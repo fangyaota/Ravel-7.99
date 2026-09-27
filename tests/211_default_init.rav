@@ -1,0 +1,58 @@
+# 默认构造器:`object` 的类体里有一份 `init := () => { this; }` ——
+# 什么都不做,把正在建的那个对象交回去。每个类的祖先链都到 object,所以
+# **任何类只要没写 init 就继承这一份**,`C ()` 不再报「类型 C 没有构造器（init）」。
+#
+# 和 `function default` 给一个空函数(`() => { (); }`)是一个道理:空缺的地方给个
+# 什么都不做的对应物,而不是报错。
+using "try.rav"
+
+# 没有 init 的类:两种构造写法都行
+C ::= class { x: int = 1; }
+print (C ())
+print ((C ()).x)
+print (C default)
+print (typeof (C ()))
+
+# 继承:子类没写就落回父类那份,一路都没写就落回 object 那份
+B ::= class C { y: int = 2; }
+print (B ())
+print ((B ()).x)
+print ((B ()).y)
+
+# 自己写了 init 就覆盖掉默认那份(和覆盖别的继承成员一个机制)
+D ::= class {
+    init := () => { print "D.init"; this; }
+    z: int = 3
+}
+d := D ()
+print (d.z)
+
+# 内建的构造器比默认那份具体,所以仍然赢:object 的类体先跑,List 的预设类体后跑
+MyInt ::= class int { 0; }
+print (MyInt "42")
+MyList ::= class list { 0; }
+print (MyList default)
+Ex.Try { MyList (); } (e: Exception) => { print ("1: " + string e); }
+
+# object 自己现在也能构造了(它的类体就是那份默认构造器)
+print (System.Object ())
+
+# 但**没有自己类体**的类型还是不能当构造器调(护栏在 CallClassInto 上)
+Ex.Try { System.Void (); } (e: Exception) => { print ("2: " + string e); }
+Ex.Try { System.Every (); } (e: Exception) => { print ("3: " + string e); }
+# --- expected ---
+# C { x = 1 }
+# 1
+# C { x = 1 }
+# C
+# B { x = 1, y = 2 }
+# 1
+# 2
+# D.init
+# 3
+# 42
+# []
+# 1: 类型 List 不能作为构造器调用
+# Object {}
+# 2: 类型 Void 不能作为构造器调用
+# 3: 类型 Every 不能作为构造器调用

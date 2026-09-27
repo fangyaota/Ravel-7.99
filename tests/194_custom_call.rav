@@ -10,7 +10,9 @@ C ::= class { init := () => { this; }; }
 a := C ()
 # 对象不是函数:自己那层有没有 `call` 都一样
 Ex.Try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
-Ex.Try { System.Object (); } (e: Exception) => { print ("无类体的类: " + string e); }
+# 类得有**自己的类体**才能当构造器调(这条是 CallClassInto 的护栏):
+# object 现在有类体了(那个默认构造器,见 tests/211),所以拿 Void 这种没类体的当例子
+Ex.Try { System.Void (); } (e: Exception) => { print ("无类体的类: " + string e); }
 # `call` 只是普通名字:没定义过就读不到(沿类型链也找不到,它不是方法)
 Ex.Try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
 Ex.Try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
@@ -34,7 +36,7 @@ print (C.Name ())
 print (C.name)
 # --- expected ---
 # 实例不能调: 值 C {} 不是函数，不能调用
-# 无类体的类: 类型 Object 不能作为构造器调用
+# 无类体的类: 类型 Void 不能作为构造器调用
 # 实例读 call: 类型 'C' 没有方法 'call'
 # int 读 call: 类型 'Integer' 没有方法 'call'
 # 42
