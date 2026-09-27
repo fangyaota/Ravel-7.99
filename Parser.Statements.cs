@@ -84,6 +84,13 @@ public partial class Parser
             _pos + 2 < tokens.Count && tokens[_pos + 2].Type is TokenType.ColonEqual or TokenType.ColonColonEqual)
             throw ParseError("构造器不再用 init 修饰符，直接写 `init := () => { ... }`");
 
+        // 修饰符 `override` / `new` 已删(它们只被记下来,全库没有一处读 —— 语言里既没有
+        // 重载也没有重定义检查,写上去等于没写)。不拦的话 `override x := 1` 会被当表达式
+        // `override x` 求值,报「未定义的变量 'override'」——看不出是这个修饰符没了。
+        if (Check(TokenType.Identifier) && Peek().Lexeme is "override" or "new" &&
+            _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Identifier)
+            throw ParseError($"'{Peek().Lexeme}' 修饰符已删除（它只被记下来，没有任何地方读它）");
+
         // 修饰符
         var attrs = new List<string>();
         while (Check(TokenType.Identifier))

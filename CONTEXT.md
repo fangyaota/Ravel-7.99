@@ -37,7 +37,9 @@ Runtime/                         求值器按职责拆成多个 partial class �
   RuntimeValue.cs         值基类(含 IsClosure) + 全部 Ravel 层异常:
                           RuntimeException / TypeMismatchException / ExitException /
                           SyntaxException + SourceSpot(位置)
-  Attr.cs                 修饰符名常量(readonly/override/…/core),解析器和门禁共用
+  Attr.cs                 修饰符名常量(readonly/public/private/…/core),解析器和门禁共用;
+                           **表里的每一个都得有地方读它** —— `override`/`new` 因为无人读
+                           已连同修饰符一起删(`public` 是唯一例外:它是默认行为)
                            `lib/` 的 API 都标 readonly(语言级别名/模块函数);
                            **状态**故意不标(Ex.HandlerStack / References)。
                            readonly 连 `:=` 一起挡(`Scope.DefineOrReplace` 里查本层):
@@ -64,6 +66,11 @@ Runtime/                         求值器按职责拆成多个 partial class �
                                  BoolVal 也继承 FunctionVal(类型表里 Bool <: Function,见「两个坑」)
                                  FractionVal/BigFractionVal 构造即约分
 Lexer.cs / Ast.cs / Token.cs / TokenType.cs
+                                Lexer 还对外给一个 `ScanState(源码) -> (深度, 在不在字符串里)`,
+                                REPL 判断"这行写完没有"用它(规则和词法共用一份,别各写一遍);
+                                Token.Length 是**源码跨度**(字符串含引号、带转义),
+                                和 Lexeme(给人看的文本)不是一回事
+                                字符串没收到尾的引号 = 语法错误(从前静默吞掉后面全部源码)
 Parser.cs                       入口 + token 辅助(Peek/Consume/ParseError)
   Parser.Statements.cs          语句:定义/赋值/运算符定义
   Parser.Expressions.cs         优先级链(管道→逻辑→比较→加减→乘除)

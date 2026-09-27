@@ -35,12 +35,10 @@ internal static class ReplView
             if (tok.Type == TokenType.EndOfFile || tok.Type == TokenType.Newline)
                 continue;
 
+            // 用 Token.Length(源码跨度),不是 Lexeme.Length:字符串的 Lexeme 是**解码后**
+            // 的内容,`"a\nb"` 的跨度和它差着转义那一截(从前拿它 +2 当跨度,遇到转义就划歪)
             int start = tok.Column - 1;
-            int end = start + tok.Lexeme.Length;
-            if (tok.Type == TokenType.String)
-                end += 2;
-            if (end > text.Length)
-                end = text.Length;
+            int end = start + tok.Length;
 
             if (pos < start)
                 sb.Append(text[pos..start].EscapeMarkup());

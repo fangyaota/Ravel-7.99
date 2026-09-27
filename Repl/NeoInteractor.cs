@@ -303,24 +303,16 @@ public class NeoInteractor
         }
     }
 
+    /// <summary>这一行能不能交给求值器了:括号都合上,**而且不在字符串中间**。
+    /// 扫描规则和词法器共用一份(<see cref="Lexer.ScanState"/>)—— 从前这儿自己抄了
+    /// 一遍,不认 `\` 转义,`"a\"b"` 就把字符串状态判反、后面整行的括号跟着数错。
+    ///
+    /// 末尾在字符串里就继续收行(多行字符串因此写得出来);而深度**小于** 0 也放行 ——
+    /// 多一个右括号该让解析器去报错,不是卡在"还没写完"上。</summary>
     private static bool IsBalanced(string src)
     {
-        int depth = 0;
-        bool inString = false;
-        for (int i = 0; i < src.Length; i++)
-        {
-            char c = src[i];
-            if (c == '"') inString = !inString;
-            if (inString) continue;
-            if (c == '#')
-            {
-                while (i < src.Length && src[i] != '\n') i++;
-                continue;
-            }
-            if (c is '(' or '[' or '{') depth++;
-            else if (c is ')' or ']' or '}') depth--;
-        }
-        return depth <= 0;
+        var (depth, inString) = Lexer.ScanState(src);
+        return depth <= 0 && !inString;
     }
 
     private static void Pause()

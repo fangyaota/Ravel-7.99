@@ -1,0 +1,8 @@
+# 字符串少了收尾的引号 -> 报错。从前是**静默接受**:剩下的源码(连换行带后面的代码)
+# 全被吞进那个字符串,`print "abc` 打印出 abc —— 少打一个引号的人看不出自己错了。
+print "abc
+# --- expected ---
+# Error: 字符串没有收尾的 '"'
+#   --> tests/204_unterminated_string.rav:3:7
+#   3 | print "abc
+#     |       ^
