@@ -28,9 +28,8 @@ namespace Ravel.Runtime;
 /// `myClass` 这个名字**从头到尾没被动过**:不建子类、不换绑定、不往它身上加成员。
 internal static partial class BuiltinClasses
 {
-    /// <summary>接口的权威名(`System.Interface`;小写别名 `interface` 在 predefined.rav)。
-    /// parent 是 `type`,所以它也是类 —— 而它造的类(接口)同样进类型树。
-    /// 字段本身和别的内置类一起声明在 BuiltinClasses.cs。</summary>
+    // `Interface`(接口的权威名,小写别名 `interface` 在 predefined.rav;parent 是 `type`,
+    // 所以它也是类,而它造的类(接口)同样进类型树)和别的内置类一起声明在 BuiltinClasses.cs。
 
     /// <summary>实现 scope 里那个"当前在服务谁"的变量。接口声明的槽都能看见它,
     /// 每次要用的时候换一个实例 —— 槽本身不动。</summary>
