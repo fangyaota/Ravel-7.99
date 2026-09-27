@@ -50,13 +50,25 @@ Seq ::= class {
 }
 # 交回一个枚举器就行 —— 库里的 `Enumerator` 拿来就能用。
 # (`property g s` 要写在**同一行**:换行就是两条语句,槽里会只剩半截 `property`)
-use (IEnumerable Seq {
+seqImpl := use (IEnumerable Seq {
     by GetEnumerator = property (() => { () => { Enumerator [instance.n (instance.n + 1) (instance.n + 2)]; }; }) ((v: function) => { (); })
 })
 s := Seq 7
 print (s is IEnumerable)
 print (total s)
 foreach s (x: int) => { print ("mine " + string x); }
+
+# ---- T.GetImplements ():这个类型**现在**实现了哪些接口 ----
+# 实现是登记在作用域里的,所以这是一份"当下"的快照:换了作用域、`Dispose` 之后就没了。
+Sub ::= class Seq {
+    tag : int = 0
+}
+print (list.GetImplements ())
+print (int.GetImplements ())
+print (Seq.GetImplements ())
+print (Sub.GetImplements ())          # 子类也算(实例收得下目标)
+seqImpl.Dispose ()
+print (Seq.GetImplements ())
 
 # ---- 不是可枚举的:报错说清楚要什么 ----
 try { foreach 5 (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string e2); }
@@ -89,5 +101,10 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # mine 7
 # mine 8
 # mine 9
+# [IEnumerable]
+# []
+# [IEnumerable]
+# [IEnumerable]
+# []
 # 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
 # 2: foreach 需要 IEnumerable（list / set / dict），得到 String

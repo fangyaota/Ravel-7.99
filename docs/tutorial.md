@@ -1561,6 +1561,20 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 `by GetEnumerator`，`IEnumerator` 只声明 `by MoveNext` / `by Current`，
 三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、`(xs: IEnumerable) => …` 收得下它们。
 
+#### 查一个类型现在实现了什么
+
+`T.GetImplements ()`（`Type` 上的方法）给出一份**当下**的快照 —— 接口对象组成的 list：
+
+```ravel
+list.GetImplements ()      # [IEnumerable] —— 库加载时就登记了，处处生效
+int.GetImplements ()       # []
+use (IEnumerable MyThing { by GetEnumerator = property … })
+MyThing.GetImplements ()   # [IEnumerable]
+```
+
+出了那个作用域、或者 `Dispose ()` 之后再问就没了 —— 接口是"在这个作用域里生效"的东西，
+不是一个烙在类型上的标记。子类也算数（`实例 is 接口` 的判据本来就把子类收进来了）。
+
 ---
 
 ## 八、模块

@@ -214,6 +214,37 @@ internal static partial class BuiltinClasses
     /// <summary>`u is myTrait` / `myClass <: myTrait` 的兜底:当前作用域里有没有一个生效中的实现,
     /// 目标类收得下 `cls`、而且它就是为那个接口的。传的是**类型**(`u.Type` / 左边那个类型)——
     /// 判据是"这个类的实例在这个作用域里都算那个接口"。作用域外为假 —— 和"出去后释放"一致。</summary>
+    /// <summary>`T.GetImplements ()`:这个类型**现在**实现了哪些接口 —— 沿当前作用域找生效中的
+    /// 实现,目标类收得下 `cls` 就把那个接口记一条(判据和 `x is I` 同一个)。
+    ///
+    /// 同一个接口有好几个实现只列一次;顺序和查找一样(由内到外、后 `use` 的先),
+    /// 所以列在最前的是**当下生效**的那个。作用域外、或 `Dispose` 之后就列不出来了 ——
+    /// 接口是"在这个作用域里生效"的东西,不是烙在类型上的标记。
+    ///
+    /// 去重走线性扫:接口个数本来就是个位数,而 `ObjectVal` 的相等是身份、哈希却还是 record
+    /// 那套(会顺着成员表往下递归),不值当为它开 HashSet。
+    ///
+    /// 入口在 `CallInto` 的 `BoundImplementsQuery` 一格 —— 这活儿要当前作用域,只有求值器有。</summary>
+    internal static RuntimeValue Implements(Interpreter interp, ObjectVal cls)
+    {
+        var found = new List<RuntimeValue>();
+        for (var s = interp.CurrentScope; s != null; s = s.Parent)
+        {
+            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
+
+            for (var i = reg.Elements.Count - 1; i >= 0; i--)
+            {
+                if (!IsLiveEntry(reg.Elements[i], out var impl)) continue;
+                if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
+                if (!cls.IsAssignableTo(target)) continue;
+                if (found.Any(x => ReferenceEquals(x, impl.Type))) continue;
+                found.Add(impl.Type);
+            }
+        }
+
+        return new ListVal(found);
+    }
+
     internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
         for (var s = interp.CurrentScope; s != null; s = s.Parent)
