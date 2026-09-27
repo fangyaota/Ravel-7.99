@@ -76,6 +76,19 @@ public partial class Interpreter
         Return(nf, right);
     }
 
+    /// <summary>取左值类型上这个运算符的实现,并绑好接收者。`Builtin` 为真表示它是内置同步方法
+    /// ——绑完能当场算,不必推帧;类运算符(`BuiltinClasses.DefineClassOperator`)和
+    /// by 属性的 getter/setter 不是,得走 `CallInto`。
+    ///
+    /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
+    /// 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。</summary>
+    private static (FunctionVal Bound, bool Builtin) BindOperator(RuntimeValue left, string op)
+    {
+        var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal
+                 ?? throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
+        return (ObjectVal.BindMethod(fn, left), fn is BuiltinMethodVal);
+    }
+
     private void StepBinaryOp(NodeFrame nf, BinaryExpr bin)
     {
         var left = nf.Result(0);
@@ -88,34 +101,24 @@ public partial class Interpreter
 
         if (bin.Op is "+=" or "-=" or "*=" or "/=" or "%=")
         {
-            var op = bin.Op[..1];
-            var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal;
-            if (fn == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
-            var bound = ObjectVal.BindMethod(fn, left);
-            if (fn is not BuiltinMethodVal)
+            if (bin.Left is not IdentifierExpr target)
+                throw new RuntimeException("复合赋值目标必须是变量");
+            var (bound, builtin) = BindOperator(left, bin.Op[..1]);
+            if (!builtin)
             {
-                var target = bin.Left is IdentifierExpr id2 ? id2.Name : null;
-                if (target == null) throw new RuntimeException("复合赋值目标必须是变量");
-                PushCallAssign(nf, bound, right, target);
+                PushCallAssign(nf, bound, right, target.Name);
                 return;
             }
 
             var r = bound.Body(right);
-            if (bin.Left is IdentifierExpr id) nf.Scope.Assign(id.Name, r);
-            else throw new RuntimeException("复合赋值目标必须是变量");
+            nf.Scope.Assign(target.Name, r);
             Return(nf, r);
             return;
         }
 
-        var builtin = left.Type.MemberScope.LookupField(bin.Op)?.Value as FunctionVal;
-        // 运算符本身总是先过词法/语法的,所以「查不到方法」只可能是**左边的类型**没定义它。
-        // 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。
-        if (builtin == null) throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{bin.Op}'");
-        var bound2 = ObjectVal.BindMethod(builtin, left);
-        if (builtin is BuiltinMethodVal)
-            Return(nf, bound2.Body(right));
-        else
-            CallInto(nf.Parent!, bound2, right);
+        var (opFn, opBuiltin) = BindOperator(left, bin.Op);
+        if (opBuiltin) Return(nf, opFn.Body(right));
+        else CallInto(nf.Parent!, opFn, right);
     }
 
     /// <summary>成员复合赋值 `a.b += v`:先求对象(只求一次),再读成员、算、写回。
@@ -143,11 +146,8 @@ public partial class Interpreter
 
         if (nf.Count == 2)
         {
-            var fn = field.Value.Type.MemberScope.LookupField(op)?.Value as FunctionVal
-                     ?? throw new RuntimeException($"类型 {field.Value.Type} 不支持运算符 '{op}'");
-            var bound = ObjectVal.BindMethod(fn, field.Value);
-
-            if (fn is BuiltinMethodVal)
+            var (bound, builtin) = BindOperator(field.Value, op);
+            if (builtin)
             {
                 var r = bound.Body(nf.Result(1));
                 field.Assign(r);
@@ -181,10 +181,8 @@ public partial class Interpreter
 
         if (nf.Count == 3)
         {
-            var left = nf.Result(2);
-            var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal
-                     ?? throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
-            CallInto(nf, ObjectVal.BindMethod(fn, left), nf.Result(1));
+            var (bound, _) = BindOperator(nf.Result(2), op);
+            CallInto(nf, bound, nf.Result(1));
             return;
         }
 

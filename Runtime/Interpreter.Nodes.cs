@@ -253,7 +253,8 @@ public partial class Interpreter
 
         var val = nf.Result(valueAt);
         var dt = hasType ? AsClass(nf.Result(0), v.Name) : val.Type;
-        if (v.TypeAnnotation != null && !val.Type.IsAssignableTo(dt))
+        // 没写注解时 dt 就是值自己的类型,一定"可赋值" —— 不必再判一次注解在不在
+        if (!val.Type.IsAssignableTo(dt))
         {
             var cv = TryConvert(val, dt, out var why);
             if (cv != null) val = cv;
@@ -266,9 +267,8 @@ public partial class Interpreter
         if (v.Attrs != null)
             foreach (var a in v.Attrs)
                 vr.SetAttr(a);
-        // `::=` 同时给函数和**类对象**命名:两者的 Name 都实现自 IFunction
-        // (类对象的落在它 Scope 的 `name` 成员上)
-        if (v.Named && val is IFunction named)
+        // `::=` 同时给函数和**类对象**命名:两者的 Name 都是成员表里的 `name` 成员
+        if (v.Named && val is ObjectVal named)
         {
             named.Name = v.Name;
         }

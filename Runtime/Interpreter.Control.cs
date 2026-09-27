@@ -29,31 +29,14 @@ public partial class Interpreter
         var body = cf.Arg<BlockVal>(1, "with");
         if (cf.Count == 0)
         {
-            var copy = obj switch
-            {
-                // 函数/类对象不是"带字段的数据":`with` 对它们等于原样(块跑在调用点的词法作用域里)。
-                // 这条必须排在 ObjectVal 之前 —— FunctionVal 现在**也是** ObjectVal。
-                FunctionVal => obj,
-                // 容器有各自的浅拷贝法,也得排在 ObjectVal 之前(它们现在也是 ObjectVal)。
-                // 成员表要跟着副本走(和 CopyObject 一个道理):块里 `tag = …` 那种赋值
-                // 找的是副本的成员表,给空表的话会报"无法给未定义变量赋值"。
-                ListVal lv => new ListVal([.. lv.Elements], BuiltinClasses.CopyScope(lv.Scope)),
-                SetVal sv => new SetVal([.. sv.Elements], BuiltinClasses.CopyScope(sv.Scope)),
-                DictVal dv => new DictVal(new Dictionary<string, RuntimeValue>(dv.Entries),
-                    BuiltinClasses.CopyScope(dv.Scope)),
-                // 这三个今天也是"原样返回"(块跑在自己的捕获作用域里),不能让
-                // ObjectVal 那条臂把它们拷成一个普通对象 —— 那样模块就不再是模块了
-                // (`EnterModule`/`_modules` 靠 `as ModuleVal` 认它)。
-                ModuleVal or PropertyVal or ScopeVal => obj,
-                ObjectVal ov => BuiltinClasses.CopyObject(ov),
-                _ => obj
-            };
+            var copy = BuiltinClasses.CopyValue(obj);
             var newCf = cf with { State = copy };
-            // 只有**真的拷出了副本**的那些,块才跑在副本的成员表里;其余(原子值、函数、上面没列的)
-            // 跑在 body 自己的捕获作用域里。判据不能写 `copy is ObjectVal` —— 函数也是 ObjectVal,
-            // 那样会把块的作用域换成函数自己的成员表。
-            var bodyScope = !ReferenceEquals(copy, obj) && copy is ObjectVal ov2
-                ? ov2.Scope.Push()
+            // 只有**真的拷出了副本**的那些,块才跑在副本的成员表里;其余(原子值、函数/类对象、
+            // 模块/属性/作用域值 —— 都是原样交回的)跑在 body 自己的捕获作用域里。
+            // 判据不能写 `copy is ObjectVal`:函数也是 ObjectVal,那样会把块的
+            // 作用域换成函数自己的成员表。
+            var bodyScope = !ReferenceEquals(copy, obj)
+                ? ((ObjectVal)copy).Scope.Push()
                 : body.CaptureScope.Push();
             _top = new BlockExecFrame(body.Block) { Parent = newCf, Scope = bodyScope };
             return;

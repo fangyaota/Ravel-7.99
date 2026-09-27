@@ -11,7 +11,7 @@
 ///
 /// 成员全在 <see cref="Scope"/> 里——方法、字段、`init`、`parent`、`block` 一视同仁。
 /// 沿原型链的查找见 <see cref="LookupInChain{T}"/>。</summary>
-public record ObjectVal : RuntimeValue, IFunction
+public record ObjectVal : RuntimeValue
 {
     /// <summary>元类(创建者)。**类型是 `ClassVal`** —— 能当元类的必然是类对象,
     /// 于是"ClassType 一定是个类"由编译器看着。
@@ -96,7 +96,10 @@ public record ObjectVal : RuntimeValue, IFunction
         }
     }
 
-    /// <summary>类名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)</summary>
+    /// <summary>类名/函数名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)。
+    ///
+    /// 是成员表里的一个普通成员,所以函数和类对象一视同仁地有它
+    /// (`::=` 命名、`F.name` 读写都落在这一条上)—— 不需要另立一个接口来统一两者。</summary>
     public string? Name
     {
         get => (Scope.LookupField(NameMember)?.Value as StringVal)?.Value;

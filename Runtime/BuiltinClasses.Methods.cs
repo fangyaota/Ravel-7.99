@@ -24,32 +24,7 @@ internal static partial class BuiltinClasses
     private static void RegisterObjectMethods()
     {
         Object.DefineMethod("ToString", (s, _) => new StringVal(s.ToString()));
-        Object.DefineMethod("Copy", (s, _) =>
-        {
-            switch (s)
-            {
-                case IntVal v: return new IntVal(v.Value);
-                case FloatVal v: return new FloatVal(v.Value);
-                case BoolVal v: return new BoolVal(v.Value);
-                case StringVal v: return new StringVal(v.Value);
-                case BigIntVal v: return new BigIntVal(v.Value);
-                case FractionVal v: return new FractionVal(v.Num, v.Den);
-                case BigFractionVal v: return new BigFractionVal(v.Num, v.Den);
-                // 容器的成员表跟着副本走 —— 和 CopyObject 一个道理(它们现在也是 ObjectVal)
-                case ListVal v: return new ListVal([.. v.Elements], CopyScope(v.Scope));
-                case SetVal v: return new SetVal([.. v.Elements], CopyScope(v.Scope));
-                case DictVal v: return new DictVal(new Dictionary<string, RuntimeValue>(v.Entries), CopyScope(v.Scope));
-                // 函数/类对象"拷"出来只会变成一个不可调用的普通对象 —— 原样交回。
-                // 排在 ObjectVal 之前:FunctionVal 现在也是 ObjectVal。
-                case FunctionVal v: return v;
-                // 模块/属性/作用域值也原样交回(理由同 StepWith);它们现在也是 ObjectVal
-                case ModuleVal v: return v;
-                case PropertyVal v: return v;
-                case ScopeVal v: return v;
-                case ObjectVal v: return CopyObject(v);
-                default: return s;
-            }
-        });
+        Object.DefineMethod("Copy", (s, _) => CopyValue(s));
         // **枚举那个 Scope** —— 所有成员(字段和方法一视同仁)都在它里面,
         // 没有"猜哪张表"这一步。这里从前是两圈:一圈扫实例作用域里的**数据字段**,
         // 一圈沿类型链扫**方法名**,于是同一个类体里定义的东西一个列得出、一个列不出
@@ -224,10 +199,10 @@ internal static partial class BuiltinClasses
 
     private static void RegisterFunctionMethods()
     {
-        // Name / scope 走 IFunction:函数和类对象都有这两个,不用转
+        // Name 落在成员表里(ObjectVal.Name),函数和类对象都有,不用转
         Function.DefineMethod("Name", (s, a) =>
         {
-            var f = (IFunction)s;
+            var f = (ObjectVal)s;
             if (a is StringVal sv)
             {
                 f.Name = sv.Value;
@@ -351,9 +326,31 @@ internal static partial class BuiltinClasses
     private static FunctionVal RebindFn(FunctionVal f, Scope dst)
         => f is LambdaVal lam ? lam with { CaptureScope = dst } : f;
 
+    /// <summary>浅拷贝一个值 —— `obj.Copy ()` 和 `with` **共用这一份**。
+    ///
+    /// 只有"带字段的数据"才有副本可谈:
+    /// - **函数/类对象**"拷"出来只会变成一个不可调用的普通对象,**模块**被拷成普通对象后
+    ///   `EnterModule`/`_modules` 就认不出它了,**属性/作用域值**同理 —— 一律原样交回。
+    /// - **原子值**是值语义的 record,交回自己和交回副本在 `==` 下没有区别,不必逐个列。
+    ///
+    /// 后两条都靠"原样交回"表达,所以调用方 `ReferenceEquals(结果, 原值)` 就能问出
+    /// "到底拷没拷"(`with` 用它决定块跑在副本的成员表里还是自己的捕获作用域里)。
+    /// **会交出不同引用的只有**下面那三条容器臂和 `ObjectVal` 那条 —— 副本一律是 `ObjectVal`。</summary>
+    internal static RuntimeValue CopyValue(RuntimeValue v) => v switch
+    {
+        // 容器的成员表跟着副本走 —— 和 CopyObject 一个道理(它们也是 ObjectVal)
+        ListVal l => new ListVal([.. l.Elements], CopyScope(l.Scope)),
+        SetVal s => new SetVal([.. s.Elements], CopyScope(s.Scope)),
+        DictVal d => new DictVal(new Dictionary<string, RuntimeValue>(d.Entries), CopyScope(d.Scope)),
+        // 必须排在 ObjectVal 之前:这四类现在也是 ObjectVal
+        FunctionVal or ModuleVal or PropertyVal or ScopeVal => v,
+        ObjectVal o => CopyObject(o),
+        _ => v,
+    };
+
     /// <summary>拷贝一个对象:新实例 scope(方法闭包重绑,见 CopyScope)+ `this` 指向副本。
-    /// `with` 和 `obj.Copy ()` 都要这一套——漏掉重绑 `this` 的话,副本里写 `this.v = n`
-    /// 会落到原对象上,而裸写 `v = n` 却是对的,行为自相矛盾。</summary>
+    /// 漏掉重绑 `this` 的话,副本里写 `this.v = n` 会落到原对象上,
+    /// 而裸写 `v = n` 却是对的,行为自相矛盾。</summary>
     internal static ObjectVal CopyObject(ObjectVal src)
     {
         var copy = new ObjectVal(src.ClassType, CopyScope(src.Scope));

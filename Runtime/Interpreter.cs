@@ -9,7 +9,6 @@ public partial class Interpreter
     /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>
     public Scope CurrentScope { get; set; }
 
-    /// <summary>内建类型名 → ObjectVal 速查表</summary>
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>
     public Interpreter()
     {
@@ -67,9 +66,6 @@ public partial class Interpreter
 
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
     public RuntimeValue Interpret(Program p) => RunStack(p);
-
-    /// <summary>Ravel 错误:抛 RuntimeException(路由到 Ex.throw 后续再做)</summary>
-    internal void ThrowRavel(string msg) => throw new RuntimeException(msg);
 
     /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行</summary>
     internal bool CheckFieldAccess(Variable field, ObjectVal obj)

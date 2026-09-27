@@ -72,17 +72,16 @@ public partial class Interpreter
                 var chosen = pb.Value ? pb.Then : elseBlock;
                 _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope.Push() };
                 break;
-            // 对象实例(带上没被上面接住的一般 FunctionVal)—— 不是函数就是不能调。
-            // **必须排在最后、且必须排掉函数**:`FunctionVal` 现在也是 `ObjectVal`,
-            // 排在前面会把上面那些函数分支全吃掉(编译器直接报 CS8120),不排掉函数则会把
-            // "普通 FunctionVal 走 default: 直接算 Body"这条也吃掉 —— 症状是所有内置方法调用
-            // 都报「值 <function> 不是函数,不能调用」。
-            case ObjectVal ov when ov is not FunctionVal:
-                throw new RuntimeException($"值 {ov} 不是函数，不能调用");
-            default:
-                if (fn is not FunctionVal fv) throw new RuntimeException($"值 {fn} 不是函数，不能调用");
+            // 剩下的普通函数(内置方法、转换器、C# 造的闭包…):它们的体是同步的,当场算。
+            // **这一臂必须排在最后**:ClassVal/BoolVal/BlockVal/… 全是 `FunctionVal`,
+            // 排在前面会把上面那些"按类型先分派"的分支全吃掉(症状是所有内置方法调用
+            // 都报「值 <function> 不是函数,不能调用」)。
+            case FunctionVal fv:
                 _top = sink.WithResult(fv.Body(arg));
                 break;
+            // 非函数的值(原子值、普通对象、容器、模块…)：不能调
+            default:
+                throw new RuntimeException($"值 {fn} 不是函数，不能调用");
         }
     }
 
