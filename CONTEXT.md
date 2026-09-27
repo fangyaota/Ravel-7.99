@@ -536,8 +536,7 @@ IEnumerator ::= interface { by MoveNext : function = default
   `StepImplMake` 那两段照旧;`interface` 的 init 是**一个 C# 分流器**(四种写法都在一个参数上,
   而且第二三个可选,`Alternate` 表达不了):代码块 / 要求表 / 接口〔后面可再跟一张要求表〕/
   类〔造实现〕/ 兜底报错。
-  `T.Parent ()` 给链上那个,`T.Parents ()` 包成 list(谁都有:普通类 `[Object]`、
-  `int` `[ValueType]`、`object` `[Object]`)。
+
 - **两个方向的查询**(都在 `Type` 上,所以任何类型对象、接口对象都有):
   - `T.GetImplements ()` —— 这个类型**现在**实现了哪些接口(接口对象组成的 list);
   - `I.GetImplementors ()` —— **现在**哪些类型实现了这个接口(目标类组成的 list);
@@ -740,7 +739,6 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 int.name          # "Integer"
 int.Parent ()     # ValueType
 int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
-int.Parents ()    # [ValueType] —— 直接继承的那些,包成 list(见「接口与实现」)
 1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
 I.GetImplementors () # 反过来:**现在**哪些类型实现了这个接口

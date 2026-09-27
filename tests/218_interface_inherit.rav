@@ -9,7 +9,7 @@
 # - 要求是**前置条件**:实现这个接口的类必须**已经**有那些接口的实现 —— 槽不并、
 #   `<:` 也不成立(`masterTrait <: IEnumerable` 是 false),只在造实现那一步查有没有。
 #
-# `Parent ()` 给链上那个(接口也只继承一个),`Parents ()` 包成 list,谁都有、永不空。
+# `Parent ()` 给链上那个(接口也只继承一个,和类一样)。
 
 myTrait ::= interface {
     by a : int = default
@@ -31,9 +31,7 @@ reqOnly ::= interface [IEnumerable] {
 
 # ---- 谁继承谁 ----
 print (supTrait.Parent ())
-print (supTrait.Parents ())
 print (masterTrait.Parent ())
-print (masterTrait.Parents ())
 print (supTrait <: myTrait)
 print (masterTrait <: supTrait)
 print (masterTrait <: myTrait)
@@ -42,10 +40,6 @@ print (masterTrait <: myTrait)
 print (masterTrait <: IEnumerable)
 print (reqOnly <: IEnumerable)
 
-# ---- 别的类型问 Parents (),也永远有一项 ----
-print (myTrait.Parents ())
-print (int.Parents ())
-print (object.Parents ())
 
 C ::= class {
     x : int = 0
@@ -127,17 +121,12 @@ try {
 } (err: Exception) => { print ("6: " + string err); }
 # --- expected ---
 # myTrait
-# [myTrait]
 # supTrait
-# [supTrait]
 # true
 # true
 # true
 # false
 # false
-# [Object]
-# [ValueType]
-# [Object]
 # 1: `masterTrait` 要求 C 已经实现了 IEnumerable（先给它 impl/use 一条）
 # 10
 # true

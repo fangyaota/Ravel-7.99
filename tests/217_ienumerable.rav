@@ -14,7 +14,6 @@
 
 # ---- 它是什么 ----
 print (IEnumerable.Parent ())
-print (IEnumerable.Parents ())   # 没继承谁 → 链上那一个(库里的接口都是这样)
 print (typeof IEnumerable)
 print (IEnumerable is interface)
 print ([1 2 3] is IEnumerable)
@@ -95,7 +94,6 @@ try { foreach 5 (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string 
 try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + string e2); }
 # --- expected ---
 # Object
-# [Object]
 # Interface
 # true
 # true

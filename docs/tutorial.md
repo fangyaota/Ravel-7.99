@@ -1590,8 +1590,6 @@ masterTrait ::= interface supTrait [IEnumerable] {   # 父 + 要求；`{ () }` �
 
   （写 `use` 还是 `impl` 由你：要求查的是"当下这个作用域里有没有生效中的实现"。）
 - 只写要求不写父也行：`interface [IEnumerable] { … }`。
-- `Parent ()` 给链上那个父，`Parents ()` 包成 list 给你（谁都有：普通类 `[Object]`、
-  `int` `[ValueType]`、`object` `[Object]`）。
 
 #### 查一个类型现在实现了什么
 
