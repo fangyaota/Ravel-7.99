@@ -1429,7 +1429,9 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 `myImplement` 自己反过来天然成立：`myImplement is myTrait` 为真（它的类型就是那个接口）。
 `Dispose ()` 之后的赋值照旧报「无法将 myClass 赋值给 myTrait」—— 和 `u.a` 一起失效。
 
-`Type.Is`（`myTrait.Is u`）问的是"类型"，仍是名义判定，不认接口。
+`Is` 是**类型对类型**的反射（`int.Is object` 问 Integer 是不是 Object 的子类型，参数得是个类对象），
+站在类型那一侧，看不到作用域里的实现，所以它不认接口 —— `(typeof u).Is myTrait` 是 false，
+而 `u is myTrait` 是 true。
 
 #### 叠几个实现
 

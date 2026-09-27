@@ -34,6 +34,15 @@ print (typeof 1 is type)
 print (typeof 1 is int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
 print ((typeof 1).Is int)   # 想比"是不是这个类型"用 `Is`(类对象上的方法)
 
+# ---- `Is` 问的是**类型对类型**:参数得是个类对象 ----
+# 传实例进去曾经静默给 false(`C.Is (C ())` 读起来像"这个实例是不是 C",其实是
+# "C 是不是那个实例的子类型")—— 现在当场报出来。
+C ::= class {
+    n : int = 0
+}
+print ((typeof (C ())).Is C)
+Ex.Try { C.Is (C ()); } (e: Exception) => { print ("Is 要类对象: " + string e); }
+
 # ---- 右边得是个类型 ----
 using "try.rav"
 Ex.Try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
@@ -58,5 +67,7 @@ print "done"
 # true
 # false
 # true
+# true
+# Is 要类对象: type.Is 需要一个类对象（问“值是不是这个类型”用 `x is T`），得到 C 的实例
 # 右边不是类型: 'is' 的右边要是一个类型，得到 Integer
 # done

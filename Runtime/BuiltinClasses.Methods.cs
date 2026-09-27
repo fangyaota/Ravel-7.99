@@ -170,9 +170,14 @@ internal static partial class BuiltinClasses
             if (p == null || p == t) return s;      // 自引用(链到头)就返回自己
             return p;
         });
+        // `A.Is B` 问的是**类型对类型**:A 是不是 B 的子类型(`int.Is object` ✓)。
+        // 参数得是个**类对象** —— 传实例进来(`C.Is (C ())`)从前静默给 false:
+        // 那是"值是不是这个类型"的问题,该写 `x is C` 或 `(typeof x).Is C`。
         Type.DefineMethod("Is", (s, a) =>
         {
-            if (a is not ObjectVal other) throw new RuntimeException("type.Is 需要 type 参数");
+            if (a is not ObjectVal { IsClass: true } other)
+                throw new RuntimeException(
+                    $"type.Is 需要一个类对象（问“值是不是这个类型”用 `x is T`），得到 {a.Type} 的实例");
             return new BoolVal(((ObjectVal)s).IsAssignableTo(other));
         });
         Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));

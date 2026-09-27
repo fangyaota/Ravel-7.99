@@ -532,8 +532,10 @@ myImplement.Dispose ()   # 提前取消
   (`ViaTrait` 当 `Variable.CheckAssignable` / `Assign` / `Scope.Assign` 的补充判据)。
   于是 `x : myTrait = u`、`(v: myTrait) => …`、`by h : myTrait = property …` 在实现生效期间
   都通得过,出了作用域(或 `Dispose` 之后)照旧报「无法将 … 赋值给 myTrait」。
-  这**不动 `IsAssignableTo`**(纯函数,拿不到解释器也就拿不到当前作用域),
-  **`Type.Is`(`myTrait.Is u`)也仍是名义判定** —— 它问的是"类型",不参与这一条。
+  这**不动 `IsAssignableTo`**(纯函数,拿不到解释器也就拿不到当前作用域)。
+  **`Type.Is` 也不认接口** —— 它问的是**类型对类型**(`int.Is object`:Integer 是不是 Object 的
+  子类型,参数得是个**类对象**,传实例进去现在当场报错),站在类型那一侧,看不到作用域里的实现;
+  `x is T` 才是值那一侧的判定。
 - 接口里 `= default` 的槽,实现没填就是那个"什么都不做"的默认属性(读 `()`、写丢掉)—— 和 `default`
   本来的语义一致。
 - 三条已知代价:① 实现 scope 的词法父是**实现块**的捕获作用域(接口体与实现体通常写在同一处);
