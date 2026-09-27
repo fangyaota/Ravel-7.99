@@ -5,7 +5,6 @@
         { "include": "#strings" },
         { "include": "#comments" },
         { "include": "#numbers" },
-        { "include": "#operator-decl" },
         { "include": "#modifiers" },
         { "include": "#constants" },
         { "include": "#operators" },
@@ -34,17 +33,6 @@
                 { "match": "\\b\\d+(\\.\\d+)?\\b", "name": "constant.numeric.ravel" }
             ]
         },
-        "operator-decl": {
-            "patterns": [
-                {
-                    "match": "\\b(operator)([-+*/%<>=!&|^]+)",
-                    "captures": {
-                        "1": { "name": "storage.modifier.ravel" },
-                        "2": { "name": "keyword.operator.ravel" }
-                    }
-                }
-            ]
-        },
         "modifiers": {
             "patterns": [
                 {
@@ -68,11 +56,20 @@
         "support": {
             "patterns": [
                 {
-                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|interface|function|type|void|Any|Every|Exception|ValueType|Cacher|Monad)\\b",
+                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|interface|function|type|void|Any|Every|Exception|ValueType|Cacher|Monad|IEnumerable|IEnumerator|Enumerator)\\b",
                     "name": "support.type.ravel"
                 },
                 {
                     "match": "\\b(print|while|if|foreach|do|cacher|Some|None|callcc|typeof|assert|eval|randint|with|ravel|using|use|impl|try|throw|exit|input|unsafe|currentScope|property)\\b",
+                    "name": "support.function.ravel"
+                },
+                {
+                    "match": "\\b(this|instance)\\b",
+                    "name": "variable.language.ravel"
+                },
+                {
+                    "comment": "点号后面的大驼峰 = 方法调用(`xs.Map f` / `d.Keys ()` / `Math.Sqrt x`)。字段与局部变量按约定是小写(`me.x` / `_n`),所以这条不误伤它们。",
+                    "match": "(?<=\\.)[A-Z][A-Za-z0-9_]*",
                     "name": "support.function.ravel"
                 }
             ]
