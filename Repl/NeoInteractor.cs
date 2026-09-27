@@ -252,11 +252,7 @@ public class NeoInteractor
                 }
             }
         }
-        catch (RuntimeException ex)
-        {
-            PrintError(ErrorReport.Format(ex));
-        }
-        catch (SyntaxException ex)
+        catch (Exception ex) when (ex is RuntimeException or SyntaxException)
         {
             PrintError(ErrorReport.Format(ex));
         }
@@ -299,11 +295,7 @@ public class NeoInteractor
                 if (result is not VoidVal)
                     Console.WriteLine($"==> {result}");
             }
-            catch (RuntimeException ex)
-            {
-                Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
-            }
-            catch (SyntaxException ex)
+            catch (Exception ex) when (ex is RuntimeException or SyntaxException)
             {
                 Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
             }

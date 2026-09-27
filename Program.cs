@@ -39,11 +39,9 @@ static void RunFile(string path)
     {
         new Interpreter().Interpret(Parser.ParseSource(source, path));
     }
-    catch (RuntimeException ex)
-    {
-        Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
-    }
-    catch (SyntaxException ex)
+    // 运行时错误和语法错误渲染同一份报告(位置 + 源码行 + 插入符 + 调用栈),
+    // 所以用一条 when 收下来,不必写两遍一模一样的 catch
+    catch (Exception ex) when (ex is RuntimeException or SyntaxException)
     {
         Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
     }

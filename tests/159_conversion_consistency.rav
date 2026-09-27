@@ -9,9 +9,19 @@ z: bigint = 5
 print z
 print (bigint "123")
 print (float "1.5")
+# 隐式/显式之所以一致,是因为转换表**只有一份**(ConvertDirect 按目标类调各类型的 CastToXxx,
+# 不再逐类型各抄一遍)。这两条从前正好是对着来的:
+#   `int (fraction 7 2)` 走得通,`x: int = fraction 7 2` 报「类型不匹配」
+#   `bigint 1.5` 走得通(`(BigInteger)1.5` 截断成 1),`x: bigint = 1.5` 不行
+a: int = fraction 7 2
+print a
+b: bigint = 1.5
+print b
 # --- expected ---
 # 123
 # 1.5
 # 5
 # 123
 # 1.5
+# 3
+# 1

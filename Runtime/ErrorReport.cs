@@ -13,14 +13,17 @@ namespace Ravel.Runtime;
 /// 读不到源文件(被删了、来自 eval 字符串)就只报位置,不硬凑。</summary>
 public static class ErrorReport
 {
-    /// <summary>单行版本,CLI 和测试都先用它取"标题行"</summary>
-    public static string OneLine(RuntimeException ex) => ex.Message;
-
-    public static string Format(RuntimeException ex)
-        => Render(ex.Message, new SourceSpot(ex.File, ex.Line, ex.Column), ex.Trace);
-
-    /// <summary>语法错误走同一份渲染。它没有 Ravel 调用栈——源码本身就没解析成功。</summary>
-    public static string Format(SyntaxException ex) => Render(ex.Message, ex.Spot, []);
+    /// <summary>取报告。**一个入口管两种错误** —— 运行时错误和语法错误渲染的是同一份东西,
+    /// 调用点(CLI / REPL / 测试运行器,共五处)从前都是并排两条一模一样的 catch。
+    ///
+    /// 别的异常不归它管(那是解释器自己的 bug,各调用点有自己的说法),原样给消息。</summary>
+    public static string Format(Exception ex) => ex switch
+    {
+        RuntimeException r => Render(r.Message, new SourceSpot(r.File, r.Line, r.Column), r.Trace),
+        // 语法错误没有 Ravel 调用栈——源码本身就没解析成功
+        SyntaxException s => Render(s.Message, s.Spot, []),
+        _ => ex.Message,
+    };
 
     /// <summary>位置 + 源码行 + 插入符 + 调用栈。两个 Format 都收到这里,免得画两遍。</summary>
     private static string Render(string message, SourceSpot spot, IReadOnlyList<string> trace)

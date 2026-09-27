@@ -6,6 +6,9 @@ Ex.Try { int 9999999999999; } (e: Exception) => { print ("1: " + string e); }
 Ex.Try { int (bigint 2147483648); } (e: Exception) => { print ("2: " + string e); }
 Ex.Try { int (float 100000000000000000000.0); } (e: Exception) => { print ("3: " + string e); }
 Ex.Try { int (bigfraction 2147483648 1); } (e: Exception) => { print ("4: " + string e); }
+# bigint 那条同款:`(BigInteger)double` 对 NaN/Inf 抛 C# 的 OverflowException,照样漏到顶层
+Ex.Try { bigint NaN; } (e: Exception) => { print ("5: " + string e); }
+Ex.Try { bigint Inf; } (e: Exception) => { print ("6: " + string e); }
 # 装得下的照常
 print (int 2147483647)
 print (int (bigint 0 - 2147483648))
@@ -24,6 +27,8 @@ print y
 # 2: 数值 2147483648 超出 int 范围（int 是 32 位，大数用 bigint）
 # 3: 数值 1E+20 超出 int 范围（int 是 32 位，大数用 bigint）
 # 4: 数值 2147483648 超出 int 范围（int 是 32 位，大数用 bigint）
+# 5: 数值 NaN 不能转换为 bigint（NaN 和无穷没有对应的整数）
+# 6: 数值 Inf 不能转换为 bigint（NaN 和无穷没有对应的整数）
 # 2147483647
 # -2147483648
 # 3

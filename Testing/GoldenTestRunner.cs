@@ -71,13 +71,9 @@ internal static class GoldenTestRunner
         {
             new Interpreter().Interpret(Parser.ParseSource(source, file));
         }
-        catch (RuntimeException ex)
+        // 语法错误也是「用户代码的问题」,和运行时错误一样算正常的 Error 输出
+        catch (Exception ex) when (ex is RuntimeException or SyntaxException)
         {
-            return "Error: " + ErrorReport.Format(ex);
-        }
-        catch (SyntaxException ex)
-        {
-            // 语法错误也是「用户代码的问题」,和运行时错误一样算正常的 Error 输出
             return "Error: " + ErrorReport.Format(ex);
         }
         catch (ExitException ex)

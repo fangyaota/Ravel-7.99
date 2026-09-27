@@ -97,11 +97,17 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 float");
     }
 
+    // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型
+    // 分发到这几个 CastToXxx 上),会转不出来。
     private static RuntimeValue CastToBool(RuntimeValue val)
-        => val is DefaultVal ? new BoolVal(false) : ConvertDirect(Bool, val);
+        => val is DefaultVal ? new BoolVal(false)
+            : val is BoolVal b ? b
+            : throw new RuntimeException($"无法将 {val.Type} 转换为 bool");
 
     private static RuntimeValue CastToString(RuntimeValue val)
-        => val is DefaultVal ? new StringVal("") : ConvertDirect(String, val);
+        => val is DefaultVal ? new StringVal("")
+            : val is StringVal s ? s
+            : new StringVal(val.ToString());
 
     private static RuntimeValue CastToBigInt(RuntimeValue val)
     {
@@ -114,7 +120,12 @@ internal static partial class BuiltinClasses
             throw new RuntimeException("无法将字符串转换为 bigint");
         }
 
-        if (val is FloatVal f) return new BigIntVal((System.Numerics.BigInteger)f.Value);
+        if (val is FloatVal f)
+            // `(BigInteger)double` 对 NaN/Inf 抛的是 C# 的 OverflowException ——
+            // 它不是 RuntimeException,Ravel 的 try 接不住,会一路把程序打掉。
+            return double.IsNaN(f.Value) || double.IsInfinity(f.Value)
+                ? throw new RuntimeException($"数值 {f} 不能转换为 bigint（NaN 和无穷没有对应的整数）")
+                : new BigIntVal((System.Numerics.BigInteger)f.Value);
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigint");
     }
 
@@ -156,52 +167,37 @@ internal static partial class BuiltinClasses
     private static RuntimeValue CastToException(RuntimeValue val)
         => new ExceptionVal(val.ToString());
 
-    /// <summary>同步类型转换（隐式转换用）：失败抛异常，仅支持安全转换</summary>
+    /// <summary>同步类型转换（隐式转换用）：失败抛异常，仅支持安全转换。
+    ///
+    /// **只做分发** —— 每个类型"能收什么"写在各类型的 `CastToXxx` 里,这里按目标类选一个。
+    /// 从前每个类型在这又抄了一遍,于是显式 `int (fraction 7 2)` 走得通而
+    /// `x: int = fraction 7 2` 报「类型不匹配」、`bigint 1.5` 走得通而隐式不行:
+    /// 同一件事两条路两种结果(见 `tests/159`)。隐式失败会被 `TryConvert` 吞掉变成
+    /// 「类型不匹配」,所以越界也照常走同一套检查、报同一句话。
+    ///
+    /// 这里的失败是**正常**的:`TryConvert` 靠它决定"不值一换",
+    /// 不像 `CastToXxx` 由构造器调用时那样等于直接报错。</summary>
     internal static RuntimeValue ConvertDirect(ObjectVal target, RuntimeValue val)
     {
+        if (target == Int) return CastToInt(val);
+        if (target == Float) return CastToFloat(val);
+        if (target == Bool) return CastToBool(val);
+        if (target == String) return CastToString(val);
+        if (target == BigInt) return CastToBigInt(val);
+        // 容器和函数没有"从一个值转换过来"这回事,只认 default(空容器 / 空函数)。
+        // 分数那两条也在这一格:**它们对别的值有别的意思**(`fraction 3` 是"还等一个分母",
+        // 交出的是半个构造器),不能像上面那样按目标类整批委派。
         if (val is DefaultVal)
         {
-            if (target == Int) return new IntVal(0);
-            if (target == Float) return new FloatVal(0);
-            if (target == Bool) return new BoolVal(false);
-            if (target == String) return new StringVal("");
             if (target == List) return new ListVal([]);
             if (target == Set) return new SetVal([]);
             if (target == Dict) return new DictVal([]);
-            if (target == BigInt) return new BigIntVal(0);
+            if (target == Function) return FunctionVal.From(_ => VoidVal.Instance);
             if (target == Fraction) return new FractionVal(0, 1);
             if (target == BigFraction) return new BigFractionVal(0, 1);
-            if (target == Function) return FunctionVal.From(_ => VoidVal.Instance);
             return val;
         }
 
-        // 隐式和显式(`int x`)该收同一批东西,差别只在失败时报什么:
-        // 这里失败会被 TryConvert 吞掉变成「类型不匹配」,所以越界也走同一套检查
-        if (target == Int)
-            return val is IntVal i ? i :
-                val is FloatVal f ? FromDouble(f.Value) :
-                val is StringVal s ? new IntVal(int.TryParse(s.Value, out var sn)
-                    ? sn : throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）")) :
-                val is BoolVal b ? new IntVal(b.Value ? 1 : 0) :
-                val is BigIntVal bi ? FromBig(bi.Value) :
-                throw new RuntimeException($"无法将 {val.Type} 转换为 int");
-        if (target == Float)
-            return val is IntVal i2 ? new FloatVal(i2.Value) :
-                val is FloatVal f2 ? f2 :
-                val is BigIntVal bi2 ? new FloatVal((double)bi2.Value) :
-                val is StringVal fs ? new FloatVal(double.TryParse(fs.Value, out var fn)
-                    ? fn : throw new RuntimeException($"无法将字符串 '{fs.Value}' 转换为 float")) :
-                throw new RuntimeException($"无法将 {val.Type} 转换为 float");
-        if (target == BigInt)
-            // 和 CastToBigInt 对齐:显式 `bigint "123"` 走得通,隐式 `x: bigint = "123"` 也该走得通
-            return val is BigIntVal bi2 ? bi2 :
-                val is IntVal ib ? new BigIntVal(ib.Value) :
-                val is StringVal bs ? new BigIntVal(System.Numerics.BigInteger.TryParse(bs.Value, out var bn) ? bn : throw new RuntimeException($"无法将字符串 '{bs.Value}' 转换为 bigint")) :
-                throw new RuntimeException("无法转换为 bigint");
-        if (target == String)
-            return val is StringVal sv ? sv : new StringVal(val.ToString());
-        if (target == Bool)
-            return val is BoolVal b3 ? b3 : throw new RuntimeException("无法转换为 bool");
         throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}");
     }
 
