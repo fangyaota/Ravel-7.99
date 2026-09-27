@@ -1,12 +1,25 @@
 # 运行时错误(不只是显式 Ex.Throw)也能被 try 接住。
 # 求值器在异常冒泡到最内层时,把它交给 Ex 模块 HandlerStack 的栈顶 handler;
 # 调用前先把 handler 弹出栈——否则 handler 自己出错时会又交给它,无限递归。
-Ex.Try {
+# `try` / `throw` 是 `Ex.Try` / `Ex.Throw` 的小写别名(predefined.rav 末尾给的):
+# 名字大小写分开,和 `print` / `typeof` 那批一致。
+try {
     print (1 + true)
 } (e: Exception) => {
     print ("caught: " + string e)
 }
 print "after"
+
+print (try { 2 + 3; } (e: Exception) => { 0; })     # 没出错时,值就是体的值
+try {
+    throw (Exception "boom")
+} (e: Exception) => {
+    print ("thrown: " + string e)
+}
+Ex.Try { print "Ex.Try 一样能用"; } (e: Exception) => { 0; }
 # --- expected ---
 # caught: 运算符 '+' 不支持 Bool 操作数
 # after
+# 5
+# thrown: boom
+# Ex.Try 一样能用

@@ -94,7 +94,8 @@ lib/
                           两个类型都进 AllTypes(`Subtypes ()` 看得到)
                           末尾一段 `ravel "Ex"` … `ravel ""`:异常处理(HandlerStack + callcc
                           实现 Ex.Try/Ex.Throw)。从前是单独的 try.rav,并进来了 ——
-                          `Ex` 人人都有,不必每个文件 `using "try.rav"`
+                          `Ex` 人人都有,不必每个文件 `using "try.rav"`;
+                          末尾还有 `readonly try := Ex.Try` / `throw := Ex.Throw` 两个小写别名
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;tests/125 跑的就是它

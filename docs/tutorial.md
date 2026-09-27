@@ -1528,14 +1528,17 @@ Math.Deg Math.Pi   # 180（角度↔弧度）
 
 ## 九、异常
 
-`Ex` 是**自带的**（`predefined.rav` 末尾那段 `ravel "Ex"` 建的），不用 `using`：
+`Ex` 是**自带的**（`predefined.rav` 末尾那段 `ravel "Ex"` 建的），不用 `using`，
+而且有小写别名 `try` / `throw`（`Ex.Try` / `Ex.Throw` 一样能用）：
 
 ```ravel
-Ex.Try {
-    Ex.Throw (Exception "oops")
+try {
+    throw (Exception "oops")
 } (e: Exception) => {
-    print "caught"
+    print "caught"        # caught
 }
+
+print (try { 2 + 3; } (e: Exception) => { 0; })    # 5 —— 没出错时值就是体的值
 
 # 未捕获
 exit "fatal error"
@@ -1595,6 +1598,7 @@ Error: 未预期的字符 '$'
 | `assert cond` | 断言 |
 | `use impl` | 在**当前作用域**启用一个接口实现（`实现.Dispose ()` 取消；见 7.11） |
 | `impl 实现` | 同上，但**全局**生效（登记在全局作用域上） |
+| `try { … } handler` | 捕获异常（`throw e` 抛出；`Ex.Try` / `Ex.Throw` 是同一样东西，见第九章） |
 
 ### Math（`using "math.rav"` 之后可用）
 

@@ -240,3 +240,8 @@ readonly Try := (body: function) => {
 }
 
 ravel ""
+
+# `Ex` 那套 API 的小写别名(和 `print` / `using` 那批一个待遇:语言级名字,标 readonly)。
+# 只能放在这儿 —— 上面那段 `ravel "Ex"` 得先把模块建出来,`ravel ""` 得先把作用域换回全局。
+readonly try := Ex.Try
+readonly throw := Ex.Throw
