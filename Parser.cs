@@ -75,11 +75,13 @@ public partial class Parser(List<Token> tokens, string? source = null)
 
     private bool Check(TokenType type) => !IsAtEnd() && Peek().Type == type;
 
-    private bool CheckNext(TokenType type)
-    {
-        if (_pos + 1 >= tokens.Count) return false;
-        return tokens[_pos + 1].Type == type;
-    }
+    /// <summary>往前数第 off 个 token 的类型(0 = 当前)。**越界当文件结束** ——
+    /// 于是所有前瞻在末尾自动为假,调用点不必各自判越界。</summary>
+    private TokenType TypeAt(int off) => _pos + off < tokens.Count ? tokens[_pos + off].Type : TokenType.EndOfFile;
+
+    private TokenType NextType() => TypeAt(1);
+
+    private bool CheckNext(TokenType type) => NextType() == type;
 
     private bool Match(TokenType type)
     {

@@ -49,6 +49,14 @@ public partial class Parser
         _ => false,
     };
 
+    /// <summary>定义符:四种写法都以它收尾(`:=` / `::=` / `: 注解 =` / `:: 注解 =`)。
+    /// 它紧跟在一个名字后面 = "这是一条定义,不是表达式" —— 这个判断散在四处,
+    /// 四钟写法列四遍,加一种就得记得回来补齐。
+    ///
+    /// (不在这里的是运算符定义的 `+ = f`,`=` 单独认,见 ParseOperatorDefinition。)</summary>
+    private static bool IsDefinitionOp(TokenType t)
+        => t is TokenType.ColonEqual or TokenType.ColonColonEqual or TokenType.ColonColon or TokenType.Colon;
+
     /// <summary>类机制内部词——禁止作为变量名（this/init 是类内可用变量，不禁）</summary>
     private static readonly HashSet<string> ReservedWords = ["thistype", "block", "core"];
 
@@ -77,45 +85,27 @@ public partial class Parser
 
         // 修饰符
         var attrs = new List<string>();
-        while (true)
+        while (Check(TokenType.Identifier))
         {
-            if (Check(TokenType.Identifier))
-            {
-                var kw = Peek().Lexeme;
-                bool isMod = IsMod(kw);
-                if (!isMod) break;
-                // 下一个 token 是定义符 → 当前是名字，不是修饰符
-                if (_pos + 1 < tokens.Count)
-                {
-                    var nt = tokens[_pos + 1].Type;
-                    if (nt == TokenType.ColonEqual || nt == TokenType.ColonColonEqual || nt == TokenType.ColonColon ||
-                        nt == TokenType.Colon)
-                        break;
-                }
-
-                _pos++;
-                attrs.Add(kw);
-            }
-            else break;
+            var kw = Peek().Lexeme;
+            if (!IsMod(kw)) break;
+            // 下一个 token 是定义符 → 当前这个是**名字**,不是修饰符(`readonly := 1`
+            // 定义的是名字叫 readonly 的变量)
+            if (IsDefinitionOp(NextType())) break;
+            _pos++;
+            attrs.Add(kw);
         }
 
         if (attrs.Count > 0)
         {
-            if (Check(TokenType.Identifier) && (CheckNext(TokenType.ColonEqual) || CheckNext(TokenType.Colon) ||
-                                                CheckNext(TokenType.ColonColonEqual) ||
-                                                CheckNext(TokenType.ColonColon)))
-                return ParseDefinition(attrs);
-            if (Check(TokenType.ColonEqual) || Check(TokenType.Colon) || Check(TokenType.ColonColonEqual) ||
-                Check(TokenType.ColonColon))
+            // `readonly x := 1`(修饰符 + 名字)或 `readonly := 1`(修饰符自己当名字)
+            if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))
                 return ParseDefinition(attrs);
             throw ParseError("修饰符后需要 ':='");
         }
 
         // 普通定义：IDENT := expr 或 IDENT : type = expr
-        // 普通定义：IDENT := expr 或 IDENT : type = expr
-        if (Check(TokenType.Identifier) &&
-            (CheckNext(TokenType.ColonEqual) || CheckNext(TokenType.Colon) ||
-             CheckNext(TokenType.ColonColonEqual) || CheckNext(TokenType.ColonColon)))
+        if (Check(TokenType.Identifier) && IsDefinitionOp(NextType()))
             return ParseDefinition();
         // IDENT = expr → 赋值
         if (Check(TokenType.Identifier) && CheckNext(TokenType.Equal))
@@ -190,29 +180,23 @@ public partial class Parser
     {
         string name;
         int line, col;
-        if (attrs is { Count: > 0 })
+        if (Check(TokenType.Identifier))
         {
-            if (Check(TokenType.Identifier))
-            {
-                var n = Consume(TokenType.Identifier, "需要变量名");
-                name = n.Lexeme;
-                line = n.Line;
-                col = n.Column;
-            }
-            else
-            {
-                // 修饰符本身当名字用(如 `readonly := ...`)
-                name = attrs[0];
-                line = Previous().Line;
-                col = Previous().Column;
-            }
+            var n = Consume(TokenType.Identifier, "需要变量名");
+            name = n.Lexeme;
+            line = n.Line;
+            col = n.Column;
+        }
+        else if (attrs is { Count: > 0 })
+        {
+            // 修饰符本身当名字用(如 `readonly := ...`):位置取刚吃掉的那个修饰符
+            name = attrs[0];
+            line = Previous().Line;
+            col = Previous().Column;
         }
         else
         {
-            var nameToken = Consume(TokenType.Identifier, "需要变量名");
-            name = nameToken.Lexeme;
-            line = nameToken.Line;
-            col = nameToken.Column;
+            throw ParseError("需要变量名");
         }
 
         Expression? typeAnnotation = null;
@@ -254,14 +238,11 @@ public partial class Parser
         if (name == "_")
             return new ExpressionStatement(value) { Line = line, Column = col };
 
-        var result = new VarDefinition(name, typeAnnotation, value, attrs, autoName)
+        return new VarDefinition(name, typeAnnotation, value, attrs, autoName)
         {
             Line = line,
             Column = col,
         };
-        if (autoName)
-            return result; // 标记由 EvalStmt 处理
-        return result;
     }
 
     private Statement ParseAssignment()

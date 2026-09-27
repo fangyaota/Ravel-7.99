@@ -107,7 +107,7 @@ public partial class Parser
             if (Match(TokenType.Arrow))
             {
                 // () => {...}  语法糖 →  (_:void) => {...}
-                var body = ParseMandatoryBlock("lambda body");
+                var body = ParseMandatoryBlock("lambda 体");
                 return new LambdaExpr(new Parameter("_", new IdentifierExpr("void") { Line = line, Column = col }), body) { Line = line, Column = col };
             }
 
@@ -130,7 +130,7 @@ public partial class Parser
 
             Consume(TokenType.RightParen, "lambda 参数后需要 ')'");
             Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
-            var body = ParseMandatoryBlock("lambda body");
+            var body = ParseMandatoryBlock("lambda 体");
 
             // 单参数：直接返回（兼容原有行为）
             if (@params.Count == 1)
@@ -138,24 +138,16 @@ public partial class Parser
 
             // 多参数消糖： (a:int b:string) => { body }
             // → (a:int) => { (b:string) => { body } }
+            // 从最里层往外套:最内层收的就是原始 body(它本来就是块),
+            // 外面几层各自再包一个「只有一条语句」的块。
             Expression result = body;
             for (int i = @params.Count - 1; i >= 0; i--)
             {
-                if (i == @params.Count - 1)
-                {
-                    // 最内层：直接使用原始 body（它已是 BlockExpr）
-                    result = new LambdaExpr(@params[i], (BlockExpr)result) { Line = line, Column = col };
-                }
-                else
-                {
-                    // 外层：把内层 lambda 包在一个 block 中返回
-                    var blockStmts = new List<Statement>
-                    {
-                        new ExpressionStatement(result) { Line = line, Column = col }
-                    };
-                    var block = new BlockExpr(blockStmts) { Line = line, Column = col, Source = source };
-                    result = new LambdaExpr(@params[i], block) { Line = line, Column = col };
-                }
+                var layer = i == @params.Count - 1
+                    ? body
+                    : new BlockExpr([new ExpressionStatement(result) { Line = line, Column = col }])
+                        { Line = line, Column = col, Source = source };
+                result = new LambdaExpr(@params[i], layer) { Line = line, Column = col };
             }
 
             return result;
@@ -190,24 +182,12 @@ public partial class Parser
             return new BlockExpr(block) { Line = line, Column = col, Source = source };
         }
 
-        // 单行无换行：检测是否为字典（IDENT : 模式）
-        var saved = _pos;
-        if (Check(TokenType.Identifier))
-        {
-            _pos++; // skip IDENT
-            if (Check(TokenType.Colon))
-            {
-                _pos++; // skip :
-                if (!Check(TokenType.Colon) && !Check(TokenType.Equal))
-                {
-                    _pos = saved;
-                    return ParseDict(line, col);
-                }
-            }
-        }
-
-        _pos = saved;
-        return ParseSet(line, col);
+        // 单行无换行：`IDENT :` 开头就是字典。
+        // 但 `x:: …` / `x: = …` 是**定义符**(见 IsDefinitionOp),不是字典的键值对。
+        // 判据全用前瞻,所以不匹配时一个 token 都没动过 —— 不必先存 _pos 再还回去。
+        var isDict = Check(TokenType.Identifier) && TypeAt(1) == TokenType.Colon
+                     && TypeAt(2) is not (TokenType.Colon or TokenType.Equal);
+        return isDict ? ParseDict(line, col) : ParseSet(line, col);
     }
 
     /// <summary>前瞻：在匹配 closing 之前是否遇到 Newline</summary>
@@ -231,7 +211,6 @@ public partial class Parser
         return false;
     }
 
-    /// <summary>前瞻：在匹配 closing 之前是否遇到运算符 token</summary>
     /// <summary>{ expr expr ... } → 集合</summary>
     private Expression ParseSet(int line, int col)
     {
@@ -269,9 +248,9 @@ public partial class Parser
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
-        Consume(TokenType.LeftBrace, $"需要 '{{' for {context}");
+        Consume(TokenType.LeftBrace, $"{context}需要 '{{' 开头");
         if (!HasNewlineBeforeClose(TokenType.RightBrace))
-            throw ParseError($"{context} 需要代码块（单行要用 ';' 收尾，多行要换行）");
+            throw ParseError($"{context}需要代码块（单行要用 ';' 收尾，多行要换行）");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }
@@ -293,11 +272,11 @@ public partial class Parser
                 throw ParseError("不允许 ',' —— 请用空格代替逗号");
             if (Match(TokenType.Newline)) continue;
             if (IsAtEnd())
-                throw ParseError($"需要 '{closingName}' after expression list");
+                throw ParseError($"列表末尾需要 '{closingName}'");
         }
     }
 
-    /// <summary>代码块 — 以换行分隔的语句，当前已在 { 之后</summary>
+    /// <summary>代码块 — 以换行分隔的语句，当前已在 { 之后)</summary>
     private List<Statement> ParseBlockStatements()
     {
         SkipNewlines();
