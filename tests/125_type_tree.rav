@@ -1,6 +1,8 @@
 ﻿# 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
 # 所以类的实例显类型名、类本身显 Type —— 没有单独的 Class 类型了,class 只是 type 的别名。
 # 注意 Ravel 下挂着 System / Ex —— 模块也是类型,它们由 RuntimeType.Define 建。
+# 最后那个 `Cacher` 是**库里定义的类型**(lib/predefined.rav 的 cacher),它也走
+# `class {…}` 那条路,所以进 AllTypes、也就出现在这棵树上。库再加类型这行就会变。
 print_tree := (t: object prefix: string) => {
     subs := t.Subtypes ()
     total := 0
@@ -54,4 +56,5 @@ print_tree object ""
 # ├── Ravel [Type]
 # ├── Exception [Type]
 # ├── Scope [Type]
-# └── Property [Type]
+# ├── Property [Type]
+# └── Cacher [Type]
