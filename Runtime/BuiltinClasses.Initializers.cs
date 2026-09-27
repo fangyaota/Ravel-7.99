@@ -17,17 +17,17 @@ internal static partial class BuiltinClasses
     /// <summary>给各内建类型装上预设类体（里面只定义 `init`，值是转换函数）</summary>
     private static void RegisterInitializers()
     {
-        Int.ClassBody = PresetBody(("init", MakeCaster(CastToInt)));
-        Float.ClassBody = PresetBody(("init", MakeCaster(CastToFloat)));
-        Bool.ClassBody = PresetBody(("init", MakeCaster(CastToBool)));
-        String.ClassBody = PresetBody(("init", MakeCaster(CastToString)));
-        BigInt.ClassBody = PresetBody(("init", MakeCaster(CastToBigInt)));
-        Fraction.ClassBody = PresetBody(("init", MakeCaster(CastToFraction)));
-        BigFraction.ClassBody = PresetBody(("init", MakeCaster(CastToBigFraction)));
-        Exception.ClassBody = PresetBody(("init", MakeCaster(CastToException)));
-        List.ClassBody = PresetBody(("init", MakeDefaultCaster(List)));
-        Set.ClassBody = PresetBody(("init", MakeDefaultCaster(Set)));
-        Dict.ClassBody = PresetBody(("init", MakeDefaultCaster(Dict)));
+        Int.ClassBody = PresetCtor(MakeCaster(CastToInt));
+        Float.ClassBody = PresetCtor(MakeCaster(CastToFloat));
+        Bool.ClassBody = PresetCtor(MakeCaster(CastToBool));
+        String.ClassBody = PresetCtor(MakeCaster(CastToString));
+        BigInt.ClassBody = PresetCtor(MakeCaster(CastToBigInt));
+        Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
+        BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
+        Exception.ClassBody = PresetCtor(MakeCaster(CastToException));
+        List.ClassBody = PresetCtor(MakeDefaultCaster(List));
+        Set.ClassBody = PresetCtor(MakeDefaultCaster(Set));
+        Dict.ClassBody = PresetCtor(MakeDefaultCaster(Dict));
         // 建类不在这里:`type` 的 init 由 InstallTypeInit 装 —— 它要用 NativeClosure
         // 看见正在构造的那个对象的 `this`,而且必须在 Object/Function/Type 都挂好之后
     }

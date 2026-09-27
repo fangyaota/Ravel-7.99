@@ -268,17 +268,7 @@ internal static partial class BuiltinClasses
         {
             if (a is not StringVal name)
                 throw new RuntimeException("scope.Lookup 需要字符串参数");
-            var scope = ((ScopeVal)s).Inner;
-            var vr = scope.Lookup(name.Value);
-            return new PropertyVal(
-                FunctionVal.From(_ => vr.Value),
-                FunctionVal.From(v =>
-                {
-                    vr.Assign(v);
-                    return VoidVal.Instance;
-                }),
-                [.. vr.Attrs]
-            );
+            return Wrap(((ScopeVal)s).Inner.Lookup(name.Value));
         });
         ScopeType.DefineMethod("Variables", (s, _) =>
         {
@@ -286,20 +276,28 @@ internal static partial class BuiltinClasses
             var d = new Dictionary<string, RuntimeValue>();
             foreach (var kv in scope.Variables)
             {
-                if (kv.Key == "this" || kv.Key == "block" || kv.Key == "thistype") continue;
-                var vr = scope.Lookup(kv.Key);
-                var getter = FunctionVal.From(_ => vr.Value);
-                var setter = FunctionVal.From(v =>
-                {
-                    vr.Assign(v);
-                    return VoidVal.Instance;
-                });
-                d[kv.Key] = new PropertyVal(getter, setter, [.. kv.Value.Attrs]);
+                if (kv.Key is ObjectVal.ThisMember or ObjectVal.BlockMember or ObjectVal.ThisTypeMember) continue;
+                d[kv.Key] = Wrap(kv.Value);
             }
 
             return new DictVal(d);
         });
     }
+
+    /// <summary>把一个变量包成 property(getter 读、setter 写),attrs 原样带上。
+    /// `scope.Lookup` 和 `scope.Variables` 都要这一套 —— 从前各写了一遍。
+    ///
+    /// 直接收 `Variable`(而不是名字)是故意的:`Variables` 正在遍历的那份变量就是它,
+    /// 再 `Lookup` 一次等于把同一个名字查两遍(而且是沿链查,不是查那层那一格)。</summary>
+    private static PropertyVal Wrap(Variable vr)
+        => new(
+            FunctionVal.From(_ => vr.Value),
+            FunctionVal.From(v =>
+            {
+                vr.Assign(v);
+                return VoidVal.Instance;
+            }),
+            [.. vr.Attrs]);
 
     private static void RegisterPropertyMethods()
     {
@@ -354,7 +352,7 @@ internal static partial class BuiltinClasses
     internal static ObjectVal CopyObject(ObjectVal src)
     {
         var copy = new ObjectVal(src.ClassType, CopyScope(src.Scope));
-        copy.Scope.DefineOrReplace("this", src.ClassType, copy);
+        copy.Scope.DefineOrReplace(ObjectVal.ThisMember, src.ClassType, copy);
         return copy;
     }
 

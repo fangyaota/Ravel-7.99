@@ -143,21 +143,19 @@ internal static partial class BuiltinClasses
     //  预设类体 —— 内置类的"类体"
     // ============================================================
 
-    /// <summary>造一段**预设类体**:内置类的类体。里面只定义它的成员。
+    /// <summary>造一段**预设类体**:内置类的类体,里面只定义它的 `init`(构造器)。
     ///
     /// 内置类的成员是 C# 造好的值(转换器、默认建类函数),写不出 Ravel 源码,
     /// 所以用 <see cref="LiteralExpr"/> 直接塞进去。这样内置类和用户类走**完全相同**的
     /// 实例化路径:跑各层类体 → 在实例作用域里找 `init` → 调它、交出它的返回值。
-    /// S1 那条 `Initializer` vs `Body` 的分叉到这里就没了。
     ///
     /// 捕获作用域给一个空 scope:体里只有 `init := <字面量值>`,不需要解析任何名字。</summary>
-    private static BlockVal PresetBody(params (string Name, RuntimeValue Value)[] members)
-    {
-        var stmts = new List<Statement>();
-        foreach (var (name, value) in members)
-            stmts.Add(new VarDefinition(name, null, new LiteralExpr(value)) { Line = 1, Column = 1 });
-        return new BlockVal(new BlockExpr(stmts) { Line = 1, Column = 1, Source = "<preset>" }, new Scope());
-    }
+    private static BlockVal PresetCtor(RuntimeValue caster)
+        => new(
+            new BlockExpr([new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(caster))
+                { Line = 1, Column = 1 }])
+                { Line = 1, Column = 1, Source = "<preset>" },
+            new Scope());
 
     /// <summary>「没有体」时交出去的那个**空块** —— 类型恒定,别拿 `()` 顶替。
     /// 见 `Function.body`。</summary>
@@ -183,7 +181,7 @@ internal static partial class BuiltinClasses
         var twoArg = new NativeClosure("parent", Type, (scope, parent) =>
             FunctionVal.From(body => Install(scope, (ObjectVal)parent, body)));
         var oneArg = new NativeClosure("body", Function, (scope, body) => Install(scope, Object, body));
-        Type.ClassBody = PresetBody(("init", Alternate(twoArg, oneArg)));
+        Type.ClassBody = PresetCtor(Alternate(twoArg, oneArg));
     }
 
     /// <summary>把 (parent, body) 装到 self 上,self 于是是一个类。返回 self ——
@@ -195,7 +193,7 @@ internal static partial class BuiltinClasses
         if (body is not BlockVal blk) throw new RuntimeException("class 需要代码块参数");
         // 正在被装成的这个对象**必然是 ClassVal**:这段只在实例化 `type` 或它的子类时跑,
         // 而 StepClassInit 正是按"被实例化的类 <: type"来决定造 ClassVal 的。
-        var self = (ClassVal)scope.Lookup("this").Value;
+        var self = (ClassVal)scope.Lookup(ObjectVal.ThisMember).Value;
         self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
         self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk);
         self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));

@@ -76,7 +76,7 @@ public partial class Interpreter
             if (cur == obj.Scope) return true;
             if (field.HasAttr(Attr.Protected))
             {
-                var t = cur.TryLookup("this");
+                var t = cur.TryLookup(ObjectVal.ThisMember);
                 if (t?.Value is ObjectVal o && o.ClassType.IsAssignableTo(obj.ClassType)) return true;
             }
         }

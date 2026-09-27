@@ -73,7 +73,7 @@ public class Scope(Scope? parent = null)
     {
         var v = TryLookup(name);
         if (v != null) return v;
-        var thisVar = TryLookup("this");
+        var thisVar = TryLookup(ObjectVal.ThisMember);
         if (thisVar?.Value is ObjectVal obj)
             return obj.Scope.LookupField(name);
         return null;

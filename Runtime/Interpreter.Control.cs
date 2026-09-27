@@ -157,7 +157,7 @@ public partial class Interpreter
             ObjectVal obj = type.IsAssignableTo(BuiltinClasses.Type)
                 ? new ClassVal(type, instanceScope)
                 : new ObjectVal(type, instanceScope);
-            instanceScope.Define("this", type, obj);
+            instanceScope.Define(ObjectVal.ThisMember, type, obj);
             _top = new BlockExecFrame(bodies[0].Block)
             {
                 Parent = cf with { State = obj },
@@ -179,7 +179,7 @@ public partial class Interpreter
         {
             // 构造器就是实例作用域里名为 init 的那个:各层平铺在同一 scope,
             // 子类的 init 覆盖父类的,所以直接找名字 = 只调最具体层声明的那个
-            var init = inst.Scope.LookupField("init")?.Value as FunctionVal
+            var init = inst.Scope.LookupField(ObjectVal.InitMember)?.Value as FunctionVal
                        ?? throw new RuntimeException($"类型 {type.DisplayName} 没有构造器（init）");
             // 调用点用**实例作用域**:init 要能看见 `this` 和各层类体落的成员。
             // 内置类的默认建类函数(NativeClosure)正是靠这个把 parent/block 装到 self 上。

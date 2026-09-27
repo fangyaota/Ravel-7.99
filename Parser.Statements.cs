@@ -58,7 +58,8 @@ public partial class Parser
         => t is TokenType.ColonEqual or TokenType.ColonColonEqual or TokenType.ColonColon or TokenType.Colon;
 
     /// <summary>类机制内部词——禁止作为变量名（this/init 是类内可用变量，不禁）</summary>
-    private static readonly HashSet<string> ReservedWords = ["thistype", "block", "core"];
+    private static readonly HashSet<string> ReservedWords =
+        [ObjectVal.ThisTypeMember, ObjectVal.BlockMember, Attr.Core];
 
     private Statement ParseStatement()
     {
@@ -78,7 +79,7 @@ public partial class Parser
 
         // 旧写法 `init ctor := ...` 同理:构造器现在只是名字叫 init 的变量,
         // 不拦下来就会去求值表达式 `init ctor`,报「未定义的变量 'init'」。
-        if (Check(TokenType.Identifier) && Peek().Lexeme == "init" &&
+        if (Check(TokenType.Identifier) && Peek().Lexeme == ObjectVal.InitMember &&
             _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Identifier &&
             _pos + 2 < tokens.Count && tokens[_pos + 2].Type is TokenType.ColonEqual or TokenType.ColonColonEqual)
             throw ParseError("构造器不再用 init 修饰符，直接写 `init := () => { ... }`");

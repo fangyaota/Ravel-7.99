@@ -38,6 +38,9 @@ public record ObjectVal : RuntimeValue
     internal const string NameMember = "name";
     internal const string InitMember = "init";
     internal const string ThisMember = "this";
+    /// <summary>`thistype` 只是**保留字**(见 Parser 的 ReservedWords),不定义一个成员:
+    /// 从前它由 `type` 的建类逻辑装到类对象上,和 `base` 一起随那套机制删了。</summary>
+    internal const string ThisTypeMember = "thistype";
 
     public override ObjectVal Type => ClassType;
 
@@ -194,9 +197,11 @@ public record ObjectVal : RuntimeValue
         var fields = new List<string>();
         foreach (var kv in Scope.Variables)
         {
-            // 只列数据字段:方法(含 init)是噪音;parent/block 是类才有的机制成员
+            // 只列数据字段:方法(含 init)是噪音;this/parent/block 是机制成员,不是这个对象的数据。
+            // `thistype` 一并排掉:它如今只是保留字(用户定义不出这个名字),但实例作用域里
+            // 或许还留着老代码的痕迹,排掉不会有副作用。
             if (kv.Value.Value.IsClosure) continue;
-            if (kv.Key is "this" or ParentMember or "base" or "thistype" or BlockMember) continue;
+            if (kv.Key is ThisMember or ParentMember or ThisTypeMember or BlockMember) continue;
             if (fields.Count == MaxFields) { fields.Add("..."); break; }
             fields.Add(kv.Key + " = " + Brief(kv.Value.Value));
         }
