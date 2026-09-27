@@ -197,7 +197,7 @@ public partial class Parser
                 arg = new MemberAccess(arg, mem) { Line = arg.Line, Column = arg.Column };
             }
 
-            expr = new CallExpr(expr, [arg])
+            expr = new CallExpr(expr, arg)
             {
                 Line = expr.Line,
                 Column = expr.Column,

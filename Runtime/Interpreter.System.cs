@@ -16,7 +16,7 @@ public partial class Interpreter
     {
         var moduleType = BuiltinClasses.NewModuleClass("System", BuiltinClasses.Ravel);
         var module = new ModuleVal(moduleType, new Scope(_global));
-        var scope = module.ModuleScope;
+        var scope = module.Scope;
 
         void Def(string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);
         // 类对象自己就是那个值,不再包一层
@@ -130,12 +130,12 @@ public partial class Interpreter
             var mt = BuiltinClasses.NewModuleClass(name, BuiltinClasses.Ravel);
             mv = new ModuleVal(mt, new Scope(_global));
             // 成员是 C# 造的那几个模块(Math),在这里填 —— 所以它们**要显式 ravel 才有**
-            if (ModuleFillers.TryGetValue(name, out var fill)) fill(mv.ModuleScope);
+            if (ModuleFillers.TryGetValue(name, out var fill)) fill(mv.Scope);
             _modules[name] = mv;
             _global.Define(name, mt, mv);
         }
 
-        SetAmbientScope(mv.ModuleScope);
+        SetAmbientScope(mv.Scope);
         return VoidVal.Instance;
     }
 }

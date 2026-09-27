@@ -87,10 +87,10 @@ public partial class Interpreter
 
         if (nf.Count == 1)
         {
-            var fn = nf.Result(0);
-            var e = call.Arguments[0];
-            if (e is BlockExpr b) CallInto(nf.Parent!, fn, new BlockVal(b, nf.Scope));
-            else PushChild(nf, e);
+            // 块参数就地包上**调用点**的作用域,不必再走一个子帧
+            // (块要晚到被调用时才跑,所以作用域得在这里定下来)
+            if (call.Argument is BlockExpr b) CallInto(nf.Parent!, nf.Result(0), new BlockVal(b, nf.Scope));
+            else PushChild(nf, call.Argument);
             return;
         }
 

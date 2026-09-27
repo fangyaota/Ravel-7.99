@@ -70,7 +70,7 @@ internal static class AstPrinter
         SetLiteral s => "{" + Join(" ", s.Elements.Select(Expr)) + "}",
         DictLiteral d => "{" + Join(" ", d.Entries.Select(x => x.Key + ": " + Expr(x.Value))) + "}",
         MemberAccess m => Atom(m.Object) + "." + m.Member,
-        CallExpr c => Atom(c.Function) + " " + Join(" ", c.Arguments.Select(Atom)),
+        CallExpr c => Atom(c.Function) + " " + Atom(c.Argument),
         BinaryExpr b => Expr(b.Left) + " " + b.Op + " " + Expr(b.Right),
         UnaryExpr u => u.Op + Atom(u.Operand),
         PipeExpr p => Expr(p.Left) + " <| " + Expr(p.Right),

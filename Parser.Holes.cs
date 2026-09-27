@@ -18,7 +18,7 @@ public partial class Parser
     {
         BinaryExpr b => [b.Left, b.Right],
         UnaryExpr u => [u.Operand],
-        CallExpr c => [c.Function, .. c.Arguments],
+        CallExpr c => [c.Function, c.Argument],
         MemberAccess m => [m.Object],
         PipeExpr p => [p.Left, p.Right],
         ListLiteral l => l.Elements,
@@ -71,7 +71,7 @@ public partial class Parser
             BinaryExpr b => new BinaryExpr(ReplaceHoles(b.Left), b.Op, ReplaceHoles(b.Right))
                 { Line = e.Line, Column = e.Column },
             UnaryExpr u => new UnaryExpr(u.Op, ReplaceHoles(u.Operand)) { Line = e.Line, Column = e.Column },
-            CallExpr c => new CallExpr(ReplaceHoles(c.Function), [.. c.Arguments.Select(ReplaceHoles)])
+            CallExpr c => new CallExpr(ReplaceHoles(c.Function), ReplaceHoles(c.Argument))
                 { Line = e.Line, Column = e.Column },
             MemberAccess m => new MemberAccess(ReplaceHoles(m.Object), m.Member) { Line = e.Line, Column = e.Column },
             PipeExpr p => new PipeExpr(ReplaceHoles(p.Left), ReplaceHoles(p.Right))

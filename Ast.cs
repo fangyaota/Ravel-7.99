@@ -51,7 +51,11 @@ public abstract record Expression : AstNode;
 public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression;
 public record StringLiteral(string Value) : Expression;
 public record IdentifierExpr(string Name) : Expression;
-public record CallExpr(Expression Function, List<Expression> Arguments) : Expression;
+/// <summary>调用:`函数 参数`。**参数只有一个** —— 多参靠柯里化,`f a b` 解析成 `(f a) b`
+/// (见 Parser.Expressions 的 juxtaposition)。从前这里存的是个 List,而它恒有一个元素:
+/// 每个读点都得写 `Arguments[0]`,还得提防"要是空了/多了呢"。
+/// 注解里的多参 lambda(`(a: int b: int) => …`)同样只是"体里再套一层 lambda"的糖。</summary>
+public record CallExpr(Expression Function, Expression Argument) : Expression;
 public record MemberAccess(Expression Object, string Member) : Expression;
 public record BinaryExpr(Expression Left, string Op, Expression Right) : Expression;
 public record UnaryExpr(string Op, Expression Operand) : Expression;

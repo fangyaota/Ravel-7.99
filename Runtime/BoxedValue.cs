@@ -6,30 +6,24 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
 {
     public RuntimeValue Value { get; } = value;
 
-    /// <summary>若 value 的 name 成员是 by 属性,返回其 getter(已做访问控制);否则返回 null。调用方走 CallInto 派发</summary>
+    /// <summary>若 value 的 name 成员是 by 属性,返回其 getter(已做访问控制);否则返回 null。调用方走 CallInto 派发。
+    ///
+    /// 模块和对象查的是同一张表(模块的成员表就是它的作用域),但**门禁不一样** ——
+    /// 对象那条是字段的 private/protected 访问控制,模块要的是"当前作用域能不能走到这个模块"
+    /// (CheckModuleReadAccess)。所以取值可以合并,门禁必须分开。</summary>
     public static FunctionVal? TryGetByGetter(Interpreter interp, RuntimeValue value, string name)
     {
-        // 模块**必须**排在 ObjectVal 之前:模块的成员表就是 ModuleScope,两条分支会查同一张表,
-        // 但门禁不一样 —— 走对象那条会把模块的 private/protected 当成普通字段的访问控制,
-        // 而模块要的是"当前作用域能不能走到这个模块"(CheckModuleReadAccess)。
-        if (value is ModuleVal mv)
-        {
-            if (!mv.ModuleScope.Contains(name)) return null;
-            var vr = mv.ModuleScope.Lookup(name);
-            if (!vr.HasAttr(Attr.By)) return null;
-            new BoxedValue(mv, interp).CheckModuleReadAccess(mv, vr, name);
-            return new BoxedValue(vr.Value, interp).GetMember("Get").Value as FunctionVal;
-        }
+        if (value is not ObjectVal obj) return null;
+        // 模块走 `Contains` + `Lookup`:前者只看**本层**,不让查找顺着作用域链漏到外层去
+        var vr = value is ModuleVal mv
+            ? mv.Scope.Contains(name) ? mv.Scope.Lookup(name) : null
+            : obj.Scope.LookupField(name);
+        if (vr == null || !vr.HasAttr(Attr.By)) return null;
 
-        if (value is ObjectVal obj)
-        {
-            var vr = obj.Scope.LookupField(name);
-            if (vr == null || !vr.HasAttr(Attr.By)) return null;
-            new BoxedValue(obj, interp).CheckObjectReadAccess(obj, vr, name);
-            return new BoxedValue(vr.Value, interp).GetMember("Get").Value as FunctionVal;
-        }
-
-        return null;
+        var boxed = new BoxedValue(value, interp);
+        if (value is ModuleVal m) boxed.CheckModuleReadAccess(m, vr, name);
+        else boxed.CheckObjectReadAccess(obj, vr, name);
+        return new BoxedValue(vr.Value, interp).GetMember("Get").Value as FunctionVal;
     }
 
     public BoxedValue GetMember(string name)
@@ -44,9 +38,9 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
             if (name == "Set") return new BoxedValue(pv.Setter, interp);
         }
 
-        if (Value is ModuleVal mv && mv.ModuleScope.Contains(name))
+        if (Value is ModuleVal mv && mv.Scope.Contains(name))
         {
-            var vr = mv.ModuleScope.Lookup(name);
+            var vr = mv.Scope.Lookup(name);
             CheckModuleReadAccess(mv, vr, name);
             return new BoxedValue(vr.Value, interp);
         }
@@ -112,7 +106,7 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     private bool IsInsideModule(ModuleVal mv)
     {
         for (var cur = interp.CurrentScope; cur != null; cur = cur.Parent)
-            if (cur == mv.ModuleScope) return true;
+            if (cur == mv.Scope) return true;
         return false;
     }
 

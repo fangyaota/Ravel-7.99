@@ -78,7 +78,7 @@ public partial class Interpreter
     private bool HandToRavelHandler(RuntimeException ex)
     {
         // try.rav 第一行就 `ravel "Ex"`,所以 handlerStack 在 Ex 模块里;也接受放全局的写法
-        var stack = (_global.TryLookup("Ex")?.Value as ModuleVal)?.ModuleScope.TryLookup("HandlerStack")?.Value
+        var stack = (_global.TryLookup("Ex")?.Value as ModuleVal)?.Scope.TryLookup("HandlerStack")?.Value
                         as ListVal
                     ?? _global.TryLookup("HandlerStack")?.Value as ListVal;
         if (stack == null) return false;

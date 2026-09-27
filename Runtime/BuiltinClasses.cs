@@ -235,7 +235,7 @@ internal static partial class BuiltinClasses
     // ============================================================
 
     /// <summary>建一个模块的类对象（`ravel "M"` / System 模块用）。模块也是类型，
-    /// 但它的成员住在 `ModuleVal.ModuleScope` 里而不是这类对象自己的 Scope ——
+    /// 但它的成员住在**模块作用域**(`ModuleVal.Scope`,同时也是它的成员表)里 ——
     /// 所以不登记进 AllTypes（每个 Interpreter 都重建一份，登记只会累积）。</summary>
     internal static ClassVal NewModuleClass(string name, ObjectVal parent)
     {
