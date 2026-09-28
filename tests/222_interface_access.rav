@@ -1,0 +1,98 @@
+# 接口的槽**支持访问控制**（和普通成员同一条路,只是 owner 是**接收者**）。
+#
+# 可见性写在**接口那次声明**上;实现体只是"换槽"(`by a = property …`),换槽时再写修饰符
+# 解析器直接拒(「修饰符后需要 ':='」)—— 可见性归声明那次管,不静默。实现体**新建**槽
+# (`private by a := …`)可以带修饰符,和类体一个规矩。
+#
+# 判据:读走 `TryGetByGetter` 的 `CheckObjectReadAccess`、写走 `StepMemberAssign` 的
+# `CheckMemberAccess`,对象都是**接收者**(不是实现)—— 所以:
+#   * `private`  = 这个类自己的代码能碰(实现体在类外面,碰不到);
+#   * `protected` = 子类的代码也能碰;
+#   * 外面读报「变量 'a' 是私有的」、写报「字段 'a' 是私有的」(两处措辞本来就不一样)。
+#
+# 另外记下一条**现在就是这个样子**的行为:接口声明成 `readonly` 的槽,实现体换不了它
+# (换槽要过 CheckWritable)—— 也就是这种槽形同没法实现,报的是「无法给只读变量 'r' 赋值」。
+
+P ::= interface {
+    private by a : int = default
+    protected by p : int = default
+    by b : int = default
+}
+
+C ::= class {
+    x : int = 0
+    readMine := () => { this.a; }
+}
+
+Sub ::= class C {
+    readBase := (o: C) => { o.p; }
+}
+
+Other ::= class {
+    readBase := (o: C) => { o.p; }
+}
+
+impl (P C {
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+    by p = property (() => { instance.x + 1; }) ((v: int) => { (); })
+    by b = property (() => { instance.x * 2; }) ((v: int) => { (); })
+})
+
+c := C ()
+c.x = 4
+
+# 公开的那条随便用
+print (c.b)
+
+# private:外面读不到、写不到;类自己的方法里读得到
+Ex.Try { print (c.a); } (e: Exception) => { print ("1: " + string e); }
+Ex.Try { c.a = 9; } (e: Exception) => { print ("2: " + string e); }
+print (c.readMine ())
+
+# protected:子类的代码能读基类实例的那条,别的类不行
+Ex.Try { print (c.p); } (e: Exception) => { print ("3: " + string e); }
+print ((Sub ()).readBase c)
+Ex.Try { print ((Other ()).readBase c); } (e: Exception) => { print ("4: " + string e); }
+
+# 实现体换槽时不许再写修饰符
+Ex.Try {
+    eval "impl (P C {\n    private by b = 1\n})";
+} (e: Exception) => { print ("5: " + string e); }
+
+# 实现体里**新建**槽可以带修饰符(`by a := …` 那条路)
+Q ::= interface {
+    by s : int = default
+}
+D ::= class {
+    k : int = 0
+}
+impl (Q D {
+    private by s := property (() => { instance.k; }) ((v: int) => { instance.k = v; })
+})
+d := D ()
+d.k = 8
+Ex.Try { print (d.s); } (e: Exception) => { print ("6: " + string e); }
+
+# `readonly` 的槽:实现体换不了它(现状如此,钉住)
+R ::= interface {
+    readonly by r : int = default
+}
+E ::= class {
+    m : int = 0
+}
+Ex.Try {
+    impl (R E {
+        by r = property (() => { instance.m; }) ((v: int) => { instance.m = v; })
+    })
+} (e: Exception) => { print ("7: " + string e); }
+# --- expected ---
+# 8
+# 1: 变量 'a' 是私有的
+# 2: 字段 'a' 是私有的
+# 4
+# 3: 变量 'p' 是受保护的
+# 5
+# 4: 变量 'p' 是受保护的
+# 5: 修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）
+# 6: 变量 's' 是私有的
+# 7: 无法给只读变量 'r' 赋值
