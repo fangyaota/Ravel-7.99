@@ -45,17 +45,17 @@ c.x = 4
 print (c.b)
 
 # private:外面读不到、写不到;类自己的方法里读得到
-Ex.Try { print (c.a); } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { c.a = 9; } (e: Exception) => { print ("2: " + string e); }
+try { print (c.a); } (e: Exception) => { print ("1: " + string e); }
+try { c.a = 9; } (e: Exception) => { print ("2: " + string e); }
 print (c.readMine ())
 
 # protected:子类的代码能读基类实例的那条,别的类不行
-Ex.Try { print (c.p); } (e: Exception) => { print ("3: " + string e); }
+try { print (c.p); } (e: Exception) => { print ("3: " + string e); }
 print ((Sub ()).readBase c)
-Ex.Try { print ((Other ()).readBase c); } (e: Exception) => { print ("4: " + string e); }
+try { print ((Other ()).readBase c); } (e: Exception) => { print ("4: " + string e); }
 
 # 实现体换槽时不许再写修饰符
-Ex.Try {
+try {
     eval "impl (P C {\n    private by b = 1\n})";
 } (e: Exception) => { print ("5: " + string e); }
 
@@ -71,7 +71,7 @@ impl (Q D {
 })
 d := D ()
 d.k = 8
-Ex.Try { print (d.s); } (e: Exception) => { print ("6: " + string e); }
+try { print (d.s); } (e: Exception) => { print ("6: " + string e); }
 
 # `readonly` 的槽:实现体换不了它(现状如此,钉住)
 R ::= interface {
@@ -80,7 +80,7 @@ R ::= interface {
 E ::= class {
     m : int = 0
 }
-Ex.Try {
+try {
     impl (R E {
         by r = property (() => { instance.m; }) ((v: int) => { instance.m = v; })
     })
@@ -103,10 +103,10 @@ im2 := impl (T2 C2 {
 c2 := C2 ()
 c2.x = 7
 print (c2.a)
-Ex.Try { print (c2.instance); } (e: Exception) => { print ("8: " + string e); }
-Ex.Try { print (im2.instance); } (e: Exception) => { print ("9: " + string e); }
-Ex.Try { print (by im2.instance); } (e: Exception) => { print ("10: " + string e); }
-Ex.Try { im2.instance = 5; } (e: Exception) => { print ("11: " + string e); }
+try { print (c2.instance); } (e: Exception) => { print ("8: " + string e); }
+try { print (im2.instance); } (e: Exception) => { print ("9: " + string e); }
+try { print (by im2.instance); } (e: Exception) => { print ("10: " + string e); }
+try { im2.instance = 5; } (e: Exception) => { print ("11: " + string e); }
 # --- expected ---
 # 8
 # 1: 变量 'a' 是私有的

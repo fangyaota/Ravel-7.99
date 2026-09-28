@@ -1,9 +1,9 @@
 # int 算术溢出:报错,不要静默回绕
 # 从前 C# 的 unchecked 让它悄悄绕过去:`100000 * 100000` 得 1410065408、
 # `2147483647 + 1` 得 -2147483648 ——「算出来了但是错的」比崩溃难查得多。
-Ex.Try { 2147483647 + 1; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { 100000 * 100000; } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { 0 - (0 - 2147483647 - 1); } (e: Exception) => { print ("3: " + string e); }
+try { 2147483647 + 1; } (e: Exception) => { print ("1: " + string e); }
+try { 100000 * 100000; } (e: Exception) => { print ("2: " + string e); }
+try { 0 - (0 - 2147483647 - 1); } (e: Exception) => { print ("3: " + string e); }
 # 装得下的照常
 print (2147483646 + 1)
 print (0 - 2147483647)

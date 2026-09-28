@@ -31,14 +31,14 @@ MyInt ::= class int { 0; }
 print (MyInt "42")
 MyList ::= class list { 0; }
 print (MyList default)
-Ex.Try { MyList (); } (e: Exception) => { print ("1: " + string e); }
+try { MyList (); } (e: Exception) => { print ("1: " + string e); }
 
 # object 自己现在也能构造了(它的类体就是那份默认构造器)
 print (System.Object ())
 
 # 但**没有自己类体**的类型还是不能当构造器调(护栏在 CallClassInto 上)
-Ex.Try { System.Void (); } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { System.Every (); } (e: Exception) => { print ("3: " + string e); }
+try { System.Void (); } (e: Exception) => { print ("2: " + string e); }
+try { System.Every (); } (e: Exception) => { print ("3: " + string e); }
 # --- expected ---
 # C { x = 1 }
 # 1

@@ -24,11 +24,11 @@ D ::= class {
     write := (q: int) => { bad = q; }
 }
 d := D ()
-Ex.Try { d.bad; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { d.bad = 1; } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { d.bad += 1; } (e: Exception) => { print ("3: " + string e); }
-Ex.Try { d.read (); } (e: Exception) => { print ("4: " + string e); }
-Ex.Try { d.write 1; } (e: Exception) => { print ("5: " + string e); }
+try { d.bad; } (e: Exception) => { print ("1: " + string e); }
+try { d.bad = 1; } (e: Exception) => { print ("2: " + string e); }
+try { d.bad += 1; } (e: Exception) => { print ("3: " + string e); }
+try { d.read (); } (e: Exception) => { print ("4: " + string e); }
+try { d.write 1; } (e: Exception) => { print ("5: " + string e); }
 
 # 例外只有 `default`:它是**属性的默认值**(一对什么都不做的 getter/setter,见 tests/212),
 # 槽里于是有个能读能写、只是都不做事的属性。别的非 property 值(上面那些 bad)照旧报错。
@@ -58,8 +58,8 @@ print (e.n)
 e.n = 7
 print (e.n)
 print (e.n = 9)
-Ex.Try { e.n = "str"; } (e2: Exception) => { print ("6: " + string e2); }
-Ex.Try { e.m += 1; } (e2: Exception) => { print ("7: " + string e2); }
+try { e.n = "str"; } (e2: Exception) => { print ("6: " + string e2); }
+try { e.m += 1; } (e2: Exception) => { print ("7: " + string e2); }
 # 没写注解 = 写什么都行(`:=` 定义时那个约束是 Any,不是 Property)
 e.loose = "anything"
 print (e.loose)
@@ -90,8 +90,8 @@ print ("换之后 旧 " + string OldSet + " 新 " + string NewSet)
 print (s.Fields ())
 # 目标必须是个 by 属性;找不到变量也报出来
 plain := 1
-Ex.Try { by plain = 2; } (e2: Exception) => { print ("8: " + string e2); }
-Ex.Try { by nope = 2; } (e2: Exception) => { print ("9: " + string e2); }
+try { by plain = 2; } (e2: Exception) => { print ("8: " + string e2); }
+try { by nope = 2; } (e2: Exception) => { print ("9: " + string e2); }
 
 # `by a` / `by a.x`:取**槽里的 property 本身**,不过 getter(和 `by a = X` 对称的那一半)。
 # 拿到手就是个普通值 —— 能存进表里、传给别的函数,还能自己 `.Get ()` / `.Set v`。
@@ -112,8 +112,8 @@ Bag := []
 Bag.Add (by pp.v)
 print ((Bag.At 0).Get ())
 print ("至此 getter 被调了 " + string GetCalls + " 次")
-Ex.Try { print (by pp._v); } (e2: Exception) => { print ("10: " + string e2); }
-Ex.Try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
+try { print (by pp._v); } (e2: Exception) => { print ("10: " + string e2); }
+try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
 
 # `by a.x = X`:换**别的对象**上的槽(和取槽那边的 `by a.x` 对称,同一个槽路径)
 Old2 := 0
@@ -136,8 +136,8 @@ r.swapOn qq
 print (qq.q)
 qq.q = 5
 print ("旧 " + string Old2 + " 新 " + string New2)
-Ex.Try { by qq._q = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("12: " + string e2); }
-Ex.Try { by qq.nope = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("13: " + string e2); }
+try { by qq._q = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("12: " + string e2); }
+try { by qq.nope = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("13: " + string e2); }
 
 # `by a.x := X` 在**那个对象上建槽**(成员不存在也行)—— `:=` 定义 / `=` 换,
 # 和语言里别处一个规矩;所以 `=` 那条撞上不存在的成员才报错(上面那条 13)
@@ -161,14 +161,14 @@ Ro ::= class {
 }
 ro := Ro ()
 print (ro.r)
-Ex.Try { ro.r = 9; } (e2: Exception) => { print ("14: " + string e2); }
-Ex.Try { ro.r += 1; } (e2: Exception) => { print ("15: " + string e2); }
-Ex.Try { by ro.r = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("16: " + string e2); }
-Ex.Try { ro.d = 2; } (e2: Exception) => { print ("17: " + string e2); }
+try { ro.r = 9; } (e2: Exception) => { print ("14: " + string e2); }
+try { ro.r += 1; } (e2: Exception) => { print ("15: " + string e2); }
+try { by ro.r = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("16: " + string e2); }
+try { ro.d = 2; } (e2: Exception) => { print ("17: " + string e2); }
 print (ro.r)
 # 混着别的修饰符的换槽写法没有定义(`=` 那条只在**只有** by 时才是换槽)——
 # 从前这种会被当成换槽、然后把它静默丢掉
-Ex.Try { eval "readonly by z = 1"; } (e2: Exception) => { print ("18: " + string e2); }
+try { eval "readonly by z = 1"; } (e2: Exception) => { print ("18: " + string e2); }
 # --- expected ---
 # 99
 # 7

@@ -5,8 +5,8 @@ print (Math.Pi)
 print (Math.Square 5)
 
 print "=== Try ==="
-Ex.Try {
-    Ex.Throw (Exception "test error")
+try {
+    throw (Exception "test error")
 } (e: Exception) => {
     print "caught!"
 }

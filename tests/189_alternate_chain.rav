@@ -1,18 +1,18 @@
 # `|` 三个以上分支也要能试到
 # `x | y | z` 解析成 `(x | y) | z`。从前 `|` 只是把两侧塞进 ControlFunction,
-# 于是外层帧 try 里那句 CallInto 只**推**了内层的帧就返回了,内层两分支都失败时
+# 于是外层那个 try 帧里那句 CallInto 只**推**了内层的帧就返回了,内层两分支都失败时
 # 抛的 TypeMismatchException 已经在外层 try 之外 —— 第三个分支永远试不到。
 # 现在 `|` 会把链条摊平成一个分支列表,一个帧顺序试完。
 f := (a: int) => { "int"; } | (a: string) => { "str"; } | (a: bool) => { "bool"; }
 print (f 1)
 print (f "x")
 print (f true)
-Ex.Try { f 1.5; } (e: Exception) => { print ("none: " + string e); }
+try { f 1.5; } (e: Exception) => { print ("none: " + string e); }
 # 两个分支照旧
 g := (a: int) => { "int"; } | (a: string) => { "str"; }
 print (g 1)
 print (g "x")
-Ex.Try { g true; } (e: Exception) => { print ("none: " + string e); }
+try { g true; } (e: Exception) => { print ("none: " + string e); }
 # 四个分支
 h := (a: int) => { 0; } | (a: string) => { 1; } | (a: bool) => { 2; } | (a: float) => { 3; }
 print (h 1)

@@ -8,13 +8,13 @@
 C ::= class { init := () => { this; }; }
 a := C ()
 # 对象不是函数:自己那层有没有 `call` 都一样
-Ex.Try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
+try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
 # 类得有**自己的类体**才能当构造器调(这条是 CallClassInto 的护栏):
 # object 现在有类体了(那个默认构造器,见 tests/211),所以拿 Void 这种没类体的当例子
-Ex.Try { System.Void (); } (e: Exception) => { print ("无类体的类: " + string e); }
+try { System.Void (); } (e: Exception) => { print ("无类体的类: " + string e); }
 # `call` 只是普通名字:没定义过就读不到(沿类型链也找不到,它不是方法)
-Ex.Try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
-Ex.Try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
+try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
+try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
 # 自定义 `call` 成员现在只能当普通成员用 —— 读得到,但不让对象变可调用
 Adder ::= class {
     init := () => { this; }
@@ -23,7 +23,7 @@ Adder ::= class {
 ad := Adder ()
 f := ad.call
 print (f 41)
-Ex.Try { ad 41; } (e: Exception) => { print ("自定义 call 也不行: " + string e); }
+try { ad 41; } (e: Exception) => { print ("自定义 call 也不行: " + string e); }
 # 类对象是函数(ClassVal : FunctionVal),所以 Function 那层的方法对它可用 ——
 # 而且不需要"硬转成 FunctionVal"(它本来就是),不会抛 C# 的 InvalidCastException
 print (C.Name ())

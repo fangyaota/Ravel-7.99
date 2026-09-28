@@ -1525,7 +1525,7 @@ scoped := () => {
 }
 scoped ()
 
-Ex.Try { w := myClass (); print w.a; } (e: Exception) => { print (string e); }
+try { w := myClass (); print w.a; } (e: Exception) => { print (string e); }
 # 类型 'myClass' 没有方法 'a' —— 外面没 use 过
 ```
 

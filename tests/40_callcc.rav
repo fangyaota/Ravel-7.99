@@ -116,8 +116,8 @@ if { i < 5; } { again 0; } { 0; }
 print total
 
 result := 0
-Ex.Try {
-    Ex.Throw (Exception "boom")
+try {
+    throw (Exception "boom")
     result = 1
 } (e: Exception) => {
     result = 99

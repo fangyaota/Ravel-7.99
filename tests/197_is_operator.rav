@@ -43,8 +43,8 @@ print (object <: int)
 print (bool <: string)
 print (int <: Any)
 print (Every <: int)
-Ex.Try { 1 <: int; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { int <: 1; } (e: Exception) => { print ("2: " + string e); }
+try { 1 <: int; } (e: Exception) => { print ("1: " + string e); }
+try { int <: 1; } (e: Exception) => { print ("2: " + string e); }
 C ::= class {
     n : int = 0
 }
@@ -57,7 +57,7 @@ print (superOf int)
 print (int.<: object)
 
 # ---- 右边得是个类型 ----
-Ex.Try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
+try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
 print "done"
 # --- expected ---
 # true

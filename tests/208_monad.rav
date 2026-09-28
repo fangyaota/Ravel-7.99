@@ -19,7 +19,7 @@ print (typeof None)
 print ((Some 5).Value ())
 print ((Some 5).ValueOr 0)
 print (None.ValueOr 0)
-Ex.Try { None.Value (); } (e: Exception) => { print ("E: " + string e); }
+try { None.Value (); } (e: Exception) => { print ("E: " + string e); }
 
 # 没有值就换一个
 print ((None.OrElse (Some 9)).Value ())

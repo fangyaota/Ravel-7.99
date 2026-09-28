@@ -79,14 +79,14 @@ print (d.Map (v: int) => { v * 100; })
 print (d.Keys ())
 
 # ---- 边界与错误:空容器、比不了、谓词不是 bool ----
-Ex.Try { print (ys.Where (x: int) => { 1; }); } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { print (ys.Find (x: int) => { false; }); } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { print (ys.Any 5); } (e: Exception) => { print ("3: " + string e); }
-Ex.Try { print ([].First ()); } (e: Exception) => { print ("4: " + string e); }
-Ex.Try { print ([].Min ()); } (e: Exception) => { print ("5: " + string e); }
-Ex.Try { print ([1 "a"].Sort ()); } (e: Exception) => { print ("6: " + string e); }
-Ex.Try { print ([1 "a"].Max ()); } (e: Exception) => { print ("7: " + string e); }
-Ex.Try { print ([1 2].Concat 5); } (e: Exception) => { print ("8: " + string e); }
+try { print (ys.Where (x: int) => { 1; }); } (e: Exception) => { print ("1: " + string e); }
+try { print (ys.Find (x: int) => { false; }); } (e: Exception) => { print ("2: " + string e); }
+try { print (ys.Any 5); } (e: Exception) => { print ("3: " + string e); }
+try { print ([].First ()); } (e: Exception) => { print ("4: " + string e); }
+try { print ([].Min ()); } (e: Exception) => { print ("5: " + string e); }
+try { print ([1 "a"].Sort ()); } (e: Exception) => { print ("6: " + string e); }
+try { print ([1 "a"].Max ()); } (e: Exception) => { print ("7: " + string e); }
+try { print ([1 2].Concat 5); } (e: Exception) => { print ("8: " + string e); }
 print ([].Map (x: int) => { x; })
 print ([].Fold 7 (acc: int x: int) => { acc + x; })
 print ([].Any ())

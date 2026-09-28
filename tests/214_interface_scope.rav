@@ -32,7 +32,7 @@ print c.z
 two.Dispose ()
 print c.a
 one.Dispose ()
-Ex.Try { print c.a; } (e: Exception) => { print ("1: " + string e); }
+try { print c.a; } (e: Exception) => { print ("1: " + string e); }
 use one
 print c.a
 one.Dispose ()
@@ -45,7 +45,7 @@ scoped := () => {
     print inner.z
 }
 scoped ()
-Ex.Try { q := C (); print q.a; } (e: Exception) => { print ("2: " + string e); }
+try { q := C (); print q.a; } (e: Exception) => { print ("2: " + string e); }
 
 # 目标是类的**子类**时也认(和 `is` 一个口径:实例的类收得下目标)
 Sub ::= class C {
@@ -65,10 +65,10 @@ copy.Dispose ()
 print c.a
 
 # 不是实现的东西
-Ex.Try { use 5; } (e: Exception) => { print ("3: " + string e); }
+try { use 5; } (e: Exception) => { print ("3: " + string e); }
 # `interface 某个类型 { … }`:类型是**接口**就继承它,是**类**就报错(接口只继承接口)。
 # 这里给的是 `int`(一个类),所以报的是"只能继承接口"。
-Ex.Try { eval "interface int {\n    by q : int = default\n}"; } (e: Exception) => { print ("4: " + string e); }
+try { eval "interface int {\n    by q : int = default\n}"; } (e: Exception) => { print ("4: " + string e); }
 
 # `impl` = 全局的 `use`:登记在**全局作用域**上(每个作用域链都到全局,于是处处生效)。
 # 对比上面那个 `scoped`:那里是 `use`,出了那次调用就没了。
@@ -81,7 +81,7 @@ globalize := () => {
 globalize ()
 print (C ()).a
 two.Dispose ()
-Ex.Try { q3 := C (); print q3.a; } (e: Exception) => { print ("5: " + string e); }
+try { q3 := C (); print q3.a; } (e: Exception) => { print ("5: " + string e); }
 
 # 在模块里 impl 也一样(模块作用域挂在全局上,所以全局看得到)
 one.Dispose ()
@@ -90,7 +90,7 @@ impl two
 ravel ""
 print (C ()).a
 two.Dispose ()
-Ex.Try { q4 := C (); print q4.a; } (e: Exception) => { print ("6: " + string e); }
+try { q4 := C (); print q4.a; } (e: Exception) => { print ("6: " + string e); }
 # --- expected ---
 # 2
 # 20

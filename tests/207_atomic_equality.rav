@@ -23,12 +23,12 @@ one := [1]
 print (one == one)
 
 # 异常值按值比(消息一样就相等)
-Ex.Try { Ex.Throw "boom"; } (e: Exception) => { print (e == e); }
-Ex.Try { Ex.Throw "boom"; } (e: Exception) => { print (e == "boom"); }
+try { throw "boom"; } (e: Exception) => { print (e == e); }
+try { throw "boom"; } (e: Exception) => { print (e == "boom"); }
 
 # 一边是对象一边不是 -> 报「不支持操作数」,和别的运算符一个口径,不静默给 false
-Ex.Try { print (C == 5); } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { print ([1] == ()); } (e: Exception) => { print ("2: " + string e); }
+try { print (C == 5); } (e: Exception) => { print ("1: " + string e); }
+try { print ([1] == ()); } (e: Exception) => { print ("2: " + string e); }
 # --- expected ---
 # true
 # false

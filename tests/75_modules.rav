@@ -87,19 +87,19 @@ print (a.x)
 print (a.y)
 print (b.x)
 print (b.y)
-Ex.Try {
-    Ex.Throw (Exception "boom")
+try {
+    throw (Exception "boom")
 } (e: Exception) => {
     print "caught"
 }
 print "done"
-Ex.Try {
-    Ex.Throw (Exception "oops")
+try {
+    throw (Exception "oops")
 } (e: Exception) => {
     print "caught"
 }
 print "done"
-result := Ex.Try {
+result := try {
     42
 } (e: Exception) => {
     0

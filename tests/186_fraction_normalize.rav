@@ -15,7 +15,7 @@ b := fraction 2 4
 print (a == b)
 print ({a b}.Count ())
 # fraction 的分子分母是 32 位,算爆了明说改用 bigfraction(不静默回绕)
-Ex.Try { fraction 100000 1 * fraction 100000 1; } (e: Exception) => { print ("ovf: " + string e); }
+try { fraction 100000 1 * fraction 100000 1; } (e: Exception) => { print ("ovf: " + string e); }
 print (bigfraction 100000 1 * bigfraction 100000 1)
 # --- expected ---
 # 1/2

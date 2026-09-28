@@ -1,9 +1,9 @@
 # 报错消息要能定位问题:说清是哪个索引/哪个类型,而不是「索引超出范围」「未知的二元运算符」
 # (每个块都带 `;`——这是**表达式位置**的块,少了它会被当成 Set)
-Ex.Try { [1 2 3].At 9; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { [1 2].Remove 5; } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { "abc" * 3; } (e: Exception) => { print ("3: " + string e); }
-Ex.Try { [1 2 3].Insert 9 0; } (e: Exception) => { print ("4: " + string e); }
+try { [1 2 3].At 9; } (e: Exception) => { print ("1: " + string e); }
+try { [1 2].Remove 5; } (e: Exception) => { print ("2: " + string e); }
+try { "abc" * 3; } (e: Exception) => { print ("3: " + string e); }
+try { [1 2 3].Insert 9 0; } (e: Exception) => { print ("4: " + string e); }
 # Insert 允许插到末尾(下标 == 长度)
 xs := [1 2 3]
 xs.Insert 3 99

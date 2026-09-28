@@ -13,7 +13,7 @@ f := () => {
     y: int = 5
     y;
 }
-Ex.Try { f (); } (e: Exception) => { print ("1: " + string e); }
+try { f (); } (e: Exception) => { print ("1: " + string e); }
 
 # 遮蔽成一个类:注解就指它(这条消息说明 dt 是 C —— 内置转换器不认用户类,才报的转换错)
 g := () => {
@@ -22,7 +22,7 @@ g := () => {
     z: string = 5
     z;
 }
-Ex.Try { g (); } (e: Exception) => { print ("2: " + string e); }
+try { g (); } (e: Exception) => { print ("2: " + string e); }
 
 # 没遮蔽时照旧
 h := () => { w: int = 7; w; }

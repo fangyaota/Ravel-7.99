@@ -50,7 +50,7 @@ print (ct (C ()))
 print ("看对象看了 " + string ObjCalls + " 次")
 
 # 参数个数写错 -> 当场报错,不是悄悄收不满参数、永远不给结果
-Ex.Try { cacher 0 add; } (e: Exception) => { print ("E: " + string e); }
+try { cacher 0 add; } (e: Exception) => { print ("E: " + string e); }
 
 # 缓存是个**类型**(Cacher),但 init 交出的是**包装函数**而不是 this —— 拿到手就能直接调。
 # 所以 typeof 看到的是 Function,不是 Cacher。

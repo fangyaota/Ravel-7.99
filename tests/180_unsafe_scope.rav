@@ -10,9 +10,9 @@ c := C ()
 c.peek ()
 # 这里调一次 unsafe,而且它早就返回了
 (unused: object) => { unsafe (); 0; } (0)
-Ex.Try { print c.secret; } (e: Exception) => { print ("blocked: " + string e); }
+try { print c.secret; } (e: Exception) => { print ("blocked: " + string e); }
 # core 字段的写同样要 unsafe
-Ex.Try { c.secret = 1; } (e: Exception) => { print ("blocked: " + string e); }
+try { c.secret = 1; } (e: Exception) => { print ("blocked: " + string e); }
 # --- expected ---
 # 42
 # blocked: 字段 'secret' 是核心字段，需要 unsafe

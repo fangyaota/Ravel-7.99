@@ -29,11 +29,11 @@ n: int = 7
 print (typeof n)
 
 # 注解不是类型 → 报错(锚在被定义的字段上)
-Ex.Try { z: (1 + 1) = 0; } (e: Exception) => { print ("1: " + string e); }
+try { z: (1 + 1) = 0; } (e: Exception) => { print ("1: " + string e); }
 # 注解里的名字不存在 → 在**求值**那一步就报
-Ex.Try { w: (nope ()) = 0; } (e: Exception) => { print ("2: " + string e); }
+try { w: (nope ()) = 0; } (e: Exception) => { print ("2: " + string e); }
 # 括号不能省:`a: pick true = 5` 会把它当成字段名,报语法错
-Ex.Try { eval "q: pick true = 5"; } (e: Exception) => { print ("3: " + string e); }
+try { eval "q: pick true = 5"; } (e: Exception) => { print ("3: " + string e); }
 print "done"
 # --- expected ---
 # Integer

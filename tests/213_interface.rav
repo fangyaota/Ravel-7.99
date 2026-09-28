@@ -27,8 +27,8 @@ myImplement := myTrait myClass {
 
 # use 之前:`a` 不是 myClass 的东西,注解也还不认这个接口
 u := myClass ()
-Ex.Try { print u.a; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { early : myTrait = u; print early; } (e: Exception) => { print ("2: " + string e); }
+try { print u.a; } (e: Exception) => { print ("1: " + string e); }
+try { early : myTrait = u; print early; } (e: Exception) => { print ("2: " + string e); }
 
 use myImplement
 
@@ -51,11 +51,11 @@ print typed.a
 take := (v: myTrait) => { v.a; }
 print (take u)
 print (take (myClass ()))   # 接口是"视图":实现生效期间,**任何** myClass 实例都算 myTrait
-Ex.Try { take 5; } (e: Exception) => { print ("3: " + string e); }
+try { take 5; } (e: Exception) => { print ("3: " + string e); }
 otherClass ::= class {
     y : int = 0
 }
-Ex.Try { take (otherClass ()); } (e: Exception) => { print ("4: " + string e); }
+try { take (otherClass ()); } (e: Exception) => { print ("4: " + string e); }
 
 # 槽不在实例身上(它住在实现里)
 print (u.Fields ())
@@ -67,12 +67,12 @@ print (v.a)
 print (u.a)
 
 # 类型约束来自接口那条声明(`by a : int`)
-Ex.Try { u.a = "str"; } (e: Exception) => { print ("5: " + string e); }
+try { u.a = "str"; } (e: Exception) => { print ("5: " + string e); }
 
 myImplement.Dispose ()
-Ex.Try { print u.a; } (e: Exception) => { print ("6: " + string e); }
+try { print u.a; } (e: Exception) => { print ("6: " + string e); }
 print (u is myTrait)
-Ex.Try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + string e); }
+try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + string e); }
 
 # 草稿最后那句:`impl` 是**全局**的 use(登记在全局作用域上,所有作用域都算)
 impl myImplement

@@ -62,11 +62,11 @@ show ::= (x: int) => { do { y :< Some x; Some (y + 1); } }
 print show
 
 # 语法错误:三种写法当场报出来,不是留到运行时
-Ex.Try { eval "x :< Some 1"; } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { eval "do { x :< Some 1; }"; } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { eval "do { }"; } (e: Exception) => { print ("3: " + string e); }
+try { eval "x :< Some 1"; } (e: Exception) => { print ("1: " + string e); }
+try { eval "do { x :< Some 1; }"; } (e: Exception) => { print ("2: " + string e); }
+try { eval "do { }"; } (e: Exception) => { print ("3: " + string e); }
 # 绑到一个不是 Monad 的东西上:没有 Bind 方法
-Ex.Try { eval "do { x :< 5; Some x; }"; } (e: Exception) => { print ("4: " + string e); }
+try { eval "do { x :< 5; Some x; }"; } (e: Exception) => { print ("4: " + string e); }
 # --- expected ---
 # 20
 # 7

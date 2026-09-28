@@ -2,7 +2,7 @@
 # 常量 + 三角/双曲/幂对数/取整/极值),它们挂在 `lib/math.rav` 那句 `ravel "Math"`
 # 建模块的时候填进去 —— 在那之前 `Math` 根本不是一个名字。
 # `lib/math.rav` 另外补 Ravel 说得清楚的几个(square/cube/deg/rad)。
-Ex.Try { Math.Pi; } (e: Exception) => { print ("还没引用: " + string e); }
+try { Math.Pi; } (e: Exception) => { print ("还没引用: " + string e); }
 using "math.rav"
 
 # ---- 常量 ----
@@ -60,10 +60,10 @@ print (Math.Rad 180)
 
 # ---- C# 会抛异常的地方自己先拦:那些异常不是 RuntimeException,
 #      Ravel 的 try 接不住,会一路把程序打掉(见 randint 的先例) ----
-Ex.Try { Math.Sin "a"; } (e: Exception) => { print ("Sin: " + string e); }
-Ex.Try { Math.RoundTo 3.14 20; } (e: Exception) => { print ("RoundTo: " + string e); }
-Ex.Try { Math.Clamp 5 10 0; } (e: Exception) => { print ("Clamp: " + string e); }
-Ex.Try { Math.Sign (0.0 / 0.0); } (e: Exception) => { print ("Sign: " + string e); }
+try { Math.Sin "a"; } (e: Exception) => { print ("Sin: " + string e); }
+try { Math.RoundTo 3.14 20; } (e: Exception) => { print ("RoundTo: " + string e); }
+try { Math.Clamp 5 10 0; } (e: Exception) => { print ("Clamp: " + string e); }
+try { Math.Sign (0.0 / 0.0); } (e: Exception) => { print ("Sign: " + string e); }
 print "done"
 # --- expected ---
 # 还没引用: 未定义的变量 'Math'

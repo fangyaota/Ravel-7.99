@@ -92,8 +92,8 @@ print (s.c)
 # ---- 5. 没有"正在被服务的实例"时，响亮报错（不给陈旧值）----
 # `by` 取出来的是**槽本身**，它没有"这一次"可言（同 StepSlot / StepSlotAssign 两支：只取槽，不绑接收者）
 slot := by s.c
-Ex.Try { print (slot.Get ()); } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { print s.instance; } (e: Exception) => { print ("2: " + string e); }
+try { print (slot.Get ()); } (e: Exception) => { print ("1: " + string e); }
+try { print s.instance; } (e: Exception) => { print ("2: " + string e); }
 
 # ---- 6. instance 只读（它由引擎指到这次服务的实例）----
 R ::= interface {
@@ -106,7 +106,7 @@ impl (R G {
     by c = property (() => { (); }) ((v5: int) => { instance = 5; })
 })
 t := G ()
-Ex.Try { t.c = 1; } (e: Exception) => { print ("3: " + string e); }
+try { t.c = 1; } (e: Exception) => { print ("3: " + string e); }
 
 # ---- 7. 换槽那条路照旧：`by s.c = property …` 换的是槽，之后走新的 getter ----
 print (s.c)
@@ -121,7 +121,7 @@ Bad ::= interface {
 K ::= class {
     x : int = 0
 }
-Ex.Try {
+try {
     impl (Bad K {
         ()
     })
@@ -136,7 +136,7 @@ im := impl (H F {
 z := F ()
 z.w = 8
 print (z.c)
-Ex.Try { im.show (); } (e: Exception) => { print ("5: " + string e); }
+try { im.show (); } (e: Exception) => { print ("5: " + string e); }
 
 # ---- 9. 实现的**副本**照样好使 ----
 # 副本是另一个对象,但它是"同一个实现" —— 号(`impl$id`)是值语义的,`CopyScope` 拷过去,

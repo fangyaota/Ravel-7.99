@@ -44,9 +44,9 @@ print (a.def)
 # 7) 两种写错的形状,从前都**静默**得很彻底
 #    - 变量的 `:=` 是语句,写成表达式只报「Integer 不支持运算符 ':='」,看不出所以然
 #    - `=` 左边既不是变量也不是字段 -> 从前直接交出右值,连写都没写
-Ex.Try { print (x := 6); } (e: Exception) => { print ("1: " + string e); }
-Ex.Try { print (5 = 5); } (e: Exception) => { print ("2: " + string e); }
-Ex.Try { print ([1 2] = 3); } (e: Exception) => { print ("3: " + string e); }
+try { print (x := 6); } (e: Exception) => { print ("1: " + string e); }
+try { print (5 = 5); } (e: Exception) => { print ("2: " + string e); }
+try { print ([1 2] = 3); } (e: Exception) => { print ("3: " + string e); }
 # --- expected ---
 # 42
 # hello
