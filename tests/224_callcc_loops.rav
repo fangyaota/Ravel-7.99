@@ -1,0 +1,97 @@
+# `callcc` × 循环与枚举：`while` / `foreach` / 序列方法（`Each` `Map` …）。
+#
+# 这些控制结构本身就建立在 callcc 或控制帧上（`while` 是 predefined.rav 里用 callcc 写的），
+# 所以它们和用户手里的续延会互相踩。这里钉住四条:
+#
+#   ① **逃出去**（break）:调用外层捕获的续延 = 丢弃当前帧链 → 循环/枚举就地停下，它没做完的
+#      收尾也不再跑（`foreach` 不发第二次 `MoveNext`、`Map` 攒了一半的结果直接丢掉）;
+#   ② 枚举的**回调里抛错**照样能被外面的 `try` 接住，且 handler 栈收得干净;
+#   ③ **多发射**:同一枚续延可以调用多次 —— 拿它写"再来一遍"的循环;
+#   ④ **可变状态不回滚**:续延只还原**控制**状态（帧链、handler 栈、模块加载栈），
+#      累加器那种数据是原地改的 —— 所以恢复之后会接着往已有结果上追加，可能重复。
+#      （④ 是这个语义的代价，钉住它，别让它悄悄变。）
+
+# ---- ① 逃出 while（当 break 用）----
+i := 0
+out := callcc (esc: function) => {
+    while { i < 10; } {
+        i += 1
+        if { i == 3; } { esc i; } { 0; }
+    }
+    999
+}
+print out
+print i
+
+# ---- ① 逃出 foreach / Each ----
+seen: list = []
+r1 := callcc (k: function) => {
+    foreach [1 2 3 4] (x: int) => {
+        seen.Add x
+        if { x == 3; } { k x; } { 0; }
+    }
+    999
+}
+print r1
+print seen
+
+done: list = []
+r2 := callcc (k: function) => {
+    [1 2 3 4].Each (x: int) => { done.Add x; if { x == 2; } { k x; } { 0; } }
+    999
+}
+print r2
+print done
+
+# ---- ② 回调里抛错，外面接住 ----
+stuck := 0
+try {
+    foreach [1 2 3] (x: int) => {
+        stuck += 1
+        if { x == 2; } { throw (Exception "boom"); } { 0; }
+    }
+} (e: Exception) => { print ("caught " + string e); }
+print stuck
+print (Ex.HandlerStack.Count ())
+
+# ---- ③ 多发射：同一枚续延调多次 ----
+escN: object = 0
+n := 0
+r := callcc (k: function) => { escN = k; "first"; }
+print r
+n += 1
+if { n < 3; } { escN ("again " + string n); } { 0; }
+print r
+
+# ---- ④ 可变状态不回滚：Map 攒了一半的结果会接着长 ----
+escM: object = 0
+haveM := false
+doneM := false
+mm := [1 2 3].Map (x: int) => {
+    if { x == 2; } {
+        if { !haveM; } { haveM = true; escM = callcc (k: function) => { k; }; } { 0; }
+    } { 0; }
+    x * 10;
+}
+print mm
+try { if { !doneM; } { doneM = true; escM 99; } { 0; }; } (e: Exception) => { print ("M: " + string e); }
+print mm
+print "end"
+# --- expected ---
+# 3
+# 3
+# 3
+# [1 2 3]
+# 2
+# [1 2]
+# caught boom
+# 2
+# 0
+# first
+# again 1
+# again 2
+# again 2
+# [10 20 30]
+# [10 20 30 20 30]
+# [10 20 30 20 30]
+# end

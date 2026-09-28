@@ -1,0 +1,71 @@
+# `callcc` × `try/throw`：**handler 栈是控制状态,续延恢复时跟着一起还原**。
+#
+# 为什么非这样:`try` 的 handler 是往 Ravel 列表 `Ex.HandlerStack` 里 push 的**副作用**,
+# 而续延一调用就把当前帧链整个丢掉 —— "跑完自己的收尾把 handler 摘掉"那一步再也不会执行。
+# 从前于是留下**僵尸 handler**:之后没人接的错误被它接住,而它的续延停在早被丢弃的那条链上
+# (和 tests/215 修过的"正常收尾泄漏"同一类,只是入口换成了 callcc)。
+#
+# 反过来也顺:调一个"在 try 体里捕获的"续延时,那段代码重新进了那个 try 的动态范围,
+# handler 跟着回来 —— 重进的这一段再抛错照样被它接住。
+#
+# 读这个文件时记着 callcc 的老规矩:**恢复会重跑捕获点之后的尾巴**,所以
+# ① 闩(那些 `done*`)一律声明在捕获点**之前**,否则尾巴一跑就把闩重置了(会死循环);
+# ② 同一段打印出现两次是正常的 —— 第二次是恢复后重跑出来的。
+
+# ---- ① 用外层续延逃出 try 体：handler 跟着走 ----
+esc: object = 0
+print (Ex.HandlerStack.Count ())
+r := callcc (k: function) => {
+    esc = k
+    try {
+        esc "escaped";
+        "normal";
+    } (e: Exception) => { "caught"; }
+}
+print r
+print (Ex.HandlerStack.Count ())     # 逃出去之后是 0，不是 1
+
+# ---- ② 逃出去之后，接后面的错的还是**新**的那层（僵尸不在了）----
+try { print (noSuchVar); } (e: Exception) => { print ("new try: " + string e); }
+print (Ex.HandlerStack.Count ())
+
+# ---- ③ 恢复进 try 体：那个 try 的 handler 回来，重进的那段照样受它保护 ----
+escT: object = 0
+armed := false
+doneT := false
+res := try {
+    k := callcc (k2: function) => { if { !armed; } { armed = true; escT = k2; } { 0; }; k2; };
+    if { typeof k == function; } { "armed"; } { throw (Exception "from resumed body"); }
+} (e: Exception) => { "caught by the same try"; }
+print res
+try { if { !doneT; } { doneT = true; escT (); } { 0; }; } (e: Exception) => { print ("X: " + string e); }
+print res                              # 恢复之后重跑：这次是被那个 try 自己接住的
+print (Ex.HandlerStack.Count ())
+
+# ---- ④ 嵌套 try 里往外层逃：两层 handler 一起走掉 ----
+deepEsc: object = 0
+res2 := try {
+    callcc (k: function) => {
+        deepEsc = k
+        try {
+            try { deepEsc "out of two"; } (e: Exception) => { "inner"; }
+        } (e: Exception) => { "middle"; }
+        "outer body";
+    }
+} (e: Exception) => { "outermost"; }
+print res2
+print (Ex.HandlerStack.Count ())
+print "end"
+# --- expected ---
+# 0
+# escaped
+# 0
+# new try: 未定义的变量 'noSuchVar'
+# 0
+# armed
+# caught by the same try
+# caught by the same try
+# 0
+# out of two
+# 0
+# end

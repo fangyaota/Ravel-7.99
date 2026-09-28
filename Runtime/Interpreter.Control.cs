@@ -54,7 +54,12 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(cf));
+            // 连两份控制状态一起拍快照(handler 栈、模块加载栈,见 ContinuationVal)
+            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(
+                cf,
+                RavelHandlers() is { } hs ? new ListVal([.. hs.Elements]) : null,
+                _loading.ToArray()));
+
             return;
         }
 
@@ -63,8 +68,8 @@ public partial class Interpreter
 
     /// <summary>using/ravel 的模块加载。模块体执行期间要一直把它记在 `_loading` 里,
     /// 循环引用才检测得到——所以 push 在这里、pop 在块跑完那一步(State 存路径,顺带当已 push 的凭据)。
-    /// 注意 pop 依赖帧的正常收尾:若 callcc 把续延甩过这个帧,模块体会留在 `_loading` 里不再摘掉,
-    /// 之后真去引它会被误报成循环引用。模块体里用 callcc 逃生是极罕见的写法,先按简单的来。</summary>
+    /// pop 依赖帧的正常收尾,而 callcc 逃生会把这条链整个丢掉 —— 所以 `_loading` 也进了
+    /// 续延的快照,恢复时一起还原(见 `ContinuationVal.Loading` / `RestoreControlState`)。</summary>
     private void StepUsing(ControlFrame cf)
     {
         if (cf.Count == 0)

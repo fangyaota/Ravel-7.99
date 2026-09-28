@@ -1,0 +1,8 @@
+# tests/226 用的模块：体跑到一半会被 `hook` 甩出去（那是 driver 那边捕获的续延）。
+#
+# 单独跑这个文件时 `already` / `hook` 没定义 —— 于是报「未定义的变量 'already'」，是预期的。
+# (它被拿来钉的是：**从模块体里逃出去，这次加载算没发生** —— 不能停在"loaded 一半"上。)
+print "body"
+if { !already; } { already = true; hook (); } { 0; }
+print "body end"
+# expect-error

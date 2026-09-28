@@ -107,13 +107,48 @@ public partial class Interpreter
     /// HandlerStack 栈顶)。
     /// 有 handler 就调它、异常不再冒泡成 C# 异常——这样 `Ex.try { 1 + true } {...}` 也能接住,
     /// 而不是只有显式 `Ex.throw` 才接得住。没有就抛,由 CLI 打带位置和调用栈的报告。</summary>
+    /// <summary>Ravel 那边的 handler 栈(`Ex.HandlerStack`)。predefined.rav 那段先 `ravel "Ex"`,
+    /// 所以它在 Ex 模块里;也接受放全局的写法。接手冒泡 / callcc 拍快照 / 恢复,三处共用这一份查找。</summary>
+    private ListVal? RavelHandlers()
+        => (_global.TryLookup("Ex")?.Value as ModuleVal)?.Scope.TryLookup("HandlerStack")?.Value as ListVal
+           ?? _global.TryLookup("HandlerStack")?.Value as ListVal;
+
+    /// <summary>调用续延前把两份**控制状态**恢复成捕获那一刻的样子(handler 栈、模块加载栈)。
+    ///
+    /// 非恢复不可的理由:它们都是副作用式的状态、不在帧链里,而帧链一被丢弃,
+    /// "跑完自己的收尾去摘"那一步就再也不会执行 ——
+    /// 用外层捕获的续延从 `try` 体里逃出去,那个 handler 会留在栈上变成僵尸(之后**没人接**的
+    /// 错误被它接住,而它的续延停在早被丢弃的那条链上;和 tests/215 修过的"正常收尾泄漏"同一类,
+    /// 只是入口换成了 callcc);从**模块体**里逃出去,那个模块会永远停在 `_loading` 里,
+    /// 之后正常 `using` 它反而被误报「检测到循环引用」。
+    ///
+    /// 反过来也顺:调一个"在 try 体里捕获的"续延时,那段代码重新**进**了那个 try 的动态范围,
+    /// handler 跟着回来(重进的这一段再抛错照样被它接住)。
+    ///
+    /// handler 那份只动 `Elements` 的内容、不换 ListVal 对象:别处可能已经拿着这个列表的引用。</summary>
+    private void RestoreControlState(ContinuationVal k)
+    {
+        if (k.Handlers is { } snapshot && RavelHandlers() is { } stack)
+        {
+            stack.Elements.Clear();
+            stack.Elements.AddRange(snapshot.Elements);
+        }
+
+        if (k.Loading is not { } loading) return;
+
+        // 这次恢复把当前那条链甩掉了:链上**正在加载**的模块(此刻在 `_loading` 里、快照里没有的)
+        // 其加载被中断了 —— 要从"已加载"里摘掉。不摘的话它停在"loaded 一半"的状态上:
+        // 之后 `using` 它只是**静默地什么都不做**,而定义缺着。摘掉之后下次 `using` 从头再来。
+        foreach (var m in _loading)
+            if (Array.IndexOf(loading, m) < 0) _loaded.Remove(m);
+
+        _loading.Clear();
+        for (var i = loading.Length - 1; i >= 0; i--) _loading.Push(loading[i]);
+    }
+
     private bool HandToRavelHandler(RuntimeException ex)
     {
-        // predefined.rav 那段先 `ravel "Ex"`,所以 HandlerStack 在 Ex 模块里;也接受放全局的写法
-        var stack = (_global.TryLookup("Ex")?.Value as ModuleVal)?.Scope.TryLookup("HandlerStack")?.Value
-                        as ListVal
-                    ?? _global.TryLookup("HandlerStack")?.Value as ListVal;
-        if (stack == null) return false;
+        if (RavelHandlers() is not { } stack) return false;
         if (stack.Elements.Count == 0) return false;
         if (stack.Elements[0] is not FunctionVal handler) return false;
 

@@ -1,0 +1,116 @@
+# `callcc` × 作用域与接口槽：恢复之后**那一次的作用域链一起回来** ——
+# eval 出来的块、`with` 造的那份副本、接口槽那次分发的 `instance`（见 221 的"激活格"），
+# 都挂在帧链上，所以它们跟着续延走。
+#
+# 老规矩：闩声明在捕获点之前（恢复会重跑捕获点之后的尾巴）；同一段打印出现两次是恢复后重跑的。
+# ③ 那几行尤其吵，读法：`[1 100]` 是 u、w 各服务一次；恢复 u 那次之后又记了一条 ——
+# 「恢复之后 instance 还是 u」这条判据看的是恢复之后新出现的那条（1，不是 100）。
+# 尾巴重跑还会再服务一次 w（`kw := w.f` 重跑），所以列表末尾那个 100 是重跑留下的。
+
+# ---- ① eval 里捕获，事后恢复 ----
+escE: object = 0
+haveE := false
+doneE := false
+r := eval "callcc (k: function) => { if { !haveE; } { haveE = true; escE = k; } { 0; }; 5; }"
+print r
+try { if { !doneE; } { doneE = true; escE 7; } { 0; }; } (e: Exception) => { print ("E: " + string e); }
+print "after E"
+
+# ---- ② with 的副本：恢复后接着改的是**副本**，原件不动 ----
+K ::= class {
+    n : int = 1
+}
+escW: object = 0
+haveW := false
+doneW := false
+obj := K ()
+p2 := with obj {
+    n = 2
+    got := callcc (k: function) => { if { !haveW; } { haveW = true; escW = k; } { 0; }; () };
+    if { typeof got == int; } { n = got + 100; } { 0; }
+    n;
+}
+print p2.n
+print obj.n
+try { if { !doneW; } { doneW = true; escW 5; } { 0; }; } (e: Exception) => { print ("W: " + string e); }
+print p2.n
+print obj.n
+
+# ---- ③ 接口槽里捕获：恢复之后 `instance` 还是原来那个实例 ----
+T ::= interface {
+    by f : function = default
+}
+C ::= class {
+    x : int = 0
+}
+escI: object = 0
+haveI := false
+doneW2 := false
+doneU := false
+seenX: list = []
+impl (T C {
+    by f = property (() => {
+        k := callcc (k2: function) => { if { !haveI; } { haveI = true; escI = k2; } { 0; }; k2; };
+        seenX.Add instance.x
+        k;
+    }) ((v: function) => { (); })
+})
+u := C ()
+w := C ()
+u.x = 1
+w.x = 100
+ku := u.f
+kw := w.f
+print seenX                # [1 100]：u 那次、w 那次各记一条
+print (typeof ku)
+try { if { !doneW2; } { doneW2 = true; kw (); } { 0; }; } (e: Exception) => { print ("I: " + string e); }
+print seenX                # 恢复 w 那次 → 又记 100
+try { if { !doneU; } { doneU = true; escI (); } { 0; }; } (e: Exception) => { print ("I2: " + string e); }
+print seenX                # 恢复 u 那次 → 该记 1（u），不是 100（w）
+
+# ---- ④ 从槽体里用外层续延逃出去 ----
+escB: object = 0
+impl (T C {
+    by g := property (() => { escB "jumped"; 0; }) ((v: int) => { (); })
+})
+out := callcc (k: function) => {
+    escB = k
+    print (u.g)
+    "normal";
+}
+print out
+print (Ex.HandlerStack.Count ())
+
+# ---- ⑤ 槽体里抛错，外面接住 ----
+escC: object = 0
+impl (T C {
+    by h := property (() => { throw (Exception "from slot"); }) ((v: int) => { (); })
+})
+o2 := C ()
+try { print (o2.h); } (e: Exception) => { print ("caught " + string e); }
+print (Ex.HandlerStack.Count ())
+print "end"
+# --- expected ---
+# 5
+# 7
+# after E
+# 2
+# 1
+# 105
+# 1
+# 105
+# 1
+# [1 100]
+# Function
+# [1 100 100]
+# Function
+# [1 100 100]
+# [1 100 100 1 100]
+# Void
+# [1 100 100 1 100]
+# [1 100 100 1 100]
+# jumped
+# 0
+# caught from slot
+# 0
+# end
