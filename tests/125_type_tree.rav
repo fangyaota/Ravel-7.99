@@ -33,4 +33,5 @@ Types.PrintTree object
 # ├── IEnumerator [Interface]
 # ├── Enumerator [Type]
 # ├── Cacher [Type]
+# ├── IMonad [Interface]
 # └── Monad [Type]

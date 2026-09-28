@@ -793,8 +793,10 @@ Main.Perform ()
 ```
 
 这就是 IO Monad：`Action` 是说明书的类型，`Bind` 把两份说明书订成一份，所以 `:<` 直接能用。
-注意「Monad」在这里是**形状**（有 `Bind` / `Map`）而不是类型 —— `Action` 和 5.8 那个
-`Monad` 没有继承关系，只是都能进 `do` 块。
+注意「Monad」在这里是**形状**（有 `Bind` / `Map`）而不是某个类型 —— `Action` 和 5.8 那个
+`Monad` 是**同一个形状的两个实例**：两者都实现 `IMonad`（`monad.rav` 里那个接口，两条槽就是
+`Map` / `Bind`），所以 `x is IMonad`、注解 `(m: IMonad)`、`IMonad.GetImplementors ()` 都认它们；
+而各自的 `Bind` 各干各的 —— 这边真跑效果，那边没有值就短路。
 
 | 名字 | 做什么 |
 |------|--------|

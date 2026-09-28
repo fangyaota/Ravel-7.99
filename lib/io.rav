@@ -11,8 +11,9 @@
 #
 # 这就是 IO Monad:`Action` 是说明书的类型,`Bind` 把两份说明书订成一份,
 # 所以 `do { x :< GetLine; … }` 直接能用(`:<` 脱糖成的就是 `.Bind`)。
-# 注意"Monad"在这里是**形状**(有 Bind / Map)而不是类型:Action 与 predefined.rav 里
-# 那个 Monad 没有任何继承关系,只是都能进 do 块而已。
+# 它和 predefined.rav 那个 `Monad`(Option)是**同一个形状的两个实例** —— 都实现了 `IMonad`
+# (Map + Bind 两条槽,见 monad.rav),所以 `is IMonad` / 注解 `(m: IMonad)` / 两者混着写都认;
+# 但它们的 `Bind` 各干各的:这边真跑效果,那边没有值就短路。
 
 ravel "Io"
 
@@ -58,3 +59,10 @@ readonly GetLine := Action (() => { input (); })
 readonly Foreach := (xs: list f: function) => {
     Action (() => { foreach xs (x: object) => { (f x).Perform (); }; (); })
 }
+
+# `Action` 在 `IMonad` 这一族里。实现体是空的:它自己那两条 Map / Bind 就是形状本身
+# (查到自己那层就先说话),这里只是登记一下。用 `impl`(不是 `use`)——
+# 这一族是**类型层面**的事实,不该随作用域来去;而且这样 `x is IMonad` 在哪儿都成立。
+impl (IMonad Action {
+    ()
+})

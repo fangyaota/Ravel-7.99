@@ -97,7 +97,8 @@ lib/
   iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
   cacher.rav              `Cacher`(Count/Fn/Keys/Vals 四个字段,init 交出的是包装函数而不是 this)
                           + 小写别名 `cacher`;两个类都进 AllTypes(`Subtypes ()` 看得到)
-  monad.rav               `Monad`(Some/None:Has/Inner 两个字段 + IsSome/Value/Bind/Map/Where…)
+  monad.rav               **Monad 这一族**:`IMonad` 接口(Map + Bind 两条槽 —— 能进 `do { … }` 的形状)
+                          + 一个实例 `Monad`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           + 构造子 `Some` / `None`
   exceptions.rav          `Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎冒泡时叫的
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
@@ -108,8 +109,11 @@ lib/
                           `using "types.rav"` 引入;tests/125 跑的就是它
   io.rav                  Io 模块(IO Monad):`Action` 把"要做的效果"做成值,
                           `Perform ()` 才真跑;Return/PutStrLn/PutStr/GetLine/Foreach。
-                          `using "io.rav"` 引入 —— 它和 predefined 里那个 Monad
-                          **没有继承关系**,只是同样有 Bind/Map 所以能进 do 块
+                          `using "io.rav"` 引入 —— `Action` 也实现了 `IMonad`
+                          (它和 `Monad` 是**同一个形状的两个实例**:各自那份 Map/Bind 就是形状本身,
+                          `impl (IMonad Action { () })` 只是登记一下;`impl` 是全局的,所以
+                          `x is IMonad` 在哪儿都成立)。两者的 `Bind` 各干各的:这边真跑效果,
+                          那边没有值就短路
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
 

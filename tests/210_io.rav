@@ -61,6 +61,23 @@ Build := (b: bool) => { if { b; } { Io.PutStrLn "开了"; } { Io.Return (); } }
 Left := Build true
 print "还没跑那个分支"
 Left.Perform ()
+# 4) IMonad:Monad(Option)与 Action 是**同一个形状的两个实例**(见 monad.rav / io.rav)。
+#    形状就是 do 要的那两条槽 Map / Bind;`Return` 那种构造子各归各的(这边 Some,Io 那边 Io.Return)。
+print (Some 5 is IMonad)
+print (None is IMonad)
+print (Io.PutStrLn "x" is IMonad)
+print (5 is IMonad)
+
+# 实现是**全局**登记的(用 impl 而不是 use),所以类型层面两个方向都问得出来
+print (Monad.GetImplements ())
+print (Io.Action.GetImplements ())
+print (IMonad.GetImplementors ())
+
+# 通用函数:只要求"是这个形状",同一个 monad 自己往下接
+Chain := (m: IMonad f: function) => { m.Bind f; }
+# (外面那层括号不能省：`.` 比并列的调用绑得紧，不括就变成"给 lambda 取成员")
+print ((Chain (Some 3) ((v: object) => { Some (v + 1); })).Value ())
+print ((Chain (Io.Action (() => { 41; })) ((v: object) => { Io.Action (() => { v + 1; }); })).Perform ())
 # --- expected ---
 # 0
 # tick
@@ -83,3 +100,12 @@ Left.Perform ()
 # [a b c a b c]
 # 还没跑那个分支
 # 开了
+# true
+# true
+# true
+# false
+# [IMonad]
+# [IMonad]
+# [Action Monad]
+# 4
+# 42

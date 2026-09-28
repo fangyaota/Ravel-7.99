@@ -1,5 +1,16 @@
-# Monad:要么包着一个值,要么什么都没有。`Some` / `None` 两个构造子。
-# 由 predefined.rav 加载(名字落在全局作用域)。
+# Monad 这一族:**形状** + 一个实例(这里这个 `Monad` 是"要么包着一个值,要么什么都没有")。
+# 由 predefined.rav 加载(名字落在全局作用域);`Io.Action`(见 io.rav)是这一族的另一个实例。
+#
+# 「Monad 的形状」就是能进 `do { … }` 的东西 —— `do` 把 `:<` 脱糖成 `.Bind`,所以形状是
+# **Map + Bind 两条槽**。写成接口之后:`x is IMonad` 能问、注解 `(m: IMonad)` 收得下、
+# `IMonad.GetImplementors ()` 看得见有哪些类型在这一族里。
+#
+# 注意它只管"形状":`Return` 那种东西是**每个 monad 各自的构造子**(这里叫 `Some`,
+# `Io` 那边叫 `Io.Return`),接口表达不了"某个类型有个构造子",也没必要。
+IMonad ::= interface {
+    by Map : function = default
+    by Bind : function = default
+}
 
 
 # `Some 5` 有值,`None` 没有。Map / Bind / Where 对 None 一律原样放过(短路),
@@ -46,3 +57,9 @@ Monad ::= class {
 # `Some` 是个普通函数(柯里化的,喂一个参数就得到 Monad)。
 readonly Some := (v: object) => { Monad true v; }
 readonly None := Monad false ()
+
+# 这个 `Monad`(Option)在 IMonad 这一族里。实现体是空的 —— 它自己那两条 Map / Bind 就是形状本身
+# (`TraitSlot` 查到自己那层就先说话),这里只是**登记**一下,让 `is` / 注解 / 查询都认它。
+impl (IMonad Monad {
+    ()
+})
