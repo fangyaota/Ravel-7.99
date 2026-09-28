@@ -1,0 +1,64 @@
+# `callcc` × 多发射：拿**两枚**续延来回跳，写一个"生成器"——`pull ()` 一次拿一个值。
+#
+# 关键在**每一轮两枚续延都重新捕获**：消费者的续延由 `pull` 每次重新抓（所以回到的是**这一次**
+# `pull` 的调用点，不会把上一轮重跑一遍）；生产者的续延由它自己每吐一个值就重抓一次。
+# 这就是它和"同一枚续延反复调用"的区别 —— 后者会从捕获点重来（`again := callcc …` 那个坑）。
+#
+# 教程 4.4 原本说"它不是生成器"，那句话只对"同一枚续延反复调用"成立，这里把它补准。
+
+resumeProducer: object = 0
+resumeConsumer: object = 0
+started := false
+
+pull := () => {
+    callcc (kc: function) => {
+        resumeConsumer = kc
+        if { started; } { resumeProducer (); } { started = true; producerBody (); }
+    }
+}
+
+producerBody := () => {
+    i := 0
+    while { i < 3; } {
+        i += 1
+        callcc (kp: function) => {
+            resumeProducer = kp
+            resumeConsumer i          # 吐一个值就把控制权交回消费者
+        }
+    }
+    resumeConsumer "done"
+}
+
+print (pull ())
+print (pull ())
+print (pull ())
+print (pull ())
+print (Ex.HandlerStack.Count ())      # 这套来回跳不该留下 handler
+
+# ---- 顺带：槽运算符（`by +`）的 getter 里捕获续延，正常那条路照旧 ----
+T ::= interface {
+    by + := property (() => { 0; }) ((v: function) => { (); })
+}
+C ::= class {
+    x : int = 0
+}
+escOp: object = 0
+haveOp := false
+impl (T C {
+    by + = property (() => {
+        callcc (k: function) => { if { !haveOp; } { haveOp = true; escOp = k; } { 0; }; };
+        (o: object) => { instance.x + 1; };
+    }) ((v: function) => { (); })
+})
+c := C ()
+c.x = 41
+print (c + 0)
+print "end"
+# --- expected ---
+# 1
+# 2
+# 3
+# done
+# 0
+# 42
+# end

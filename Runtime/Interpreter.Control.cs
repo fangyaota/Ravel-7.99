@@ -58,7 +58,7 @@ public partial class Interpreter
             CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(
                 cf,
                 RavelHandlers() is { } hs ? new ListVal([.. hs.Elements]) : null,
-                _loading.ToArray()));
+                _loading.Count == 0 ? Array.Empty<string>() : _loading.ToArray()));
 
             return;
         }

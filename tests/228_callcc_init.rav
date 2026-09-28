@@ -1,0 +1,45 @@
+# `callcc` × 构造：`ClassInit` 帧的计数对续延重入很敏感（源码里那句"用 > 而非 ="就是为它写的），
+# 柯里化构造器还要经过 `PartialCtor` / `CtorApply` 两个合成帧 —— 这里把这两条路钉住。
+#
+# 老规矩：闩声明在捕获点之前；恢复会重跑捕获点之后的尾巴，同一段打印出现两次是重跑出来的。
+
+# ---- ① init 里捕获续延，恢复后接着往下走 ----
+escK: object = 0
+haveK := false
+doneK := false
+K ::= class {
+    n : int = 0
+    init := (v: int) => {
+        callcc (k: function) => { if { !haveK; } { haveK = true; escK = k; } { 0; }; };
+        n = v
+        this
+    }
+}
+kk := K 7
+print kk.n
+try { if { !doneK; } { doneK = true; escK (); } { 0; }; } (e: Exception) => { print ("K: " + string e); }
+print kk.n
+
+# ---- ② 柯里化的构造器（两参）：第一段里捕获续延，正常那条路照旧 ----
+escP: object = 0
+haveP := false
+P ::= class {
+    a : int = 0
+    b : int = 0
+    init := (x: int) => {
+        callcc (k: function) => { if { !haveP; } { haveP = true; escP = k; } { 0; }; };
+        (y: int) => { a = x; b = y; this; }
+    }
+}
+half := P 3          # 参数没收齐 → PartialCtor 半成品
+pp := half 4         # CtorApply 接着喂
+print pp.a
+print pp.b
+print "end"
+# --- expected ---
+# 7
+# 7
+# 7
+# 3
+# 4
+# end
