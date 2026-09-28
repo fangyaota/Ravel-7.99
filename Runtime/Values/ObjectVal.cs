@@ -215,7 +215,7 @@ public record ObjectVal : RuntimeValue
             // `instance` 也排掉:它是实现身上的机制槽(一条指向"这一次在服务谁"的 by 槽),
             // 不是这个对象的数据 —— 打印实现时拎出来只会让人以为实现里存着个实例。
             if (kv.Key is ThisMember or ParentMember or ThisTypeMember or BlockMember
-                or BuiltinClasses.InstanceMember) continue;
+                or BuiltinClasses.InstanceMember or BuiltinClasses.ImplIdMember) continue;
             if (fields.Count == MaxFields) { fields.Add("..."); break; }
             fields.Add(kv.Key + " = " + Brief(kv.Value.Value));
         }

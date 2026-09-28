@@ -137,6 +137,17 @@ z := F ()
 z.w = 8
 print (z.c)
 Ex.Try { im.show (); } (e: Exception) => { print ("5: " + string e); }
+
+# ---- 9. 实现的**副本**照样好使 ----
+# 副本是另一个对象,但它是"同一个实现" —— 号(`impl$id`)是值语义的,`CopyScope` 拷过去,
+# 于是副本上的 `instance` 认的还是同一枚(从前拿实现对象本身认身份的话,副本会被判成外人)
+dup := im.Copy ()
+use dup
+z2 := F ()
+z2.w = 7
+print (z2.c)
+dup.Dispose ()
+print (z2.c)
 # --- expected ---
 # 1
 # 2
@@ -154,3 +165,5 @@ Ex.Try { im.show (); } (e: Exception) => { print ("5: " + string e); }
 # 4: 接口 Bad 里声明了名为 'instance' 的槽 —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个
 # 8
 # 5: `instance` 只在实现体的槽里有效：此刻没有正在被服务的实例（它指的是「这一次调用在服务谁」，离开那次调用就没有了）
+# 7
+# 7

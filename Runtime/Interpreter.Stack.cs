@@ -44,24 +44,25 @@ public partial class Interpreter
     /// 自己属于谁 —— 从前实现身上只有一格共享的 `instance`,留存值会后漂);**帧链**那一半管
     /// "槽体里调用的辅助函数"(它的词法链上没有激活格,但调用链上有)。
     ///
-    /// 只认 `impl$active` 就是**这个实现**的激活格:跨实现边界时宁可报「没有正在被服务的实例」,
+    /// 只认 `impl$active` 就是**这个实现**的激活格(认号不认对象:副本带的是同一枚号,
+    /// 见 `BuiltinClasses.ImplIdMember`):跨实现边界时宁可报「没有正在被服务的实例」,
     /// 也不能静默绑到别人的接收者上。</summary>
-    internal ObjectVal? ActiveInstance(Scope? start, ObjectVal impl)
+    internal ObjectVal? ActiveInstance(Scope? start, int implId)
     {
         for (var s = start; s != null; s = s.Parent)
-            if (ActiveAt(s, impl) is { } lexical) return lexical;
+            if (ActiveAt(s, implId) is { } lexical) return lexical;
 
         for (var f = _top; f != null; f = f.Parent)
             for (var s = f.Scope; s != null; s = s.Parent)
-                if (ActiveAt(s, impl) is { } dynamic) return dynamic;
+                if (ActiveAt(s, implId) is { } dynamic) return dynamic;
 
         return null;
     }
 
-    /// <summary>这一层是不是"这个实现的"激活格:两格都在、且 `impl$active` 正是它。</summary>
-    private static ObjectVal? ActiveAt(Scope s, ObjectVal impl)
+    /// <summary>这一层是不是"这个实现的"激活格:两格都在、且 `impl$active` 就是这枚号。</summary>
+    private static ObjectVal? ActiveAt(Scope s, int implId)
         => s.LookupField(BuiltinClasses.InstanceActiveMember) is { } vr
-           && ReferenceEquals(s.LookupField(BuiltinClasses.ImplActiveMember)?.Value, impl)
+           && s.LookupField(BuiltinClasses.ImplActiveMember)?.Value is IntVal id && id.Value == implId
             ? (ObjectVal)vr.Value
             : null;
 

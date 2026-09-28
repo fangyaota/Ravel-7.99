@@ -49,6 +49,13 @@ internal static partial class BuiltinClasses
     /// 名字里的 `$` 不在 Ravel 标识符字符集里,用户写不出来(同 `use$impls`),永远不会撞。</summary>
     internal const string InstanceActiveMember = "instance$active";
     internal const string ImplActiveMember = "impl$active";
+    /// <summary>实现的**身份证**:一个每人一份的号(`Copy ()` 出来的副本带的是**同一个号** ——
+    /// 副本还是同一个实现,只是又一份状态)。
+    ///
+    /// 干什么用:读 `instance` 时只认"这个实现"的激活格,不然跨实现边界会静默绑到别人的接收者上。
+    /// 拿**值**当身份证而不是拿实现对象本身:副本是另一个 `ObjectVal`,`CopyScope` 逐个值拷过去,
+    /// 号是值语义的(`IntVal`),于是原件和副本认的是同一枚;而两个不同的实现各领一个号,分得开。</summary>
+    internal const string ImplIdMember = "impl$id";
     /// <summary>实现对象身上的目标类(`myTrait myClass { … }` 的那个 `myClass`)。</summary>
     internal const string TargetMember = "target";
     /// <summary>实现的**代号**:每 `Dispose` 一次 +1,登记表里的每条都记着"登记时它几岁"。
@@ -226,7 +233,9 @@ internal static partial class BuiltinClasses
     ///
     /// getter 是 C# 侧的原生闭包 —— 它的体按**调用点作用域**跑(`Interpreter.Call.cs` 的
     /// `NativeClosure` 那一臂),所以它正好落"读 `instance` 的那一帧"上,再问求值器
-    /// "这一次调用在服务谁"(<see cref="Interpreter.ActiveInstance"/>)。
+    /// "这一次调用在服务谁"(<see cref="Interpreter.ActiveInstance"/>),认的是这个实现的
+    /// **身份证**(见 <see cref="ImplIdMember"/> —— 副本带着同一枚,所以 `Copy ()` 出来的
+    /// 实现照样能用)。
     /// setter 只报错:正常写被 `Attr.Readonly` 先挡在半路(`WriteVariable` 的 `CheckWritable`),
     /// 只有 `(by x.instance).Set v` 那种绕开 `Variable` 的路会撞上它 —— 让它出声。
     ///
@@ -238,8 +247,9 @@ internal static partial class BuiltinClasses
             throw new RuntimeException($"接口 {impl.Type.DisplayName} 里声明了名为 '{InstanceMember}' 的槽"
                 + " —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个");
 
+        var id = ImplId(impl);
         var getter = new NativeClosure(InstanceMember, Any, (scope, _) =>
-            interp.ActiveInstance(scope, impl) ?? throw new RuntimeException(
+            interp.ActiveInstance(scope, id.Value) ?? throw new RuntimeException(
                 "`instance` 只在实现体的槽里有效：此刻没有正在被服务的实例"
                 + "（它指的是「这一次调用在服务谁」，离开那次调用就没有了）"));
         var setter = new NativeClosure(InstanceMember, Any, (_, _) => throw new RuntimeException(
@@ -248,6 +258,18 @@ internal static partial class BuiltinClasses
         var vr = impl.Scope.Define(InstanceMember, Any, new PropertyVal(getter, setter));
         vr.SetAttr(Attr.By);
         vr.SetAttr(Attr.Readonly);
+    }
+
+    private static int _implCount;
+
+    /// <summary>给实现发一枚号(已经有了就沿用 —— 副本那条路是 `CopyScope` 把号当值拷过去)。</summary>
+    private static IntVal ImplId(ObjectVal impl)
+    {
+        if (impl.Scope.LookupField(ImplIdMember)?.Value is IntVal had) return had;
+
+        var id = new IntVal(++_implCount);
+        impl.Scope.Define(ImplIdMember, Int, id).SetAttr(Attr.Unreadable);
+        return id;
     }
 
     /// <summary>把实现登记进 `into` 那个作用域:`use` 给的是**当前作用域**(随作用域在/不在),
@@ -383,12 +405,13 @@ internal static partial class BuiltinClasses
     }
 
     /// <summary>这次分发的激活格:一层挂在原捕获作用域下面的小作用域,里面两格 ——
-    /// 这次服务谁、这次是哪个实现在服务。读 `instance` 找的就是它(见 `Interpreter.ActiveInstance`)。</summary>
+    /// 这次服务谁、这次是哪个实现在服务(记的是它的身份证)。读 `instance` 找的就是它
+    /// (见 `Interpreter.ActiveInstance`)。</summary>
     private static Scope Activation(Scope chain, in TraitHit hit)
     {
         var act = new Scope(chain);
         act.Define(InstanceActiveMember, Any, hit.Receiver);
-        act.Define(ImplActiveMember, Type, hit.Impl).SetAttr(Attr.Unreadable);
+        act.Define(ImplActiveMember, Int, ImplId(hit.Impl)).SetAttr(Attr.Unreadable);
         return act;
     }
 
