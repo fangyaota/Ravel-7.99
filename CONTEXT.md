@@ -410,6 +410,16 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 
 `with`/`using`/`eval` 仍是 C# 内建——`with` 需要「用副本的 scope 执行块」，`using`/`eval` 需要文件 IO 与词法/语法分析，Ravel 层做不到。
 
+**续延恢复时连"控制状态"一起还原**：帧链之外还有两样 —— `Ex.HandlerStack` 与模块加载栈 `_loading`
+（`ContinuationVal.Handlers` / `.Loading`，还原在 `Interpreter.RestoreControlState`）。它们都是
+**副作用式**的状态、不在帧链里：帧链一丢，"跑完收尾去摘 handler / 退 `_loading`"那一步就再也不会执行 ——
+逃出 `try` 体会留下**僵尸 handler**（接住后面没人接的错误，而它的续延停在早被丢弃的链上；
+和 tests/215 修过的正常收尾泄漏同类），逃出模块体会让那个模块**永远"正在加载"**（之后 `using` 被误报
+「检测到循环引用」），而且它已记进 `_loaded`，于是 `using` 变成静默空操作 —— 所以被中断的那个加载
+还要从 `_loaded` 里摘掉，下次 `using` 从头再来。反过来也顺：调一个在 `try` 体里捕获的续延，
+那个 try 的 handler 回来，重进的那段照样受保护。**普通数据不回滚**（累加器、字段原地改）：
+恢复 = 接着从中断处往下算。测试 223（try）、224（循环/枚举/多发射/累加器）、225（eval/with/接口槽的 `instance`）、226（模块）。
+
 **callcc 只有一套语义**：续延 = callcc 之后的剩余计算；调用它 = 丢弃当前帧链、把值当作 callcc 的返回值、从捕获点继续。因此 **callcc 之后的语句会被重新执行**——`x := 1 + callcc (k) => { saved = k; 0; }` 之后再 `saved 10`，会让 `x` 变成 11 并继续往下走。想「跳出去」就调用续延（旧的 escape 用例行为不变）。
 
 ## 运算符
