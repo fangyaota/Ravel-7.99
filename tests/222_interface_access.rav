@@ -85,6 +85,28 @@ Ex.Try {
         by r = property (() => { instance.m; }) ((v: int) => { instance.m = v; })
     })
 } (e: Exception) => { print ("7: " + string e); }
+
+# `instance` 那条机制槽自己挂 **protected**:它是**实现这一族**的东西 ——
+# `im.instance` / `by im.instance` 从外面碰就说人话;实现自己的代码(槽体里)照旧读得到。
+# 而 `u.instance` 仍然是「没有方法」:u 身上压根没这个成员(TraitSlot 那道名字闸管这半),
+# 可见性和"能不能读"是两道判据(同一个接口的另一个实现,可见性上让过,但它那次分发不在这儿,
+# 于是落到「此刻没有正在被服务的实例」)。
+T2 ::= interface {
+    by a : int = default
+}
+C2 ::= class {
+    x : int = 0
+}
+im2 := impl (T2 C2 {
+    by a = property (() => { instance.x + (im2.instance.x * 0); }) ((v: int) => { (); })
+})
+c2 := C2 ()
+c2.x = 7
+print (c2.a)
+Ex.Try { print (c2.instance); } (e: Exception) => { print ("8: " + string e); }
+Ex.Try { print (im2.instance); } (e: Exception) => { print ("9: " + string e); }
+Ex.Try { print (by im2.instance); } (e: Exception) => { print ("10: " + string e); }
+Ex.Try { im2.instance = 5; } (e: Exception) => { print ("11: " + string e); }
 # --- expected ---
 # 8
 # 1: 变量 'a' 是私有的
@@ -96,3 +118,8 @@ Ex.Try {
 # 5: 修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）
 # 6: 变量 's' 是私有的
 # 7: 无法给只读变量 'r' 赋值
+# 7
+# 8: 类型 'C2' 没有方法 'instance'
+# 9: 变量 'instance' 是受保护的
+# 10: 变量 'instance' 是受保护的
+# 11: 字段 'instance' 是受保护的

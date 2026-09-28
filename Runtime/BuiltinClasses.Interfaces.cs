@@ -258,6 +258,12 @@ internal static partial class BuiltinClasses
         var vr = impl.Scope.Define(InstanceMember, Any, new PropertyVal(getter, setter));
         vr.SetAttr(Attr.By);
         vr.SetAttr(Attr.Readonly);
+        // protected:它是**实现这一族**的东西 —— `im.instance` / `by im.instance` 从外面碰就报
+        // 「变量 'instance' 是受保护的」,而实现自己的代码(槽体、辅助函数)照旧读得到
+        // (`CheckFieldAccess` 那条"当前作用域链上有个 this 就是本族"的判据)。
+        // **不是**拿它取代 `TraitSlot` 那道名字闸:`u.instance` 的意义是"u 身上没这个成员",
+        // 那句话由闸给;访问控制管的是"实现身上有、但外面别碰"(两道各管一半)。
+        vr.SetAttr(Attr.Protected);
     }
 
     private static int _implCount;

@@ -610,6 +610,11 @@ myImplement.Dispose ()   # 提前取消
   没有激活格就报错、`instance = x` 报只读(`Attr.Readonly`)。它**不进**"`u.x` 能读到什么":
   `TraitSlot` 见到这个名字直接返回 null,否则 `u.instance` / `(5).instance`(全局 INumber 实现的
   目标类就是 int)都成了能读的新成员。
+  那条槽自己还挂着 **`protected`**(两道闸各管一半):`im.instance` / `by im.instance` 从外面碰报
+  「变量 'instance' 是受保护的」("实现这一族的东西"),实现自己的代码照旧读得到;而 `u.instance`
+  报的仍是「类型 'C' 没有方法 'instance'」—— 它的语义是"u 身上没这个成员",那是名字那道闸给的。
+  两道判据是分开的:同一个接口的**另一个实现**在可见性上让过(protected),但它那次分发不在这儿,
+  于是落到「此刻没有正在被服务的实例」。
 - `use impl`(`System.Use`)/ `impl 实现`(`System.Impl`)把实现登记进**一个作用域**的成员里
   (键 `use$impls`;`$` 不在标识符字符集里,用户写不出这个名字,永远不会撞):`use` 给的是
   **当前作用域**(随作用域在/不在),`impl` 给的是**全局作用域**(每个作用域链都到全局,于是处处生效 ——
