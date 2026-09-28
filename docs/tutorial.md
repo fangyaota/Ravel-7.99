@@ -1469,7 +1469,7 @@ print (u is myTrait)     # true
    和 C# 一样，接口不是"继承了一个叫 `Interface` 的基类"：`myTrait.Parent ()` 是 `object`，
    而 `typeof myTrait` 是 `Interface`（`myTrait is interface` 成立，类型树上也这么标）。
 2. **`myTrait myClass { … }` 造一个实现**。块里用 `by a = property …` 把接口声明的槽**换掉**
-   （所以写 `=`，不是 `:=`）；块里有个 `instance`，就是"当下这个实例"。
+   （所以写 `=`，不是 `:=`）；块里有个 `instance`，就是"这一次在服务谁"（随调用走，见下）。
 3. **`use impl` 把它登记在当前位置的作用域里**。从此这里 `u.a` / `u.b` 都走实现那条槽；
    `myClass` 本身一个字没动 —— 换个作用域写 `myClass ()` 照旧没有 a/b。
 
@@ -1478,7 +1478,8 @@ print (u is myTrait)     # true
 实现块在**它自己的作用域**里跑一遍：接口声明的槽先摆好，再由实现块把它们换掉。那些槽就住在
 实现身上，实例身上没有 —— 所以 `u.Fields ()` 里不列 a/b。
 
-读 `u.a` 的时候，引擎把实现里的 `instance` 换成 `u`，那条 property 的 getter/setter 看的就是它：
+读 `u.a` 的时候，引擎把那条槽**绑到这一次的接收者** `u` 上再交出去，getter/setter 里那个 `instance`
+就是 `u`：
 
 ```ravel
 v := myClass ()
@@ -1487,8 +1488,28 @@ print u.a      # 1 —— 还是 u 自己的
 print v.a      # 99
 ```
 
-`instance` 只有一个，所以同一时刻一个实现只服务一个实例（上面两行是顺序来的，不会串）。
-直接读 `myImplement.a` 读到的也是它 —— 那一刻 `instance` 是谁就看谁，所以正常用法是 `u.a`。
+**`instance` 是"这一次调用"的事**：它不落在实现身上，而是每次分发临场绑一层。所以留存下来的东西
+永远指它自己那个实例：
+
+```ravel
+Late ::= interface {
+    by peek : function = default
+}
+lateImpl := Late myClass {
+    by peek = property (() => { () => { instance.x; }; }) ((v: function) => { (); })
+}
+use lateImpl
+
+mine := myClass ()
+mine.x = 5
+peek := mine.peek       # 这个闭包属于 mine
+u.a = 9                 # 中间服务过别的实例
+print (peek ())         # 5 —— 还是 mine 的，不会跟着漂
+```
+
+一个实现也就能**同时**服务多个实例（`u` 的槽体里去读 `v` 的槽，回来读 `instance` 仍是 `u`）。
+`instance` 只在实现体的槽里有效：`by u.a` 取出来的那份槽没有"这一次"可言，事后 `.Get ()` 用它会
+报「此刻没有正在被服务的实例」——**响亮**，不给一个陈旧的值。
 
 #### 作用域就是它生效的范围
 

@@ -588,8 +588,26 @@ myImplement.Dispose ()   # 提前取消
   `(body: Function)` 会先把 `myTrait myClass` 里的类对象吃掉(然后报「class 需要代码块参数」)。
 - `myTrait myClass { … }` 推 `ControlKind.ImplMake` 帧(`StepImplMake`):**接口类体与实现块依次跑在
   同一个 scope 里**(先摆槽、再换槽),那个 scope 就是实现对象的成员表 —— **槽住在实现里**,
-  建一次一直用;`instance` 是那个 scope 里的一个变量,每次要被服务的实例换上去(换的只有它)。
+  建一次一直用。收尾(`FinishImplementation`)在那个 scope 里装上一条 `instance` **by 槽**
+  (`Attr.By` + `Attr.Readonly`),它的 getter 是原生闭包:**读的那一刻**现场解析"这一次调用在服务谁"。
   两段都要推帧才能跑,而原生闭包的体是同步的 —— 这就是它非要一个控制帧的原因。
+- 读写 `x.a` 的兜底在 `BuiltinClasses.TraitSlot`:常规成员表(`MemberScope`,含类链)里没有这个名字时
+  才去沿 `CurrentScope` 的词法链找生效中的实现(同 scope 里后 use 的先试、目标类收得下就认),
+  找到返回一份**命中**(哪条槽、哪个实现、这次服务谁)。真正要用它的调用点再走 `Activate`:**临场开一层
+  作用域**(`instance$active` = 这次服务谁,`impl$active` = 哪个实现),把槽的 getter/setter 绑到那层上。
+  `TraitSlot` 自己**不建**激活格 —— 有一半调用点只是问一句"有没有"(`HasTraitOperator`,每次二元运算
+  类型表落空都会问)。落点:读 `TryGetByGetter`;写 `StepMemberAssign`(count2)/ `StepCompoundAssign` /
+  `StepTraitOp` 的第二支;`StepSlot` / `StepSlotAssign` 那两支**只取槽、不绑**(`by` 取的就是槽本身)。
+  **`myClass` 这个名字一个字没动**:不建子类、不换绑定、不往它身上加成员
+  (所以 `x : myClass = u`、`print u`、`u.Fields ()` 照旧,`Fields ()` 里也**没有** a/b)。
+- **`instance` 是"这一次调用"的事,不是实现身上的一格共享变量**(从前是 —— 于是留存下来的闭包,
+  比如 getter 返回的那个,会跟着后一次访问改意思,静默错值)。读它走两层:**先**沿当前调用点作用域链
+  找最近的激活格(槽体自己、以及槽体里造的闭包 —— 闭包捕获创建处的 scope,靠这一层记住自己属于谁),
+  **再**沿帧链往外找(槽体里调用的辅助函数,它的词法链上没有激活格但调用链上有)。
+  两格都只认**本次那个实现**(`impl$active`),跨实现边界宁可报「没有正在被服务的实例」也不错绑。
+  没有激活格就报错、`instance = x` 报只读(`Attr.Readonly`)。它**不进**"`u.x` 能读到什么":
+  `TraitSlot` 见到这个名字直接返回 null,否则 `u.instance` / `(5).instance`(全局 INumber 实现的
+  目标类就是 int)都成了能读的新成员。
 - `use impl`(`System.Use`)/ `impl 实现`(`System.Impl`)把实现登记进**一个作用域**的成员里
   (键 `use$impls`;`$` 不在标识符字符集里,用户写不出这个名字,永远不会撞):`use` 给的是
   **当前作用域**(随作用域在/不在),`impl` 给的是**全局作用域**(每个作用域链都到全局,于是处处生效 ——
@@ -598,12 +616,6 @@ myImplement.Dispose ()   # 提前取消
   表里每条是 `[实现, 登记时代号]`;实现的成员 `generation` 每 `Dispose` 一次 +1,于是"取消"是
   O(1) 的作废(老条目全失效),之后在哪 `use` 就在哪重新登记一条(那个作用域又活了)—— 不用记
   (实现 × 作用域) 那笔账,也就不怕在循环里 `use`。
-- 读写 `x.a` 的兜底在 `BuiltinClasses.TraitSlot`:常规成员表(`MemberScope`,含类链)里没有这个名字时
-  才去沿 `CurrentScope` 的词法链找生效中的实现(同 scope 里后 use 的先试、目标类收得下就认),
-  找到就把 `instance` 换成 x,再把那条槽交出去(读走 getter、写走 setter,和普通 by 成员一条路)。
-  落点:读 `BoxedValue.TryGetByGetter`;写 `StepMemberAssign` / `StepCompoundAssign` /
-  `StepSlotAssign` / `StepSlot`。**`myClass` 这个名字一个字没动**:不建子类、不换绑定、不往它身上
-  加成员(所以 `x : myClass = u`、`print u`、`u.Fields ()` 照旧,`Fields ()` 里也**没有** a/b)。
 - `x is myTrait` 的兜底是 `BuiltinClasses.HasTrait`,同一个判据。它挂在 `StepBinaryOp` 里而**不是**
   运算符的 C# 体里 —— 内置运算符的体是纯 C#,拿不到解释器也就拿不到当前作用域;只接**内置**那一支,
   类里写过 `is := f` 的照旧走自己的实现。
@@ -627,10 +639,13 @@ myImplement.Dispose ()   # 提前取消
   于是 `u + v`、`u.+ v`、`u += v` 三条路都通(复合赋值那条经 `CallAssign` 写回)。
   两边看得见的不同:trait 那边是 `instance`,类体里自己声明的那条是 `this`。
   **只认 `by` 槽**:裸的 `+ := f`(类运算符)走原来的 `ClassOperatorFactory` 那条路,不变。
-- 两条已知代价:① 实现 scope 的词法父是**实现块**的捕获作用域(接口体与实现体通常写在同一处);
-  ② `instance` 只有一个,同一时刻一个实现只服务一个实例。
+- 已知代价:① 实现 scope 的词法父是**实现块**的捕获作用域(接口体与实现体通常写在同一处);
+  ② 留存下来的闭包各自拎着那次调用的激活作用域 —— 被引用的实例不会提前释放(从前实现身上只留
+  最后绑定的那一个,但那个语义是错的);③ `by u.a` 取出的是**槽本身**,它没有"这一次"可言,
+  之后再 `.Get ()` / `.Set v` 会报「此刻没有正在被服务的实例」。
 
 测试 —— 213(端到端:读写、`is`、`Fields`、类型约束、Dispose)、214(作用域、叠加、子类、`use 5`)、
+221(`instance` 是"这一次调用"的事:留存闭包、一次实现服务两个实例、辅助函数、没有激活时报错)、
 125(类型树上多一个 `Interface`)。
 
 ## 多参数 lambda
