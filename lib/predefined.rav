@@ -34,7 +34,19 @@ readonly false := System.False
 readonly NaN := System.NaN
 readonly Inf := System.Inf
 readonly default := System.Default
-readonly callcc := System.CallCC
+# `callcc` 是**库函数**(不是内置别名):它在把续延交给用户之前先拍一份**控制状态**快照
+# (handler 栈 + 模块加载栈),用户拿到的续延被调用时**先把那份还原、再跳**。
+# 于是"用外层续延逃出 try 体"不会留下僵尸 handler,"逃出模块体"也不会让那个模块永远停在
+# "正在加载"里 —— 这两件事从前靠帧的正常收尾来做,而续延一调就把帧链整个丢掉了。
+#
+# 引擎只管拍和还原(`System.ControlState` / `System.RestoreControl` 两个原语),
+# **什么时候拍、什么时候还原由这里定** —— 这就是它写成库函数的原因。
+readonly callcc := (f: function) => {
+    System.CallCC (k: function) => {
+        snap := System.ControlState ()
+        f ((x: object) => { System.RestoreControl snap; k x; })
+    }
+}
 readonly typeof := System.TypeOf
 readonly assert := System.Assert
 readonly eval := System.Eval

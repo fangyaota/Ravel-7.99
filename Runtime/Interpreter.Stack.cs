@@ -113,37 +113,53 @@ public partial class Interpreter
         => (_global.TryLookup("Ex")?.Value as ModuleVal)?.Scope.TryLookup("HandlerStack")?.Value as ListVal
            ?? _global.TryLookup("HandlerStack")?.Value as ListVal;
 
-    /// <summary>调用续延前把两份**控制状态**恢复成捕获那一刻的样子(handler 栈、模块加载栈)。
+    /// <summary>拍一份**控制状态**快照:handler 栈(`Ex.HandlerStack`)的内容 + 模块加载栈 `_loading`。
     ///
-    /// 非恢复不可的理由:它们都是副作用式的状态、不在帧链里,而帧链一被丢弃,
-    /// "跑完自己的收尾去摘"那一步就再也不会执行 ——
-    /// 用外层捕获的续延从 `try` 体里逃出去,那个 handler 会留在栈上变成僵尸(之后**没人接**的
-    /// 错误被它接住,而它的续延停在早被丢弃的那条链上;和 tests/215 修过的"正常收尾泄漏"同一类,
-    /// 只是入口换成了 callcc);从**模块体**里逃出去,那个模块会永远停在 `_loading` 里,
-    /// 之后正常 `using` 它反而被误报「检测到循环引用」。
+    /// 为什么需要它:这两样都是**副作用式**的状态、不在帧链里,而续延一调用就把当前帧链整个丢掉 ——
+    /// "跑完自己的收尾去摘 handler / 退 `_loading`"那一步再也不会执行。逃出 `try` 体会留下
+    /// **僵尸 handler**(之后没人接的错误被它接住,而它的续延停在早被丢弃的链上;和 tests/215 修过的
+    /// "正常收尾泄漏"同一类),逃出**模块体**会让那个模块永远停在 `_loading` 里(之后正常 `using`
+    /// 反而被误报「检测到循环引用」)。
     ///
-    /// 反过来也顺:调一个"在 try 体里捕获的"续延时,那段代码重新**进**了那个 try 的动态范围,
-    /// handler 跟着回来(重进的这一段再抛错照样被它接住)。
+    /// 快照**只收这两样**,不拷 `_loaded`:被中断的加载在 <see cref="RestoreControl"/> 那侧按
+    /// "此刻还在 `_loading` 里、快照里没有"算出来(否则每次 `callcc` 都要拷一遍已加载表)。
+    ///
+    /// 值是个不透明的 list:`[handler 快照, 加载栈快照]`。**引擎只管拍和还原,什么时候拍、什么时候
+    /// 还原由库定**(见 predefined.rav 里 `callcc` 那层包装)。</summary>
+    internal RuntimeValue SnapshotControl()
+    {
+        var handlers = RavelHandlers() is { } hs ? new ListVal([.. hs.Elements]) : new ListVal([]);
+        var loading = new ListVal([.. _loading.Select(m => (RuntimeValue)new StringVal(m))]);
+        return new ListVal([handlers, loading]);
+    }
+
+    /// <summary>把控制状态还原成快照那一份:handler 栈按快照来、`_loading` 按快照来,并且把
+    /// "被这次还原甩掉的加载"(此刻还在 `_loading` 里、快照里没有的)从 `_loaded` 里摘掉 ——
+    /// 不摘的话那个模块停在"loaded 一半"上,之后 `using` 只是**静默地什么都不做**、定义缺着;
+    /// 摘掉之后下次 `using` 从头再来。
     ///
     /// handler 那份只动 `Elements` 的内容、不换 ListVal 对象:别处可能已经拿着这个列表的引用。</summary>
-    private void RestoreControlState(ContinuationVal k)
+    internal RuntimeValue RestoreControl(RuntimeValue snap)
     {
-        if (k.Handlers is { } snapshot && RavelHandlers() is { } stack)
+        if (snap is not ListVal { Elements: [ListVal handlers, ListVal loading] }) return VoidVal.Instance;
+
+        if (RavelHandlers() is { } stack)
         {
             stack.Elements.Clear();
-            stack.Elements.AddRange(snapshot.Elements);
+            stack.Elements.AddRange(handlers.Elements);
         }
 
-        if (k.Loading is not { } loading) return;
+        var keep = new List<string>();
+        foreach (var e in loading.Elements)
+            if (e is StringVal m) keep.Add(m.Value);
 
-        // 这次恢复把当前那条链甩掉了:链上**正在加载**的模块(此刻在 `_loading` 里、快照里没有的)
-        // 其加载被中断了 —— 要从"已加载"里摘掉。不摘的话它停在"loaded 一半"的状态上:
-        // 之后 `using` 它只是**静默地什么都不做**,而定义缺着。摘掉之后下次 `using` 从头再来。
         foreach (var m in _loading)
-            if (Array.IndexOf(loading, m) < 0) _loaded.Remove(m);
+            if (!keep.Contains(m)) _loaded.Remove(m);
 
         _loading.Clear();
-        for (var i = loading.Length - 1; i >= 0; i--) _loading.Push(loading[i]);
+        for (var i = keep.Count - 1; i >= 0; i--) _loading.Push(keep[i]);
+
+        return VoidVal.Instance;
     }
 
     private bool HandToRavelHandler(RuntimeException ex)

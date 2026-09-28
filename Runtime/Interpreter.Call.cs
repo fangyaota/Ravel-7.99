@@ -74,7 +74,6 @@ public partial class Interpreter
             case ContinuationVal k:
                 // 续延 = callcc 之后的剩余计算。调用它:丢弃当前帧链,把 arg 当作
                 // callcc 的返回值、从捕获点继续。丢弃当前链正是它能当「跳转」写循环的原因。
-                RestoreControlState(k);
                 _top = k.Captured.WithResult(arg);
                 break;
             case BoolVal bv:
