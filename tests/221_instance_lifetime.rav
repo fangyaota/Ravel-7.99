@@ -112,6 +112,31 @@ Ex.Try { t.c = 1; } (e: Exception) => { print ("3: " + string e); }
 print (s.c)
 by s.c = property (() => { 99; }) ((v6: int) => { (); })
 print (s.c)
+
+# ---- 8. 两条边界 ----
+# ① 接口不能自己占 `instance` 这个名字（那是引擎的）
+Bad ::= interface {
+    by instance : int = default
+}
+K ::= class {
+    x : int = 0
+}
+Ex.Try {
+    impl (Bad K {
+        ()
+    })
+} (e: Exception) => { print ("4: " + string e); }
+
+# ② 实现体里别的方法**不在槽体的调用链里**时读 `instance` 也是「没有正在被服务的实例」——
+#    "这一次调用"指的是槽体那一次；而槽体里调它就行（帧链那一半）
+im := impl (H F {
+    show := () => { instance.w; }
+    by c = property (() => { show (); }) ((v7: int) => { (); })
+})
+z := F ()
+z.w = 8
+print (z.c)
+Ex.Try { im.show (); } (e: Exception) => { print ("5: " + string e); }
 # --- expected ---
 # 1
 # 2
@@ -126,3 +151,6 @@ print (s.c)
 # 3: 无法给只读变量 'instance' 赋值
 # 42
 # 99
+# 4: 接口 Bad 里声明了名为 'instance' 的槽 —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个
+# 8
+# 5: `instance` 只在实现体的槽里有效：此刻没有正在被服务的实例（它指的是「这一次调用在服务谁」，离开那次调用就没有了）
