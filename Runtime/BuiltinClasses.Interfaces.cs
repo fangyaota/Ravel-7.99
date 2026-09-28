@@ -350,17 +350,54 @@ internal static partial class BuiltinClasses
         // 不是 property(`by v := 5` 那种用错)就在这一句上报出来,措辞和普通 by 成员一条路
         var prop = interp.SlotProperty(hit.Slot.Value, hit.Slot.Name);
 
-        var act = new Scope(prop.Getter.CaptureScope);   // 保住原来的名字解析链,只多两层
-        act.Define(InstanceActiveMember, Any, hit.Receiver);
-        act.Define(ImplActiveMember, Type, hit.Impl).SetAttr(Attr.Unreadable);
+        // getter 和 setter 通常写在同一个 `property g s` 里、捕的是同一个作用域 —— 那就共用一层激活格;
+        // 不是同一个就各开一层,各自保住自己的名字解析链(只多出激活格那两层)
+        var getterChain = CaptureOf(prop.Getter);
+        var shared = getterChain != null && ReferenceEquals(getterChain, CaptureOf(prop.Setter))
+            ? Activation(getterChain, hit)
+            : null;
 
         return prop with
         {
-            Getter = RebindFn(prop.Getter, act),
-            Setter = RebindFn(prop.Setter, act),
+            Getter = ActivateFn(prop.Getter, shared, hit),
+            Setter = ActivateFn(prop.Setter, shared, hit),
             Var = null,                                  // 副本不再挂在哪个变量上(`Attrs ()` 用不到了)
         };
     }
+
+    /// <summary>给这个函数体套上这一次的激活格。`shared` 是 getter/setter 共用的那一层(见上);
+    /// 函数自己没有捕获作用域(`FunctionVal.From` 造的 native、`property` 拿内置方法当 getter)
+    /// 就原样交回 —— 它们的体不看名字,套上去也只是白开一层。</summary>
+    private static FunctionVal ActivateFn(FunctionVal f, Scope? shared, in TraitHit hit)
+    {
+        var chain = CaptureOf(f);
+        if (chain == null) return f;
+
+        var act = shared ?? Activation(chain, hit);
+        return f switch
+        {
+            LambdaVal lam => lam with { CaptureScope = act },
+            BlockVal blk => blk with { CaptureScope = act },
+            _ => f,
+        };
+    }
+
+    /// <summary>这次分发的激活格:一层挂在原捕获作用域下面的小作用域,里面两格 ——
+    /// 这次服务谁、这次是哪个实现在服务。读 `instance` 找的就是它(见 `Interpreter.ActiveInstance`)。</summary>
+    private static Scope Activation(Scope chain, in TraitHit hit)
+    {
+        var act = new Scope(chain);
+        act.Define(InstanceActiveMember, Any, hit.Receiver);
+        act.Define(ImplActiveMember, Type, hit.Impl).SetAttr(Attr.Unreadable);
+        return act;
+    }
+
+    private static Scope? CaptureOf(FunctionVal f) => f switch
+    {
+        LambdaVal lam => lam.CaptureScope,
+        BlockVal blk => blk.CaptureScope,
+        _ => null,
+    };
 
 
     /// <summary>`u is myTrait` / `myClass <: myTrait` 的兜底:当前作用域里有没有一个生效中的实现,
