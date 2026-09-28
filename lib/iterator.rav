@@ -1,0 +1,57 @@
+# 按顺序把元素交出来。形状照 C#:`IEnumerable`(交回一个枚举器)/ `IEnumerator`(MoveNext + Current),
+# 外加一个通用枚举器 `Enumerator`;三种容器各实现一条。`foreach` 就是照这个形状写的。
+# 由 predefined.rav 加载(名字落在全局作用域)。
+
+# 这是第一个用 `interface` 写出来的**库级接口**。三种容器在下面各实现一遍,于是:
+#   * `xs is IEnumerable` 对 list / set / dict 成立;
+#   * `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
+#   * `foreach` 不再只吃 list。
+# 用自己的类实现它也简单:`Items` 那条槽交回一个"给我元素表"的函数就行(见教程 7.11)。
+IEnumerable ::= interface {
+    by GetEnumerator : function = default
+}
+
+IEnumerator ::= interface {
+    by MoveNext : function = default
+    by Current : object = default
+}
+
+# 通用枚举器:拿一串值 + 记住走到哪了。任何"一次给我一串"的东西都能拿它当枚举器。
+# `Current` 是**属性**(和 C# 一样):读到哪儿看到哪儿;`MoveNext` 之前读它会报越界。
+Enumerator ::= class {
+    Items : list = []
+    Index : int = -1
+    init := (items: list) => { Items = items; this; }
+    MoveNext := () => { Index += 1; Index < Items.Count (); }
+    by Current := property (() => { Items.At Index; }) ((v: object) => { (); })
+}
+
+# 三种容器怎么交出枚举器:把元素表包进一个 Enumerator。
+# `impl` 收的是**一个实现值**(`接口 类 { … }` 造出来的那个),所以整条要括起来 ——
+# 不括的话 `impl IEnumerable list {…}` 会被读成 `((impl IEnumerable) list) {…}`,
+# 也就是先把 `impl` 用在接口本身上(它没有 `target`,当场报错)。
+# 三条各写一遍、不写成循环:循环得用 `foreach`,而 `foreach` 此刻还用不了
+# (正是这三条在给它铺路)。
+impl (IEnumerable list {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable set {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable dict {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+
+# 枚举器自己也实现 IEnumerator(这样 `e is IEnumerator` 成立,注解也收得下它)
+impl (IEnumerator Enumerator {
+    by MoveNext = property (() => { () => { instance.MoveNext (); }; }) ((v: function) => { (); })
+    by Current = property (() => { instance.Current; }) ((v: object) => { (); })
+})
+
+# `foreach` 写出来就是 C# 里那个 while 循环:拿枚举器 → MoveNext → 用 Current。
+# 每次进来都**新开一个**枚举器,所以嵌套遍历同一串值互不打扰(和 C# 一样)。
+readonly foreach := (xs: object f: function) => {
+    assert (xs is IEnumerable) ("foreach 需要 IEnumerable（list / set / dict），得到 " + string (typeof xs))
+    e := xs.GetEnumerator ()
+    while { e.MoveNext (); } { f (e.Current); }
+}

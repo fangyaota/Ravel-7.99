@@ -89,16 +89,20 @@ Repl/                           REPL 前端
 Program.cs                      CLI 入口(REPL / test / 单文件)
 
 lib/
-  predefined.rav          别名 + 控制流 + 缓存 + Monad + using(启动时自动加载)
-                          库里的类型:`Cacher`(缓存:Count/Fn/Keys/Vals 四个字段,
-                            init 交出的是包装函数而不是 this)、
-                          `Monad`(Some/None:Has/Inner 两个字段 + IsSome/Value/Bind/Map/Where…);
-                          `cacher` / `Some` / `None` 是小写/构造子名
-                          两个类型都进 AllTypes(`Subtypes ()` 看得到)
-                          末尾一段 `ravel "Ex"` … `ravel ""`:异常处理(HandlerStack + callcc
-                          实现 Ex.Try/Ex.Throw)。从前是单独的 try.rav,并进来了 ——
-                          `Ex` 人人都有,不必每个文件 `using "try.rav"`;
-                          末尾还有 `readonly try := Ex.Try` / `throw := Ex.Throw` 两个小写别名
+  predefined.rav          **启动时第一个加载的文件**:别名 + 控制流(`if` / `while` / `callcc`),
+                          再用 `using` 把下面几个子模块拉进来 —— 名字都落在**全局作用域**上,
+                          和从前全写在一个文件里一样,用户看得见的名字一个没变。
+                          `callcc` 也在这儿(库函数:包装 System.CallCC,拍/还原两份控制状态)。
+  numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
+  iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
+  cacher.rav              `Cacher`(Count/Fn/Keys/Vals 四个字段,init 交出的是包装函数而不是 this)
+                          + 小写别名 `cacher`;两个类都进 AllTypes(`Subtypes ()` 看得到)
+  monad.rav               `Monad`(Some/None:Has/Inner 两个字段 + IsSome/Value/Bind/Map/Where…)
+                          + 构造子 `Some` / `None`
+  exceptions.rav          `Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎冒泡时叫的
+                          就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
+                          引擎不认识 HandlerStack,那块状态归这儿管 —— 从前是单独的 try.rav,
+                          并进来之后又拆成这个文件。
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;tests/125 跑的就是它

@@ -1,0 +1,48 @@
+# Monad:要么包着一个值,要么什么都没有。`Some` / `None` 两个构造子。
+# 由 predefined.rav 加载(名字落在全局作用域)。
+
+
+# `Some 5` 有值,`None` 没有。Map / Bind / Where 对 None 一律原样放过(短路),
+# 所以一长串操作里只要有一环没有值,后面全不用算。
+#
+# 两种情况的**类型相同**(都是 Monad),`x is Monad` 分不出来 —— 要问有没有值就用
+# `IsSome ()`。这是有意的:能拿到值的地方才该解包,`Value ()` 在 None 上当场报错。
+Monad ::= class {
+    Has: bool = false                    # 有没有包着值
+    Inner: object = ()                   # 包着的那个值(None 时是 ())
+
+    IsSome := () => { Has; }
+    IsNone := () => { !Has; }
+
+    # 解包。没有值就是**用错了**,当场报错,不拿 () 糊弄
+    Value := () => {
+        assert Has ("Monad.Value: 这个 Monad 里没有值（用 IsSome 先问，或改用 ValueOr）")
+        Inner
+    }
+
+    # 解包,没有值就给个默认
+    ValueOr := (d: object) => { if { Has; } { Inner; } { d; } }
+    # 没有值就换成另一个
+    OrElse := (other: Monad) => { if { Has; } { this; } { other; } }
+
+    # 映射:有值就包着装换过的值,没值原样(None 里那个函数根本不会被调)
+    Map := (f: function) => { if { Has; } { Some (f Inner); } { this; } }
+    # 绑定:有值就把 f 的结果**摊平**接上(f 得自己回一个 Monad),没值原样
+    Bind := (f: function) => { if { Has; } { f Inner; } { this; } }
+    # 过滤:不满足条件就变成 None
+    Where := (p: function) => { if { Has && p Inner; } { this; } { None; } }
+    # 有值且满足条件 -> true
+    Exists := (p: function) => { Has && p Inner; }
+
+    init := (has: bool v: object) => {
+        Has = has
+        Inner = v
+        this
+    }
+}
+
+# 两个构造子:`Some v` 造一个带值的,`None` 是**一个值**(单例,大家共用它)。
+# 注意 `None` 不是类型而是值,所以不用写 `None ()`;`Some 5` 那种写法里
+# `Some` 是个普通函数(柯里化的,喂一个参数就得到 Monad)。
+readonly Some := (v: object) => { Monad true v; }
+readonly None := Monad false ()

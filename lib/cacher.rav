@@ -1,0 +1,75 @@
+# 缓存:算过哪几组实参、各得什么结果 —— 一个类型(`Cacher`)+ 小写别名 `cacher`。
+# 由 predefined.rav 加载(名字落在全局作用域);它用到 `foreach`,所以要在 iterator 之后加载。
+
+
+# 缓存是一个**类型**:实例就是"某个函数的缓存" —— 算过哪几组实参、各得什么结果,
+# 明明白白是 Count/Keys/Vals 三个字段,而不是藏在闭包里的几个局部变量。
+#
+# init 交出去的**不是 this,而是那个可调用的包装函数**:`cacher 2 add` 拿到的东西
+# 直接就能 `(…) 1 2`。包装函数捕获了这块实例作用域,所以缓存活得和它一样久 ——
+# 实例本身退场了,它那块 Scope 被函数拎着走。
+Cacher ::= class {
+    Count: int = 0                       # 被包装函数的参数个数
+    Fn: function = () => { (); }         # 占位:init 里换成真的那个
+    Keys: list = []                      # 每组实参(一个 list)
+    Vals: list = []                      # 与 Keys 一一对应的结果
+
+    # 两组实参逐项相等?列表本身没有 `==`(按身份比),所以自己比。
+    # **先比类型**:数值运算符碰到字符串会当场报「运算符 '!=' 不支持 String 操作数」,
+    # 不同类型的两项连比都不能比 —— 而它们本来也就是两个不同的键。
+    Same := (a: list b: list) => {
+        if { a.Count () != b.Count (); } { false; } {
+            ok := true
+            i := 0
+            while { i < a.Count (); } {
+                if { typeof (a.At i) != typeof (b.At i) || a.At i != b.At i; } { ok = false; } { 0; }
+                i += 1
+            }
+            ok
+        }
+    }
+
+    # 算一次:实参一个一个喂给 Fn(柯里化),再把结果记下来。
+    # `r` 必须标成 object:`:=` 会把类型钉在初值的类型上(这里 Fn 是 function),
+    # 之后 `r = r a` 把结果(可能是 int/string/…)赋回去就会报类型错误。
+    Compute := (args: list) => {
+        r: object = Fn
+        foreach args (a: object) => { r = r a; }
+        Keys.Add args
+        Vals.Add r
+        r
+    }
+
+    # 收实参:够 Count 个就查缓存、没有就现算;不够就再返回一层继续收
+    Step := (got: list) => {
+        (x: object) => {
+            more := got.Copy ()
+            more.Add x
+            if { more.Count () == Count; } {
+                found := -1
+                i := 0
+                while { i < Keys.Count (); } {
+                    # `&&` 短路:找到之后不再逐条比。
+                    # `(Keys.At i)` 的括号不能省:实参位置上 `Keys.At i more` 会被读成
+                    # `((Same Keys.At) i) more` —— 实参位置只收"主表达式 + 取成员",
+                    # 不会再往右吞并列的实参(那正是 `f a b` ≡ `((f a) b)` 的实现方式)。
+                    if { found < 0 && Same (Keys.At i) more; } { found = i; } { 0; }
+                    i += 1
+                }
+                if { found >= 0; } { Vals.At found; } { Compute more; }
+            } {
+                Step more;
+            }
+        }
+    }
+
+    init := (count: int f: function) => {
+        assert (count >= 1) ("cacher 的参数个数至少是 1，得到 " + string count)
+        Count = count
+        Fn = f
+        Step []                          # 交出包装函数,不是 this
+    }
+}
+
+# 小写的是别名(和 `int` / `print` 一样),类型名按惯例大驼峰
+readonly cacher := Cacher

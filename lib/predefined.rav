@@ -1,3 +1,9 @@
+# 启动时第一个加载的文件(见 Interpreter.LoadPredefined):别名 + 控制流 + 把标准库几个子模块拉进来。
+#
+# 别名必须排在最前面 —— 后面的东西(包括子模块)都用它们。
+# 子模块用 `using` 拉进来,名字都落在**全局作用域**上(和从前写在同一个文件里一样),
+# 所以用户看得见的名字一个没变;`ravel "Ex"` 那种模块也照旧。
+
 # ── 别名 ──
 # 都标 readonly:这些是**语言级名字**(`int` / `print` / `true` / …),被顺手覆盖掉
 # 整门语言就变了样。`=` 赋值会报「无法给只读变量赋值」;
@@ -48,7 +54,6 @@ readonly input := System.ReadLine
 readonly unsafe := System.Unsafe
 readonly currentScope := System.CurrentScope
 readonly property := System.Property
-
 # ── 控制流:用 Ravel 写,不占控制帧 ──
 # 条件当值用:true/false 可调用,收两个块返回选中那个的结果
 readonly if := (c: function t: function e: function) => {
@@ -68,270 +73,12 @@ readonly while := (c: function body: function) => {
     assert (typeof cond == bool) ("while 的条件必须是 bool，得到 " + string (typeof cond))
     if { cond; } { body (); again 0; } { 0; }
 }
-
-# ── 数值:谁算数 ──
-# 五种数值类型都实现了它,于是 `(x: INumber)` 收得下 `int 5`、也收得下 `float 5.0`。
-# 从前这种地方标的是 `ValueType` —— 那个连 String 都收(`String <: ValueType`),
-# 而字符串乘不起来;标 `float` 又只收 float(参数注解不做隐式转换)。
-#
-# 它是个**空槽接口**:只说"这个类型是数",没有别的要求 —— 所以接口体和每个实现体
-# 都是个空块(`{ () }`:`{}` 单行是空字典,多行空块本来就禁止)。
-INumber ::= interface {
-    ()
-}
-
-impl (INumber int {
-    ()
-})
-impl (INumber float {
-    ()
-})
-impl (INumber bigint {
-    ()
-})
-impl (INumber fraction {
-    ()
-})
-impl (INumber bigfraction {
-    ()
-})
-
-# ── 序列:任何"能按顺序把元素交出来"的东西 ──
-# 这是第一个用 `interface` 写出来的**库级接口**。三种容器在下面各实现一遍,于是:
-#   * `xs is IEnumerable` 对 list / set / dict 成立;
-#   * `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
-#   * `foreach` 不再只吃 list。
-# 用自己的类实现它也简单:`Items` 那条槽交回一个"给我元素表"的函数就行(见教程 7.11)。
-IEnumerable ::= interface {
-    by GetEnumerator : function = default
-}
-
-IEnumerator ::= interface {
-    by MoveNext : function = default
-    by Current : object = default
-}
-
-# 通用枚举器:拿一串值 + 记住走到哪了。任何"一次给我一串"的东西都能拿它当枚举器。
-# `Current` 是**属性**(和 C# 一样):读到哪儿看到哪儿;`MoveNext` 之前读它会报越界。
-Enumerator ::= class {
-    Items : list = []
-    Index : int = -1
-    init := (items: list) => { Items = items; this; }
-    MoveNext := () => { Index += 1; Index < Items.Count (); }
-    by Current := property (() => { Items.At Index; }) ((v: object) => { (); })
-}
-
-# 三种容器怎么交出枚举器:把元素表包进一个 Enumerator。
-# `impl` 收的是**一个实现值**(`接口 类 { … }` 造出来的那个),所以整条要括起来 ——
-# 不括的话 `impl IEnumerable list {…}` 会被读成 `((impl IEnumerable) list) {…}`,
-# 也就是先把 `impl` 用在接口本身上(它没有 `target`,当场报错)。
-# 三条各写一遍、不写成循环:循环得用 `foreach`,而 `foreach` 此刻还用不了
-# (正是这三条在给它铺路)。
-impl (IEnumerable list {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
-})
-impl (IEnumerable set {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
-})
-impl (IEnumerable dict {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
-})
-
-# 枚举器自己也实现 IEnumerator(这样 `e is IEnumerator` 成立,注解也收得下它)
-impl (IEnumerator Enumerator {
-    by MoveNext = property (() => { () => { instance.MoveNext (); }; }) ((v: function) => { (); })
-    by Current = property (() => { instance.Current; }) ((v: object) => { (); })
-})
-
-# `foreach` 写出来就是 C# 里那个 while 循环:拿枚举器 → MoveNext → 用 Current。
-# 每次进来都**新开一个**枚举器,所以嵌套遍历同一串值互不打扰(和 C# 一样)。
-readonly foreach := (xs: object f: function) => {
-    assert (xs is IEnumerable) ("foreach 需要 IEnumerable（list / set / dict），得到 " + string (typeof xs))
-    e := xs.GetEnumerator ()
-    while { e.MoveNext (); } { f (e.Current); }
-}
-
-# ── 缓存 ──
-
-# 缓存是一个**类型**:实例就是"某个函数的缓存" —— 算过哪几组实参、各得什么结果,
-# 明明白白是 Count/Keys/Vals 三个字段,而不是藏在闭包里的几个局部变量。
-#
-# init 交出去的**不是 this,而是那个可调用的包装函数**:`cacher 2 add` 拿到的东西
-# 直接就能 `(…) 1 2`。包装函数捕获了这块实例作用域,所以缓存活得和它一样久 ——
-# 实例本身退场了,它那块 Scope 被函数拎着走。
-Cacher ::= class {
-    Count: int = 0                       # 被包装函数的参数个数
-    Fn: function = () => { (); }         # 占位:init 里换成真的那个
-    Keys: list = []                      # 每组实参(一个 list)
-    Vals: list = []                      # 与 Keys 一一对应的结果
-
-    # 两组实参逐项相等?列表本身没有 `==`(按身份比),所以自己比。
-    # **先比类型**:数值运算符碰到字符串会当场报「运算符 '!=' 不支持 String 操作数」,
-    # 不同类型的两项连比都不能比 —— 而它们本来也就是两个不同的键。
-    Same := (a: list b: list) => {
-        if { a.Count () != b.Count (); } { false; } {
-            ok := true
-            i := 0
-            while { i < a.Count (); } {
-                if { typeof (a.At i) != typeof (b.At i) || a.At i != b.At i; } { ok = false; } { 0; }
-                i += 1
-            }
-            ok
-        }
-    }
-
-    # 算一次:实参一个一个喂给 Fn(柯里化),再把结果记下来。
-    # `r` 必须标成 object:`:=` 会把类型钉在初值的类型上(这里 Fn 是 function),
-    # 之后 `r = r a` 把结果(可能是 int/string/…)赋回去就会报类型错误。
-    Compute := (args: list) => {
-        r: object = Fn
-        foreach args (a: object) => { r = r a; }
-        Keys.Add args
-        Vals.Add r
-        r
-    }
-
-    # 收实参:够 Count 个就查缓存、没有就现算;不够就再返回一层继续收
-    Step := (got: list) => {
-        (x: object) => {
-            more := got.Copy ()
-            more.Add x
-            if { more.Count () == Count; } {
-                found := -1
-                i := 0
-                while { i < Keys.Count (); } {
-                    # `&&` 短路:找到之后不再逐条比。
-                    # `(Keys.At i)` 的括号不能省:实参位置上 `Keys.At i more` 会被读成
-                    # `((Same Keys.At) i) more` —— 实参位置只收"主表达式 + 取成员",
-                    # 不会再往右吞并列的实参(那正是 `f a b` ≡ `((f a) b)` 的实现方式)。
-                    if { found < 0 && Same (Keys.At i) more; } { found = i; } { 0; }
-                    i += 1
-                }
-                if { found >= 0; } { Vals.At found; } { Compute more; }
-            } {
-                Step more;
-            }
-        }
-    }
-
-    init := (count: int f: function) => {
-        assert (count >= 1) ("cacher 的参数个数至少是 1，得到 " + string count)
-        Count = count
-        Fn = f
-        Step []                          # 交出包装函数,不是 this
-    }
-}
-
-# 小写的是别名(和 `int` / `print` 一样),类型名按惯例大驼峰
-readonly cacher := Cacher
-
-# ── Monad:要么包着一个值,要么什么都没有 ──
-
-# `Some 5` 有值,`None` 没有。Map / Bind / Where 对 None 一律原样放过(短路),
-# 所以一长串操作里只要有一环没有值,后面全不用算。
-#
-# 两种情况的**类型相同**(都是 Monad),`x is Monad` 分不出来 —— 要问有没有值就用
-# `IsSome ()`。这是有意的:能拿到值的地方才该解包,`Value ()` 在 None 上当场报错。
-Monad ::= class {
-    Has: bool = false                    # 有没有包着值
-    Inner: object = ()                   # 包着的那个值(None 时是 ())
-
-    IsSome := () => { Has; }
-    IsNone := () => { !Has; }
-
-    # 解包。没有值就是**用错了**,当场报错,不拿 () 糊弄
-    Value := () => {
-        assert Has ("Monad.Value: 这个 Monad 里没有值（用 IsSome 先问，或改用 ValueOr）")
-        Inner
-    }
-
-    # 解包,没有值就给个默认
-    ValueOr := (d: object) => { if { Has; } { Inner; } { d; } }
-    # 没有值就换成另一个
-    OrElse := (other: Monad) => { if { Has; } { this; } { other; } }
-
-    # 映射:有值就包着装换过的值,没值原样(None 里那个函数根本不会被调)
-    Map := (f: function) => { if { Has; } { Some (f Inner); } { this; } }
-    # 绑定:有值就把 f 的结果**摊平**接上(f 得自己回一个 Monad),没值原样
-    Bind := (f: function) => { if { Has; } { f Inner; } { this; } }
-    # 过滤:不满足条件就变成 None
-    Where := (p: function) => { if { Has && p Inner; } { this; } { None; } }
-    # 有值且满足条件 -> true
-    Exists := (p: function) => { Has && p Inner; }
-
-    init := (has: bool v: object) => {
-        Has = has
-        Inner = v
-        this
-    }
-}
-
-# 两个构造子:`Some v` 造一个带值的,`None` 是**一个值**(单例,大家共用它)。
-# 注意 `None` 不是类型而是值,所以不用写 `None ()`;`Some 5` 那种写法里
-# `Some` 是个普通函数(柯里化的,喂一个参数就得到 Monad)。
-readonly Some := (v: object) => { Monad true v; }
-readonly None := Monad false ()
-
-
-# ── 异常:Ex 模块 ──
-# 从前这是单独的 lib/try.rav,由文件末尾一句 `using "try.rav"` 拉进来 —— 那意味着**每个**
-# 想用 `Ex.Try` 的文件都得先写一句 `using "try.rav"`,而它其实是人人都有的一份(启动时就加载了)。
-# 并进来:少了 37 处样板,也少了一个文件。`ravel "Ex"` / `ravel ""` 是"这段落进 Ex 模块 / 回全局"
-# (见教程的模块一节;末尾那句不能省,不然这之后的定义会落进 Ex)。
-ravel "Ex"
-
-HandlerStack: list = []
-
-# throw / try 标 readonly(HandlerStack 是**状态**,故意留可写):
-# 它们是这个模块的 API,被覆盖掉异常处理就整个变了样。
-readonly Throw := (e: Exception) => {
-    if { HandlerStack.Count () == 0; } {
-        exit (e.ToString ())
-    } {
-        HandlerStack.Remove 0 e
-    }
-}
-
-readonly Try := (body: function) => {
-    (handler: function) => {
-        result := callcc (ok: function) => {
-            mine := (e: Exception) => {
-                ok (handler e)
-            }
-            HandlerStack.Insert 0 mine
-            r := body ()
-            # **正常收尾要把自己的 handler 摘掉。** 不摘的话它会一直挂在栈上:后面**没人接**的错误
-            # 会被它接住,而它的续延停在上面那次 callcc —— 于是程序从「Try 之后」重跑一遍,
-            # 报错位置也指到那儿去,原来的错反而看不见了。
-            # (出错那条路由求值器先摘过一次,这里只管正常收尾;摘之前对一下身份,
-            #  免得摘掉别人新压上来的那个。)
-            if { HandlerStack.Count () == 0; } { 0; } {
-                if { (HandlerStack.At 0) == mine; } { HandlerStack.Remove 0; } { 0; }
-            }
-            ok r
-        }
-        result
-    }
-}
-
-ravel ""
-
-# ── 错误交给谁：库注册一个钩子 ──
-#
-# 引擎冒泡上来一个错误时只做一件事:把下面这个函数调起来。它**不认识** `HandlerStack`
-# (那是这个库的状态,就在 Ravel 里那个 list 上),由这里决定有没有人接、没人接怎么办:
-#   * 有人接:弹掉栈顶那个 handler 再调它(`try` 的 handler 会 escape 回它那个 callcc);
-#   * 没人接:交回引擎去报告(`System.Unhandled`)—— 引擎**原样**抛出原来那个错误,
-#     位置和调用栈都不变(和从前没这个钩子时一样)。
-# 非函数的栈顶(手写 `Ex.HandlerStack = [1]` 那种)也当"没人接",不弹它 —— 和从前一致。
-readonly onError := (e: Exception) => {
-    if { Ex.HandlerStack.Count () > 0 && typeof (Ex.HandlerStack.At 0) == function; } {
-        (Ex.HandlerStack.Remove 0) e
-    } {
-        System.Unhandled e
-    }
-}
-System.SetErrorHook onError
+# ── 标准库:各自一个文件 ──
+using "numbers.rav"
+using "iterator.rav"
+using "cacher.rav"
+using "monad.rav"
+using "exceptions.rav"
 
 # ── `callcc`：库函数 ──
 #
@@ -347,7 +94,7 @@ System.SetErrorHook onError
 # 还原那两句必须是**一条内置调用**(复制一份列表、把引擎那份换掉):别在中间用
 # `while` / `foreach` / `try` —— 它们自己都要经过续延,会互相踩(实测死循环)。
 #
-# 写在 `Ex` 之后:它要用 `Ex.HandlerStack`,而 `Ex` 是下面那一段才建出来的。
+# 它写在子模块**之后**:要用 `Ex.HandlerStack`,而 `Ex` 在 exceptions.rav 里。
 readonly callcc := (f: function) => {
     System.CallCC (k: function) => {
         hs := Ex.HandlerStack.Copy ()
