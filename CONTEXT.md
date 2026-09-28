@@ -423,7 +423,8 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 `System.RestoreLoading snap` 还原,并在还原时把"被甩掉的那些加载"从 `_loaded` 里摘掉;
 快照只收 `_loading`,**不拷 `_loaded`** —— 被中断的加载按"此刻还在 `_loading` 里、快照里没有"算出来,
 否则每次 `callcc` 都要拷一遍已加载表)。**`Ex.HandlerStack` 不归引擎管**:它是库的状态、
-就在 Ravel 里那个 list 上,库自己拍自己还原 —— 引擎既不需要也不能知道它存在。
+就在 Ravel 里那个 list 上,库自己拍自己还原 —— 引擎**任何地方**都不认识它,连报错冒泡那条路
+也只是一句"把注册的钩子调起来"(见下)。
 **策略在库里**:`predefined.rav` 的 `callcc` 是**库函数**(包装 `System.CallCC`,写在 `Ex` 那一段之后):
 捕获时拍两份快照(自己的 handler 栈 + 引擎的模块加载状态),交给用户的续延被调时先还原这两份、再跳。
 于是控制流整套(`while` / `if` / `try` / `callcc`)都住在库里,引擎不知道 `try` 是什么。
@@ -432,6 +433,13 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 (它们自己都要经过续延,会互相踩,实测死循环);**③ 每次续延跳转都要走一遍还原**(循环里就是每次迭代
 一次),实测 20 万轮 `while` 偏慢几个百分点(噪声内)。
 测试 223(try)、224(循环/枚举/多发射/累加器)、225(eval/with/接口槽的 `instance`)、226(模块)。
+
+**异常处理整套也在库里**。引擎只有一个"错误钩子":冒泡上来一个 `RuntimeException` 时,它把
+`System.SetErrorHook` 注册的那个函数调起来(库启动时注册的是 predefined.rav 的 `onError`),
+剩下的事库自己定 —— 有人接就弹掉 `Ex.HandlerStack` 栈顶那个 handler 再调它(`try` 的 handler 会
+escape 回它那个 callcc),没人接就 `System.Unhandled e` 把控制交回引擎去报告(引擎**原样**抛出
+原来那个异常,位置与调用栈都不变,也不会混进库的帧)。非函数的栈顶(手写 `Ex.HandlerStack = [1]`)
+照样当"没人接"。于是引擎对"handler 栈"这件事**零知识** —— 和它不知道 `while` / `try` 是什么一样。
 
 **callcc 只有一套语义**：续延 = callcc 之后的剩余计算；调用它 = 丢弃当前帧链、把值当作 callcc 的返回值、从捕获点继续。因此 **callcc 之后的语句会被重新执行**——`x := 1 + callcc (k) => { saved = k; 0; }` 之后再 `saved 10`，会让 `x` 变成 11 并继续往下走。想「跳出去」就调用续延（旧的 escape 用例行为不变）。
 

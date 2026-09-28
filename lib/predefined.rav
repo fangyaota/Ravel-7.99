@@ -316,6 +316,23 @@ readonly Try := (body: function) => {
 
 ravel ""
 
+# ── 错误交给谁：库注册一个钩子 ──
+#
+# 引擎冒泡上来一个错误时只做一件事:把下面这个函数调起来。它**不认识** `HandlerStack`
+# (那是这个库的状态,就在 Ravel 里那个 list 上),由这里决定有没有人接、没人接怎么办:
+#   * 有人接:弹掉栈顶那个 handler 再调它(`try` 的 handler 会 escape 回它那个 callcc);
+#   * 没人接:交回引擎去报告(`System.Unhandled`)—— 引擎**原样**抛出原来那个错误,
+#     位置和调用栈都不变(和从前没这个钩子时一样)。
+# 非函数的栈顶(手写 `Ex.HandlerStack = [1]` 那种)也当"没人接",不弹它 —— 和从前一致。
+readonly onError := (e: Exception) => {
+    if { Ex.HandlerStack.Count () > 0 && typeof (Ex.HandlerStack.At 0) == function; } {
+        (Ex.HandlerStack.Remove 0) e
+    } {
+        System.Unhandled e
+    }
+}
+System.SetErrorHook onError
+
 # ── `callcc`：库函数 ──
 #
 # 它在把续延交给用户之前先拍两份**控制状态**的快照:

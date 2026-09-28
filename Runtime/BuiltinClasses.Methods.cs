@@ -110,7 +110,7 @@ internal static partial class BuiltinClasses
         // (集合/字典没有这条 —— 所以它们只在序列方法那一批里出现,见 BuiltinClasses.Sequences.cs)
         List.DefineMethod("IndexOf", (s, a) => new IntVal(((ListVal)s).Elements.IndexOf(a)));
         // `RemoveAt i` 和 `Remove i` 是同一件事:名字对齐 C#(`List.RemoveAt` 按下标、
-        // `List.Remove` 按值),老名字留着 —— 库里(HandlerStack)和好几个用例都在用
+        // `List.Remove` 按值),老名字留着 —— 库和好几个用例都在用
         List.DefineMethod("RemoveAt", (s, a) =>
         {
             var lst = Indexed(s, a, "list.RemoveAt");

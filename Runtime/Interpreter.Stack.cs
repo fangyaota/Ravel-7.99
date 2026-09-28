@@ -103,30 +103,20 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>把运行时错误交给 Ravel 层的 handler(`predefined.rav` 末尾那个 `Ex` 模块的
-    /// HandlerStack 栈顶)。
-    /// 有 handler 就调它、异常不再冒泡成 C# 异常——这样 `Ex.try { 1 + true } {...}` 也能接住,
-    /// 而不是只有显式 `Ex.throw` 才接得住。没有就抛,由 CLI 打带位置和调用栈的报告。</summary>
-    /// <summary>Ravel 那边的 handler 栈(`Ex.HandlerStack`)。predefined.rav 那段先 `ravel "Ex"`,
-    /// 所以它在 Ex 模块里;也接受放全局的写法。接手冒泡 / callcc 拍快照 / 恢复,三处共用这一份查找。</summary>
-    private ListVal? RavelHandlers()
-        => (_global.TryLookup("Ex")?.Value as ModuleVal)?.Scope.TryLookup("HandlerStack")?.Value as ListVal
-           ?? _global.TryLookup("HandlerStack")?.Value as ListVal;
-
     /// <summary>拍一份**模块加载状态**快照:加载栈 `_loading`(谁正在加载)。
     ///
     /// 引擎只管它自己这两样(`_loading` / `_loaded`)—— **handler 栈不归它管**:那是库的状态,
     /// 它就在 Ravel 里那个 list 上,库自己拍、自己还原(见 predefined.rav 的 `callcc`)。
     ///
-    /// 为什么需要拍:续延一调用就把当前帧链整个丢掉,"跑完收尾去退 `_loading`"那一步再也不会
-    /// 执行 —— 从**模块体**里逃出去,那个模块会永远停在 `_loading` 里,之后正常 `using` 被误报
+    /// 为什么需要拍:续延一调用就把当前帧链整个丢掉,"跑完收尾去退 `_loading`"那一步再也不会执行 ——
+    /// 从**模块体**里逃出去,那个模块会永远停在 `_loading` 里,之后正常 `using` 被误报
     /// 「检测到循环引用」,而且它已记进 `_loaded`,于是 `using` 变成**静默空操作**、定义缺着。
     ///
     /// 快照只收 `_loading`,**不拷 `_loaded`**:被中断的加载在 <see cref="RestoreLoading"/> 那侧
-    /// 按"此刻还在 `_loading` 里、快照里没有"算出来(否则每次 `callcc` 都要拷一遍已加载表)。</summary>
+    /// 按"此刻还在 `_loading` 里、快照里没有"算出来(否则每次 `callcc` 都要拷一遍已加载表)。
+    /// 空是常态(绝大多数 `callcc` 都不在模块体里跑),那时给一个共享的空表,不分配。</summary>
     internal RuntimeValue SnapshotLoading()
     {
-        // 空是常态(绝大多数 callcc 都不在模块体里跑):给一个共享的空表,别每次分配
         if (_loading.Count == 0) return EmptyLoading;
         return new ListVal([.. _loading.Select(m => (RuntimeValue)new StringVal(m))]);
     }
@@ -139,7 +129,7 @@ public partial class Interpreter
     internal RuntimeValue RestoreLoading(RuntimeValue snap)
     {
         if (snap is not ListVal loading) return VoidVal.Instance;
-        if (loading.Elements.Count == 0 && _loading.Count == 0) return VoidVal.Instance;   // 两边都空:没什么可还原的
+        if (loading.Elements.Count == 0 && _loading.Count == 0) return VoidVal.Instance;   // 两边都空:没什么可还原
 
         var keep = new List<string>();
         foreach (var e in loading.Elements)
@@ -154,19 +144,32 @@ public partial class Interpreter
         return VoidVal.Instance;
     }
 
+    /// <summary>Ravel 那边注册的"错误交给谁"的钩子(库启动时注册一次,见 predefined.rav 的 `onError`)。
+    /// 引擎**不认识** handler 栈:它只把这个函数调起来,由库决定有没有人接、没人接怎么办 ——
+    /// 于是"异常处理"整套也住在库里,和 `while` / `try` / `callcc` 一样。</summary>
+    private FunctionVal? _errorHook;
+
+    /// <summary>这一次交给钩子的那个异常:库"没人接"时调 `System.Unhandled`,由这里**原样**再抛出去
+    /// (位置与调用栈都保持一模一样 —— `Located` 已经是真,不会再被覆盖成库里的位置)。</summary>
+    private RuntimeException? _handed;
+
+    /// <summary>把冒泡上来的错误交给库注册的钩子。没注册钩子就返回 false(照旧冒泡给 CLI 打报告)。</summary>
     private bool HandToRavelHandler(RuntimeException ex)
     {
-        if (RavelHandlers() is not { } stack) return false;
-        if (stack.Elements.Count == 0) return false;
-        if (stack.Elements[0] is not FunctionVal handler) return false;
+        if (_errorHook is not { } hook) return false;
 
-        // 先把 handler 弹出栈再调它(和 `Ex.Throw` 里的 `HandlerStack.Remove 0 e` 一致)。
-        // 不弹的话,handler 自己出错时会又被交给同一个 handler,无限递归。
-        stack.Elements.RemoveAt(0);
-
-        // handler 体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
-        CallInto(_top.Parent ?? _top, handler, new ExceptionVal(ex.Message));
+        _handed = ex;
+        // 钩子体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
+        CallInto(_top.Parent ?? _top, hook, new ExceptionVal(ex.Message));
         return true;
+    }
+
+    /// <summary>`System.Unhandled e`:库在"没人接"时调它 —— 把引擎这次交出去的那个异常原样抛出。</summary>
+    private RuntimeValue Unhandled(RuntimeValue e)
+    {
+        var ex = _handed;
+        _handed = null;
+        throw ex ?? new RuntimeException(e is ExceptionVal ev ? ev.Message : Show(e));
     }
 
     /// <summary>出错位置:当前正在求值的节点;它没有位置(控制帧代表「一次内建调用」而不是

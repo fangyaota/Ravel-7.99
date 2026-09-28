@@ -60,6 +60,12 @@ public partial class Interpreter
         DefControl("CallCC", ControlKind.CallCC, 1);
         // **模块加载状态**的拍 / 还原:引擎只管它自己这两样(`_loading` / `_loaded`),
         // handler 栈那种库的状态不在引擎视野里(见 predefined.rav 的 `callcc`)。
+        // 错误交给谁:库注册一个钩子(引擎不认识 handler 栈),没人接时库调 Unhandled 交回引擎报告
+        DefFn("SetErrorHook", FunctionVal.From(a => {
+            _errorHook = a as FunctionVal ?? throw new RuntimeException($"SetErrorHook 要一个函数，得到 {a.Type}");
+            return VoidVal.Instance;
+        }));
+        DefFn("Unhandled", FunctionVal.From(Unhandled));
         DefFn("LoadingState", FunctionVal.From(_ => SnapshotLoading()));
         DefFn("RestoreLoading", FunctionVal.From(RestoreLoading));
         DefControl("Using", ControlKind.Using, 1);
