@@ -34,19 +34,6 @@ readonly false := System.False
 readonly NaN := System.NaN
 readonly Inf := System.Inf
 readonly default := System.Default
-# `callcc` 是**库函数**(不是内置别名):它在把续延交给用户之前先拍一份**控制状态**快照
-# (handler 栈 + 模块加载栈),用户拿到的续延被调用时**先把那份还原、再跳**。
-# 于是"用外层续延逃出 try 体"不会留下僵尸 handler,"逃出模块体"也不会让那个模块永远停在
-# "正在加载"里 —— 这两件事从前靠帧的正常收尾来做,而续延一调就把帧链整个丢掉了。
-#
-# 引擎只管拍和还原(`System.ControlState` / `System.RestoreControl` 两个原语),
-# **什么时候拍、什么时候还原由这里定** —— 这就是它写成库函数的原因。
-readonly callcc := (f: function) => {
-    System.CallCC (k: function) => {
-        snap := System.ControlState ()
-        f ((x: object) => { System.RestoreControl snap; k x; })
-    }
-}
 readonly typeof := System.TypeOf
 readonly assert := System.Assert
 readonly eval := System.Eval
@@ -328,6 +315,33 @@ readonly Try := (body: function) => {
 }
 
 ravel ""
+
+# ── `callcc`：库函数 ──
+#
+# 它在把续延交给用户之前先拍两份**控制状态**的快照:
+#   ① 自己的 handler 栈(`Ex.HandlerStack` —— 它是这个库的状态,就在 Ravel 里那个 list 上);
+#   ② 引擎的**模块加载状态**(`System.LoadingState` —— 哪个模块正在加载,那是引擎的家事)。
+# 用户拿到的续延被调用时,先把这两份还原、再跳。于是:
+#   * 用外层续延从 `try` 体里逃出去,那个 handler 跟着走掉,不会留下僵尸 handler
+#     (僵尸会接住后面**没人接**的错误,而它的续延停在早被丢弃的链上);
+#   * 从模块体里逃出去,这次加载算没发生,之后还能正常 `using` 那个模块。
+# 这两件事从前靠帧的正常收尾来做,而续延一调就把帧链整个丢掉了。
+#
+# 还原那两句必须是**一条内置调用**(复制一份列表、把引擎那份换掉):别在中间用
+# `while` / `foreach` / `try` —— 它们自己都要经过续延,会互相踩(实测死循环)。
+#
+# 写在 `Ex` 之后:它要用 `Ex.HandlerStack`,而 `Ex` 是下面那一段才建出来的。
+readonly callcc := (f: function) => {
+    System.CallCC (k: function) => {
+        hs := Ex.HandlerStack.Copy ()
+        ms := System.LoadingState ()
+        f ((x: object) => {
+            Ex.HandlerStack = hs.Copy ()
+            System.RestoreLoading ms
+            k x
+        })
+    }
+}
 
 # `Ex` 那套 API 的小写别名(和 `print` / `using` 那批一个待遇:语言级名字,标 readonly)。
 # 只能放在这儿 —— 上面那段 `ravel "Ex"` 得先把模块建出来,`ravel ""` 得先把作用域换回全局。

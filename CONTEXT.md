@@ -419,15 +419,18 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 反过来也顺:调一个在 `try` 体里捕获的续延,那个 try 的 handler 回来,重进的那段照样受保护。
 **普通数据不回滚**(累加器、字段原地改):恢复 = 接着从中断处往下算。
 
-分层:**引擎只提供两个原语** —— `System.ControlState ()` 拍一份快照(handler 栈的内容 + `_loading`;
-**不拷 `_loaded`**,被中断的加载在还原那侧按"此刻还在 `_loading` 里、快照里没有"算出来,
-否则每次 `callcc` 都要拷一遍已加载表)、`System.RestoreControl snap` 还原它;
-**策略在库里** —— `predefined.rav` 的 `callcc` 是**库函数**(包装 `System.CallCC`):
-捕获时拍快照,交给用户的续延被调时先 `System.RestoreControl` 再跳。于是控制流整套
-(`while` / `if` / `try` / `callcc`)都住在库里,引擎不知道 `try` 是什么。
-代价两条:**① 直接用 `System.CallCC` 就没这层保护**(库的 `callcc` 才是入口);
-**② 恢复那句必须是一条内置调用** —— 别在"续延被调时要跑的代码"里用 `while` / `foreach` / `try`
-(它们自己都要经过续延,会互相踩,实测死循环)。
+分层:**引擎只管它自己那两样** —— `_loading` / `_loaded`(原语 `System.LoadingState ()` 拍、
+`System.RestoreLoading snap` 还原,并在还原时把"被甩掉的那些加载"从 `_loaded` 里摘掉;
+快照只收 `_loading`,**不拷 `_loaded`** —— 被中断的加载按"此刻还在 `_loading` 里、快照里没有"算出来,
+否则每次 `callcc` 都要拷一遍已加载表)。**`Ex.HandlerStack` 不归引擎管**:它是库的状态、
+就在 Ravel 里那个 list 上,库自己拍自己还原 —— 引擎既不需要也不能知道它存在。
+**策略在库里**:`predefined.rav` 的 `callcc` 是**库函数**(包装 `System.CallCC`,写在 `Ex` 那一段之后):
+捕获时拍两份快照(自己的 handler 栈 + 引擎的模块加载状态),交给用户的续延被调时先还原这两份、再跳。
+于是控制流整套(`while` / `if` / `try` / `callcc`)都住在库里,引擎不知道 `try` 是什么。
+代价三条:**① 直接用 `System.CallCC` 就没这层保护**(库的 `callcc` 才是入口);
+**② 还原那两句必须是一条内置调用** —— 别在"续延被调时要跑的代码"里用 `while` / `foreach` / `try`
+(它们自己都要经过续延,会互相踩,实测死循环);**③ 每次续延跳转都要走一遍还原**(循环里就是每次迭代
+一次),实测 20 万轮 `while` 偏慢几个百分点(噪声内)。
 测试 223(try)、224(循环/枚举/多发射/累加器)、225(eval/with/接口槽的 `instance`)、226(模块)。
 
 **callcc 只有一套语义**：续延 = callcc 之后的剩余计算；调用它 = 丢弃当前帧链、把值当作 callcc 的返回值、从捕获点继续。因此 **callcc 之后的语句会被重新执行**——`x := 1 + callcc (k) => { saved = k; 0; }` 之后再 `saved 10`，会让 `x` 变成 11 并继续往下走。想「跳出去」就调用续延（旧的 escape 用例行为不变）。

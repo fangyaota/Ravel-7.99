@@ -58,10 +58,10 @@ public partial class Interpreter
         // if/while/foreach 不在这里——它们在 predefined.rav 用 Ravel 写(靠可调用的 true/false + callcc)
         DefControl("With", ControlKind.With, 2);
         DefControl("CallCC", ControlKind.CallCC, 1);
-        // 控制状态的拍 / 还原:给库用的原语。predefined.rav 的 `callcc` 包装靠它把
-        // "续延被调时还原"这条**策略**写在库里,引擎只管这两样状态怎么拍、怎么还原。
-        DefFn("ControlState", FunctionVal.From(_ => SnapshotControl()));
-        DefFn("RestoreControl", FunctionVal.From(RestoreControl));
+        // **模块加载状态**的拍 / 还原:引擎只管它自己这两样(`_loading` / `_loaded`),
+        // handler 栈那种库的状态不在引擎视野里(见 predefined.rav 的 `callcc`)。
+        DefFn("LoadingState", FunctionVal.From(_ => SnapshotLoading()));
+        DefFn("RestoreLoading", FunctionVal.From(RestoreLoading));
         DefControl("Using", ControlKind.Using, 1);
         DefControl("Eval", ControlKind.Eval, 1);
 
