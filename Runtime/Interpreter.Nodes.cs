@@ -322,9 +322,11 @@ public partial class Interpreter
         var target = nf.Result(0);
         if (target is not ObjectVal obj)
             throw new RuntimeException($"`by` 只能取对象身上的属性，得到 {target.Type}");
-        // 取槽本身(`by x.a`)也认接口实现那条:作用域里没有生效的实现时才是「没有字段」
+        // 取槽本身(`by x.a`)也认接口实现那条:作用域里没有生效的实现时才是「没有字段」。
+        // 这一支**不绑接收者**(只取 `.Slot`)—— `by` 取出来的就是实现 scope 里那条 property,
+        // 之后再 `Get ()` / `Set v` 时已经没有"这次服务谁"可言,`instance` 会**明确报错**。
         var field = obj.Scope.LookupField(ma.Member)
-                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)
+                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot
                     ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         BoxedValue.GateRead(field, ma.Member, this);
         if (!CheckFieldAccess(field, obj)) throw BoxedValue.AccessDenied(field, ma.Member);
@@ -414,8 +416,9 @@ public partial class Interpreter
             return;
         }
 
+        // 同 StepSlot:这里只**换槽**,不走 getter/setter,所以不绑接收者
         var field = obj.Scope.LookupField(ma.Member)
-                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)
+                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot
                     ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
@@ -456,8 +459,12 @@ public partial class Interpreter
     /// 从前两处各写了一遍,连"setter 不是函数"的兜底都一模一样。
     ///
     /// 交出去的表达式值**一律是赋进去的那个值**:从前变量赋值给 `()`、成员赋值给新值、
-    /// 而 `by` 属性那条又给新值 —— 同一个动作三个答案,现在只剩一个。</summary>
-    private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val)
+    /// 而 `by` 属性那条又给新值 —— 同一个动作三个答案,现在只剩一个。
+    ///
+    /// `prop` 是这次要过的那份 property:接口那条槽得用**绑好这一次接收者**的副本
+    /// (见 `BuiltinClasses.Activate`),所以由调用方递进来;不传就是槽自己那一份
+    /// (裸变量、自己那层声明的 `by a := property …` 都是这种情况)。</summary>
+    private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val, RuntimeValue? prop = null)
     {
         if (field.HasAttr(Attr.By))
         {
@@ -467,7 +474,7 @@ public partial class Interpreter
             // 不问的话"只读"在属性上就是句空话。
             field.CheckWritable();
             field.CheckAssignable(val, ViaTrait(val));
-            PushCallReturn(nf.Parent!, PropertySetter(field.Value, field.Name), val, val);
+            PushCallReturn(nf.Parent!, PropertySetter(prop ?? field.Value, field.Name), val, val);
             return;
         }
 

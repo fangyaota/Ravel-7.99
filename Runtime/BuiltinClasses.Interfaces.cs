@@ -21,9 +21,12 @@ namespace Ravel.Runtime;
 ///   是**类对象** `myTrait` —— 它的**类体**就是接口的"形"(那批 `by … = default`)。
 /// - **`myTrait myClass { … }` 造出实现对象**:接口的类体与实现块**依次跑在同一个 scope 里**
 ///   (先摆槽、再换槽),那个 scope 就是实现对象的成员表 —— **槽住在实现里**,建一次一直用。
-/// - **读写 `x.a` 常规查找落空时**才问接口:沿**当前作用域**的词法链找生效中的实现,把实现
-///   scope 里的 `instance` **换成 x**(那是唯一的可变量),这一次读/写就交给实现上那条槽。
+/// - **读写 `x.a` 常规查找落空时**才问接口:沿**当前作用域**的词法链找生效中的实现,把那条槽
+///   **绑到这一次的接收者 x** 上(见 <see cref="Activate"/>)再交出去,这一次读/写就用它。
 ///   于是效果**随作用域在/不在** —— 出了 `use` 那个作用域,`x.a` 又回到「类型 'myClass' 没有方法 'a'」。
+/// - **`instance` 是"这一次调用"的事,不是实现身上的一格**:它是一条 `by` 槽,读的时候现场解析
+///   "此刻在服务谁"(见 <see cref="InstallInstance"/> 与 `Interpreter.ActiveInstance`)——
+///   值随那次访问的作用域走,所以留存下来的闭包永远指它自己那个实例。
 ///
 /// `myClass` 这个名字**从头到尾没被动过**:不建子类、不换绑定、不往它身上加成员。
 internal static partial class BuiltinClasses
@@ -31,9 +34,21 @@ internal static partial class BuiltinClasses
     // `Interface`(接口的权威名,小写别名 `interface` 在 predefined.rav;parent 是 `type`,
     // 所以它也是类,而它造的类(接口)同样进类型树)和别的内置类一起声明在 BuiltinClasses.cs。
 
-    /// <summary>实现 scope 里那个"当前在服务谁"的变量。接口声明的槽都能看见它,
-    /// 每次要用的时候换一个实例 —— 槽本身不动。</summary>
+    /// <summary>实现 scope 里那条 `instance` **槽**(`by` 槽,值是 property)。
+    ///
+    /// 它由 <see cref="InstallInstance"/> 装上,getter 每次读的时候现场解析"这一次调用在服务谁"。
+    /// 从前它是实现身上的一格**变量**,每次查找被换成接收者 —— 那一格是所有访问共用的,
+    /// 于是留存下来的东西(闭包、`by u.a` 取到的 property)会跟着后一次访问改意思。
+    /// 它**不参与**"`u.x` 能读到什么":<see cref="TraitSlot"/> 见到这个名字就退回去,否则
+    /// `u.instance` / `(5).instance`(全局 INumber 实现的目标类就是 int)会变成能读的新成员。</summary>
     internal const string InstanceMember = "instance";
+    /// <summary>这一次分发的**激活格**:临场开一层作用域,里面放"这次服务谁"(`instance$active`)
+    /// 和"这次是哪个实现在服务"(`impl$active`,拿它认身份证),槽的 getter/setter 绑到那层上跑
+    /// (见 <see cref="Activate"/>)。读 `instance` 就是沿当前调用链找最近一层激活格。
+    ///
+    /// 名字里的 `$` 不在 Ravel 标识符字符集里,用户写不出来(同 `use$impls`),永远不会撞。</summary>
+    internal const string InstanceActiveMember = "instance$active";
+    internal const string ImplActiveMember = "impl$active";
     /// <summary>实现对象身上的目标类(`myTrait myClass { … }` 的那个 `myClass`)。</summary>
     internal const string TargetMember = "target";
     /// <summary>实现的**代号**:每 `Dispose` 一次 +1,登记表里的每条都记着"登记时它几岁"。
@@ -197,13 +212,42 @@ internal static partial class BuiltinClasses
             blk.CaptureScope);
     }
 
-    /// <summary>实现对象的最后一道装填:目标类、代号、`this`。
-    /// 槽和 `instance` 的位子是前面两段类体跑出来的,这里不碰;`Dispose` 挂在接口那份上。</summary>
-    internal static void FinishImplementation(ObjectVal impl, ObjectVal target)
+    /// <summary>实现对象的最后一道装填:目标类、代号、`this`,以及那条 `instance` 槽
+    /// (见 <see cref="InstallInstance"/>);`Dispose` 挂在接口那份上。</summary>
+    internal static void FinishImplementation(Interpreter interp, ObjectVal impl, ObjectVal target)
     {
         impl.Scope.Define(TargetMember, Type, target);
         impl.Scope.Define(GenerationMember, Int, new IntVal(0)).SetAttr(Attr.Unreadable);
         impl.Scope.Define(ObjectVal.ThisMember, impl.Type, impl);
+        InstallInstance(interp, impl);
+    }
+
+    /// <summary>装上 `instance`:一条 `by` 槽(`Attr.By`),值是 property。
+    ///
+    /// getter 是 C# 侧的原生闭包 —— 它的体按**调用点作用域**跑(`Interpreter.Call.cs` 的
+    /// `NativeClosure` 那一臂),所以它正好落"读 `instance` 的那一帧"上,再问求值器
+    /// "这一次调用在服务谁"(<see cref="Interpreter.ActiveInstance"/>)。
+    /// setter 只报错:正常写被 `Attr.Readonly` 先挡在半路(`WriteVariable` 的 `CheckWritable`),
+    /// 只有 `(by x.instance).Set v` 那种绕开 `Variable` 的路会撞上它 —— 让它出声。
+    ///
+    /// **前提**:一个实现只被它那个解释器服务 —— 实现是运行时由 `StepImplMake` 造的,
+    /// `lib/*.rav` 里那几条 `impl` 每个解释器各建一遍,所以 getter 拎着 interp 是安全的。</summary>
+    private static void InstallInstance(Interpreter interp, ObjectVal impl)
+    {
+        if (impl.Scope.LookupField(InstanceMember) != null)
+            throw new RuntimeException($"接口 {impl.Type.DisplayName} 里声明了名为 '{InstanceMember}' 的槽"
+                + " —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个");
+
+        var getter = new NativeClosure(InstanceMember, Any, (scope, _) =>
+            interp.ActiveInstance(scope, impl) ?? throw new RuntimeException(
+                "`instance` 只在实现体的槽里有效：此刻没有正在被服务的实例"
+                + "（它指的是「这一次调用在服务谁」，离开那次调用就没有了）"));
+        var setter = new NativeClosure(InstanceMember, Any, (_, _) => throw new RuntimeException(
+            "`instance` 是只读的：它由引擎指到这一次服务的实例，不能赋值"));
+
+        var vr = impl.Scope.Define(InstanceMember, Any, new PropertyVal(getter, setter));
+        vr.SetAttr(Attr.By);
+        vr.SetAttr(Attr.Readonly);
     }
 
     /// <summary>把实现登记进 `into` 那个作用域:`use` 给的是**当前作用域**(随作用域在/不在),
@@ -260,11 +304,15 @@ internal static partial class BuiltinClasses
     /// 然后沿**当前作用域**的词法链由内到外找生效中的实现:目标类收得下 receiver、身上又有这个名字的
     /// 那一个。同一个 scope 里后 `use` 的先试(和"后来的覆盖先前的"一个规矩)。
     ///
-    /// 找到就把实现 scope 里的 `instance` 换成 receiver(**槽住实现里,只有 instance 每次换**),
-    /// 再把那条槽交出去 —— 读走 getter、写走 setter,和普通 `by` 成员完全同一条路。
-    /// 找不到返回 null,由调用点报原来的「没有方法」。</summary>
-    internal static Variable? TraitSlot(Interpreter interp, ObjectVal receiver, string name)
+    /// 找到就交出**命中**(哪条槽、哪个实现、这次服务谁)—— 真正要用它的时候由调用点走
+    /// <see cref="Activate"/> 绑上这一次的接收者。**这里不建激活格**:有一半调用点只是
+    /// "问一句有没有"(`HasTraitOperator` 每次类型表落空的二元运算都会问),在那儿白建一层作用域
+    /// 是纯浪费。找不到返回 null,由调用点报原来的「没有方法」。</summary>
+    internal static TraitHit? TraitSlot(Interpreter interp, ObjectVal receiver, string name)
     {
+        // `instance` 是机制自己那条槽,不进"`u.x` 能读到什么"(见 InstanceMember 的说明)。
+        // 槽体里读的是**裸名字**,词法链直接命中实现 scope,不走这儿。
+        if (name == InstanceMember) return null;
         if (receiver.MemberScope.LookupField(name) != null) return null;
         if (OperatorSymbols.IsSymbol(name) && receiver.Type.MemberScope.LookupField(name) != null) return null;
 
@@ -280,22 +328,40 @@ internal static partial class BuiltinClasses
 
                 var slot = impl.Scope.LookupField(name);
                 if (slot == null || !slot.HasAttr(Attr.By)) continue;   // 这个实现没这个名字 → 试下一个
-                BindInstance(impl, target, receiver);
-                return slot;
+                return new TraitHit(impl, receiver, slot);
             }
         }
 
         return null;
     }
 
-    /// <summary>把实现的 `instance` 换成这一次要服务的实例。槽里的 getter/setter 读的就是它,
-    /// 所以"换 instance"这一下就是接口的全部动态性。</summary>
-    private static void BindInstance(ObjectVal impl, ObjectVal target, ObjectVal instance)
+    /// <summary>把一条接口槽**绑到这一次的接收者**上:临场开一层作用域,里面放着"这次服务谁"
+    /// (`instance$active`)和"这次是哪个实现在服务"(`impl$active`),再把槽的 getter/setter
+    /// 换到那层上跑。
+    ///
+    /// **值本身不落在实现身上** —— 这是这套机制的关键:槽体里造的闭包捕获的是创建处的作用域
+    /// (`Interpreter.Nodes.cs` 的 `StepLambda`),于是留存下来的闭包各自拎着自己那一层,
+    /// 永远指它自己那个实例;同一个实现也就能同时服务多个实例。
+    ///
+    /// 动的是**交出去的那一份副本**:实现 scope 里那条槽一个字没改,所以 `by u.a` 取到的还是
+    /// 原来那条 property,`Fields ()` / `Copy ()` 也照旧。</summary>
+    internal static PropertyVal Activate(Interpreter interp, in TraitHit hit)
     {
-        var vr = impl.Scope.LookupField(InstanceMember);
-        if (vr == null) impl.Scope.Define(InstanceMember, target, instance);
-        else vr.Assign(instance);
+        // 不是 property(`by v := 5` 那种用错)就在这一句上报出来,措辞和普通 by 成员一条路
+        var prop = interp.SlotProperty(hit.Slot.Value, hit.Slot.Name);
+
+        var act = new Scope(prop.Getter.CaptureScope);   // 保住原来的名字解析链,只多两层
+        act.Define(InstanceActiveMember, Any, hit.Receiver);
+        act.Define(ImplActiveMember, Type, hit.Impl).SetAttr(Attr.Unreadable);
+
+        return prop with
+        {
+            Getter = RebindFn(prop.Getter, act),
+            Setter = RebindFn(prop.Setter, act),
+            Var = null,                                  // 副本不再挂在哪个变量上(`Attrs ()` 用不到了)
+        };
     }
+
 
     /// <summary>`u is myTrait` / `myClass <: myTrait` 的兜底:当前作用域里有没有一个生效中的实现,
     /// 目标类收得下 `cls`、而且它就是为那个接口的。传的是**类型**(`u.Type` / 左边那个类型)——
@@ -395,3 +461,10 @@ internal static partial class BuiltinClasses
         return false;
     }
 }
+
+/// <summary>一次接口分发的命中:哪条槽、是**哪个实现**身上那条、这一次服务谁。
+///
+/// 它只是一份"找着了"的记录,还**没有**绑接收者 —— 要真用它(读/写/用它的运算符)时由调用点走
+/// <see cref="BuiltinClasses.Activate"/> 拿"绑好这一次"的那一份。分两步是因为半数的调用点
+/// 只是问一句"有没有"(`HasTraitOperator`),在那些地方建激活格纯属浪费。</summary>
+internal readonly record struct TraitHit(ObjectVal Impl, ObjectVal Receiver, Variable Slot);

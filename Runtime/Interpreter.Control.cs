@@ -213,8 +213,9 @@ public partial class Interpreter
     ///
     /// 两段跑在**同一个 scope** 里:接口类体先把 `by a : int = default` 那些槽摆好,实现体再
     /// `by a = property …` 把它们换掉 —— 所以实现体里写的是"换"(`=`),不是"建"(`:=`)。
-    /// 实现体里创建的 lambda 捕获的正是这个 scope,于是它们看得见 `instance`
-    /// (那个变量要到用的时候才被换成某个实例,见 BuiltinClasses.TraitSlot)。
+    /// 收尾时 <see cref="BuiltinClasses.FinishImplementation"/> 在这里装上 `instance` 那条槽
+    /// (读的时候现场解析"这一次调用在服务谁",见 `BuiltinClasses.Activate`);实现体里创建的
+    /// lambda 捕获的正是这个 scope,所以它们看得见 `instance`。
     ///
     /// 词法父取**实现体**的捕获作用域:接口体与实现体通常写在同一处,而实现体更可能就近
     /// 引用外面的名字。收尾用 <see cref="BuiltinClasses.FinishImplementation"/>。</summary>
@@ -259,7 +260,7 @@ public partial class Interpreter
             return;
         }
 
-        BuiltinClasses.FinishImplementation(self, target);
+        BuiltinClasses.FinishImplementation(this, self, target);
         Return(cf, self);
     }
 
@@ -512,12 +513,17 @@ public partial class Interpreter
 
         if (cf.Count == 0)
         {
-            var slot = self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By)
-                ? own
-                : BuiltinClasses.TraitSlot(this, self, op)
-                  ?? throw new RuntimeException($"对象没有运算符 '{op}'");
+            // 自己那层声明的槽读的是 `this`(类体里的 `by * := property …`),**不能**绑接收者;
+            // 接口实现那条读的是 `instance`,要绑到这一次的接收者上才交出去
+            RuntimeValue prop;
+            if (self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
+                prop = own.Value;
+            else if (BuiltinClasses.TraitSlot(this, self, op) is { } hit)
+                prop = BuiltinClasses.Activate(this, hit);
+            else
+                throw new RuntimeException($"对象没有运算符 '{op}'");
 
-            CallInto(cf, PropertyGetter(slot.Value, op), VoidVal.Instance);   // 读槽 → 运算符函数
+            CallInto(cf, PropertyGetter(prop, op), VoidVal.Instance);   // 读槽 → 运算符函数
             return;
         }
 

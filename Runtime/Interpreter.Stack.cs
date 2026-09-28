@@ -35,6 +35,36 @@ public partial class Interpreter
         if (f.Parent == null) _rootScope = scope;
     }
 
+    /// <summary>`instance` 的解析:**这一次调用在服务谁**。找不到返回 null(由调用点报错)。
+    ///
+    /// 从 `start`(读 `instance` 那一帧的调用点作用域)沿词法链往外找一遍,再沿帧链一层层往外、
+    /// 每帧从它自己的 scope 起走词法链 —— 取最近一层激活格里的接收者。
+    ///
+    /// 两段各管一半:**词法**那一半管"槽体自己,以及槽体里造的闭包"(留存下来的闭包靠它记住
+    /// 自己属于谁 —— 从前实现身上只有一格共享的 `instance`,留存值会后漂);**帧链**那一半管
+    /// "槽体里调用的辅助函数"(它的词法链上没有激活格,但调用链上有)。
+    ///
+    /// 只认 `impl$active` 就是**这个实现**的激活格:跨实现边界时宁可报「没有正在被服务的实例」,
+    /// 也不能静默绑到别人的接收者上。</summary>
+    internal ObjectVal? ActiveInstance(Scope? start, ObjectVal impl)
+    {
+        for (var s = start; s != null; s = s.Parent)
+            if (ActiveAt(s, impl) is { } lexical) return lexical;
+
+        for (var f = _top; f != null; f = f.Parent)
+            for (var s = f.Scope; s != null; s = s.Parent)
+                if (ActiveAt(s, impl) is { } dynamic) return dynamic;
+
+        return null;
+    }
+
+    /// <summary>这一层是不是"这个实现的"激活格:两格都在、且 `impl$active` 正是它。</summary>
+    private static ObjectVal? ActiveAt(Scope s, ObjectVal impl)
+        => s.LookupField(BuiltinClasses.InstanceActiveMember) is { } vr
+           && ReferenceEquals(s.LookupField(BuiltinClasses.ImplActiveMember)?.Value, impl)
+            ? (ObjectVal)vr.Value
+            : null;
+
     private void StepOnce()
     {
         CurrentScope = _top.Scope;

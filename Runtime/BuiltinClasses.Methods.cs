@@ -408,8 +408,16 @@ internal static partial class BuiltinClasses
         _ => value,
     };
 
-    private static FunctionVal RebindFn(FunctionVal f, Scope dst)
-        => f is LambdaVal lam ? lam with { CaptureScope = dst } : f;
+    /// <summary>换掉一个函数体的作用域。**`BlockVal` 也算一种 lambda 体** ——
+    /// `CallInto` 对它是 `blk.CaptureScope.Push()`,漏了它就会**静默**看错外层的名字
+    /// (`Copy ()` 那样:副本的块还在读原件的字段);接口那条激活格同理,漏了就静默看错 `instance`。
+    /// 其余(`FunctionVal.From` 造的 native / 内置方法)原样 —— 它们的体不看名字。</summary>
+    private static FunctionVal RebindFn(FunctionVal f, Scope dst) => f switch
+    {
+        LambdaVal lam => lam with { CaptureScope = dst },
+        BlockVal blk => blk with { CaptureScope = dst },
+        _ => f,
+    };
 
     /// <summary>浅拷贝一个值 —— `obj.Copy ()` 和 `with` **共用这一份**。
     ///

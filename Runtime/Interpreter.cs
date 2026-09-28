@@ -103,13 +103,21 @@ public partial class Interpreter
     ///
     /// `owner` 是报错文案里的名字(变量名/字段名)。</summary>
     internal FunctionVal PropertyGetter(RuntimeValue prop, string owner)
-        => prop is PropertyVal pv ? pv.Getter : NotAProperty(prop, "getter", owner);
+        => (prop as PropertyVal)?.Getter ?? throw NotAProperty(prop, "getter", owner);
 
     internal FunctionVal PropertySetter(RuntimeValue prop, string owner)
-        => prop is PropertyVal pv ? pv.Setter : NotAProperty(prop, "setter", owner);
+        => (prop as PropertyVal)?.Setter ?? throw NotAProperty(prop, "setter", owner);
 
-    private static FunctionVal NotAProperty(RuntimeValue prop, string what, string owner)
-        => throw new RuntimeException($"'{owner}' 标了 by，但它的值不是 property（{prop.Type} 上没有 {what}）");
+    /// <summary>那一**份** property 本身(不是它的 getter/setter)。
+    ///
+    /// 拿它做什么:接口那条槽交出去之前要**连 getter/setter 一起**绑到这一次的作用域上
+    /// (见 `BuiltinClasses.Activate`),光取 getter 不够。`what` 只是报错文案里那个词,
+    /// 和上面两条共用一套措辞(测试 138 钉着 `没有 getter` / `没有 setter` 两种)。</summary>
+    internal PropertyVal SlotProperty(RuntimeValue prop, string owner, string what = "getter/setter")
+        => prop as PropertyVal ?? throw NotAProperty(prop, what, owner);
+
+    private static RuntimeException NotAProperty(RuntimeValue prop, string what, string owner)
+        => new($"'{owner}' 标了 by，但它的值不是 property（{prop.Type} 上没有 {what}）");
 
     /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
     /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>

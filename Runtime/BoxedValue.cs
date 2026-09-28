@@ -18,14 +18,21 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         var vr = value is ModuleVal mv
             ? mv.Scope.Contains(name) ? mv.Scope.Lookup(name) : null
             : obj.Scope.LookupField(name);
-        // 本层没有这个成员 → 问当前作用域里生效的接口实现(模块不参与:接口实现是给实例用的)
-        if (vr == null && value is not ModuleVal) vr = BuiltinClasses.TraitSlot(interp, obj, name);
+        // 本层没有这个成员 → 问当前作用域里生效的接口实现(模块不参与:接口实现是给实例用的)。
+        // 接口那条槽要**绑到这一次的接收者**上才交出去(实现身上不再存"当前实例",见 Activate)。
+        var prop = vr?.Value;
+        if (vr == null && value is not ModuleVal && BuiltinClasses.TraitSlot(interp, obj, name) is { } hit)
+        {
+            vr = hit.Slot;
+            prop = BuiltinClasses.Activate(interp, hit);
+        }
+
         if (vr == null || !vr.HasAttr(Attr.By)) return null;
 
         var boxed = new BoxedValue(value, interp);
         if (value is ModuleVal m) boxed.CheckModuleReadAccess(m, vr, name);
         else boxed.CheckObjectReadAccess(obj, vr, name);
-        return interp.PropertyGetter(vr.Value, name);
+        return interp.PropertyGetter(prop!, name);
     }
 
     public BoxedValue GetMember(string name)
