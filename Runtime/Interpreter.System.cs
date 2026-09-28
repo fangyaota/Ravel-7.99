@@ -111,7 +111,9 @@ public partial class Interpreter
             if (!b.Value) throw new RuntimeException(msg is StringVal s ? s.Value : "assertion failed: " + Show(cond));
             return VoidVal.Instance;
         }));
-        DefFn("Exit", FunctionVal.From(a => throw new ExitException(a is StringVal s ? s.Value : "")));
+        // 参数**必须是字符串**:从前非字符串会退化成空消息,CLI 打出一个光秃秃的 `Error:` ——
+        // `exit 0` 看起来像解释器坏了。要结束程序就写一条消息(`exit "bye"`)。
+        DefFn("Exit", FunctionVal.From(a => throw new ExitException(As<StringVal>(a, "exit 的消息").Value)));
         DefFn("RavelMod", FunctionVal.From(a => EnterModule(As<StringVal>(a, "ravel 的模块名").Value)));
 
         return module;

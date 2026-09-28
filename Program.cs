@@ -47,7 +47,8 @@ static void RunFile(string path)
     }
     catch (ExitException ex)
     {
-        Console.WriteLine($"Error: {ex.Message}");
+        // `exit ""` 是"什么都不说就结束",别打出一个空的 `Error:` 行
+        if (ex.Message.Length > 0) Console.WriteLine($"Error: {ex.Message}");
     }
     catch (Exception ex)
     {
