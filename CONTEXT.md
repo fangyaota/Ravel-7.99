@@ -304,7 +304,9 @@ Object (parent=自己)
 ```
 RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
 ├── IntVal FloatVal BigIntVal FractionVal BigFractionVal
-│   StringVal ExceptionVal VoidVal DefaultVal      ← 原子值：无字段，MemberScope = 伪 Scope
+│   StringVal CharVal VoidVal DefaultVal           ← 原子值：无字段，MemberScope = 伪 Scope
+│                                                    （**没有 ExceptionVal**：`Exception`
+│                                                     是个普通类，实例就是 ObjectVal）
 └── ObjectVal                         Scope 字段 = 真实成员表（取成员的落点）
     ├── ListVal SetVal DictVal ModuleVal PropertyVal ScopeVal
     └── FunctionVal                   + CaptureScope（捕获作用域）

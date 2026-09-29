@@ -202,9 +202,13 @@ public record ObjectVal : RuntimeValue
     //  显示
     // ============================================================
 
-    /// <summary>类是打印它的名字(`print C` → `class`);实例打印字段列表(`class { x = 1 }`)。</summary>
+    /// <summary>类是打印它的名字(`print C` → `class`);实例打印字段列表(`class { x = 1 }`)。
+    /// **异常一族例外**:显示成它的 `Message`(从前 `ExceptionVal.ToString` 那条规矩,现在挪到
+    /// 这儿 —— `"E: " + string e` 那一片都靠它)。</summary>
     public override string ToString()
-        => IsClass ? DisplayName : InstanceText();
+        => IsClass ? DisplayName
+         : BuiltinClasses.ExceptionMessage(this) is { } msg ? msg
+         : InstanceText();
 
     private string InstanceText()
     {

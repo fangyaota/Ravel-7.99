@@ -1,0 +1,66 @@
+# `Exception` 是个**普通类**(不再是单独的 `ExceptionVal` 那套原子值):
+# 实例是 ObjectVal、有 `Message` 字段、能继承、能按类型接。
+#
+# 从前它是"半个标量":`Exception "msg"` 造的是 `ExceptionVal`(不是 ObjectVal —— 没字段、
+# 没实例 scope),于是**子类不写 `init` 就静默继承那个转换器** —— 交回一个 ExceptionVal,
+# 自己的字段全丢、`is` 也不认。现在构造器把消息写在正在构造的那个对象上、交回 `this`。
+
+# ① 基本
+e := Exception "boom"
+print (typeof e)
+print (e is Exception)
+print (e.Message)
+print (string e)                 # 显示成消息本身(不是 `Exception { Message = … }`)
+print (e == e)                   # 对象按身份比
+print (e == Exception "boom")    # 另造一个 → false
+
+# ② 继承:不写 init 也保得住自己
+Plain ::= class Exception {
+    tag: int = 1
+}
+p := Plain "hmm"
+print (typeof p)
+print (p is Plain)
+print (p is Exception)
+print (p.tag)
+print (p.Message)
+
+# ③ 自己写 init:显式设 Message(字段可读可写),字段照旧
+IoErr ::= class Exception {
+    Path: string = ""
+    init = (msg: string path: string) => { Message = msg; Path = path; this; }
+}
+f := IoErr "no file" "/tmp/x"
+print (f.Message)
+print (f.Path)
+print (string f)
+
+# ④ `|` 拼的 handler 按参数类型分派(整条交替得写在一行里 —— 换行它会断)
+handle := ((e: IoErr) => { print ("io: " + e.Message + " @ " + e.Path); }) | ((e: Exception) => { print ("base: " + e.Message); })
+try { throw f; } handle
+try { throw (Exception "plain"); } handle
+
+# ⑤ 引擎自己的错误也走同一个类型(错误钩子收到的就是 Exception 实例)
+try { print (noSuchVar); } (err: Exception) => { print ("engine: " + err.Message); }
+try { throw (Plain "again"); } (err: Plain) => { print ("typed: " + err.Message); } | ((err: Exception) => { print "base"; })
+print "end"
+# --- expected ---
+# Exception
+# true
+# boom
+# boom
+# true
+# false
+# Plain
+# true
+# true
+# 1
+# hmm
+# no file
+# /tmp/x
+# no file
+# io: no file @ /tmp/x
+# base: plain
+# engine: 未定义的变量 'noSuchVar'
+# typed: again
+# end

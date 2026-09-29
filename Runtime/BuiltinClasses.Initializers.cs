@@ -33,7 +33,7 @@ internal static partial class BuiltinClasses
         BigInt.ClassBody = PresetCtor(MakeCaster(CastToBigInt));
         Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
         BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
-        Exception.ClassBody = PresetCtor(MakeCaster(CastToException));
+        Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
         List.ClassBody = PresetCtor(MakeDefaultCaster(List));
         Set.ClassBody = PresetCtor(MakeDefaultCaster(Set));
         Dict.ClassBody = PresetCtor(MakeDefaultCaster(Dict));
@@ -197,8 +197,63 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction");
     }
 
-    private static RuntimeValue CastToException(RuntimeValue val)
-        => new ExceptionVal(val.ToString());
+    /// <summary>`Exception` 的类体:一条 `Message` 字段 + 一条构造器。
+    ///
+    /// **从前这里是"转换器"** —— `Exception "msg"` 会另造一个 `ExceptionVal`(一个不是
+    /// `ObjectVal` 的原子值),于是 `Exception` 一半是内建标量型、一半是类体系里的一员,
+    /// 而"子类不写 `init`"会静默继承那个转换器、交回一个 `ExceptionVal` —— 自己的字段全丢、
+    /// `is` 也不认。现在它就是个**普通类**:实例是 `ObjectVal`(有自己的 scope 和 `Message`),
+    /// 构造器把消息写在**正在构造的那个对象**上、再交回 `this`。
+    ///
+    /// 必须是 `NativeClosure` —— `this` 只在调用点作用域(实例 scope)里,普通 `FunctionVal`
+    /// 拿不到它(和 `DefaultCtor` / 接口那两份 init 同一个理由)。</summary>
+    private static BlockVal ExceptionBody()
+    {
+        var ctor = new NativeClosure("msg", Any, (scope, val) =>
+        {
+            var self = (ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value;
+            var msg = val switch
+            {
+                DefaultVal => "",
+                StringVal s => s.Value,
+                _ => val.ToString() ?? "",
+            };
+            self.Scope.DefineOrReplace(MessageMember, String, new StringVal(msg));
+            return self;                    // ← 交回 this:子类不写 init 也保住自己
+        });
+
+        return new BlockVal(
+            new BlockExpr([
+                // 注解省了:`""` 自己就把类型定成 String(预设类体的 scope 是**孤立**的,
+                // 写 `new IdentifierExpr("string")` 会因为找不到 `string` 而报错)
+                new VarDefinition(MessageMember, null, new StringLiteral(""))
+                    { Line = 1, Column = 1, Preset = true },
+                new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(ctor))
+                    { Line = 1, Column = 1, Preset = true },
+            ]) { Line = 1, Column = 1, Source = "<preset>" },
+            new Scope());
+    }
+
+    /// <summary>异常的消息字段名。</summary>
+    internal const string MessageMember = "Message";
+
+    /// <summary>引擎自己造一个异常实例(Ravel 侧报错要交给错误钩子时用)。
+    /// 不走构造器 —— 那样要推帧;这里直接建对象、把 `Message` 放进去,和 `StepClassInit` 一个形状。</summary>
+    internal static ObjectVal NewException(string message)
+    {
+        var scope = new Scope(Exception.ClassBody?.CaptureScope);
+        var obj = new ObjectVal(Exception, scope);
+        scope.Define(ObjectVal.ThisMember, Exception, obj);
+        scope.Define(MessageMember, String, new StringVal(message));
+        return obj;
+    }
+
+    /// <summary>这个值是不是 `Exception` 一族?是的话交回它的 `Message`(显示和错误回传都要用)。
+    /// 不是就交回 null —— 调用方自己决定怎么显示。</summary>
+    internal static string? ExceptionMessage(RuntimeValue v)
+        => v is ObjectVal { IsClass: false } o && o.ClassType.IsAssignableTo(Exception)
+            ? o.Scope.LookupField(MessageMember)?.Value.ToString()
+            : null;
 
     /// <summary>同步类型转换（隐式转换用）：失败抛异常，仅支持安全转换。
     ///

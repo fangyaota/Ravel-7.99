@@ -2127,6 +2127,30 @@ print (try { 2 + 3; } (e: Exception) => { 0; })    # 5 —— 没出错时值就
 exit "fatal error"
 ```
 
+**`Exception` 就是个普通类**（实例有 `Message` 字段，`string e` 打出来就是它）。所以你可以
+继承它、按类型接、把消息读出来：
+
+```ravel
+IoErr ::= class Exception {                    # 不写 init 也行:Message 照旧落在这个实例上
+    Path: string = ""
+    init = (msg: string path: string) => { Path = path; Message = msg; this; }
+}
+
+handle := ((e: IoErr) => { print ("io: " + e.Message + " @ " + e.Path); }) | ((e: Exception) => { print ("base: " + e.Message); })
+
+try { throw (IoErr "no file" "/tmp/x"); } handle      # io: no file @ /tmp/x
+try { throw (Exception "plain"); } handle             # base: plain
+```
+
+几个 handler 用 `|` 拼起来就**按参数类型分派**（和 `|` 造自定义函数是同一套机制）——
+挑不上第一个就试下一个，都不收才报错。两条写法上的讲究：
+
+- **每个 handler 各自加括号**：`|` 比应用松，不括的话第一个 handler 会被 `try` 先吃掉；
+- **`|` 两边得在同一行** —— 整条交替写一行里，换行它就断了（先把 handler 绑个名字也一样，能"随便换行"的是**外面**那句 `try … handle`）。
+
+`e.Message` 可读可写 ✓（`init` 里想改就 `Message = msg` ✓）；`e == 别的异常` 按**身份**比
+（要问内容就比 `e.Message`）。不写 `init` 的异常子类也有 `Message`（它继承基类那条构造器 ✓）。
+
 ### 9.1 报错长什么样
 
 运行时错误会带**位置**和**调用栈**，跨文件时也能看出是哪一层、在哪个文件。

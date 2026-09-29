@@ -160,7 +160,7 @@ public partial class Interpreter
 
         _handed = ex;
         // 钩子体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
-        CallInto(_top.Parent ?? _top, hook, new ExceptionVal(ex.Message));
+        CallInto(_top.Parent ?? _top, hook, BuiltinClasses.NewException(ex.Message));
         return true;
     }
 
@@ -169,7 +169,7 @@ public partial class Interpreter
     {
         var ex = _handed;
         _handed = null;
-        throw ex ?? new RuntimeException(e is ExceptionVal ev ? ev.Message : Show(e));
+        throw ex ?? new RuntimeException(BuiltinClasses.ExceptionMessage(e) ?? Show(e));
     }
 
     /// <summary>出错位置:当前正在求值的节点;它没有位置(控制帧代表「一次内建调用」而不是
