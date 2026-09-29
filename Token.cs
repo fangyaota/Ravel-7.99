@@ -17,5 +17,14 @@ public class Token(TokenType type, string lexeme, int line, int column, int leng
     /// 是为了让"划出这个单元的源码区间"的调用方(REPL 高亮)不必反推。</summary>
     public int Length { get; } = length;
 
+    /// <summary>**插值字符串**的片段(普通字符串是 null):字面量文本与"要当表达式解析的源码"
+    /// 交替出现。解析器拿它把 `"你好 ${name}"` 拼成 `"" + "你好 " + string (name)` ——
+    /// 所以词法只负责**切开**,不求值。</summary>
+    public IReadOnlyList<StringPart>? Parts { get; init; }
+
     public override string ToString() => $"{Type}({Lexeme}) at {Line}:{Column}";
 }
+
+/// <summary>插值字符串里的一段。<see cref="IsExpr"/> 为真时 <see cref="Text"/> 是一段**源码**
+/// (要另起一次词法+语法),行/列是它在原文件里的位置 —— 报错要指对地方。</summary>
+public record StringPart(string Text, bool IsExpr, int Line, int Column);

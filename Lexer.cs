@@ -234,9 +234,38 @@ public class Lexer(string source, string? file = null)
         int start = _pos, line = _line, col = _col;
         Advance(); // skip "
         var sb = new System.Text.StringBuilder();
+        List<StringPart>? parts = null;                 // 有插值才建
+        int litLine = _line, litCol = _col;             // 当前**字面量段**的起点
+
+        void FlushLiteral()
+        {
+            if (parts == null) return;
+            parts.Add(new StringPart(sb.ToString(), IsExpr: false, litLine, litCol));
+            sb.Clear();
+        }
+
         while (_pos < source.Length && source[_pos] != '"')
         {
             char c = source[_pos];
+
+            // 插值:`${表达式}` —— **只有这一种写法**(要任意表达式,索性只有一种更好记)。
+            // `$` 后面不是 `{` 就是**字面量**(`"$5"` / `"$name"` 都不用转义);
+            // 真要 `${` 本身,写 `\${`。
+            if (c == '$' && _pos + 1 < source.Length && source[_pos + 1] == '{')
+            {
+                parts ??= [];
+                FlushLiteral();
+                _pos += 2;
+                _col += 2;
+
+                int exprLine = _line, exprCol = _col;
+                var text = ReadBracedInterpolation(line, col);
+                parts.Add(new StringPart(text, IsExpr: true, exprLine, exprCol));
+                litLine = _line;
+                litCol = _col;
+                continue;
+            }
+
             if (c == '\\' && _pos + 1 < source.Length)
             {
                 // 转义。以前只找下一个引号,于是字符串里根本放不进 `"`——
@@ -251,6 +280,7 @@ public class Lexer(string source, string? file = null)
                     'r' => "\r",
                     '\\' => "\\",
                     '"' => "\"",
+                    '$' => "$",          // 插值记号本身
                     // 不认识的转义原样保留,免得把已有文本里的反斜杠吃掉
                     _ => "\\" + esc,
                 });
@@ -272,8 +302,46 @@ public class Lexer(string source, string? file = null)
             throw new SyntaxException("字符串没有收尾的 '\"'", new SourceSpot(file, line, col));
 
         Advance(); // skip closing "
+        FlushLiteral();                                  // 收尾那段字面量(没有插值时不做事)
         // 跨度是**源码**跨度(含两边引号),不是解码后内容的长度 —— 两者差着转义
-        return new Token(TokenType.String, sb.ToString(), line, col, _pos - start);
+        return new Token(TokenType.String, sb.ToString(), line, col, _pos - start) { Parts = parts };
+    }
+
+    /// <summary>`${ … }` 里那一段源码:扫到**配对的** `}`,路上跳过一个字符串字面量
+    /// (不然 `"${f "x"}"` 会被里面的引号提前截断)和嵌套的括号。</summary>
+    private string ReadBracedInterpolation(int strLine, int strCol)
+    {
+        int start = _pos, depth = 0;
+        while (_pos < source.Length)
+        {
+            char c = source[_pos];
+            if (c == '"')                                // 跳过一个字符串字面量
+            {
+                _pos++; _col++;
+                while (_pos < source.Length && source[_pos] != '"')
+                {
+                    if (source[_pos] == '\\') { _pos++; _col++; }
+                    _pos++; _col++;
+                }
+                if (_pos >= source.Length) break;
+                _pos++; _col++;
+                continue;
+            }
+
+            if (c == '{') depth++;
+            else if (c == '}' && depth == 0)
+            {
+                var text = source[start.._pos];
+                _pos++; _col++;
+                return text;
+            }
+            else if (c == '}') depth--;
+
+            if (c == '\n') { _line++; _col = 1; } else _col++;
+            _pos++;
+        }
+
+        throw new SyntaxException("插值没有收尾的 '}'", new SourceSpot(file, strLine, strCol));
     }
 
     /// <summary>`'a'` —— 一个**字符**字面量。转义和字符串那套一样,外加 `\'`。

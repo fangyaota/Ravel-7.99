@@ -52,8 +52,13 @@ public partial class Parser
         }
 
         if (Match(TokenType.String))
-            return new StringLiteral(Previous().Lexeme)
-                { Line = Previous().Line, Column = Previous().Column };
+        {
+            var str = Previous();
+            return str.Parts is { } parts
+                ? Interpolated(str, parts)
+                : new StringLiteral(str.Lexeme) { Line = str.Line, Column = str.Column };
+        }
+
 
         if (Match(TokenType.Char))
             return new CharLiteral(Previous().Lexeme[0])
@@ -309,6 +314,33 @@ public partial class Parser
 
     /// <summary>{ expr expr ... } → 集合。`first` 是判据那一步已经读好的第一个元素
     /// (见 ParseBrace:那一次解析的成果两条路共用)。</summary>
+    /// <summary>插值字符串 —— 拼成 `"" + 段 + 段 …`:字面量段原样,表达式段套一层
+    /// `string (…)`(那个转换器管着"什么都转得成字符串":数、字符、对象都行)。
+    ///
+    /// 拼出来的是普通的 `+` 链,和手写 `"a" + (string x)` **一模一样** —— 求值、报错、
+    /// 显示全走现成那条路,没有第二套语义。词法只把串切开(`Token.Parts`),
+    /// 每段表达式的**源码**在这里另起一次解析,位置按它在原文件里的行列挪回去。
+    ///
+    /// (`string` 这个转换器按名字找 —— 它由 predefined.rav 放在全局;要是有谁把这个名字
+    ///  遮住,插值就跟着用他那个,和手写 `string x` 的行为保持一致。)</summary>
+    private Expression Interpolated(Token str, IReadOnlyList<StringPart> parts)
+    {
+        Expression expr = new StringLiteral("") { Line = str.Line, Column = str.Column };
+        foreach (var p in parts)
+        {
+            Expression piece = p.IsExpr
+                ? new CallExpr(
+                    new IdentifierExpr("string") { Line = p.Line, Column = p.Column },
+                    Parser.ParseExpressionSnippet(p.Text, source, p.Line, p.Column))
+                    { Line = p.Line, Column = p.Column }
+                : new StringLiteral(p.Text) { Line = p.Line, Column = p.Column };
+
+            expr = new BinaryExpr(expr, "+", piece) { Line = p.Line, Column = p.Column };
+        }
+
+        return expr;
+    }
+
     private Expression ParseSet(int line, int col, Expression first)
     {
         var elements = new List<Expression> { first };

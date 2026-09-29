@@ -30,6 +30,22 @@ public partial class Parser(List<Token> tokens, string? source = null)
     public static BlockExpr ParseBlock(string source, string? fileName = null)
         => new(ParseSource(source, fileName).Statements) { Line = 1, Column = 1, Source = fileName };
 
+    /// <summary>把一段**源码片段**当**表达式**解析 —— 插值字符串用(`"你好 ${name}"` 里那段
+    /// `name` 就是)。片段来自字符串字面量内部,所以它的 token 位置是相对的:按它在原文件里的
+    /// 行列挪回去,报错才指得对地方(片段跨行时列只修第一行,够用了)。</summary>
+    internal static Expression ParseExpressionSnippet(string src, string? file, int line, int col)
+    {
+        var toks = new Lexer(src, file).Tokenize();
+        for (var i = 0; i < toks.Count; i++)
+        {
+            var t = toks[i];
+            toks[i] = new Token(t.Type, t.Lexeme, t.Line + line - 1,
+                t.Line == 1 ? t.Column + col - 1 : t.Column, t.Length) { Parts = t.Parts };
+        }
+
+        return new Parser(toks, file).ParseExpression();
+    }
+
     public Program Parse()
     {
         var statements = new List<Statement>();
