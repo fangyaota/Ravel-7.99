@@ -1,5 +1,5 @@
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     public    a: int = 1
     private   b: int = 2
     protected c: int = 3

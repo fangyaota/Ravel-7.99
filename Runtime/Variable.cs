@@ -3,6 +3,12 @@
 public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
 {
     public string Name { get; } = name;
+    /// <summary>落下这个变量的**那条定义语句**(AST 节点)。语言层的 `:=` 会填它,
+    /// 于是"同一个 scope 里同名再定义"能分辨两种情形:
+    /// 同一个节点**重跑**(callcc 的续延重入 —— `while` 的 `cond := c ()` 就靠这个,
+    /// 见 `lib/predefined.rav`)是允许的;另一个节点写同名才是错。
+    /// 引擎内部直接调 `Define` 的那些(装类、绑 `this`…)不填,按老规矩覆盖。</summary>
+    public Statement? Site { get; internal set; }
     /// <summary>类型约束。可写:BuiltinClasses 建树分两趟,String/Object 这些类对象
     /// 在第二趟才存在,那时才能给 parent/name 这些机制成员挂上约束。</summary>
     public ObjectVal TypeConstraint { get; internal set; } = typeConstraint;

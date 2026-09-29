@@ -16,10 +16,20 @@ public class Scope(Scope? parent = null)
         return null;
     }
 
-    public virtual Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
+    public virtual Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
+                                    Statement? site = null)
     {
-        if (_vars.ContainsKey(name)) throw new RuntimeException($"变量 '{name}' 已定义");
-        var v = new Variable(name, typeConstraint, initialValue);
+        // **`:=` 是定义,不是覆盖**:同一个作用域里同名再定义就是错。
+        //
+        // 只有一种情形放行:**同一个定义语句重跑** —— 续延(续延重入会把捕获点之后的尾巴再走
+        // 一遍,`while` 就是拿 callcc 写的)与"同一个块被反复执行"。那两条路落下来的
+        // `Site` 是同一个节点,于是认出"这是重跑"而不是"又来一条定义"。
+        // `site` 为 null 的是引擎内部直接调的那些(装类、绑 `this`…),按老规矩覆盖。
+        if (_vars.TryGetValue(name, out var existing)
+            && !(site != null && ReferenceEquals(existing.Site, site)))
+            throw new RuntimeException(
+                $"'{name}' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）");
+        var v = new Variable(name, typeConstraint, initialValue) { Site = site };
         _vars[name] = v;
         return v;
     }

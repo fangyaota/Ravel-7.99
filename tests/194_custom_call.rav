@@ -5,7 +5,7 @@
 # 类对象现在**就是函数**(ClassVal : FunctionVal),而普通对象不是。
 #
 # 于是 `call` 退化成普通成员名 —— 叫它什么都可以,只是不再代表"能调"。
-C ::= class { init := () => { this; }; }
+C ::= class { init = () => { this; }; }
 a := C ()
 # 对象不是函数:自己那层有没有 `call` 都一样
 try { a (); } (e: Exception) => { print ("实例不能调: " + string e); }
@@ -17,7 +17,7 @@ try { a.call; } (e: Exception) => { print ("实例读 call: " + string e); }
 try { (5).call; } (e: Exception) => { print ("int 读 call: " + string e); }
 # 自定义 `call` 成员现在只能当普通成员用 —— 读得到,但不让对象变可调用
 Adder ::= class {
-    init := () => { this; }
+    init = () => { this; }
     call := (n: int) => { n + 1; }
 }
 ad := Adder ()

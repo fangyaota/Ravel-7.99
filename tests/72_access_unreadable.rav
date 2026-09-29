@@ -1,6 +1,6 @@
 # expect-error
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     unreadable x: int = 99
 }
 c := C ()

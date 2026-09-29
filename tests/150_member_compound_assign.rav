@@ -1,6 +1,6 @@
 # 成员复合赋值 a.b += v —— 和变量一样支持 += -= *= /= %=
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     n: int = 10
     s: string = "a"
 }
@@ -29,11 +29,11 @@ print (shared.n)
 
 # 类运算符也走这条路:算那步要走 ClassOp 帧,回来再写回
 V := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     v: int = 7
     + := (x: int) => { v + x; }
 }
-Holder := class { init := () => { 0; this; }; slot: object = 0; }
+Holder := class { init = () => { 0; this; }; slot: object = 0; }
 h := Holder ()
 h.slot = V ()
 h.slot += 10
@@ -41,7 +41,7 @@ print (h.slot)
 
 # by 属性:左值过 getter、结果过 setter(两个子求值各占一个阶段)
 P := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     _n: int = 10
     by n := property (() => { _n; }) ((v: int) => { _n = v; })
 }
@@ -53,8 +53,8 @@ print (p.n)
 print (p.n += 9)
 # 变量形式的复合赋值走 CallAssign 帧(和对象字段那条路不同):算完写回变量。
 # 之前这条路径零覆盖。
-V := class {
-    init := () => { 0; this; }
+V = class {
+    init = () => { 0; this; }
     v: int = 0
     + := (o: V) => {
         r := V ()

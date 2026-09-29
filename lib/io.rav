@@ -60,7 +60,7 @@ readonly EntryAt := (path: string isDir: bool) => {
 File ::= class {
     Path: string = ""
 
-    init := (path: string) => { Path = System.PathClean path; this; }
+    init = (path: string) => { Path = System.PathClean path; this; }
 
     Name := () => { System.PathBase Path; }
     Exists := () => { System.FileExists Path; }
@@ -92,7 +92,7 @@ File ::= class {
 Dir ::= class {
     Path: string = ""
 
-    init := (path: string) => { Path = System.PathClean path; this; }
+    init = (path: string) => { Path = System.PathClean path; this; }
 
     Name := () => { System.PathBase Path; }
     Exists := () => { System.DirExists Path; }
@@ -175,7 +175,7 @@ ConsoleOut ::= class {
     Label: string = "stdout"
     ToErr: bool = false
 
-    init := (label: string toErr: bool) => { Label = label; ToErr = toErr; this; }
+    init = (label: string toErr: bool) => { Label = label; ToErr = toErr; this; }
 
     Name := () => { Label; }
     Exists := () => { true; }

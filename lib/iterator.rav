@@ -21,7 +21,7 @@ IEnumerator ::= interface {
 Enumerator ::= class {
     Items : list = []
     Index : int = -1
-    init := (items: list) => { Items = items; this; }
+    init = (items: list) => { Items = items; this; }
     MoveNext := () => { Index += 1; Index < Items.Count (); }
     by Current := property (() => { Items.At Index; }) ((v: object) => { (); })
 }

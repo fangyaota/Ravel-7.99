@@ -2,7 +2,7 @@
 # 于是副本上 `by` 属性的赋值不走 setter(变成给 Property 本身赋 Integer,报类型错),
 # readonly / private / core 也等于被副本绕过。
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     _v: int = 1
     by v := property (() => { _v; }) ((n: int) => { _v = n; })
     readonly w: int = 5

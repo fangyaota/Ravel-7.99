@@ -36,6 +36,12 @@ public record VarDefinition(string Name, Expression? TypeAnnotation, Expression 
 {
     /// <summary>运算符:靠名字识别——类体里直接写符号(`+ := f` / `+ = f`)</summary>
     public bool IsOperator => OperatorSymbols.IsSymbol(Name);
+
+    /// <summary>**引擎自己造的类体**(`PresetCtor`,见 `BuiltinClasses`)里那条定义。
+    /// 它和用户写的 `:=` 不同:预设的那一串是"每一层覆盖上一层" ——
+    /// `Object` 的默认构造、`Type` 的造类、`Interface` 的造接口、`BaseInterface` 的造实现,
+    /// 一个盖一个,所以它们走**覆盖**(`DefineOrReplace`)而不是"同名即错"。</summary>
+    public bool Preset { get; init; }
 }
 /// <summary>赋值 `x = v`</summary>
 public record Assignment(string Name, Expression Value) : Statement;

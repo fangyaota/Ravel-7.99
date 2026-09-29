@@ -63,11 +63,11 @@ print ((bigfraction 1 3) + bigfraction 2 5)
 print ((bigfraction 1 2) * bigfraction 3 4)
 print (bigfraction default)
 print (typeof (bigfraction 1 3))
-C := class {
-    init := () => { 0; this; }
+C: object = class {
+    init = () => { 0; this; }
     x: int = 10
 }
-a := C ()
+a: object = C ()
 b := a.Copy ()
 b.x = 99
 print (a.x)
@@ -75,7 +75,7 @@ print (b.x)
 print (a.Fields ())
 using "math.rav"
 print (ValueType.Subtypes ())
-a: Any = 5
+a = 5
 print a
 a = "changed"
 print a
@@ -88,21 +88,21 @@ print (true == true)
 print (true != false)
 print (int == int)
 print (int != string)
-C := class {
-    init := () => { 0; this; }
+C = class {
+    init = () => { 0; this; }
     core secret: int = 99
     show := () => { unsafe (); print secret; }
 }
-c := C ()
+c: object = C ()
 c.show ()
-C := class {
-    init := () => { 0; this; }
+C = class {
+    init = () => { 0; this; }
     check := () => {
         s := currentScope ()
         print (typeof s)
     }
 }
-c := C ()
+c = C ()
 c.check ()
 s := currentScope ()
 s.Define "x" int

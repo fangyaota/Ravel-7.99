@@ -39,7 +39,7 @@ print (ce 1)
 print ("回声算了 " + (string (EchoCalls)) + " 次")
 
 # 对象按身份认:同一个对象命中,内容一样但另建一个的不命中
-C := class { init := () => { 0; this; }; }
+C := class { init = () => { 0; this; }; }
 c := C ()
 ObjCalls := 0
 take := (o: object) => { ObjCalls += 1; "第一次看它"; }

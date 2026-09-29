@@ -170,7 +170,7 @@ internal static partial class BuiltinClasses
     private static BlockVal PresetCtor(RuntimeValue caster)
         => new(
             new BlockExpr([new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(caster))
-                { Line = 1, Column = 1 }])
+                { Line = 1, Column = 1, Preset = true }])
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
 

@@ -15,7 +15,7 @@ myMetaclass := class type {
         parentInit object body
     }
 }
-MyClass ::= myMetaclass { init := () => { 0; this; }; x: int = 42; }
+MyClass ::= myMetaclass { init = () => { 0; this; }; x: int = 42; }
 c := MyClass ()
 print (c.x)
 print (typeof MyClass)          # 元类是 myMetaclass —— 它用 `:=` 建的、没名字,所以显示 class

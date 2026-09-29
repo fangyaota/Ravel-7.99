@@ -64,7 +64,7 @@ Action ::= class {
         })
     }
 
-    init := (effect: function) => { Effect = effect; this; }
+    init = (effect: function) => { Effect = effect; this; }
 }
 
 # ── 现成的效果 ──

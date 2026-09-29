@@ -1,10 +1,10 @@
 Animal := class {
-    init := () => { this.name = "?"; this; }
+    init = () => { this.name = "?"; this; }
     name: string = ""
     speak := () => { print name; }
 }
 Dog := class Animal {
-    init := () => {
+    init = () => {
         name = "dog"
         this;
     }

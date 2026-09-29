@@ -7,7 +7,7 @@ try { eval "new y := 2"; } (e: Exception) => { print ("2: " + string e); }
 # 而它们照样是普通名字(不是保留字):定义、读、当成员名都行
 override := 7
 print override
-C := class { init := () => { 0; this; }; }
+C := class { init = () => { 0; this; }; }
 c := C ()
 c.new := 9
 print (c.new)

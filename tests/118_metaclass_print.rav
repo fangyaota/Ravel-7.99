@@ -15,7 +15,7 @@ LoggingMeta ::= class type {
     }
 }
 M2 := LoggingMeta object {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     name: string = "hello"
 }
 m := M2 ()

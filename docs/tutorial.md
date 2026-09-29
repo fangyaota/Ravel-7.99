@@ -92,7 +92,7 @@ typeof "hello"   # String
 里的普通赋值），所以：
 
 ```ravel
-C ::= class { init := (n: int) => { n; } }
+C ::= class { init = (n: int) => { n; } }
 string := C            # 遮蔽掉内置名
 z: string = 5          # ← 这里的 string 指的是 C
 ```
@@ -365,7 +365,7 @@ print ((+.1) 41)        # 42 —— 括号界定了节的范围
 
 ```ravel
 Vec ::= class {
-    init := () => { x = 0; }
+    init = () => { x = 0; }
     x: int = 0
     + := (o: Vec) => {
         r := Vec ()
@@ -450,7 +450,7 @@ false { print "then"; } { print "else"; }      # else
 ```
 
 所以 `if { c; } { t; } { e; }` 等价于 `c { t; } { e; }`。一个类里也常见
-`init := (cond) => { ... }` 这种把条件当值传递的写法。
+`init = (cond) => { ... }` 这种把条件当值传递的写法。
 
 ### 4.2 while
 
@@ -947,7 +947,7 @@ describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
 MemFile ::= class {
     Label: string = ""
     Text: string = ""
-    init := (label: string text: string) => { Label = label; Text = text; this; }
+    init = (label: string text: string) => { Label = label; Text = text; this; }
     Name := () => { Label; }
     Exists := () => { true; }
     IsDir := () => { false; }
@@ -1240,7 +1240,7 @@ s.Contains [1]         # false —— 新造的 [1] 不是集合里那个
 
 ```ravel
 Person ::= class {
-    init := () => { this; }
+    init = () => { this; }
     name: string = ""
     age: int = 0
 }
@@ -1277,11 +1277,16 @@ print (typeof Person)    # Type
 
 构造器就是类体里那个名字叫 `init` 的变量。一个类最多一个，没有按参数类型重载。
 
+**写 `init = …`，不是 `init := …`。** 每个类（不管继承谁）都已经从 `Object` 那儿继承了
+一条默认构造器，所以 `init := …` 是**在同一个名字上又来一条定义** → 当场报错。
+`=` 是覆盖：子类写 `init = …` 换掉继承来的那条，**父类那条不会被调用**（要接着做父类的
+构造得自己想办法，语言里没有 super）。
+
 **`init` 交出的返回值就是构造的结果**，所以约定以 `this` 收尾：
 
 ```ravel
 Good ::= class {
-    init := () => {
+    init = () => {
         x = 1
         this;                # ← 交出去的就是这个对象
     }
@@ -1294,7 +1299,7 @@ print ((Good ()).x)          # 1
 
 ```ravel
 Bad ::= class {
-    init := () => { x = 1; }     # 最后一句是赋值,没有 this
+    init = () => { x = 1; }     # 最后一句是赋值,没有 this
     x: int = 0
 }
 print (typeof (Bad ()))          # Void —— 不是 Bad
@@ -1310,14 +1315,14 @@ C ::= class { init ctor := () => { this; } }
 ```
 
 ```
-Error: 构造器不再用 init 修饰符，直接写 `init := () => { ... }`
+Error: 构造器不再用 init 修饰符，直接写 `init = () => { ... }`
 ```
 
 ### 7.3 构造器与参数
 
 ```ravel
 Point ::= class {
-    init := (x0: int y0: int) => {
+    init = (x0: int y0: int) => {
         x = x0
         y = y0
         this;
@@ -1351,7 +1356,7 @@ print (r.y)              # 99 —— q 和 r 是同一个对象
 
 ```ravel
 Flex ::= class {
-    init := (v: object) => {
+    init = (v: object) => {
         x = 0
         if { typeof v == int; } { x = int v; } { x = 0 - 1; }
         this;
@@ -1366,11 +1371,11 @@ print ((Flex "hi").x)    # -1
 
 ```ravel
 Animal ::= class {
-    init := () => { name = "from-init"; this; }
+    init = () => { name = "from-init"; this; }
     name: string = "?"
 }
 Dog ::= class Animal {
-    init := () => { breed = "husky"; this; }
+    init = () => { breed = "husky"; this; }
     breed: string = ""
 }
 d := Dog ()
@@ -1392,7 +1397,7 @@ print (d.breed)     # husky
   print ((NoInit ()).name)      # from-init —— 用的是 Animal 那一层
   ```
 
-  整条链都没写就落回 **`object` 那份默认构造器**（`init := () => { this; }`，什么都不做、
+  整条链都没写就落回 **`object` 那份默认构造器**（`init = () => { this; }`（引擎内部那份预设写法），什么都不做、
   把对象交出来）——所以任何类都构造得出来，不用非得写一个空的 `init`：
 
   ```ravel
@@ -1410,10 +1415,10 @@ print (d.breed)     # husky
 ### 7.5 ::= 命名
 
 ```ravel
-Named ::= class { init := () => { this; } }
+Named ::= class { init = () => { this; } }
 print (Named.name)      # Named
 
-Anon := class { init := () => { this; } }
+Anon := class { init = () => { this; } }
 print (Anon.name)       # class —— 没名字,读到的是显示名
 print (string (Anon))   # class
 ```
@@ -1429,7 +1434,7 @@ print (string (Anon))   # class
 
 ```ravel
 P ::= class {
-    init := () => { this; }
+    init = () => { this; }
     age: int = 0
 }
 p := P ()
@@ -1475,7 +1480,7 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 
 ```ravel
 C ::= class {
-    init := () => { _age = 0; this; }
+    init = () => { _age = 0; this; }
     public name: string = "n"
     private _age: int = 0
     readonly id: int = 1
@@ -1486,7 +1491,7 @@ C ::= class {
 
 ```ravel
 Person ::= class {
-    init := () => { _name = ""; this; }
+    init = () => { _name = ""; this; }
     _name: string = ""
     by name := property (() => { _name; }) ((v: string) => { _name = v; })
 }
@@ -1522,7 +1527,7 @@ Set = (_ : object) => { (); }
 
 ```ravel
 Trait ::= class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     by a: int = default          # 先给个空实现
 }
 t := Trait ()
@@ -1625,7 +1630,7 @@ Error: 类型 'Person' 没有方法 'name'
 
 ```ravel
 Person ::= class {
-    init := () => { _name = ""; this; }
+    init = () => { _name = ""; this; }
     _name: string = ""
     by name := property (() => { _name; }) ((v: string) => { _name = v; })
 }
@@ -1642,7 +1647,7 @@ print (p.name)      # Alice —— 原对象没动
 
 ```ravel
 Person ::= class {
-    init := () => { this; }
+    init = () => { this; }
     name: string = ""
     age: int = 0
 }
@@ -1675,7 +1680,7 @@ MyMeta ::= class type {
     }
 }
 MyClass ::= MyMeta {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     x: int = 42
 }
 print (typeof MyMeta)         # Type   —— 它自己由 class 建
@@ -1712,7 +1717,7 @@ LoggingMeta ::= class type {
     }
 }
 M2 ::= LoggingMeta object {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     name: string = "hello"
 }
 m := M2 ()
@@ -1726,7 +1731,7 @@ print (m.name)
 
 ```ravel
 M ::= class class { x: int = 1; }
-C := M { init := () => { 0; this; }; y: int = 2 }
+C := M { init = () => { 0; this; }; y: int = 2 }
 print (typeof C)      # M
 print ((C ()).y)      # 2
 ```
@@ -1740,8 +1745,8 @@ typeof type   →  type 自己(自指,链的起点)
 ```
 
 ```ravel
-A ::= MyMeta object { init := () => { 0; this; }; }
-B ::= class { init := () => { 0; this; }; }
+A ::= MyMeta object { init = () => { 0; this; }; }
+B ::= class { init = () => { 0; this; }; }
 print (typeof A)          # MyMeta
 print (typeof B)          # Type
 print (typeof MyMeta)     # Type
@@ -2213,17 +2218,32 @@ a = 42      # 赋值（变量已存在）
 a ::= fn    # 定义+自动命名（仅函数/类）
 ```
 
+### `:=` 是定义不是覆盖（同一个作用域里同名会报错）
+
+```ravel
+x := 1
+x := 2          # ❌ 'x' 在这个作用域里已经定义过
+x = 2           # ✅ 改值
+```
+
+脚本、函数体、类体**一个规矩**。（不同作用域里同名 = 遮蔽，照旧允许。）
+
+类体那条尤其要紧：各层类体**平铺进同一个实例作用域**，所以子类重声明父类已声明的字段
+是**报错**而不是覆盖；构造器同理 —— `init := …` 会撞上从 `Object` 继承来的那条默认构造，
+要换就写 `init = …`。唯一放行的是「**同一条定义语句重跑**」（续延重入、同一个块被反复
+执行；`while` 就靠它）。用例见 tests/236。
+
 ### init 是构造器的名字
 
 ```ravel
-init := () => { x = 0; }        # ✅ 构造器就是名字叫 init 的变量
+init = () => { x = 0; }        # ✅ 构造器就是名字叫 init 的变量
 init ctor := () => { x = 0; }   # ❌ 没有 init 修饰符这种写法了
 ```
 
 旧写法会被专门拦下来：
 
 ```
-Error: 构造器不再用 init 修饰符，直接写 `init := () => { ... }`
+Error: 构造器不再用 init 修饰符，直接写 `init = () => { ... }`
 ```
 
 还有一条比它更安静：**`init` 必须以 `this` 收尾**，否则构造交出的是块的值

@@ -8,7 +8,7 @@
 # 只是都不做事 —— 读出来是 (), 写进去丢掉。之后用 `by a = property g s` 换掉它。
 
 Trait ::= class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     by a: int = default
     by b: function = default
 }
@@ -34,7 +34,7 @@ t.a = 5
 print (t.b 21)
 
 # 在**别的对象**身上建一个默认属性(`:=` 定义那条)
-Empty ::= class { init := () => { 0; this; }; }
+Empty ::= class { init = () => { 0; this; }; }
 e := Empty ()
 by e.nick := default
 print (e.nick)

@@ -63,7 +63,7 @@ Cacher ::= class {
         }
     }
 
-    init := (count: int f: function) => {
+    init = (count: int f: function) => {
         assert (count >= 1) ("cacher 的参数个数至少是 1，得到 " + string count)
         Count = count
         Fn = f

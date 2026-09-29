@@ -1,5 +1,5 @@
 C := class {
-    init := () => { this.n = 10; this; }
+    init = () => { this.n = 10; this; }
     n: int = 0
     + := (x: int) => { n + x; }
     setN := (v: int) => { n = v; }

@@ -72,7 +72,8 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
     private static RuntimeException ReadOnly()
         => new("值类型的成员只读（它们的成员表是借类那层的，写进去等于改掉整个类型）");
 
-    public override Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
+    public override Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
+                                     Statement? site = null)
         => throw ReadOnly();
 
     public override Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)

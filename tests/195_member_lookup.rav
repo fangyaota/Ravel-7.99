@@ -23,7 +23,7 @@ try { (5).parent; } (e: Exception) => { print ("(5).parent: " + string e); }
 try { (5).block; } (e: Exception) => { print ("(5).block: " + string e); }
 try { (5).init; } (e: Exception) => { print ("(5).init: " + string e); }
 # 对象:①优先(自己那层就是它的字段/方法),miss 了才走②
-C ::= class { init := () => { this; }; x: int = 7; m := () => { 9; }; }
+C ::= class { init = () => { this; }; x: int = 7; m := () => { 9; }; }
 c := C ()
 print c.x
 print (c.m ())

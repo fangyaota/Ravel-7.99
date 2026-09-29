@@ -1,12 +1,12 @@
 Animal := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     name: string = ""
 }
 Dog := class Animal {
-    init := () => { name = "hacked"; this; }
+    init = () => { name = "hacked"; this; }
 }
 Dog2 := class Animal {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
 }
 d := Dog ()
 d2 := Dog2 ()

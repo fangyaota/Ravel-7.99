@@ -8,8 +8,8 @@ MyMeta ::= class type {
         parentInit object body
     }
 }
-A ::= MyMeta object { init := () => { 0; this; }; }
-B ::= class { init := () => { 0; this; }; }
+A ::= MyMeta object { init = () => { 0; this; }; }
+B ::= class { init = () => { 0; this; }; }
 print (typeof A)
 print (typeof B)
 print (typeof MyMeta)

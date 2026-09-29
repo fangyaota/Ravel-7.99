@@ -106,7 +106,7 @@ public partial class Parser
         if (Check(TokenType.Identifier) && Peek().Lexeme == ObjectVal.InitMember &&
             _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Identifier &&
             _pos + 2 < tokens.Count && tokens[_pos + 2].Type is TokenType.ColonEqual or TokenType.ColonColonEqual)
-            throw ParseError("构造器不再用 init 修饰符，直接写 `init := () => { ... }`");
+            throw ParseError("构造器不再用 init 修饰符，直接写 `init = () => { ... }`");
 
         // 修饰符 `override` / `new` 已删(它们只被记下来,全库没有一处读 —— 语言里既没有
         // 重载也没有重定义检查,写上去等于没写)。不拦的话 `override x := 1` 会被当表达式

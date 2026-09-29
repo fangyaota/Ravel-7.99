@@ -15,7 +15,7 @@ print (typeof MyMeta)
 
 # 用 MyMeta 创建类:两分支的 init 让 `MyMeta { ... }`(不带父类)也能用
 MyClass := MyMeta {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     x: int = 42
 }
 c := MyClass ()

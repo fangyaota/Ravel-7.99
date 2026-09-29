@@ -3,7 +3,7 @@
 # `this.v = n` 落到原对象上,而裸写 `v = n` 是对的——同一个副本两种行为。
 # 现在两者共用一个 CopyObject。
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     v: int = 1
     setThis := (n: int) => { this.v = n; }
     setBare := (n: int) => { v = n; }

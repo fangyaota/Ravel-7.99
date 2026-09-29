@@ -71,20 +71,18 @@ print (u is IEnumerable)
 foreach u (v: int) => { print ("each " + string v); }
 print (C.GetImplements ())
 
-# ---- 同名槽:自己的说了算 ----
+# ---- 同名槽:现在**报错** —— 父接口声明过的槽不能再声明一次(`:=` 是定义不是覆盖;
+#      要换掉它的实现,写的是实现体里那句 `by a = property …`)----
 SameTrait ::= interface myTrait {
     by a : string = default
 }
 E ::= class {
     s : string = ""
 }
-impl (SameTrait E {
-    by a = property (() => { instance.s; }) ((v: string) => { instance.s = v; })
-})
-e := E ()
-e.a = "hi"
-print e.a
-try { e.a = 5; } (err: Exception) => { print ("3: " + string err); }
+try { impl (SameTrait E { () }); } (e: Exception) => { print ("8: " + string e); }
+# 槽上的类型约束:写进去的值要过声明那个类型
+
+try { u.a = "x"; } (err: Exception) => { print ("3: " + string err); }
 
 # ---- 注解、参数(和 `is` 同一个判据) ----
 takeBase := (xs: myTrait) => { xs.a; }
@@ -118,8 +116,8 @@ try {
 # true
 # each 5
 # [masterTrait supTrait myTrait BaseInterface IEnumerable]
-# hi
-# 3: 类型错误: 无法将 Integer 赋值给 'a' (声明为 String)
+# 8: 'a' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
+# 3: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
 # 5
 # 4: `interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），得到 Integer
 # 5: 要求表里得全是接口，第 2 个是 Integer

@@ -3,26 +3,26 @@ A := 1
 print A
 B: int = 42
 print B
-X := 10
+X: object = 10
 X = 20
 print X
 print (1 + 2 * 3)
-X := 1 + 2
+X = 1 + 2
 X += 3
 print X
 print (1 + 2 < 5)
 print (1 < 2 && 3 < 4)
 print (!false)
 print 42
-X := [1 2 3]
+X = [1 2 3]
 print X
-X := [10 20 30]
+X = [10 20 30]
 print (X.Count ())
 print (X.At 1)
 print <| 99
 print (-5)
 print (10 % 3)
-X := 10
+X = 10
 X %= 3
 print X
 print (1 + 2 * 3)
@@ -32,7 +32,7 @@ print (1 < 3 && 2 > 0)
 print (1 < 3 || 2 > 0 && false)
 print (!false && false)
 print (-1 + 3)
-X := 3
+X = 3
 X = X + 1
 print X
 f := (x: int) => { x; }

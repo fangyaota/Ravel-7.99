@@ -1,13 +1,13 @@
 A := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     a: int = 1
 }
 B := class A {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     b: int = 2
 }
 C := class B {
-    init := () => { c = 3; this; }
+    init = () => { c = 3; this; }
     c: int = 0
 }
 obj := C ()

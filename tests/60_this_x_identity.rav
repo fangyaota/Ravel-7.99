@@ -1,5 +1,5 @@
 C := class {
-    init := () => { this.v = 0; this; }
+    init = () => { this.v = 0; this; }
     v: int = 0
     setDirect := () => { v = 42; }
     setThis := () => { this.v = 99; }
@@ -13,11 +13,11 @@ print (c.get ())
 
 # 继承
 Parent := class {
-    init := () => { pv = 10; this; }
+    init = () => { pv = 10; this; }
     pv: int = 0
 }
 Child := class Parent {
-    init := () => {
+    init = () => {
         pv = 99
         print pv
         print (this.pv)

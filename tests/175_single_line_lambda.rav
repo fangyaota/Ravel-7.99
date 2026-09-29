@@ -9,7 +9,7 @@ print (double 5)
 print (add 3 4)
 print (init ())
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     probe := () => { print "hi"; }
 }
 c := C ()

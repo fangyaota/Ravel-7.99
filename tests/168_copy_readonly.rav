@@ -2,7 +2,7 @@
 # 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 readonly/core/private
 # 全被绕过——`with r { 0; }` 出来的副本能直接写只读字段。
 # 回归时会变成不报错,所以用 expect-error。
-R := class { init := () => { 0; this; }; readonly w: int = 5; }
+R := class { init = () => { 0; this; }; readonly w: int = 5; }
 r := R ()
 r2 := with r { 0; }
 r2.w = 9

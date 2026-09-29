@@ -1,4 +1,4 @@
-# 默认构造器:`object` 的类体里有一份 `init := () => { this; }` ——
+# 默认构造器:`object` 的类体里有一份 `init = () => { this; }` ——
 # 什么都不做,把正在建的那个对象交回去。每个类的祖先链都到 object,所以
 # **任何类只要没写 init 就继承这一份**,`C ()` 不再报「类型 C 没有构造器（init）」。
 #
@@ -20,7 +20,7 @@ print ((B ()).y)
 
 # 自己写了 init 就覆盖掉默认那份(和覆盖别的继承成员一个机制)
 D ::= class {
-    init := () => { print "D.init"; this; }
+    init = () => { print "D.init"; this; }
     z: int = 3
 }
 d := D ()

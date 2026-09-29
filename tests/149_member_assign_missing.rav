@@ -1,7 +1,7 @@
 # expect-error
 # 用 = 给不存在的字段赋值要报错(想新建字段得用 :=)
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     v: int = 1
 }
 a := C ()

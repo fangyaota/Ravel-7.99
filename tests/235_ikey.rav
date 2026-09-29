@@ -53,7 +53,7 @@ print (IKey.GetImplementors ())
 Rec ::= class {
     X: int = 0
     N: string = ""
-    init := (x: int n: string) => { X = x; N = n; this; }
+    init = (x: int n: string) => { X = x; N = n; this; }
     Key := () => { X; }
 }
 impl (IKey Rec {
@@ -80,14 +80,14 @@ try { print (d2.SysGet (Rec 1 "别")); } (e: Exception) => { print ("5: " + stri
 # 没写 `Key` 的类型:引擎那句(指向"在类里写一条 Key")
 B ::= class {
     X: int = 0
-    init := (x: int) => { X = x; this; }
+    init = (x: int) => { X = x; this; }
 }
 try { d2.Get (B 1); } (e: Exception) => { print ("6: " + string e); }
 
 # `Key` 交回的不是值类型:库这层当场说清楚
 C ::= class {
     X: int = 0
-    init := (x: int) => { X = x; this; }
+    init = (x: int) => { X = x; this; }
     Key := () => { [X]; }
 }
 try { Keys.Of (C 1); } (e: Exception) => { print ("7: " + string e); }

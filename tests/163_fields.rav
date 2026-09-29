@@ -3,7 +3,7 @@
 # **列的是这个 Scope 里的成员**:字段和方法一视同仁(从前只列数据字段,
 # 于是用户写的方法凭空消失——运算符恰好在类对象表里另有一份才没露馅)。
 # 只排掉 `this`:它是这个值自己,不是成员。类型方法仍会并进来。
-C := class { init := () => { 0; this; }; x: int = 1; s: string = "hi"; m := () => { x; }; }
+C := class { init = () => { 0; this; }; x: int = 1; s: string = "hi"; m := () => { x; }; }
 c := C ()
 print (c.Fields ())
 print ((1).Fields ())

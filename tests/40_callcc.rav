@@ -3,7 +3,7 @@ result := callcc (k: function) => {
     k 42
 }
 print result
-result := callcc (k: function) => {
+result = callcc (k: function) => {
     k (1 + 2)
 }
 print result
@@ -20,7 +20,7 @@ F := (x: int) => {
 }
 print (F 10)
 print (F (-5))
-F := (x: int) => {
+F = (x: int) => {
     callcc (exit: function) => {
         i := 1
         while {
@@ -40,7 +40,7 @@ F := (x: int) => {
 }
 print (F 5)
 X := [1 2 3 4 5]
-result := callcc (found: function) => {
+result = callcc (found: function) => {
     i := 0
     while {
         i < X.Count ()
@@ -115,7 +115,7 @@ total += i
 if { i < 5; } { again 0; } { 0; }
 print total
 
-result := 0
+result = 0
 try {
     throw (Exception "boom")
     result = 1
@@ -123,7 +123,7 @@ try {
     result = 99
 }
 print result
-result := callcc (k: function) => {
+result = callcc (k: function) => {
     k (k 3)
 }
 print result

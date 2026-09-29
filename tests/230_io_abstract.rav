@@ -9,7 +9,7 @@ MemFile ::= class {
     Label: string = ""
     Text: string = ""
 
-    init := (label: string text: string) => { Label = label; Text = text; this; }
+    init = (label: string text: string) => { Label = label; Text = text; this; }
 
     Name := () => { Label; }
     Exists := () => { true; }
@@ -25,7 +25,7 @@ MemDir ::= class {
     Label: string = ""
     Kids: dict = {}
 
-    init := (label: string) => { Label = label; this; }
+    init = (label: string) => { Label = label; this; }
 
     Name := () => { Label; }
     Exists := () => { true; }

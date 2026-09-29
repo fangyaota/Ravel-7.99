@@ -278,7 +278,17 @@ public partial class Interpreter
             else throw new RuntimeException($"类型不匹配: 无法将 {val.Type} 赋值给 {dt} — {why}");
         }
 
-        var vr = nf.Scope.DefineOrReplace(v.Name, dt, val);
+        // **`:=` 是定义,不是覆盖** —— 同一个作用域里同名再 `:=` 就报错(`Scope.Define` 本来
+        // 就是这个规矩,从前这里用 `DefineOrReplace` 把它绕过去了)。
+        //
+        // 类体那一支尤其要紧:各层类体**平铺进同一个实例作用域**(见 `StepClassInit`),
+        // 所以"子类的字段盖掉父类的字段""子类的 init 把父类的 init 顶掉(而父类 init 里的
+        // 初始化静默不跑)"从前都是静默发生 —— 现在一律当场报出来。要覆盖就写 `=`:
+        //     init = (…) => { … }        # 换掉继承来的那条(= 是赋值/覆盖)
+        // 类的**实例成员**没有别的覆盖写法,重名就是错(换个名字,或者在 `=` 那侧写)。
+        var vr = v.Preset
+            ? nf.Scope.DefineOrReplace(v.Name, dt, val)   // 预设类体:每层覆盖上一层
+            : nf.Scope.Define(v.Name, dt, val, v);
         if (v.Attrs != null)
             foreach (var a in v.Attrs)
                 vr.SetAttr(a);

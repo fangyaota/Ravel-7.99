@@ -48,7 +48,7 @@ print (total {"a": 1 "b": 2})
 # ---- 自己的类实现它 ----
 Seq ::= class {
     n : int = 0
-    init := (k: int) => { n = k; this; }
+    init = (k: int) => { n = k; this; }
 }
 # 交回一个枚举器就行 —— 库里的 `Enumerator` 拿来就能用。
 # (`property g s` 要写在**同一行**:换行就是两条语句,槽里会只剩半截 `property`)

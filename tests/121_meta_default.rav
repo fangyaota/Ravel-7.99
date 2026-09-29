@@ -10,7 +10,7 @@ HasDefaults ::= class type {
     }
 }
 Person ::= HasDefaults {
-    init := () => { name = "?"; age = 0; this; }
+    init = () => { name = "?"; age = 0; this; }
     name: string = ""
     age: int = 0
 }

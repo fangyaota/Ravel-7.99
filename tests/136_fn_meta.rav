@@ -7,7 +7,7 @@ print (typeof (f.Scope ()))
 # setScope:把函数的闭包 scope 换成实例 scope,于是函数能读到实例字段。
 # 拿实例 scope 得在类方法里用 currentScope ()——外面没有 API 能拿到它。
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     x: int = 99
     attach := (fn: function) => { fn.SetScope (currentScope ()); }
 }

@@ -37,7 +37,7 @@ print (u + u)
 # 复合赋值:算子交回同类型的东西才写得回去
 E ::= class {
     v : int = 0
-    init := (k: int) => { v = k; this; }
+    init = (k: int) => { v = k; this; }
     by + := property (() => { (o: object) => { E (this.v + o.v); }; }) ((f: function) => { (); })
 }
 e := E 1

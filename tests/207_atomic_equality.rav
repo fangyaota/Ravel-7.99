@@ -15,7 +15,7 @@ print (default == default)
 print (default != default)
 print (() == default)          # 两个原子值但类型不同 -> 不相等,不报错
 
-C := class { init := () => { 0; this; }; }
+C := class { init = () => { 0; this; }; }
 print (C == C)
 print (C == type)
 print ([1] == [1])             # 容器按身份:另建一个就不相等

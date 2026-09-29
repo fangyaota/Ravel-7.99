@@ -7,7 +7,7 @@ try { using 5; } (e: Exception) => { print ("3: " + string e); }
 try { eval 5; } (e: Exception) => { print ("4: " + string e); }
 # 正常调用照常
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     x: int = 7
 }
 # 注意 (C ()) 的括号:with 收两个参数,写成 `with C () {...}` 会变成三参

@@ -1,5 +1,5 @@
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     readonly x: int = 10
 }
 c := C ()

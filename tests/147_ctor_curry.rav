@@ -1,6 +1,6 @@
 # 构造器调用和普通函数一样柯里化:Point 3 4 ≡ ((Point 3) 4)
 Point := class {
-    init := (x0: int y0: int) => {
+    init = (x0: int y0: int) => {
         x = x0
         y = y0
         this;
@@ -22,7 +22,7 @@ print (q.y)
 
 # 3) 三参
 Vec := class {
-    init := (a: int b: int c: int) => { s = a + b + c; this; }
+    init = (a: int b: int c: int) => { s = a + b + c; this; }
     s: int = 0
 }
 v := Vec 1 2 3
@@ -30,13 +30,13 @@ print (v.s)
 
 # 4) 单参/零参:init 一次应用完,直接是对象(不变成半成品)
 Box := class {
-    init := (n: int) => { x = n; this; }
+    init = (n: int) => { x = n; this; }
     x: int = 0
 }
 bx := Box 5
 print (bx.x)
 Zero := class {
-    init := () => { z = 9; this; }
+    init = () => { z = 9; this; }
     z: int = 0
 }
 zz := Zero ()

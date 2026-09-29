@@ -1,7 +1,7 @@
 # `class class {...}` 是个元类:它的父类是 `type`,于是继承了"建类"那层的 init。
 # 所以它建出来的东西是**类**,不是实例 —— 这条以前是 todo(元类没实现),现在成立。
 M ::= class class { x: int = 1; }
-C := M { init := () => { 0; this; }; y: int = 2 }
+C := M { init = () => { 0; this; }; y: int = 2 }
 print (typeof C)
 d := C ()
 print (d.y)

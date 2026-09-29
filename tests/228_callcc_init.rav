@@ -9,7 +9,7 @@ haveK := false
 doneK := false
 K ::= class {
     n : int = 0
-    init := (v: int) => {
+    init = (v: int) => {
         callcc (k: function) => { if { !haveK; } { haveK = true; escK = k; } { 0; }; };
         n = v
         this
@@ -26,7 +26,7 @@ haveP := false
 P ::= class {
     a : int = 0
     b : int = 0
-    init := (x: int) => {
+    init = (x: int) => {
         callcc (k: function) => { if { !haveP; } { haveP = true; escP = k; } { 0; }; };
         (y: int) => { a = x; b = y; this; }
     }

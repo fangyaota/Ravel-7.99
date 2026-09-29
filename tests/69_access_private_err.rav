@@ -1,6 +1,6 @@
 # expect-error
 C := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     private secret: int = 42
 }
 c := C ()

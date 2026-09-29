@@ -4,7 +4,7 @@ print ("aaa".== "aaa")
 print ("aaa".== "bbb")
 print (3.+ 4)
 print (10.- 3)
-b := { print "world"; }
+b: object = { print "world"; }
 c := b.Prepend { print "hello"; }
 c ()
 f := () => { print "hi"; }
@@ -14,48 +14,48 @@ print (f.name)
 g := f.Append { print " there"; }
 g ()
 Point := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     x: int = 0
     y: int = 0
 }
 p := Point ()
 p.x = 1
 p.y = 2
-q := with p {
+q: object = with p {
     x = 10
 }
 print (p.x)
 print (p.y)
 print (q.x)
 print (q.y)
-r := with p {
+r: object = with p {
     x = 100
     tmp := 999
 }
 print (r.x)
-Point := class {
-    init := () => { 0; this; }
+Point2 := class {
+    init = () => { 0; this; }
     x: int = 0
     y: int = 0
 }
-p := Point ()
-p.x = 1
-p.y = 2
-q := with p { x = 10; }
+p2 := Point2 ()
+p2.x = 1
+p2.y = 2
+q = with p { x = 10; }
 print (p.x)
 print (q.x)
 print (q.y)
-r := with p {
+r = with p {
     x = 100
     tmp := 999
 }
 print (r.x)
 Animal := class {
-    init := () => { 0; this; }
+    init = () => { 0; this; }
     name: string = ""
 }
 Dog := class Animal {
-    init := () => {
+    init = () => {
         breed = ""
         this;
     }
@@ -70,7 +70,7 @@ print (dog2.name)
 print (dog2.breed)
 # 一个类只有一个构造器,要按参数分派就在 init 里自己判断
 Multi := class {
-    init := (v: object) => {
+    init = (v: object) => {
         x = 0
         y = 0
         if { (typeof (v)) == int; } {
@@ -82,7 +82,7 @@ Multi := class {
     y: int = 0
 }
 a := Multi 10
-b := Multi ()
+b = Multi ()
 print (a.x)
 print (a.y)
 print (b.x)
@@ -99,7 +99,7 @@ try {
     print "caught"
 }
 print "done"
-result := try {
+result: object = try {
     42
 } (e: Exception) => {
     0
@@ -109,24 +109,24 @@ x := 10
 eval "print x"
 eval "y := 20"
 eval "print (x + y)"
-result := callcc (k: function) => {
+result = callcc (k: function) => {
     eval "k 42"
 }
 print result
 eval "F := (a: int) => { a * 2; }"
 print (F 5)
 ravel "Math"
-Pi := 3.14159
-Square := (x: int) => { x * x; }
+Pi = 3.14159
+MySquare := (x: int) => { x * x; }
 ravel ""
 print (Math.Pi)
-print (Math.Square 5)
+print (Math.MySquare 5)
 using "math.rav"
 print (Math.Pi)
 print (Math.Square 6)
 using "math.rav"
 ravel "Math"
-Tau := 6.28318
+Tau = 6.28318
 ravel ""
 print (Math.Pi)
 print (Math.Tau)

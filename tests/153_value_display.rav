@@ -1,14 +1,14 @@
 # 值和容器的打印形式
 
 # 对象:类名 + 数据字段。方法(含 init)和 this/block 这些机制字段不显示
-C := class { init := () => { 0; this; }; x: int = 1; s: string = "hi"; }
+C := class { init = () => { 0; this; }; x: int = 1; s: string = "hi"; }
 c := C ()
 print c
 print ([c c])
 
 # `base` 从前也是机制字段(那套 super 机制早删了),于是**用户一个叫 base 的字段会被藏起来**。
 # 现在它只是普通名字,照常列出来。
-B := class { init := () => { 0; this; }; base: int = 9; }
+B := class { init = () => { 0; this; }; base: int = 9; }
 print (B ())
 
 # `:=` 建的类没有名字(只有 `::=` 命名),显示和报错时退化成 "class",

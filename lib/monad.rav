@@ -45,7 +45,7 @@ Option ::= class {
     # 有值且满足条件 -> true
     Exists := (p: function) => { Has && p Inner; }
 
-    init := (has: bool v: object) => {
+    init = (has: bool v: object) => {
         Has = has
         Inner = v
         this

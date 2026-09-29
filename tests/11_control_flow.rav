@@ -1,18 +1,18 @@
 # 控制流(合并 11/12/15/43/139/104)
-X := {
+X: object = {
     A := 10
     B := 20
     A + B
 }
 print X
-X := 0
+X = 0
 while {
     X < 5
 } {
     print X
     X += 1
 }
-X := 10
+X = 10
 if {
     X > 5
 } {
@@ -20,7 +20,7 @@ if {
 } {
     print 0
 }
-i := 0
+i: object = 0
 while {
     i < 3
 } {
@@ -53,7 +53,7 @@ g { print "no"; }
 h := if { false; }
 print (h { 1; } { 2; })
 # while 两参部分应用
-i := 0
+i = 0
 w := while { i < 3; }
 w { print i; i += 1; }
 # foreach 两参部分应用

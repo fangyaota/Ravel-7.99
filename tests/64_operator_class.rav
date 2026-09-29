@@ -1,6 +1,6 @@
 # ===== 多运算符 + 自定义名 =====
 Vec := class {
-    init := () => { this.v = 10; this; }
+    init = () => { this.v = 10; this; }
     v: int = 0
     + := (x: int) => { v + x; }
     * := (x: int) => { v * x; }
