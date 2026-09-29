@@ -56,7 +56,7 @@
         "support": {
             "patterns": [
                 {
-                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|interface|function|type|void|Any|Every|Exception|ValueType|Cacher|Monad|Action|IEnumerable|IEnumerator|Enumerator)\\b",
+                    "match": "\\b(int|string|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|interface|function|type|void|Any|Every|Exception|ValueType|Cacher|Option|Action|IEnumerable|IEnumerator|Enumerator)\\b",
                     "name": "support.type.ravel"
                 },
                 {

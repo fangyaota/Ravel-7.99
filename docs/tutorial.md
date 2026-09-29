@@ -730,16 +730,16 @@ print (Cacher.name)              # "Cacher"
 缓存因此活得和它一样长（实例本身退场了，Scope 被函数拎着走）。
 每次 `cacher …` 都是一份**独立**的缓存，包同一个函数互不干扰。
 
-### 5.8 Monad（可能没有值的包）
+### 5.8 Option（可能没有值的包）
 
 `Some 5` 包着一个值，`None` 什么都没有。要问有没有值用 `IsSome ()` —— 两者**类型相同**
-（都是 `Monad`），`is Monad` 分不出来：
+（都是 `Option`），`is Option` 分不出来：
 
 ```ravel
 (Some 5).IsSome ()     # true
 None.IsSome ()         # false
 (Some 5).Value ()      # 5 —— 解包
-None.Value ()          # 报错：Monad.Value: 这个 Monad 里没有值（…）
+None.Value ()          # 报错：Option.Value: 这个 Option 里没有值（…）
 None.ValueOr 0         # 0 —— 解包，没有值就给默认
 ```
 
@@ -760,7 +760,7 @@ print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())   # false �
 | `ValueOr d` | 解包，没有值就给 `d` |
 | `OrElse m` | 没有值就换成 `m` |
 | `Map f` | 有值就包上 `f` 的结果；`None` 上 `f` 根本不会被调 |
-| `Bind f` | 有值就把 `f` 的结果**摊平**接上（`f` 自己得回一个 Monad），链起来不套娃 |
+| `Bind f` | 有值就把 `f` 的结果**摊平**接上（`f` 自己得回一个 `Option`），链起来不套娃 |
 | `Where p` | 不满足 `p` 就变成 `None` |
 | `Exists p` | 有值且满足 `p` |
 
@@ -852,7 +852,7 @@ Main.Perform ()
 
 这就是 IO Monad：`Action` 是说明书的类型，`Bind` 把两份说明书订成一份，所以 `:<` 直接能用。
 注意「Monad」在这里是**形状**（有 `Bind` / `Map`）而不是某个类型 —— `Action` 和 5.8 那个
-`Monad` 是**同一个形状的两个实例**：两者都实现 `IMonad`（`monad.rav` 里那个接口，两条槽就是
+`Option` 是**同一个形状的两个实例**：两者都实现 `IMonad`（`monad.rav` 里那个接口，两条槽就是
 `Map` / `Bind`），所以 `x is IMonad`、注解 `(m: IMonad)`、`IMonad.GetImplementors ()` 都认它们；
 而各自的 `Bind` 各干各的 —— 这边真跑效果，那边没有值就短路。
 
@@ -873,7 +873,7 @@ Main.Perform ()
 | `IoMonad.When c body` / `Unless c body` | 条件到**那一刻**再算（所以 `c` 是个函数），不成立就交出 `()` |
 | `IoMonad.PutStrLnErr s` / `PutStrErr s` | 写到**标准错误** |
 
-IO 里**没有「落空」这回事**：每一步都跑，值一路往下传（和 `Monad` 的短路正好相反）。
+IO 里**没有「落空」这回事**：每一步都跑，值一路往下传（和 `Option` 的短路正好相反）。
 `.Perform` 要贴给调用的**结果**时，用 `@`（5.5）或者括号：
 
 ```ravel

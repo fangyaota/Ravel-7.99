@@ -98,7 +98,7 @@ lib/
   cacher.rav              `Cacher`(Count/Fn/Keys/Vals 四个字段,init 交出的是包装函数而不是 this)
                           + 小写别名 `cacher`;两个类都进 AllTypes(`Subtypes ()` 看得到)
   monad.rav               **Monad 这一族**:`IMonad` 接口(Map + Bind 两条槽 —— 能进 `do { … }` 的形状)
-                          + 一个实例 `Monad`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
+                          + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           + 构造子 `Some` / `None`
   exceptions.rav          `Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎冒泡时叫的
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
@@ -115,7 +115,7 @@ lib/
                           `Foreach` / `Sequence` / `When` / `Unless`;`Action` 把"要做的效果"做成值,
                           `Perform ()` 才真跑;Return/PutStrLn/PutStr/GetLine/Foreach。
                           `using "iomonad.rav"` 引入 —— `Action` 也实现了 `IMonad`
-                          (它和 `Monad` 是**同一个形状的两个实例**:各自那份 Map/Bind 就是形状本身,
+                          (它和 `Option` 是**同一个形状的两个实例**:各自那份 Map/Bind 就是形状本身,
                           `impl (IMonad Action { () })` 只是登记一下;`impl` 是全局的,所以
                           `x is IMonad` 在哪儿都成立)。两者的 `Bind` 各干各的:这边真跑效果,
                           那边没有值就短路
@@ -211,7 +211,7 @@ Object (parent=自己)
 
 （`if`/`while`/`foreach`/`cacher`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里也定义了库里仅有的两个类型：`Cacher`(缓存)与
-`Monad`(可能没有值的包)。）
+`Option`(可能没有值的包)。）
 
 **值**: True False Default NaN Inf（特殊浮点值；`-Inf` 用一元 `-`）
 

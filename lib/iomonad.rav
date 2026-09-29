@@ -11,7 +11,7 @@
 #
 # 这就是 IO Monad:`Action` 是说明书的类型,`Bind` 把两份说明书订成一份,
 # 所以 `do { x :< GetLine; … }` 直接能用(`:<` 脱糖成的就是 `.Bind`)。
-# 它和 predefined.rav 那个 `Monad`(Option)是**同一个形状的两个实例** —— 都实现了 `IMonad`
+# 它和 predefined.rav 那个 `Option` 是**同一个形状的两个实例** —— 都实现了 `IMonad`
 # (Map + Bind 两条槽,见 monad.rav),所以 `is IMonad` / 注解 `(m: IMonad)` / 两者混着写都认;
 # 但它们的 `Bind` 各干各的:这边真跑效果,那边没有值就短路。
 #
@@ -40,7 +40,7 @@ Action ::= class {
     # 只跑,不要结果(交出来的还是那份 Action,可以接着拼)
     Discard := () => { Map ((x: object) => { (); }); }
 
-    # 跑它,出错了就接住 —— 结果是个 `Monad`：成功了 `Some 结果`,失败 `None`。
+    # 跑它,出错了就接住 —— 结果是个 `Option`：成功了 `Some 结果`,失败 `None`。
     # (要错误那句话用 `Catch`;这里只问"成没成"。)
     Attempt := () => {
         Action (() => {

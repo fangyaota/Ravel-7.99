@@ -43,7 +43,7 @@ print (do { a :< IoMonad.Return 3; b :< IoMonad.Return 4; IoMonad.Return (a + b)
     IoMonad.PutStrLn ("第 " + (string (x)) + " 个")
 })).Perform ()
 
-# 7) 每一步都跑,值一路往下传(不像 Monad 那样"落空就短路" —— IO 没有落空这回事)
+# 7) 每一步都跑,值一路往下传(不像 Option 那样"落空就短路" —— IO 没有落空这回事)
 Trace: list = []
 Note := (s: string) => { IoMonad.Action (() => { Trace.Add s; s; }) }
 Seq := do {
@@ -61,7 +61,7 @@ Build := (b: bool) => { if { b; } { IoMonad.PutStrLn "开了"; } { IoMonad.Retur
 Left := Build true
 print "还没跑那个分支"
 Left.Perform ()
-# 4) IMonad:Monad(Option)与 Action 是**同一个形状的两个实例**(见 monad.rav / io.rav)。
+# 4) IMonad:Option 与 Action 是**同一个形状的两个实例**(见 monad.rav / io.rav)。
 #    形状就是 do 要的那两条槽 Map / Bind;`Return` 那种构造子各归各的(这边 Some,Io 那边 IoMonad.Return)。
 print ((Some 5) is IMonad)
 print ((None) is IMonad)
@@ -69,7 +69,7 @@ print ((IoMonad.PutStrLn "x") is IMonad)
 print (5 is IMonad)
 
 # 实现是**全局**登记的(用 impl 而不是 use),所以类型层面两个方向都问得出来
-print (Monad.GetImplements ())
+print (Option.GetImplements ())
 print (IoMonad.Action.GetImplements ())
 print (IMonad.GetImplementors ())
 
@@ -128,14 +128,14 @@ print (Log)
 # false
 # [IMonad]
 # [IMonad]
-# [Action Monad]
+# [Action Option]
 # 4
 # 42
 # 2
 # [a b]
 # ()
 # [a b a]
-# Monad { Has = true, Inner = 1 }
+# Option { Has = true, Inner = 1 }
 # false
 # 接住 boom
 # ()

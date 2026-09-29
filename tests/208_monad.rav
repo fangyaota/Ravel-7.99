@@ -1,4 +1,4 @@
-# Monad:要么包着一个值(Some v),要么什么都没有(None)。
+# Option:要么包着一个值(Some v),要么什么都没有(None)。
 # 链式操作用 Map / Bind / Where,它们对 None 一律原样放过 —— 中间有一环没值,
 # 后面全不用算。`Value ()` 在 None 上当场报错,不拿 () 糊弄。
 #
@@ -7,7 +7,7 @@
 #   2) `((Some 5).Map f).Value ()` —— 不给 Map 的结果套括号,`.Value` 会贴到 f 上
 
 # 两种情况的类型相同,`is` 分不出来;问有没有值用 IsSome ()
-print ((Some 5) is Monad)
+print ((Some 5) is Option)
 print ((Some 5).IsSome ())
 print (None.IsSome ())
 print ((Some 5).IsNone ())
@@ -33,7 +33,7 @@ bump := (x: int) => { MapCalls += 1; x + 1; }
 print (None.Map bump)
 print ("映射函数被调了 " + (string (MapCalls)) + " 次")
 
-# Bind:把 f 的结果**摊平**接上(f 自己回一个 Monad),所以链起来不会套娃
+# Bind:把 f 的结果**摊平**接上(f 自己回一个 Option),所以链起来不会套娃
 half := (x: int) => { if { x % 2 == 0; } { Some (x / 2); } { None; } }
 print (((Some 8).Bind half).Value ())
 print (((Some 7).Bind half).IsSome ())
@@ -61,16 +61,16 @@ print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())
 # false
 # true
 # false
-# Monad
+# Option
 # 5
 # 5
 # 0
-# E: Monad.Value: 这个 Monad 里没有值（用 IsSome 先问，或改用 ValueOr）
+# E: Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）
 # 9
 # 1
 # 10
 # false
-# Monad { Has = false, Inner = () }
+# Option { Has = false, Inner = () }
 # 映射函数被调了 0 次
 # 4
 # false
