@@ -104,6 +104,8 @@ lib/
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
                           引擎不认识 HandlerStack,那块状态归这儿管 —— 从前是单独的 try.rav,
                           并进来之后又拆成这个文件。
+  io.rav                  文件系统:接口 `IEntry` / `IFile` / `IDir`(全局名)+ 磁盘实现 + 通用件。
+                          要显式 `using "io.rav"`;详见「文件系统」一节
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;tests/125 跑的就是它
@@ -231,6 +233,38 @@ Object (parent=自己)
 
 参数收**任何数值**（int/float/bigint/fraction），内部按 double 算 —— 和 `<` 那批运算符
 同一个口径。`lib/math.rav` 只在上面补 Ravel 说得清楚的几个（square/cube/deg/rad）。
+
+## 文件系统（`lib/io.rav`，要显式 `using "io.rav"`）
+
+分三层，**"文件"先是个形状**，磁盘只是其中一个实现：
+
+1. **引擎侧原语**（`System`）：`ReadText` / `WriteText` / `AppendText` / `DeletePath` /
+   `CreateDir` / `ListDir`(名字→是不是目录) / `PathSize` / `PathTime` / `CopyPath` / `MovePath` /
+   `CurrentDir` / `ChDir` / `FileExists` / `DirExists` / `PathJoin` / `PathDir` / `PathBase` /
+   `PathExt` / `PathClean` / `SplitLines`。**只做 syscall、不做判断**：失败报 Ravel 错误（中文、
+   带路径，路径按用户写的那串打、不转绝对路径），"要不要先问一句"交给 `FileExists` / `DirExists`
+   探针（它们不报错）；外面再套一层兜底，**不让 C# 异常漏到顶层**（和 `RandInt` 那条注释一个道理）。
+   路径基准 = 进程当前目录；**不做沙箱** —— 和 `using` 找模块一个待遇。
+2. **接口**（`IEntry` / `IFile` / `IDir`，**全局名**，和 `IEnumerable` / `IMonad` 一个待遇）：
+   `Exists` / `IsDir` / `Delete` / `Name`；`IFile` 加 `Read` / `Write` / `Append` / `Size`；
+   `IDir` 加 `List`（`名字 → IEntry`，实现自己排序）。`IFile ::= interface IEntry` ——
+   **实现了 IFile 也就实现了 IEntry**（照 C#；登记只写最具体那条）。磁盘特有的（路径、修改时间、
+   改名、复制）**不进接口**。实现有两条路：① 类自己就有那几条成员 + `impl (IFile 那个类 { () })`
+   登记；② `impl (IFile 某类 { by Read = property … })` 现装。只读实现（zip 条目那种）让
+   `Write` / `Delete` 抛一句人话即可（这轮不拆 `IReadOnlyFile`）。
+3. **磁盘实现 + 通用件**（模块 `Io`）：`Io.File "a.txt"` / `Io.Dir "sub"` 造条目
+   （`Child` 对不存在的名字**按文件算** —— 写新文件是常事；建目录走 `Mkdir`）；
+   `List` / `Files` / `Dirs` 按名字排序；`CopyTo` / `MoveTo` / `Rename` / `LastWrite` 是磁盘特有的。
+   `Io.Lines (f: IFile)` / `Io.Copy (from to)` / `Io.EachDir (d f)`（递归走一遍，每见一个条目叫一次
+   `f (路径, 条目)`）**对着接口写**，任何实现都吃 —— 以后加内存文件 / zip / 远程文件就是照这个缝插。
+
+链式调用要写括号：`(x.f ()).g ()` —— `.成员` 比并列的调用绑得紧（见教程那条 `(Some 5).Map f`）。
+
+两个坑（写在 `lib/io.rav` 里）：① 类体里给方法起名 `File` / `Dir` 会把**类名遮住**，
+`File (…)` 变成调自己（实测无限递归）；② 实参位置上的 `raw.Get n` 会被读成 `((f …) raw.Get) n`。
+
+测试 —— 229（磁盘：读写/列目录/复制移动改名/报错文案/换目录、临时目录跑完删干净）、
+230（抽象那一层：测试里现写一个内存实现 + `Io.Copy` 两边跑 + `Io.EachDir` 递归）。
 
 ## 全局变量
 

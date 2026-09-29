@@ -758,7 +758,7 @@ do {
 print (do { v :< Some 10; Some (v * 2); }.Value ())    # 20
 ```
 
-### 5.10 IO（把效果做成值）
+### 5.10 IO Monad（把效果做成值）
 
 `IoMonad.PutStrLn "hi"` **什么都不打印** —— 它交出的是一份**说明书**（一个 `IoMonad.Action`）。
 直到 `Perform ()` 那一刻，效果才真的发生：
@@ -818,6 +818,91 @@ print (r.Perform ())                                # 21
 ```
 
 ---
+
+### 5.11 文件系统（`lib/io.rav`）
+
+**要显式引用**：`using "io.rav"` 之后 `Io.xxx` 才是一个名字。
+
+```ravel
+using "io.rav"
+
+d := Io.Dir "notes"
+d.Create ()                       # 建目录（已有就不管）
+f := d.Child "a.txt"              # 子条目：不存在就当一个文件（写新文件是常事）
+f.Write "第一行
+第二行
+"
+print (f.Read ())                 # 整个文件一个字符串
+print (f.Lines ())                # 按行切开
+f.Append "尾巴"
+print (f.Size ())                 # 字节数
+print ((d.List ()).Keys ())       # 列目录：名字 → 条目，按名字排序
+print ((d.Files ()).Keys ())      # 只要文件（`Dirs ()` 只要子目录）
+
+d.Mkdir "sub"                     # 建子目录（`Child` 对不存在的名字按文件算）
+(f.CopyTo "notes/b.txt").Read ()  # 复制 / 移动 / 改名：`MoveTo` / `Rename`
+f.Delete ()                       # 删文件；`Dir.Delete ()` 对**非空**目录会报错（不递归删）
+```
+
+**报错**是中文、带路径的 `Exception`：读不存在的文件、对目录 `Read`、删非空目录、父目录不在就写……
+`Exists ()` 是**问**，不报错：
+
+```ravel
+try { (Io.File "notes/nope.txt").Read (); } (e: Exception) => { print (string e); }
+# 读文件: 找不到文件 —— notes/nope.txt
+```
+
+**路径**基准是进程当前目录（`Io.Current ()` 看，`Io.ChDir p` 改）；没有沙箱 —— 能跑这段代码的人，
+本来就能读写那些文件。路径的活交给 `Io.Join` / `Io.DirName` / `Io.BaseName` / `Io.Ext`。
+
+#### "文件"是个接口
+
+`IEntry` / `IFile` / `IDir` 三个接口（**全局名**）才是本体：磁盘上的、内存里的、zip 条目、远程的，
+都只是它的实现。**实现子接口也就实现了父接口**：`IFile ::= interface IEntry`。
+
+```ravel
+# 对着接口写，两边都吃
+describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
+```
+
+想加一个自己的实现（比如内存文件），就把那几条成员写出来、登记一下：
+
+```ravel
+MemFile ::= class {
+    Label: string = ""
+    Text: string = ""
+    init := (label: string text: string) => { Label = label; Text = text; this; }
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Read := () => { Text; }
+    Write := (t: string) => { Text = t; (); }
+    Append := (t: string) => { Text = Text + t; (); }
+    Size := () => { Text.Length (); }
+    Delete := () => { Text = ""; (); }
+}
+impl (IFile MemFile {
+    ()
+})
+
+print (MemFile.GetImplements ())       # [IFile IEntry]
+Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一段代码
+```
+
+`Io.Copy` / `Io.EachDir` / `Io.Lines` 就是**对着接口写的**三段：任何实现都吃。
+（zip 条目那种只读的实现，让 `Write` / `Delete` 抛一句"这份文件是只读的"就行。）
+
+#### 什么时候值得用 `IoMonad` 包一层
+
+`lib/io.rav` 是**直接做**的：`f.Read ()` 那一刻就读了。想要"先拼好一串要做的效果、之后再
+`Perform ()`"（比如日志、事务），就自己包一层 —— 两套是分开的，谁也不依赖谁：
+
+```ravel
+using "iomonad.rav"
+Job := IoMonad.Action (() => { (Io.File "notes/a.txt").Write "hi"; })
+# 到这里一个字都还没写
+Job.Perform ()
+```
 
 ## 六、集合
 
@@ -1817,6 +1902,7 @@ Error: 未预期的字符 '$'
 | `x is T` | 类型判定（`isnot` 取反；`x.is` / `is.T` 也成立） |
 | `exit msg` | 退出程序 |
 | `eval "code"` | 执行字符串 |
+| `Io.File p` / `Io.Dir p` | 文件系统条目（`lib/io.rav`，见 5.11） |
 | `callcc fn` | 续延 |
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |
