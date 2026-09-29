@@ -40,4 +40,5 @@ Types.PrintTree object
 # ├── Option [Type]
 # ├── IComparable [Interface]
 # ├── IKey [Interface]
+# ├── IDict [Interface]
 # └── Keyed [Type]

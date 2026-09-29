@@ -196,37 +196,45 @@ internal static partial class BuiltinClasses
             ? a
             : throw new RuntimeException($"{what}得是值类型（数 / 字符串），得到 {a.Type}");
 
+    /// <summary>字典的**底层**操作,名字一律带 `Sys` —— 它们只吃**值类型**键(见 <see cref="KeyArg"/>),
+    /// 因为这里是同步的 C#:`Key ()` 是 Ravel 函数,调它要推帧,这儿调不了。
+    ///
+    /// 日常敲的 `d.Get k` / `d.Set k v` 是**库注入**上来的(`lib/keys.rav` 的 `IDict` 接口槽):
+    /// 它先把键**规范**成值类型、再转到这几个 `Sys*` 上 —— 于是"内容一样的两个对象"是同一条。
+    /// **名字腾出来是前提**:成员查找先看类链,链上没有 `Get` 才轮到接口槽(`TraitSlot`)。
+    /// `Keys` / `Values` / `HasValue` / `Count` / `Clear` 不吃键,不用注入,就留在这一层。
+    /// </summary>
     private static void RegisterDictMethods()
     {
-        Dict.DefineMethod("Get", (s, a) =>
+        Dict.DefineMethod("SysGet", (s, a) =>
         {
-            var key = KeyArg(a, "dict.Get 的键");
+            var key = KeyArg(a, "dict.SysGet 的键");
             var d = (DictVal)s;
             if (d.Entries.TryGetValue(key, out var v)) return v;
             throw new RuntimeException($"键不存在: {key}");
         });
-        Dict.DefineMethod("Set", (s, a) =>
+        Dict.DefineMethod("SysSet", (s, a) =>
         {
-            var key = KeyArg(a, "dict.Set 的键");
+            var key = KeyArg(a, "dict.SysSet 的键");
             return FunctionVal.From(v =>
             {
                 ((DictVal)s).Entries[key] = v;
                 return VoidVal.Instance;
             });
         });
-        Dict.DefineMethod("Has", (s, a) =>
-            new BoolVal(((DictVal)s).Entries.ContainsKey(KeyArg(a, "dict.Has 的键"))));
+        Dict.DefineMethod("SysHas", (s, a) =>
+            new BoolVal(((DictVal)s).Entries.ContainsKey(KeyArg(a, "dict.SysHas 的键"))));
         Dict.DefineMethod("Keys", (s, _) => new ListVal([.. ((DictVal)s).Entries.Keys]));
         Dict.DefineMethod("Values", (s, _) => new ListVal([.. ((DictVal)s).Entries.Values]));
-        Dict.DefineMethod("Remove", (s, a) =>
+        Dict.DefineMethod("SysRemove", (s, a) =>
             // 有没有删掉(C# 也交回 bool)
-            new BoolVal(((DictVal)s).Entries.Remove(KeyArg(a, "dict.Remove 的键"))));
+            new BoolVal(((DictVal)s).Entries.Remove(KeyArg(a, "dict.SysRemove 的键"))));
         Dict.DefineMethod("HasValue", (s, a) => new BoolVal(((DictVal)s).Entries.ContainsValue(a)));
         // `d.GetOr "k" 0` —— 有就取值,没有就给替代值(C# 的 GetValueOrDefault)。
         // 默认的 `Get` 是**响亮**的(键不存在就报错),这个是"明知可能没有"时用的。
-        Dict.DefineMethod("GetOr", (s, a) =>
+        Dict.DefineMethod("SysGetOr", (s, a) =>
         {
-            var key = KeyArg(a, "dict.GetOr 的键");
+            var key = KeyArg(a, "dict.SysGetOr 的键");
             var d = (DictVal)s;
             return d.Entries.TryGetValue(key, out var v)
                 ? FunctionVal.From(_ => v)        // 有:替代值收下但不用

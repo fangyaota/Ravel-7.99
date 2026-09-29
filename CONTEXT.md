@@ -102,9 +102,10 @@ lib/
                           + 构造子 `Some` / `None`
   sorting.rav             `IComparable`(一条槽:`CompareTo`)+ 六种内建标量的空登记
                           + `Sorting` 模块(Compare / Sort / SortBy / Max / Min / MaxBy / MinBy)
-  keys.rav                `IKey`(一条槽:`Key`)+ 值类型那六种的空登记 + `Keys` 模块
-                          (Of / Set / Get / Has / Remove / GetOr)+ `Keyed`(以任意值为键、
-                          连原键一起记着的表,`Keys ()` 交回原对象)
+  keys.rav                `IKey`(一条槽:`Key`)+ 值类型那六种的空登记 + `IDict`
+                          (**把 `Get`/`Set`/`Has`/`Remove`/`GetOr` 注入给 `dict`** ——
+                          引擎那套同步的留在 `Sys*` 上)+ `Keys.Of`(规范键)
+                          + `Keyed`(以任意值为键、连原键一起记着的表)
   exceptions.rav          `Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎冒泡时叫的
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
                           引擎不认识 HandlerStack,那块状态归这儿管 —— 从前是单独的 try.rav,
@@ -826,11 +827,11 @@ add.name   # "add"
 判据在 `ParseBrace`:**先读第一个元素,看它后面跟的是不是 `:`**(那一次解析的结果
 字典、集合两条路共用 —— `_` 的序号是单调计数器,读两遍会让洞的编号对不上)。
 
-**字典键的相等性**:键只能是值类型,所以比的就是值自己 —— `1` / `"1"` / `1.0` 是**三个**
-格子(`d.Keys ()` 交回它们本身;打印出来都像 `1`,那是显示的老规矩:`print [1 "1" 1.0]`
-也一样)。两条边角:**`0` 与 `0.0` 是两个键**(不同类型),**`NaN` 与 `NaN` 是同一个键**
-(`Double.Equals` 说 NaN 等于 NaN,而 `NaN == NaN` 是 false —— 表和 `==` 本来就两套)。
-对象要当键得先**规范**成值类型,见「键与查找」。
+**字典键的相等性**:进表的键**只有值类型**(`d.Set` 会先把键规范一道,"见键与查找"),
+所以比的就是值自己 —— `1` / `"1"` / `1.0` 是**三个**格子(`d.Keys ()` 交回它们本身;
+打印出来都像 `1`,那是显示的老规矩:`print [1 "1" 1.0]` 也一样)。两条边角:
+**`0` 与 `0.0` 是两个键**(不同类型),**`NaN` 与 `NaN` 是同一个键**(`Double.Equals` 说 NaN
+等于 NaN,而 `NaN == NaN` 是 false —— 表和 `==` 本来就两套)。
 
 **集合元素的相等性**:标量(`int`/`string`/…)比**值**(所以 `{1 2 2}` 是 2 个元素);
 `list`/`set`/`dict` 比**身份**(record 的自动相等对 `List<T>`/`HashSet<T>`/`Dictionary`
@@ -922,10 +923,19 @@ impl (IComparable Rec { () })
 所以 `5.Key ()` / `"a".Key ()` 拿起来就能用；`Keys.Of k` 就是它，外加一道
 "交回的得是值类型"的确认（免得下游只报「dict.Set 的键得是值类型」看不出是自己那条 `Key` 的问题）。
 
-**引擎那张表只吃值类型键**（`DictVal.Entries` 是 `Dictionary<RuntimeValue, RuntimeValue>`，
-入口 `KeyArg` 把关）。这条不是随便定的：.NET 的字典要一个**同步**比较器，而用户写的 `Key ()`
-是 Ravel 函数，引擎**没有**"从同步 C# 调 Ravel 函数"的路（和 `Less` 只接 `BuiltinMethodVal`
-同一个原因）。所以对象要当键，得先在**库**里把它规范成值类型：
+**分两层，不是设计口味，是够不着**：`DictVal.Entries` 是 `Dictionary<RuntimeValue, RuntimeValue>`，
+入口 `KeyArg` 把关，所以**引擎那一层只吃值类型键**（数 / 字符串）。原因在 .NET 的字典要一个
+**同步**比较器：用户写的 `Key ()` 是 Ravel 函数（调它要推帧），而**查表那一步还发生在
+`Dictionary` 的内部**，那儿更插不进帧。于是：
+
+- 引擎那套叫 **`SysGet` / `SysSet` / `SysHas` / `SysRemove` / `SysGetOr`**（同步、只吃值类型；
+  `Keys` / `Values` / `HasValue` / `Count` / `Clear` 不吃键，就留在这一层）；
+- **日常敲的 `d.Get` / `d.Set` / `d.Has` / `d.Remove` / `d.GetOr` 是库注入的**：`lib/keys.rav`
+  的 `IDict` 接口槽，先把键**规范**成值类型、再转到 `Sys*` 上。**名字腾出来是前提** ——
+  成员查找先看类链，类链上还占着 `Get` 时接口槽**够不着而且静默**（`TraitSlot` 的规矩，
+  见「接口」那一节）。形状照 `lib/iterator.rav` 那三条 `impl (IEnumerable list/set/dict …)`。
+
+所以对象要当键，走的就是注入那条路：
 
 ```ravel
 Rec ::= class { X: int = 0
@@ -934,21 +944,28 @@ Rec ::= class { X: int = 0
 impl (IKey Rec { () })
 
 d := {}
-Keys.Set d (Rec 1 "甲") "one"
-Keys.Get d (Rec 1 "别的")      # "one" —— 另一个对象、X 一样 → 同一条
+d.Set (Rec 1 "甲") "one"       # 走注入：先把 Rec 规范成 1，再进表
+d.Get (Rec 1 "别的")           # "one" —— 另一个对象、X 一样 → 同一条
 d.Keys ()                      # [1] —— 交回的是**规范键**，原对象没记着
+d.SysGet (Rec 1 "甲")          # 报「dict.SysGet 的键得是值类型」—— 引擎那层不认对象
 ```
 
-**`Keys` 模块**：`Of k` · `Set d k v` · `Get d k` · `Has d k` · `Remove d k` · `GetOr d k dflt`
-—— 就是"先算规范键、再动那张普通 dict"，没有魔法。
+**`Keys.Of k`** 是那条"规范键"的公开名字（`k.Key ()`，外加一道"交回的得是值类型"的确认——
+所以 `d.Set ([1 2]) "x"` 报的是「`Key` 要交回一个值类型的键」，而不是下游那句）。
+注入的那五条槽就是 `Sys*` 外面套一层 `Of`，没有别的魔法。
+
+**`IDict`** 就是那五条槽的形状（`Get` / `Set` / `Has` / `Remove` / `GetOr`）：普通 `dict` 靠**注入**
+满足它（`impl (IDict dict { by Get = property … })`），`Keyed` 靠**自己的成员**满足它。
+于是 `(d: IDict)` 这样的注解、`x is IDict`、对着接口写的通用代码，两种表都吃得住。
+注意**不往里加** `Keys` / `Values` / `Count` / `Clear`：那些名字还在类链上，
+按 `TraitSlot` 的规矩，类链上有名字时接口槽够不着而且**静默** —— 加了也只是死槽。
 
 **`Keyed`**：以任意值为键、**还能把原对象拿回来**的表（两张 dict：规范键→原键、规范键→值）：
 `Set` / `Get` / `Has` / `GetOr` / `Remove` / `Keys ()`（交回原对象）/ `Values ()` / `Count ()` /
-`Clear ()`。`Keys.Set` 那张裸 dict 做不到 —— 表里只有规范键。
+`Clear ()`。普通 `dict` 在这一点上做不到 —— 表里只有规范键。
 
-**两条路并存**（和 `xs.Sort ()` 对 `Sorting.Sort` 一个样）：`d.Set k v` 只有本义（同值同键、
-对象按身份），`Keys.Set d k v` 才有"规范"这一层。内建那些两边结果一样（键本来就是值类型），
-自己的类型只有 `Keys.*` 那条。
+**两层的分工**：`Sys*` 是"表"本身（同值同键、对象进不去），`d.Get` / `d.Set` 那套是"日常的门"
+（先规范再进表）。内建那些两边结果一样（键本来就是值类型），自己的类型只有注入那条路。
 
 **现装那条路（`by Key = property …`）在这儿用不了** —— 和 `CompareTo` 同一个理由：
 `Key` 这个名字 `Object` 上已经有了，成员查找是**类链先说话**，接口槽还没轮到。

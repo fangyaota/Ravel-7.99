@@ -15,9 +15,10 @@
 #
 # 于是"Key 相同的两个对象"查到同一条 —— 这就是**值语义当键**。
 #
-# 引擎那个 `d.Set k v` / `d.Get k` 自己只吃**值类型**键:它是同步的,够不着你写的 `Key`
-# (调 Ravel 函数得推帧)。库里这套 `Keys.*` 先把键算出来、再动那张普通 dict ——
-# 两套并存,和引擎的 `xs.Sort ()` 对库里的 `Sorting.Sort` 一个样。
+# **`d.Get` / `d.Set` 这些是库里注入上来的**(见下面的 `IDict`):它们先把键规范成值类型,
+# 再转到引擎那套 `SysGet` / `SysSet` / … 上。分层的原因不在设计口味,而在**够不着**:
+# 引擎那份是同步的 C#,而 `Key ()` 是 Ravel 函数(调它要推帧);更要紧的是查表那一步发生在
+# .NET 的 `Dictionary` 内部,那儿插不进帧。所以"规范化"只能发生在 Ravel 里、进表之前。
 
 IKey ::= interface {
     by Key : function = default       # () => 值类型(数 / 字符串)
@@ -45,25 +46,67 @@ impl (IKey string {
 })
 
 
-ravel "Keys"
-
-# 一个值当键时的**规范键**。`k.Key ()` 是引擎/用户那条协议;这里再确认一道 ——
-# 免得"`Key` 交回了对象"拖到下游才报(那时只看得见「dict.Set 的键得是值类型」)。
-readonly Of := (k: object) => {
-    c := k.Key ()
-    assert (c is ValueType) ("`Key` 要交回一个值类型的键（数 / 字符串），得到 " + (string (typeof c)))
-    c
+# 「像字典那样按值找」。字典那五个吃键的操作(`Get` / `Set` / `Has` / `Remove` / `GetOr`)
+# **就是挂在它下面的** —— 见下面那条 `impl`。
+#
+# 注意**不往里加** `Keys` / `Values` / `Count` / `Clear`:那些不吃键、名字也还在类链上,
+# 而按 `TraitSlot` 的规矩,类链上有名字时接口槽是**够不着且静默**的 —— 加了也只是死槽。
+IDict ::= interface {
+    by Get : function = default
+    by Set : function = default
+    by Has : function = default
+    by Remove : function = default
+    by GetOr : function = default
 }
 
-# 五个基本操作:先把键规范好,再动那个普通 dict。
-readonly Set := (d: dict k: object v: object) => { d.Set (Of k) v; }
-readonly Get := (d: dict k: object) => { d.Get (Of k); }
-readonly Has := (d: dict k: object) => { d.Has (Of k); }
-readonly Remove := (d: dict k: object) => { d.Remove (Of k); }
-readonly GetOr := (d: dict k: object dflt: object) => { (d.GetOr (Of k)) dflt; }
+
+ravel "Keys"
+
+# 一个值当键时的**规范键**:`k.Key ()` 是引擎/用户那条协议,这里再确认一道。
+# 写成一进一出的 if 而不是 `assert … ("…" + string (typeof c))` —— 那句报错串是**实参**,
+# 用 assert 的话每次调用都要拼一遍(而这是 `d.Get` / `d.Set` 的必经之路)。
+readonly Of := (k: object) => {
+    c := k.Key ()
+    if { c is ValueType; } { c; } {
+        throw (Exception ("`Key` 要交回一个值类型的键（数 / 字符串），得到 " + (string (typeof c))))
+    }
+}
+
+# 把"吃键的那五个"**注入**给 `dict`:引擎那份现在叫 `SysGet` / `SysSet` / …
+# (`Runtime/BuiltinClasses/Methods.cs`),名字腾出来了,接口槽才轮得到 ——
+# 类链上还占着这个名字的话,槽是够不着且**静默**的。
+#
+# 形状照 `lib/iterator.rav` 那三条 `impl (IEnumerable list/set/dict …)`:
+# `property` 的 getter 里读 `instance` = "这一次的接收者"。`Set` / `GetOr` 是柯里化的,
+# 所以返回"收一个、再收一个"的函数(`d.Set k v` 在求值器里就是 `((d.Set k) v)`)。
+#
+# 用 `impl` 而不是 `use`:实现要登记到**全局**,而 `use` 只登记进当前作用域
+# (这里是 `Keys` 模块),`TraitSlot` 从调用点往上走根本走不到。
+impl (IDict dict {
+    by Get = property (() => {
+        (k: object) => { instance.SysGet (Of k); }
+    }) ((v: function) => { (); })
+    by Set = property (() => {
+        (k: object) => {
+            (v: object) => { instance.SysSet (Of k) v; }
+        }
+    }) ((v: function) => { (); })
+    by Has = property (() => {
+        (k: object) => { instance.SysHas (Of k); }
+    }) ((v: function) => { (); })
+    by Remove = property (() => {
+        (k: object) => { instance.SysRemove (Of k); }
+    }) ((v: function) => { (); })
+    by GetOr = property (() => {
+        (k: object) => {
+            (dflt: object) => { (instance.SysGetOr (Of k)) dflt; }
+        }
+    }) ((v: function) => { (); })
+})
 
 # 以**任意值**为键的表:规范键和原键都记着,所以 `Keys ()` 交回的是你原来放进去的那些对象
-# —— 光靠 `Keys.Set` 那张普通 dict 是拿不回来的(表里存的只有规范键)。
+# —— 普通 dict 是拿不回来的(表里存的只有规范键)。它自己那套同名方法就是"值语义"的,
+# 登记一条 `IDict` 只是让 `x is IDict` / 注解 `(d: IDict)` 把两种表一视同仁。
 #
 # (定义在模块里、再在文件末尾绑给全局:它有个方法也叫 `Keys`,写在全局就得小心
 #  "类成员盖住同名模块"那个坑 —— 放在模块里,`Of` 就是兄弟,名字爱怎么叫怎么叫。)
@@ -93,6 +136,11 @@ Keyed ::= class {
         Data.Clear ()
     }
 }
+
+# 登记(实现体是空的:它自己那五条方法就是形状本身 —— 类链先说话,槽不用现装)
+impl (IDict Keyed {
+    ()
+})
 
 
 ravel ""
