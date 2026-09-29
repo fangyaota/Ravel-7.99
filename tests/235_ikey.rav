@@ -1,0 +1,150 @@
+# `IKey` / `Keys` / `Keyed`:字典的键从"只能是字符串"放开成**值类型**,再往上搭一层**值语义**。
+#
+# 分两层(和 `Sorting` 对 `xs.Sort ()` 一个道理):
+#   * 引擎那张表只吃**值类型**键(`1` / `"1"` / `1.0` 是三个格子)—— 它同步,够不着你写的 `Key`;
+#   * `Keys.*` 先把对象**规范**成一个值类型再进表,于是"内容一样的两个对象"是同一条。
+
+# ① 协议:每个值都有(`Key ()` = "我当键时等于什么";默认那把尺子只对值类型有话说)
+print (5.Key ())
+print ("a".Key ())
+print ((Keys.Of 5) == 5)
+print ((Keys.Of "a") == "a")
+try { print ((Some 5).Key ()); } (e: Exception) => { print ("1: " + string e); }
+
+# ② 引擎那张表:键是值类型,相等就是值自己的
+d := {}
+d.Set 1 "int"
+d.Set "1" "str"
+d.Set 1.0 "float"
+print (d.Count ())
+print (d.Get 1)
+print (d.Get "1")
+print (d.Get 1.0)
+print (d.Has 2)
+print (d.Keys ())
+print ({1: "a"}.Get 1)
+try { d.Set ([1 2]) "x"; } (e: Exception) => { print ("2: " + string e); }
+try { print (d.Get 999); } (e: Exception) => { print ("3: " + string e); }
+
+# ③ 字面量的键是**表达式**:`{"a": 1}` 而不是 `{a: 1}`(那个 `a` 是变量)
+print {"a": 1}
+print {1: 2}
+print {1 2}
+k := "kk"
+print {k: 1}
+n := 7
+print {n: 1}
+print {"a" + "b": 1}
+try { print {zz: 1}; } (e: Exception) => { print ("4: " + string e); }
+
+# ④ 登记 = "这个类型自己讲了怎么当键"这个类型层面的事实(内建那几个也登记过)
+print (5 is IKey)
+print ("a" is IKey)
+print ([1 2] is IKey)
+print (IKey.GetImplementors ())
+
+# ⑤ 值语义:类里写一条 `Key`(它盖掉 `Object` 那条),再 impl 登记
+Rec ::= class {
+    X: int = 0
+    N: string = ""
+    init := (x: int n: string) => { X = x; N = n; this; }
+    Key := () => { X; }
+}
+impl (IKey Rec {
+    ()
+})
+print ((Rec 1 "a") is IKey)
+print (Rec.GetImplements ())
+print (Keys.Of (Rec 7 "x"))
+
+d2 := {}
+Keys.Set d2 (Rec 1 "甲") "one"
+Keys.Set d2 (Rec 2 "乙") "two"
+print (Keys.Get d2 (Rec 1 "别的"))
+print (Keys.Has d2 (Rec 2 "别的"))
+print (d2.Count ())
+print (d2.Keys ())
+print (Keys.GetOr d2 (Rec 9 "z") "缺")
+print (Keys.Remove d2 (Rec 1 "别"))
+print (Keys.Has d2 (Rec 1 "别"))
+
+# 没写 `Key` 的类型:引擎那句(指向"在类里写一条 Key")
+B ::= class {
+    X: int = 0
+    init := (x: int) => { X = x; this; }
+}
+try { Keys.Get d2 (B 1); } (e: Exception) => { print ("5: " + string e); }
+
+# `Key` 交回的不是值类型:库这层当场说清楚(不然只剩下游那句"键得是值类型")
+C ::= class {
+    X: int = 0
+    init := (x: int) => { X = x; this; }
+    Key := () => { [X]; }
+}
+try { Keys.Of (C 1); } (e: Exception) => { print ("6: " + string e); }
+
+# ⑥ `Keyed`:以任意值为键、还能把**原对象**拿回来(表里多记一张"规范键 → 原键")
+t := Keyed ()
+t.Set (Rec 1 "甲") "one"
+t.Set (Rec 2 "乙") "two"
+print (t.Get (Rec 1 "丙"))
+print (t.Has (Rec 2 "丁"))
+print (t.Count ())
+print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
+print (t.Values ())
+print (t.GetOr (Rec 5 "x") "缺")
+print (t.Remove (Rec 1 "戊"))
+print (t.Count ())
+print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
+t.Clear ()
+print (t.Count ())
+print "end"
+# --- expected ---
+# 5
+# a
+# true
+# true
+# 1: Key: Option 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 3
+# int
+# str
+# float
+# false
+# [1 1 1]
+# a
+# 2: dict.Set 的键得是值类型（数 / 字符串），得到 List
+# 3: 键不存在: 999
+# {a: 1}
+# {1: 2}
+# {1 2}
+# {kk: 1}
+# {7: 1}
+# {ab: 1}
+# 4: 未定义的变量 'zz'
+# true
+# true
+# false
+# [String BigFraction Fraction BigInt Float Integer]
+# true
+# [IKey]
+# 7
+# one
+# true
+# 2
+# [1 2]
+# 缺
+# true
+# false
+# 5: Key: B 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 6: `Key` 要交回一个值类型的键（数 / 字符串），得到 List
+# one
+# true
+# 2
+# [甲 乙]
+# [one two]
+# 缺
+# true
+# 1
+# [乙]
+# 0
+# end

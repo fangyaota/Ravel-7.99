@@ -1,0 +1,101 @@
+# 「我当键时等于什么」+ 以任意值为键的表。由 predefined.rav 加载,所以 `IKey` 是全局名、
+# `Keys` 模块直接可用。
+#
+# `Key` 这条协议**每个值都有** —— 引擎在 `Object` 上放了一条(内建那把尺子:数、字符串交回
+# **它自己**,别的类型当场报错),所以 `5.Key ()` / `"a".Key ()` 拿起来就能用。它交回的东西
+# 叫**规范键**:表里真正用的就是它(相等的两个值 → 同一个格子,`1` 与 `"1"` 是两个格子)。
+#
+# 自己写的类型嫌那把尺子不够(两个内容一样的对象在它眼里是两条),就在类里写一条 `Key` ——
+# 它盖掉 `Object` 那条,和 `ToString` / `CompareTo` 一个规矩:
+#
+#     Rec ::= class { X: int = 0
+#         Key := () => { X; }      # 我当键时 = 我的 X(一个 int,值类型)
+#     }
+#     impl (IKey Rec { () })
+#
+# 于是"Key 相同的两个对象"查到同一条 —— 这就是**值语义当键**。
+#
+# 引擎那个 `d.Set k v` / `d.Get k` 自己只吃**值类型**键:它是同步的,够不着你写的 `Key`
+# (调 Ravel 函数得推帧)。库里这套 `Keys.*` 先把键算出来、再动那张普通 dict ——
+# 两套并存,和引擎的 `xs.Sort ()` 对库里的 `Sorting.Sort` 一个样。
+
+IKey ::= interface {
+    by Key : function = default       # () => 值类型(数 / 字符串)
+}
+
+# 内建那几个**值类型**也登记一遍(空实现体:槽不用现装,它们本来就有 `Object` 那条)。
+# `Bool` 不在 `ValueType` 那一支,所以不登记 —— 它本来也当不了键。
+impl (IKey int {
+    ()
+})
+impl (IKey float {
+    ()
+})
+impl (IKey bigint {
+    ()
+})
+impl (IKey fraction {
+    ()
+})
+impl (IKey bigfraction {
+    ()
+})
+impl (IKey string {
+    ()
+})
+
+
+ravel "Keys"
+
+# 一个值当键时的**规范键**。`k.Key ()` 是引擎/用户那条协议;这里再确认一道 ——
+# 免得"`Key` 交回了对象"拖到下游才报(那时只看得见「dict.Set 的键得是值类型」)。
+readonly Of := (k: object) => {
+    c := k.Key ()
+    assert (c is ValueType) ("`Key` 要交回一个值类型的键（数 / 字符串），得到 " + (string (typeof c)))
+    c
+}
+
+# 五个基本操作:先把键规范好,再动那个普通 dict。
+readonly Set := (d: dict k: object v: object) => { d.Set (Of k) v; }
+readonly Get := (d: dict k: object) => { d.Get (Of k); }
+readonly Has := (d: dict k: object) => { d.Has (Of k); }
+readonly Remove := (d: dict k: object) => { d.Remove (Of k); }
+readonly GetOr := (d: dict k: object dflt: object) => { (d.GetOr (Of k)) dflt; }
+
+# 以**任意值**为键的表:规范键和原键都记着,所以 `Keys ()` 交回的是你原来放进去的那些对象
+# —— 光靠 `Keys.Set` 那张普通 dict 是拿不回来的(表里存的只有规范键)。
+#
+# (定义在模块里、再在文件末尾绑给全局:它有个方法也叫 `Keys`,写在全局就得小心
+#  "类成员盖住同名模块"那个坑 —— 放在模块里,`Of` 就是兄弟,名字爱怎么叫怎么叫。)
+Keyed ::= class {
+    Index: dict = {}          # 规范键 → 原键
+    Data: dict = {}           # 规范键 → 值
+
+    Set := (k: object v: object) => {
+        c := Of k
+        Index.Set c k
+        Data.Set c v
+        ()
+    }
+    Get := (k: object) => { Data.Get (Of k); }
+    Has := (k: object) => { Data.Has (Of k); }
+    GetOr := (k: object dflt: object) => { (Data.GetOr (Of k)) dflt; }
+    Remove := (k: object) => {
+        c := Of k
+        Index.Remove c
+        Data.Remove c
+    }
+    Keys := () => { Index.Values (); }      # 原对象回来了
+    Values := () => { Data.Values (); }
+    Count := () => { Data.Count (); }
+    Clear := () => {
+        Index.Clear ()
+        Data.Clear ()
+    }
+}
+
+
+ravel ""
+
+# 全局名(和 predefined.rav 里 `readonly try := Ex.Try` 一个路子)
+readonly Keyed := Keys.Keyed
