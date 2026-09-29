@@ -126,6 +126,183 @@ public partial class Interpreter
         DefFn("Exit", FunctionVal.From(a => throw new ExitException(As<StringVal>(a, "exit 的消息").Value)));
         DefFn("RavelMod", FunctionVal.From(a => EnterModule(As<StringVal>(a, "ravel 的模块名").Value)));
 
+        // ---- 文件系统:只做 syscall,不做策略 ----
+        // 失败就报 Ravel 错误(中文、带路径);"要不要先问一句"交给 FileExists / DirExists 那两个探针,
+        // 它们**不报错**。路径基准 = 进程当前目录;不做沙箱 —— 和 `using` 找模块一个待遇,用户自己负责。
+        // 上面那些预检查是为了消息说人话;**Fs 那层兜底是为了不让 C# 异常漏到顶层**
+        // (目录不存在、没权限、路径里有非法字符…… 漏出去会绕过 Ravel 的 try 把程序打掉,
+        //  和 RandInt 那条注释里说的一样)。
+        static string PathOf(RuntimeValue v, string what)
+            => v is StringVal s ? s.Value : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}");
+
+        static RuntimeValue Fs(string what, Func<RuntimeValue> body)
+        {
+            try
+            {
+                return body();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                       or NotSupportedException or System.Security.SecurityException)
+            {
+                throw new RuntimeException($"{what}失败: {ex.Message}");
+            }
+        }
+
+        static void NeedFile(string p, string what)
+        {
+            if (Directory.Exists(p)) throw new RuntimeException($"{what}: 这是个目录，不是文件 —— {p}");
+            if (!File.Exists(p)) throw new RuntimeException($"{what}: 找不到文件 —— {p}");
+        }
+
+        static void NeedParentDir(string p, string what)
+        {
+            // 用给定的那个路径去算父目录,不转绝对路径 —— 报错里要看到的是用户写的那串
+            // (转绝对路径会把机器上的完整路径漏进消息里)。没有父目录(就一个文件名)就交给下面去管。
+            var dir = Path.GetDirectoryName(p);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                throw new RuntimeException($"{what}: 目录不存在 —— {dir}");
+        }
+
+        DefFn("FileExists", FunctionVal.From(a => Fs("FileExists", () => new BoolVal(File.Exists(PathOf(a, "FileExists"))))));
+        DefFn("DirExists", FunctionVal.From(a => Fs("DirExists", () => new BoolVal(Directory.Exists(PathOf(a, "DirExists"))))));
+
+        DefFn("ReadText", FunctionVal.From(a => Fs("读文件", () =>
+        {
+            var p = PathOf(a, "ReadText");
+            NeedFile(p, "读文件");
+            return new StringVal(File.ReadAllText(p));
+        })));
+
+        DefFn("WriteText", FunctionVal.From((a, b) => Fs("写文件", () =>
+        {
+            var p = PathOf(a, "WriteText");
+            NeedParentDir(p, "写文件");
+            File.WriteAllText(p, As<StringVal>(b, "WriteText 的内容").Value);
+            return VoidVal.Instance;
+        })));
+
+        DefFn("AppendText", FunctionVal.From((a, b) => Fs("追加文件", () =>
+        {
+            var p = PathOf(a, "AppendText");
+            NeedParentDir(p, "追加文件");
+            File.AppendAllText(p, As<StringVal>(b, "AppendText 的内容").Value);
+            return VoidVal.Instance;
+        })));
+
+        // 删文件,或删**空**目录 —— 不提供递归删除(那是个危险默认值)。
+        DefFn("DeletePath", FunctionVal.From(a => Fs("删除", () =>
+        {
+            var p = PathOf(a, "DeletePath");
+            if (Directory.Exists(p))
+            {
+                if (Directory.EnumerateFileSystemEntries(p).Any())
+                    throw new RuntimeException($"删除失败: 目录不是空的（不递归删）—— {p}");
+                Directory.Delete(p);
+                return VoidVal.Instance;
+            }
+
+            if (!File.Exists(p)) throw new RuntimeException($"删除失败: 找不到要删的东西 —— {p}");
+            File.Delete(p);
+            return VoidVal.Instance;
+        })));
+
+        DefFn("CreateDir", FunctionVal.From(a => Fs("建目录", () =>
+        {
+            Directory.CreateDirectory(PathOf(a, "CreateDir"));   // 父目录一并建;已存在不算错
+            return VoidVal.Instance;
+        })));
+
+        DefFn("ListDir", FunctionVal.From(a => Fs("列目录", () =>
+        {
+            var p = PathOf(a, "ListDir");
+            if (!Directory.Exists(p)) throw new RuntimeException($"列目录失败: 找不到目录 —— {p}");
+
+            var entries = new Dictionary<string, RuntimeValue>();
+            foreach (var d in Directory.EnumerateDirectories(p)) entries[Path.GetFileName(d)] = new BoolVal(true);
+            foreach (var f in Directory.EnumerateFiles(p)) entries[Path.GetFileName(f)] = new BoolVal(false);
+            return new DictVal(entries);
+        })));
+
+        DefFn("PathSize", FunctionVal.From(a => Fs("看文件大小", () =>
+        {
+            var p = PathOf(a, "PathSize");
+            NeedFile(p, "看文件大小");
+            return new IntVal((int)new FileInfo(p).Length);
+        })));
+
+        DefFn("PathTime", FunctionVal.From(a => Fs("看修改时间", () =>
+        {
+            var p = PathOf(a, "PathTime");
+            NeedFile(p, "看修改时间");
+            return new StringVal(File.GetLastWriteTime(p).ToString("yyyy-MM-dd HH:mm:ss"));
+        })));
+
+        DefFn("CopyPath", FunctionVal.From((a, b) => Fs("复制", () =>
+        {
+            var src = PathOf(a, "CopyPath");
+            var dst = PathOf(b, "CopyPath");
+            NeedFile(src, "复制");
+            if (Directory.Exists(dst)) throw new RuntimeException($"复制失败: 目标是目录 —— {dst}");
+            NeedParentDir(dst, "复制");
+            File.Copy(src, dst, overwrite: true);
+            return VoidVal.Instance;
+        })));
+
+        DefFn("MovePath", FunctionVal.From((a, b) => Fs("移动", () =>
+        {
+            var src = PathOf(a, "MovePath");
+            var dst = PathOf(b, "MovePath");
+            NeedFile(src, "移动");
+            NeedParentDir(dst, "移动");
+            File.Move(src, dst, overwrite: true);
+            return VoidVal.Instance;
+        })));
+
+        DefFn("CurrentDir", FunctionVal.From(_ => Fs("读当前目录", () => new StringVal(Directory.GetCurrentDirectory()))));
+
+        DefFn("ChDir", FunctionVal.From(a => Fs("切目录", () =>
+        {
+            var p = PathOf(a, "ChDir");
+            if (!Directory.Exists(p)) throw new RuntimeException($"切目录失败: 找不到目录 —— {p}");
+            Directory.SetCurrentDirectory(p);
+            return VoidVal.Instance;
+        })));
+
+        // 按行切开。Ravel 的字符串是不透明的(只有 Length 和拼接),这事只能在这层做:
+        // 按换行符切,顺手去掉每行末尾那个回车(Windows 的换行是回车+换行);
+        // 末尾的空行不产出(文件最后有个换行是常态,不该多出一行空的),中间的空行保留。
+        DefFn("SplitLines", FunctionVal.From(a => Fs("按行切", () =>
+        {
+            var text = As<StringVal>(a, "SplitLines 的内容").Value;
+            var lines = new List<RuntimeValue>();
+            if (text.Length > 0)
+            {
+                var parts = text.Split('\n');
+                var last = parts.Length - 1;
+                while (last > 0 && parts[last].Length == 0) last--;      // 末尾的空行不产出
+                for (var i = 0; i <= last; i++)
+                    lines.Add(new StringVal(parts[i].TrimEnd('\r')));
+            }
+
+            return new ListVal(lines);
+        })));
+
+        // 规整路径:去掉末尾的分隔符(`sub/` 和 `sub` 当同一个)。**不转绝对路径** ——
+        // 组件里存的是用户给的那个,打印出来才是人看的(代价是中途 ChDir 会让早先的条目走样)。
+        // `TrimEndingDirectorySeparator` 会保住根(`/`、`C:/`)。
+        DefFn("PathClean", FunctionVal.From(a => Fs("规整路径", () =>
+            new StringVal(Path.TrimEndingDirectorySeparator(PathOf(a, "PathClean"))))));
+
+        // 路径函数:交给 .NET 的 Path(分隔符、盘符、`..` 这些自己写容易错)
+        DefFn("PathJoin", FunctionVal.From((a, b) => Fs("拼路径", () =>
+            new StringVal(Path.Combine(PathOf(a, "PathJoin"), PathOf(b, "PathJoin"))))));
+        DefFn("PathDir", FunctionVal.From(a => Fs("取目录名", () =>
+            new StringVal(Path.GetDirectoryName(PathOf(a, "PathDir")) ?? ""))));
+        DefFn("PathBase", FunctionVal.From(a => Fs("取文件名", () =>
+            new StringVal(Path.GetFileName(PathOf(a, "PathBase"))))));
+        DefFn("PathExt", FunctionVal.From(a => Fs("取扩展名", () =>
+            new StringVal(Path.GetExtension(PathOf(a, "PathExt"))))));
+
         return module;
     }
 
