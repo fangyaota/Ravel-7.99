@@ -1,0 +1,172 @@
+# 文件系统 —— **要显式引用才有**:`using "io.rav"` 之后 `Io.xxx` 才是一个名字。
+#
+# 分三层：
+#
+#   ① **接口**（`IEntry` / `IFile` / `IDir`，**全局名**）："文件"先是个**形状**。
+#      磁盘上的、内存里的、zip 条目、远程的……都只是它的实现 —— 对着接口写的代码换实现不用改。
+#   ② **磁盘实现**（模块 `Io` 里的 `File` / `Dir`）：走 `System` 那组文件原语。
+#   ③ **工厂、路径函数与通用件**：`Io.File "a.txt"` 造条目；`Io.Copy` / `Io.EachDir` / `Io.Lines`
+#      是对着**接口**写的，任何实现都吃。
+#
+# 路径基准 = 进程当前目录（`Io.Current ()` 看，`Io.ChDir p` 改）；**没有沙箱** ——
+# 和 `using` 找模块一个待遇：能跑这段代码的人，本来就能读写那些文件。
+#
+# 报错一律是 `Exception`（中文、带路径）：读不存在的文件、删非空目录、对目录 `Read`……
+# `Exists ()` 是**问**，不报错。
+
+# ── ① 接口 ──
+# 只放**通用**的（内存文件也讲得通的那些）；磁盘特有的（路径、修改时间、改名）留在实现里。
+#
+# 算不算某个接口看的是"类型有没有登记"（`impl` / `use`），不逐条查成员 —— 所以实现那几条
+# **要么自己就有那些成员**（下面 `File` / `Dir` 就是这样），要么用
+# `impl (IFile 某类 { by Read = property … })` 现装。
+IEntry ::= interface {
+    by Exists : function = default      # () => bool
+    by IsDir : function = default       # () => bool
+    by Delete : function = default      # () => ()       从它所在的容器里删掉
+    by Name : function = default        # () => string   在容器里的名字
+}
+
+IFile ::= interface IEntry {            # 接口继承：实现了 IFile 也就实现了 IEntry
+    by Read : function = default        # () => string
+    by Write : function = default       # (text: string) => ()
+    by Append : function = default      # (text: string) => ()
+    by Size : function = default        # () => int
+}
+
+IDir ::= interface IEntry {
+    by List : function = default        # () => dict   名字 → IEntry（实现自己排好序）
+}
+
+ravel "Io"
+
+# ── ② 磁盘实现 ──
+# 路径先规整一下：末尾的分隔符去掉（`Io.Dir "sub/"` 也认），别的一律照给的来、不转绝对路径
+# （转了就变成一长串绝对路径，打印出来没法看；代价是中途 `ChDir` 会让先前造的条目走样）。
+readonly PathOf := (p: object) => {
+    if { typeof p == string; } { p; } { p.Path; }
+}
+
+# 一个条目该是 File 还是 Dir：拿不准就问磁盘（`ListDir` 给的"是不是目录"带了来，
+# 别的地方就再问一次）。
+readonly EntryAt := (path: string isDir: bool) => {
+    if { isDir; } { Dir path; } { File path; }
+}
+
+File ::= class {
+    Path: string = ""
+
+    init := (path: string) => { Path = System.PathClean path; this; }
+
+    Name := () => { System.PathBase Path; }
+    Exists := () => { System.FileExists Path; }
+    IsDir := () => { false; }
+    Size := () => { System.PathSize Path; }
+    LastWrite := () => { System.PathTime Path; }
+    Read := () => { System.ReadText Path; }
+    Lines := () => { System.SplitLines (System.ReadText Path); }
+    Write := (text: string) => { System.WriteText Path text; (); }
+    Append := (text: string) => { System.AppendText Path text; (); }
+    Delete := () => { System.DeletePath Path; (); }
+
+    # 复制 / 移动 / 改名。目标收**路径字符串**或另一个磁盘条目（`Io.File` / `Io.Dir`）——
+    # 抽象条目没有路径，那种请用 `Io.Copy`（对着接口写的那个）。
+    CopyTo := (dest: object) => {
+        d := PathOf dest
+        System.CopyPath Path d
+        File d;
+    }
+    MoveTo := (dest: object) => {
+        d := PathOf dest
+        System.MovePath Path d
+        Path = System.PathClean d
+        this;
+    }
+    Rename := (name: string) => { MoveTo (System.PathJoin (System.PathDir Path) name); }
+}
+
+Dir ::= class {
+    Path: string = ""
+
+    init := (path: string) => { Path = System.PathClean path; this; }
+
+    Name := () => { System.PathBase Path; }
+    Exists := () => { System.DirExists Path; }
+    IsDir := () => { true; }
+    Create := () => { System.CreateDir Path; this; }      # 已经存在不算错(幂等)
+    Delete := () => { System.DeletePath Path; (); }       # 非空就报错,不递归删
+    # 子条目。**不叫 `File` / `Dir`** —— 那会把类名遮住,`File (…)` 变成调自己(实测无限递归)。
+    # 是文件还是目录由磁盘说了算;不存在就当一个文件(写新文件是常事)。
+    Child := (name: string) => {
+        p := System.PathJoin Path name
+        EntryAt p (System.DirExists p);
+    }
+    Parent := () => { Dir (System.PathDir Path); }
+
+    # 列目录：**名字 → 条目**，按名字排序。顺序稳定，输出和测试才可期待。
+    List := () => {
+        raw := System.ListDir Path
+        names := raw.Keys ()
+        names.Sort ()
+        out := {}
+        # 那层括号不能省：实参位置上的「raw.Get n」会被读成「((EntryAt …) raw.Get) n」
+        foreach names (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
+        out
+    }
+
+    # 只要文件 / 只要子目录（都从 `List ()` 里筛，顺序一样）
+    Files := () => { Pick false; }
+    Dirs := () => { Pick true; }
+
+    Pick := (wantDir: bool) => {
+        out := {}
+        all := List ()
+        foreach all.Keys () (n: string) => {
+            e := all.Get n
+            if { e.IsDir () == wantDir; } { out.Set n e; } { 0; }
+        }
+        out
+    }
+}
+
+# 登记（`impl`：类型层面的事实，不随作用域来去）。只登记最具体的那个 ——
+# `IEntry` 由**接口继承**兜着：实现了 `IFile` 也就实现了 `IEntry`。
+impl (IFile File {
+    ()
+})
+impl (IDir Dir {
+    ()
+})
+
+# ── ③ 路径函数与通用件 ──
+# `File` / `Dir` 两个类自己就是工厂：`Io.File "a.txt"` 直接构造。
+readonly Current := () => { System.CurrentDir (); }
+readonly ChDir := (p: string) => { System.ChDir p; (); }
+
+readonly Join := (a: string b: string) => { System.PathJoin a b; }
+readonly DirName := (p: string) => { System.PathDir p; }
+readonly BaseName := (p: string) => { System.PathBase p; }
+readonly Ext := (p: string) => { System.PathExt p; }
+
+# 下面是**对着接口**写的：任何实现都吃（磁盘的、内存的、以后加的）。
+# 按行切开
+readonly Lines := (f: IFile) => { System.SplitLines (f.Read ()); }
+
+# 从一份倒进另一份
+readonly Copy := (from: IFile to: IFile) => { to.Write (from.Read ()); (); }
+
+# 递归走一遍目录（深度优先、名字序），每见到一个条目叫一次 `f (相对路径, 条目)`
+readonly EachDir := (d: IDir f: function) => {
+    walk := (dir: IDir prefix: string) => {
+        all := dir.List ()
+        foreach all.Keys () (name: string) => {
+            e := all.Get name
+            here := if { prefix == ""; } { name; } { Join prefix name; }
+            f here e
+            if { e.IsDir (); } { walk e here; } { 0; }
+        }
+    }
+    walk d ""
+}
+
+ravel ""
