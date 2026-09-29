@@ -208,7 +208,19 @@ public partial class Parser
             }
 
             if (!StartsPrimary() || IsInfixWordOperator()) break;
-            expr = new CallExpr(expr, ParseMemberChain(ParsePrimary()))
+
+            // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
+            // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。
+            // (`allowCall: false` 那一档正好是"运算符链、但不吃并列的实参":所以 `f a b` 还是两个参数,
+            //  柯里化不受影响;`f 1 + 2 * 3` 是 `f (1 + 2*3)`。)
+            //
+            // **括号开头的实参除外** —— 括号组自己就是个完整的表达式,运算符留给调用**之后**:
+            //   `xs.Count () + 1` 是「数完再加一」,不是「数 (() + 1)」;`xs.At (i) + 1` 同理。
+            //   (库和用例里 `x.Count () == 0` / `typeof (x) == y` 这类写法全靠这条。)
+            var arg = Check(TokenType.LeftParen)
+                ? ParseMemberChain(ParsePrimary())
+                : ParseExpression(allowCall: false);
+            expr = new CallExpr(expr, arg)
             {
                 Line = expr.Line,
                 Column = expr.Column,

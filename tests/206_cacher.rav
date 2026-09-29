@@ -8,7 +8,7 @@ print (c1 1)
 print (c1 1)
 print (c1 2)
 print (c1 1)
-print ("单参算了 " + string Calls + " 次")
+print ("单参算了 " + string (Calls) + " 次")
 
 # 两个参数的函数:喂够 2 个才算一次完整调用
 AddCalls := 0
@@ -19,7 +19,7 @@ print (c2 1 2)
 print (c2 2 1)
 print (c2 1 3)
 print (c2 1 2)
-print ("加了两参的 " + string AddCalls + " 次")
+print ("加了两参的 " + string (AddCalls) + " 次")
 
 # 柯里化的半成品继续收参数,缓存认的是**整组**实参 —— 所以 half 拿到的那个半成品
 # 再喂 2,和刚才 `c2 1 2` 是同一个键(命中),而喂 9 是个新键
@@ -27,7 +27,7 @@ half := c2 1
 print (half 2)
 print (half 9)
 print (half 2)
-print ("加了两参的 " + string AddCalls + " 次")
+print ("加了两参的 " + string (AddCalls) + " 次")
 
 # 原子值按值认,而 `1` 与 "1" 是两个键(拿字符串当键的缓存会把这两条撞成一条)
 EchoCalls := 0
@@ -36,7 +36,7 @@ ce := cacher 1 echo
 print (ce 1)
 print (ce "1")
 print (ce 1)
-print ("回声算了 " + string EchoCalls + " 次")
+print ("回声算了 " + string (EchoCalls) + " 次")
 
 # 对象按身份认:同一个对象命中,内容一样但另建一个的不命中
 C := class { init := () => { 0; this; }; }
@@ -47,7 +47,7 @@ ct := cacher 1 take
 print (ct c)
 print (ct c)
 print (ct (C ()))
-print ("看对象看了 " + string ObjCalls + " 次")
+print ("看对象看了 " + string (ObjCalls) + " 次")
 
 # 参数个数写错 -> 当场报错,不是悄悄收不满参数、永远不给结果
 try { cacher 0 add; } (e: Exception) => { print ("E: " + string e); }

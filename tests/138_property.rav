@@ -81,12 +81,12 @@ S ::= class {
 s := S ()
 s.n = 5
 print (s.n)
-print ("换之前 旧 " + string OldSet + " 新 " + string NewSet)
+print ("换之前 旧 " + string (OldSet) + " 新 " + string NewSet)
 s.swap ()
 print (s.n)
 s.n = 7
 print (s.n)
-print ("换之后 旧 " + string OldSet + " 新 " + string NewSet)
+print ("换之后 旧 " + string (OldSet) + " 新 " + string NewSet)
 print (s.Fields ())
 # 目标必须是个 by 属性;找不到变量也报出来
 plain := 1
@@ -104,14 +104,14 @@ P ::= class {
 pp := P ()
 p1 := by pp.v
 print p1
-print ("取完 getter 被调了 " + string GetCalls + " 次")
+print ("取完 getter 被调了 " + string (GetCalls) + " 次")
 p1.Set 9
 print (pp.v)
 print (by pp.v == p1)
 Bag := []
 Bag.Add (by pp.v)
 print ((Bag.At 0).Get ())
-print ("至此 getter 被调了 " + string GetCalls + " 次")
+print ("至此 getter 被调了 " + string (GetCalls) + " 次")
 try { print (by pp._v); } (e2: Exception) => { print ("10: " + string e2); }
 try { print (by plain); } (e2: Exception) => { print ("11: " + string e2); }
 
@@ -135,7 +135,7 @@ print (qq.q)
 r.swapOn qq
 print (qq.q)
 qq.q = 5
-print ("旧 " + string Old2 + " 新 " + string New2)
+print ("旧 " + string (Old2) + " 新 " + string New2)
 try { by qq._q = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("12: " + string e2); }
 try { by qq.nope = property (() => { 1; }) ((v: int) => { 0; }); } (e2: Exception) => { print ("13: " + string e2); }
 

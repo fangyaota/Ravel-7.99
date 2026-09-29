@@ -24,15 +24,16 @@ add := (a: int) => { (b: int) => { a + b; }; }
 print (add 1 2)
 print (add 1 @ 2)
 
-# ③ `$`：右边整个当一个实参
+# ③ 调用比运算符**松**：实参吃到运算符为止（这才是"函数调用和运算符的优先级"那条）
 inc := (n: int) => { n + 1; }
-print (inc 1 * 5)          # (inc 1) * 5 —— 并列比 * 紧
-print (inc $ 1 * 5)        # inc (1 * 5)
+print (inc 1 * 5)          # inc (1 * 5) —— 调用抓住右边那整条算式
+print ((inc 1) * 5)        # 想先算调用，自己加括号
+print (inc $ 1 * 5)        # 和第一条一样（`$` 是把这件事写明白）
 print (inc $ [10 20].Count ())
 print (inc $ xs.Count () @ .ToString () @ .Length ())
 
 # ④ 右结合：f $ g $ x
-wrap := (n: int) => { "[" + string n + "]"; }
+wrap := (n: int) => { "[" + string (n) + "]"; }
 print (wrap $ inc $ 1 + 2)     # wrap (inc (1 + 2))
 
 # ⑤ 两个并排用：`$` 把右边整个当一个实参（左边那串照旧并列）
@@ -51,6 +52,7 @@ print "end"
 # 4
 # 3
 # 3
+# 6
 # 10
 # 6
 # 3

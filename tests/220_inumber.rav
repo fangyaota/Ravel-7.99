@@ -8,13 +8,13 @@ using "math.rav"
 # ---- 谁算数 ----
 print (5 is INumber)
 print (2.5 is INumber)
-print (bigint 5 is INumber)
+print ((bigint 5) is INumber)
 print ((fraction 1 3) is INumber)
 print ((bigfraction 1 3) is INumber)
 print ("a" is INumber)
 print (true is INumber)
 print ([1] is INumber)
-print (typeof 5 <: INumber)          # 类型那一侧也认(和 `is` 同一个判据)
+print ((typeof 5) <: INumber)          # 类型那一侧也认(和 `is` 同一个判据)
 
 # ---- 两个查询都看得见它 ----
 print (int.GetImplements ())

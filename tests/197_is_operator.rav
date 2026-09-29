@@ -30,8 +30,8 @@ print ((isnot.string) "a")  # 和上一行同一个意思:节是 lambda,接上�
 
 # ---- 类对象也是值:它是 `type` 的实例,不是它自己表示的那个类型 ----
 print (int is type)
-print (typeof 1 is type)
-print (typeof 1 is int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
+print ((typeof 1) is type)
+print ((typeof 1) is int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
 print ((typeof 1) <: int)   # 想比"是不是这个类型"用 `<:`(类型之间)
 
 # ---- `<:` / `:>`:**类型之间**的关系(A 是不是 B 的子类型 / 父类型)----

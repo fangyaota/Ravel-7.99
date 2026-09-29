@@ -27,7 +27,7 @@ obj := K ()
 p2 := with obj {
     n = 2
     got := callcc (k: function) => { if { !haveW; } { haveW = true; escW = k; } { 0; }; () };
-    if { typeof got == int; } { n = got + 100; } { 0; }
+    if { typeof (got) == int; } { n = got + 100; } { 0; }
     n;
 }
 print p2.n

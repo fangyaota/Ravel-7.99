@@ -22,7 +22,7 @@ Cacher ::= class {
             ok := true
             i := 0
             while { i < a.Count (); } {
-                if { typeof (a.At i) != typeof (b.At i) || a.At i != b.At i; } { ok = false; } { 0; }
+                if { typeof (a.At i) != typeof (b.At i) || (a.At i) != (b.At i); } { ok = false; } { 0; }
                 i += 1
             }
             ok
