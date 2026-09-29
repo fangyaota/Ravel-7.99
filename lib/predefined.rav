@@ -78,6 +78,7 @@ using "numbers.rav"
 using "iterator.rav"
 using "cacher.rav"
 using "monad.rav"
+using "sorting.rav"
 using "exceptions.rav"
 
 # ── `callcc`：库函数 ──

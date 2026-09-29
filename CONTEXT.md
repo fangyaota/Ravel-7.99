@@ -100,6 +100,8 @@ lib/
   monad.rav               **Monad 这一族**:`IMonad` 接口(Map + Bind 两条槽 —— 能进 `do { … }` 的形状)
                           + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           + 构造子 `Some` / `None`
+  sorting.rav             `IComparable`(一条槽:`CompareTo`)+ 六种内建标量的空登记
+                          + `Sorting` 模块(Compare / Sort / SortBy / Max / Min / MaxBy / MinBy)
   exceptions.rav          `Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎冒泡时叫的
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
                           引擎不认识 HandlerStack,那块状态归这儿管 —— 从前是单独的 try.rav,
@@ -584,9 +586,13 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 
 ## 接口(interface)与实现(use)
 
-**库里已经在用的两个:`INumber`** —— 最简单的那个,**一个槽都没有**,只是"这个类型是数"的标记
+**库里已经在用的四个:`INumber`** —— 最简单的那个,**一个槽都没有**,只是"这个类型是数"的标记
 (五种数值类型各 `impl` 一条,于是 `(x: INumber)` 收得下 `int 5` 也收得下 `float 5.0`;
 `lib/math.rav` 那四个函数用它,从前标的是 `ValueType` —— 那个连 String 都收)。
+
+**`IComparable`**(`lib/sorting.rav`)—— 一条槽 `CompareTo`,"这个类型自己讲了怎么比大小"。
+底层那条协议**每个值都有**:引擎在 `Object` 上放了一条 `CompareTo`(内建那把尺子,数值/字符串),
+要换比法就在类里自己写一条盖掉它(和 `ToString` 一个规矩)。详见「比较与排序」一节。
 
 **`IEnumerable` / `IEnumerator`**(`lib/predefined.rav` 末尾一段)。形状照 C#:
 
@@ -856,10 +862,45 @@ add.name   # "add"
 - 顺序类的(`First`/`Last`/`Take`/`Skip`/`Reverse`)按**枚举顺序** —— set / dict 的顺序是
   它们枚举器给的,不是插入顺序;
 - 比大小一律走 `<`(`Less`),比不了**报错并说出两边**(`[1 "a"].Max ()` → 「比不了 Integer 与 String」)。
+  (自己的类型要比大小 / 排序走的是**另一条协议** `CompareTo` —— 见「比较与排序」。)
   排序经 `SortByKey`:先拿第一个量一遍再排 —— .NET 会把比较器抛的异常包成
   `InvalidOperationException`,那不是 RuntimeException,Ravel 的 `try` 接不住;
 - 字典的"元素"是**值**(按键找用 `Has` / `Keys ()`);
 - 空容器:`First` / `Last` / `Min` / `Max` / `Find`(没找到)**报错**,`Sum ()` 给 0。
+
+## 比较与排序（`lib/sorting.rav`；predefined 加载，所以 `IComparable` 是全局名）
+
+**协议**：`CompareTo other` 交回 -1 / 0 / 1（和 C# 的 IComparable 同约定；负=我小）。
+它**每个值都有** —— 引擎在 `Object` 上注册了一条（`Runtime/BuiltinClasses.Methods.cs`），
+体就是引擎那把尺子 `Less`（也就是 `<` 的口径），所以 `3.CompareTo 5` / `"a".CompareTo "b"`
+拿起来就能用，不必谁登记。比不了照样说人话（「比不了 Integer 与 String」）。
+
+**换比法**：在自己类里写一条 `CompareTo` —— 它盖掉 `Object` 那条（和 `ToString` 一个规矩）：
+
+```ravel
+Rec ::= class {
+    K: int = 0
+    CompareTo := (o: Rec) => { if { K < o.K; } { -1; } { if { K > o.K; } { 1; } { 0; } } }
+}
+impl (IComparable Rec { () })
+```
+
+`impl` 是"**这个类型自己讲了怎么比**"这个类型层面的事实：登记之后 `x is IComparable`、
+注解 `(x: IComparable)`、`GetImplementors ()` 全认（和 `INumber` 一个规矩；六种内建标量
+也空登记了一遍）。**现装那条路（`by CompareTo = property …`）在这儿用不了**：这个名字
+`Object` 上已经有了，而成员查找是**类链先说话**、槽还没轮到 —— 和 `IFile` 那种"类里本来
+没有的名字"不同。
+
+**`Sorting` 模块**：`Compare a b`（就是 `a.CompareTo b` 的名字）· `Sort xs` · `SortBy xs key` ·
+`Max xs` / `Min xs` / `MaxBy xs key` / `MinBy xs key`。
+
+- 排序是库里自己写的**稳定归并**（`SortOn` / `Merge`），比的是 `CompareTo` —— 于是
+  **实现了接口的类型也排得了**。引擎那个 `xs.Sort ()` / `xs.Min ()` / `xs.Max ()` 走 `Less`
+  （只认内建标量），碰见对象只会说「比不了 X 与 Y」。库里这套与它**并存**，不是替掉它。
+- 稳定性：键相等的保持原来的先后（`Merge` 里 `<= 0` 取左边）。
+- `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
+
+用例 `tests/234_icomparable.rav`。
 
 ## core 字段与 unsafe ()
 

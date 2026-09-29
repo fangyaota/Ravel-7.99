@@ -20,4 +20,4 @@ print (c2.Fields ())
 # 1
 # 10
 # 5
-# [init _v v w is isnot <: :> ToString Copy Fields]
+# [init _v v w is isnot <: :> ToString Copy Fields CompareTo]

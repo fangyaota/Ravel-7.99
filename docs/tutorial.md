@@ -1007,6 +1007,60 @@ Io.EachLineAction f ((l: string) => { print ("行 " + l); }) @ .Perform ()
 （`using "io.rav"` 会顺手把 `iomonad.rav` 拉进来 —— 这几条要用它。反过来不行：
 `iomonad.rav` 由 predefined 加载，那时候 `IFile` 还不存在。）
 
+### 5.12 比较与排序（`IComparable` / `Sorting`）
+
+比大小的协议是 **`CompareTo`**：收对方、交回一个 int —— 负数=我小、0=一样、正数=我大
+（和 C# 的 `IComparable` 同约定）。
+
+**每个值都有这条**：引擎在根类 `Object` 上放了一条（体就是内建那把尺子，也就是 `<` 的口径），
+所以内建的那些拿起来就能用：
+
+```ravel
+3.CompareTo 5          # -1
+"a".CompareTo "b"      # -1
+```
+
+自己写的类型，那把尺子比不了（它只认数值和字符串），就在**类里写一条**盖掉它 ——
+和 `ToString` 同一个规矩 —— 再登记一下"我这个类型讲了怎么比":
+
+```ravel
+Rec ::= class {
+    K: int = 0
+    N: string = ""
+    CompareTo := (o: Rec) => { if { K < o.K; } { -1; } { if { K > o.K; } { 1; } { 0; } } }
+}
+impl (IComparable Rec { () })     # 类型层面的事实:x is IComparable / 注解都认
+```
+
+⚠️ 这里**不能用** `by CompareTo = property …` 现装：这个名字 `Object` 上已经有了，
+成员查找是**类链先说话**，接口那条槽还没轮到（`IFile` 那种"类里本来没有的名字"才能现装）。
+
+排东西用 `Sorting`：
+
+| 写法 | 意思 |
+|---|---|
+| `Sorting.Compare a b` | 谁大谁小（就是 `a.CompareTo b`）|
+| `Sorting.Sort xs` | 排一个表，**稳定** |
+| `Sorting.SortBy xs key` | 按 `key` 算出来的键排，键相等时保持原来的先后 |
+| `Sorting.Max xs` / `Min xs` | 最大 / 最小（空表报错）|
+| `Sorting.MaxBy xs key` / `MinBy xs key` | 按 key 挑 |
+
+```ravel
+Sorting.Sort [3 1 2]                       # [1 2 3]
+Sorting.SortBy ["bb" "a" "ccc"] ((s: string) => { s.Length (); })    # [a bb ccc]
+Sorting.Max rs                             # 实现了 IComparable 的对象照样排
+```
+
+两点说明：
+
+- 引擎另有一套 `xs.Sort ()` / `xs.Min ()` / `xs.Max ()`（见「六、集合」），走的是 `<` 那把尺子 ——
+  **只认内建标量**，碰见对象只会说「比不了 Rec 与 Rec」。库里这套按 `CompareTo` 比，
+  两套并存：内建那些两边结果一样，自己的类型只有库里这条路。
+- 空表 `Max` / `Min` **报错**（和 `First` / `Last` 一个规矩：「没有最大」和「最大的是空」
+  不该长得一样）。
+
+**用例见 tests/234。**
+
 ## 六、集合
 
 ### 6.1 List

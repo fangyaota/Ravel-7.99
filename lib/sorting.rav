@@ -1,0 +1,110 @@
+# 「谁大谁小」+ 排序。由 predefined.rav 加载,所以 `IComparable` 是全局名、`Sorting` 直接可用。
+#
+# `CompareTo` 收对方、交回一个 int:负数=我小、0=一样、正数=我大(和 C# 的 IComparable 同约定)。
+# 这条协议**每个值都有** —— 引擎在 `Object` 上放了一条 `CompareTo`(内建那把尺子:数值、字符串
+# 之间怎么比),所以 `3.CompareTo 5` / `"a".CompareTo "b"` 拿起来就能用。
+#
+# 自己写的类型嫌那把尺子不够(它比不了你的对象),就在类里写一条 `CompareTo` —— 它盖掉 `Object`
+# 那条,和 `ToString` 一个规矩:
+#
+#     A ::= class { X: int = 0
+#         CompareTo := (o: A) => { if { X < o.X; } { -1; } { if { X > o.X; } { 1; } { 0; } } }
+#     }
+#     impl (IComparable A { () })
+#
+# `IComparable` 是"**这个类型自己讲了怎么比大小**"这个类型层面的事实:登记之后 `a is IComparable`
+# 成立、注解 `(x: IComparable)` 收得下它(和 `INumber` 一个规矩)。内建那几个**空实现体**登记一遍
+# —— 槽不用现装,它们本来就有 `Object` 那条。
+
+IComparable ::= interface {
+    by CompareTo : function = default       # (other) => int
+}
+
+impl (IComparable int {
+    ()
+})
+impl (IComparable float {
+    ()
+})
+impl (IComparable bigint {
+    ()
+})
+impl (IComparable fraction {
+    ()
+})
+impl (IComparable bigfraction {
+    ()
+})
+impl (IComparable string {
+    ()
+})
+
+
+ravel "Sorting"
+
+# 谁大谁小。这个模块对外就是这一条 —— 也就是 `a.CompareTo b`,起个短名字顺口。
+readonly Compare := (a: object b: object) => { a.CompareTo b; }
+
+# 排序:**稳定**的归并(自己写,不用引擎那个 `Sort ()`)。
+# 按什么比由 `CompareTo` 说了算 —— 于是"实现了 IComparable 的类型"也排得了:
+# 引擎那把尺子只认内建标量,碰见对象只会说「比不了」。`Sort` 是 `SortBy` 的特例(键就是元素自己)。
+readonly Sort := (xs: list) => { SortOn xs ((x: object) => { x; }); }
+readonly SortBy := (xs: list key: function) => { SortOn xs key; }
+
+# 最大 / 最小。空表**当场报错**(「没有最大」和「最大的是空」不该长得一样,和 `First` / `Last`
+# 一个规矩);相等时留**先出现**的那个。
+readonly Max := (xs: list) => { Best xs ((x: object) => { x; }) true; }
+readonly Min := (xs: list) => { Best xs ((x: object) => { x; }) false; }
+readonly MaxBy := (xs: list key: function) => { Best xs key true; }
+readonly MinBy := (xs: list key: function) => { Best xs key false; }
+
+
+# ── 底下三步 ──
+# (互相调,所以只保证"模块体跑完时三个都在":调用永远发生在加载之后)
+
+# 归并排序。`key` 取排序键 —— 自己写的好处就在这儿:比的是**键**。
+readonly SortOn := (xs: list key: function) => {
+    n := xs.Count ()
+    if { n < 2; } { xs.Copy (); } {
+        mid := n / 2
+        left := []
+        right := []
+        i := 0
+        while { i < mid; } { left.Add (xs.At i); i += 1; }
+        while { i < n; } { right.Add (xs.At i); i += 1; }
+        Merge (SortOn left key) (SortOn right key) key
+    }
+}
+
+# 并把两份**已经排好的**表并成一份。相等时(`<= 0`)取左边 —— 这就是"稳定"。
+readonly Merge := (a: list b: list key: function) => {
+    out := []
+    i := 0
+    j := 0
+    while { i < (a.Count ()) && j < (b.Count ()); } {
+        if { (Compare (key (a.At i)) (key (b.At j))) <= 0; } {
+            out.Add (a.At i)
+            i += 1
+        } {
+            out.Add (b.At j)
+            j += 1
+        }
+    }
+    while { i < (a.Count ()); } { out.Add (a.At i); i += 1; }
+    while { j < (b.Count ()); } { out.Add (b.At j); j += 1; }
+    out
+}
+
+# 挑一个:`wantMax` 为真挑最大,否则最小。
+readonly Best := (xs: list key: function wantMax: bool) => {
+    assert ((xs.Count ()) > 0) ("空表没得挑：Max / Min 至少要一个元素")
+    best := xs.At 0
+    i := 1
+    while { i < (xs.Count ()); } {
+        c := Compare (key (xs.At i)) (key best)
+        take := if { wantMax; } { c > 0; } { c < 0; }
+        if { take; } { best = xs.At i; } { 0; }
+        i += 1
+    }
+    best
+}

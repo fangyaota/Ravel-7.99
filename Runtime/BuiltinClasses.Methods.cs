@@ -40,6 +40,12 @@ internal static partial class BuiltinClasses
         // 现在两段判据只有一份,和成员查找共用(见 MemberView)。
         Object.DefineMethod("Fields", (s, _) =>
             new ListVal([.. s.MemberScope.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
+        // 谁大谁小 —— 库里的 `IComparable`(`lib/sorting.rav`)就架在这条上:内建那些(数值、字符串)
+        // 由引擎那把尺子(`Less`,也就是 `<` 的口径)说话,用户类在自己类体里写一条 `CompareTo`
+        // 就把它盖掉 —— 和 `ToString` 一个规矩。交回 -1 / 0 / 1,和 C# 的 IComparable 同约定,
+        // 比不了照样当场说人话(`Less` 那句「比不了 X 与 Y」)。
+        Object.DefineMethod("CompareTo", (s, a) => new IntVal(
+            Less(s, a) ? -1 : Less(a, s) ? 1 : 0));
     }
 
     private static void RegisterIntMethods()
