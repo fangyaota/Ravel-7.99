@@ -237,9 +237,9 @@ public partial class Interpreter
             var p = PathOf(a, "ListDir");
             if (!Directory.Exists(p)) throw new RuntimeException($"列目录失败: 找不到目录 —— {p}");
 
-            var entries = new Dictionary<string, RuntimeValue>();
-            foreach (var d in Directory.EnumerateDirectories(p)) entries[Path.GetFileName(d)] = new BoolVal(true);
-            foreach (var f in Directory.EnumerateFiles(p)) entries[Path.GetFileName(f)] = new BoolVal(false);
+            var entries = new Dictionary<RuntimeValue, RuntimeValue>();
+            foreach (var d in Directory.EnumerateDirectories(p)) entries[new StringVal(Path.GetFileName(d))] = new BoolVal(true);
+            foreach (var f in Directory.EnumerateFiles(p)) entries[new StringVal(Path.GetFileName(f))] = new BoolVal(false);
             return new DictVal(entries);
         })));
 

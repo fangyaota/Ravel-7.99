@@ -46,6 +46,17 @@ internal static partial class BuiltinClasses
         // 比不了照样当场说人话(`Less` 那句「比不了 X 与 Y」)。
         Object.DefineMethod("CompareTo", (s, a) => new IntVal(
             Less(s, a) ? -1 : Less(a, s) ? 1 : 0));
+        // `Key` —— "**我当键时等于什么**"。默认这把尺子只对值类型有话说:数、字符串交回**它自己**
+        // (于是 `1`/`"1"`/`1.0` 是三个键,相等的两个字符串是同一个键);别的类型当场报错 ——
+        // 对象没有天然的"值形式",要拿它当键就得自己讲清楚(在类里写一条 `Key`,和 `CompareTo`
+        // / `ToString` 一个规矩)。**必须是这一条**(同步、只看类型)才够得着:引擎没有"同步调
+        // Ravel 函数"的路,用户那条 `Key` 只能由库(`lib/keys.rav`)在 Ravel 里调。
+        Object.DefineMethod("Key", (s, _) =>
+            s.Type.IsAssignableTo(ValueType)
+                ? s
+                : throw new RuntimeException(
+                    $"Key: {s.Type} 没有默认的键（只有值类型有：数、字符串）。"
+                    + "要拿它当键，就在类里写一条 Key，交回一个值类型的键"));
     }
 
     private static void RegisterIntMethods()
@@ -175,56 +186,49 @@ internal static partial class BuiltinClasses
         });
     }
 
+    /// <summary>字典的键**只能是值类型**(数 / 字符串) —— 这里是唯一的把关处。
+    ///
+    /// 为什么限死在这一支:.NET 的 `Dictionary` 要一个**同步**的比较器,而用户写的 `Key ()`
+    /// 是 Ravel 函数(调它得推帧,`Interpreter.CallInto` 那条路)。要拿对象当键,走
+    /// `lib/keys.rav` 那层(`Keys.Set` / `Keyed`)—— 它先把对象规范成一个值类型再进表。</summary>
+    private static RuntimeValue KeyArg(RuntimeValue a, string what)
+        => a.Type.IsAssignableTo(ValueType)
+            ? a
+            : throw new RuntimeException($"{what} 的键得是值类型（数 / 字符串），得到 {a.Type}");
+
     private static void RegisterDictMethods()
     {
         Dict.DefineMethod("Get", (s, a) =>
         {
-            if (a is not StringVal key) throw new RuntimeException("dict.Get 需要 string 参数");
+            var key = KeyArg(a, "dict.Get");
             var d = (DictVal)s;
-            if (d.Entries.TryGetValue(key.Value, out var v)) return v;
-            throw new RuntimeException($"键不存在: {key.Value}");
+            if (d.Entries.TryGetValue(key, out var v)) return v;
+            throw new RuntimeException($"键不存在: {key}");
         });
         Dict.DefineMethod("Set", (s, a) =>
         {
-            if (a is not StringVal key) throw new RuntimeException("dict.Set 需要 string 键");
+            var key = KeyArg(a, "dict.Set");
             return FunctionVal.From(v =>
             {
-                ((DictVal)s).Entries[key.Value] = v;
+                ((DictVal)s).Entries[key] = v;
                 return VoidVal.Instance;
             });
         });
         Dict.DefineMethod("Has", (s, a) =>
-        {
-            if (a is not StringVal key) throw new RuntimeException("dict.Has 需要 string 参数");
-            return new BoolVal(((DictVal)s).Entries.ContainsKey(key.Value));
-        });
-        Dict.DefineMethod("Keys", (s, _) =>
-        {
-            var keys = new List<RuntimeValue>();
-            foreach (var k in ((DictVal)s).Entries.Keys)
-                keys.Add(new StringVal(k));
-            return new ListVal(keys);
-        });
-        Dict.DefineMethod("Values", (s, _) =>
-        {
-            var vals = new List<RuntimeValue>();
-            foreach (var v in ((DictVal)s).Entries.Values)
-                vals.Add(v);
-            return new ListVal(vals);
-        });
+            new BoolVal(((DictVal)s).Entries.ContainsKey(KeyArg(a, "dict.Has"))));
+        Dict.DefineMethod("Keys", (s, _) => new ListVal([.. ((DictVal)s).Entries.Keys]));
+        Dict.DefineMethod("Values", (s, _) => new ListVal([.. ((DictVal)s).Entries.Values]));
         Dict.DefineMethod("Remove", (s, a) =>
-        {
-            if (a is not StringVal key) throw new RuntimeException("dict.Remove 需要 string 键");
-            return new BoolVal(((DictVal)s).Entries.Remove(key.Value));   // 有没有删掉(C# 也交回 bool)
-        });
+            // 有没有删掉(C# 也交回 bool)
+            new BoolVal(((DictVal)s).Entries.Remove(KeyArg(a, "dict.Remove"))));
         Dict.DefineMethod("HasValue", (s, a) => new BoolVal(((DictVal)s).Entries.ContainsValue(a)));
         // `d.GetOr "k" 0` —— 有就取值,没有就给替代值(C# 的 GetValueOrDefault)。
         // 默认的 `Get` 是**响亮**的(键不存在就报错),这个是"明知可能没有"时用的。
         Dict.DefineMethod("GetOr", (s, a) =>
         {
-            if (a is not StringVal key) throw new RuntimeException("dict.GetOr 需要 string 键");
+            var key = KeyArg(a, "dict.GetOr");
             var d = (DictVal)s;
-            return d.Entries.TryGetValue(key.Value, out var v)
+            return d.Entries.TryGetValue(key, out var v)
                 ? FunctionVal.From(_ => v)        // 有:替代值收下但不用
                 : FunctionVal.From(fallback => fallback);
         });
@@ -355,11 +359,11 @@ internal static partial class BuiltinClasses
         ScopeType.DefineMethod("Variables", (s, _) =>
         {
             var scope = ((ScopeVal)s).Inner;
-            var d = new Dictionary<string, RuntimeValue>();
+            var d = new Dictionary<RuntimeValue, RuntimeValue>();
             foreach (var kv in scope.Variables)
             {
                 if (kv.Key is ObjectVal.ThisMember or ObjectVal.BlockMember or ObjectVal.ThisTypeMember) continue;
-                d[kv.Key] = Wrap(kv.Value);
+                d[new StringVal(kv.Key)] = Wrap(kv.Value);      // 变量名本来就是字符串
             }
 
             return new DictVal(d);
@@ -440,7 +444,7 @@ internal static partial class BuiltinClasses
         // 容器的成员表跟着副本走 —— 和 CopyObject 一个道理(它们也是 ObjectVal)
         ListVal l => new ListVal([.. l.Elements], CopyScope(l.Scope)),
         SetVal s => new SetVal([.. s.Elements], CopyScope(s.Scope)),
-        DictVal d => new DictVal(new Dictionary<string, RuntimeValue>(d.Entries), CopyScope(d.Scope)),
+        DictVal d => new DictVal(new Dictionary<RuntimeValue, RuntimeValue>(d.Entries), CopyScope(d.Scope)),
         // 必须排在 ObjectVal 之前:这四类现在也是 ObjectVal
         FunctionVal or ModuleVal or PropertyVal or ScopeVal => v,
         ObjectVal o => CopyObject(o),

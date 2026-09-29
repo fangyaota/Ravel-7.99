@@ -50,7 +50,7 @@ print (t.a)
 # ()
 # ()
 # ()
-# [init a b is isnot <: :> ToString Copy Fields CompareTo]
+# [init a b is isnot <: :> ToString Copy Fields CompareTo Key]
 # 100
 # 装了 setter: 5
 # 42

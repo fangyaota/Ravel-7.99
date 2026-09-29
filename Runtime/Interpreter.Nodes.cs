@@ -205,8 +205,8 @@ public partial class Interpreter
             return;
         }
 
-        var dict = new Dictionary<string, RuntimeValue>();
-        for (int i = 0; i < nf.Count; i++) dict[entries[i].Key] = nf.Result(i);
+        var dict = new Dictionary<RuntimeValue, RuntimeValue>();
+        for (int i = 0; i < nf.Count; i++) dict[new StringVal(entries[i].Key)] = nf.Result(i);
         Return(nf, new DictVal(dict));
     }
 
