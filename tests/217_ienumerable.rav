@@ -19,7 +19,7 @@ print ((IEnumerable.Parent ()) is type)
 print (typeof IEnumerable)
 print (IEnumerable is interface)
 print ([1 2 3] is IEnumerable)
-print ("abc" is IEnumerable)
+print ("abc" is IEnumerable)     # 字符串也认(标量一样能挂接口槽;元素是字符)
 
 # ---- 枚举器本身,和 C# 一个用法 ----
 e := [4 5].GetEnumerator ()
@@ -101,7 +101,7 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # Interface
 # true
 # true
-# false
+# true
 # true
 # 4
 # 5
@@ -128,7 +128,7 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # [IKey BaseInterface IComparable INumber]
 # [IEnumerable BaseInterface]
 # [IEnumerable BaseInterface]
-# [Seq Dict Set List]
+# [Seq Dict String Set List]
 # [Enumerator]
 # []
 # []
@@ -136,4 +136,4 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # []
 # []
 # 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
-# 2: foreach 需要 IEnumerable（list / set / dict），得到 String
+# 2: 参数 'c' 需要 String，得到 Char

@@ -333,12 +333,15 @@ internal static partial class BuiltinClasses
     /// <see cref="Activate"/> 绑上这一次的接收者。**这里不建激活格**:有一半调用点只是
     /// "问一句有没有"(`HasTraitOperator` 每次类型表落空的二元运算都会问),在那儿白建一层作用域
     /// 是纯浪费。找不到返回 null,由调用点报原来的「没有方法」。</summary>
-    internal static TraitHit? TraitSlot(Interpreter interp, ObjectVal receiver, string name)
+    internal static TraitHit? TraitSlot(Interpreter interp, RuntimeValue receiver, string name)
     {
         // `instance` 是机制自己那条槽,不进"`u.x` 能读到什么"(见 InstanceMember 的说明)。
         // 槽体里读的是**裸名字**,词法链直接命中实现 scope,不走这儿。
         if (name == InstanceMember) return null;
-        if (receiver.MemberScope.LookupField(name) != null) return null;
+        // 常规查找先说话:对象看"实例那层 + 类链"(`MemberScope`),**标量只有类链**
+        // (它们不是 ObjectVal、没有自己的成员表——`"ab".Length` 就是从类对象上找的)。
+        var own = receiver is ObjectVal o ? o.MemberScope : receiver.Type.MemberScope;
+        if (own.LookupField(name) != null) return null;
         if (OperatorSymbols.IsSymbol(name) && receiver.Type.MemberScope.LookupField(name) != null) return null;
 
         for (var s = interp.CurrentScope; s != null; s = s.Parent)
@@ -530,4 +533,4 @@ internal static partial class BuiltinClasses
 /// 它只是一份"找着了"的记录,还**没有**绑接收者 —— 要真用它(读/写/用它的运算符)时由调用点走
 /// <see cref="BuiltinClasses.Activate"/> 拿"绑好这一次"的那一份。分两步是因为半数的调用点
 /// 只是问一句"有没有"(`HasTraitOperator`),在那些地方建激活格纯属浪费。</summary>
-internal readonly record struct TraitHit(ObjectVal Impl, ObjectVal Receiver, Variable Slot);
+internal readonly record struct TraitHit(ObjectVal Impl, RuntimeValue Receiver, Variable Slot);

@@ -663,6 +663,10 @@ IEnumerator ::= interface { by MoveNext : function = default
     拿不到解释器(和 `is` / 注解那两处同一个理由)。成员值本身是 `TraitQuery`(带方向):
     和 `ClassOperatorFactory` 一个路子,读出来先绑接收者。
 
+**接口槽的接收者可以是任何值** —— 包括**标量**(数 / 字符串 / 字符)。从前 `TraitSlot` 只接
+`ObjectVal`,于是标量只能「登记」空槽接口(`INumber` 那种),`by …` 的槽够不着;现在两条路都通
+(`foreach "abc"` 就是靠这个:字符串自己实现了 `IEnumerable`)。
+
 **`Interface` 自己不是接口** —— 它是**接口的工厂**(元类,和 `type` 之于类同一个位置):
 `typeof 某接口` 就是它,而 `interface { … }` 那下是在**调它**造一个新接口。
 接口对象的 parent 挂 `BaseInterface` —— 而 `BaseInterface` **自己就是个接口**
@@ -936,8 +940,13 @@ C# 调用** —— 它们不收用户函数,所以不走 `SeqMethod` 那套控�
 - `int 'A'` → 65(码位)· `char 97` / `char "x"` → 字符 · `'A'.Code ()` 同上
 - 字符自己那几个:`IsDigit` / `IsLetter` / `IsUpper` / `IsLower` / `IsSpace` / `ToString ()`
 
-**字符串不是"可枚举"的**:`"ab" is IEnumerable` 是 false —— 标量不是 `ObjectVal`,接口槽
-够不着它(和 `int` 一个道理)。要遍历就 `s.Chars ()`(一串字符,`foreach` / `Map` 那套全能用)。
+**字符串是可枚举的**:`"ab" is IEnumerable` 成立,`foreach "abc" (c: char) => …` 直接能跑
+(`lib/iterator.rav` 里登记的一条 `impl`,元素是**字符**)。
+
+⚠️ 这一条是**后来才通的**:接口槽从前只服务 `ObjectVal`,而字符串和数一样是**标量**
+(没有自己的成员表,方法都挂在类对象上)—— 于是 `is` 说 true、`"ab".GetEnumerator ()` 却说
+「没有方法」。现在 `TraitSlot` / `ActiveInstance` 的接收者放宽到 `RuntimeValue` 了:
+**任何值都能挂接口槽**,不管它是不是对象。
 
 用例 `tests/237_char_string.rav`。
 

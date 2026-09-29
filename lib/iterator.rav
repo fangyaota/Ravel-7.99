@@ -38,6 +38,12 @@ impl (IEnumerable list {
 impl (IEnumerable set {
     by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
 })
+# 字符串也实现它:元素是**字符**(`s.Chars ()` 那一串)。
+# (它和数一样是标量、不是 ObjectVal —— 早先这儿加不上,是因为 `TraitSlot` 的接收者写死成了
+#  `ObjectVal`;现在那条路放宽了,标量一样能挂接口槽。)
+impl (IEnumerable string {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Chars ()); }; }) ((v: function) => { (); })
+})
 impl (IEnumerable dict {
     by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
 })

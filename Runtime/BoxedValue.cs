@@ -13,15 +13,20 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     /// (CheckModuleReadAccess)。所以取值可以合并,门禁必须分开。</summary>
     public static FunctionVal? TryGetByGetter(Interpreter interp, RuntimeValue value, string name)
     {
-        if (value is not ObjectVal obj) return null;
-        // 模块走 `Contains` + `Lookup`:前者只看**本层**,不让查找顺着作用域链漏到外层去
-        var vr = value is ModuleVal mv
-            ? mv.Scope.Contains(name) ? mv.Scope.Lookup(name) : null
-            : obj.Scope.LookupField(name);
+        // 模块走 `Contains` + `Lookup`:前者只看**本层**,不让查找顺着作用域链漏到外层去。
+        // **标量**(数 / 字符串 / 字符…)没有自己的成员表,但它照样能实现接口
+        // (`impl (IEnumerable string { … })`)—— 所以这里不再拿 `is ObjectVal` 一刀切,
+        // 只是"本层"那一段对它来说恒为空,直接去问接口表。
+        var vr = value switch
+        {
+            ModuleVal mv => mv.Scope.Contains(name) ? mv.Scope.Lookup(name) : null,
+            ObjectVal obj => obj.Scope.LookupField(name),
+            _ => null,
+        };
         // 本层没有这个成员 → 问当前作用域里生效的接口实现(模块不参与:接口实现是给实例用的)。
         // 接口那条槽要**绑到这一次的接收者**上才交出去(实现身上不再存"当前实例",见 Activate)。
         var prop = vr?.Value;
-        if (vr == null && value is not ModuleVal && BuiltinClasses.TraitSlot(interp, obj, name) is { } hit)
+        if (vr == null && value is not ModuleVal && BuiltinClasses.TraitSlot(interp, value, name) is { } hit)
         {
             vr = hit.Slot;
             prop = BuiltinClasses.Activate(interp, hit);
@@ -30,8 +35,9 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
         if (vr == null || !vr.HasAttr(Attr.By)) return null;
 
         var boxed = new BoxedValue(value, interp);
+        // 标量没有字段可言,门禁那套(字段的 private/protected)对它们不适用
         if (value is ModuleVal m) boxed.CheckModuleReadAccess(m, vr, name);
-        else boxed.CheckObjectReadAccess(obj, vr, name);
+        else if (value is ObjectVal obj) boxed.CheckObjectReadAccess(obj, vr, name);
         return interp.PropertyGetter(prop!, name);
     }
 

@@ -1275,8 +1275,8 @@ s.Slice 0 5            # Hello
 
 两点注意：
 
-- **字符串不能 `foreach`**（`"ab" is IEnumerable` 是 false）—— 它不是对象，接口够不着它。
-  要遍历就 `foreach (s.Chars ()) …`。
+- **字符串能 `foreach`**：元素是**字符**（`foreach "abc" (c: char) => …`）。
+  想拿一串字符交给别的序列方法，用 `s.Chars ()`（`Map` / `Where` 那批挂在容器上）。
 - 大小写转换**不跟区域设置走**（用的是 invariant）：同一段程序换台机器结果一样。
 
 **用例见 tests/237。**

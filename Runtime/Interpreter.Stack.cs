@@ -47,7 +47,7 @@ public partial class Interpreter
     /// 只认 `impl$active` 就是**这个实现**的激活格(认号不认对象:副本带的是同一枚号,
     /// 见 `BuiltinClasses.ImplIdMember`):跨实现边界时宁可报「没有正在被服务的实例」,
     /// 也不能静默绑到别人的接收者上。</summary>
-    internal ObjectVal? ActiveInstance(Scope? start, int implId)
+    internal RuntimeValue? ActiveInstance(Scope? start, int implId)
     {
         for (var s = start; s != null; s = s.Parent)
             if (ActiveAt(s, implId) is { } lexical) return lexical;
@@ -60,10 +60,10 @@ public partial class Interpreter
     }
 
     /// <summary>这一层是不是"这个实现的"激活格:两格都在、且 `impl$active` 就是这枚号。</summary>
-    private static ObjectVal? ActiveAt(Scope s, int implId)
+    private static RuntimeValue? ActiveAt(Scope s, int implId)
         => s.LookupField(BuiltinClasses.InstanceActiveMember) is { } vr
            && s.LookupField(BuiltinClasses.ImplActiveMember)?.Value is IntVal id && id.Value == implId
-            ? (ObjectVal)vr.Value
+            ? vr.Value      // 接收者可以是**任何值** —— 标量(字符串 / 数 / 字符)也能实现接口
             : null;
 
     private void StepOnce()

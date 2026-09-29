@@ -76,7 +76,7 @@ try { print ("a".Split ""); } (e: Exception) => { print ("8: " + string e); }
 # ── 和库搭台:字符当键、当排序元素、进 foreach ──
 print ('c' is IComparable)
 print ('c' is IKey)
-print ("ab" is IEnumerable)          # 字符串**不是**可枚举的(它不是对象,接口槽够不着)
+print ("ab" is IEnumerable)          # 字符串**可枚举**:元素是字符(lib/iterator.rav 里登记的一条 impl)
 foreach ("abc".Chars ()) (ch: char) => { print ch; }
 d := {}
 d.Set 'a' 1
@@ -146,7 +146,7 @@ print "end"
 # 8: s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）
 # true
 # true
-# false
+# true
 # a
 # b
 # c
