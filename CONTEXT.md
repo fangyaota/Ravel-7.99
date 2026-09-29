@@ -258,6 +258,13 @@ Object (parent=自己)
    `Io.Lines (f: IFile)` / `Io.Copy (from to)` / `Io.EachDir (d f)`（递归走一遍，每见一个条目叫一次
    `f (路径, 条目)`）**对着接口写**，任何实现都吃 —— 以后加内存文件 / zip / 远程文件就是照这个缝插。
 
+**控制台也是文件**：`Io.Stdout` / `Io.Stderr` / `Io.Stdin` 三个单例值实现 `IFile`（模块 `Io` 里
+`ConsoleOut` / `ConsoleIn` 两个类各登记一条）。于是对着接口写的代码直接能用 ——
+`Io.Copy f Io.Stdout` 把文件倒进终端、`Io.Copy Io.Stdin f` 把输入倒进文件。取舍写明白：
+只写的那两个 `Read` 报错、只读的那个 `Write` 报错、控制台没有 `Size` 也删不掉（报错说人话）。
+`Stdin.Read ()` 是**读到 EOF**（终端上 Ctrl+Z/D 收），读一行用 `ReadLine ()`（就是 `input`）；
+`print` / `input` 照旧是日常那两个，这里是"抽象的视角"。
+
 链式调用要写括号：`(x.f ()).g ()` —— `.成员` 比并列的调用绑得紧（见教程那条 `(Some 5).Map f`）。
 
 两个坑（写在 `lib/io.rav` 里）：① 类体里给方法起名 `File` / `Dir` 会把**类名遮住**，

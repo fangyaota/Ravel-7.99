@@ -910,6 +910,28 @@ Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一�
 `Io.Copy` / `Io.EachDir` / `Io.Lines` 就是**对着接口写的**三段：任何实现都吃。
 （zip 条目那种只读的实现，让 `Write` / `Delete` 抛一句"这份文件是只读的"就行。）
 
+#### 控制台也是文件
+
+`Io.Stdout` / `Io.Stderr` / `Io.Stdin` 三个值都实现了 `IFile` —— 抽象那一层现成的用例：
+
+```ravel
+Io.Stdout.Write "直接写到终端
+"
+Io.Copy (Io.File "notes/a.txt") Io.Stdout      # 对着接口写的代码:文件 → 终端
+Io.Stdin.ReadLine ()                           # 一行(就是 input)
+Io.Lines Io.Stdin                              # 读到 EOF 的所有行
+```
+
+只写的那两个读不了、只读的那个写不了，报错说人话（控制台也没有大小、删不掉）：
+
+```ravel
+try { Io.Stdout.Read (); } (e: Exception) => { print (string e); }
+# 这是只写的（stdout），读不了
+```
+
+`Io.Stdin.Read ()` 是**读到 EOF**（终端上要 Ctrl+Z / Ctrl+D 收），所以测试里别去碰它。
+日常还是用 `print` / `input`；这两个值存在的意义是"用同一段代码对付文件和终端"。
+
 #### 什么时候值得用 `IoMonad` 包一层
 
 `lib/io.rav` 是**直接做**的：`f.Read ()` 那一刻就读了。想要"先拼好一串要做的效果、之后再

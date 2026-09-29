@@ -146,6 +146,55 @@ impl (IDir Dir {
     ()
 })
 
+# ── 控制台也是文件 ──
+# `stdout` / `stderr` / `stdin` 三个**单例值**,实现 `IFile` —— 于是对着接口写的代码直接能用:
+# 把文件倒进终端 `Io.Copy f Io.Stdout`,把输入倒进文件 `Io.Copy Io.Stdin f`。
+# 只写的那两个读不了、只读的那个写不了(报错说人话,和"只读的 zip 条目"是同一种取舍)。
+ConsoleOut ::= class {
+    Label: string = "stdout"
+    ToErr: bool = false
+
+    init := (label: string toErr: bool) => { Label = label; ToErr = toErr; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Size := () => { throw (Exception ("控制台没有大小：" + Label)); }
+    Read := () => { throw (Exception ("这是只写的（" + Label + "），读不了")); }
+    Delete := () => { throw (Exception ("控制台删不掉：" + Label)); }
+    Write := (text: string) => {
+        if { ToErr; } { System.WriteErr text; } { System.Write text; }
+        ();
+    }
+    Append := (text: string) => { Write text; }
+}
+
+ConsoleIn ::= class {
+    Name := () => { "stdin"; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Size := () => { throw (Exception "控制台没有大小：stdin"); }
+    Delete := () => { throw (Exception "控制台删不掉：stdin"); }
+    Write := (text: string) => { throw (Exception "这是只读的（stdin），写不了"); }
+    Append := (text: string) => { throw (Exception "这是只读的（stdin），写不了"); }
+
+    # `Read ()` 是**读到 EOF**(终端上要 Ctrl+Z / Ctrl+D 收);想读一行用 `ReadLine ()`(就是 `input`)
+    Read := () => { System.ReadAllInput (); }
+    ReadLine := () => { System.ReadLine (); }
+    Lines := () => { System.SplitLines (System.ReadAllInput ()); }
+}
+
+impl (IFile ConsoleOut {
+    ()
+})
+impl (IFile ConsoleIn {
+    ()
+})
+
+readonly Stdout := ConsoleOut "stdout" false
+readonly Stderr := ConsoleOut "stderr" true
+readonly Stdin := ConsoleIn ()
+
 # ── ③ 路径函数与通用件 ──
 # `File` / `Dir` 两个类自己就是工厂：`Io.File "a.txt"` 直接构造。
 readonly Current := () => { System.CurrentDir (); }

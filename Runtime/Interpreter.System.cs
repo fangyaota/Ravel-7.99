@@ -84,6 +84,23 @@ public partial class Interpreter
         }));
         DefFn("ReadLine", FunctionVal.From(_ => new StringVal(Console.ReadLine() ?? "")));
 
+        // 标准错误:和 Write / WriteLine 一个样,只是走 Console.Error(报错报告、[outdated] 那些
+        // 引擎自己的话也在那儿)。控制台当文件用时,`stderr` 那个文件落到这儿。
+        DefFn("WriteErr", FunctionVal.From(a =>
+        {
+            Console.Error.Write(Show(a));
+            return VoidVal.Instance;
+        }));
+        DefFn("WriteLineErr", FunctionVal.From(a =>
+        {
+            Console.Error.WriteLine(Show(a));
+            return VoidVal.Instance;
+        }));
+
+        // 把标准输入读到 EOF(终端上要 Ctrl+Z / Ctrl+D 收)。`stdin` 那个文件的 `Read ()` 靠它 ——
+        // 想读一行用 ReadLine(它是 `input`)。
+        DefFn("ReadAllInput", FunctionVal.From(_ => new StringVal(Console.In.ReadToEnd())));
+
         // ---- 反射 / 作用域 ----
         DefFn("TypeOf", FunctionVal.From(a => a.Type));
         // 接口实现:`use` 登记进**当前作用域**(随作用域在/不在),`impl` 登记进**全局作用域**

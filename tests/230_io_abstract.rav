@@ -97,7 +97,7 @@ print (root.Exists ())
 # true
 # false
 # [IFile IEntry]
-# [MemFile File]
+# [MemFile ConsoleIn ConsoleOut File]
 # [MemDir Dir]
 # mem.txt = 内存里的内容
 # 内存里的内容

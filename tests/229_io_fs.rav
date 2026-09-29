@@ -93,7 +93,7 @@ print (root.Exists ())
 # true
 # true
 # false
-# [File]
+# [ConsoleIn ConsoleOut File]
 # [Dir]
 # hi
 # ho
