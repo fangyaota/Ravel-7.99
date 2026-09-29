@@ -1,0 +1,32 @@
+# `cmd` —— 跑一条外部命令,**走系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`),
+# 管道 / 重定向 / 通配符都归它管。交回一张 dict:`out`(标准输出)/ `err`(标准错误)/ `code`(退出码)。
+#
+# **非零退出码不是错误** —— 程序失败是常事,原样放在 `code` 里,自己判断;真正起不来进程才报错。
+# (输出按"先试 UTF-8、不合法退回控制台编码"解 —— git/python 吐 UTF-8,`dir` 那类走控制台那套。)
+
+r := cmd "echo 你好"
+print (r.Get "code")
+print ((r.Get "out").Trim ())               # 尾部换行自己 Trim 掉
+
+print ((cmd "exit 3").Get "code")           # 非零照旧交回来,不抛
+print (((cmd "echo oops 1>&2").Get "err").Trim ())
+
+# 命令本身是算出来的:拼接、插值都行
+n := 2
+print (((cmd ("echo " + string (n * 2))).Get "out").Trim ())
+print (((cmd "echo ${n * 3}").Get "out").Trim ())
+
+# 交回来就是普通 dict
+print ((cmd "echo x").Keys ())
+print (typeof (cmd "echo x"))
+print "end"
+# --- expected ---
+# 0
+# 你好
+# 3
+# oops
+# 4
+# 6
+# [out err code]
+# Dict
+# end

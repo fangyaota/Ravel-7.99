@@ -211,13 +211,16 @@ Object (parent=自己)
 
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
-**类型**: Integer String Bool Float BigInteger Fraction BigFraction
-        List Set Dict Object Void Function Type Interface
+**类型**: Integer String Char Bool Float BigInteger Fraction BigFraction
+        List Set Dict Object Void Function Type Interface BaseInterface
         Any Every Exception ValueType
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
-        CallCC Exit With RavelMod Using Use unsafe
+        CallCC Exit With RavelMod Using Use unsafe Cmd
         property currentScope
+
+（文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
+与「跑外部命令」两节:它们只做 syscall,策略在库里。）
 
 （`if`/`while`/`foreach`/`cacher`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里也定义了库里仅有的两个类型：`Cacher`(缓存)与
@@ -1001,6 +1004,27 @@ impl (IComparable Rec { () })
 - `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
 
 用例 `tests/234_icomparable.rav`。
+
+## 跑外部命令（`cmd`）
+
+`cmd "命令"` —— 走**系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`),管道、
+重定向、通配符都归它管,引擎不解析命令行。交回一张 dict:
+
+```ravel
+r := cmd "git status --short"
+print ((r.Get "out").Trim ())
+if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
+```
+
+- **非零退出码不是错误** —— 程序失败是常事,原样放在 `code` 里交给调用方判断;
+  真正起不来进程(比如 shell 本身)才抛 Ravel 错误。
+- 两路输出**各起一个线程同时抽走** —— 顺序读会在大输出时死锁。
+- 编码:**先按 UTF-8 试,不合法就退回控制台编码**。两边都常见(git / python 吐 UTF-8,
+  `dir` 那类走控制台那套),而合法的 UTF-8 里出现 GBK 字节的概率极低,判据够用。
+- 只做 syscall,**不做沙箱**(和文件那几条一个待遇):跑什么由调用方负责。
+
+引擎里的实现是 `System.Cmd`(`Runtime/Interpreter.System.cs`),`predefined.rav` 给全局别名
+`cmd`。用例 `tests/240_cmd.rav`。
 
 ## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
 

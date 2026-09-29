@@ -43,6 +43,7 @@ readonly NaN := System.NaN
 readonly Inf := System.Inf
 readonly default := System.Default
 readonly typeof := System.TypeOf
+readonly cmd := System.Cmd        # 跑外部命令(走系统 shell),交回 {out err code}
 readonly assert := System.Assert
 readonly eval := System.Eval
 readonly randint := System.RandInt

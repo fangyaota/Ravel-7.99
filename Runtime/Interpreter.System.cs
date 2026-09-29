@@ -151,6 +151,28 @@ public partial class Interpreter
         // 上面那些预检查是为了消息说人话;**Fs 那层兜底是为了不让 C# 异常漏到顶层**
         // (目录不存在、没权限、路径里有非法字符…… 漏出去会绕过 Ravel 的 try 把程序打掉,
         //  和 RandInt 那条注释里说的一样)。
+        static byte[] ReadAllBytes(Stream s)
+        {
+            using var ms = new MemoryStream();
+            s.CopyTo(ms);
+            return ms.ToArray();
+        }
+
+        // 外部命令的输出按什么编码解?——**先按 UTF-8 试,不合法就退回控制台编码**。
+        // 两边都常见:git / python 那些吐 UTF-8,而 `dir` 这类走的是控制台那套(中文 Windows
+        // 上就是 GBK)。合法的 UTF-8 里出现 GBK 字节的概率极低,所以这个判据够用。
+        static string DecodeOutput(byte[] bytes)
+        {
+            try
+            {
+                return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes);
+            }
+            catch (System.Text.DecoderFallbackException)
+            {
+                return Console.OutputEncoding.GetString(bytes);
+            }
+        }
+
         static string PathOf(RuntimeValue v, string what)
             => v is StringVal s ? s.Value : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}");
 
@@ -242,6 +264,42 @@ public partial class Interpreter
             var entries = new Dictionary<RuntimeValue, RuntimeValue>();
             foreach (var d in Directory.EnumerateDirectories(p)) entries[new StringVal(Path.GetFileName(d))] = new BoolVal(true);
             foreach (var f in Directory.EnumerateFiles(p)) entries[new StringVal(Path.GetFileName(f))] = new BoolVal(false);
+            return new DictVal(entries);
+        })));
+
+        // ── 跑外部命令 ──
+        // 走**系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`):管道、重定向、通配符
+        // 这些都归它管,我们不解析。**非零退出码不是错误** —— 程序失败是常事,原样放在
+        // `code` 里交给调用方判断(真正起不来进程才是错)。
+        //
+        // 交回的是一张 dict:`out`(标准输出)/ `err`(标准错误)/ `code`(退出码)。
+        // 两路输出**同时**抽走(各自一个线程)—— 顺序读会在大输出时死锁。
+        DefFn("Cmd", FunctionVal.From(a => Fs("跑命令", () =>
+        {
+            var command = As<StringVal>(a, "cmd 的命令").Value;
+            var windows = OperatingSystem.IsWindows();
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = windows ? "cmd.exe" : "/bin/sh",
+                Arguments = (windows ? "/c " : "-c ") + command,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var proc = System.Diagnostics.Process.Start(psi)
+                ?? throw new RuntimeException("跑命令失败: 进程起不来");
+            var outTask = System.Threading.Tasks.Task.Run(() => ReadAllBytes(proc.StandardOutput.BaseStream));
+            var errTask = System.Threading.Tasks.Task.Run(() => ReadAllBytes(proc.StandardError.BaseStream));
+            proc.WaitForExit();
+
+            var entries = new Dictionary<RuntimeValue, RuntimeValue>
+            {
+                [new StringVal("out")] = new StringVal(DecodeOutput(outTask.Result)),
+                [new StringVal("err")] = new StringVal(DecodeOutput(errTask.Result)),
+                [new StringVal("code")] = new IntVal(proc.ExitCode),
+            };
             return new DictVal(entries);
         })));
 

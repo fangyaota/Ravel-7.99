@@ -1121,6 +1121,24 @@ t.Get (Rec 1 "别的")                        # "one"
 
 **用例见 tests/235。**
 
+### 5.14 跑外部命令（`cmd`）
+
+```ravel
+r := cmd "git status --short"
+print ((r.Get "out").Trim ())
+if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
+```
+
+`cmd` 走**系统 shell**（Windows 上是 `cmd.exe /c`，别处 `/bin/sh -c`）—— 管道、重定向、
+通配符都归它管。交回的是一张 dict：`out`（标准输出）/ `err`（标准错误）/ `code`（退出码）。
+
+- **非零退出码不是错误**：程序失败是常事，`code` 原样交给你判断；真正起不来进程才报错。
+- 输出**按"先试 UTF-8、不合法退回控制台编码"解**（git/python 吐 UTF-8，`dir` 那类走控制台那套）。
+- 命令本身可以是算出来的：`cmd ("echo " + string n)` 或者 `cmd "echo ${n}"` 都行。
+- **不做沙箱** —— 和文件那几条一个待遇，跑什么由你自己负责。
+
+**用例见 tests/240。**
+
 ## 六、集合
 
 ### 6.1 List
