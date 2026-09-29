@@ -107,9 +107,9 @@ lib/
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;tests/125 跑的就是它
-  io.rav                  Io 模块(IO Monad):`Action` 把"要做的效果"做成值,
+  iomonad.rav             IoMonad 模块(IO Monad —— 把效果做成值的那种,不是文件/终端 IO):`Action` 把"要做的效果"做成值,
                           `Perform ()` 才真跑;Return/PutStrLn/PutStr/GetLine/Foreach。
-                          `using "io.rav"` 引入 —— `Action` 也实现了 `IMonad`
+                          `using "iomonad.rav"` 引入 —— `Action` 也实现了 `IMonad`
                           (它和 `Monad` 是**同一个形状的两个实例**:各自那份 Map/Bind 就是形状本身,
                           `impl (IMonad Action { () })` 只是登记一下;`impl` 是全局的,所以
                           `x is IMonad` 在哪儿都成立)。两者的 `Bind` 各干各的:这边真跑效果,

@@ -1,8 +1,8 @@
-# IO 模块 —— **要显式引用才有**:`using "io.rav"` 之后 `Io.xxx` 才是一个名字。
+# IO Monad 模块 —— **要显式引用才有**:`using "iomonad.rav"` 之后 `IoMonad.xxx` 才是一个名字。
 #
 # 把"要做的效果"做成一个**值**(一份说明书),而不是当场做:
 #
-#     Hello := Io.PutStrLn "hello"     # 这一句什么都不打印
+#     Hello := IoMonad.PutStrLn "hello"     # 这一句什么都不打印
 #     Hello.Perform ()                 # 打印发生在这
 #
 # 说明书可以传、可以拼、可以放着不跑,也可以跑第二遍 —— 效果只在 `Perform ()` 那一刻发生。
@@ -15,7 +15,7 @@
 # (Map + Bind 两条槽,见 monad.rav),所以 `is IMonad` / 注解 `(m: IMonad)` / 两者混着写都认;
 # 但它们的 `Bind` 各干各的:这边真跑效果,那边没有值就短路。
 
-ravel "Io"
+ravel "IoMonad"
 
 # 一份"要做的效果"。里面包的那个函数收 `()`、交出一个值 ——
 # 效果发生在**它被调用**的时候,而不是 Action 被造出来的时候。

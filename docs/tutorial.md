@@ -760,13 +760,13 @@ print (do { v :< Some 10; Some (v * 2); }.Value ())    # 20
 
 ### 5.10 IO（把效果做成值）
 
-`Io.PutStrLn "hi"` **什么都不打印** —— 它交出的是一份**说明书**（一个 `Io.Action`）。
+`IoMonad.PutStrLn "hi"` **什么都不打印** —— 它交出的是一份**说明书**（一个 `IoMonad.Action`）。
 直到 `Perform ()` 那一刻，效果才真的发生：
 
 ```ravel
-using "io.rav"
+using "iomonad.rav"
 
-Hello := Io.PutStrLn "hello"
+Hello := IoMonad.PutStrLn "hello"
 print "还没跑"
 Hello.Perform ()        # 打印发生在这
 print "跑完了"
@@ -784,9 +784,9 @@ hello
 
 ```ravel
 Main := do {
-    name :< Io.GetLine
-    _ :< Io.PutStrLn ("你好 " + name)
-    Io.PutStrLn "再见"
+    name :< IoMonad.GetLine
+    _ :< IoMonad.PutStrLn ("你好 " + name)
+    IoMonad.PutStrLn "再见"
 }
 print "还没跑"
 Main.Perform ()
@@ -800,20 +800,20 @@ Main.Perform ()
 
 | 名字 | 做什么 |
 |------|--------|
-| `Io.Action f` | 造一份说明书（`f` 收 `()`、交出一个值，**在 `Perform` 时才被调用**）|
+| `IoMonad.Action f` | 造一份说明书（`f` 收 `()`、交出一个值，**在 `Perform` 时才被调用**）|
 | `.Perform ()` | 跑它。效果世界的边界 |
 | `.Map f` / `.Bind f` | 结果过一道纯函数 / 接上另一份说明书（`Bind` 摊平）|
-| `Io.Return v` | 不做效果，只交出 `v` |
-| `Io.PutStrLn s` / `Io.PutStr` | 打印（带 / 不带换行）|
-| `Io.GetLine` | 读一行。它是**一个值**，每次 `Perform` 都真读一次 |
-| `Io.Foreach xs f` | 对表里每个元素造一份说明书并依次执行 |
+| `IoMonad.Return v` | 不做效果，只交出 `v` |
+| `IoMonad.PutStrLn s` / `IoMonad.PutStr` | 打印（带 / 不带换行）|
+| `IoMonad.GetLine` | 读一行。它是**一个值**，每次 `Perform` 都真读一次 |
+| `IoMonad.Foreach xs f` | 对表里每个元素造一份说明书并依次执行 |
 
 IO 里**没有「落空」这回事**：每一步都跑，值一路往下传（和 `Monad` 的短路正好相反）。
 括号规则和 5.8 一样 —— `.Perform` 要贴给调用的**结果**，就得把那个调用括起来：
 
 ```ravel
-(Io.Foreach [1 2 3] ((x: int) => { Io.PutStrLn (string x); })).Perform ()
-r := (Io.Return 20).Map ((x: int) => { x + 1; })    # 或者先绑个名字
+(IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); })).Perform ()
+r := (IoMonad.Return 20).Map ((x: int) => { x + 1; })    # 或者先绑个名字
 print (r.Perform ())                                # 21
 ```
 

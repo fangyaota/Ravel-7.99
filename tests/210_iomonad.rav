@@ -1,10 +1,10 @@
 # IO:效果做成"说明书"(一个值),`Perform ()` 那一刻才真的发生。
 # 这就是 IO Monad —— `do { x :< …; }` 拼的是说明书,Bind 把两份订成一份。
-using "io.rav"
+using "iomonad.rav"
 
 # 1) 造出来什么都不做;而且说明书可以反复跑
 Calls := 0
-Tick := Io.Action (() => { Calls += 1; "tick"; })
+Tick := IoMonad.Action (() => { Calls += 1; "tick"; })
 print Calls
 print (Tick.Perform ())
 print Calls
@@ -12,7 +12,7 @@ print (Tick.Perform ())
 print Calls
 
 # 2) PutStrLn 同理:造的时候不打印
-Hello := Io.PutStrLn "hello"
+Hello := IoMonad.PutStrLn "hello"
 print "还没跑"
 Hello.Perform ()
 print "跑完了"
@@ -20,32 +20,32 @@ print "跑完了"
 # 3) do 串起来 —— 这才是它像 monad 的地方。
 #    输入拿一个列表冒充(测试里不去碰真 stdin)
 Lines := ["first" "second"]
-Read := Io.Action (() => { Lines.Remove 0; })
+Read := IoMonad.Action (() => { Lines.Remove 0; })
 Main := do {
     a :< Read
-    _ :< Io.PutStrLn ("读到 " + a)
+    _ :< IoMonad.PutStrLn ("读到 " + a)
     b :< Read
-    Io.PutStrLn ("又读到 " + b)
+    IoMonad.PutStrLn ("又读到 " + b)
 }
 print "Main 造好了(此时一个字都没读、也没打印)"
 Main.Perform ()
 
 # 4) Map / Bind 直接手写
-Plus1 := (Io.Return 20).Map ((x: int) => { x + 1; })
+Plus1 := (IoMonad.Return 20).Map ((x: int) => { x + 1; })
 print (Plus1.Perform ())
-print (do { n :< Io.Return 4; Io.Return (n * n); }.Perform ())
+print (do { n :< IoMonad.Return 4; IoMonad.Return (n * n); }.Perform ())
 
 # 5) 纯计算不必包成说明书:Return 什么也不做,只是交出一个值
-print (do { a :< Io.Return 3; b :< Io.Return 4; Io.Return (a + b); }.Perform ())
+print (do { a :< IoMonad.Return 3; b :< IoMonad.Return 4; IoMonad.Return (a + b); }.Perform ())
 
 # 6) 一串效果(括号照旧:`.Perform` 要贴给 Foreach 的结果,不是贴给那个 lambda)
-(Io.Foreach [1 2 3] ((x: int) => {
-    Io.PutStrLn ("第 " + string x + " 个")
+(IoMonad.Foreach [1 2 3] ((x: int) => {
+    IoMonad.PutStrLn ("第 " + string x + " 个")
 })).Perform ()
 
 # 7) 每一步都跑,值一路往下传(不像 Monad 那样"落空就短路" —— IO 没有落空这回事)
 Trace: list = []
-Note := (s: string) => { Io.Action (() => { Trace.Add s; s; }) }
+Note := (s: string) => { IoMonad.Action (() => { Trace.Add s; s; }) }
 Seq := do {
     _ :< Note "a"
     _ :< Note "b"
@@ -57,27 +57,27 @@ Seq.Perform ()
 print Trace
 
 # 8) 说明书是普通值:一样可以当参数、当返回值、放着不跑
-Build := (b: bool) => { if { b; } { Io.PutStrLn "开了"; } { Io.Return (); } }
+Build := (b: bool) => { if { b; } { IoMonad.PutStrLn "开了"; } { IoMonad.Return (); } }
 Left := Build true
 print "还没跑那个分支"
 Left.Perform ()
 # 4) IMonad:Monad(Option)与 Action 是**同一个形状的两个实例**(见 monad.rav / io.rav)。
-#    形状就是 do 要的那两条槽 Map / Bind;`Return` 那种构造子各归各的(这边 Some,Io 那边 Io.Return)。
+#    形状就是 do 要的那两条槽 Map / Bind;`Return` 那种构造子各归各的(这边 Some,Io 那边 IoMonad.Return)。
 print (Some 5 is IMonad)
 print (None is IMonad)
-print (Io.PutStrLn "x" is IMonad)
+print (IoMonad.PutStrLn "x" is IMonad)
 print (5 is IMonad)
 
 # 实现是**全局**登记的(用 impl 而不是 use),所以类型层面两个方向都问得出来
 print (Monad.GetImplements ())
-print (Io.Action.GetImplements ())
+print (IoMonad.Action.GetImplements ())
 print (IMonad.GetImplementors ())
 
 # 通用函数:只要求"是这个形状",同一个 monad 自己往下接
 Chain := (m: IMonad f: function) => { m.Bind f; }
 # (外面那层括号不能省：`.` 比并列的调用绑得紧，不括就变成"给 lambda 取成员")
 print ((Chain (Some 3) ((v: object) => { Some (v + 1); })).Value ())
-print ((Chain (Io.Action (() => { 41; })) ((v: object) => { Io.Action (() => { v + 1; }); })).Perform ())
+print ((Chain (IoMonad.Action (() => { 41; })) ((v: object) => { IoMonad.Action (() => { v + 1; }); })).Perform ())
 # --- expected ---
 # 0
 # tick

@@ -1,12 +1,12 @@
 # Monad 这一族:**形状** + 一个实例(这里这个 `Monad` 是"要么包着一个值,要么什么都没有")。
-# 由 predefined.rav 加载(名字落在全局作用域);`Io.Action`(见 io.rav)是这一族的另一个实例。
+# 由 predefined.rav 加载(名字落在全局作用域);`IoMonad.Action`(见 io.rav)是这一族的另一个实例。
 #
 # 「Monad 的形状」就是能进 `do { … }` 的东西 —— `do` 把 `:<` 脱糖成 `.Bind`,所以形状是
 # **Map + Bind 两条槽**。写成接口之后:`x is IMonad` 能问、注解 `(m: IMonad)` 收得下、
 # `IMonad.GetImplementors ()` 看得见有哪些类型在这一族里。
 #
 # 注意它只管"形状":`Return` 那种东西是**每个 monad 各自的构造子**(这里叫 `Some`,
-# `Io` 那边叫 `Io.Return`),接口表达不了"某个类型有个构造子",也没必要。
+# `IoMonad` 那边叫 `IoMonad.Return`),接口表达不了"某个类型有个构造子",也没必要。
 IMonad ::= interface {
     by Map : function = default
     by Bind : function = default
