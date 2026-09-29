@@ -138,8 +138,10 @@ public partial class Interpreter
         throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last?.Message}）");
     }
 
-    /// <summary>类实例化:沿祖先链(顶祖先→自身)依次跑每层类体(只跑 Body,不跑各层 init),
-    /// 再从最具体类往上找第一个有 init 的层,只调那一个。所有层的字段平铺在同一个 instanceScope,
+    /// <summary>类实例化:沿祖先链(顶祖先→自身)依次跑每层类体,**全平铺在同一个 instanceScope**
+    /// (所以同名成员是"后写盖先写",没有分层的成员表)。跑完之后只做一件事:在**那一个** scope 里
+    /// 按名字取 `init` 来调 —— 拿到的自然是最后写的那条(最具体那个类声明的);没写过的落到
+    /// `Object` 那条默认构造。不是"每层各调一次 init",也不是另走一遍链去找。
     /// ObjectVal 与 this 在第一个类体执行前就绑好(ClassType = 最终子类)。
     /// 阶段由 Count 推进:0=建 scope/绑 this/推第一层,(0,N)=推第 Count 层,N=调 init,&gt;N=返回对象。
     /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。</summary>
