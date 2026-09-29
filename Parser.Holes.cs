@@ -23,7 +23,9 @@ public partial class Parser
         PipeExpr p => [p.Left, p.Right],
         ListLiteral l => l.Elements,
         SetLiteral s => s.Elements,
-        DictLiteral d => d.Entries.Select(entry => entry.Value),
+        // 键也是表达式了(`{"a": 1}`),所以两栏都要列 —— 漏了键的话 `{_: v}` 里的洞
+        // 会一路带到求值器(正是这个 switch 从前漏掉 Set/Dict 的那个毛病)
+        DictLiteral d => d.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
         _ => [],
     };
 
@@ -79,7 +81,7 @@ public partial class Parser
             ListLiteral l => new ListLiteral([.. l.Elements.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
             SetLiteral s => new SetLiteral([.. s.Elements.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
             DictLiteral d => new DictLiteral([.. d.Entries.Select(entry =>
-                new DictEntry(entry.Key, ReplaceHoles(entry.Value)))]) { Line = e.Line, Column = e.Column },
+                new DictEntry(ReplaceHoles(entry.Key), ReplaceHoles(entry.Value)))]) { Line = e.Line, Column = e.Column },
             _ => e
         };
     }

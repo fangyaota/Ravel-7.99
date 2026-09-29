@@ -269,12 +269,17 @@ public partial class Parser
             return new BlockExpr(block) { Line = line, Column = col, Source = source };
         }
 
-        // 单行无换行：`IDENT :` 开头就是字典。
-        // 但 `x:: …` / `x: = …` 是**定义符**(见 IsDefinitionOp),不是字典的键值对。
-        // 判据全用前瞻,所以不匹配时一个 token 都没动过 —— 不必先存 _pos 再还回去。
-        var isDict = Check(TokenType.Identifier) && TypeAt(1) == TokenType.Colon
-                     && TypeAt(2) is not (TokenType.Colon or TokenType.Equal);
-        return isDict ? ParseDict(line, col) : ParseSet(line, col);
+        // 单行无换行：**先当表达式把第一个元素读出来**,看它后面跟的是不是 `:` —— 是就是字典。
+        // 键从"标识符即字符串"改成了**表达式**(`{"a": 1}` / `{1: "x"}` / `{k: v}`),
+        // 判据不能再靠前瞻,得真读一次。`x:: …` / `x: = …` 是**定义符**不是键值对,排除。
+        //
+        // 这一次解析的**结果两条路都用**(字典那条当第一个键、集合那条当第一个元素),
+        // 不走"读完退回去再读一遍":`_` 的序号是个单调计数器(见 `_holeCount`),
+        // 读两遍会让洞的编号和消糖时按顺序发的参数对不上(`{_ + 1}` 直接报「未定义的变量 '_1'」)。
+        var first = ParseExpression(allowCall: false);
+        var isDict = Check(TokenType.Colon)
+                     && TypeAt(1) is not (TokenType.Colon or TokenType.Equal);
+        return isDict ? ParseDict(line, col, first) : ParseSet(line, col, first);
     }
 
     /// <summary>前瞻：在匹配 closing 之前是否遇到 Newline</summary>
@@ -298,10 +303,11 @@ public partial class Parser
         return false;
     }
 
-    /// <summary>{ expr expr ... } → 集合</summary>
-    private Expression ParseSet(int line, int col)
+    /// <summary>{ expr expr ... } → 集合。`first` 是判据那一步已经读好的第一个元素
+    /// (见 ParseBrace:那一次解析的成果两条路共用)。</summary>
+    private Expression ParseSet(int line, int col, Expression first)
     {
-        var elements = new List<Expression>();
+        var elements = new List<Expression> { first };
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
             elements.Add(ParseExpression(allowCall: false));
@@ -311,16 +317,20 @@ public partial class Parser
         return new SetLiteral(elements) { Line = line, Column = col };
     }
 
-    /// <summary>{ key: val key: val ... } → 字典</summary>
-    private Expression ParseDict(int line, int col)
+    /// <summary>{ key: val key: val ... } → 字典。**键是表达式**(见 ParseBrace 的判据),
+    /// 和值一样按 `allowCall: false` 那一档读 —— 于是 `{"a" + "b": 1}` 写得出来,
+    /// 而 `{f x: 1}` 这种"实参里再套应用"不行(和值那边的口径一致)。</summary>
+    private Expression ParseDict(int line, int col, Expression first)
     {
         var entries = new List<DictEntry>();
-        while (!Check(TokenType.RightBrace) && !IsAtEnd())
+        var key = first;
+        while (true)
         {
-            var key = Consume(TokenType.Identifier, "需要字典键").Lexeme;
             Consume(TokenType.Colon, "字典键后需要 ':'");
             var value = ParseExpression(allowCall: false);
             entries.Add(new DictEntry(key, value));
+            if (Check(TokenType.RightBrace) || IsAtEnd()) break;
+            key = ParseExpression(allowCall: false);
         }
 
         Consume(TokenType.RightBrace, "字典条目后需要 '}'");

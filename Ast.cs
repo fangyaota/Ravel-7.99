@@ -79,7 +79,10 @@ public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression;
 public record PipeExpr(Expression Left, Expression Right) : Expression;
 public record ListLiteral(List<Expression> Elements) : Expression;
 public record SetLiteral(List<Expression> Elements) : Expression;
-public record DictEntry(string Key, Expression Value);
+/// <summary>字典的一个条目。**键也是表达式**(从前的"标识符即字符串"那条糖已经去掉):
+/// `{"a": 1}` / `{1: "x"}` / `{k: v}` —— 键求出来得是**值类型**(数 / 字符串),
+/// 不然当场报错(见 `Interpreter.StepDict`)。</summary>
+public record DictEntry(Expression Key, Expression Value);
 public record DictLiteral(List<DictEntry> Entries) : Expression;
 public record VoidLiteral : Expression;
 

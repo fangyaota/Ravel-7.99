@@ -191,23 +191,23 @@ internal static partial class BuiltinClasses
     /// 为什么限死在这一支:.NET 的 `Dictionary` 要一个**同步**的比较器,而用户写的 `Key ()`
     /// 是 Ravel 函数(调它得推帧,`Interpreter.CallInto` 那条路)。要拿对象当键,走
     /// `lib/keys.rav` 那层(`Keys.Set` / `Keyed`)—— 它先把对象规范成一个值类型再进表。</summary>
-    private static RuntimeValue KeyArg(RuntimeValue a, string what)
+    internal static RuntimeValue KeyArg(RuntimeValue a, string what)
         => a.Type.IsAssignableTo(ValueType)
             ? a
-            : throw new RuntimeException($"{what} 的键得是值类型（数 / 字符串），得到 {a.Type}");
+            : throw new RuntimeException($"{what}得是值类型（数 / 字符串），得到 {a.Type}");
 
     private static void RegisterDictMethods()
     {
         Dict.DefineMethod("Get", (s, a) =>
         {
-            var key = KeyArg(a, "dict.Get");
+            var key = KeyArg(a, "dict.Get 的键");
             var d = (DictVal)s;
             if (d.Entries.TryGetValue(key, out var v)) return v;
             throw new RuntimeException($"键不存在: {key}");
         });
         Dict.DefineMethod("Set", (s, a) =>
         {
-            var key = KeyArg(a, "dict.Set");
+            var key = KeyArg(a, "dict.Set 的键");
             return FunctionVal.From(v =>
             {
                 ((DictVal)s).Entries[key] = v;
@@ -215,18 +215,18 @@ internal static partial class BuiltinClasses
             });
         });
         Dict.DefineMethod("Has", (s, a) =>
-            new BoolVal(((DictVal)s).Entries.ContainsKey(KeyArg(a, "dict.Has"))));
+            new BoolVal(((DictVal)s).Entries.ContainsKey(KeyArg(a, "dict.Has 的键"))));
         Dict.DefineMethod("Keys", (s, _) => new ListVal([.. ((DictVal)s).Entries.Keys]));
         Dict.DefineMethod("Values", (s, _) => new ListVal([.. ((DictVal)s).Entries.Values]));
         Dict.DefineMethod("Remove", (s, a) =>
             // 有没有删掉(C# 也交回 bool)
-            new BoolVal(((DictVal)s).Entries.Remove(KeyArg(a, "dict.Remove"))));
+            new BoolVal(((DictVal)s).Entries.Remove(KeyArg(a, "dict.Remove 的键"))));
         Dict.DefineMethod("HasValue", (s, a) => new BoolVal(((DictVal)s).Entries.ContainsValue(a)));
         // `d.GetOr "k" 0` —— 有就取值,没有就给替代值(C# 的 GetValueOrDefault)。
         // 默认的 `Get` 是**响亮**的(键不存在就报错),这个是"明知可能没有"时用的。
         Dict.DefineMethod("GetOr", (s, a) =>
         {
-            var key = KeyArg(a, "dict.GetOr");
+            var key = KeyArg(a, "dict.GetOr 的键");
             var d = (DictVal)s;
             return d.Entries.TryGetValue(key, out var v)
                 ? FunctionVal.From(_ => v)        // 有:替代值收下但不用

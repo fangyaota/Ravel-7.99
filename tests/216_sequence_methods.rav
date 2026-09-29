@@ -64,7 +64,7 @@ print (s.Max ())
 print (s.Where (x: int) => { x >= 2; })
 
 # ---- 字典:元素是值 ----
-d := {a: 3 b: 1 c: 2}
+d := {"a": 3 "b": 1 "c": 2}
 print (d.Count ())
 print (d.Min ())
 print (d.Max ())

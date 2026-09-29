@@ -28,7 +28,7 @@ print (([9].GetEnumerator ()) is IEnumerator)   # 每次都新开一个,互不�
 
 # ---- foreach 就是照这个形状写的 ----
 foreach [1 2 3] (x: int) => { print ("list " + string x); }
-foreach {a: 7 b: 8} (v: int) => { print ("dict " + string v); }
+foreach {"a": 7 "b": 8} (v: int) => { print ("dict " + string v); }
 foreach [1 2] (x: int) => { foreach [10 20] (y: int) => { print ((string (x)) + "-" + (string y)); } }
 
 # ---- 注解、参数也认接口,通用函数写得出来 ----
@@ -41,7 +41,7 @@ total := (xs: IEnumerable) => {
 }
 print (total [1 2 3])
 print (total {4 5})
-print (total {a: 1 b: 2})
+print (total {"a": 1 "b": 2})
 
 # ---- 自己的类实现它 ----
 Seq ::= class {

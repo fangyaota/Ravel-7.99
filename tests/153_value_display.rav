@@ -36,7 +36,7 @@ print loop
 print ([[[1]]])
 
 # 字典/集合
-print ({a: 1 b: "x"})
+print ({"a": 1 "b": "x"})
 print ({1 2 3})
 # --- expected ---
 # class { x = 1, s = hi }

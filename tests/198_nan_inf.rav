@@ -28,7 +28,7 @@ print (Inf - Inf)
 # 进了别的值里也照样
 using "math.rav"
 print ([NaN Inf])
-print ({a: Inf})
+print ({"a": Inf})
 print (string Inf)
 print (string NaN)
 print (Math.Floor NaN)

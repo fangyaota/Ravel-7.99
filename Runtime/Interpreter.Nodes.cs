@@ -199,14 +199,17 @@ public partial class Interpreter
 
     private void StepDict(NodeFrame nf, List<DictEntry> entries)
     {
-        if (nf.Count < entries.Count)
+        // 每条目**两个**子节点:先键后值(键也是表达式了 —— `{"a": 1}` 里的 `"a"`)
+        if (nf.Count < entries.Count * 2)
         {
-            PushChild(nf, entries[nf.Count].Value);
+            var e = entries[nf.Count / 2];
+            PushChild(nf, nf.Count % 2 == 0 ? e.Key : e.Value);
             return;
         }
 
         var dict = new Dictionary<RuntimeValue, RuntimeValue>();
-        for (int i = 0; i < nf.Count; i++) dict[new StringVal(entries[i].Key)] = nf.Result(i);
+        for (int i = 0; i < entries.Count; i++)
+            dict[BuiltinClasses.KeyArg(nf.Result(2 * i), "字典的键")] = nf.Result(2 * i + 1);
         Return(nf, new DictVal(dict));
     }
 
