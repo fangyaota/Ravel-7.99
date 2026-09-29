@@ -41,6 +41,9 @@ impl (IKey fraction {
 impl (IKey bigfraction {
     ()
 })
+impl (IKey char {
+    ()
+})
 impl (IKey string {
     ()
 })

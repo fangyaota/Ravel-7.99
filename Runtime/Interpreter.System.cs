@@ -27,6 +27,7 @@ public partial class Interpreter
         // ---- 类型(System.Integer 等权威名;小写别名在 predefined.rav) ----
         DefType("Integer", BuiltinClasses.Int);
         DefType("String", BuiltinClasses.String);
+        DefType("Char", BuiltinClasses.Char);
         DefType("Bool", BuiltinClasses.Bool);
         DefType("Float", BuiltinClasses.Float);
         DefType("BigInteger", BuiltinClasses.BigInt);

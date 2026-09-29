@@ -84,7 +84,7 @@ print "end"
 # true
 # true
 # false
-# [String BigFraction Fraction BigInt Float Integer]
+# [String Char BigFraction Fraction BigInt Float Integer]
 # -1
 # [1 2 3]
 # []

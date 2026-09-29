@@ -72,6 +72,8 @@ public abstract record Expression : AstNode;
 /// 大整数转一手就丢精度(12345678901234567890 → 12345678901234567000),再转回来已经不是原来那个数。</summary>
 public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression;
 public record StringLiteral(string Value) : Expression;
+/// <summary>`'a'` —— 一个字符(UTF-16 码元)。字面量本身不区分转义写法,词法已经解码好了。</summary>
+public record CharLiteral(char Value) : Expression;
 public record IdentifierExpr(string Name) : Expression;
 /// <summary>调用:`函数 参数`。**参数只有一个** —— 多参靠柯里化,`f a b` 解析成 `(f a) b`
 /// (见 Parser.Expressions 的 juxtaposition)。从前这里存的是个 List,而它恒有一个元素:

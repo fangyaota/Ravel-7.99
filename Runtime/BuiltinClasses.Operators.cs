@@ -16,6 +16,15 @@ internal static partial class BuiltinClasses
     private static T Operand<T>(RuntimeValue v, string op) where T : RuntimeValue
         => v as T ?? throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
 
+    /// <summary>拼接的右操作数:字符串或字符都行(别的照旧报「不支持 X 操作数」)——
+    /// 于是 `"abc" + 'd'`、`'d' + "abc"`、`'a' + 'b'` 三条都通,结果都是字符串。</summary>
+    private static string AsText(RuntimeValue v, string op) => v switch
+    {
+        StringVal s => s.Value,
+        CharVal c => c.Value.ToString(),
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数"),
+    };
+
     /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:float > bigint > int——
     /// 结果类型取较宽的那个。以前只特判了 Float,于是 `1 + bigint 2` 报「运算符 '+' 不支持
     /// BigInt 操作数」,而反过来的 `bigint 2 + 1` 却正常(AsBigInt 收 int),两边不对称。</summary>
@@ -120,8 +129,24 @@ internal static partial class BuiltinClasses
         // string 比较
         DefineOp(String, "==", (a, b) => new BoolVal(((StringVal)a).Value == Operand<StringVal>(b, "==").Value));
         DefineOp(String, "!=", (a, b) => new BoolVal(((StringVal)a).Value != Operand<StringVal>(b, "!=").Value));
-        // string 拼接
-        DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + Operand<StringVal>(b, "+").Value));
+        // string 拼接(**也收字符**:`"abc" + 'd'` 和 `'d' + "abc"` 都是字符串)
+        DefineOp(String, "+", (a, b) => new StringVal(((StringVal)a).Value + AsText(b, "+")));
+        // 重复:`"-" * 10` → 十个短横。0 或负数给空串(负数由 IntOp 那套先把类型卡住)
+        DefineOp(String, "*", (a, b) => new StringVal(string.Concat(
+            Enumerable.Repeat(((StringVal)a).Value, Math.Max(0, Operand<IntVal>(b, "*").Value)))));
+
+        // ══ 字符 ══(`Char <: ValueType`,和数、字符串一个待遇:能比、能拼、能重复)
+        DefineOp(Char, "==", (a, b) => new BoolVal(((CharVal)a).Value == Operand<CharVal>(b, "==").Value));
+        DefineOp(Char, "!=", (a, b) => new BoolVal(((CharVal)a).Value != Operand<CharVal>(b, "!=").Value));
+        DefineOp(Char, "<", (a, b) => new BoolVal(((CharVal)a).Value < Operand<CharVal>(b, "<").Value));
+        DefineOp(Char, ">", (a, b) => new BoolVal(((CharVal)a).Value > Operand<CharVal>(b, ">").Value));
+        DefineOp(Char, "<=", (a, b) => new BoolVal(((CharVal)a).Value <= Operand<CharVal>(b, "<=").Value));
+        DefineOp(Char, ">=", (a, b) => new BoolVal(((CharVal)a).Value >= Operand<CharVal>(b, ">=").Value));
+        // 拼接:两个字符拼成字符串(`'a' + 'b'` → `"ab"`),字符拼字符串同理
+        DefineOp(Char, "+", (a, b) => new StringVal(((CharVal)a).Value + AsText(b, "+")));
+        // 重复:`'-' * 10` → 十个短横
+        DefineOp(Char, "*", (a, b) => new StringVal(string.Concat(
+            Enumerable.Repeat(((CharVal)a).Value, Math.Max(0, Operand<IntVal>(b, "*").Value)))));
         // 字符串的序:**按序数比**(ordinal,和 C# 的 `string.CompareOrdinal` 一个口径),
         // 不跟当前区域设置走 —— 后者会让同一段程序换台机器就换个结果。
         // 有了它,`Min` / `Max` / `Sort` 那批序列方法对字符串也成立。

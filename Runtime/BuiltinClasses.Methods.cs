@@ -64,9 +64,113 @@ internal static partial class BuiltinClasses
         Int.DefineMethod("ToString", (s, _) => new StringVal(((IntVal)s).Value.ToString()));
     }
 
+    /// <summary>字符串的参数:要字符串,或者**一个字符**(`"abc".Contains 'b'` 一样通)。
+    /// 拼接、查找、切分这些地方两种写法都自然,所以都收。</summary>
+    private static string TextArg(RuntimeValue a, string what) => a switch
+    {
+        StringVal s => s.Value,
+        CharVal c => c.Value.ToString(),
+        _ => throw new RuntimeException($"{what} 需要 string 或 char 参数，得到 {a.Type}"),
+    };
+
     private static void RegisterStringMethods()
     {
         String.DefineMethod("Length", (s, _) => new IntVal(((StringVal)s).Value.Length));
+        String.DefineMethod("IsEmpty", (s, _) => new BoolVal(((StringVal)s).Value.Length == 0));
+
+        // ── 取字符 ──
+        // `At i` 给**字符**(和 `[1 2].At 0` 给元素对称);越界当场报错,不悄悄给个 `()`
+        String.DefineMethod("At", (s, a) =>
+        {
+            var v = ((StringVal)s).Value;
+            var i = IntArg(a, "s.At");
+            if (i < 0 || i >= v.Length)
+                throw new RuntimeException($"s.At: 索引 {i} 超出范围（长度 {v.Length}）");
+            return new CharVal(v[i]);
+        });
+        // 拆成一串字符(想逐个处理就它,别拿 `At` 配下标手摇)
+        String.DefineMethod("Chars", (s, _) =>
+            new ListVal([.. ((StringVal)s).Value.Select(c => (RuntimeValue)new CharVal(c))]));
+
+        // ── 找 ──
+        String.DefineMethod("Contains", (s, a) =>
+            new BoolVal(((StringVal)s).Value.Contains(TextArg(a, "s.Contains"), StringComparison.Ordinal)));
+        String.DefineMethod("StartsWith", (s, a) =>
+            new BoolVal(((StringVal)s).Value.StartsWith(TextArg(a, "s.StartsWith"), StringComparison.Ordinal)));
+        String.DefineMethod("EndsWith", (s, a) =>
+            new BoolVal(((StringVal)s).Value.EndsWith(TextArg(a, "s.EndsWith"), StringComparison.Ordinal)));
+        // 找不到是**报错**,不是给 -1 —— 和别处"没有就是错"一个口径;明知可能没有用 `Find`
+        String.DefineMethod("IndexOf", (s, a) =>
+        {
+            var v = ((StringVal)s).Value;
+            var i = v.IndexOf(TextArg(a, "s.IndexOf"), StringComparison.Ordinal);
+            if (i < 0) throw new RuntimeException($"s.IndexOf: 找不到 {TextArg(a, "s.IndexOf")}");
+            return new IntVal(i);
+        });
+        String.DefineMethod("Find", (s, a) =>
+            new IntVal(((StringVal)s).Value.IndexOf(TextArg(a, "s.Find"), StringComparison.Ordinal)));   // 没有给 -1
+        String.DefineMethod("LastIndexOf", (s, a) =>
+        {
+            var v = ((StringVal)s).Value;
+            var i = v.LastIndexOf(TextArg(a, "s.LastIndexOf"), StringComparison.Ordinal);
+            if (i < 0) throw new RuntimeException($"s.LastIndexOf: 找不到 {TextArg(a, "s.LastIndexOf")}");
+            return new IntVal(i);
+        });
+
+        // ── 切 ──(`Slice` 是**半开区间** `[from, to)`,和下标那套一致)
+        String.DefineMethod("Slice", (s, a) =>
+        {
+            var v = ((StringVal)s).Value;
+            var from = IntArg(a, "s.Slice");
+            return FunctionVal.From(t =>
+            {
+                var to = IntArg(t, "s.Slice");
+                if (from < 0 || to > v.Length || from > to)
+                    throw new RuntimeException($"s.Slice: [{from}, {to}) 越界（长度 {v.Length}）");
+                return new StringVal(v[from..to]);
+            });
+        });
+        String.DefineMethod("Take", (s, a) => new StringVal(((StringVal)s).Value[..Math.Clamp(IntArg(a, "s.Take"), 0, ((StringVal)s).Value.Length)]));
+        String.DefineMethod("Skip", (s, a) => new StringVal(((StringVal)s).Value[Math.Clamp(IntArg(a, "s.Skip"), 0, ((StringVal)s).Value.Length)..]));
+
+        // ── 变 ──
+        String.DefineMethod("Trim", (s, _) => new StringVal(((StringVal)s).Value.Trim()));
+        // 大小写:**不跟区域设置走**(土耳其语的 i/İ 那种会让同一段程序换台机器就换个结果)
+        String.DefineMethod("ToUpper", (s, _) => new StringVal(((StringVal)s).Value.ToUpperInvariant()));
+        String.DefineMethod("ToLower", (s, _) => new StringVal(((StringVal)s).Value.ToLowerInvariant()));
+        String.DefineMethod("Replace", (s, a) =>
+        {
+            var from = TextArg(a, "s.Replace");
+            return FunctionVal.From(b => new StringVal(((StringVal)s).Value.Replace(from, TextArg(b, "s.Replace"), StringComparison.Ordinal)));
+        });
+        String.DefineMethod("Repeat", (s, a) => new StringVal(string.Concat(
+            Enumerable.Repeat(((StringVal)s).Value, Math.Max(0, IntArg(a, "s.Repeat"))))));
+        String.DefineMethod("Reverse", (s, _) =>
+            new StringVal(new string([.. ((StringVal)s).Value.Reverse()])));
+        String.DefineMethod("Split", (s, a) =>
+        {
+            var sep = TextArg(a, "s.Split");
+            if (sep.Length == 0)
+                throw new RuntimeException("s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）");
+            return new ListVal([.. ((StringVal)s).Value
+                .Split(sep, StringSplitOptions.None)
+                .Select(p => (RuntimeValue)new StringVal(p))]);
+        });
+
+        // ── 字符自己那几个 ──(判类不管大小写:数字/字母就是数字/字母)
+        static RuntimeValue CharMethod(string name, Func<char, bool> f)
+        {
+            Char.DefineMethod(name, (s, _) => new BoolVal(f(((CharVal)s).Value)));
+            return VoidVal.Instance;
+        }
+
+        CharMethod("IsDigit", char.IsDigit);
+        CharMethod("IsLetter", char.IsLetter);
+        CharMethod("IsUpper", char.IsUpper);
+        CharMethod("IsLower", char.IsLower);
+        CharMethod("IsSpace", char.IsWhiteSpace);
+        Char.DefineMethod("Code", (s, _) => new IntVal(((CharVal)s).Value));          // `int c` 的显式版
+        Char.DefineMethod("ToString", (s, _) => new StringVal(((CharVal)s).Value.ToString()));
     }
 
     /// <summary>取下标之前的统一检查:收下索引、卡边界,顺手把列表交回去。

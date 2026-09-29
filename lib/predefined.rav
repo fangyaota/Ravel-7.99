@@ -15,6 +15,7 @@ readonly float := System.Float
 readonly bigint := System.BigInteger
 readonly fraction := System.Fraction
 readonly bigfraction := System.BigFraction
+readonly char := System.Char
 readonly list := System.List
 readonly set := System.Set
 readonly dict := System.Dict

@@ -22,6 +22,7 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Float;
     public static readonly ClassVal Bool;
     public static readonly ClassVal String;
+    public static readonly ClassVal Char;
     public static readonly ClassVal BigInt;
     public static readonly ClassVal Fraction;
     public static readonly ClassVal BigFraction;
@@ -77,6 +78,7 @@ internal static partial class BuiltinClasses
         Float = New("Float");
         Bool = New("Bool");
         String = New("String");
+        Char = New("Char");
         BigInt = New("BigInt");
         Fraction = New("Fraction");
         BigFraction = New("BigFraction");
@@ -106,6 +108,7 @@ internal static partial class BuiltinClasses
         Link(Float, ValueType, Type);
         Link(Bool, Function, Type);
         Link(String, ValueType, Type);
+        Link(Char, ValueType, Type);
         Link(BigInt, ValueType, Type);
         Link(Fraction, ValueType, Type);
         Link(BigFraction, ValueType, Type);
@@ -146,7 +149,7 @@ internal static partial class BuiltinClasses
         // ---- 收集所有内置类（供 Subtypes 反射） ----
         foreach (var t in new[]
                  {
-                     Object, ValueType, Int, Float, Bool, String, BigInt,
+                     Object, ValueType, Int, Float, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Function, Block,
                      List, Set, Dict, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, ScopeType, Property

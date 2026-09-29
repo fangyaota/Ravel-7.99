@@ -64,6 +64,7 @@ name := input ()           # 读一行输入
 | Float | 浮点 | `3.14` `5.0` `Inf` `NaN` |
 | Bool | 布尔 | `true` `false` |
 | String | 字符串 | `"hello"` |
+| Char | 字符 | `'a'` |
 | List | 列表 | `[1 2 3]` |
 | Set | 集合 | `{1 2 3}` |
 | Dict | 字典 | `{"a":1 "b":2}` |
@@ -1233,6 +1234,52 @@ s.Contains [1]         # false —— 新造的 [1] 不是集合里那个
 ```
 
 ---
+
+### 6.7 字符与字符串
+
+**`char` 是一个字符**（精确说：一个 UTF-16 码元，和 `s.Length` / `s.At i` 一个口径 ——
+`"😀".Length` 是 2，一个 `'…'` 装不下它）。字面量用单引号，转义和字符串一样：
+
+```ravel
+'a'          '
+'          '''          char 97          char "x"
+```
+
+它是**值类型**：能比大小、能当字典的键、能进集合去重（和数、字符串一个待遇）。
+
+```ravel
+'a' + 'b'        # "ab" —— 拼成字符串
+'-' * 5          # "-----" —— 重复（0 或负数给空串）
+int 'A'          # 65 —— 码位
+'7'.IsDigit ()   # true      'A'.IsUpper ()   # true
+```
+
+**字符串的方法**（`s.At i` 给的是**字符**，不是长度 1 的串）：
+
+| 归类 | 方法 |
+|---|---|
+| 长度 | `Length ()` · `IsEmpty ()` |
+| 取 | `At i`（越界报错）· `Chars ()`（一串字符）|
+| 找 | `Contains` · `StartsWith` · `EndsWith` · `IndexOf`（找不到**报错**）· `Find`（给 `-1`）· `LastIndexOf` |
+| 切 | `Slice from to`（半开）· `Take n` · `Skip n` |
+| 变 | `Trim ()` · `ToUpper ()` · `ToLower ()` · `Replace a b` · `Repeat n` · `Reverse ()` · `Split sep` |
+
+```ravel
+s := "Hello, World"
+s.At 0                 # H（字符）
+s.Contains 'H'         # true —— 收字符串也收字符
+s.Slice 0 5            # Hello
+"a,b,,c".Split ","     # [a b  c]
+(s.Chars ()).Count ()  # 12 —— 想逐个处理就先拆成字符
+```
+
+两点注意：
+
+- **字符串不能 `foreach`**（`"ab" is IEnumerable` 是 false）—— 它不是对象，接口够不着它。
+  要遍历就 `foreach (s.Chars ()) …`。
+- 大小写转换**不跟区域设置走**（用的是 invariant）：同一段程序换台机器结果一样。
+
+**用例见 tests/237。**
 
 ## 七、类
 

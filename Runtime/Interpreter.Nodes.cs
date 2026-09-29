@@ -38,6 +38,7 @@ public partial class Interpreter
         {
             case NumberLiteral nn: if (nf.Count == 0) Return(nf, MakeNumber(nn)); break;
             case StringLiteral ss: if (nf.Count == 0) Return(nf, new StringVal(ss.Value)); break;
+            case CharLiteral cc: if (nf.Count == 0) Return(nf, new CharVal(cc.Value)); break;
             case VoidLiteral: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
             case SlotExpr slot: StepSlot(nf, slot); break;
             case SlotAssign sa: StepSlotAssign(nf, sa); break;

@@ -135,7 +135,7 @@ print "end"
 # true
 # true
 # false
-# [String BigFraction Fraction BigInt Float Integer]
+# [String Char BigFraction Fraction BigInt Float Integer]
 # true
 # [IKey BaseInterface]
 # 7

@@ -1,0 +1,158 @@
+# `char` 类型 + 字符串那一套操作。
+#
+# `char` 是**值类型**(`Char <: ValueType`):能比大小、能当字典的键、能进集合去重、
+# `IComparable` / `IKey` 都认它 —— 和数、字符串一个待遇。
+# 口径是 **UTF-16 码元**(和 `string.Length` / `s.At i` 一致):`"😀".Length` 是 2,
+# 一个 `'…'` 装不下它。
+
+# ── 字面量与转义 ──
+c := 'a'
+print c
+print (typeof c)
+print (c is ValueType)
+print ('\n' == '\n')
+print ('\t' == '\t')
+print ('\\')
+print ('\'')
+print ((char default) == '\0')
+
+# ── 比较、拼接、重复 ──
+print ('a' == 'a')
+print ('a' < 'b')
+print ('a' + 'b')            # 两个字符拼成字符串
+print ('a' + "bc")
+print ("bc" + 'a')
+print ('-' * 5)              # 字符重复
+print ("ab" * 3)             # 字符串也能重复
+try { print ('a' + 1); } (e: Exception) => { print ("1: " + string e); }
+try { print ("abc" * "x"); } (e: Exception) => { print ("2: " + string e); }
+
+# ── 转换 ──
+print (char 97)
+print (char "x")
+print (int 'A')              # 码位
+print ('A'.Code ())
+try { print (char "ab"); } (e: Exception) => { print ("3: " + string e); }
+try { print (char 99999); } (e: Exception) => { print ("4: " + string e); }
+
+# ── 字符自己的方法 ──
+print ('7'.IsDigit ())
+print ('a'.IsLetter ())
+print ('A'.IsUpper ())
+print ('A'.IsLower ())
+print (' '.IsSpace ())
+print ('a'.ToString ())
+
+# ── 字符串:取、找、切、变 ──
+s := "Hello, World"
+print (s.Length ())
+print (s.IsEmpty ())
+print (s.At 0)
+print (s.At 4)
+print ((s.Chars ()).Count ())
+print (s.Contains "World")
+print (s.Contains 'H')
+print (s.StartsWith "He")
+print (s.EndsWith 'd')
+print (s.IndexOf "World")
+print (s.Find "zz")                 # 明知可能没有:给 -1
+print (s.LastIndexOf "l")
+print (s.Slice 0 5)
+print (s.Take 5)
+print (s.Skip 7)
+print ("  pad  ".Trim ())
+print (s.ToUpper ())
+print (s.ToLower ())
+print (s.Replace "l" "L")
+print (s.Replace 'o' '0')
+print ("ab".Repeat 3)
+print (s.Reverse ())
+print ("a,b,,c".Split ",")
+try { print (s.At 99); } (e: Exception) => { print ("5: " + string e); }
+try { print (s.IndexOf "zz"); } (e: Exception) => { print ("6: " + string e); }
+try { print (s.Slice 5 2); } (e: Exception) => { print ("7: " + string e); }
+try { print ("a".Split ""); } (e: Exception) => { print ("8: " + string e); }
+
+# ── 和库搭台:字符当键、当排序元素、进 foreach ──
+print ('c' is IComparable)
+print ('c' is IKey)
+print ("ab" is IEnumerable)          # 字符串**不是**可枚举的(它不是对象,接口槽够不着)
+foreach ("abc".Chars ()) (ch: char) => { print ch; }
+d := {}
+d.Set 'a' 1
+d.Set 'b' 2
+print (d.Get 'a')
+print (d.Keys ())
+print (Sorting.Sort ['c' 'a' 'b'])
+print (Sorting.Max ['c' 'a' 'b'])
+print (Keys.Of 'x')
+print "end"
+# --- expected ---
+# a
+# Char
+# true
+# true
+# true
+# \
+# '
+# true
+# true
+# true
+# ab
+# abc
+# bca
+# -----
+# ababab
+# 1: 运算符 '+' 不支持 Integer 操作数
+# 2: 运算符 '*' 不支持 String 操作数
+# a
+# x
+# 65
+# 65
+# 3: char: 字符串得正好一个字符，得到 2 个
+# 4: char: 码位 99999 超出范围（0..65535）
+# true
+# true
+# true
+# false
+# true
+# a
+# 12
+# false
+# H
+# o
+# 12
+# true
+# true
+# true
+# true
+# 7
+# -1
+# 10
+# Hello
+# Hello
+# World
+# pad
+# HELLO, WORLD
+# hello, world
+# HeLLo, WorLd
+# Hell0, W0rld
+# ababab
+# dlroW ,olleH
+# [a b  c]
+# 5: s.At: 索引 99 超出范围（长度 12）
+# 6: s.IndexOf: 找不到 zz
+# 7: s.Slice: [5, 2) 越界（长度 12）
+# 8: s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）
+# true
+# true
+# false
+# a
+# b
+# c
+# 1
+# [a b]
+# [a b c]
+# c
+# x
+# end

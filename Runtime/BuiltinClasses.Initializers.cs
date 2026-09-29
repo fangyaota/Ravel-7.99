@@ -29,6 +29,7 @@ internal static partial class BuiltinClasses
         Float.ClassBody = PresetCtor(MakeCaster(CastToFloat));
         Bool.ClassBody = PresetCtor(MakeCaster(CastToBool));
         String.ClassBody = PresetCtor(MakeCaster(CastToString));
+        Char.ClassBody = PresetCtor(MakeCaster(CastToChar));
         BigInt.ClassBody = PresetCtor(MakeCaster(CastToBigInt));
         Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
         BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
@@ -81,6 +82,8 @@ internal static partial class BuiltinClasses
     {
         if (val is DefaultVal) return new IntVal(0);
         if (val is IntVal i) return i;
+        // 字符就是它的码位(`int 'A'` → 65),反过来的 `char 65` 在 CastToChar 那边
+        if (val is CharVal ch) return new IntVal(ch.Value);
         if (val is StringVal s)
         {
             if (int.TryParse(s.Value, out var n)) return new IntVal(n);
@@ -124,6 +127,20 @@ internal static partial class BuiltinClasses
         => val is DefaultVal ? new StringVal("")
             : val is StringVal s ? s
             : new StringVal(val.ToString());
+
+    /// <summary>`char x` —— 从数(码位)、字符串(长度必须是 1)或者另一个 char 转过来。
+    /// 越界/长度不对**当场报错**,不做截断 —— 悄悄给个错字符比报错难查得多。</summary>
+    private static RuntimeValue CastToChar(RuntimeValue val) => val switch
+    {
+        CharVal c => c,
+        DefaultVal => new CharVal('\0'),
+        IntVal i => i.Value is >= 0 and <= char.MaxValue
+            ? new CharVal((char)i.Value)
+            : throw new RuntimeException($"char: 码位 {i.Value} 超出范围（0..65535）"),
+        StringVal s when s.Value.Length == 1 => new CharVal(s.Value[0]),
+        StringVal s => throw new RuntimeException($"char: 字符串得正好一个字符，得到 {s.Value.Length} 个"),
+        _ => throw new RuntimeException($"char: 转不了 {val.Type}"),
+    };
 
     private static RuntimeValue CastToBigInt(RuntimeValue val)
     {

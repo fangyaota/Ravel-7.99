@@ -7,6 +7,9 @@ public enum TokenType
     // 字面量
     Number,
     String,
+    /// <summary>`'a'` —— 一个**字符**(UTF-16 码元,和 `string.Length` 一个口径)。
+    /// 转义和字符串那套一样,外加 `\'`。</summary>
+    Char,
 
     // 标识符
     Identifier,

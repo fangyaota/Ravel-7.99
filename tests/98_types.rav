@@ -186,7 +186,7 @@ print "range ok"
 # 10
 # 99
 # [init x is isnot <: :> ToString Copy Fields CompareTo Key]
-# [Integer Float String BigInt Fraction BigFraction Every]
+# [Integer Float String Char BigInt Fraction BigFraction Every]
 # 5
 # changed
 # 2.718281828459045

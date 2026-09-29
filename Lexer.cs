@@ -132,6 +132,13 @@ public class Lexer(string source, string? file = null)
                 continue;
             }
 
+            // 字符
+            if (c == '\'')
+            {
+                tokens.Add(ReadChar());
+                continue;
+            }
+
             // 标识符 / 关键字
             if (char.IsLetter(c) || c == '_')
             {
@@ -267,6 +274,54 @@ public class Lexer(string source, string? file = null)
         Advance(); // skip closing "
         // 跨度是**源码**跨度(含两边引号),不是解码后内容的长度 —— 两者差着转义
         return new Token(TokenType.String, sb.ToString(), line, col, _pos - start);
+    }
+
+    /// <summary>`'a'` —— 一个**字符**字面量。转义和字符串那套一样,外加 `\'`。
+    ///
+    /// 长度不是 1 就当场报错:`'ab'` 是写错了,不是"两个字符的 char"。
+    /// (UTF-16 码元口径:emoji 那种代理对**一个 `'…'` 装不下**,得用字符串 —— 和
+    /// `"😀".Length` 是 2 一个道理,见 `CharVal`。)</summary>
+    private Token ReadChar()
+    {
+        int start = _pos, line = _line, col = _col;
+        Advance(); // skip '
+
+        if (_pos >= source.Length || source[_pos] == '\n')
+            throw new SyntaxException("字符没有收尾的 \"'\"", new SourceSpot(file, line, col));
+        if (source[_pos] == '\'')
+            throw new SyntaxException("字符不能是空的（空字符串写 \"\"）", new SourceSpot(file, line, col));
+
+        char value;
+        if (source[_pos] == '\\' && _pos + 1 < source.Length)
+        {
+            _pos++;
+            _col++;
+            var esc = source[_pos];
+            if (esc is not ('n' or 't' or 'r' or '\\' or '\'' or '"' or '0'))
+                throw new SyntaxException($"不认识的字符转义 '\\{esc}'（要反斜杠本身请写 '\\\\'）",
+                    new SourceSpot(file, line, col));
+            value = esc switch
+            {
+                'n' => '\n',
+                't' => '\t',
+                'r' => '\r',
+                '\\' => '\\',
+                '\'' => '\'',
+                '"' => '"',
+                _ => '\0',
+            };
+        }
+        else
+        {
+            value = source[_pos];
+        }
+
+        Advance();
+        if (_pos >= source.Length || source[_pos] != '\'')
+            throw new SyntaxException("字符字面量只能有一个字符（两个以上请用字符串）",
+                new SourceSpot(file, line, col));
+        Advance(); // skip closing '
+        return new Token(TokenType.Char, value.ToString(), line, col, _pos - start);
     }
 
     private Token ReadIdentifier()

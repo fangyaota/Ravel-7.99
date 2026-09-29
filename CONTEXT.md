@@ -182,7 +182,7 @@ Int 与右操作数的二元运算按宽度升级（`IntOp`）：`float > bigint
 ```
 Object (parent=自己)
 ├── ValueType
-│   └── Integer / Float / String / BigInt / Fraction / BigFraction   (并列,不是链)
+│   └── Integer / Float / String / Char / BigInt / Fraction / BigFraction   (并列,不是链)
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
@@ -909,6 +909,37 @@ add.name   # "add"
   `InvalidOperationException`,那不是 RuntimeException,Ravel 的 `try` 接不住;
 - 字典的"元素"是**值**(按键找用 `Has` / `Keys ()`);
 - 空容器:`First` / `Last` / `Min` / `Max` / `Find`(没找到)**报错**,`Sum ()` 给 0。
+
+## 字符串与字符
+
+`string` 的方法在 `Runtime/BuiltinClasses.Methods.cs`(`RegisterStringMethods`),全是**同步的
+C# 调用** —— 它们不收用户函数,所以不走 `SeqMethod` 那套控制帧。
+
+| 归类 | 方法 |
+|---|---|
+| 问长度 | `Length ()`(UTF-16 码元数)· `IsEmpty ()` |
+| 取字符 | `At i`(**越界报错**)· `Chars ()`(→ 一串 `char`) |
+| 找 | `Contains x` · `StartsWith x` · `EndsWith x` · `IndexOf x`(找不到**报错**)· `Find x`(→ `-1`)· `LastIndexOf x` |
+| 切 | `Slice from to`(**半开**)· `Take n` · `Skip n` |
+| 变 | `Trim ()` · `ToUpper ()` · `ToLower ()` · `Replace a b` · `Repeat n` · `Reverse ()` · `Split sep`(→ 一串 string) |
+
+收 `x` 的地方**字符串和字符都收**(`"abc".Contains 'b'` 一样通)。大小写转换**不跟区域设置走**
+(`ToUpperInvariant`):土耳其语的 i/İ 那种会让同一段程序换台机器就换个结果。
+
+**`char`** —— 一个 **UTF-16 码元**,和 `Length` / `At` 一个口径(`"😀".Length` 是 2,
+一个 `'…'` 装不下它)。它是**值类型**:能当字典的键、能排序、能进集合去重 ——
+`IComparable` / `IKey` 都登记过(`lib/sorting.rav` / `lib/keys.rav`)。
+字面量 `'a'`,转义和字符串那套一样外加 `'`;`'ab'` / `''` 当场报错(那是写错了,
+不是"两个字符的 char")。
+
+- `'a' + 'b'` → `"ab"`(拼接)· `'-' * 5` / `"ab" * 3` → 重复(0 或负数给空串)
+- `int 'A'` → 65(码位)· `char 97` / `char "x"` → 字符 · `'A'.Code ()` 同上
+- 字符自己那几个:`IsDigit` / `IsLetter` / `IsUpper` / `IsLower` / `IsSpace` / `ToString ()`
+
+**字符串不是"可枚举"的**:`"ab" is IEnumerable` 是 false —— 标量不是 `ObjectVal`,接口槽
+够不着它(和 `int` 一个道理)。要遍历就 `s.Chars ()`(一串字符,`foreach` / `Map` 那套全能用)。
+
+用例 `tests/237_char_string.rav`。
 
 ## 比较与排序（`lib/sorting.rav`；predefined 加载，所以 `IComparable` 是全局名）
 

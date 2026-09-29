@@ -65,6 +65,15 @@ internal static class AstPrinter
     {
         NumberLiteral n => n.Lexeme,
         StringLiteral s => "\"" + s.Value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"",
+        CharLiteral c => "'" + c.Value switch
+        {
+            '\\' => "\\\\",
+            '\'' => "\\'",
+            '\n' => "\\n",
+            '\t' => "\\t",
+            '\r' => "\\r",
+            _ => c.Value.ToString(),
+        } + "'",
         IdentifierExpr i => i.Name,
         VoidLiteral => "()",
         ListLiteral l => "[" + Join(" ", l.Elements.Select(Expr)) + "]",
@@ -91,7 +100,7 @@ internal static class AstPrinter
     /// <summary>要拼进更大表达式时,自身定界的那些直接写,其余的套一层括号。</summary>
     private static string Atom(Expression e) => e switch
     {
-        NumberLiteral or StringLiteral or IdentifierExpr or VoidLiteral or HoleExpr
+        NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr or LiteralExpr => Expr(e),
         _ => "(" + Expr(e) + ")",
     };

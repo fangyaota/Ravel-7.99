@@ -15,6 +15,7 @@ Types.PrintTree object
 # │   ├── Integer [Type]
 # │   ├── Float [Type]
 # │   ├── String [Type]
+# │   ├── Char [Type]
 # │   ├── BigInt [Type]
 # │   ├── Fraction [Type]
 # │   └── BigFraction [Type]

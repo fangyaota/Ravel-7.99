@@ -55,6 +55,10 @@ public partial class Parser
             return new StringLiteral(Previous().Lexeme)
                 { Line = Previous().Line, Column = Previous().Column };
 
+        if (Match(TokenType.Char))
+            return new CharLiteral(Previous().Lexeme[0])
+                { Line = Previous().Line, Column = Previous().Column };
+
         if (Match(TokenType.Identifier))
         {
             var lexeme = Previous().Lexeme;

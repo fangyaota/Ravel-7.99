@@ -138,7 +138,7 @@ internal static partial class BuiltinClasses
             ? xs[i]
             : throw new RuntimeException($"{what}: 元素不够（一共 {xs.Count} 个）");
 
-    private static int IntArg(RuntimeValue a, string what)
+    internal static int IntArg(RuntimeValue a, string what)
         => a is IntVal i
             ? i.Value
             : throw new RuntimeException($"{what} 需要 int 参数，得到 {a.Type}");

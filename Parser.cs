@@ -51,7 +51,7 @@ public partial class Parser(List<Token> tokens, string? source = null)
     private bool StartsPrimary()
     {
         if (IsAtEnd()) return false;
-        return Peek().Type is TokenType.Number or TokenType.String or TokenType.Identifier
+        return Peek().Type is TokenType.Number or TokenType.String or TokenType.Char or TokenType.Identifier
             or TokenType.LeftParen or TokenType.LeftBracket
             or TokenType.LeftBrace;
     }
