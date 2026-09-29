@@ -87,6 +87,14 @@ print (Io.Lines back)
 print (m.Size ())
 Io.EachDir top (p: string e: IEntry) => { print (string (e.IsDir ()) + " " + e.Name () + " @ " + Io.BaseName p); }
 
+# 要和 IoMonad 搭台:`Io` 那几条是**直接做**的,下面这几条只是包成"说明书"
+act := Io.ReadAction m                                   # 到这儿什么都还没读
+print ((act.Map ((t: string) => { t.Length (); })).Perform ())
+job := Io.WriteAction disk ("从 Action 写进来\n")
+print ((job.Then (Io.ReadAction disk)).Perform ())       # 先写后读,交回后一份的结果
+print ((Io.EachLineAction m ((l: string) => { print ("行 " + l); })).Perform ())
+print ((Io.AppendAction disk ("又一行\n")).Then (Io.ReadAction disk) @ .Perform ())
+
 disk.Delete ()
 root.Delete ()
 print (root.Exists ())
@@ -107,4 +115,12 @@ print (root.Exists ())
 # false mem.txt @ mem.txt
 # true sub @ sub
 # false deep.txt @ deep.txt
+# 6
+# 从 Action 写进来
+
+# 行 内存里的内容
+# ()
+# 从 Action 写进来
+# 又一行
+
 # false

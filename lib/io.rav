@@ -11,6 +11,10 @@
 # 路径基准 = 进程当前目录（`Io.Current ()` 看，`Io.ChDir p` 改）；**没有沙箱** ——
 # 和 `using` 找模块一个待遇：能跑这段代码的人，本来就能读写那些文件。
 #
+# **依赖**:下面「和 IoMonad 搭台」那几条要用 `IoMonad`,所以这个文件开头会 `using "iomonad.rav"`
+# —— `using "io.rav"` 就把它一起带来了(反过来不行:iomonad.rav 由 predefined 加载,不认识 `IFile`)。
+using "iomonad.rav"
+
 # 报错一律是 `Exception`（中文、带路径）：读不存在的文件、删非空目录、对目录 `Read`……
 # `Exists ()` 是**问**，不报错。
 
@@ -145,6 +149,23 @@ impl (IFile File {
 impl (IDir Dir {
     ()
 })
+
+# ── 和 IoMonad 搭台:文件这一层的"说明书"版本 ──
+# `Io` 自己那几条是**直接做**的(`f.Read ()` 那一刻就读了)。想"先拼好一串、之后再 `Perform ()`",
+# 用下面这几条 —— 它们只是把上面那些包成 `Action`,规则一模一样:拼的时候什么都不发生。
+#
+# 写在**这个文件**里而不是 iomonad.rav:那个模块由 predefined 加载,不认识 `IFile`
+# (参数注解在建 lambda 时就要值,那会儿 io.rav 可能还没被 `using` 进来)。
+readonly ReadAction := (f: IFile) => { IoMonad.Action (() => { f.Read (); }); }
+readonly WriteAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Write text; (); }); }
+readonly AppendAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Append text; (); }); }
+readonly WriteLineAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Append (text + "
+"); (); }); }
+
+# 一份"把每一行交给 g"的说明书
+readonly EachLineAction := (f: IFile g: function) => {
+    IoMonad.Action (() => { foreach (Lines f) (l: string) => { g l; }; (); });
+}
 
 # ── 控制台也是文件 ──
 # `stdout` / `stderr` / `stdin` 三个**单例值**,实现 `IFile` —— 于是对着接口写的代码直接能用:

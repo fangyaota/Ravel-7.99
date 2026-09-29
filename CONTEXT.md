@@ -109,7 +109,10 @@ lib/
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;tests/125 跑的就是它
-  iomonad.rav             IoMonad 模块(IO Monad —— 把效果做成值的那种,不是文件/终端 IO):`Action` 把"要做的效果"做成值,
+  iomonad.rav             IoMonad 模块(IO Monad —— 把效果做成值的那种,不是文件/终端 IO):
+                          `Action`(Effect/Perform/Map/Bind/Then/Discard/Attempt/Catch)、
+                          `Return` / `PutStrLn` / `PutStr` / `PutStrLnErr` / `PutStrErr` / `GetLine` /
+                          `Foreach` / `Sequence` / `When` / `Unless`;`Action` 把"要做的效果"做成值,
                           `Perform ()` 才真跑;Return/PutStrLn/PutStr/GetLine/Foreach。
                           `using "iomonad.rav"` 引入 —— `Action` 也实现了 `IMonad`
                           (它和 `Monad` 是**同一个形状的两个实例**:各自那份 Map/Bind 就是形状本身,
@@ -265,7 +268,12 @@ Object (parent=自己)
 `Stdin.Read ()` 是**读到 EOF**（终端上 Ctrl+Z/D 收），读一行用 `ReadLine ()`（就是 `input`）；
 `print` / `input` 照旧是日常那两个，这里是"抽象的视角"。
 
-链式调用要写括号：`(x.f ()).g ()` —— `.成员` 比并列的调用绑得紧（见教程那条 `(Some 5).Map f`）。
+**和 `IoMonad` 搭台**：`Io.ReadAction` / `WriteAction` / `AppendAction` / `WriteLineAction` /
+`EachLineAction` 把文件操作包成 `Action`（"先拼好、之后 `Perform ()`"）。所以 `io.rav` 开头
+`using "iomonad.rav"` —— 反过来不行（`iomonad.rav` 由 predefined 加载,那时 `IFile` 还不存在,
+而参数注解建 lambda 时就要值）。
+
+链式调用用 `@`（或括号）：`x.f () @ .g ()` ≡ `(x.f ()).g ()` —— `.成员` 比并列的调用绑得紧。
 
 两个坑（写在 `lib/io.rav` 里）：① 类体里给方法起名 `File` / `Dir` 会把**类名遮住**，
 `File (…)` 变成调自己（实测无限递归）；② 实参位置上的 `raw.Get n` 会被读成 `((f …) raw.Get) n`。

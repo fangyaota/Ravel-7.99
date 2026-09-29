@@ -78,6 +78,28 @@ Chain := (m: IMonad f: function) => { m.Bind f; }
 # (外面那层括号不能省：`.` 比并列的调用绑得紧，不括就变成"给 lambda 取成员")
 print ((Chain (Some 3) ((v: object) => { Some (v + 1); })).Value ())
 print ((Chain (IoMonad.Action (() => { 41; })) ((v: object) => { IoMonad.Action (() => { v + 1; }); })).Perform ())
+
+# 5) 组合子：Then / Discard / Attempt / Catch / Sequence / When / Unless
+Log: list = []
+A := IoMonad.Action (() => { Log.Add "a"; 1; })
+B := IoMonad.Action (() => { Log.Add "b"; 2; })
+
+print ((A.Then B).Perform ())          # 交回**后一份**的结果
+print (Log)
+print ((A.Discard ()).Perform ())      # 只跑，结果丢掉
+print (Log)
+print ((A.Attempt ()).Perform ())      # 成功 → Some 结果
+Bad := IoMonad.Action (() => { throw (Exception "boom"); })
+print ((Bad.Attempt ()).Perform () @ .IsSome ())     # 失败 → None
+print ((Bad.Catch ((e: Exception) => { IoMonad.PutStrLn ("接住 " + string e); })).Perform ())
+print ((IoMonad.Sequence [A B A]).Perform ())          # 结果的表
+print ((IoMonad.When (() => { true; }) A).Perform ())
+print ((IoMonad.When (() => { false; }) B).Perform ()) # 条件不成立 → ()
+print ((IoMonad.Unless (() => { false; }) B).Perform ())
+print (Log)
+
+# stderr 那两条写的是**真 stderr**（测试运行器只接管 stdout，这行只在终端上看得见）
+(IoMonad.PutStrLnErr "这行去 stderr").Perform ()
 # --- expected ---
 # 0
 # tick
@@ -109,3 +131,16 @@ print ((Chain (IoMonad.Action (() => { 41; })) ((v: object) => { IoMonad.Action 
 # [Action Monad]
 # 4
 # 42
+# 2
+# [a b]
+# ()
+# [a b a]
+# Monad { Has = true, Inner = 1 }
+# false
+# 接住 boom
+# ()
+# [1 2 1]
+# 1
+# ()
+# 2
+# [a b a a a b a a b]

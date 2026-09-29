@@ -14,6 +14,10 @@
 # 它和 predefined.rav 那个 `Monad`(Option)是**同一个形状的两个实例** —— 都实现了 `IMonad`
 # (Map + Bind 两条槽,见 monad.rav),所以 `is IMonad` / 注解 `(m: IMonad)` / 两者混着写都认;
 # 但它们的 `Bind` 各干各的:这边真跑效果,那边没有值就短路。
+#
+# 文件/控制台那一层(`lib/io.rav`)是**直接做**的;要它们的"说明书版本"用 `Io.ReadAction` /
+# `Io.WriteAction` / `Io.EachLineAction` 那几条(写在 io.rav 里 —— 这边不认识 `IFile`,
+# 参数注解建 lambda 时就要值,那会儿 io.rav 未必被 `using` 进来)。
 
 ravel "IoMonad"
 
@@ -27,6 +31,29 @@ Action ::= class {
 
     # 映射:结果过一道纯函数(纯的那步不必是"说明书")
     Map := (f: function) => { Action (() => { f (Effect ()); }) }
+
+    # 接着做下一份,交回**后一份**的结果(前一份的结果丢掉)。
+    # 和 `Bind` 的区别:那边 `f` 要拿前一份的结果现造下一份;这边两份互相不知道,
+    # 所以 `next` 是**已经造好**的一份(造它不跑它,放心)。
+    Then := (next: Action) => { Action (() => { Effect (); next.Perform (); }); }
+
+    # 只跑,不要结果(交出来的还是那份 Action,可以接着拼)
+    Discard := () => { Map ((x: object) => { (); }); }
+
+    # 跑它,出错了就接住 —— 结果是个 `Monad`：成功了 `Some 结果`,失败 `None`。
+    # (要错误那句话用 `Catch`;这里只问"成没成"。)
+    Attempt := () => {
+        Action (() => {
+            try { Some (Effect ()); } (e: Exception) => { None; }
+        });
+    }
+
+    # 出错了换一份说明书接着做(收得到那句话)
+    Catch := (handler: function) => {
+        Action (() => {
+            try { Effect (); } (e: Exception) => { (handler e).Perform (); }
+        });
+    }
 
     # 绑定:先跑自己,把结果交给 f;f 回一份新的说明书,再跑那份。
     # **摊平** —— 交出去的是后一份的**结果**,不会套成"说明书的说明书"。
@@ -52,6 +79,25 @@ readonly PutStr := (s: object) => { Action (() => { System.Write s; (); }) }
 
 # 读一行。它是**一个值**(不是函数):每次 Perform 都真读一次
 readonly GetLine := Action (() => { input (); })
+
+# 写到**标准错误**(报错报告那些走的就是它)。和 PutStrLn 一样,造的时候什么都不打印
+readonly PutStrErr := (s: object) => { Action (() => { System.WriteErr s; (); }) }
+readonly PutStrLnErr := (s: object) => { Action (() => { System.WriteLineErr s; (); }) }
+
+# 一串说明书 → 一份说明书,交出**结果的表**(顺序就是表里的顺序)
+readonly Sequence := (actions: list) => {
+    Action (() => {
+        out := []
+        foreach actions (a: object) => { out.Add (a.Perform ()); }
+        out;
+    });
+}
+
+# 条件留到**那一刻**再算 —— 所以收的是个函数而不是一个 bool(后者现在就定死了)
+readonly When := (cond: function body: Action) => {
+    Action (() => { if { cond (); } { body.Perform (); } { (); } });
+}
+readonly Unless := (cond: function body: Action) => { When (() => { !cond (); }) body; }
 
 # 对表里每个元素造一份说明书并依次执行 —— 一串效果。
 # (写成一次 Perform 里跑一个 foreach,而不是把 Foreach 做成递归的 Bind 链:

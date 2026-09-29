@@ -825,14 +825,32 @@ Main.Perform ()
 | `IoMonad.PutStrLn s` / `IoMonad.PutStr` | 打印（带 / 不带换行）|
 | `IoMonad.GetLine` | 读一行。它是**一个值**，每次 `Perform` 都真读一次 |
 | `IoMonad.Foreach xs f` | 对表里每个元素造一份说明书并依次执行 |
+| `.Then next` | 接着做下一份，交回**后一份**的结果（两份互相不知道）|
+| `.Discard ()` | 只跑，结果丢掉 |
+| `.Attempt ()` | 跑它：成功 `Some 结果`、失败 `None`（只问"成没成"）|
+| `.Catch handler` | 出错了换一份说明书接着做（`handler` 收那句错误，交回一份 `Action`）|
+| `IoMonad.Sequence xs` | 一串说明书 → 一份，交出**结果的表** |
+| `IoMonad.When c body` / `Unless c body` | 条件到**那一刻**再算（所以 `c` 是个函数），不成立就交出 `()` |
+| `IoMonad.PutStrLnErr s` / `PutStrErr s` | 写到**标准错误** |
 
 IO 里**没有「落空」这回事**：每一步都跑，值一路往下传（和 `Monad` 的短路正好相反）。
-括号规则和 5.8 一样 —— `.Perform` 要贴给调用的**结果**，就得把那个调用括起来：
+`.Perform` 要贴给调用的**结果**时，用 `@`（5.5）或者括号：
 
 ```ravel
-(IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); })).Perform ()
+IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); }) @ .Perform ()
+(IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); })).Perform ()   # 一样
 r := (IoMonad.Return 20).Map ((x: int) => { x + 1; })    # 或者先绑个名字
-print (r.Perform ())                                # 21
+print (r.Perform ())                                     # 21
+```
+
+拼和接错：
+
+```ravel
+(IoMonad.PutStrLn "一").Then (IoMonad.PutStrLn "二") @ .Perform ()   # 先一后二
+
+risky := IoMonad.Action (() => { 1 / 0; })
+print (risky.Attempt () @ .Perform () @ .IsSome ())                  # false
+(risky.Catch ((e: Exception) => { IoMonad.PutStrLn ("接住 " + string e); })).Perform ()
 ```
 
 ---
@@ -934,15 +952,20 @@ try { Io.Stdout.Read (); } (e: Exception) => { print (string e); }
 
 #### 什么时候值得用 `IoMonad` 包一层
 
-`lib/io.rav` 是**直接做**的：`f.Read ()` 那一刻就读了。想要"先拼好一串要做的效果、之后再
-`Perform ()`"（比如日志、事务），就自己包一层 —— 两套是分开的，谁也不依赖谁：
+`lib/io.rav` 那几条是**直接做**的：`f.Read ()` 那一刻就读了。想要"先拼好一串要做的效果、
+之后再 `Perform ()`"（比如日志、事务），用它的 **Action 版本** —— 做的是同一件事，只是先攒着：
 
 ```ravel
-using "iomonad.rav"
-Job := IoMonad.Action (() => { (Io.File "notes/a.txt").Write "hi"; })
-# 到这里一个字都还没写
-Job.Perform ()
+f := Io.File "notes/a.txt"
+job := Io.ReadAction f @ .Map ((t: string) => { t.Length (); })      # 到这儿什么都没读
+print (job.Perform ())
+
+(Io.WriteAction f "hi").Then (Io.ReadAction f) @ .Perform ()         # 先写后读
+Io.EachLineAction f ((l: string) => { print ("行 " + l); }) @ .Perform ()
 ```
+
+（`using "io.rav"` 会顺手把 `iomonad.rav` 拉进来 —— 这几条要用它。反过来不行：
+`iomonad.rav` 由 predefined 加载，那时候 `IFile` 还不存在。）
 
 ## 六、集合
 
