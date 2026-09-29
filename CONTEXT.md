@@ -187,7 +187,9 @@ Object (parent=自己)
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
 │   └── Type          ← 用户类挂这下面(类自己没名字,显示成 class)
-│       └── Interface ← `interface`;它造的"接口"也是类对象,挂它下面
+│       └── Interface ← `interface` 这个**工厂/元类**(和 `type` 之于类同一个位置):
+│                       `typeof 某接口` 就是它。它自己**不是**接口 —— 接口对象挂在
+│                       `BaseInterface` 下面那一支
 ├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
 ├── BaseInterface     ← **所有接口的基类**:`interface { … }` 造出来的接口挂在这下面
 │                      (它类体里那份默认 `init` 就是这么继承下去的)
@@ -652,6 +654,10 @@ IEnumerator ::= interface { by MoveNext : function = default
   - 入口在 `CallInto` 的 `BoundTraitQuery` 一格 —— 这活儿要当前作用域,而内置方法的体
     拿不到解释器(和 `is` / 注解那两处同一个理由)。成员值本身是 `TraitQuery`(带方向):
     和 `ClassOperatorFactory` 一个路子,读出来先绑接收者。
+
+**`Interface` 自己不是接口** —— 它是**接口的工厂**(元类,和 `type` 之于类同一个位置):
+`typeof 某接口` 就是它,而 `interface { … }` 那下是在**调它**造一个新接口。接口对象(它的
+parent)挂的是 `BaseInterface`。
 
 **接口对象的 parent 是 `BaseInterface`,类型是 `interface`** —— `IEnumerable.Parent ()` 是
 `BaseInterface`,而 `typeof IEnumerable` 是 `Interface`(`is interface` 成立)。

@@ -133,10 +133,11 @@ internal static partial class BuiltinClasses
             + $"得到 {v.Type}"));
 
         _interfaceInit = Alternate(ofArg, bodyArg, listArg, junkArg);
-        // 两处都放同一个值(它无状态,看 `this` 的类型和参数):
-        //   `Interface` —— `interface { … }` 是**调它**,得在它自己类体里找到 `init`;
-        //   `BaseInterface` —— 接口对象的 parent 挂着它,于是 `某接口 某个类 { … }`
-        //   (实例化那个接口)从类体链上继承到这一条。
+        // 两处都放同一个值。**不是重复,是两个不同的角色**:
+        //   `Interface` 是**接口的工厂**(元类,和 `type` 之于类同一个位置;它自己**不是**
+        //     接口)—— `interface { … }` 那下就在调它,得有 `init`;
+        //   `BaseInterface` 是**所有接口的基类**(接口对象的 parent)—— `某接口 某个类 { … }`
+        //     是实例化那个接口,`init` 沿类体链继承到这一条。
         Interface.ClassBody = PresetCtor(_interfaceInit);
         BaseInterface.ClassBody = PresetCtor(_interfaceInit);
     }
