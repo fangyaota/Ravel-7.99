@@ -1,0 +1,118 @@
+# 文件系统：磁盘实现（lib/io.rav）。真写磁盘 —— 写在仓库里的 .io-test/ 下，结尾删干净。
+
+# 两条自律：**路径手写 `/`**（平台无关；`Io.Join` / `Child` 拼出来的在 Windows 上是 `\`，
+# 所以只对它们做行为断言、不打印）；**只打稳定量**（名字、内容、大小、Exists、报错消息），
+# 不打时间戳（那是会变的）。
+using "io.rav"
+
+root := Io.Dir ".io-test"
+root.Create ()
+print (root.Exists ())
+
+f := root.Child "a.txt"
+f.Write "hi\nho\n"
+print (f.Read ())
+print (f.Lines ())
+print (f.Size ())
+print (f.Name ())
+f.Append "tail"
+print (f.Read ())
+print (f.Lines ())
+
+# 子目录里放一个文件 —— 待会儿"删非空目录"那条要靠它
+sub := root.Mkdir "sub"
+(sub.Child "deep.txt").Write "x"
+
+print ((root.List ()).Keys ())
+print ((root.Files ()).Keys ())
+print ((root.Dirs ()).Keys ())
+
+# 接口：实现了 IFile 也就算 IEntry（接口继承兜着，登记时只写了 IFile 那一条）
+print (f is IFile)
+print (f is IEntry)
+print (sub is IDir)
+print (sub is IEntry)
+print (f is IDir)
+print (IFile.GetImplementors ())
+print (IDir.GetImplementors ())
+
+# 复制 / 移动 / 改名
+g := f.CopyTo ".io-test/copy.txt"
+print (g.Read ())
+h := g.MoveTo ".io-test/moved.txt"
+print (h.Read ())
+h.Rename "final.txt"
+print ((root.Files ()).Keys ())
+print ((root.Dirs ()).Keys ())
+
+# 路径函数
+print (Io.BaseName "a/b/c.txt")
+print (Io.Ext "a/b/c.txt")
+print (Io.BaseName (Io.DirName "a/b/c.txt"))
+print (Io.BaseName (Io.Join "a" "b.txt"))     # Join 出来的分隔符随平台,所以只打最后一段
+
+# 报错：消息里带的是用户写的那串路径
+try { (Io.File ".io-test/nope.txt").Read (); } (e: Exception) => { print ("1: " + string e); }
+try { (Io.File ".io-test/sub").Read (); } (e: Exception) => { print ("2: " + string e); }
+try { (Io.File ".io-test/nodir/x.txt").Write "hi"; } (e: Exception) => { print ("3: " + string e); }
+try { (Io.File ".io-test/gone.txt").Delete (); } (e: Exception) => { print ("4: " + string e); }
+try { (Io.Dir ".io-test/sub").Delete (); } (e: Exception) => { print ("5: " + string e); }
+try { Io.ChDir ".io-test/nodir"; } (e: Exception) => { print ("6: " + string e); }
+
+# 换目录：存 → 换到上一层 → 断言 → 换回来（它改的是**进程**状态，必须还原）
+save := Io.Current ()
+ok := false
+try { Io.ChDir (Io.DirName save); ok = Io.Current () != save; } (e: Exception) => { print ("7: " + string e); }
+Io.ChDir save
+print (ok)
+print (Io.Current () == save)
+
+# 收摊：先删文件、再删子目录、最后删根
+foreach ((root.Files ()).Keys ()) (n: string) => { (root.Child n).Delete (); }
+(sub.Child "deep.txt").Delete ()
+sub.Delete ()
+root.Delete ()
+print (root.Exists ())
+# --- expected ---
+# true
+# hi
+# ho
+
+# [hi ho]
+# 6
+# a.txt
+# hi
+# ho
+# tail
+# [hi ho tail]
+# [sub a.txt]
+# [a.txt]
+# [sub]
+# true
+# true
+# true
+# true
+# false
+# [File]
+# [Dir]
+# hi
+# ho
+# tail
+# hi
+# ho
+# tail
+# [a.txt final.txt]
+# [sub]
+# c.txt
+# .txt
+# b
+# b.txt
+# 1: 读文件: 找不到文件 —— .io-test/nope.txt
+# 2: 读文件: 这是个目录，不是文件 —— .io-test/sub
+# 3: 写文件: 目录不存在 —— .io-test/nodir
+# 4: 删除失败: 找不到要删的东西 —— .io-test/gone.txt
+# 5: 删除失败: 目录不是空的（不递归删）—— .io-test/sub
+# 6: 切目录失败: 找不到目录 —— .io-test/nodir
+# true
+# true
+# false

@@ -103,6 +103,14 @@ Dir ::= class {
     }
     Parent := () => { Dir (System.PathDir Path); }
 
+    # 在这个目录下建个子目录（已有就不管，幂等），交回它。
+    # 注意 `Child` 对**不存在**的名字按文件算（写新文件是常事），所以建目录得走这里。
+    Mkdir := (name: string) => {
+        d := Dir (System.PathJoin Path name)
+        d.Create ()
+        d;
+    }
+
     # 列目录：**名字 → 条目**，按名字排序。顺序稳定，输出和测试才可期待。
     List := () => {
         raw := System.ListDir Path
@@ -121,7 +129,7 @@ Dir ::= class {
     Pick := (wantDir: bool) => {
         out := {}
         all := List ()
-        foreach all.Keys () (n: string) => {
+        foreach (all.Keys ()) (n: string) => {
             e := all.Get n
             if { e.IsDir () == wantDir; } { out.Set n e; } { 0; }
         }
@@ -159,7 +167,7 @@ readonly Copy := (from: IFile to: IFile) => { to.Write (from.Read ()); (); }
 readonly EachDir := (d: IDir f: function) => {
     walk := (dir: IDir prefix: string) => {
         all := dir.List ()
-        foreach all.Keys () (name: string) => {
+        foreach (all.Keys ()) (name: string) => {
             e := all.Get name
             here := if { prefix == ""; } { name; } { Join prefix name; }
             f here e

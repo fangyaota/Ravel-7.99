@@ -156,10 +156,13 @@ public partial class Interpreter
 
         static void NeedParentDir(string p, string what)
         {
-            // 用给定的那个路径去算父目录,不转绝对路径 —— 报错里要看到的是用户写的那串
-            // (转绝对路径会把机器上的完整路径漏进消息里)。没有父目录(就一个文件名)就交给下面去管。
-            var dir = Path.GetDirectoryName(p);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            // 父目录**按用户写的那串**切(最后一个分隔符之前),不转绝对路径、也不交给 .NET 归一化 ——
+            // 报错里要看到的就是他写的那串:`.io-test/nodir`,而不是被换成反斜杠的版本,
+            // 更不是带盘符的完整路径。就一个文件名(没有分隔符)时没有父目录可查,交给下面去管。
+            var cut = Math.Max(p.LastIndexOf('/'), p.LastIndexOf('\\'));
+            if (cut <= 0) return;
+            var dir = p[..cut];
+            if (!Directory.Exists(dir))
                 throw new RuntimeException($"{what}: 目录不存在 —— {dir}");
         }
 
