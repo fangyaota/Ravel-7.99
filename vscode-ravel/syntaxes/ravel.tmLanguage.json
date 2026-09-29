@@ -49,7 +49,7 @@
         "operators": {
             "patterns": [
                 { "match": "::=|::|:=|=>|:<|:>|<:|<\\||==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=", "name": "keyword.operator.ravel" },
-                { "match": "[-+*/%&|^!<>=]", "name": "keyword.operator.ravel" },
+                { "match": "[-+*/%&|^!<>=@\\$]", "name": "keyword.operator.ravel" },
                 { "match": "[:.,]", "name": "punctuation.separator.ravel" }
             ]
         },

@@ -105,6 +105,8 @@ public class Lexer(string source, string? file = null)
                 ',' => TokenType.Comma,
                 '.' => TokenType.Dot,
                 '|' => TokenType.Pipe,
+                '@' => TokenType.At,
+                '$' => TokenType.Dollar,
                 _ => null,
             };
 

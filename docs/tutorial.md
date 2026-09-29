@@ -590,6 +590,22 @@ double <| 5    # 10 —— 等价于 double 5
 它存在的意义是省掉一层括号——`f <| a + b` 不用写成 `f (a + b)`。
 （以前这里写的是 `5 <| double`，和实现对不上。）
 
+**`$` 与 `@`：括号的语法糖**，应用和 `.` 都吃。并列调用是「左嵌套」（`f a b` ≡ `(f a) b`），
+这两个各封一头：
+
+```ravel
+inc ::= (n: int) => { n + 1; }
+inc 1 * 5              # (inc 1) * 5 —— 并列比 * 紧
+inc $ 1 * 5            # inc (1 * 5) —— $ 把**右边**整个封成一个实参（Haskell 的 $，右结合）
+wrap $ inc $ 1 + 2     # wrap (inc (1 + 2))
+
+xs.Count () @ .ToString ()   # (xs.Count ()).ToString () —— @ 把**左边**封口
+```
+
+`@` 非有不可的理由：`.成员` 比并列的调用绑得紧，所以 `xs.Count ().ToString ()` 会被读成
+`xs.Count ((().ToString ()))`（见「常见陷阱」）。`a @ b`（后面不是 `.成员` 时）就是显式的
+「到这儿为止」——`add 1 @ 2` 和 `add 1 2` 是一回事。
+
 ### 5.6 函数名与打印
 
 ```ravel
@@ -715,6 +731,8 @@ print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())   # false �
 
 ```ravel
 (Some 5).Map f              # 这对括号不能省：Some 5.Map f 是 Some (5.Map f)
+xs.Count () @ .ToString ()  # 链式调用也是：`.成员` 比并列的调用绑得紧，
+                            # `xs.Count ().ToString ()` 会被读成 `xs.Count ((().ToString ()))`
 ((Some 5).Map f).Value ()   # Map 的结果也要套括号，否则 .Value 会贴到 f 上
 ```
 
@@ -1903,6 +1921,7 @@ Error: 未预期的字符 '$'
 | `exit msg` | 退出程序 |
 | `eval "code"` | 执行字符串 |
 | `Io.File p` / `Io.Dir p` | 文件系统条目（`lib/io.rav`，见 5.11） |
+| `f $ a b` / `x @ .g ()` | 括号的语法糖：`$` 封右边（一个实参），`@` 封左边（成员接着挂） |
 | `callcc fn` | 续延 |
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |

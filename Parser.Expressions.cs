@@ -178,8 +178,36 @@ public partial class Parser
         // f a b c  →  ((f a) b) c  柯里化。
         // 词形运算符在这儿要停:它看着像个 primary,但 `1 is int` 里那个 `is` 是中缀
         // (节形式的 `f is.int` 除外,那是参数)。
-        while (StartsPrimary() && !IsInfixWordOperator())
+        while (true)
         {
+            // `@` —— **括号,把左边封口**:后面的成员链挂到左边那一串的**结果**上。
+            //     x.f () @ .g ()   ≡   (x.f ()).g ()
+            // 没有它就只能自己写括号:`.成员` 比并列的调用绑得紧,`x.f ().g ()` 会被读成
+            // `x.f ((().g ()))`。后面跟的不是 `.成员` 时,它就是个"到这儿为止"的记号
+            // (`a @ b c` ≡ `(a) b c`,和 `a b c` 本来就一样)。
+            if (Match(TokenType.At))
+            {
+                // 封口之后总得接点什么:`.成员` 或者下一段实参。`1 @` 那种尾巴上多出来的 `@`
+                // 不该被静默吃掉(`$` 那边是交给 ParseExpression 报「需要表达式」的)。
+                if (!Check(TokenType.Dot) && !StartsPrimary())
+                    throw ParseError("'@' 后面得跟点什么（它的意思是「把左边封口，接着往下写」）");
+                expr = ParseMemberChain(expr);
+                continue;
+            }
+
+            // `$` —— **括号,把右边封口**:从这儿到表达式结束全算**一个**实参。
+            //     f $ a b   ≡   f (a b)        f $ g $ x   ≡   f (g (x))   (右结合)
+            if (Match(TokenType.Dollar))
+            {
+                expr = new CallExpr(expr, ParseExpression())
+                {
+                    Line = expr.Line,
+                    Column = expr.Column,
+                };
+                continue;
+            }
+
+            if (!StartsPrimary() || IsInfixWordOperator()) break;
             expr = new CallExpr(expr, ParseMemberChain(ParsePrimary()))
             {
                 Line = expr.Line,

@@ -1,9 +1,9 @@
 # 语法错误也走 ErrorReport:位置 + 源码行 + 插入符(没有调用栈——源码就没解析成功)。
 # 精确比对,和 152 一样把格式锁住。
 x := 1
-print (x $ 2)
+print (x ~ 2)
 # --- expected ---
-# Error: 未预期的字符 '$'
+# Error: 未预期的字符 '~'
 #   --> tests/174_syntax_error_report.rav:4:10
-#   4 | print (x $ 2)
+#   4 | print (x ~ 2)
 #     |          ^
