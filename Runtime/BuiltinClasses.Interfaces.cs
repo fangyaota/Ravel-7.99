@@ -78,7 +78,7 @@ internal static partial class BuiltinClasses
     /// 第二支收满两个参数后推 <see cref="ControlKind.ImplMake"/> 控制帧:造实现要把**两段类体**
     /// 跑在实现 scope 里,而原生闭包的体是同步的,推不了帧。</summary>
     /// <summary>接口自己的 `init`(`Alternate(twoArg, oneArg)`)。**每个接口的类体里都会塞一份**
-    /// ——见下面 `BakeInterfaceInit` 的说明。它是无状态的(只看 `this` 的类型和参数),
+    /// ——挂在 `Interface` 和 `BaseInterface` 的类体里,一份给所有接口共用。它无状态(只看 `this` 的类型和参数),
     /// 所以这一个值可以给所有接口共用。</summary>
     private static FunctionVal _interfaceInit = null!;
 
@@ -133,7 +133,12 @@ internal static partial class BuiltinClasses
             + $"得到 {v.Type}"));
 
         _interfaceInit = Alternate(ofArg, bodyArg, listArg, junkArg);
+        // 两处都放同一个值(它无状态,看 `this` 的类型和参数):
+        //   `Interface` —— `interface { … }` 是**调它**,得在它自己类体里找到 `init`;
+        //   `BaseInterface` —— 接口对象的 parent 挂着它,于是 `某接口 某个类 { … }`
+        //   (实例化那个接口)从类体链上继承到这一条。
         Interface.ClassBody = PresetCtor(_interfaceInit);
+        BaseInterface.ClassBody = PresetCtor(_interfaceInit);
     }
 
     /// <summary>要求表(`[A B]`)的每一项都得是个**接口**;空表就是不要求。</summary>
@@ -157,20 +162,22 @@ internal static partial class BuiltinClasses
     /// 全照旧靠它;`requires` 记在 <see cref="ObjectVal.RequiresMember"/> 里,**只**给
     /// `StepImplMake` 查前置条件用(不进槽、不进 `<:`)。
     ///
-    /// 类体把父的**声明**接在自己前面一起烤(见 <see cref="BakeInterfaceInit"/>)——
+    /// 类体把父的**声明**接在自己前面一起烤(见 <see cref="BakeParentDeclarations"/>)——
     /// 于是这个接口的"形"是自足的:`myTrait myClass { … }` 推它一把就拿到了全部槽。</summary>
     private static RuntimeValue BuildInterface(Scope scope, ObjectVal? parent, List<ObjectVal> requires, RuntimeValue body)
     {
         if (body is not BlockVal blk)
             throw new RuntimeException($"接口的体得是个代码块（`interface … {{ … }}`），得到 {body.Type}");
 
-        var trait = Install(scope, parent ?? Object, blk);
+        // 没有父的接口,parent 挂在 **`BaseInterface`** 上(不是 `object`)—— 它就是"接口的
+        // 公共基类",`init` 那一份默认实现挂在那儿,于是每个接口都继承得到。
+        var trait = Install(scope, parent ?? BaseInterface, blk);
 
         if (requires.Count > 0)
             trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, List, new ListVal([.. requires]))
                 .SetAttr(Attr.Unreadable);
 
-        BakeInterfaceInit(trait, blk, parent);
+        BakeParentDeclarations(trait, blk, parent);
 
         // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
         // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
@@ -179,38 +186,28 @@ internal static partial class BuiltinClasses
         return trait;
     }
 
-    /// <summary>把接口自己的 `init`(以及父的**声明**)烤进这个接口的**类体**。
+    /// <summary>把**父接口的声明**接在自己前面,一起烤进这个接口的**类体**。
     ///
-    /// 为什么非烤 `init`:接口对象的 parent 是 **`object`**(和 C# 一样 —— 接口不是"继承了一个
-    /// 叫 Interface 的基类"),于是它继承不到 `Interface` 那个预设类体里的 `init`。而
-    /// `myTrait myClass { … }` 是**实例化 myTrait**,得在它自己的类体里找得到这个 `init`。
-    /// 塞进去之后:实例化时照跑(造实现),而 `StepImplMake` 拿它当"接口的形"跑那一步时,
-    /// 也只是在实现 scope 里多出一个没人看的 `init` 成员(不是 `by` 槽,所以不会被接口槽的
-    /// 查找接管)。
+    /// 槽要**并集**(父的那些 `by … = default` 是它"形"的一部分)—— 把父的抄进来最省事,
+    /// 而且**父自己早就把它的父抄进来了**,所以一层不落。父的在前、自己的在后:
+    /// 同名槽由后写的说了算(`DefineOrReplace`)。
     ///
-    /// 为什么把父的声明也接上:槽要**并集**(父的那个是它"形"的一部分)—— 把父的那些
-    /// `by … = default` 抄进来最省事,而且**父自己早就把它的父抄进来了**,所以一层不落。
-    /// 抄的时候跳过父烤在最前面的那个 `init`(每个接口的类体都以它开头)。
-    /// 父的在前、自己的在后:同名槽由后写的说了算(`DefineOrReplace`)。
+    /// **`init` 不在这儿烤了**:接口的 parent 是 `BaseInterface`,它的类体里有一份默认的
+    /// `init`(`InstallInterfaceInit`),`StepClassInit` 沿类体链从具体往上一找就到 ——
+    /// 于是每个接口的体都能是"用户写的那样",实现 scope 里也不会再多出一个没人看的 `init`。
     ///
     /// 类体必须是新的 BlockExpr(带用户那份的 Source/行列):原样改 `block` 会动到用户写的
     /// 那个 BlockExpr,`Source` 也就丢了。</summary>
-    private static void BakeInterfaceInit(ObjectVal trait, BlockVal blk, ObjectVal? parent)
+    private static void BakeParentDeclarations(ObjectVal trait, BlockVal blk, ObjectVal? parent)
     {
         var statements = new List<Statement>();
         if (parent?.ClassBody is { } pb)
-            statements.AddRange(pb.Block.Statements.Skip(1));   // 跳过父烤的那个 init
+            statements.AddRange(pb.Block.Statements);
 
         statements.AddRange(blk.Block.Statements);
 
-        var init = new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(_interfaceInit))
-        {
-            Line = blk.Block.Line,
-            Column = blk.Block.Column,
-        };
-
         trait.ClassBody = new BlockVal(
-            new BlockExpr([init, .. statements])
+            new BlockExpr(statements)
             {
                 Line = blk.Block.Line,
                 Column = blk.Block.Column,

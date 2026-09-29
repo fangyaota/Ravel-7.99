@@ -52,6 +52,14 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Property;
     // 接口 — `interface`(见 BuiltinClasses.Interfaces.cs)。parent 是 `type`。
     public static readonly ClassVal Interface;
+    /// <summary>**所有接口的基类**。`interface { … }` 造出来的接口,parent 挂在它下面
+    /// (不是 `object`),于是那些接口**继承它类体里的 `init`** —— 造实现(`某接口 某个类 { … }`)
+    /// 就是实例化那个接口对象,得有 `init` 才跑得起来。
+    ///
+    /// 从前没这一层:接口的 parent 直接是 `object`,继承不到 `init`,于是每个接口的类体里都被
+    /// **烤进一份** `init`。多一层基类之后那份烤就不用了 —— 一处默认,
+    /// 所有接口共用(而且实现 scope 里也不再莫名多出一个没人看的 `init`)。</summary>
+    public static readonly ClassVal BaseInterface;
 
     /// <summary>所有已注册的类对象（内置 + 用户定义），供 Subtypes 反射</summary>
     internal static readonly List<ClassVal> AllTypes = [];
@@ -82,6 +90,7 @@ internal static partial class BuiltinClasses
         ScopeType = New("Scope");
         Property = New("Property");
         Interface = New("Interface");
+        BaseInterface = New("BaseInterface");
         Exception = New("Exception");
         Every = New("Every");
         Any = New("Any");
@@ -117,6 +126,7 @@ internal static partial class BuiltinClasses
         Link(Property, Object, Type);
         Link(Exception, Object, Type);
         // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
+        Link(BaseInterface, Object, Type);   // 接口的公共基类:挂在 object 下面
         Link(Interface, Type, Type);
         // 底类型/顶类型：parent 自引用（链到自己就停）
         Link(Every, Every, Type);
@@ -138,7 +148,7 @@ internal static partial class BuiltinClasses
                  {
                      Object, ValueType, Int, Float, Bool, String, BigInt,
                      Fraction, BigFraction, Function, Block,
-                     List, Set, Dict, Void, Type, Interface,
+                     List, Set, Dict, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, ScopeType, Property
                  })
             AllTypes.Add(t);
@@ -210,7 +220,7 @@ internal static partial class BuiltinClasses
         if (body is not BlockVal blk) throw new RuntimeException("class 需要代码块参数");
         // 正在被装成的这个对象**一般是 ClassVal**:这段在实例化 `type` 或它的子类时跑,
         // 而 StepClassInit 正是按"被实例化的类 <: type"来决定造 ClassVal 的。
-        // 但**接口**是个例外:`IEnumerable { … }` 造出来的接口 parent 是 object(和 C# 一样),
+        // 但**接口**是个例外:接口对象的 parent 是 `BaseInterface`(普通对象),
         // 所以"给接口再套一个代码块"这种写法会走到这儿而 `this` 只是个普通对象 ——
         // 硬转就是 C# 的 InvalidCastException(不是 RuntimeException,`try` 接不住,一路打穿到顶层),
         // 所以改成说人话的 Ravel 错误。

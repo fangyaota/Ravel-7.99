@@ -28,6 +28,7 @@ readonly Any := System.Any
 readonly Every := System.Every
 readonly Exception := System.Exception
 readonly ValueType := System.ValueType
+readonly BaseInterface := System.BaseInterface   # 所有接口的基类(`interface { … }` 的 parent)
 
 # 用户自定义的模块搜索目录。**位置是有讲究的**:它写在别名之后 ——
 # 注解里的名字就是作用域里的变量,而 `list` 要到上面几行才定义。

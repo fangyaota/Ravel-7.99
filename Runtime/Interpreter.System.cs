@@ -40,6 +40,7 @@ public partial class Interpreter
         DefType("Void", BuiltinClasses.Void);
         DefType("Type", BuiltinClasses.Type);
         DefType("Interface", BuiltinClasses.Interface);
+        DefType("BaseInterface", BuiltinClasses.BaseInterface);   // 所有接口的基类
         DefType("ValueType", BuiltinClasses.ValueType);
         DefType("Any", BuiltinClasses.Any);
         DefType("Every", BuiltinClasses.Every);

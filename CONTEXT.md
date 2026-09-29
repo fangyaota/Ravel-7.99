@@ -189,6 +189,8 @@ Object (parent=自己)
 │   └── Type          ← 用户类挂这下面(类自己没名字,显示成 class)
 │       └── Interface ← `interface`;它造的"接口"也是类对象,挂它下面
 ├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
+├── BaseInterface     ← **所有接口的基类**:`interface { … }` 造出来的接口挂在这下面
+│                      (它类体里那份默认 `init` 就是这么继承下去的)
 ├── Void / Exception / Ravel(模块) / Scope / Property
 ├── Any (顶类型, parent=自己)
 └── Every (底类型, parent=自己)
@@ -651,11 +653,15 @@ IEnumerator ::= interface { by MoveNext : function = default
     拿不到解释器(和 `is` / 注解那两处同一个理由)。成员值本身是 `TraitQuery`(带方向):
     和 `ClassOperatorFactory` 一个路子,读出来先绑接收者。
 
-**接口对象继承自 `object`,但类型是 `interface`** —— 和 C# 一样,接口不是"继承了一个叫
-`Interface` 的基类",所以 `IEnumerable.Parent ()` 是 `object`;而 `typeof IEnumerable` 是
-`Interface`(`is interface` 成立)。为此 `BuiltinClasses.BakeInterfaceInit` 把接口自己的
-`init` 塞进**每个接口的类体**:原样靠"parent 链上有 `Interface`"是继承不到那个预设类体的,
-而 `myTrait myClass { … }` 是实例化 `myTrait`,必须在自己类体里找得到 `init`。
+**接口对象的 parent 是 `BaseInterface`,类型是 `interface`** —— `IEnumerable.Parent ()` 是
+`BaseInterface`,而 `typeof IEnumerable` 是 `Interface`(`is interface` 成立)。
+`BaseInterface` 下面挂的就是所有接口(`Subtypes ()` / 类型树上看得见),它类体里那份
+**默认 `init`** 是所有接口共用的 —— `myTrait myClass { … }` 是实例化 `myTrait`,而
+`StepClassInit` 沿类体链从具体往上一找就到它(`CollectBodies`)。
+
+从前没有这一层:接口的 parent 直接是 `object`,继承不到 `init`,于是每个接口的类体里都**烤**
+一份(`BakeInterfaceInit`),连带实现 scope 里多个没人看的 `init` 成员。现在只剩"父的声明抄进
+来"那一半(`BakeParentDeclarations`)。
 
 **接口只承诺它自己那几条槽**。序列方法(`Map`/`Where`/`Fold`…)挂在**具体容器**上,所以通用
 函数里按接口的契约写(`GetEnumerator` / `MoveNext` / `Current`),或先落到那串值再往下用 ——
