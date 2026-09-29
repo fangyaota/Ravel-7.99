@@ -191,8 +191,8 @@ Object (parent=自己)
 │                       `typeof 某接口` 就是它。它自己**不是**接口 —— 接口对象挂在
 │                       `BaseInterface` 下面那一支
 ├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
-├── BaseInterface     ← **所有接口的基类**:`interface { … }` 造出来的接口挂在这下面
-│                      (它类体里那份默认 `init` 就是这么继承下去的)
+├── BaseInterface [Interface]  ← **所有接口的基类**,它自己**也是**一个接口;`interface { … }`
+│                              造出来的接口都挂在这下面(它类体里那份 `init` 就这么继承下去)
 ├── Void / Exception / Ravel(模块) / Scope / Property
 ├── Any (顶类型, parent=自己)
 └── Every (底类型, parent=自己)
@@ -656,8 +656,17 @@ IEnumerator ::= interface { by MoveNext : function = default
     和 `ClassOperatorFactory` 一个路子,读出来先绑接收者。
 
 **`Interface` 自己不是接口** —— 它是**接口的工厂**(元类,和 `type` 之于类同一个位置):
-`typeof 某接口` 就是它,而 `interface { … }` 那下是在**调它**造一个新接口。接口对象(它的
-parent)挂的是 `BaseInterface`。
+`typeof 某接口` 就是它,而 `interface { … }` 那下是在**调它**造一个新接口。
+接口对象的 parent 挂 `BaseInterface` —— 而 `BaseInterface` **自己就是个接口**
+(`BaseInterface is interface` 成立),它是接口那一支的**根**,子接口从它往下继承。
+
+**两份 `init`,各干各的**(挂在不同类体上,所以**不用**判「谁在造」):
+
+- `Interface.ClassBody` 里那份 = **造接口**:`interface [父] [要求表] { … }` 的语法形状
+  (`interface { … }` 就是在实例化 `Interface`);
+- `BaseInterface.ClassBody` 里那份 = **造实现**:`某接口 某个类 { … }` 是在实例化**那个接口**,
+  而「谁在被实例化」就是造出来的实现的类型 —— 推 `ImplMake` 帧跑那两段类体。
+  接口的子接口都继承这一份(它们自己的类体里没有 `init`)。
 
 **接口对象的 parent 是 `BaseInterface`,类型是 `interface`** —— `IEnumerable.Parent ()` 是
 `BaseInterface`,而 `typeof IEnumerable` 是 `Interface`(`is interface` 成立)。

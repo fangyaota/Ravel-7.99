@@ -117,7 +117,7 @@ try {
 # true
 # true
 # each 5
-# [masterTrait supTrait myTrait IEnumerable]
+# [masterTrait supTrait myTrait BaseInterface IEnumerable]
 # hi
 # 3: 类型错误: 无法将 Integer 赋值给 'a' (声明为 String)
 # 5

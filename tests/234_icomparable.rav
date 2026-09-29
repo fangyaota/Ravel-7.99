@@ -96,7 +96,7 @@ print "end"
 # 2
 # ccc
 # a
-# [IComparable]
+# [IComparable BaseInterface]
 # [a b c]
 # [a b c]
 # c

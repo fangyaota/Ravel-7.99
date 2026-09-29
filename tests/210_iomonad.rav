@@ -126,8 +126,8 @@ print (Log)
 # true
 # true
 # false
-# [IMonad]
-# [IMonad]
+# [IMonad BaseInterface]
+# [IMonad BaseInterface]
 # [Action Option]
 # 4
 # 42

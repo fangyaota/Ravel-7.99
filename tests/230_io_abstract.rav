@@ -104,7 +104,7 @@ print (root.Exists ())
 # true
 # true
 # false
-# [IFile IEntry]
+# [IFile IEntry BaseInterface]
 # [MemFile ConsoleIn ConsoleOut File]
 # [MemDir Dir]
 # mem.txt = 内存里的内容

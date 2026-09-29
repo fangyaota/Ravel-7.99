@@ -27,7 +27,7 @@ Types.PrintTree object
 # ├── Set [Type]
 # ├── Dict [Type]
 # ├── Void [Type]
-# ├── BaseInterface [Type]
+# ├── BaseInterface [Interface]
 # │   ├── INumber [Interface]
 # │   ├── IEnumerable [Interface]
 # │   ├── IEnumerator [Interface]

@@ -77,11 +77,6 @@ internal static partial class BuiltinClasses
     ///
     /// 第二支收满两个参数后推 <see cref="ControlKind.ImplMake"/> 控制帧:造实现要把**两段类体**
     /// 跑在实现 scope 里,而原生闭包的体是同步的,推不了帧。</summary>
-    /// <summary>接口自己的 `init`(`Alternate(twoArg, oneArg)`)。**每个接口的类体里都会塞一份**
-    /// ——挂在 `Interface` 和 `BaseInterface` 的类体里,一份给所有接口共用。它无状态(只看 `this` 的类型和参数),
-    /// 所以这一个值可以给所有接口共用。</summary>
-    private static FunctionVal _interfaceInit = null!;
-
     /// <summary>`interface` 的 init,按参数类型分流(和 `type` 那套一个路子):
     ///
     ///     interface { … }                  代码块 —— 不继承、不要求
@@ -100,46 +95,50 @@ internal static partial class BuiltinClasses
     /// —— 那是先后两次应用,不是嵌套;那条"不能嵌套"管的是同一个帧里试分支。</summary>
     private static void InstallInterfaceInit()
     {
-        // 接口 / 类:一个类型,接着等代码块(接口还允许先来一张要求表)
-        var ofArg = new NativeClosure("of", Type, (scope, of) =>
-        {
-            // 本体(`this` 的类型)就是"谁在造":`interface …` 时它是 `Interface` 自己,
-            // `某接口 某个类 { … }` 时它是那个接口 —— 靠它把"接口继承"和"类实现"分开。
-            var driver = ((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type;
-
-            if (of is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface))
-                return Alternate(
+        // ── ① 工厂的那份:挂在 `Interface` 的类体上,`interface …` 那下就是在实例化它 ──
+        // 干的事就是"造一个新接口":收 一个接口 + 代码块(中间还允许先来一张要求表),
+        // 或者 光一个代码块。
+        //
+        // 这里**不需要**判"谁在造":走得进这个类体的只有 `interface …` 一种写法。
+        var factoryOf = new NativeClosure("of", Type, (scope, of) =>
+            of is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface)
+                ? Alternate(
                     new NativeClosure("requires", List, (_, rs) =>
                         FunctionVal.From(body => BuildInterface(scope, o, Requirements((ListVal)rs), body))),
-                    new NativeClosure("body", Function, (_, body) => BuildInterface(scope, o, [], body)));
-
-            if (driver == Interface)
-                throw new RuntimeException($"`interface` 只能继承接口（{of} 是个类）；"
-                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`");
-
-            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(of));
-        });
+                    new NativeClosure("body", Function, (_, body) => BuildInterface(scope, o, [], body)))
+                : throw new RuntimeException($"`interface` 只能继承接口（{of} 是个类）；"
+                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`"));
 
         // 代码块:不继承、不要求
-        var bodyArg = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, null, [], body));
+        var factoryBody = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, null, [], body));
 
         // 光有要求、没写父 —— 不收
-        var listArg = new NativeClosure("requires", List, (_, _) => throw new RuntimeException(
+        var factoryList = new NativeClosure("requires", List, (_, _) => throw new RuntimeException(
             "要求得跟在父接口后面：`interface 那个接口 [A B] { … }`"));
 
         // 别的:把能写什么说全(不然只会得到「| 的 N 个分支都不收这个参数」)
-        var junkArg = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
+        var factoryJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
             "`interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），"
             + $"得到 {v.Type}"));
 
-        _interfaceInit = Alternate(ofArg, bodyArg, listArg, junkArg);
-        // 两处都放同一个值。**不是重复,是两个不同的角色**:
-        //   `Interface` 是**接口的工厂**(元类,和 `type` 之于类同一个位置;它自己**不是**
-        //     接口)—— `interface { … }` 那下就在调它,得有 `init`;
-        //   `BaseInterface` 是**所有接口的基类**(接口对象的 parent)—— `某接口 某个类 { … }`
-        //     是实例化那个接口,`init` 沿类体链继承到这一条。
-        Interface.ClassBody = PresetCtor(_interfaceInit);
-        BaseInterface.ClassBody = PresetCtor(_interfaceInit);
+        Interface.ClassBody = PresetCtor(Alternate(factoryOf, factoryBody, factoryList, factoryJunk));
+
+        // ── ② 接口那一支的那份:挂在 `BaseInterface` 的类体上,所有接口(它的子类)继承 ──
+        // 干的事完全不同:**造实现**。`某接口 某个类 { … }` 是实例化那个接口,而"谁在被实例化"
+        // 就是造出来的实现的类型 —— 推 `ImplMake` 帧,把两段类体跑在实现 scope 里。
+        //
+        // 同样不判"谁在造":走得进这个类体的,永远是某个**接口对象**被应用。
+        var implOf = new NativeClosure("of", Type, (scope, of) =>
+        {
+            var driver = ((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type;
+            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(of));
+        });
+
+        var implJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
+            "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
+            + $"得到 {v.Type}"));
+
+        BaseInterface.ClassBody = PresetCtor(Alternate(implOf, implJunk));
     }
 
     /// <summary>要求表(`[A B]`)的每一项都得是个**接口**;空表就是不要求。</summary>

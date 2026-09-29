@@ -126,7 +126,7 @@ internal static partial class BuiltinClasses
         Link(Property, Object, Type);
         Link(Exception, Object, Type);
         // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
-        Link(BaseInterface, Object, Type);   // 接口的公共基类:挂在 object 下面
+        Link(BaseInterface, Object, Interface);   // 它自己就是个接口(所有接口的根)
         Link(Interface, Type, Type);
         // 底类型/顶类型：parent 自引用（链到自己就停）
         Link(Every, Every, Type);

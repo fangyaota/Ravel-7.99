@@ -1786,10 +1786,11 @@ print (u is myTrait)     # true
 三件事：
 
 1. **`interface { … }` 造出一个类型**（接口本身）。它的 **parent 是 `BaseInterface`**（所有接口的
-   基类，类型树上它们都挂在这一支下）、而**类型是 `interface`**：`myTrait.Parent ()` 是
-   `BaseInterface`，而 `typeof myTrait` 是 `Interface`（`myTrait is interface` 成立，
-   类型树上也这么标）。基类里那份默认 `init` 正是"造实现"跑得起来的原因
-   （`myTrait myClass { … }` 是**实例化 `myTrait`**，得有 `init` 才动得了）。
+   基类，而它**自己也是个接口**，是这一支的根）、而**类型是 `interface`**：`myTrait.Parent ()`
+   是 `BaseInterface`，而 `typeof myTrait` 是 `Interface`（`myTrait is interface` 成立，
+   类型树上也这么标）。基类类体里那份 `init` 正是"造实现"跑得起来的原因
+   （`myTrait myClass { … }` 是**实例化 `myTrait`**，得有 `init` 才动得了）—— 它和
+   `interface { … }` 用的那份（挂在工厂 `Interface` 上）是**两份不同的 init**，各干各的。
 2. **`myTrait myClass { … }` 造一个实现**。块里用 `by a = property …` 把接口声明的槽**换掉**
    （所以写 `=`，不是 `:=`）；块里有个 `instance`，就是"这一次在服务谁"（随调用走，见下）。
 3. **`use impl` 把它登记在当前位置的作用域里**。从此这里 `u.a` / `u.b` 都走实现那条槽；
