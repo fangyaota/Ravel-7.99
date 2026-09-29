@@ -16,8 +16,8 @@ print (xs.Count () @ .ToString ())
 print (xs.Count () @ .ToString () @ .Length ())
 print ((xs.Count ()).ToString ())          # 自己写括号，一样的
 
-# 不带 `@` 时是什么样：`.成员` 挂到了括号实参上（这里故意挑个不炸的写法对照）
-print (xs.Count () + 1)
+# `()` 是实参，`+ 1` 会被调用吃进去（新规矩：实参吃到运算符为止）—— 想先数再加一就得括起来
+print ((xs.Count ()) + 1)
 
 # ② `@`：显式左嵌套（`a b @ c` ≡ `(a b) c`，和 `a b c` 本来就是一回事）
 add := (a: int) => { (b: int) => { a + b; }; }
@@ -33,7 +33,7 @@ print (inc $ [10 20].Count ())
 print (inc $ xs.Count () @ .ToString () @ .Length ())
 
 # ④ 右结合：f $ g $ x
-wrap := (n: int) => { "[" + string (n) + "]"; }
+wrap := (n: int) => { "[" + (string (n)) + "]"; }
 print (wrap $ inc $ 1 + 2)     # wrap (inc (1 + 2))
 
 # ⑤ 两个并排用：`$` 把右边整个当一个实参（左边那串照旧并列）

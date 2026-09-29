@@ -40,7 +40,7 @@ print (do { a :< IoMonad.Return 3; b :< IoMonad.Return 4; IoMonad.Return (a + b)
 
 # 6) 一串效果(括号照旧:`.Perform` 要贴给 Foreach 的结果,不是贴给那个 lambda)
 (IoMonad.Foreach [1 2 3] ((x: int) => {
-    IoMonad.PutStrLn ("第 " + string (x) + " 个")
+    IoMonad.PutStrLn ("第 " + (string (x)) + " 个")
 })).Perform ()
 
 # 7) 每一步都跑,值一路往下传(不像 Monad 那样"落空就短路" —— IO 没有落空这回事)

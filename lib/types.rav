@@ -41,7 +41,7 @@ readonly PrintTree := (root: object) => {
         i := 0
         while { i < kids.Count (); } {
             s := kids.At i
-            is_last := i == kids.Count () - 1
+            is_last := i == ((kids.Count ()) - 1)
             label := s.name + " [" + (typeof s).name + "]"
             if { is_last; } {
                 print (prefix + "└── " + label)

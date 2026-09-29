@@ -24,12 +24,12 @@ e := [4 5].GetEnumerator ()
 print (e is IEnumerator)
 while { e.MoveNext (); } { print (e.Current); }
 print (e.MoveNext ())          # 走完了再问就是 false
-print ([9].GetEnumerator () is IEnumerator)   # 每次都新开一个,互不打扰
+print (([9].GetEnumerator ()) is IEnumerator)   # 每次都新开一个,互不打扰
 
 # ---- foreach 就是照这个形状写的 ----
 foreach [1 2 3] (x: int) => { print ("list " + string x); }
 foreach {a: 7 b: 8} (v: int) => { print ("dict " + string v); }
-foreach [1 2] (x: int) => { foreach [10 20] (y: int) => { print (string (x) + "-" + string y); } }
+foreach [1 2] (x: int) => { foreach [10 20] (y: int) => { print ((string (x)) + "-" + (string y)); } }
 
 # ---- 注解、参数也认接口,通用函数写得出来 ----
 # 接口承诺的就是"给我一个枚举器",所以通用函数按枚举器的用法写 —— 任何实现者都吃得住。

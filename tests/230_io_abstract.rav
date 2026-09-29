@@ -69,7 +69,7 @@ print (IFile.GetImplementors ())
 print (IDir.GetImplementors ())
 
 # 对着接口写的函数：注解 (f: IFile) 收得下内存实现
-describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
+describe := (f: IFile) => { (f.Name ()) + " = " + (f.Read ()); }
 print (describe m)
 
 # 同一段代码两边跑：内存 → 磁盘，磁盘 → 内存
@@ -85,7 +85,7 @@ print (Io.Lines back)
 
 # `Io.EachDir` 在内存目录上照样递归（路径那一段用 BaseName 打，免得带平台分隔符）
 print (m.Size ())
-Io.EachDir top (p: string e: IEntry) => { print (string (e.IsDir ()) + " " + e.Name () + " @ " + Io.BaseName p); }
+Io.EachDir top (p: string e: IEntry) => { print ((string (e.IsDir ())) + " " + (e.Name ()) + " @ " + (Io.BaseName p)); }
 
 # 要和 IoMonad 搭台:`Io` 那几条是**直接做**的,下面这几条只是包成"说明书"
 act := Io.ReadAction m                                   # 到这儿什么都还没读

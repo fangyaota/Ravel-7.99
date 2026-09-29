@@ -31,7 +31,7 @@ print (((None.Map ((x: int) => { x * 2; }))).IsSome ())
 MapCalls := 0
 bump := (x: int) => { MapCalls += 1; x + 1; }
 print (None.Map bump)
-print ("映射函数被调了 " + string (MapCalls) + " 次")
+print ("映射函数被调了 " + (string (MapCalls)) + " 次")
 
 # Bind:把 f 的结果**摊平**接上(f 自己回一个 Monad),所以链起来不会套娃
 half := (x: int) => { if { x % 2 == 0; } { Some (x / 2); } { None; } }

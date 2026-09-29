@@ -73,7 +73,7 @@ Multi := class {
     init := (v: object) => {
         x = 0
         y = 0
-        if { typeof (v) == int; } {
+        if { (typeof (v)) == int; } {
             x = int v
         } { 0; }
         this;

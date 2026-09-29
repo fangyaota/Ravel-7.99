@@ -35,7 +35,7 @@ armed := false
 doneT := false
 res := try {
     k := callcc (k2: function) => { if { !armed; } { armed = true; escT = k2; } { 0; }; k2; };
-    if { typeof (k) == function; } { "armed"; } { throw (Exception "from resumed body"); }
+    if { (typeof (k)) == function; } { "armed"; } { throw (Exception "from resumed body"); }
 } (e: Exception) => { "caught by the same try"; }
 print res
 try { if { !doneT; } { doneT = true; escT (); } { 0; }; } (e: Exception) => { print ("X: " + string e); }

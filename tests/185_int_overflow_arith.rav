@@ -11,7 +11,7 @@ print (0 - 2147483647 - 1)
 print (5 % 3)
 # 要更宽就写 bigint —— 一边是 bigint 时按宽度升级,不进 int 那条路
 print (2147483647 + bigint 1)
-print (bigint (100000) * 100000)
+print ((bigint (100000)) * 100000)
 print (typeof (2147483647 + bigint 1))
 # --- expected ---
 # 1: 2147483647 + 1 超出 int 范围（int 是 32 位，大数用 bigint）

@@ -3,7 +3,7 @@
 C ::= class { init := () => { 0; this; }; }
 D ::= class C { init := () => { 0; this; }; }
 print (C.Subtypes ())
-print (C.Parent () == object)
+print ((C.Parent ()) == object)
 # --- expected ---
 # [Every D]
 # true

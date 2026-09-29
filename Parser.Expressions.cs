@@ -214,12 +214,10 @@ public partial class Parser
             // (`allowCall: false` 那一档正好是"运算符链、但不吃并列的实参":所以 `f a b` 还是两个参数,
             //  柯里化不受影响;`f 1 + 2 * 3` 是 `f (1 + 2*3)`。)
             //
-            // **括号开头的实参除外** —— 括号组自己就是个完整的表达式,运算符留给调用**之后**:
-            //   `xs.Count () + 1` 是「数完再加一」,不是「数 (() + 1)」;`xs.At (i) + 1` 同理。
-            //   (库和用例里 `x.Count () == 0` / `typeof (x) == y` 这类写法全靠这条。)
-            var arg = Check(TokenType.LeftParen)
-                ? ParseMemberChain(ParsePrimary())
-                : ParseExpression(allowCall: false);
+            // **没有例外** —— 括号开头的实参也一样:`f (1) + 2` 是 `f ((1) + 2)`。
+            // 运算符作用在调用**结果**上时,是**调用**那一层的事,自己加括号:
+            //   `xs.Count () == 0` 要写成 `(xs.Count ()) == 0`(库和用例里的写法都按这条改过)。
+            var arg = ParseExpression(allowCall: false);
             expr = new CallExpr(expr, arg)
             {
                 Line = expr.Line,

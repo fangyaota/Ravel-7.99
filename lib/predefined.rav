@@ -58,7 +58,7 @@ readonly property := System.Property
 # 条件当值用:true/false 可调用,收两个块返回选中那个的结果
 readonly if := (c: function t: function e: function) => {
     cond := c ()
-    assert (typeof (cond) == bool) ("if 的条件必须是 bool，得到 " + string (typeof cond))
+    assert ((typeof (cond)) == bool) ("if 的条件必须是 bool，得到 " + string (typeof cond))
     cond t e
 }
 
@@ -70,7 +70,7 @@ readonly while := (c: function body: function) => {
     callcc (k: function) => { again = k; }
     # 条件必须写在恢复点(callcc 那条语句)之后,否则 again 0 跳回来时不会重求,变成只判一次
     cond := c ()
-    assert (typeof (cond) == bool) ("while 的条件必须是 bool，得到 " + string (typeof cond))
+    assert ((typeof (cond)) == bool) ("while 的条件必须是 bool，得到 " + string (typeof cond))
     if { cond; } { body (); again 0; } { 0; }
 }
 # ── 标准库:各自一个文件 ──

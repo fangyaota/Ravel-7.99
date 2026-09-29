@@ -62,10 +62,10 @@ try { Io.ChDir ".io-test/nodir"; } (e: Exception) => { print ("6: " + string e);
 # 换目录：存 → 换到上一层 → 断言 → 换回来（它改的是**进程**状态，必须还原）
 save := Io.Current ()
 ok := false
-try { Io.ChDir (Io.DirName save); ok = Io.Current () != save; } (e: Exception) => { print ("7: " + string e); }
+try { Io.ChDir (Io.DirName save); ok = (Io.Current ()) != save; } (e: Exception) => { print ("7: " + string e); }
 Io.ChDir save
 print (ok)
-print (Io.Current () == save)
+print ((Io.Current ()) == save)
 
 # 收摊：先删文件、再删子目录、最后删根
 foreach ((root.Files ()).Keys ()) (n: string) => { (root.Child n).Delete (); }

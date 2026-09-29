@@ -29,9 +29,9 @@ print c.x
 print (c.m ())
 # 运算符走的是**类型**那张表,不是值的成员表 —— 所以类对象之间比的是身份,
 # 而不是 `Integer` 那层"数值相等"(那会把 class 当数字算)
-print (typeof (c) == C)
-print (typeof (c) == typeof (C ()))
-print (typeof (c) == int)
+print ((typeof (c)) == C)
+print ((typeof (c)) == (typeof (C ())))
+print ((typeof (c)) == int)
 # --- expected ---
 # [+ - * / % == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields]
 # 3

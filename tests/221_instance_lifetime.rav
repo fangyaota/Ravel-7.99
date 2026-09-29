@@ -83,7 +83,7 @@ F ::= class {
 }
 impl (H F {
     helper := () => { instance.w; }
-    by c = property (() => { helper () + 1; }) ((v3: int) => { (); })
+    by c = property (() => { (helper ()) + 1; }) ((v3: int) => { (); })
 })
 s := F ()
 s.w = 41

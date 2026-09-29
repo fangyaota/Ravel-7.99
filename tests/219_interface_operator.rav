@@ -49,19 +49,19 @@ D ::= class {
     n : int = 1
     by * := property (() => { (o: object) => { this.n * 10; }; }) ((v: function) => { (); })
 }
-print (D () * 3)
+print ((D ()) * 3)
 
 # 只有默认值(`= default`,那对什么都不做的 getter/setter):响亮地报错,不静默
 Loose ::= class {
     by + := default
 }
-try { print (Loose () + 1); } (err: Exception) => { print ("1: " + string err); }
+try { print ((Loose ()) + 1); } (err: Exception) => { print ("1: " + string err); }
 
 # 没有实现的对象:类型那两个都不支持
 Out ::= class {
     y : int = 0
 }
-try { print (Out () + 1); } (err: Exception) => { print ("2: " + string err); }
+try { print ((Out ()) + 1); } (err: Exception) => { print ("2: " + string err); }
 
 # 随作用域在/不在:`use` 写在函数里,出了那次调用就没有运算符了
 # (用一个**只有那个函数里才实现过**的类,免得被上面那条 use 兜住)
@@ -72,10 +72,10 @@ scoped := () => {
     use (T S {
         by a = property (() => { instance.w; }) ((v: int) => { instance.w = v; })
     })
-    print (S () + 1)   # 接口里那条默认的:0 + 100
+    print ((S ()) + 1)   # 接口里那条默认的:0 + 100
 }
 scoped ()
-try { print (S () + 1); } (err: Exception) => { print ("3: " + string err); }
+try { print ((S ()) + 1); } (err: Exception) => { print ("3: " + string err); }
 # --- expected ---
 # 10
 # 10
