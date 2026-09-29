@@ -102,6 +102,9 @@ lib/
                           + 构造子 `Some` / `None`
   sorting.rav             `IComparable`(一条槽:`CompareTo`)+ 六种内建标量的空登记
                           + `Sorting` 模块(Compare / Sort / SortBy / Max / Min / MaxBy / MinBy)
+  keys.rav                `IKey`(一条槽:`Key`)+ 值类型那六种的空登记 + `Keys` 模块
+                          (Of / Set / Get / Has / Remove / GetOr)+ `Keyed`(以任意值为键、
+                          连原键一起记着的表,`Keys ()` 交回原对象)
   exceptions.rav          `Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎冒泡时叫的
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
                           引擎不认识 HandlerStack,那块状态归这儿管 —— 从前是单独的 try.rav,
@@ -110,7 +113,7 @@ lib/
                           要显式 `using "io.rav"`;详见「文件系统」一节
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
-                          `using "types.rav"` 引入;tests/125 跑的就是它
+                          `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
   iomonad.rav             IoMonad 模块(IO Monad —— 把效果做成值的那种,不是文件/终端 IO):
                           `Action`(Effect/Perform/Map/Bind/Then/Discard/Attempt/Catch)、
                           `Return` / `PutStrLn` / `PutStr` / `PutStrLnErr` / `PutStrErr` / `GetLine` /
@@ -607,7 +610,7 @@ IEnumerator ::= interface { by MoveNext : function = default
 通用枚举器,谁有现成的一串值谁就能拿它当枚举器。三种容器各 `impl` 一遍
 (用 `impl` 而不是 `use`:全局登记,库加载时就生效),于是:
 
-- `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{a: 1} is IEnumerable` 都成立;
+- `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{"a": 1} is IEnumerable` 都成立;
 - `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
 - **`foreach` 改走这条接口**:`e := xs.GetEnumerator ()` + `while { e.MoveNext (); } { f e.Current }`
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
@@ -758,7 +761,8 @@ myImplement.Dispose ()   # 提前取消
 测试 —— 213(端到端:读写、`is`、`Fields`、类型约束、Dispose)、214(作用域、叠加、子类、`use 5`)、
 221(`instance` 是"这一次调用"的事:留存闭包、一次实现服务两个实例、辅助函数、没有激活时报错)、
 222(槽上的访问控制:private / protected / 换槽不许带修饰符 / readonly 槽的现状)、
-125(类型树上多一个 `Interface`)。
+examples/type_tree.rav(类型树上多一个 `Interface`;它是**例子不是用例**,不进 `tests/` 那套 ——
+每加一个类型都要重钉,不值当)。
 
 ## 多参数 lambda
 
@@ -810,15 +814,23 @@ add.name   # "add"
 ## 集合/字典
 
 ```ravel
-{1 2 3}     # Set  (无换行)
-{a:1 b:2}   # Dict (无换行 + IDENT:)
-{}          # 空字典(单行;空块本来就禁止,所以没有歧义)
-{a; b;}     # Block (有分号/换行)
+{1 2 3}          # Set  (无换行)
+{"a": 1 "b": 2}  # Dict (无换行 + 第一个元素后面跟 `:`)
+{}               # 空字典(单行;空块本来就禁止,所以没有歧义)
+{a; b;}          # Block (有分号/换行)
 ```
 
-**字典键只能是标识符**:`{"a": 1}` 是语法错误(`ParseDict` 收的是 `TokenType.Identifier`,
-`ParseBrace` 的前瞻也只认 IDENT:`)。`{a: 1}` 的键就是字符串 `"a"`,
-要非标识符的键只能 `d.Set "带 空格" 1`。
+**字典的键是表达式**(从前那条"标识符即字符串"的糖已经去掉,别写成 `{a: 1}` ——
+那个 `a` 是**变量**):字符串键要写引号,`{1: "x"}`、`{k: v}`、`{"a" + "b": 1}` 都行,
+键求出来不是**值类型**就报「字典的键得是值类型（数 / 字符串），得到 A」。
+判据在 `ParseBrace`:**先读第一个元素,看它后面跟的是不是 `:`**(那一次解析的结果
+字典、集合两条路共用 —— `_` 的序号是单调计数器,读两遍会让洞的编号对不上)。
+
+**字典键的相等性**:键只能是值类型,所以比的就是值自己 —— `1` / `"1"` / `1.0` 是**三个**
+格子(`d.Keys ()` 交回它们本身;打印出来都像 `1`,那是显示的老规矩:`print [1 "1" 1.0]`
+也一样)。两条边角:**`0` 与 `0.0` 是两个键**(不同类型),**`NaN` 与 `NaN` 是同一个键**
+(`Double.Equals` 说 NaN 等于 NaN,而 `NaN == NaN` 是 false —— 表和 `==` 本来就两套)。
+对象要当键得先**规范**成值类型,见「键与查找」。
 
 **集合元素的相等性**:标量(`int`/`string`/…)比**值**(所以 `{1 2 2}` 是 2 个元素);
 `list`/`set`/`dict` 比**身份**(record 的自动相等对 `List<T>`/`HashSet<T>`/`Dictionary`
@@ -901,6 +913,47 @@ impl (IComparable Rec { () })
 - `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
 
 用例 `tests/234_icomparable.rav`。
+
+## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
+
+**协议**：`Key ()` 交回"**我当键时等于什么**" —— 一个**值类型**（数 / 字符串）。它每个值都有：
+引擎在 `Object` 上注册了一条，值类型交回**它自己**，别的类型当场报错（「`Key`: `A` 没有默认的键
+（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 `Key`，交回一个值类型的键」）。
+所以 `5.Key ()` / `"a".Key ()` 拿起来就能用；`Keys.Of k` 就是它，外加一道
+"交回的得是值类型"的确认（免得下游只报「dict.Set 的键得是值类型」看不出是自己那条 `Key` 的问题）。
+
+**引擎那张表只吃值类型键**（`DictVal.Entries` 是 `Dictionary<RuntimeValue, RuntimeValue>`，
+入口 `KeyArg` 把关）。这条不是随便定的：.NET 的字典要一个**同步**比较器，而用户写的 `Key ()`
+是 Ravel 函数，引擎**没有**"从同步 C# 调 Ravel 函数"的路（和 `Less` 只接 `BuiltinMethodVal`
+同一个原因）。所以对象要当键，得先在**库**里把它规范成值类型：
+
+```ravel
+Rec ::= class { X: int = 0
+    Key := () => { X; }        # 我当键时 = 我的 X（一个 int，值类型）
+}
+impl (IKey Rec { () })
+
+d := {}
+Keys.Set d (Rec 1 "甲") "one"
+Keys.Get d (Rec 1 "别的")      # "one" —— 另一个对象、X 一样 → 同一条
+d.Keys ()                      # [1] —— 交回的是**规范键**，原对象没记着
+```
+
+**`Keys` 模块**：`Of k` · `Set d k v` · `Get d k` · `Has d k` · `Remove d k` · `GetOr d k dflt`
+—— 就是"先算规范键、再动那张普通 dict"，没有魔法。
+
+**`Keyed`**：以任意值为键、**还能把原对象拿回来**的表（两张 dict：规范键→原键、规范键→值）：
+`Set` / `Get` / `Has` / `GetOr` / `Remove` / `Keys ()`（交回原对象）/ `Values ()` / `Count ()` /
+`Clear ()`。`Keys.Set` 那张裸 dict 做不到 —— 表里只有规范键。
+
+**两条路并存**（和 `xs.Sort ()` 对 `Sorting.Sort` 一个样）：`d.Set k v` 只有本义（同值同键、
+对象按身份），`Keys.Set d k v` 才有"规范"这一层。内建那些两边结果一样（键本来就是值类型），
+自己的类型只有 `Keys.*` 那条。
+
+**现装那条路（`by Key = property …`）在这儿用不了** —— 和 `CompareTo` 同一个理由：
+`Key` 这个名字 `Object` 上已经有了，成员查找是**类链先说话**，接口槽还没轮到。
+
+用例 `tests/235_ikey.rav`。
 
 ## core 字段与 unsafe ()
 

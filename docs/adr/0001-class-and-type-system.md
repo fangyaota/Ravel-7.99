@@ -158,4 +158,4 @@ M 的**元类** = 第一个 `class` → `Class`；M 的**父类** = 第二个 `c
 - `type object {...}` → `class object {...}` 那几个用例：已改（编号已重排，不指旧号）。
 - `type type { init new }` 那类「元类实现」用例：作废，重写或删。
 - 类型树标注 `Class [Class]` 改为 `Class [Type]`（class 元类改成 type 的体现）——
-  落地在 `tests/125_type_tree.rav`，它的期望输出就是 `Class [Type]`。
+  落地在 `examples/type_tree.rav`，它的期望输出就是 `Class [Type]`。

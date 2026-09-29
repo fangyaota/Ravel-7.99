@@ -66,7 +66,7 @@ name := input ()           # 读一行输入
 | String | 字符串 | `"hello"` |
 | List | 列表 | `[1 2 3]` |
 | Set | 集合 | `{1 2 3}` |
-| Dict | 字典 | `{a:1 b:2}` |
+| Dict | 字典 | `{"a":1 "b":2}` |
 | Void | 空 | `()` |
 
 ### 2.2 类型名
@@ -189,7 +189,7 @@ Object (parent = 自身)
 它的父类是 `Object`、元类是 `Type`。
 
 `Any` 和 `Every` 画在最后只是排版方便——它们的父类型是**自己**，不是 `Object`
-（`object.Subtypes ()` 里没有它们）。权威快照见 `tests/125_type_tree.rav`。
+（`object.Subtypes ()` 里没有它们）。权威快照见 `examples/type_tree.rav`。
 
 `Bool` 挂在 `Function` 下是有意的：`true`/`false` 可以像函数一样调用，
 收两个代码块、返回选中那个的结果。于是 `if` 就是 `c {t} {e}`——见「四、控制流」。
@@ -489,7 +489,7 @@ while { e.MoveNext (); } { f (e.Current); }
 
 ```ravel
 foreach {1 2 3}  (x: int) => { print x; }     # set 也行
-foreach {a: 1}   (v: int) => { print v; }     # 字典迭代的是**值**
+foreach {"a": 1} (v: int) => { print v; }    # 字典迭代的是**值**
 foreach 5 (x: int) => { print x; }
 # foreach 需要 IEnumerable（list / set / dict），得到 Integer
 ```
@@ -1061,6 +1061,60 @@ Sorting.Max rs                             # 实现了 IComparable 的对象照�
 
 **用例见 tests/234。**
 
+### 5.13 键与查找（`IKey` / `Keys` / `Keyed`）
+
+字典的键**只能是值类型**（数、字符串），而且比的就是值自己：
+
+```ravel
+d := {}
+d.Set 1 "int"
+d.Set "1" "str"       # 和 1 是两个格子
+d.Set 1.0 "float"     # 和 1 也是两个格子
+d.Keys ()             # [1 1 1] —— 打印出来都像 1，但确实是三个（打印是给眼睛看的）
+```
+
+字面量的键是**表达式**：`{"a": 1}`（字符串要写引号），`{1: "x"}`、`{k: v}` 也成；
+`{a: 1}` 里的 `a` 是**变量**，没定义就报「未定义的变量 'a'」。
+
+**值语义的键：`IKey` + `Keys`。** 协议是 `Key ()` —— 交回"我当键时等于什么"（一个值类型）。
+每个值都有默认那条（数、字符串交回**自己**，别的类型当场报错说「在类里写一条 `Key`」），
+自己写的类型在类里写一条盖掉它，再登记一下：
+
+```ravel
+Rec ::= class {
+    X: int = 0
+    Key := () => { X; }        # 我当键时 = 我的 X
+}
+impl (IKey Rec { () })
+
+d := {}
+Keys.Set d (Rec 1 "甲") "one"
+Keys.Get d (Rec 1 "别的")      # "one" —— 另一个对象、X 一样 → 同一条
+```
+
+`Keys` 模块：`Of k`（规范键）· `Set d k v` · `Get d k` · `Has d k` · `Remove d k` · `GetOr d k dflt`
+—— 做的就是"先算规范键、再动那张普通 dict"。
+
+**要把原对象拿回来，用 `Keyed`。** 表里存的是规范键，所以 `d.Keys ()` 交回 `1` 而不是那个
+`Rec`；`Keyed` 多记一张"规范键 → 原键"：
+
+```ravel
+t := Keyed ()
+t.Set (Rec 1 "甲") "one"
+t.Get (Rec 1 "别的")                        # "one"
+(t.Keys ()).Map ((r: Rec) => { r.N; })      # [甲] —— 原对象回来了
+```
+
+⚠️ 两条要记住：
+
+- **`Key` 要交回稳定的值类型**（`() => { X; }` 这样）。交回一个新造的容器（`[X]`）不行：
+  `Keys.Of` 当场报「`Key` 要交回一个值类型的键（数 / 字符串）」。
+- **不能现装**（`by Key = property …` 用不了）：`Key` 这个名字 `Object` 上已经有了，
+  成员查找是**类链先说话** —— 和 `CompareTo` 同一个道理。
+
+引擎那张表（`d.Set k v`）和库这套的关系：前者只吃值类型、对象进不去，要拿对象当键就得走
+`Keys.*`（先在库里规范）。**用例见 tests/235。**
+
 ## 六、集合
 
 ### 6.1 List
@@ -1091,7 +1145,7 @@ s.Contains 3      # true
 ### 6.3 Dict
 
 ```ravel
-d := {a: 1 b: 2}
+d := {"a": 1 "b": 2}      # 键是**表达式**：字符串要写引号（`{a: 1}` 里的 `a` 是变量）
 d.Count ()        # 2
 d.Get "a"         # 1
 d.Set "c" 3
@@ -1136,7 +1190,7 @@ d.Has "a"         # true
 [1 2 3 4].Fold 0 (acc: int x: int) => { acc + x; }    # 10
 [5 2 9].SortBy (x: int) => { 0 - x; }                 # [9 5 2] —— 降序
 {"a" "bb"}.Max ()                                     # bb
-{a: 3 b: 1}.Min ()                                    # 1 —— 字典的元素是值
+{"a": 3 "b": 1}.Min ()                              # 1 —— 字典的元素是值
 ```
 
 **list 还有**带下标的:`At i` / `Set i v` / `Insert i v` / `RemoveAt i`(`Remove i` 是同一件事)/
@@ -1165,9 +1219,9 @@ s.Contains [1]         # false —— 新造的 [1] 不是集合里那个
 ### 6.6 代码块 vs 集合
 
 ```ravel
-{1 2 3}        # Set（单行无分号）
-{a: 1 b: 2}    # Dict（单行 + IDENT:）
-{ print 1; }   # Block（有分号/换行）
+{1 2 3}              # Set（单行无分号）
+{"a": 1 "b": 2}      # Dict（单行，第一个元素后面跟 `:`）
+{ print 1; }         # Block（有分号/换行）
 {
     print 1     # Block（多行）
 }
@@ -2094,7 +2148,7 @@ Error: 未预期的字符 '$'
 if { x > 0; } { print 1; } { print 0; }   # ✅
 if { x > 0 } { print 1 } { print 0 }       # ❌ → Set
 X := { 1 2 }        # Set（不是块）
-X := { a: 1 }       # Dict（IDENT : 开头）
+X := { "a": 1 }     # Dict（键是表达式）
 ```
 
 **这条规则不看位置，lambda 体一样适用**：

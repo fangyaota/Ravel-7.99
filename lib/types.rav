@@ -1,6 +1,6 @@
 # Types 模块 —— **要显式引用才有**:`using "types.rav"` 之后 `Types.xxx` 才是一个名字。
 #
-# 把类型树打出来(沿 `Subtypes ()` 走),和 `tests/125_type_tree.rav` 打印的是同一棵树:
+# 把类型树打出来(沿 `Subtypes ()` 走),和 `examples/type_tree.rav` 打印的是同一棵树:
 #
 #     using "types.rav"
 #     Types.PrintTree object
