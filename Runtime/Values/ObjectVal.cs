@@ -40,6 +40,10 @@ public record ObjectVal : RuntimeValue
     internal const string RequiresMember = "requires";
     internal const string BlockMember = "block";
     internal const string NameMember = "name";
+    /// <summary>构造器。**它是 protected 的**(见 `BuiltinClasses.PresetCtor` 给它挂的
+    /// `Attr.Protected`):类体系里照旧随便用 —— 子类写 `init = …` 覆盖那条走的是普通赋值,
+    /// 不受门禁拦;而 `obj.init` / `obj.init = …` 从外面读不到也写不了
+    /// (`Interpreter.CheckMemberAccess` 那一层:protected 只放行"当前作用域在这个类体系里")。</summary>
     internal const string InitMember = "init";
     internal const string ThisMember = "this";
     /// <summary>属性(`by x := property g s`)的两个函数:读走 `Get`、写走 `Set`。

@@ -167,10 +167,15 @@ internal static partial class BuiltinClasses
     /// 实例化路径:跑各层类体 → 在实例作用域里找 `init` → 调它、交出它的返回值。
     ///
     /// 捕获作用域给一个空 scope:体里只有 `init := <字面量值>`,不需要解析任何名字。</summary>
+    /// <summary>预设类体:一条 `init := <caster>`,而且**标成 protected**。
+    ///
+    /// protected 就是构造器该有的可见性:类体系里照旧(子类那句 `init = …` 是普通赋值,
+    /// 走的是 `Scope.Assign`,不受成员门禁拦),外面 `obj.init` / `obj.init = …` 读不到也写不了
+    /// —— 构造器不是给人从外面拨的开关。</summary>
     private static BlockVal PresetCtor(RuntimeValue caster)
         => new(
             new BlockExpr([new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(caster))
-                { Line = 1, Column = 1, Preset = true }])
+                { Line = 1, Column = 1, Preset = true, Attrs = [Attr.Protected] }])
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
 

@@ -45,6 +45,9 @@ R := class Q {
     init = () => { print "R.init"; this; }
 }
 print (R ())
+# 构造器是 **protected** 的:类体系里随便用(上面那句 `init = …` 就是),外面读不到也写不了
+try { print ((Q ()).init ()); } (e: Exception) => { print ("5: " + string e); }
+try { (Q ()).init = () => { this; }; } (e: Exception) => { print ("6: " + string e); }
 try {
     eval "S := class Q {\n    init := () => { this; }\n}\nS ()";
 } (e: Exception) => { print ("4: " + string e); }
@@ -71,6 +74,10 @@ print "end"
 # class {}
 # R.init
 # class {}
+# Q.init
+# 5: 变量 'init' 是受保护的
+# Q.init
+# 6: 字段 'init' 是受保护的
 # 4: 'init' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 6
 # end
