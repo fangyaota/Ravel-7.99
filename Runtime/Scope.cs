@@ -16,15 +16,33 @@ public class Scope(Scope? parent = null)
     public void Reparent(Scope parent) => Parent = parent;
 
     /// <summary>沿词法链找变量(当前层 → 父层 → …),找不到返回 null。
-    /// 其余查找/赋值都走这里,链式遍历只有这一份实现。</summary>
+    /// 其余查找/赋值都走这里,链式遍历只有这一份实现。
+    ///
+    /// 每一层问的是 <see cref="LookupHere"/>(虚的),不是直接翻 `_vars` ——
+    /// 于是某一层可以**代别人回答**(<see cref="BodyScope"/> 就是这么把自己的实例表
+    /// 插进链里的:类体跑在它上面,而"这一段代码属于哪个对象"由它说了算)。</summary>
     private Variable? Find(string name)
     {
         for (var current = this; current != null; current = current.Parent)
-            if (current._vars.TryGetValue(name, out var v))
+            if (current.LookupHere(name) is { } v)
                 return v;
 
         return null;
     }
+
+    /// <summary>这一层能不能给出这个名字 —— 默认就是翻本层自己的 `_vars`。
+    ///
+    /// 覆写它的只有 <see cref="BodyScope"/>:那一层自己**不装东西**(定义都转发给实例表了),
+    /// 它的回答是"先看看实例表本层有没有"。**只问那一层**(`LookupField`,不走它的词法父):
+    /// 实例表的词法父是"最具体那个类的写法处",那正是 <see cref="BodyScope"/> 要绕开的东西。</summary>
+    protected virtual Variable? LookupHere(string name)
+        => _vars.TryGetValue(name, out var v) ? v : null;
+
+    /// <summary>这一层**替哪个对象服务**(类体作用域会说"我服务那个实例")。默认没有。
+    ///
+    /// 给 `Interpreter.CheckFieldAccess` 那种"当前代码在不在这个对象的类里"的判断用:
+    /// 类体跑在 <see cref="BodyScope"/> 上之后,实例表不在词法链上,只比对 `Parent` 会漏掉它。</summary>
+    internal virtual Scope? InstanceScope => null;
 
     public virtual Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
                                     Statement? site = null)

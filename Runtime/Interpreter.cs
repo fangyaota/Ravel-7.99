@@ -76,7 +76,9 @@ public partial class Interpreter
         if (!field.HasAttr(Attr.Private) && !field.HasAttr(Attr.Protected)) return true;
         for (var cur = CurrentScope; cur != null; cur = cur.Parent)
         {
-            if (cur == obj.Scope) return true;
+            // 类体/方法体跑在 `BodyScope` 上,实例表不在词法链上 —— 那一层要连它的实例一起认
+            // (不然 `private` 从"类自己的代码读得到"变成"谁都读不到")。
+            if (cur == obj.Scope || cur.InstanceScope == obj.Scope) return true;
             if (field.HasAttr(Attr.Protected))
             {
                 var t = cur.TryLookup(ObjectVal.ThisMember);

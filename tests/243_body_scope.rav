@@ -1,0 +1,50 @@
+# 每层类体的**自由名字**按"那一层写在哪"解析 —— 定义照旧平铺进**同一个**实例表。
+#
+# 从前只有一个词法父:最具体那个类的写法处。于是父类写在**别的作用域**时,它的类体看不见
+# 自己那儿的名字(P 的 `Helper` 在 `make` 里,而 Q 写在顶层 → 解析不到)。现在每层跑在自己的
+# `BodyScope` 上:词法父 = 该层的 `CaptureScope`,定义转发回实例表(见 `Runtime/BodyScope.cs`)。
+
+make := () => {
+    Helper := 7
+    class {
+        x: int = Helper          # 这一层写在 make 里面
+    }
+}
+P := make ()
+print (P ())
+
+TopHelper := 3
+Q ::= class (P) {
+    y: int = TopHelper           # 这一层写在顶层
+}
+print (Q ())
+
+# 平铺照旧:父层的字段就在**同一张表**上,子类的类体里读得到
+# (重声明同名是另一条规矩,当场报错 —— 见 tests/236)
+R ::= class (P) {
+    z: int = x + 1               # `x` 是父层那个字段
+}
+print (R ())
+
+# 自由名字与字段重名时**字段优先**(和从前一致):本层那个 `Helper` 就是字段
+H ::= class {
+    Helper: int = 9
+    got := () => { Helper; }     # 类体里的裸名字 → 先看实例表本层
+}
+print ((H ()).got ())
+
+# 闭包捕获的也是这一层(方法体里既读得到字段、也看得见定义处)
+M ::= class {
+    n: int = 5
+    f := () => { n + (make2 ()); }
+}
+make2 := () => { 10; }
+print ((M ()).f ())
+print "end"
+# --- expected ---
+# class { x = 7 }
+# Q { x = 7, y = 3 }
+# R { x = 7, z = 8 }
+# 9
+# 15
+# end

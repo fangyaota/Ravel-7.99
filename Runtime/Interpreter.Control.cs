@@ -138,13 +138,32 @@ public partial class Interpreter
         throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last?.Message}）");
     }
 
+    /// <summary>跑**这一层**类体时用哪个作用域。
+    ///
+    /// 类的每层用 <see cref="BodyScope"/>(词法父 = 这一层写在哪),各层的定义转发回同一个
+    /// 实例表;而**接口**那半照旧直接跑在实例表上 —— 接口体是和实现块共环境的(实现写在哪,
+    /// 接口体就在哪解析,`use` 出去的那些实现才对它可见),由 `StepImplMake` 那次
+    /// `Reparent` 负责把它接到实现处。</summary>
+    private static Scope LayerScope(ClassVal type, BlockVal body, Scope instanceScope)
+        => type.IsAssignableTo(BuiltinClasses.BaseInterface)
+            ? instanceScope
+            : new BodyScope(body.CaptureScope, instanceScope);
+
     /// <summary>类实例化:沿祖先链(顶祖先→自身)依次跑每层类体,**全平铺在同一个 instanceScope**
     /// (所以同名成员是"后写盖先写",没有分层的成员表)。跑完之后只做一件事:在**那一个** scope 里
     /// 按名字取 `init` 来调 —— 拿到的自然是最后写的那条(最具体那个类声明的);没写过的落到
     /// `Object` 那条默认构造。不是"每层各调一次 init",也不是另走一遍链去找。
     /// ObjectVal 与 this 在第一个类体执行前就绑好(ClassType = 最终子类)。
     /// 阶段由 Count 推进:0=建 scope/绑 this/推第一层,(0,N)=推第 Count 层,N=调 init,&gt;N=返回对象。
-    /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。</summary>
+    /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。
+    ///
+    /// **类的每一层跑在自己的 <see cref="BodyScope"/> 上**(词法父 = 那一层**写在哪**):
+    /// 各层的定义照旧落回同一个实例表(平铺),而自由名字各按各的写法处解析 —— 从前只按
+    /// "最具体那个类"的(父类写在另一个作用域时,它的类体就看不见自己那儿的名字)。
+    ///
+    /// **接口那半不这么走**:接口体是"给实现用的"(槽要落在实现身上),它和实现块共用一个
+    /// 环境 —— 实现写在哪,接口体就在哪解析。所以它还留着"先建一个 scope、实现帧再
+    /// `Reparent` 到实现处"那条老路(见 `StepImplMake` 与 `Scope.Reparent`)。</summary>
     private void StepClassInit(ControlFrame cf)
     {
         var type = cf.Arg<ClassVal>(0, "class");
@@ -168,17 +187,21 @@ public partial class Interpreter
             _top = new BlockExecFrame(bodies[0].Block)
             {
                 Parent = cf with { State = obj },
-                Scope = instanceScope
+                Scope = LayerScope(type, bodies[0], instanceScope)
             };
             return;
         }
 
         var inst = (ObjectVal)cf.State; // Count > 0 起 State 恒为 ObjectVal
 
-        // 第 Count 层刚跑完 → 推下一层(同一个 instanceScope)
+        // 第 Count 层刚跑完 → 推下一层(定义照旧落回同一个实例表,名字走这一层自己的写法处)
         if (cf.Count < bodies.Count)
         {
-            _top = new BlockExecFrame(bodies[cf.Count].Block) { Parent = cf, Scope = inst.Scope };
+            _top = new BlockExecFrame(bodies[cf.Count].Block)
+            {
+                Parent = cf,
+                Scope = LayerScope(type, bodies[cf.Count], inst.Scope)
+            };
             return;
         }
 
