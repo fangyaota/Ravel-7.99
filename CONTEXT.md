@@ -458,9 +458,9 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   - **`parent` / `block` 是 `readonly`**（装它们的四个地方 —— `Install` / `Link` /
     `NewModuleClass` / `ObjectVal.ClassBody` —— 挂上去的）：它们是"这个类是什么"的定义，
     改它等于把类换一个（`C.parent = int` 之后 `C ()` 就去跑 `Integer` 的构造器了）。
-    装类因此都是**写一次**：接口那份类体是"父的声明接在自己前面"（`BakeParentDeclarations`），
-    现在**先烤好再 `Install`** —— 从前是"先装上、再 `trait.ClassBody = …` 换一份"，
-    那是往同一格写第二次，挂了 readonly 就当场报「无法重新定义只读变量 'block'」。
+    装类因此都是**写一次**（一个类的 `block` 就是**它那一层**用户写的类体，各层各存各的）；
+    接口从前"先装上、再 `trait.ClassBody = …` 换一份（把父的声明抄进来）"是往同一格写第二次——
+    那一层现在**整个删了**：继承不再靠抄，靠跑（见下面接口那节的 `StepImplMake`）。
     `name` **故意可写**：那是它本来的用法（`F.name = "x"`、`::=` 命名）。
   - **`init` 是 `protected`**（`PresetCtor` 给它挂的）：**类体系里照旧** —— 子类那句
     `init = …` 是普通赋值、不走成员门禁；外面 `obj.init` / `obj.init = …` 读不到也写不了
@@ -734,8 +734,12 @@ IEnumerator ::= interface { by MoveNext : function = default
 `StepClassInit` 沿类体链从具体往上一找就到它(`CollectBodies`)。
 
 从前没有这一层:接口的 parent 直接是 `object`,继承不到 `init`,于是每个接口的类体里都**烤**
-一份(`BakeInterfaceInit`),连带实现 scope 里多个没人看的 `init` 成员。现在只剩"父的声明抄进
-来"那一半(`BakeParentDeclarations`)。
+一份(`BakeInterfaceInit`);后来"父的声明抄进来"也是同一路数(`BakeParentDeclarations`)。
+现在两份都没有了:**接口的类体就是用户写的那份**(和普通 class 一样,各层各存各的),
+实现时 `StepImplMake` 用 `CollectBodies` 沿链**依次跑**进实现 scope ——
+"先摆槽(P 的体)、再摆槽(Q 的体)、最后换槽(实现块)"就是这么来的,一条规矩两处通用。
+代价是 `BaseInterface` 那份默认 `init` 也会落进实现 scope(`u.Fields ()` 里看得见一个 `init`)
+—— 和普通 class 的实例一样(`c.Fields ()` 里也有),算"和 class 一致"。
 
 **接口只承诺它自己那几条槽**。序列方法(`Map`/`Where`/`Fold`…)挂在**具体容器**上,所以通用
 函数里按接口的契约写(`GetEnumerator` / `MoveNext` / `Current`),或先落到那串值再往下用 ——

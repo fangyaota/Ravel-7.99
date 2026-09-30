@@ -236,6 +236,7 @@ public partial class Interpreter
 
         var target = cf.Arg<ObjectVal>(1, "ImplMake");
         var body = cf.Arg<BlockVal>(2, "ImplMake");
+        var bodies = BuiltinClasses.CollectBodies(trait);   // 顶祖先 → 自身,≥ 1 层
 
         if (cf.Count == 0)
         {
@@ -249,7 +250,9 @@ public partial class Interpreter
                             + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）");
 
             var impl = new ObjectVal(trait, new Scope(body.CaptureScope));
-            _top = new BlockExecFrame(trait.ClassBody!.Block)
+            // 第 Count 层类体(顶祖先 → 自身),和 `StepClassInit` **同一条规矩**:各层各存各的,
+            // 跑的时候依次落进同一个 scope —— 于是父接口的槽是"跑"出来的,不是烤/抄进来的。
+            _top = new BlockExecFrame(bodies[0].Block)
             {
                 Parent = cf with { State = impl },
                 Scope = impl.Scope
@@ -258,7 +261,14 @@ public partial class Interpreter
         }
 
         var self = (ObjectVal)cf.State;
-        if (cf.Count == 1)
+
+        if (cf.Count < bodies.Count)   // 还有更具体的层没跑
+        {
+            _top = new BlockExecFrame(bodies[cf.Count].Block) { Parent = cf, Scope = self.Scope };
+            return;
+        }
+
+        if (cf.Count == bodies.Count)  // 最后是**实现块**:额外跑一遍,也落进实现 scope
         {
             _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = self.Scope };
             return;

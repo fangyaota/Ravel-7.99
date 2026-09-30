@@ -162,8 +162,9 @@ internal static partial class BuiltinClasses
     /// 全照旧靠它;`requires` 记在 <see cref="ObjectVal.RequiresMember"/> 里,**只**给
     /// `StepImplMake` 查前置条件用(不进槽、不进 `<:`)。
     ///
-    /// 类体把父的**声明**接在自己前面一起烤(见 <see cref="BakeParentDeclarations"/>)——
-    /// 于是这个接口的"形"是自足的:`myTrait myClass { … }` 推它一把就拿到了全部槽。</summary>
+    /// 类体**就是用户写的那份**(和普通 class 一样,各层各存各的)—— 父接口那些槽不是抄进来的,
+    /// 而是实现时**沿链依次跑**跑出来的(见 `StepImplMake`:`CollectBodies` 那一趟)。
+    /// 一条规矩两处通用:继承靠"跑",不靠抄。</summary>
     private static RuntimeValue BuildInterface(Scope scope, ObjectVal? parent, List<ObjectVal> requires, RuntimeValue body)
     {
         if (body is not BlockVal blk)
@@ -171,10 +172,7 @@ internal static partial class BuiltinClasses
 
         // 没有父的接口,parent 挂在 **`BaseInterface`** 上(不是 `object`)—— 它就是"接口的
         // 公共基类",`init` 那一份默认实现挂在那儿,于是每个接口都继承得到。
-        // **先烤、再装**:把父接口的声明接在自己前面(槽要并集),然后一次装进类里。
-        // 这个顺序是有讲究的 —— `block` 那一格现在是 readonly,而"先 Install 再
-        // `trait.ClassBody = …` 换一份"就是往同一格写第二次。
-        var trait = Install(scope, parent ?? BaseInterface, BakeParentDeclarations(blk, parent));
+        var trait = Install(scope, parent ?? BaseInterface, blk);
 
         if (requires.Count > 0)
             trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, List, new ListVal([.. requires]))
@@ -185,38 +183,6 @@ internal static partial class BuiltinClasses
         // **拿到的那个实现** —— `Copy ()` / `with` 出来的副本绑的是它自己,不会误伤原件。
         trait.DefineMethod(DisposeMember, (self, _) => DisposeImplementation((ObjectVal)self));
         return trait;
-    }
-
-    /// <summary>把**父接口的声明**接在自己前面,做成这个接口最终的类体 —— **纯函数**:
-    /// 谁都不改,调用方拿它去 `Install`。所以 `block` 那一格只写一次(它是 readonly,
-    /// "先装上、再换一份"就是往同一格写第二次)。
-    ///
-    /// 槽要**并集**(父的那些 `by … = default` 是它"形"的一部分)—— 把父的抄进来最省事,
-    /// 而且**父自己早就把它的父抄进来了**,所以一层不落。父的在前、自己的在后:
-    /// 同名槽由后写的说了算(`DefineOrReplace`)。
-    ///
-    /// **`init` 不在这儿烤了**:接口的 parent 是 `BaseInterface`,它的类体里有一份默认的
-    /// `init`(`InstallInterfaceInit`),`StepClassInit` 沿类体链从具体往上一找就到 ——
-    /// 于是每个接口的体都能是"用户写的那样",实现 scope 里也不会再多出一个没人看的 `init`。
-    ///
-    /// 类体必须是新的 BlockExpr(带用户那份的 Source/行列):原样改 `block` 会动到用户写的
-    /// 那个 BlockExpr,`Source` 也就丢了。</summary>
-    private static BlockVal BakeParentDeclarations(BlockVal blk, ObjectVal? parent)
-    {
-        var statements = new List<Statement>();
-        if (parent?.ClassBody is { } pb)
-            statements.AddRange(pb.Block.Statements);
-
-        statements.AddRange(blk.Block.Statements);
-
-        return new BlockVal(
-            new BlockExpr(statements)
-            {
-                Line = blk.Block.Line,
-                Column = blk.Block.Column,
-                Source = blk.Block.Source,
-            },
-            blk.CaptureScope);
     }
 
     /// <summary>实现对象的最后一道装填:目标类、代号、`this`,以及那条 `instance` 槽
