@@ -212,70 +212,49 @@ public partial class Interpreter
         Return(cf, cf.Last is FunctionVal rest && rest.IsClosure ? new PartialCtor(inst, rest) : cf.Last);
     }
 
-    /// <summary>造实现对象(`myTrait myClass { 实现体 }`)。阶段由 Count 推进:
-    /// 0=建实现对象(它的成员表就是这个 scope)、推**接口类体**,1=推**实现体**,2=收尾并交出去。
+    /// <summary>把**实现块**装进实现对象(`myTrait myClass { 实现体 }`)。阶段由 Count 推进:
+    /// 0=推实现块,1=收尾并交出去。
     ///
-    /// 两段跑在**同一个 scope** 里:接口类体先把 `by a : int = default` 那些槽摆好,实现体再
-    /// `by a = property …` 把它们换掉 —— 所以实现体里写的是"换"(`=`),不是"建"(`:=`)。
-    /// 收尾时 <see cref="BuiltinClasses.FinishImplementation"/> 在这里装上 `instance` 那条槽
-    /// (读的时候现场解析"这一次调用在服务谁",见 `BuiltinClasses.Activate`);实现体里创建的
-    /// lambda 捕获的正是这个 scope,所以它们看得见 `instance`。
+    /// **两类东西两处跑**(和普通类一个规矩):
+    /// - 接口那几层类体(顶祖先 → 自身)由**实例化那趟**跑(`StepClassInit` 沿 `CollectBodies`
+    ///   依次跑进它建的那个对象的 scope)—— 这些体是"配方",每造一个实现跑一遍;
+    /// - **实现块**在这儿追加:它先把 `by a : int = default` 那些槽摆好(在类体那趟里),
+    ///   实现块再用 `by a = property …` 换掉 —— 所以实现体里写的是"换"(`=`),不是"建"(`:=`)。
     ///
-    /// 词法父取**实现体**的捕获作用域:接口体与实现体通常写在同一处,而实现体更可能就近
-    /// 引用外面的名字。收尾用 <see cref="BuiltinClasses.FinishImplementation"/>。</summary>
+    /// 于是接口体那些副作用**只跑一次**(从前实例化那趟跑一遍、这里又跑一遍)。
+    ///
+    /// 收尾时 <see cref="BuiltinClasses.FinishImplementation"/> 往这个对象上装
+    /// `target`/`generation`/`instance`(`instance` 读的时候现场解析"这一次调用在服务谁",
+    /// 见 `BuiltinClasses.Activate`);实现块里创建的 lambda 捕获的正是这个 scope,所以它们
+    /// 看得见 `instance`。</summary>
     private void StepImplMake(ControlFrame cf)
     {
-        var trait = cf.Arg<ClassVal>(0, "ImplMake");
-
-        // `interface 某个类型 { … }` 也落得到这儿(第一个参数是个类型,类型上对得上),
-        // 但那是"接口继承接口"的意思,还没这东西 —— 当场说清楚,别造一个 trait = interface 的怪东西
-        if (trait == BuiltinClasses.Interface)
-            throw new RuntimeException(
-                "`interface` 后面要跟一个代码块（`interface { … }` 才是造接口）；"
-                + "实现写成 `myTrait myClass { … }`，第一个得是接口（用 `interface { … }` 造出来的那个）");
-
+        var impl = cf.Arg<ObjectVal>(0, "ImplMake");
         var target = cf.Arg<ObjectVal>(1, "ImplMake");
         var body = cf.Arg<BlockVal>(2, "ImplMake");
-        var bodies = BuiltinClasses.CollectBodies(trait);   // 顶祖先 → 自身,≥ 1 层
 
         if (cf.Count == 0)
         {
             // 「要求」是**前置条件**:这个类得**已经**有那几个接口的实现(查当下作用域里有没有
             // 生效中的)。放在造实现这一步,是因为"已经实现"是作用域里的事(实现登记在 scope 上),
             // 而这里手里正好有求值器。
+            var trait = impl.Type;   // 接口对象(这个实现的类)—— 要求表挂在它那张
             if (trait.Scope.LookupField(ObjectVal.RequiresMember)?.Value is ListVal reqs)
                 foreach (var r in reqs.Elements)
                     if (r is ObjectVal rt && !BuiltinClasses.HasTrait(this, target, rt))
                         throw new RuntimeException($"`{trait.DisplayName}` 要求 {target.DisplayName} "
                             + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）");
 
-            var impl = new ObjectVal(trait, new Scope(body.CaptureScope));
-            // 第 Count 层类体(顶祖先 → 自身),和 `StepClassInit` **同一条规矩**:各层各存各的,
-            // 跑的时候依次落进同一个 scope —— 于是父接口的槽是"跑"出来的,不是烤/抄进来的。
-            _top = new BlockExecFrame(bodies[0].Block)
-            {
-                Parent = cf with { State = impl },
-                Scope = impl.Scope
-            };
+            // 接口那几层类体已经跑过了(实例化那趟跑的,跑的就是这个对象的 scope)——
+            // 这里只追加**实现块**。但这张表得换一个词法父:它由那趟建出来时接的是
+            // **接口定义**处,而实现块的自由名字该在**实现写在哪**解析。
+            impl.Scope.Reparent(body.CaptureScope);
+            _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = impl.Scope };
             return;
         }
 
-        var self = (ObjectVal)cf.State;
-
-        if (cf.Count < bodies.Count)   // 还有更具体的层没跑
-        {
-            _top = new BlockExecFrame(bodies[cf.Count].Block) { Parent = cf, Scope = self.Scope };
-            return;
-        }
-
-        if (cf.Count == bodies.Count)  // 最后是**实现块**:额外跑一遍,也落进实现 scope
-        {
-            _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = self.Scope };
-            return;
-        }
-
-        BuiltinClasses.FinishImplementation(this, self, target);
-        Return(cf, self);
+        BuiltinClasses.FinishImplementation(this, impl, target);
+        Return(cf, impl);
     }
 
     /// <summary>容器上"逐个跑一遍"的那批方法:Each / Map / Where / Fold / All / Any / Find / SortBy

@@ -736,10 +736,18 @@ IEnumerator ::= interface { by MoveNext : function = default
 从前没有这一层:接口的 parent 直接是 `object`,继承不到 `init`,于是每个接口的类体里都**烤**
 一份(`BakeInterfaceInit`);后来"父的声明抄进来"也是同一路数(`BakeParentDeclarations`)。
 现在两份都没有了:**接口的类体就是用户写的那份**(和普通 class 一样,各层各存各的),
-实现时 `StepImplMake` 用 `CollectBodies` 沿链**依次跑**进实现 scope ——
-"先摆槽(P 的体)、再摆槽(Q 的体)、最后换槽(实现块)"就是这么来的,一条规矩两处通用。
+**跑**也照普通那一套分两趟:
+- **实例化那趟**(`StepClassInit`,就是说 `某接口 某个类 { … }` 时"实例化那个接口")
+  沿 `CollectBodies` 依次跑进它建的那个对象的 scope —— 于是"先摆槽(P 的体)、再摆槽(Q 的体)"
+  是**跑**出来的顺序(同名后写的说了算),不是抄语句排出来的;
+- **实现帧**(`StepImplMake`)只追加**实现块**(`by a = property …` 那些"换槽"),
+  跑之前把那个 scope 的词法父换成**实现块写在哪**(`Reparent`)—— 它是实例化那趟建的,
+  父本来是**接口定义**处,而实现块的自由名字得在实现处解析(`lib/keys.rav` 里 `IDict` 的
+  实现块引用的 `Of` 就只在那儿可见)。
+
 代价是 `BaseInterface` 那份默认 `init` 也会落进实现 scope(`u.Fields ()` 里看得见一个 `init`)
 —— 和普通 class 的实例一样(`c.Fields ()` 里也有),算"和 class 一致"。
+那条 `Scope.Reparent` 全库只此一处调用。
 
 **接口只承诺它自己那几条槽**。序列方法(`Map`/`Where`/`Fold`…)挂在**具体容器**上,所以通用
 函数里按接口的契约写(`GetEnumerator` / `MoveNext` / `Current`),或先落到那串值再往下用 ——

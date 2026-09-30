@@ -125,14 +125,16 @@ internal static partial class BuiltinClasses
 
         // ── ② 接口那一支的那份:挂在 `BaseInterface` 的类体上,所有接口(它的子类)继承 ──
         // 干的事完全不同:**造实现**。`某接口 某个类 { … }` 是实例化那个接口,而"谁在被实例化"
-        // 就是造出来的实现的类型 —— 推 `ImplMake` 帧,把两段类体跑在实现 scope 里。
+        // 就是造出来的实现 —— 推 `ImplMake` 帧,把**实现块**跑在它身上。
+        //
+        // 接口那几层类体**不在这儿跑**:实例化那趟(`StepClassInit`)已经沿链跑进这个对象的
+        // scope 了(普通类一个规矩)。这里只把**实现块**追加进去(先摆槽、再换槽),所以传下去的是
+        // **那个对象**本身(不是它的类型):帧里要往它身上装 `target`/`generation`/`instance`。
         //
         // 同样不判"谁在造":走得进这个类体的,永远是某个**接口对象**被应用。
         var implOf = new NativeClosure("of", Type, (scope, of) =>
-        {
-            var driver = ((ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value).Type;
-            return new ControlFunction(ControlKind.ImplMake, 3, RList<RuntimeValue>.Empty.Add(driver).Add(of));
-        });
+            new ControlFunction(ControlKind.ImplMake, 3,
+                RList<RuntimeValue>.Empty.Add(scope.Lookup(ObjectVal.ThisMember).Value).Add(of)));
 
         var implJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
             "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
@@ -191,7 +193,9 @@ internal static partial class BuiltinClasses
     {
         impl.Scope.Define(TargetMember, Type, target);
         impl.Scope.Define(GenerationMember, Int, new IntVal(0)).SetAttr(Attr.Unreadable);
-        impl.Scope.Define(ObjectVal.ThisMember, impl.Type, impl);
+        // `this` 用 OrReplace:这个对象是**实例化那趟**造的(`StepClassInit` 已经绑过 `this`),
+        // 实现帧只是在它身上继续装填。
+        impl.Scope.DefineOrReplace(ObjectVal.ThisMember, impl.Type, impl);
         InstallInstance(interp, impl);
     }
 

@@ -3,7 +3,17 @@
 public class Scope(Scope? parent = null)
 {
     private readonly Dictionary<string, Variable> _vars = [];
-    public Scope? Parent { get; } = parent;
+    public Scope? Parent { get; private set; } = parent;
+
+    /// <summary>换掉词法父 —— **只给"造实现"那一处用**(见 `StepImplMake`)。
+    ///
+    /// 那个 scope 是"实例化接口"那趟(`StepClassInit`)建出来的(词法父 = **接口定义**处,
+    /// 接口体在那儿写的),而它同时要当**实现对象**的成员表 —— 实现块的自由名字得在
+    /// "实现写在哪"解析(实现体和接口体常常不在一处:`lib/keys.rav` 里 `IDict` 的实现块
+    /// 引用的 `Of` 就只在那儿可见)。所以那一处把它接到实现块的捕获作用域上。
+    ///
+    /// 别处不要再调:作用域是棵树,父能改的话读的人就没法靠它推理了。</summary>
+    public void Reparent(Scope parent) => Parent = parent;
 
     /// <summary>沿词法链找变量(当前层 → 父层 → …),找不到返回 null。
     /// 其余查找/赋值都走这里,链式遍历只有这一份实现。</summary>
