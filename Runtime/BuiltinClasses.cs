@@ -187,27 +187,31 @@ internal static partial class BuiltinClasses
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
 
-    /// <summary>往一个**类对象的表**里挂引擎成员 —— 那三个属性统一在这里补。内置方法、类运算符、
-    /// 序列方法(`SeqMethod`)、`GetImplements ()` 这类查询(`TraitQuery`)实现各不相同,
-    /// 但身份是同一种:**引擎给这一类挂的成员**。
+    /// <summary>往一个**类对象**的**实例表**里挂引擎成员 —— `ClassVal.InstanceTable` 那张
+    /// "给实例的成员表"。内置方法、类运算符、序列方法(`SeqMethod`)、`GetImplements ()`
+    /// 这类查询(`TraitQuery`)实现各不相同,身份是同一种:**引擎给这一类挂的、实例能用的成员**。
     ///
-    /// - `forInstance`(一律挂):实例沿类链才兜得到。漏标一个就是从"实例看得到"变成
-    ///   "实例看得到才怪"—— `GetImplements` 漏标时十个测试一起报「类型 'Type' 没有方法」。
-    /// - `private`(`isPrivate`,默认挂):**类对象那一侧读不到**。内置的实例方法是这个默认 ——
-    ///   从类上读到的那份没绑 self,`list.Add 2` 从前直接是 InvalidCastException。
-    ///   类那一侧本来就要用的东西要传 false:运算符(`1 + 2` 找的正是"类型上的 `+`")、
-    ///   `GetImplements ()`(`Option.GetImplements ()` 就是在类上问的)。
-    /// - `readonly`(`readOnly`,默认挂):谁都换不掉。`readOnly: false` 只给**用户类体里那句
-    ///   `+ := f`**(见 <see cref="ObjectVal.DefineClassOperator"/>):那是用户的代码,
-    ///   不是内置实现,得留出覆盖的余地。</summary>
+    /// 落点就是声明 —— 不必再打 `forInstance` 之类的标记:写进哪张表就说明给谁用。
+    /// 唯一还挂的属性是 `readonly`(谁都换不掉;`readOnly: false` 只给**用户类体里那句
+    /// `+ := f`**,见 <see cref="ObjectVal.DefineClassOperator"/>)。
+    ///
+    /// 类侧本来就要用的成员(读它的就是类对象自己,比如 `Json.FromString`)别走这条 ——
+    /// 用 <see cref="ClassSideMember"/>。</summary>
     internal static Variable EngineMember(ObjectVal type, string name, RuntimeValue impl,
-                                          bool isPrivate = true, bool readOnly = true)
+                                          bool readOnly = true)
     {
-        var v = type.Scope.DefineOrReplace(name, Function, impl);
-        v.SetAttr(Attr.ForInstance);
-        if (isPrivate) v.SetAttr(Attr.Private);
+        // 只有类对象有实例表。挂错了是 C# 侧的程序错误 —— 当场炸比静默挂到别处好
+        var v = ((ClassVal)type).InstanceTable.DefineOrReplace(name, Function, impl);
         if (readOnly) v.SetAttr(Attr.Readonly);
         return v;
+    }
+
+    /// <summary>挂一个**类侧**的引擎成员:读它的就是**类对象自己**(`Json.FromString s`)
+    /// —— 落类那张表(`Scope`),不进给实例的表。全库只有 `Json.FromString` 一处。</summary>
+    internal static void ClassSideMember(ObjectVal type, string name, BuiltinMethodVal impl)
+    {
+        impl.Name = name;
+        type.Scope.DefineOrReplace(name, Function, impl).SetAttr(Attr.Readonly);
     }
 
     /// <summary>「没有体」时交出去的那个**空块** —— 类型恒定,别拿 `()` 顶替。

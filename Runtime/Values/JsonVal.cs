@@ -15,12 +15,13 @@ namespace Ravel.Runtime;
 ///
 /// `JToken` **不用 Dispose**(不是 IDisposable),所以这里不必持有别的活东西。
 ///
-/// **方法在类那层**(`Json`),靠 `forInstance` + `private` 分两侧:实例读得到 `Kind ()`,
-/// 类对象那一侧读不到(`Json.Kind` → 「类型 'Type' 没有方法」)。自己那层留给用户挂的东西
-/// (`j.tag := 1`),实例化时是空的 —— 和 `ListVal` / `DictVal` 一个形状。
+/// **方法在类的实例表里**(`Json.InstanceTable`,见 `ClassVal`):实例读得到 `Kind ()`,
+/// 类对象那一侧读不到(`Json.Kind` → 「类型 'Type' 没有方法」)——那是两张表的结构,
+/// 不是标记。自己那层留给用户挂的东西(`j.tag := 1`),建值时是空的 —— 和 `ListVal` / `DictVal`
+/// 一个形状。
 ///
-/// (从前是每个值一张成员表:那时类那一侧没法拦,`Json.Kind` 调用时会拿 `ClassVal` 当
-/// `self`、C# 强转当场炸。标记齐了就不必再给每个值造一份 —— 而 `Get` / `At` 每取一个子节点
+/// (从前是每个值一张成员表:那时类那一侧没有表可分,`Json.Kind` 调用时会拿 `ClassVal` 当
+/// `self`、C# 强转当场炸。有了实例表就不必再给每个值造一份 —— 而 `Get` / `At` 每取一个子节点
 /// 就是一个新 Json 值。)</summary>
 public record JsonVal : ObjectVal
 {

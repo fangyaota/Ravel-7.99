@@ -115,6 +115,14 @@ public partial class Parser
             _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Identifier)
             throw ParseError($"'{Peek().Lexeme}' 修饰符已删除（它只被记下来，没有任何地方读它）");
 
+        // `forInstance` 同样已删:它当年是"类那一侧读不到"的凭据,而那个判据现在是**结构**的
+        // —— 类对象有两张表,给实例的成员住在 `ClassVal.InstanceTable` 里,类那侧根本读不到。
+        // 用户能写它的地方(变量定义)本来就没有实例表可落。同一条理由:不专门拦的话它会被
+        // 当普通变量名,报「未定义的变量 'forInstance'」,看不出是这个修饰符没了。
+        if (Check(TokenType.Identifier) && Peek().Lexeme is "forInstance" &&
+            _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Identifier)
+            throw ParseError("'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）");
+
         // 修饰符
         var attrs = new List<string>();
         while (Check(TokenType.Identifier))

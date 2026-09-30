@@ -7,11 +7,11 @@ internal static partial class BuiltinClasses
 
     /// <summary>把二元运算符注册为名字是符号的方法（op 如 "+"、"=="）。
     ///
-    /// `isPrivate: false` —— 运算符是在**类那一侧**找的（`BindOperator`：`left.Type.MemberScope`
-    /// 查"类型上的 `+`"），挡了那一侧 `1 + 2` 就没法算。`private` 那个"类上读不到"
-    /// 是给**实例方法**的（`list.Add` 那种）。</summary>
+    /// 落点是**实例表**，和 `BindOperator` 找的地方正好对上：它查的是
+    /// `left.Type.InstanceMembers`（"以左值为身份的那张表"）—— `1 + 2` 找 `Integer` 的、
+    /// `C1 == C2` 找 `Type` 的、`c1 == c2` 找 `C` 的，各是各的表。</summary>
     private static void DefineOp(ObjectVal type, string op, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => type.DefineMethod(op, impl, isPrivate: false);
+        => type.DefineMethod(op, impl);
 
     /// <summary>把操作数收成想要的运行时值类型。类型不对时报 Ravel 错误——
     /// 直接写 `((IntVal)b)` 会抛 C# 的 InvalidCastException,消息里全是

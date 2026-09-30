@@ -57,30 +57,45 @@ public record ObjectVal : RuntimeValue
 
     public override ObjectVal Type => ClassType;
 
-    /// <summary>取成员:先自己那层(对象是扁平的),miss 了沿类链兜底(方法住在类那层)。
+    /// <summary>取成员:先自己那层(对象是扁平的),miss 了沿类链兜底(实例成员住在类那层)。
     /// 两段合成一个只读视图,见 <see cref="MemberView"/>。
     ///
     /// 注意它**不是** <see cref="Scope"/> 本身:后者是"只查一层"的实例作用域,
     /// 写路径(定义/赋值)仍然直接对 `Scope` 走,视图只是读的门面。
     ///
-    /// **自己是类对象时是"类那一侧"**(<see cref="IsClass"/>):自己表里带 `private` 的成员
-    /// 从这一侧读不到 —— 内置的实例方法都是这样(`list.Add` 那种从类上读到的是没绑 self 的一份,
-    /// 调用就是 `((ListVal)ClassVal)` 的 InvalidCastException),要读得从一个**实例**上读。</summary>
-    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type, IsClass);
+    /// **自己是类对象时读的是"类那一侧"**:自己那张表是类自己的成员(见
+    /// <see cref="ClassVal.InstanceTable"/> 那段),里面没有给实例的方法 —— 所以
+    /// `list.Add 2` 报的是「类型 'Type' 没有方法 'Add'」,而不是拿类对象当 `self` 去炸。
+    /// 这是结构决定的,不靠标记。</summary>
+    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type);
 
     private Scope? _memberScope;
 
-    /// <summary>「**以我为类型**的那些值」的成员表:我自己那层 + 沿 parent 链的上游。
+    /// <summary>「**以我为类型**的那些值」的成员表:沿 `parent` 链收集各层的
+    /// <see cref="ClassVal.InstanceTable"/>。
     ///
     /// 和 <see cref="MemberScope"/> 不是一回事 —— 那是"以**值**的身份取成员",
-    /// 所以还要再往我的**元类**链上找(`C.Fields ()` 能看到 `type` 那层的方法)。
-    /// 原子值(它没有自己的成员表)借的是这一个。
-    ///
-    /// 也正因为它是"值的身份",**不做类那一侧的 private 过滤**(那一侧才要
-    /// `ValueType` 那批运算符:`1 + 2` 找的正是"类型上的 `+`")。</summary>
+    /// 所以自己那层之外还要再往我的**元类**链上找(`C.Fields ()` 能看到 `type` 那层的方法)。
+    /// 原子值(它没有自己的成员表)借的是这一个;`BindOperator` 那类"以类型为单位找运算符"
+    /// 也用它(`1 + 2` 找的正是 `Integer` 那张给实例的表)。</summary>
     internal Scope InstanceMembers => _instanceMembers ??= new MemberView(null, this);
 
     private Scope? _instanceMembers;
+
+    /// <summary>「**以我为类型**的那些值找**运算符**」时用的表 —— 和 <see cref="InstanceMembers"/>
+    /// 只差链那一半:这里沿的是**元类链**(`type` → `function` → `object`),不是我自己那条
+    /// parent 链。
+    ///
+    /// 为什么要分这么细:运算符注册在**类自己**那张给实例的表里(`Integer` 的 `+`、用户类体里
+    /// 那句 `+ := f`),而"任何值都有"的那批(`is` / `isnot` / `<:` / `:>`)注册在 `object` 上 ——
+    /// 自指的 `Every` / `Any`(`parent` 是自己,自己的链到不了 `object`)也得摸到它们。
+    /// 走元类链两半都顾得上:每个**类对象**的元类链都是 `type` → `function` → `object`。
+    /// (`InstanceMembers` 那半不能这么走:`(1).Fields ()` 要列出 `Integer` 的 `+ - * /`,
+    /// 那是**自己**那条链上的东西。)</summary>
+    internal Scope OperatorMembers => _operatorMembers ??= new MemberView(
+        this is ClassVal c ? c.InstanceTable : null, ClassType);
+
+    private Scope? _operatorMembers;
 
     public override bool HasOwnMembers => true;
 
@@ -142,10 +157,13 @@ public record ObjectVal : RuntimeValue
     /// <summary>机制成员名 —— 它们**不是方法**:是类对象自己身上的数据(原型链指针、类体、
     /// 构造器、`this`)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
     ///
-    /// `Fields ()` 列成员(<see cref="MethodNames"/>)时排掉它们、沿类链查找
+    /// `Fields ()` 列成员(<see cref="ClassVal.MethodNames"/>)时排掉它们、沿类链查找
     /// (<see cref="MemberView.LookupInClassChain"/>)时也要排掉 —— **两处必须同一份定义**。
-    /// 这个漏过一回:机制成员被沿链找到、再被当方法绑到非对象 receiver 上,
-    /// `(ObjectVal)self` 硬转就抛 InvalidCastException。
+    ///
+    /// 从前这条是**主判据**(机制成员和内置方法住在同一张表里,只能按名字挑);两张表分开
+    /// 之后,机制成员根本不进**给实例的那张表**,结构上就漏不出去 —— 留着它是保险:
+    /// 机制成员一旦被沿链找到、再被当方法绑到非对象 receiver 上,`(ObjectVal)self` 硬转
+    /// 就是打穿程序的 C# InvalidCastException,而这条只有几个字符串比较的代价。
     ///
     /// `this` 是**类对象**才会有的一个:类对象就是 `type` 的实例,而实例化时
     /// `instanceScope.Define("this", …)` —— 那份实例作用域**正是这个类对象的成员表**。
@@ -189,39 +207,24 @@ public record ObjectVal : RuntimeValue
 
     /// <summary>注册内置同步方法:BuiltinMethodVal 标记,分派走快速同步路径。
     ///
-    /// 属性由 <see cref="BuiltinClasses.EngineMember"/> 统一补上(`forInstance` + `private` +
-    /// `readonly`)——**`private` 的意思是"类对象那一侧读不到"**,这正是内置实例方法该有的:
-    /// `list.Add 2` 从类上读到的那份没绑 self,从前直接是 InvalidCastException。
-    /// 类那一侧本来就要用的(运算符、`GetImplements ()`)由各自的注册点传 `isPrivate: false`。
+    /// 落点是**给实例的那张表**(<see cref="ClassVal.InstanceTable"/>,见
+    /// <see cref="BuiltinClasses.EngineMember"/>)——内置实例方法本来就只属于实例,
+    /// 从类对象那一侧读不到(`list.Add 2` 报「类型 'Type' 没有方法 'Add'」)。
     ///
-    /// 这是**引擎内部**的注册口:走这条路的都自动带上属性,所以那一串 `X.DefineMethod (…)`
-    /// 一行都不用改。用户代码碰不到它(它不在语言里,只有 C# 侧调得到)。</summary>
-    internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl,
-                                   bool isPrivate = true)
-        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name }, isPrivate);
+    /// 这是**引擎内部**的注册口:那一串 `X.DefineMethod (…)` 一个字符都不用改。
+    /// 用户代码碰不到它(它不在语言里,只有 C# 侧调得到)。</summary>
+    internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
+        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name });
 
     /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
     /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。
     ///
-    /// **`isPrivate: false` + `readOnly: false`**:这条路上走的是**用户**类体里那句 `+ := f`
-    /// (见 `BuiltinClasses.Install` 扫类体),不是内置实现 —— 而运算符本来就是在类那一侧找的
-    /// (`BindOperator` 查的正是"类型上的 `+`"),挡了类那一侧 `1 + 2` 就没法算。</summary>
+    /// **不进 readonly**:这条路上走的是**用户**类体里那句 `+ := f`
+    /// (见 `BuiltinClasses.Install` 扫类体),不是内置实现,得留出覆盖的余地。
+    /// 落点照旧是给实例的那张表 —— 运算符就是在"以左值为身份"的那张表上找的
+    /// (`BindOperator`),`1 + 2`、`c1 + c2` 走的都是它。</summary>
     internal void DefineClassOperator(string op)
-        => BuiltinClasses.EngineMember(
-            this, op, new ClassOperatorFactory(op) { Name = op }, isPrivate: false, readOnly: false);
-
-    /// <summary>本层里**实例看得到**的成员名(给 `Fields ()` 和类链查找用)——
-    /// 判据和 <see cref="MemberView.LookupField"/> 那半**完全一致**:带 `forInstance` 标记、
-    /// 且不是机制成员。两处共用这一份定义,不然"查得到"和"列得出"迟早分叉。
-    ///
-    /// 机制成员要排掉:`block` 是代码块(它也是 FunctionVal)、`parent` 是原型链指针、
-    /// `init` 是构造器、`this` 是"这个值自己"的别名 —— 它们都不是"这个值的成员"。
-    ///
-    /// `init` 这一条容易漏:类体就跑在这个对象自己的实例作用域里,所以类对象的 Scope
-    /// 里**装着它自己的构造器**,沿原型链查方法时会把子类的 `init` 一并列出来。</summary>
-    internal IEnumerable<string> MethodNames => Scope.Variables
-        .Where(kv => kv.Value.HasAttr(Attr.ForInstance) && IsMethodName(kv.Key))
-        .Select(kv => kv.Key);
+        => BuiltinClasses.EngineMember(this, op, new ClassOperatorFactory(op) { Name = op }, readOnly: false);
 
     // ============================================================
     //  显示

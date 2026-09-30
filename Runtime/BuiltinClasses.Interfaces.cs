@@ -338,11 +338,11 @@ internal static partial class BuiltinClasses
         // `instance` 是机制自己那条槽,不进"`u.x` 能读到什么"(见 InstanceMember 的说明)。
         // 槽体里读的是**裸名字**,词法链直接命中实现 scope,不走这儿。
         if (name == InstanceMember) return null;
-        // 常规查找先说话:对象看"实例那层 + 类链"(`MemberScope`),**标量只有类链**
-        // (它们不是 ObjectVal、没有自己的成员表——`"ab".Length` 就是从类对象上找的)。
-        var own = receiver is ObjectVal o ? o.MemberScope : receiver.Type.MemberScope;
-        if (own.LookupField(name) != null) return null;
-        if (OperatorSymbols.IsSymbol(name) && receiver.Type.MemberScope.LookupField(name) != null) return null;
+        // 常规查找先说话:就是"这个值能读到哪些成员"(`MemberScope`)——对象是"自己那层 +
+        // 沿类链的实例表",**标量借的正是同一个视图**(它们不是 ObjectVal、没有自己那层,
+        // `MemberScope` 对它们就是 `Type.InstanceMembers`)。
+        if (receiver.MemberScope.LookupField(name) != null) return null;
+        if (OperatorSymbols.IsSymbol(name) && receiver.Type.OperatorMembers.LookupField(name) != null) return null;
 
         for (var s = interp.CurrentScope; s != null; s = s.Parent)
         {

@@ -373,12 +373,10 @@ internal static partial class BuiltinClasses
         // `I.GetImplementors ()`(哪些类型实现了这个接口)。实现登记在作用域里,所以真正算它们的
         // 是求值器 —— 这里只挂上那个"绑好接收者、调用时由 CallInto 认出"的成员值。
         Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));
-        // `isPrivate: false`:这两条就是**从类那一侧问**的(`Option.GetImplements ()`),
-        // 它们挂在 `Type` 的表上、经元类链兜到 —— 和内置实例方法不是一路
-        EngineMember(Type, "GetImplements", new TraitQuery("GetImplements", TraitQueryKind.Implements),
-            isPrivate: false);
-        EngineMember(Type, "GetImplementors", new TraitQuery("GetImplementors", TraitQueryKind.Implementors),
-            isPrivate: false);
+        // 挂在 `Type` 的**实例表**上:`Option.GetImplements ()` 里的 `Option` 是 `type` 的实例,
+        // 经元类链兜到这一张(`Option` 自己的表里没有,元类链上游 `Type` 那张里有)✓
+        EngineMember(Type, "GetImplements", new TraitQuery("GetImplements", TraitQueryKind.Implements));
+        EngineMember(Type, "GetImplementors", new TraitQuery("GetImplementors", TraitQueryKind.Implementors));
         Type.DefineMethod("Subtypes", (s, _) =>
         {
             var t = (ObjectVal)s;

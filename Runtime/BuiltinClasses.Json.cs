@@ -127,22 +127,22 @@ internal static partial class BuiltinClasses
 
     private static JsonVal JsonOf(RuntimeValue v) => new(ToJson(v));
 
-    /// <summary>Json 那一批成员(按类型分组,和别处一样)—— 实例方法挂在**类**上,
-    /// 靠 `forInstance` + `private` 这对标记分好两侧:
-    /// 实例读得到(`j.Kind ()`)、类对象那一侧读不到(`Json.Kind` → 「类型 'Type' 没有方法」)。
+    /// <summary>Json 那一批成员(按类型分组,和别处一样)—— 实例方法走 `DefineMethod`,
+    /// 落进 `Json` 的**实例表**:实例读得到(`j.Kind ()`)、类对象那一侧读不到
+    /// (`Json.Kind` → 「类型 'Type' 没有方法 'Kind'」)。这是两张表的结构带来的,不靠标记。
     ///
     /// 从前这批成员是**每个 Json 值一张表**(`NewJsonMembers`):那时类那一侧没法拦,
     /// `Json.Kind` 会被解析成"类上的方法",调用时 `self` 是那个 `ClassVal`、方法体里
     /// `((JsonVal)s)` 当场炸成 `!! 解释器内部错误 InvalidCastException`。
-    /// 标记齐了之后那条理由就没了 —— 而每个值一张表是要付钱的:`Get` / `At` 每取一次子节点
-    /// 就造一个新 Json 值,每个都带一份 Scope + 十几个 BuiltinMethodVal。
-    /// 现在和容器那批(`List` / `Set` / `Dict`)一个路子,见 `Attr.ForInstance`。</summary>
+    /// 两张表分开之后那条理由就没了 —— 而每个值一张表是要付钱的:`Get` / `At` 每取一次子节点
+    /// 就造一个新 Json 值,每个都带一份 Scope + 十来个 BuiltinMethodVal。
+    /// 现在和容器那批(`List` / `Set` / `Dict`)一个形状,见 `ClassVal.InstanceTable`。</summary>
     private static void RegisterJsonMethods()
     {
-        // 唯一的解析入口:挂在**类对象**上(即 `Json.FromString s`,和 `Type.Default` 那条同款)。
-        // `isPrivate: false`:它就是**在类上读**的,挡了类那一侧就废了
-        Json.DefineMethod("FromString", (_, a) => ParseJson(TextArg(a, "Json.FromString")),
-            isPrivate: false);
+        // 唯一的解析入口:挂在**类对象**上(即 `Json.FromString s`,和 `Type.Default` 那条同款)——
+        // 读它的就是类对象自己,所以进类那张表(`ClassSideMember`),不进给实例的表
+        ClassSideMember(Json, "FromString",
+            new BuiltinMethodVal((_, a) => ParseJson(TextArg(a, "Json.FromString"))));
 
         Json.DefineMethod("Kind", (s, _) => new StringVal(((JsonVal)s).Token.Type switch
         {

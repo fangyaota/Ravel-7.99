@@ -44,7 +44,8 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     public BoxedValue GetMember(string name)
     {
         // 运算符访问：`1.+` / `"a".==` → 返回绑好 self 的函数。类型层注册的(内置或类运算符)优先。
-        if (OperatorSymbols.IsSymbol(name) && Value.Type.MemberScope.LookupField(name)?.Value is FunctionVal opMethod)
+        // 查的是**实例表**(`InstanceMembers`)——运算符就挂在那一张上,和 `BindOperator` 同一处。
+        if (OperatorSymbols.IsSymbol(name) && Value.Type.OperatorMembers.LookupField(name)?.Value is FunctionVal opMethod)
             return new BoxedValue(ObjectVal.BindMethod(opMethod, Value), interp);
 
         // `p.Get` / `p.Set` —— 属性值上那两个函数是**特判**出来的,不在任何作用域里

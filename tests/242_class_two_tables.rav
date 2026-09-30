@@ -1,0 +1,84 @@
+# 一个**类对象有两张表**,分工是结构性的(不靠标记、不靠过滤):
+#
+#   ① 类自己那张（`ClassVal.Scope`，也就是基类 `ObjectVal.Scope`）—— 类对象是元类 `type`
+#      的实例,建类时平铺进来的 `name`/`parent`/`block`/`init`/`==`/`!=`,用户事后挂上去的
+#      `C.func := …`,以及**类那一侧**的 API(`Json.FromString`)。
+#   ② 给它那些**实例**的表（`ClassVal.InstanceTable`）—— 内置方法(`Add`/`Map`/`Kind`…)、
+#      类运算符、序列方法、`GetImplements ()` 这类查询。
+#
+# 于是两件事都是结构决定的了(从前要靠 `forInstance` + `private` 两个标记去挡):
+#   * 类上挂的东西实例看不到(`C.func := …` 落在①,实例读②);
+#   * 内置方法从**类那一侧**读不到(`Add` 在②里,类对象自己的查找不经过它)——
+#     从前从类上读到的那份没绑 `self`,调用时 `((ListVal)ClassVal)` 当场炸成
+#     「!! 解释器内部错误 InvalidCastException」。
+
+C ::= class {
+    n: int = 7
+    g := () => { this.n; }
+}
+c := C ()
+
+# ① 类体里写的成员:实例化时落进**每个实例自己的表**,和这两张表无关
+print c.n
+print (c.g ())
+
+# ② 事后挂在**类**上的:只有类对象自己看得到
+C.func := (x: int) => { x + 1; }
+C.num := 5
+print (C.func 5)
+print C.num
+try { print (c.func 5); } (e: Exception) => { print ("1: " + string e); }
+try { print c.num; } (e: Exception) => { print ("2: " + string e); }
+print ((C.Fields ()).Contains "func")       # 类那一侧列得出
+print ((c.Fields ()).Contains "func")       # 实例那一侧列不出
+
+# ③ 内置实例方法在②里:实例读得到,类对象那一侧读不到
+l := [1 2 3]
+print (l.Count ())
+try { print (list.Count ()); } (e: Exception) => { print ("3: " + string e); }
+try { print (list.Add 2); } (e: Exception) => { print ("4: " + string e); }
+print ([1 2 3].Fields ())                   # 实例:整串
+print ((list.Fields ()).Contains "Add")     # 类对象:没有它
+
+# ④ 类那一侧的 API 不进②:`Json.FromString` 就是**在类上读**的
+print (Json.FromString "{\"a\":1}")
+try { print (Json.Kind); } (e: Exception) => { print ("5: " + string e); }
+
+# ⑤ 运算符也在②里(以左值为身份的那张表)—— 连值类型的:
+#    元类链那一半保证挂在 `object` 上的 `is`/`isnot`/`<:`/`:>` 任何值都摸得到,
+#    自指的 `Every`(`parent` 是自己)也算
+print (1 + 2)
+print (1 == 2)
+print (5.is int)
+print (default is int)
+
+# ⑥ 值**自己**那层照旧留给用户挂的东西:只影响那一个值
+j := Json {"a": 1}
+j.tag := 1
+print j.tag
+try { print (Json 2).tag; } (e: Exception) => { print ("6: " + string e); }
+
+print "end"
+# --- expected ---
+# 7
+# 7
+# 6
+# 5
+# 1: 类型 'C' 没有方法 'func'
+# 2: 类型 'C' 没有方法 'num'
+# true
+# false
+# 3
+# 3: 类型 'Type' 没有方法 'Count'
+# 4: 类型 'Type' 没有方法 'Add'
+# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Each Map Where All Any Find SortBy Fold is isnot <: :> ToString Copy Fields CompareTo Key]
+# false
+# {"a":1}
+# 5: 类型 'Type' 没有方法 'Kind'
+# 3
+# false
+# true
+# true
+# 1
+# 6: 类型 'Json' 没有方法 'tag'
+# end

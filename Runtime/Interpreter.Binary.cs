@@ -93,11 +93,15 @@ public partial class Interpreter
     /// ——绑完能当场算,不必推帧;类运算符(`BuiltinClasses.DefineClassOperator`)和
     /// by 属性的 getter/setter 不是,得走 `CallInto`。
     ///
+    /// 查的是**实例表**(`InstanceMembers`:沿 `left.Type` 的 parent 链收集各层的
+    /// `InstanceTable`)—— 运算符就是"给实例的成员"。接收者的类型不同,找到的就是不同那一张:
+    /// `1 + 2` 找 `Integer` 的、`C1 == C2` 找 `Type` 的、`c1 == c2` 找 `C` 的。
+    ///
     /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
     /// 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。</summary>
     private (FunctionVal Bound, bool Builtin) BindOperator(RuntimeValue left, string op)
     {
-        var fn = left.Type.MemberScope.LookupField(op)?.Value as FunctionVal;
+        var fn = left.Type.OperatorMembers.LookupField(op)?.Value as FunctionVal;
         if (fn == null && left is ObjectVal o && HasTraitOperator(o, op))
             return (new BoundTraitOp(o, op), false);      // 槽运算符:两级,交给 TraitOp 帧
 
