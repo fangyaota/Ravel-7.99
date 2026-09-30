@@ -151,6 +151,27 @@ print (string $ add 1 $ inc $ 3) # string ((add 1) (inc 3)) → "5"
 try { eval "@ 1"; } (e: Exception) => { print ("1: " + string e); }
 try { eval "$ 1"; } (e: Exception) => { print ("2: " + string e); }
 try { eval "1 @"; } (e: Exception) => { print ("3: " + string e); }
+# ═══ 括号里换行不算数 ═══
+# 没闭合的 `(` / `[` 里,换行**不当语句结束** —— 表和长参数列表因此能写好看。
+# 花括号**不在**这条规则里:块就是靠换行分语句的(`{ x }` 是集合、`{ a: 1 }` 是字典、
+# 多行才是块),所以下面那个"列表里的多行块"照旧成立。
+long := [
+    1
+    2
+    3
+]
+print long
+print (
+    1 +
+    2
+)
+blocks := [
+    {
+        print "块里第一句"
+        42
+    }
+]
+print ((blocks.At 0) ())
 print "end"
 ravel ""
 
@@ -190,6 +211,27 @@ f := (x: int) => { x is int; }
 print (f 3)                    # 词形运算符一样被吃：f (3 is int)
 print (f 3 + 1)                # f (3 + 1) → 4 is int
 print ((f 3) == true)          # 先算调用要加括号
+# ═══ 括号里换行不算数 ═══
+# 没闭合的 `(` / `[` 里,换行**不当语句结束** —— 表和长参数列表因此能写好看。
+# 花括号**不在**这条规则里:块就是靠换行分语句的(`{ x }` 是集合、`{ a: 1 }` 是字典、
+# 多行才是块),所以下面那个"列表里的多行块"照旧成立。
+long := [
+    1
+    2
+    3
+]
+print long
+print (
+    1 +
+    2
+)
+blocks := [
+    {
+        print "块里第一句"
+        42
+    }
+]
+print ((blocks.At 0) ())
 print "end"
 ravel ""
 # --- expected ---
@@ -266,6 +308,10 @@ ravel ""
 # 1: 需要表达式，但得到'@'
 # 2: 需要表达式，但得到'$'
 # 3: '@' 后面得跟点什么（它的意思是「把左边封口，接着往下写」）
+# [1 2 3]
+# 3
+# 块里第一句
+# 42
 # end
 # 3
 # 3
@@ -283,4 +329,8 @@ ravel ""
 # true
 # true
 # true
+# [1 2 3]
+# 3
+# 块里第一句
+# 42
 # end

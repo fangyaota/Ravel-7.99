@@ -9,6 +9,35 @@ public class Lexer(string source, string? file = null)
     private int _line = 1;
     private int _col = 1;
 
+    /// <summary>还没闭合的 `(` / `[` / `{` —— 只为了下面那条:**圆括号/方括号里的换行不算数**。
+    ///
+    /// 规则就一句:"**没闭合的 `(` / `[` 里,换行不当语句结束**"。于是表和长参数列表能写好看:
+    ///
+    ///     match v [
+    ///         [is.int    {"整数";}]
+    ///         [is.string {"字符串";}]
+    ///     ] {"别的";}
+    ///
+    /// 花括号**不在这条规则里**(它是块,靠换行分语句 —— `{ x }` 是集合、`{ a: 1 }` 是字典、
+    /// 多行才是块,那条判据要看得见换行)。所以只有最里层是圆/方括号时才把换行吞掉;
+    /// 进了花括号照旧发。</summary>
+    private readonly List<TokenType> _groups = [];
+
+    /// <summary>这个换行/分号当前算不算数:在圆括号或方括号里就不算(见 <see cref="_groups"/>)。
+    /// 花括号里算 —— 块靠它分语句。</summary>
+    private bool NewlineCounts()
+        => _groups.Count == 0 || _groups[^1] == TokenType.LeftBrace;
+
+    /// <summary>括号进出栈 —— 只记 `(` / `[` / `{` 三种,给 <see cref="NewlineCounts"/> 用。</summary>
+    private void TrackGroup(TokenType t)
+    {
+        if (t is TokenType.LeftParen or TokenType.LeftBracket or TokenType.LeftBrace)
+            _groups.Add(t);
+        else if (t is TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace
+                 && _groups.Count > 0)
+            _groups.RemoveAt(_groups.Count - 1);   // 对不上的闭合(本来就是语法错)就当没这层
+    }
+
     public List<Token> Tokenize()
     {
         var tokens = new List<Token>();
@@ -35,7 +64,8 @@ public class Lexer(string source, string? file = null)
                     _col = 1;
                 }
 
-                tokens.Add(new Token(TokenType.Newline, "\\n", _line - 1, 1, _line - startLine));
+                if (NewlineCounts())
+                    tokens.Add(new Token(TokenType.Newline, "\\n", _line - 1, 1, _line - startLine));
                 continue;
             }
 
@@ -44,7 +74,8 @@ public class Lexer(string source, string? file = null)
             {
                 int line = _line, col = _col;
                 Advance();
-                tokens.Add(new Token(TokenType.Newline, ";", line, col, 1));
+                if (NewlineCounts())
+                    tokens.Add(new Token(TokenType.Newline, ";", line, col, 1));
                 continue;
             }
 
@@ -115,6 +146,7 @@ public class Lexer(string source, string? file = null)
                 int line = _line, col = _col;
                 Advance();
                 tokens.Add(new Token(tt, c.ToString(), line, col, 1));
+                TrackGroup(tt);
                 continue;
             }
 

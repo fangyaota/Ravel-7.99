@@ -2,7 +2,12 @@
 # 条件是个**谓词**(`is.int` 这种运算符节就是它);结果**写成块就是延迟的** —— 命中那一支才跑。
 
 kind := (v: object) => {
-    match v [[is.int {"整数";}] [is.bool {"布尔";}] [is.string {"字符串";}] [is.list {"列表";}]] {"别的";}
+    match v [
+        [is.int    {"整数";}]
+        [is.bool   {"布尔";}]
+        [is.string {"字符串";}]
+        [is.list   {"列表";}]
+    ] {"别的";}
 }
 print (kind 3)
 print (kind true)
