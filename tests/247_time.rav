@@ -1,0 +1,86 @@
+# `Time`:一个时刻 = 毫秒数(bigint)+ 一袋零件。`TimeFrom` 从文本读,`Now ()` 拿现在。
+# 格式串按 .NET 那套(`yyyy-MM-dd HH:mm:ss`);时区本地。比大小比**毫秒数**,
+# `IComparable` 登记过,所以 `Sorting` 直接吃它。
+# (只打稳定量:`Now ()` 只问类型和"比 2020 年晚",不打具体值。)
+
+t := TimeFrom "2026-10-01 12:34:56" IsoFormat
+print (t.Text ())
+print (t.Text "yyyy/MM/dd")
+print (t.Year ())
+print (t.Month ())
+print (t.Day ())
+print (t.Hour ())
+print (t.Minute ())
+print (t.Second ())
+print (t.Weekday ())            # 0 = 周日
+print (t.WeekdayName ())
+
+# 加减:算的是毫秒
+print ((t.AddDays 1).Text ())
+print ((t.AddDays (0 - 1)).Text ())
+print ((t.AddHours 2).Text ())
+print ((t.AddMinutes (0 - 30)).Text ())
+print ((t.AddSeconds 30).Text ())
+
+# 比大小:运算符与 CompareTo 一个口径
+u := t.AddDays 1
+print (t < u)
+print (t <= u)
+print (u > t)
+print (t >= u)
+print (t == (TimeFrom "2026-10-01 12:34:56" IsoFormat))
+print (t != u)
+print (t.CompareTo u)
+print (t.CompareTo (TimeFrom "2026-10-01 12:34:56" IsoFormat))
+print (t is IComparable)
+
+# Sorting 直接吃它
+print (Sorting.Sort [u t (t.AddDays (0 - 2))] @ .At 0 @ .Text ())
+print ((Sorting.Max [t u]) @ .Text ())
+
+# 毫秒那半也在:Ms 是 bigint,`Time 0` 收 int
+print ((Time 0).Text ())
+print ((Time 0).Ms)
+
+# 现在是 Time(只问类型和一条稳定的比较)
+print (typeof (Now ()))
+print ((Now ()) > (TimeFrom "2020-01-01 00:00:00" IsoFormat))
+
+# 读不动 / 拼不出:当场报错
+try { TimeFrom "不是时间" "yyyy-MM-dd"; } (e: Exception) => { print ("1: " + string e); }
+try { System.MakeTime {"year": 2026 "month": 13 "day": 1}; } (e: Exception) => { print ("2: " + string e); }
+print "end"
+# --- expected ---
+# 2026-10-01 12:34:56
+# 2026/10/01
+# 2026
+# 10
+# 1
+# 12
+# 34
+# 56
+# 4
+# 周四
+# 2026-10-02 12:34:56
+# 2026-09-30 12:34:56
+# 2026-10-01 14:34:56
+# 2026-10-01 12:04:56
+# 2026-10-01 12:35:26
+# true
+# true
+# true
+# false
+# true
+# true
+# -1
+# 0
+# true
+# 2026-09-29 12:34:56
+# 2026-10-02 12:34:56
+# 1970-01-01 08:00:00
+# 0
+# Time
+# true
+# 1: ParseTime: 读不动 —— '不是时间' 对不上格式 'yyyy-MM-dd'
+# 2: 拼时间失败: Year, Month, and Day parameters describe an un-representable DateTime.
+# end

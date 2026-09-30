@@ -1,0 +1,69 @@
+# 时间:一个时刻就是 System 那几个原语给的**毫秒数**(1970-01-01 00:00:00 UTC 起,bigint)。
+# 库这边把它包成 `Time` —— 拆零件、算加减、比大小、格式化与解析。
+# 时区一律**本地**(和 `System.NowMs` 一个口径);格式串按 .NET 那套(`yyyy-MM-dd HH:mm:ss`)。
+#
+# `Time` 讲了怎么比大小(`CompareTo`,比的是毫秒数)并登记进 `IComparable`,
+# 所以 `Sorting.Sort` / `Max` / `Min` 直接吃它;类体里那几条运算符也是照毫秒数比。
+# 由 predefined.rav 加载(排在 sorting 之后 —— 要用 `IComparable`)。
+#
+# 一个提醒:`print t` 打出来的是**字段快照**(`Ms` 和那袋零件),不是格式化以后的样子 ——
+# 要文本就用 `t.Text ()`。显示成什么样是"政策",引擎那边不给它开后门。
+
+# 常用的那个格式,省得各处重写
+readonly IsoFormat := "yyyy-MM-dd HH:mm:ss"
+
+Time ::= class {
+    Ms: bigint = bigint 0                # 从 1970-01-01 00:00:00 UTC 起的毫秒数
+    Parts: dict = {}                     # System.TimeParts 给的那袋零件
+
+    # 拆好的零件,用起来不必每次翻字典
+    Year := () => { Parts.Get "year"; }
+    Month := () => { Parts.Get "month"; }
+    Day := () => { Parts.Get "day"; }
+    Hour := () => { Parts.Get "hour"; }
+    Minute := () => { Parts.Get "minute"; }
+    Second := () => { Parts.Get "second"; }
+    Millisecond := () => { Parts.Get "millisecond"; }
+    Weekday := () => { Parts.Get "weekday"; }         # 0 = 周日
+    WeekdayName := () => {
+        ["周日" "周一" "周二" "周三" "周四" "周五" "周六"].At (Weekday ());
+    }
+
+    # `Text ()` 用常见那个格式;`Text "yyyy/MM/dd"` 自己给一个(和 `Json.Text` 一个写法)
+    Text := (fmt: object) => {
+        if { fmt is string; } { System.FormatTime Ms fmt; } { System.FormatTime Ms IsoFormat; }
+    }
+
+    # 加减:算的是**毫秒**(一天 = 86400000)—— 不跟夏令时那套,简单、可预期
+    AddDays := (n: int) => { Time (Ms + ((bigint n) * (bigint 86400000))); }
+    AddHours := (n: int) => { Time (Ms + ((bigint n) * (bigint 3600000))); }
+    AddMinutes := (n: int) => { Time (Ms + ((bigint n) * (bigint 60000))); }
+    AddSeconds := (n: int) => { Time (Ms + ((bigint n) * (bigint 1000))); }
+
+    # 「谁大谁小」:比毫秒数(和 C# 的 IComparable 同约定:负/0/正)
+    CompareTo := (o: Time) => {
+        if { Ms < o.Ms; } { -1; } { if { Ms > o.Ms; } { 1; } { 0; } }
+    }
+
+    # 运算符照同一个口径(类体里定义的就是**类运算符**)
+    < := (o: Time) => { (CompareTo o) < 0; }
+    <= := (o: Time) => { (CompareTo o) <= 0; }
+    > := (o: Time) => { (CompareTo o) > 0; }
+    >= := (o: Time) => { (CompareTo o) >= 0; }
+    == := (o: Time) => { (CompareTo o) == 0; }
+    != := (o: Time) => { (CompareTo o) != 0; }
+
+    init = (ms: object) => {              # 收 int 也收 bigint:`Time 0` 不该被迫写 `bigint 0`
+        Ms = bigint ms
+        Parts = System.TimeParts Ms
+        this
+    }
+}
+
+impl (IComparable Time {
+    ()
+})
+
+# 现在、以及从文本读一个(格式串按 .NET 那套)
+readonly Now := () => { Time (System.NowMs ()); }
+readonly TimeFrom := (text: string fmt: string) => { Time (System.ParseTime text fmt); }

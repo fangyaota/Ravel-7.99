@@ -1271,6 +1271,30 @@ print ((k.Get "x") @ .Extract ())                # 1
 
 **用例见 tests/241。**
 
+### 5.16 时间（`Time`）
+
+一个时刻就是**毫秒数**（1970-01-01 00:00:00 UTC 起，`bigint`），库把它包成 `Time`：
+
+```ravel
+t := TimeFrom "2026-10-01 12:34:56" IsoFormat   # 格式串按 .NET 那套
+t.Text ()                # 2026-10-01 12:34:56
+t.Text "yyyy/MM/dd"      # 2026/10/01
+t.Year () / t.Month ()   # 零件直接问
+t.WeekdayName ()         # 周四
+(t.AddDays 1).Text ()    # 加的是毫秒:一天 = 86400000
+t < (t.AddDays 1)        # true
+Now ()                   # 现在
+```
+
+- 比大小比**毫秒数**（`CompareTo`），且登记进了 `IComparable` —— 所以 `Sorting.Sort` /
+  `Max` / `Min` 直接吃 `Time`；`<` `<=` `>` `>=` `==` `!=` 也照同一个口径。
+- 时区**本地**；加减就是毫秒算术（不跟夏令时那套，简单可预期）。
+- `print t` 打的是**字段快照**（`Ms` 和一袋零件），不是格式化后的样子 —— 要文本用 `t.Text ()`。
+- 底下是 `System` 那五条原语（`NowMs` / `TimeParts` / `MakeTime` / `FormatTime` / `ParseTime`），
+  库只负责"显示成什么样、怎么比"。
+
+**用例见 tests/247。**
+
 ## 六、集合
 
 ### 6.1 List

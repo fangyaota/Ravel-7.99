@@ -99,6 +99,9 @@ lib/
                           `callcc` 也在这儿(库函数:包装 System.CallCC,拍/还原两份控制状态)。
   numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
   iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
+  time.rav                `Time`(毫秒 + 一袋零件:Year/Month/… /WeekdayName/Text/AddDays…)
+                          + `Now` / `TimeFrom` / `IsoFormat`;登记进 `IComparable`,Sorting 直接吃
+                          (上面那五条 `System.*Time*` 是它的原语)
   generator.rav           `Generator f` —— 把"往外送值"的一段代码包成 `IEnumerable`
                           (体的参数 `y` 是投喂口:`y v` 送出并挂起;惰性,可无限流)。
                           实现是 227 那个"两枚续延"原型,状态收进 `GeneratorCursor` 的字段
@@ -236,6 +239,11 @@ Object (parent=自己)
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
 与「跑外部命令」两节:它们只做 syscall,策略在库里。）
+
+时间同理,五条原语全在 `System` 里:`NowMs ()`(1970 年起的**毫秒**,bigint)、
+`TimeParts ms`(一袋零件:year/month/day/hour/minute/second/millisecond/weekday)、
+`MakeTime parts`、`FormatTime ms fmt`、`ParseTime text fmt`(都按 .NET 那套格式串,
+时区本地)。"一个时刻怎么显示、怎么比大小"是 `lib/time.rav` 那个 `Time` 的事。）
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
