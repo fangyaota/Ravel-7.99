@@ -13,13 +13,17 @@ namespace Ravel.Runtime;
 /// 为什么是 `JToken` 而不是 `JObject`/`JArray`:任何 JSON 片段都算一个 Json 值
 /// (`Json.FromString "3"` 是个数),`JToken` 是它们的公共基类。
 ///
-/// `JToken` **不用 Dispose**(不是 IDisposable),所以这里不必持有别的活东西。</summary>
+/// `JToken` **不用 Dispose**(不是 IDisposable),所以这里不必持有别的活东西。
+///
+/// **实例方法在值自己的表里**(`NewJsonMembers`):`JsonVal` 是 ObjectVal、本来就有自己的
+/// scope,实例方法就该放这儿 —— 放类上的话,类对象也能读到 `Kind`,调用时 `self` 是那个
+/// ClassVal,C# 强转当场炸(「!! 解释器内部错误」)。</summary>
 public record JsonVal : ObjectVal
 {
     public JToken Token { get; init; }
 
     public JsonVal(JToken token, Scope? members = null)
-        : base(BuiltinClasses.Json, members ?? new Scope())
+        : base(BuiltinClasses.Json, members ?? BuiltinClasses.NewJsonMembers())
         => Token = token;
 
     /// <summary>显示成**紧凑的 JSON 文本**(和 `t.Text ()` 一样)——

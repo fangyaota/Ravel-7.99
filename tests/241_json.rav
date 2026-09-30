@@ -72,6 +72,15 @@ Own ::= class {
 }
 try { print (Json (Own ())); } (e: Exception) => { print ("5: " + string e); }
 try { print (Json (fraction 1 2)); } (e: Exception) => { print ("6: " + string e); }
+# 实例方法住在**值自己的表**里(JsonVal 是 ObjectVal、本来就有自己的 scope)——
+# 所以从类对象上看不到它们:该报「没有方法」,而不是解析成"类上的方法"再把 self 强转炸掉
+try { print (Json.Kind); } (e: Exception) => { print ("7: " + string e); }
+print ((Json 5).Kind ())
+print (Json.Fields ())                 # 类对象身上只有 FromString
+j2 := Json 2
+j2.tag := 99                           # 每个值一张表:挂上去只影响这一个
+print (j2.tag)
+try { print (j.tag); } (e: Exception) => { print ("8: " + string e); }
 print "end"
 # --- expected ---
 # Json
@@ -121,4 +130,9 @@ print "end"
 # 4: Json.At: 索引 5 超出范围（长度 1）
 # 5: Json: Own 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 6: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
+# 7: 类型 'Type' 没有方法 'Kind'
+# number
+# [name parent FromString block == != Parent Default GetImplements GetImplementors Subtypes | Name Scope Body SetScope Prepend Append is isnot <: :> ToString Copy Fields CompareTo Key]
+# 99
+# 8: 类型 'Json' 没有方法 'tag'
 # end

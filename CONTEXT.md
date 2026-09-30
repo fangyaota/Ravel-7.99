@@ -1052,6 +1052,14 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
   否则它会当成"解释器内部错误"把程序打穿、`try` 接不住。报错带行列。
 - 嵌套上限 64 层（防"容器包含自己"把栈转爆）。
 
+**实例方法住在"值自己的表"里**（`BuiltinClasses.NewJsonMembers`）：`JsonVal` 是 `ObjectVal`、
+本来就有自己的 `Scope`，实例方法就该放那儿 —— 放类上的话，类对象的成员表就是类自己的那张表，
+于是 `Json.Kind` 也能读到，调用时 `self` 是那个 `ClassVal`、方法体里 `((JsonVal)s)` 当场炸成
+「`!!` 解释器内部错误 InvalidCastException」（C# 异常，`try` 接不住）。放值自己表里之后：
+`Json.Kind` 是干净的「类型 'Type' 没有方法 'Kind'」，`j.tag := 1` 也只影响那一个值。
+（容器那批没这么办：`List`/`Set`/`Dict` 的值太常造，给每个值定义十几个成员太亏 ——
+它们的实例方法仍在类上，`list.Add 2` 照样会炸，是同一件事的另一个取舍。）
+
 依赖：`Ravel.csproj` 里的 `Newtonsoft.Json` 13.0.3（第二个包依赖，另一个是 Spectre.Console）。
 
 用例 `tests/241_json.rav`。
