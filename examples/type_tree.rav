@@ -38,6 +38,7 @@ Types.PrintTree object
 # │   └── IDict [Interface]
 # ├── Ravel [Type]
 # ├── Exception [Type]
+# ├── Json [Type]
 # ├── Scope [Type]
 # ├── Property [Type]
 # ├── Enumerator [Type]

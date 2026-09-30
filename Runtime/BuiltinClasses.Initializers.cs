@@ -34,6 +34,7 @@ internal static partial class BuiltinClasses
         Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
         BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
         Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
+        Json.ClassBody = PresetCtor(MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
         List.ClassBody = PresetCtor(MakeDefaultCaster(List));
         Set.ClassBody = PresetCtor(MakeDefaultCaster(Set));
         Dict.ClassBody = PresetCtor(MakeDefaultCaster(Dict));
@@ -271,6 +272,7 @@ internal static partial class BuiltinClasses
         if (target == Float) return CastToFloat(val);
         if (target == Bool) return CastToBool(val);
         if (target == String) return CastToString(val);
+        if (target == Json) return CastToJson(val);      // `x: Json = …` 的隐式转换
         if (target == BigInt) return CastToBigInt(val);
         // 容器和函数没有"从一个值转换过来"这回事,只认 default(空容器 / 空函数)。
         // 分数那两条也在这一格:**它们对别的值有别的意思**(`fraction 3` 是"还等一个分母",

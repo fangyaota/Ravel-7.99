@@ -213,7 +213,7 @@ Object (parent=自己)
 
 **类型**: Integer String Char Bool Float BigInteger Fraction BigFraction
         List Set Dict Object Void Function Type Interface BaseInterface
-        Any Every Exception ValueType
+        Any Every Exception ValueType Json
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
         CallCC Exit With RavelMod Using Use unsafe Cmd
@@ -1004,6 +1004,57 @@ impl (IComparable Rec { () })
 - `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
 
 用例 `tests/234_icomparable.rav`。
+
+## JSON（内置 `Json` 类，底层 Newtonsoft.Json）
+
+**先看再转**：`Json v` 把原生值包成 Json，`Json.FromString s` 解析字符串，
+中间那棵树（Newtonsoft 的 `JToken`）**一直留着** —— 想看就问 `Kind` / `IsNull` / `Get` /
+`At` / `Count` / `Keys`，想好了再 `Extract ()` 拿原生值。这样 JSON 的 null、整数与小数的
+写法、键的顺序都不用在解析那一刻被迫选一次。
+
+```ravel
+j := Json {"a": [1 2.5 ()] "b": {"c": true}}
+print (j)                                  # {"a":[1,2.5,null],"b":{"c":true}}（print 就是紧凑 JSON）
+print ((j.Get "a").Count ())               # 3
+print (((j.Get "a").At 1).Extract ())      # 2.5（float）
+d := j.Extract ()                          # 一次转成 dict / list / 数 / string / bool / ()
+k := Json.FromString "{\"x\": 1}"          # 解析（唯一的入口）
+print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
+```
+
+**两个方向**：`Json v`（原生 → Json）与 `Json.FromString s`（字符串 → Json）进来，
+`Extract ()` 出去。
+
+| 原生 | JSON |
+|---|---|
+| `dict` | object（键本来就是字符串，保插入序）|
+| `list` / `set` | array |
+| `int` / `float` / `bigint` | number（**`bigint` 原样写数字，不经过 double、不丢精度**）|
+| `string` / `char` | string |
+| `bool` | true / false |
+| **`()`** | **null**（反方向也回 `()`）|
+| 别的（自有类、分数、函数……）| **当场报错**：「先自己转成 dict / list / 数 / 字符串 / 布尔 / ()」|
+
+`Extract ()` 反着走：`JObject` → `dict`、`JArray` → `list`、整数装得下 `int`、太大退 `bigint`、
+带小数/指数是 `float`、`null` → **`()`**。
+
+**`null` 为什么是 `()`**：`Extract` 是引擎里的一次递归，而引擎造不出 `None`（那是
+`lib/monad.rav` 的，按名去全局取库值全仓零先例、也会让引擎依赖库的加载）；`()` 是语言级、
+永远存在的值。代价是转完就分不出"值是 null"和"函数没返回值"——所以**要问就在 Json 那层问**
+（`IsNull ()` / `Kind ()`），`Extract` 是"我确定要原生值"的那一步。
+
+两个坑（都写在 `Runtime/BuiltinClasses.Json.cs` 里）：
+
+- **不用 `JToken.Parse`**，改走 `JsonTextReader` + `JToken.ReadFrom`：好把
+  `DateParseHandling.None` 关上（不关的话 `"2020-01-01"` 会被悄悄变成日期）、并且能查
+  "第一个值后面还有没有东西"（`"1 2"` 报错）。
+- **`JsonReaderException` 不在 `Fs` 的 catch 白名单里** —— 自己 catch 转 `RuntimeException`，
+  否则它会当成"解释器内部错误"把程序打穿、`try` 接不住。报错带行列。
+- 嵌套上限 64 层（防"容器包含自己"把栈转爆）。
+
+依赖：`Ravel.csproj` 里的 `Newtonsoft.Json` 13.0.3（第二个包依赖，另一个是 Spectre.Console）。
+
+用例 `tests/241_json.rav`。
 
 ## 跑外部命令（`cmd`）
 

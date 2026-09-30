@@ -46,6 +46,7 @@ public partial class Interpreter
         DefType("Any", BuiltinClasses.Any);
         DefType("Every", BuiltinClasses.Every);
         DefType("Exception", BuiltinClasses.Exception);
+        DefType("Json", BuiltinClasses.Json);
 
         // ---- 常量 ----
         Def("True", BuiltinClasses.Bool, new BoolVal(true));

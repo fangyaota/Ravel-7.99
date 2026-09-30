@@ -1139,6 +1139,36 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 
 **用例见 tests/240。**
 
+### 5.15 JSON
+
+```ravel
+j := Json {"a": [1 2.5 ()] "b": {"c": true}}     # 原生值 → Json
+print (j)                                        # {"a":[1,2.5,null],"b":{"c":true}}
+print ((j.Get "a").Count ())                     # 3
+print (((j.Get "a").At 1).Extract ())            # 2.5
+print ((j.Text 2))                               # 缩进两格写回文本
+
+k := Json.FromString "{\"x\": 1}"                # 字符串 → Json（唯一的解析入口）
+print ((k.Get "x") @ .Extract ())                # 1
+```
+
+`Json` 里包着的是一棵**还没转成原生值**的树，所以可以先看再转：
+
+- **看**：`Kind ()`（`"null"` / `"object"` / `"array"` / `"string"` / `"number"` / `"bool"`）、
+  `IsNull ()`、`Get k` / `GetOr k dflt`、`At i`、`Count ()`、`Keys ()`（保 JSON 原顺序）；
+  这些交回的还是 **Json**，可以一层层往下走。
+- **转**：`Extract ()` 一次拿原生值 —— `dict` / `list` / `int`（太大退 `bigint`）/ `float` /
+  `string` / `bool` / **`()`**（JSON 的 null）。
+- **写**：`Json v`（`dict` / `list` / 数 / 字符串 / 布尔 / `()` 都行）→ `j.Text ()`（紧凑）
+  或者 `j.Text 2`（缩进两格）。JSON 里没有的类型（自有类、分数……）**当场报错**，不悄悄降级。
+
+注意两点：**`null` 转出来是 `()`**（要问"是不是 null"就在 Json 那层问 `IsNull ()`，
+转完就分不清"值是 null"和"函数没返回值"了）；`At i` 后面接 `.Extract` 要加括号
+（`.成员` 绑得比并列调用紧），`((j.Get "a").At 1).Extract ()` 或者
+`(j.Get "a").At 1 @ .Extract ()` 都行。
+
+**用例见 tests/241。**
+
 ## 六、集合
 
 ### 6.1 List

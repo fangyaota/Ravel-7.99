@@ -48,6 +48,9 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Any;
 
     public static readonly ClassVal Exception;
+    /// <summary>JSON 值:里面包着一棵 Newtonsoft 的 `JToken` 树,`Extract ()` 才转成
+    /// dict / list / 原生值。`predefined.rav` 给全局别名 `Json`。</summary>
+    public static readonly ClassVal Json;
     public static readonly ClassVal Ravel;
     public static readonly ClassVal ScopeType;
     public static readonly ClassVal Property;
@@ -94,6 +97,7 @@ internal static partial class BuiltinClasses
         Interface = New("Interface");
         BaseInterface = New("BaseInterface");
         Exception = New("Exception");
+        Json = New("Json");
         Every = New("Every");
         Any = New("Any");
 
@@ -128,6 +132,7 @@ internal static partial class BuiltinClasses
         Link(ScopeType, Object, Type);
         Link(Property, Object, Type);
         Link(Exception, Object, Type);
+        Link(Json, Object, Type);
         // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
         Link(BaseInterface, Object, Interface);   // 它自己就是个接口(所有接口的根)
         Link(Interface, Type, Type);
@@ -152,7 +157,7 @@ internal static partial class BuiltinClasses
                      Object, ValueType, Int, Float, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Function, Block,
                      List, Set, Dict, Void, Type, Interface, BaseInterface,
-                     Ravel, Any, Every, Exception, ScopeType, Property
+                     Ravel, Any, Every, Exception, Json, ScopeType, Property
                  })
             AllTypes.Add(t);
 

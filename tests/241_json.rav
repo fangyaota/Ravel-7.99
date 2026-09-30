@@ -1,0 +1,124 @@
+# 内置 `Json` 类(Newtonsoft.Json):**先看再转**。
+#
+#   `Json v`            原生值(dict / list / 值类型 / ())→ Json
+#   `Json.FromString s` 字符串 → Json(唯一的解析入口)
+#   `j.Extract ()`      Json → 原生值(那一步是**显式**的,不是解析时被迫选一次)
+#
+# 留着那棵树的好处:JSON 的 null、整数与小数的写法、键的顺序都还在,想问就问
+# (Kind / IsNull / Get / At / Count / Keys),想转再转。写回去用 `j.Text ()`(紧凑)或 `j.Text n`。
+
+j := Json {"a": [1 2.5 ()] "b": {"c": true} "s": "你好"}
+print (typeof j)
+print (j)                                   # print 直接给紧凑 JSON
+print (j.Kind ())
+print ((j.Get "a").Kind ())
+print ((j.Get "a").Count ())
+print (j.Keys ())                           # 保 JSON 里的原顺序
+
+# 一层层往下看,到叶子再 Extract
+print (((j.Get "a").At 0).Extract ())
+print (((j.Get "a").At 1).Extract ())
+print (((j.Get "a").At 2).IsNull ())        # 要问"是不是 null"就在 Json 这层问
+print (((j.Get "a").At 2).Extract ())       # null 转出来是 ()
+print (((j.Get "b").Get "c").Extract ())
+print ((j.GetOr "zz" 0).Kind ())            # 没有就给替代值(也包成 Json)
+print ((j.GetOr "s" 0).Extract ())
+
+# 整棵树一次转成原生:dict / list / 数 / string / bool / ()
+d := j.Extract ()
+print (typeof d)
+print (d.Get "a")
+print ((d.Get "b").Get "c")
+print (d.Get "s")
+
+# 标量也能包:Json 里字符串是带引号的,数就是数
+print (Json 5)
+print ((Json 5).Extract ())
+print (Json "x")
+print ((Json 3.5).Extract ())
+
+# 写回文本:紧凑 / 缩进 n 格
+print ((Json [1 2 3]).Text ())
+print ((Json {"a": 1 "b": [2 3]}).Text 2)
+
+# 解析:空白无所谓,数字按"装得下 int 就 int、太大退 bigint、带小数/指数是 float"
+print (Json.FromString "{\"x\": 1}")
+print ((Json.FromString "[1,2,3]").At 2 @ .Extract ())
+print ((Json.FromString "1e3").Extract ())
+print ((Json.FromString "12345678901234567890").Extract ())
+print (typeof ((Json.FromString "12345678901234567890").Extract ()))
+print (Json.FromString "  \"текст\"  ")
+print ((Json.FromString "\"é\"").Extract ())
+print (Json.FromString "null")
+print ((Json.FromString "null").Extract ())
+
+# 日期样的字符串**不许**被悄悄变成日期(DateParseHandling.None)
+print (Json.FromString "\"2020-01-01\"")
+print (typeof ((Json.FromString "\"2020-01-01\"").Extract ()))
+
+# 注解是 Json 时,原生值直接转换过去
+x: Json = {"k": true}
+print (x)
+
+# 坏输入说人话(带行列)
+try { print (Json.FromString "{bad}"); } (e: Exception) => { print ("1: " + string e); }
+try { print (Json.FromString "1 2"); } (e: Exception) => { print ("2: " + string e); }
+try { print ((Json {"d": 1}).Get "zz"); } (e: Exception) => { print ("3: " + string e); }
+try { print ((Json [1]).At 5); } (e: Exception) => { print ("4: " + string e); }
+
+# JSON 里没有的类型:当场报错,不悄悄降级
+Own ::= class {
+    v: int = 1
+}
+try { print (Json (Own ())); } (e: Exception) => { print ("5: " + string e); }
+try { print (Json (fraction 1 2)); } (e: Exception) => { print ("6: " + string e); }
+print "end"
+# --- expected ---
+# Json
+# {"a":[1,2.5,null],"b":{"c":true},"s":"你好"}
+# object
+# array
+# 3
+# [a b s]
+# 1
+# 2.5
+# true
+# ()
+# true
+# number
+# 你好
+# Dict
+# [1 2.5 ()]
+# true
+# 你好
+# 5
+# 5
+# "x"
+# 3.5
+# [1,2,3]
+# {
+#   "a": 1,
+#   "b": [
+#     2,
+#     3
+#   ]
+# }
+# {"x":1}
+# 3
+# 1000
+# 12345678901234567890
+# BigInt
+# "текст"
+# é
+# null
+# ()
+# "2020-01-01"
+# String
+# {"k":true}
+# 1: Json.FromString: 第 2 行第 5 列读不动 —— Invalid JavaScript property identifier character: }. Path '', line 1, position 4.
+# 2: Json.FromString: 第 2 行第 3 列读不动 —— Additional text encountered after finished reading JSON content: 2. Path '', line 1, position 2.
+# 3: Json.Get: 没有这个键 'zz'（对象里有 1 个键）
+# 4: Json.At: 索引 5 超出范围（长度 1）
+# 5: Json: Own 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
+# 6: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
+# end
