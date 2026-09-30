@@ -507,6 +507,34 @@ use (IEnumerable MyThing {
 })
 ```
 
+#### 自己造一串：`Generator`
+
+不想写枚举器，就把"往外送值"的那段代码交给 `Generator` —— 体的参数 `y` 是投喂口：
+**`y v` 送出一个值并挂起**，消费者再要下一个才接着跑（`lib/generator.rav`）：
+
+```ravel
+Nats := Generator (y: function) => {
+    n := 0
+    while { true; } { y n; n += 1 }      # 无限流也写得出来
+}
+
+callcc (stop: function) => {             # 要几个拿几个（早期退出，见 4.5）
+    i := 0
+    foreach Nats (x: int) => {
+        if { i >= 5; } { stop (); } { 0; }
+        print x                          # 0 1 2 3 4
+        i += 1
+    }
+}
+```
+
+- **惰性**：算到哪儿送到哪儿，没要走的部分一句都不跑（写几句 `print` 在 `y` 之间就能看出来）。
+- `Generator f` 本身就是个 `IEnumerable`，`foreach` 直接吃；`is IEnumerable` 对它成立。
+- **每次 `foreach` 都从头跑一遍体**（体是配方，和类体一个规矩）：同一个 `Generator` 遍历两次，
+  两次各自从头。要"一次性"就在外面用变量兜住。
+- 能 `foreach` 的东西都能包成生成器（`Generator (y) => { foreach xs (x) => { y x; } }`），
+  生成器也能套生成器做扁平化。
+
 ### 4.4 match（按条件挑一支）
 
 `match v cases dflt` 从头试每一对 `[条件 结果]`，第一对**条件为真**的交出它的结果；一对都不真就给 `dflt`。

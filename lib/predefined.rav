@@ -83,6 +83,7 @@ readonly while := (c: function body: function) => {
 using "numbers.rav"
 using "iterator.rav"
 using "cached.rav"
+using "generator.rav"   # `Generator f` —— 把"往外送值"的那段变成 IEnumerable
 using "monad.rav"
 using "sorting.rav"
 using "keys.rav"

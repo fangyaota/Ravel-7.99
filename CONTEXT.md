@@ -99,6 +99,9 @@ lib/
                           `callcc` 也在这儿(库函数:包装 System.CallCC,拍/还原两份控制状态)。
   numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
   iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
+  generator.rav           `Generator f` —— 把"往外送值"的一段代码包成 `IEnumerable`
+                          (体的参数 `y` 是投喂口:`y v` 送出并挂起;惰性,可无限流)。
+                          实现是 227 那个"两枚续延"原型,状态收进 `GeneratorCursor` 的字段
   cached.rav              `Cached count f` —— 记忆化:按实参把 f 的结果记下来。**是个函数**
                           (不是类型),直接交出包装函数;缓存本身是它捕获的两个 list
                           (所以每调一次是独立的一份,也不进 AllTypes)

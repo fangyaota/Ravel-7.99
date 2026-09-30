@@ -1,0 +1,68 @@
+# `Generator f` —— 把一段"往外送值"的代码变成 `IEnumerable`。
+#
+# 体的参数就是投喂口:`y v` 把 v 送出去**并挂起**,等消费者再要下一个才接着跑。
+# 于是"算到哪儿送到哪儿"是自然的 —— 无限流也写得出来(配 `callcc` 早期退出收工):
+#
+#     Nats := Generator (y: function) => {
+#         n := 0
+#         while { true; } { y n; n += 1 }
+#     }
+#
+#     foreach Nats (x: int) => { print x; }      # 想拿几个拿几个
+#
+# **每次 `foreach` 都从头跑一遍体**(体是配方,和类体一个规矩):同一个 Generator
+# 遍历两次,两次各自从头。要"一次性"就在外面用变量兜住。
+#
+# 实现就是 `tests/40` 里那个 `227_callcc_generator` 原型 —— "每一轮重抓两枚续延"
+# (消费者那枚由 `MoveNext` 每次重抓,所以回到的是**这一次**的调用点;生产者那枚由
+# `Yield` 每送一个值就重抓)。这里只是把那张脸包成 `IEnumerable`,并且把原型里的
+# 三个全局名收进**光标对象**的字段里。
+# 由 predefined.rav 加载(要用 `IEnumerable`,所以排在 iterator 之后)。
+Generator ::= class {
+    Body: function = () => { (); }
+    init = (body: function) => { Body = body; this; }
+
+    # 要枚举器:新开一枚光标 —— 所以每遍各自从头
+    by GetEnumerator := property (() => { () => { GeneratorCursor Body; }; }) ((v: function) => { (); })
+}
+
+# 一枚**光标**:一次遍历的全部状态。它自己就实现 `IEnumerator`(MoveNext + Current)。
+GeneratorCursor ::= class {
+    Body: function = () => { (); }
+    Value: object = ()                # 最近送出来的那个值
+    Started: bool = false             # 体起跑了吗(第一次 MoveNext 才起跑)
+    NextFromProducer: object = 0      # 生产者那枚续延(每送一个值重抓)
+    FromConsumer: object = 0          # 消费者那枚续延(每次 MoveNext 重抓)
+
+    init = (body: function) => { Body = body; this; }
+
+    # 投喂口(体拿到的那一个):记下值、抓一枚"生产者续延",再跳回消费者等它再要
+    Yield := (v: object) => {
+        Value = v
+        callcc (kp: function) => {
+            NextFromProducer = kp
+            FromConsumer true             # 告诉 MoveNext:这一个拿到了
+        }
+    }
+
+    # 要下一个:回到"停住的那一处"接着跑;体跑完就是没有了
+    MoveNext := () => {
+        comes := callcc (kc: function) => {
+            FromConsumer = kc
+            if { Started; } { NextFromProducer (); } { Started = true; Body Yield; }
+            FromConsumer false            # 体跑完了
+        }
+        comes
+    }
+
+    by Current := property (() => { Value; }) ((v: object) => { (); })
+}
+
+# 类型关系:两个 `impl` 让 `is` / 注解 / `foreach` 都认它们
+# (类体里那两条 `by` 槽是**成员**;接口成员还得这样登记一次,和 `Enumerator` 一个写法)
+impl (IEnumerable Generator {
+    ()
+})
+impl (IEnumerator GeneratorCursor {
+    ()
+})
