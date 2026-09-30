@@ -1,0 +1,59 @@
+# `Args` / `Env` —— 进程外面给进来的两样东西,一层 syscall(和文件系统那批一个规矩)。
+#
+# `System.Args ()` 是**脚本名之后**那些参数;在这儿跑它是空的 —— 没有别的解释器会读命令行,
+# REPL 和 `ravel test` 里也没有"脚本的参数"可言(CLI 跑文件时才由 Program.cs 填进去)。
+#
+# `Env` 这一族只动**本进程**那份;`.NET` 那边收空串等于删掉,所以写进去的空串不算"有"。
+
+print (System.Args ())
+print (typeof (System.Args ()))
+
+System.SetEnv "RAVEL_ENV_PROBE" "hello"
+print (System.Env "RAVEL_ENV_PROBE")
+print (System.EnvOr "RAVEL_ENV_PROBE" "没用上")
+print (System.EnvOr "RAVEL_ENV_NOPE" "默认值")
+print ((System.EnvAll ()).Get "RAVEL_ENV_PROBE")
+print ((System.EnvAll ()).Has "RAVEL_ENV_NOPE")
+
+# 没有这个变量:报错(要默认值就走 EnvOr)
+try { System.Env "RAVEL_ENV_NOPE"; } (e: Exception) => { print ("1: " + string e); }
+
+# 空串 = 删掉;删完再读照样报错
+System.SetEnv "RAVEL_ENV_PROBE" ""
+try { System.Env "RAVEL_ENV_PROBE"; } (e: Exception) => { print ("2: " + string e); }
+
+# UnsetEnv:明着删;删一个本来就没有的不算错(幂等)
+System.SetEnv "RAVEL_ENV_PROBE" "again"
+print (System.Env "RAVEL_ENV_PROBE")
+System.UnsetEnv "RAVEL_ENV_PROBE"
+System.UnsetEnv "RAVEL_ENV_PROBE"
+print (System.EnvOr "RAVEL_ENV_PROBE" "空了")
+
+# 变量名空着那种没用的情况当场拦下,不静默变成一次什么都没做的调用
+try { System.SetEnv "" "x"; } (e: Exception) => { print ("3: " + string e); }
+try { System.EnvOr "" "x"; } (e: Exception) => { print ("4: " + string e); }
+try { System.UnsetEnv ""; } (e: Exception) => { print ("5: " + string e); }
+
+# 交回的东西的类型。那层额外的括号不能省:实参位置只吃"主表达式 + 取成员",
+# `print (X () is T)` 会被读成 `(print (X ())) is T`(和列表元素那边一个坑,见 lib/seqs.rav)
+print ((System.EnvAll ()) is dict)
+print ((System.Args ()) is list)
+print "end"
+# --- expected ---
+# []
+# List
+# hello
+# hello
+# 默认值
+# hello
+# false
+# 1: 环境变量 'RAVEL_ENV_NOPE' 没有（想给个默认值用 System.EnvOr）
+# 2: 环境变量 'RAVEL_ENV_PROBE' 没有（想给个默认值用 System.EnvOr）
+# again
+# 空了
+# 3: SetEnv: 变量名不能是空的
+# 4: EnvOr: 变量名不能是空的
+# 5: UnsetEnv: 变量名不能是空的
+# true
+# true
+# end

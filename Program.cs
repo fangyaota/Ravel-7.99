@@ -13,10 +13,11 @@ else if (args[0] == "test")
 }
 else
 {
-    RunFile(args[0]);
+    // 脚本名之后那些交给 `System.Args ()`(REPL / `ravel test` 没有,它们是空的)
+    RunFile(args[0], args[1..]);
 }
 
-static void RunFile(string path)
+static void RunFile(string path, string[] scriptArgs)
 {
     string source;
     try
@@ -37,23 +38,31 @@ static void RunFile(string path)
     Console.WriteLine("── Output ──");
     try
     {
-        new Interpreter().Interpret(Parser.ParseSource(source, path));
+        new Interpreter(scriptArgs).Interpret(Parser.ParseSource(source, path));
     }
     // 运行时错误和语法错误渲染同一份报告(位置 + 源码行 + 插入符 + 调用栈),
     // 所以用一条 when 收下来,不必写两遍一模一样的 catch
     catch (Exception ex) when (ex is RuntimeException or SyntaxException)
     {
         Console.WriteLine($"Error: {ErrorReport.Format(ex)}");
+        Environment.ExitCode = 1;
     }
     catch (ExitException ex)
     {
         // `exit ""` 是"什么都不说就结束",别打出一个空的 `Error:` 行
-        if (ex.Message.Length > 0) Console.WriteLine($"Error: {ex.Message}");
+        // (退出码也跟着这条线走:说了话就是出事,于是 `Test.Report ()` 那种
+        //  "跑完打一行汇总再抛出去"的脚本能让 CI 真的红掉)
+        if (ex.Message.Length > 0)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            Environment.ExitCode = 1;
+        }
     }
     catch (Exception ex)
     {
         // 走到这里说明解释器自己有 bug:该转成 RuntimeException/SyntaxException 的没转
         Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}");
+        Environment.ExitCode = 1;
         // 上面那句故意不带栈,免得刷屏;但解释器自己的 bug 只能靠栈才查得下去
         // (递归到栈溢出这类尤其如此,消息里什么线索都没有)。要的时候开这个开关。
         if (Environment.GetEnvironmentVariable("RAVEL_TRACE") == "1") Console.WriteLine(ex.StackTrace);

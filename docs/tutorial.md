@@ -2364,6 +2364,70 @@ Math.Deg Math.Pi   # 180（角度↔弧度）
 
 `using "math.rav"` 之前 `Math` 不是一个名字 —— 会报「未定义的变量 'Math'」。
 
+### 8.5 命令行参数与环境变量
+
+两样都是**进程外面给进来**的东西，都在 `System` 里，和文件那批一个规矩：只做 syscall，
+要不要先问一句由你自己决定。
+
+```bash
+dotnet out/ravel.dll greet.rav 小明 --loud
+```
+
+```ravel
+System.Args ()            # [小明 --loud] —— **脚本名之后**那些
+```
+
+`Args ()` 给的是一个 `list`（全是 `string`）。**解释器自己不读命令行**：谁把脚本跑起来的、
+命令行长什么样，那是 CLI 的事，所以 REPL 和 `ravel test` 里它一直是空的 `[]`。
+
+环境变量五条：
+
+```ravel
+System.Env "HOME"                  # 没有这个变量就报错
+System.EnvOr "HOME" "/tmp"         # 没有就给默认值（不报错的那条）
+System.SetEnv "MODE" "dev"         # 只动**本进程**那份（新起的子进程看得见）
+System.UnsetEnv "MODE"             # 删掉；删一个本来就没有的不算错
+System.EnvAll ()                   # 名字 → 值（按名字排序，输出才可期待）
+```
+
+- 空串等于删掉（.NET 那套 `SetEnvironmentVariable` 的规矩）：`SetEnv "X" ""` 之后
+  `Env "X"` 照样报错。
+- 变量名空着当场拦下，不会静默变成一次什么都没做的调用。
+- 只写**本进程**那份。`.NET` 还能写用户级/机器级的环境变量，那是"装环境"，不该由一句赋值顺手做掉。
+
+### 8.6 给自己的库写断言（`Test`）
+
+`Test` 是给"写在 `.rav` 里、想跟着程序一起跑"的检查用的（仓库自己的用例是另一套：
+一对 golden 文件，见 CONTEXT.md）。**要显式引用**：
+
+```ravel
+using "test.rav"
+
+Test.Check "除以零要报错" { 1 / 0; }              # 跑完不报错就算过
+Test.Equal "摊平一层" (Seqs.Flatten [[1 2] [3]]) [1 2 3]   # 显示形式一样就算过
+Test.Fails "除零确实报错" { 1 / 0; }              # 反过来：必须报错才算过
+Test.Report ()                                    # 汇总；有没过就抛出去
+```
+
+三条断言各自收一段**会跑出结果的东西**（块、lambda 都行）。报错在这儿是**值**——
+`Expect argCount f` 把一次调用包成 `Expected`（见 5.8），于是"怎么断言"和"报错怎么办"
+是同一件事，不用另学一套。`Check` 顺便把"过没过"当值交回，`if` 里能直接用。
+
+逐条输出按 TAP 那个样子，一行一条、过与不过都打，下面缩进的是原因：
+
+```
+ok 1 - 除以零要报错
+not ok 2 - 这条也没过
+    期望 [1 3]，得到 [1 2]
+```
+
+`Report ()` 打一行 `5 passed, 3 failed`，**有没过就抛出去**——CLI 于是以非零码结束，
+所以 `dotnet out/ravel.dll mytests.rav` 可以直接当 CI 的一道关卡用（不想让它抛就别调它，
+逐条的输出早就打完了）。每条的记录也留着：`Test.Results`（`{name, ok, msg}` 的 list）、
+`Test.PassCount` / `Test.FailCount`。
+
+**用例见 tests/250。**
+
 ---
 
 ## 九、异常
@@ -2458,6 +2522,8 @@ Error: 未预期的字符 '$'
 | `exit msg` | 退出程序 |
 | `eval "code"` | 执行字符串 |
 | `Io.File p` / `Io.Dir p` | 文件系统条目（`lib/io.rav`，见 5.11） |
+| `System.Args ()` | 脚本名之后的命令行参数（list，见 8.5） |
+| `System.Env n` / `EnvOr n d` | 环境变量（`SetEnv` / `UnsetEnv` / `EnvAll` 见 8.5） |
 | `f $ a b` / `x @ .g ()` | 括号的语法糖：`$` 封右边（一个实参），`@` 封左边（成员接着挂） |
 | `callcc fn` | 续延 |
 | `with obj { }` | 浅拷贝修改 |

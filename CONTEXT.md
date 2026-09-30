@@ -12,8 +12,13 @@ rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c D
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
 dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav      # 单文件
+dotnet out/ravel.dll path/file.rav a b  # 脚本名之后那些进 System.Args ();见「System 模块」
 dotnet out/ravel.dll                    # REPL
 ```
+
+**退出码**:测试用例有 FAIL、脚本报错、解释器自己有 bug —— 三种都是 1
+(报错那条本来就打一行 `Error:`;说没说话和退出码走同一条线,所以 `Test.Report ()`
+那种"打一行汇总再抛出去"的脚本能让 CI 真的红掉)。`exit ""` 是"什么都不说就结束" → 0。
 
 VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前文件并可下断点、
 命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。语法高亮靠 `vscode-ravel/` 扩展
@@ -132,6 +137,10 @@ lib/
                           并进来之后又拆成这个文件。
   io.rav                  文件系统:接口 `IEntry` / `IFile` / `IDir`(全局名)+ 磁盘实现 + 通用件。
                           要显式 `using "io.rav"`;详见「文件系统」一节
+  test.rav                `Test` 模块 —— 给自己的库写断言用(`Check` / `Equal` / `Fails` /
+                          `Report`),要显式 `using "test.rav"`。断言跑的是"一段东西报不报错"
+                          (建在 `Expected` / `Expect` 上),`Report ()` 打汇总、有没过就抛出去
+                          —— 于是脚本以非零退出码结束。仓库自己的用例仍是 golden 那一套
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
@@ -238,6 +247,7 @@ Object (parent=自己)
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
         CallCC Exit With RavelMod Using Use unsafe Cmd
         property currentScope
+        Args Env EnvOr SetEnv UnsetEnv EnvAll
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
 与「跑外部命令」两节:它们只做 syscall,策略在库里。）
@@ -246,6 +256,12 @@ Object (parent=自己)
 `TimeParts ms`(一袋零件:year/month/day/hour/minute/second/millisecond/weekday)、
 `MakeTime parts`、`FormatTime ms fmt`、`ParseTime text fmt`(都按 .NET 那套格式串,
 时区本地)。"一个时刻怎么显示、怎么比大小"是 `lib/time.rav` 那个 `Time` 的事。）
+
+**进程外面给进来的两样东西**（命令行参数与环境变量）也在这儿，同样只做 syscall：
+`Args ()` 给的是**脚本名之后**那些参数（由 CLI 填进 `Interpreter.ScriptArgs` 那一个口子；
+REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
+`Env name`（没有就报错）/ `EnvOr name dflt` / `SetEnv name value` / `UnsetEnv name` / `EnvAll ()`。
+这几条只动**本进程**那份（新起的子进程看得见），写空串等于删掉（.NET 那套）。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：

@@ -1,0 +1,68 @@
+# `Test` —— 给**自己的库**写断言用的小工具。**要显式引用**:`using "test.rav"`。
+# 仓库自己的用例是另一套(一对 golden 文件,见 CONTEXT.md 的 `测试` 一节),这个文件是给
+# "写在 .rav 里、想跟着程序一起跑"的那种检查用的。
+#
+# 每条断言 = 一个名字 + 一段**会跑出结果的东西**;那段东西中途报错,就是这条没过。
+# 报错在这里是**值**(`Expected`,`Expect argCount f` 把一次调用包起来),所以
+# "该怎么断言"和"报错怎么办"是同一件事,不用另学一套。
+#
+#     using "test.rav"
+#
+#     Test.Equal "摊平一层" (Seqs.Flatten [[1 2] [3]]) [1 2 3]
+#     Test.Check "除以零要报错" { 1 / 0; }          # 跑完不报错才算过
+#     Test.Fails "除零确实报错" { 1 / 0; }          # 反过来:必须报错才算过
+#     Test.Report ()                                # 汇总;有没过就抛出去
+#
+# 输出按 TAP 那个样子(`ok 1 - 名字` / `not ok 2 - 名字`),一行一条、过与不过都打 ——
+# 好读,也好钉进 golden。
+#
+# `Report ()` 带个**退出码**的尾巴:有没过它就抛一句错,CLI 于是以非零码结束(见 Program.cs),
+# 于是 `dotnet out/ravel.dll mytests.rav` 能直接当 CI 的一道关卡用。
+ravel "Test"
+
+# 到目前为止的每一条:`{name, ok, msg}`(模块级的状态 —— 和 `Ex.HandlerStack` 一个路子)
+Results: list = []
+PassCount: int = 0
+FailCount: int = 0
+
+# 记一条。**先打再记** —— 断言当场就看得见,不用等汇总(跑到一半崩了也知道走到哪了)
+readonly Record := (name: string ok: bool msg: string) => {
+    Results.Add {"name": name "ok": ok "msg": msg}
+    if { ok; } { PassCount += 1; } { FailCount += 1; }
+    if { ok; } { print ("ok ${Results.Count ()} - ${name}"); } { print ("not ok ${Results.Count ()} - ${name}"); }
+    # 过了的那些不该带消息;带了多半是写的时候忘了 —— 顺手打出来,别让它悄悄丢
+    if { msg == ""; } { 0; } { print ("    ${msg}"); }
+    ok
+}
+
+# 跑一段东西,跑完不报错就算过。**值本身不参与判断** —— 要比值用 `Equal`
+# (块 `{ …; }` 是 0 参函数,`Expect 1` 数的是"喂几口":喂它一口 `()` 就开跑)
+readonly Check := (name: string body: function) => {
+    r := (Expect 1 body) ()
+    msg := if { r.IsErr (); } { r.Message (); } { ""; }
+    Record name (r.IsOk ()) msg
+}
+
+# 两边**显示形式**一样就算过(`"${…}"` 那一套)。容器之间没有内容相等(`==` 比的是同一个对象),
+# 所以这里比的是"打印出来长什么样"—— 对断言来说这够用,而且一眼看得出差在哪。
+# 要比结构、比别的口径,自己写 `Check` 里的那条件。
+readonly Equal := (name: string actual: object expected: object) => {
+    a := "${actual}"
+    b := "${expected}"
+    msg := if { a == b; } { ""; } { "期望 ${b}，得到 ${a}"; }
+    Record name (a == b) msg
+}
+
+# 反过来:这段东西**必须报错**才算过(测报错分支就用它)
+readonly Fails := (name: string body: function) => {
+    r := (Expect 1 body) ()
+    msg := if { r.IsErr (); } { ""; } { "本该报错，却正常回来了"; }
+    Record name (r.IsErr ()) msg
+}
+
+# 收尾:打一行汇总。**有没过就抛出去** —— 于是脚本以非零码结束,CI 拦得住。
+# (不想让它抛(比如还想往下跑)就别调它;逐条的输出已经在上面了。)
+readonly Report := () => {
+    print ("${PassCount} passed, ${FailCount} failed")
+    if { FailCount > 0; } { throw (Exception "${FailCount} 条断言没过"); } { (); }
+}

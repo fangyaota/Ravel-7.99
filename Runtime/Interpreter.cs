@@ -9,9 +9,17 @@ public partial class Interpreter
     /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>
     public Scope CurrentScope { get; set; }
 
+    /// <summary>脚本名**之后**那些命令行参数(`System.Args ()` 交回的就是它,复制成一份 list)。
+    ///
+    /// 解释器自己**不读命令行**:是谁把它跑起来的、命令行长什么样,那是 CLI 的事(见 Program.cs
+    /// 的 RunFile)。所以 REPL 和 `ravel test` 里这份就是空的 —— 它们没有"脚本的参数"可言。</summary>
+    public IReadOnlyList<string> ScriptArgs { get; }
+
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>
-    public Interpreter()
+    /// <param name="scriptArgs">脚本名之后那些参数;不给就是空的(REPL、测试运行器这么用)</param>
+    public Interpreter(IEnumerable<string>? scriptArgs = null)
     {
+        ScriptArgs = scriptArgs is null ? [] : [.. scriptArgs];
         _global = new Scope();
         CurrentScope = _global;
         BuiltinClasses.ResetUserTypes();   // 别让上一个 Interpreter 建的类漏进本实例的 Subtypes
