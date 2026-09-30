@@ -1,0 +1,81 @@
+# `Expected`:**要么正常拿到值,要么中途出错了** —— `Option` 的兄弟。
+#
+# 两者形状相同(都是 `IMonad`,`do { … }` 都吃得下),差别只在"没有"的那半:
+# `Option` 那边是**没有值**(`None`),这里那边是**一句报错**(`Err e`,`e` 是个 Exception)。
+# 所以 `Option` 用 `Value ()` 解包,这边还有一条 `Error ()` 拿那句报错。
+#
+# 主要用途是**给一次函数调用兜底**(见下面的 `Expect`):把"会抛出来的东西"变成值,
+# 于是调用方可以先看再决定,而不是被一句报错打断 —— 和 `Json` 那边"先看再转"一个意思。
+Expected ::= class {
+    Has: bool = false                    # 这次调用成功了吗
+    Inner: object = ()                   # 成功时那个值
+    Err: object = ()                     # 失败时那个 Exception
+
+    IsOk := () => { Has; }
+    IsErr := () => { !Has; }
+
+    # 解包成功值。失败时是**用错了**,当场报错,不拿 () 糊弄
+    Value := () => {
+        assert Has ("Expected.Value: 这次调用是失败的（先 IsOk 问一句，或改用 ValueOr / Error）")
+        Inner
+    }
+    # 解包,失败就给个默认
+    ValueOr := (d: object) => { if { Has; } { Inner; } { d; } }
+
+    # 反过来:拿那句报错。成功时用它是**用错了**
+    Error := () => {
+        assert (!Has) ("Expected.Error: 这次调用没出错（要值请用 Value）")
+        Err
+    }
+    # 报错文本,顺手(和 `string e` 一个口径)
+    Message := () => { string (Error ()); }
+
+    # 映射:成功就包着装换过的值,失败原样(Err 里那个函数根本不会被调)
+    Map := (f: function) => { if { Has; } { Ok (f Inner); } { this; } }
+    # 绑定:成功就把 f 的结果**摊平**接上(f 得自己回一个 Expected),失败原样
+    Bind := (f: function) => { if { Has; } { f Inner; } { this; } }
+    # 成功且满足条件 -> true(过滤那半没意义:失败了本来就没值可滤)
+    Exists := (p: function) => { Has && p Inner; }
+
+    init = (has: bool v: object e: object) => {
+        Has = has
+        Inner = v
+        Err = e
+        this
+    }
+}
+
+# 两个构造子。名字是 `Ok` / `Err`(和 `Some` / `None` 那种"构造子是普通值"一个路子)
+readonly Ok := (v: object) => { Expected true v (); }
+readonly Err := (e: object) => { Expected false () e; }
+
+# 这个 `Expected` 也在 IMonad 这一族里(和 Option 同一个形状的又一个实例)
+impl (IMonad Expected {
+    ()
+})
+
+# `Expect argCount f` → 一个**包装过的函数**。
+#
+# 它按柯里化一层层吃参数:吃满 `argCount` 口就调用 `f`,把结果包成 `Expected`;
+# **中途哪一步报错**(参数类型不对、函数体里 throw……)都变成 `Err e`,不往外抛。
+#
+#     add := (a: int b: int) => { a + b; }
+#     safeAdd := Expect 2 add
+#     (safeAdd 1 2).Value ()        # 3
+#     (safeAdd 1 "x").Message ()    # 类型错误: … （被接住,没打穿程序）
+#
+# `argCount` 数的是**喂几口**:`f := () => { … }` 要 `Expect 1 f`(那一口是 `()`),
+# 两参函数 `(a b) => …` 要 `Expect 2 f`。喂少了拿到的还是函数(`Ok` 里包着半成品),
+# 喂多了最后那口会报「不是函数」—— 两者都是 `Err`,不会静默。
+readonly Expect := (argCount: int f: function) => {
+    Step := (n: int partial: function) => {
+        (a: object) => {
+            if { (n + 1) == argCount; } {
+                try { Ok (partial a); } (e: Exception) => { Err e; }
+            } {
+                try { Step (n + 1) (partial a); } (e: Exception) => { Err e; }
+            }
+        }
+    }
+    Step 0 f
+}

@@ -87,6 +87,7 @@ using "monad.rav"
 using "sorting.rav"
 using "keys.rav"
 using "exceptions.rav"
+using "expected.rav"   # `Expected` / `Expect`(Option 的兄弟:失败那半是报错)
 
 # ── `callcc`：库函数 ──
 #

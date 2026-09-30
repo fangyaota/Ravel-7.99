@@ -100,6 +100,10 @@ lib/
   monad.rav               **Monad 这一族**:`IMonad` 接口(Map + Bind 两条槽 —— 能进 `do { … }` 的形状)
                           + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           + 构造子 `Some` / `None`
+  expected.rav            同族的另一个实例 `Expected`(Ok/Err:Has/Inner/Err + IsOk/Value/Error/Message
+                          + Map/Bind/Exists)+ 构造子 `Ok` / `Err`
+                          + `Expect argCount f` —— 把一个函数包成"调用返回 Expected"的那种
+                          (喂满 argCount 口才真调用,报错包成 Err,不往外抛)
   sorting.rav             `IComparable`(一条槽:`CompareTo`)+ 六种内建标量的空登记
                           + `Sorting` 模块(Compare / Sort / SortBy / Max / Min / MaxBy / MinBy)
   keys.rav                `IKey`(一条槽:`Key`)+ 值类型那六种的空登记 + `IDict`
@@ -223,8 +227,8 @@ Object (parent=自己)
 与「跑外部命令」两节:它们只做 syscall,策略在库里。）
 
 （`if`/`while`/`foreach`/`cacher`/`Some`/`None` 不在 System 模块里——它们在
-`lib/predefined.rav` 用 Ravel 写。那里也定义了库里仅有的两个类型：`Cacher`(缓存)与
-`Option`(可能没有值的包)。）
+`lib/predefined.rav` 用 Ravel 写。那里还定义了几个类型：`Cacher`(缓存)、
+`Option`(可能没有值的包)、`Expected`(那次调用有没有出错)。）
 
 **值**: True False Default NaN Inf（特殊浮点值；`-Inf` 用一元 `-`）
 

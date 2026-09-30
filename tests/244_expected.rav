@@ -1,0 +1,58 @@
+# `Expected`:一次调用要么**正常拿到值**(`Ok v`),要么那半是**一句报错**(`Err e`)。
+# `Expect argCount f` 把函数包起来:喂满 argCount 口才真调用,报错不往外抛,包成 Err。
+# 形状和 `Option` 同一个(都实现 `IMonad`),区别只在"没有"那半:那边是没有值,这边是报错。
+
+add := (a: int b: int) => { a + b; }
+safeAdd := Expect 2 add
+
+# 正常:普通值在 Inner 里
+print ((safeAdd 1 2).IsOk ())
+print ((safeAdd 1 2).Value ())
+print ((safeAdd 1 2).ValueOr 0)
+
+# 报错:包成 Err,调用点不被打断
+bad := safeAdd 1 "x"
+print (bad.IsErr ())
+print (bad.Message ())
+print (bad.ValueOr 0)
+try { print (bad.Value ()); } (e: Exception) => { print ("1: " + string e); }
+try { print ((safeAdd 1 2).Error ()); } (e: Exception) => { print ("2: " + string e); }
+
+# 函数体里 throw 的也接住
+boom := (x: int) => { throw (Exception "里面炸了"); }
+print ((Expect 1 boom 5).IsErr ())
+print ((Expect 1 boom 5).Message ())
+
+# Map / Bind:失败那半原样传下去(和 Option 的 Map/Bind 一个规矩)
+print (((safeAdd 2 3).Map ((n: int) => { n * 10; })).Value ())
+print (((safeAdd 1 "x").Map ((n: int) => { n * 10; })).IsErr ())
+print (((safeAdd 2 3).Bind ((n: int) => { safeAdd n 100; })).Value ())
+print (safeAdd 1 2 is IMonad)
+
+# 多参照旧(柯里化一层层喂)
+sum3 := (a: int b: int c: int) => { a + b + c; }
+print ((Expect 3 sum3 1 2 3).Value ())
+print ((Expect 3 sum3 1 2 3).ValueOr 0)
+
+# 元数给错:喂得比函数要的多 -> 最后那口是 Err,不静默
+print ((((Expect 3 add) 1 2)).IsErr ())
+print "end"
+# --- expected ---
+# true
+# 3
+# 3
+# true
+# 参数 'b' 需要 Integer，得到 String
+# 0
+# 1: Expected.Value: 这次调用是失败的（先 IsOk 问一句，或改用 ValueOr / Error）
+# 2: Expected.Error: 这次调用没出错（要值请用 Value）
+# true
+# 里面炸了
+# 50
+# true
+# 105
+# Expected { Has = false, Inner = (), Err = Exception {...} }
+# 6
+# 6
+# true
+# end

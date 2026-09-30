@@ -780,6 +780,33 @@ xs.Count () @ .ToString ()  # 链式调用也是：`.成员` 比并列的调用�
 ((Some 5).Map f).Value ()   # Map 的结果也要套括号，否则 .Value 会贴到 f 上
 ```
 
+#### Expected（可能出错的那半）
+
+`Expected` 是 `Option` 的兄弟：形状相同（都实现 `IMonad`，`do { … }` 也吃得下），
+区别只在"没有"的那半 —— 那边是**没有值**（`None`），这边是**一句报错**（`Err e`，`e` 是个
+`Exception`），所以多一条 `Error ()`。
+
+主要用途是**给一次调用兜底**：`Expect argCount f` 把函数包起来，喂满 `argCount` 口才真调用，
+成功包成 `Ok v`、报错包成 `Err e` —— 报错不往外抛，调用方可以先看再决定：
+
+```ravel
+add := (a: int b: int) => { a + b; }
+safeAdd := Expect 2 add
+
+(safeAdd 1 2).Value ()        # 3
+(safeAdd 1 "x").IsErr ()      # true —— 类型错误被接住，没打穿程序
+(safeAdd 1 "x").Message ()    # 参数 'b' 需要 Integer，得到 String
+```
+
+- 两个构造子：`Ok v`（正常）与 `Err e`（出错）；问哪一半用 `IsOk ()` / `IsErr ()`。
+- 解包：`Value ()` 在 `Err` 上**当场报错**（用错就问一句），要默认值用 `ValueOr d`；
+  反过来 `Error ()` 拿那句报错、`Message ()` 拿它的文本。
+- `Map` / `Bind` 和 `Option` 一个规矩：`Err` 一律原样传下去，里面的函数根本不会被调。
+- `argCount` 数的是**喂几口**：`f := () => { … }` 要 `Expect 1 f`（那一口是 `()`），
+  `(a b) => …` 要 `Expect 2 f`。给错元数不会静默 —— 那也是一条 `Err`。
+
+**用例见 tests/244。**
+
 ### 5.9 do 块
 
 一串 `Bind` 写起来很别扭（嵌套的括号、还要给 lambda 标参数类型），所以有 `do`：
