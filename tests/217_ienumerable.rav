@@ -13,9 +13,9 @@
 # 三种容器各 `impl` 一条,于是 `is` / 注解 / `foreach` 都认它们。
 
 # ---- 它是什么 ----
-print (IEnumerable.Parent ())
-print ((IEnumerable.Parent ()).Parent ())   # 基类自己挂在 object 下
-print ((IEnumerable.Parent ()) is type)
+print (IEnumerable.parent)
+print ((IEnumerable.parent).parent)   # 基类自己挂在 object 下
+print ((IEnumerable.parent) is type)
 print (typeof IEnumerable)
 print (IEnumerable is interface)
 print ([1 2 3] is IEnumerable)

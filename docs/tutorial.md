@@ -86,8 +86,9 @@ typeof "hello"   # String
 
 - **全局别名** —— `print`、`true`、`if`、`typeof`、`randint`…… 它们是 `predefined.rav` 里的名字，
   更像"语言的关键词"而不是谁的成员。
-- **机制成员** —— `parent` / `block` / `name` / `init` / `this`。它们和同类的方法
-  （`Parent` / `Name`）**靠大小写区分**：`C.parent` 是原型链指针，`C.Parent ()` 是那个方法。
+- **机制成员** —— `parent` / `block` / `name` / `init` / `this`：类对象自己那层的数据。
+  `C.parent` 是原型链指针（父类），`C.name` 是类名。它们**不沿链继承**，所以实例上读不到
+  （`c.parent` 报「没有方法」——不然 `(5).parent` 会从报错变成返回 `ValueType`）。
 
 **注解里的名字就是作用域里的那个变量**（`int := System.Integer` 只是 `predefined.rav`
 里的普通赋值），所以：
@@ -115,7 +116,7 @@ f := (x: (pick true)) => { x; }   # 参数注解同理
 ### 2.3 类型反射
 
 ```ravel
-int.Parent ()          # ValueType  — 父类型
+int.parent             # ValueType  — 父类型
 int <: ValueType       # true       — 子类型检查
 int <: string          # false
 object :> int          # true       — 反过来问(父类型)
@@ -1380,7 +1381,7 @@ print (typeof Person)    # Type
 
 | 成员 | 含义 | 怎么看 |
 |---|---|---|
-| `parent` | 父类对象（链的上游） | `print (Person.Parent ())` → `Object` |
+| `parent` | 父类对象（链的上游） | `print (Person.parent)` → `Object` |
 | `block` | 类体——实例化时重跑的配方 | `typeof Person.block` 是 `Block` |
 | `name` | 类名 | `Person.name` → `"Person"` |
 
@@ -1949,7 +1950,7 @@ print (u is myTrait)     # true
 三件事：
 
 1. **`interface { … }` 造出一个类型**（接口本身）。它的 **parent 是 `BaseInterface`**（所有接口的
-   基类，而它**自己也是个接口**，是这一支的根）、而**类型是 `interface`**：`myTrait.Parent ()`
+   基类，而它**自己也是个接口**，是这一支的根）、而**类型是 `interface`**：`myTrait.parent`
    是 `BaseInterface`，而 `typeof myTrait` 是 `Interface`（`myTrait is interface` 成立，
    类型树上也这么标）。基类类体里那份 `init` 正是"造实现"跑得起来的原因
    （`myTrait myClass { … }` 是**实例化 `myTrait`**，得有 `init` 才动得了）—— 它和

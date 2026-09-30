@@ -13,7 +13,7 @@ print (typeof D)
 # 继承照旧:class Parent { ... } 走「参数是类型」那条分支
 E := class C { init = () => { x = 9; this; } }
 print ((E ()).x)
-print (type.Parent ())
+print (type.parent)
 # --- expected ---
 # true
 # Type

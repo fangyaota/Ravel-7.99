@@ -14,7 +14,7 @@ print (int.name)
 print (int <: ValueType)
 print (int <: object)
 print (bool <: string)
-print (int.Parent ())
+print (int.parent)
 print (int.Default ())
 print (string.Default ())
 print "--- System 模块 ---"

@@ -358,13 +358,11 @@ internal static partial class BuiltinClasses
         // (见 ObjectVal.Name),和它同住一个作用域的方法会把它覆盖掉。
         // 而且那个方法本来就是死代码 —— GetMember 的 `name` 伪成员排在方法查找之前,
         // 读 `int.name` 永远走伪成员,够不着方法。读走伪成员、写走成员赋值,行为不变。
-        Type.DefineMethod("Parent", (s, _) =>
-        {
-            var t = (ObjectVal)s;
-            var p = t.Parent;
-            if (p == null || p == t) return s;      // 自引用(链到头)就返回自己
-            return p;
-        });
+        //
+        // `Parent ()` 那个**方法**也删掉了:它和 `parent` 成员是同一格数据
+        // (`C.parent` / `C.Parent ()` 都返回 `Object`),留两个名字只会让人以为
+        // 一个给类、一个给实例。要读父类就是 `C.parent`(机制成员,类自己那层;
+        // 实例上读不到 —— 它不沿链继承)。
         // `Is` 这个**方法**删掉了:它问类型、`is` 问值,两个长得像的东西各管一头,
         // 最常踩的是拿实例去调(`C.Is (C ())` 从前静默给 false,读起来还像"这个实例是不是 C")。
         // 要问类型之间的关系就用运算符:`int <: object` / `object :> int`(两边都得是类型);

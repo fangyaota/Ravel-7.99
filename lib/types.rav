@@ -15,7 +15,7 @@
 # 用户类的实例显它自己那个类)。行首的 `├──` / `└──` 下面那几个缩进 4 格,
 # `└──` / `├──` 后面留一竖线,画出一棵树。
 #
-# 只认**直接**子类:`Subtypes ()` 给的是所有后代,所以还要求 `Parent ()` 就是当前这个 ——
+# 只认**直接**子类:`Subtypes ()` 给的是所有后代,所以还要求 `parent` 就是当前这个 ——
 # 另外排掉名字相同的那个(自引用的 `type`,它的 Parent 是自己)。
 
 ravel "Types"
@@ -29,7 +29,7 @@ readonly PrintTree := (root: object) => {
         i := 0
         while { i < subs.Count (); } {
             s := subs.At i
-            if { (s.Parent ()).name == t.name && s.name != t.name; } { kids.Add s; } { 0; }
+            if { (s.parent).name == t.name && s.name != t.name; } { kids.Add s; } { 0; }
             i += 1
         }
         kids

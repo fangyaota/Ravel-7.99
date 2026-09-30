@@ -498,7 +498,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   ——它们在实例表里、谁都读得到；借去当"方向"的那套（`MemberView` 的 `classSide` / `ReadOwn`）
   随两张表一起删了。用户写在自己类里的 `private` 字段照旧只认"本对象内部"那条老规矩。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
-  绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
+  绑接收者 —— 漏了的话 `C.Fields ()` 会把未绑定的内置方法当结果返回(`self` 是 `()`)。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
   但绑完是 `BoundClassOp`（推帧的标记），不能直接算 —— 合并会让 `a + 5` 交出标记而不是数。
 
@@ -720,7 +720,7 @@ IEnumerator ::= interface { by MoveNext : function = default
   而「谁在被实例化」就是造出来的实现的类型 —— 推 `ImplMake` 帧跑那两段类体。
   接口的子接口都继承这一份(它们自己的类体里没有 `init`)。
 
-**接口对象的 parent 是 `BaseInterface`,类型是 `interface`** —— `IEnumerable.Parent ()` 是
+**接口对象的 parent 是 `BaseInterface`,类型是 `interface`** —— `IEnumerable.parent` 是
 `BaseInterface`,而 `typeof IEnumerable` 是 `Interface`(`is interface` 成立)。
 `BaseInterface` 下面挂的就是所有接口(`Subtypes ()` / 类型树上看得见),它类体里那份
 **默认 `init`** 是所有接口共用的 —— `myTrait myClass { … }` 是实例化 `myTrait`,而
@@ -1207,7 +1207,7 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 ```ravel
 # 类型反射
 int.name          # "Integer"
-int.Parent ()     # ValueType
+int.parent        # ValueType
 int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
 1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
