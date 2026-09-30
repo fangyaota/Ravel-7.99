@@ -94,6 +94,236 @@ print (Seq.GetImplements ())
 # ---- 不是可枚举的:报错说清楚要什么 ----
 try { foreach 5 (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string e2); }
 try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + string e2); }
+
+# ═══ 220_inumber(并入) ═══
+ravel "220_inumber"
+# `INumber` —— predefined.rav 里那个**空槽接口**:五种数值类型都实现了它。
+#
+# 用处是给"要一个数"的参数当注解(见 lib/math.rav 的 `Square` / `Cube` / `Deg` / `Rad`)。
+# 从前那种地方标的是 `ValueType`,那个连 String 都收(`String <: ValueType`),
+# 字符串乘不起来;标 `float` 又只收 float —— 参数注解不做隐式转换。
+using "math.rav"
+
+# ---- 谁算数 ----
+print (5 is INumber)
+print (2.5 is INumber)
+print ((bigint 5) is INumber)
+print ((fraction 1 3) is INumber)
+print ((bigfraction 1 3) is INumber)
+print ("a" is INumber)
+print (true is INumber)
+print ([1] is INumber)
+print ((typeof 5) <: INumber)          # 类型那一侧也认(和 `is` 同一个判据)
+
+# ---- 两个查询都看得见它 ----
+print (int.GetImplements ())
+print (INumber.GetImplementors ())
+
+# ---- math.rav 那四个现在收 INumber ----
+print (Math.Square 5)
+print (Math.Square 2.5)
+print (Math.Cube 3)
+print (Math.Deg Math.Pi)
+print (Math.Rad 180)
+
+# ---- 不是数的当场说清楚(而不是让它烂在 `x * x` 里) ----
+try { print (Math.Square "a"); } (e: Exception) => { print ("1: " + string e); }
+try { print (Math.Square true); } (e: Exception) => { print ("2: " + string e); }
+ravel ""
+
+# ═══ 234_icomparable(并入) ═══
+ravel "234_icomparable"
+# `IComparable` / `Sorting`:谁大谁小,以及"按什么排"由**类型自己**说了算。
+#
+# 协议是 `CompareTo`:收对方、交回 -1 / 0 / 1(和 C# 的 IComparable 同约定)。引擎在 `Object`
+# 上放了一条 —— 内建那把尺子(数值、字符串之间怎么比),所以**每个值都有**,不必谁登记:
+# `3.CompareTo 5` 拿起来就能用。
+#
+# 自己写的类型嫌那把尺子不够(它比不了你的对象),就在**类里写一条** `CompareTo` ——
+# 它盖掉 `Object` 那条(和 `ToString` 同一个规矩);再 `impl` 登记一下"我这个类型讲了怎么比"。
+# (现装那条 `by CompareTo = property …` 在这儿**用不了**:这个名字 `Object` 上已经有了,
+#  类链先说话 —— 槽还没轮到。)
+#
+# 排序是库里自己写的**稳定**归并(`Sorting.Sort` / `SortBy`):比的是 `CompareTo`,
+# 所以实现了接口的类型也排得了 —— 引擎那个 `xs.Sort ()` 只认内建标量,碰见对象只会说「比不了」。
+
+# ① 协议:每个值都有
+print (3.CompareTo 5)
+print (5.CompareTo 3)
+print (5.CompareTo 5)
+print ("a".CompareTo "b")
+print ("b".CompareTo "b")
+print ((2.5).CompareTo 1.5)
+print ((bigint 5).CompareTo (bigint 7))
+
+# ② 登记 = "这个类型自己讲了怎么比"这个类型层面的事实(内建那几个也登记过)
+print (3 is IComparable)
+print ("a" is IComparable)
+print ([1 2] is IComparable)
+print (IComparable.GetImplementors ())
+
+# ③ 库里那些通用件:对着 `CompareTo` 写,所以内建 / 自写两边都吃
+print (Sorting.Compare 3 5)
+print (Sorting.Sort [3 1 2])
+print (Sorting.Sort [])
+print (Sorting.Sort [7])
+print (Sorting.Sort [3 1 2 1 3])
+print (Sorting.Sort ["bb" "a" "ccc"])
+print (Sorting.SortBy ["bb" "a" "ccc"] ((s: string) => { s.Length (); }))
+print (Sorting.Max [3 9 2])
+print (Sorting.Min [3 9 2])
+print (Sorting.MaxBy ["bb" "a" "ccc"] ((s: string) => { s.Length (); }))
+print (Sorting.MinBy ["bb" "a" "ccc"] ((s: string) => { s.Length (); }))
+
+# ④ 自己写的类型:类里一条 CompareTo + impl 登记
+Rec ::= class {
+    K: int = 0
+    N: string = ""
+    init = (k: int n: string) => { K = k; N = n; this; }
+    CompareTo := (o: Rec) => { if { K < o.K; } { -1; } { if { K > o.K; } { 1; } { 0; } } }
+}
+impl (IComparable Rec {
+    ()
+})
+print (Rec.GetImplements ())
+rs := []
+rs.Add (Rec 3 "c")
+rs.Add (Rec 1 "a")
+rs.Add (Rec 2 "b")
+print ((Sorting.Sort rs).Map ((r: Rec) => { r.N; }))
+print ((Sorting.SortBy rs ((r: Rec) => { r.K; })).Map ((r: Rec) => { r.N; }))
+print ((Sorting.Max rs).N)
+print ((Sorting.Min rs).N)
+print ((Sorting.MaxBy rs ((r: Rec) => { r.N; })).N)
+
+# 稳定:键相等的保持原来的先后
+r2 := []
+r2.Add (Rec 1 "x")
+r2.Add (Rec 1 "y")
+r2.Add (Rec 0 "z")
+print ((Sorting.Sort r2).Map ((r: Rec) => { r.N; }))
+
+# ⑤ 比不了 / 空表:当场说人话,不静默给个错答案
+try { rs.Sort (); } (e: Exception) => { print ("1: " + string e); }
+try { Sorting.Sort [1 "x"]; } (e: Exception) => { print ("2: " + string e); }
+try { Sorting.Max []; } (e: Exception) => { print ("3: " + string e); }
+print "end"
+ravel ""
+
+# ═══ 235_ikey(并入) ═══
+ravel "235_ikey"
+# `IKey` / `IDict`:字典的键操作**分两层**。
+#
+#   * 引擎那套叫 `SysGet` / `SysSet` / `SysHas` / `SysRemove` / `SysGetOr` —— 同步的 C#,
+#     只吃**值类型**键(它够不着你写的 `Key`:调 Ravel 函数要推帧,而查表那一步还在
+#     .NET 字典的内部,那儿更插不进帧);
+#   * 日常敲的 `d.Get` / `d.Set` / `d.Has` / `d.Remove` / `d.GetOr` 是**库注入**的
+#     (`lib/keys.rav` 的 `IDict` 接口槽):先把键规范成值类型、再转到 `Sys*` 上,
+#     于是"内容一样的两个对象"是同一条。
+#
+# 名字腾出来是前提:类链上还占着 `Get` 的话,接口槽**够不着而且静默**(`TraitSlot` 的规矩)。
+
+# ① 协议:每个值都有(`Key ()` = "我当键时等于什么";默认那把尺子只对值类型有话说)
+print (5.Key ())
+print ("a".Key ())
+print ((Keys.Of 5) == 5)
+print ((Keys.Of "a") == "a")
+try { print ((Some 5).Key ()); } (e: Exception) => { print ("1: " + string e); }
+
+# ② dict:键是值类型,相等就是值自己的
+d := {}
+d.Set 1 "int"
+d.Set "1" "str"
+d.Set 1.0 "float"
+print (d.Count ())
+print (d.Get 1)
+print (d.Get "1")
+print (d.Get 1.0)
+print (d.Has 2)
+print (d.Keys ())
+print ({1: "a"}.Get 1)
+print (d is IDict)
+try { d.Set ([1 2]) "x"; } (e: Exception) => { print ("2: " + string e); }
+try { print (d.Get 999); } (e: Exception) => { print ("3: " + string e); }
+
+# ③ 字面量的键是**表达式**:`{"a": 1}` 而不是 `{a: 1}`(那个 `a` 是变量)
+print {"a": 1}
+print {1: 2}
+print {1 2}
+k := "kk"
+print {k: 1}
+n := 7
+print {n: 1}
+print {"a" + "b": 1}
+try { print {zz: 1}; } (e: Exception) => { print ("4: " + string e); }
+
+# ④ 登记 = "这个类型自己讲了怎么当键"这个类型层面的事实(内建那几个值类型也登记过)
+print (5 is IKey)
+print ("a" is IKey)
+print ([1 2] is IKey)
+print (IKey.GetImplementors ())
+
+# ⑤ 值语义:类里写一条 `Key`(它盖掉 `Object` 那条),再 impl 登记
+Rec ::= class {
+    X: int = 0
+    N: string = ""
+    init = (x: int n: string) => { X = x; N = n; this; }
+    Key := () => { X; }
+}
+impl (IKey Rec {
+    ()
+})
+print ((Rec 1 "a") is IKey)
+print (Rec.GetImplements ())
+print (Keys.Of (Rec 7 "x"))
+
+d2 := {}
+d2.Set (Rec 1 "甲") "one"
+d2.Set (Rec 2 "乙") "two"
+print (d2.Get (Rec 1 "别的"))
+print (d2.Has (Rec 2 "别的"))
+print (d2.Count ())
+print (d2.Keys ())
+print (d2.GetOr (Rec 9 "z") "缺")
+print (d2.Remove (Rec 1 "别"))
+print (d2.Has (Rec 1 "别"))
+
+# 引擎那套(raw)不认对象 —— 它只吃值类型
+try { print (d2.SysGet (Rec 1 "别")); } (e: Exception) => { print ("5: " + string e); }
+
+# 没写 `Key` 的类型:引擎那句(指向"在类里写一条 Key")
+B ::= class {
+    X: int = 0
+    init = (x: int) => { X = x; this; }
+}
+try { d2.Get (B 1); } (e: Exception) => { print ("6: " + string e); }
+
+# `Key` 交回的不是值类型:库这层当场说清楚
+C ::= class {
+    X: int = 0
+    init = (x: int) => { X = x; this; }
+    Key := () => { [X]; }
+}
+try { Keys.Of (C 1); } (e: Exception) => { print ("7: " + string e); }
+
+# ⑥ `Keyed`:以任意值为键、还能把**原对象**拿回来(普通 dict 里只剩规范键)
+t := Keyed ()
+t.Set (Rec 1 "甲") "one"
+t.Set (Rec 2 "乙") "two"
+print (t is IDict)
+print (t.Get (Rec 1 "丙"))
+print (t.Has (Rec 2 "丁"))
+print (t.Count ())
+print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
+print (t.Values ())
+print (t.GetOr (Rec 5 "x") "缺")
+print (t.Remove (Rec 1 "戊"))
+print (t.Count ())
+print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
+t.Clear ()
+print (t.Count ())
+print "end"
+ravel ""
 # --- expected ---
 # BaseInterface
 # Object
@@ -137,3 +367,105 @@ try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + 
 # []
 # 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
 # 2: 参数 'c' 需要 String，得到 Char
+# true
+# true
+# true
+# true
+# true
+# false
+# false
+# false
+# true
+# [IKey BaseInterface IComparable INumber]
+# [BigFraction Fraction BigInt Float Integer]
+# 25
+# 6.25
+# 27
+# 180
+# 3.141592653589793
+# 1: 参数 'x' 需要 INumber，得到 String
+# 2: 参数 'x' 需要 INumber，得到 Bool
+# -1
+# 1
+# 0
+# -1
+# 0
+# 1
+# -1
+# true
+# true
+# false
+# [String Char BigFraction Fraction BigInt Float Integer]
+# -1
+# [1 2 3]
+# []
+# [7]
+# [1 1 2 3 3]
+# [a bb ccc]
+# [a bb ccc]
+# 9
+# 2
+# ccc
+# a
+# [IComparable BaseInterface]
+# [a b c]
+# [a b c]
+# c
+# a
+# c
+# [z x y]
+# 1: 比不了 Rec 与 Rec
+# 2: 比不了 Integer 与 String
+# 3: 空表没得挑：Max / Min 至少要一个元素
+# end
+# 5
+# a
+# true
+# true
+# 1: Key: Option 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 3
+# int
+# str
+# float
+# false
+# [1 1 1]
+# a
+# true
+# 2: Key: List 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 3: 键不存在: 999
+# {a: 1}
+# {1: 2}
+# {1 2}
+# {kk: 1}
+# {7: 1}
+# {ab: 1}
+# 4: 未定义的变量 'zz'
+# true
+# true
+# false
+# [String Char BigFraction Fraction BigInt Float Integer]
+# true
+# [IKey BaseInterface]
+# 7
+# one
+# true
+# 2
+# [1 2]
+# 缺
+# true
+# false
+# 5: dict.SysGet 的键得是值类型（数 / 字符串），得到 Rec
+# 6: Key: B 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 7: `Key` 要交回一个值类型的键（数 / 字符串），得到 List
+# true
+# one
+# true
+# 2
+# [甲 乙]
+# [one two]
+# 缺
+# true
+# 1
+# [乙]
+# 0
+# end

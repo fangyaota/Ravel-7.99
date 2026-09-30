@@ -73,6 +73,297 @@ foreach ((root.Files ()).Keys ()) (n: string) => { (root.Child n).Delete (); }
 sub.Delete ()
 root.Delete ()
 print (root.Exists ())
+
+# ═══ 61_filesystem(并入) ═══
+ravel "61_filesystem"
+# ===== 文件系统 =====
+
+Node := class {
+    init = () => {
+        this.name = ""
+        this.size = 0
+        this;
+    }
+    name: string = ""
+    size: int = 0
+    getName := () => { name; }
+    getSize := () => { size; }
+    find := (target: string) => { File (); }
+}
+
+File := class Node {
+    init = () => {
+        content = ""
+        this;
+    }
+    content: string = ""
+    read := () => { content; }
+    write := (text: string) => {
+        content = text
+        size = text.Length ()
+    }
+    append := (text: string) => {
+        content = content + text
+        size = content.Length ()
+    }
+}
+
+Folder := class Node {
+    init = () => {
+        children = []
+        this;
+    }
+    children: list = []
+
+    add := (child: object) => { children.Add child; }
+
+    find = (target: string) => {
+        callcc (found: function) => {
+            i := 0
+            while { i < children.Count (); } {
+                ch := children.At i
+                if { (ch.getName ()) == target; } { found ch; } { 0; }
+                i += 1
+            }
+            i = 0
+            while { i < children.Count (); } {
+                ch := children.At i
+                result := ch.find target
+                if { (result.getName ()) != ""; } { found result; } { 0; }
+                i += 1
+            }
+            found (File ())
+        }
+    }
+
+    list := () => {
+        i := 0
+        while { i < children.Count (); } {
+            ch := children.At i
+            print (ch.getName ())
+            i += 1
+        }
+    }
+}
+
+root := Folder ()
+root.name = "/"
+home := Folder ()
+home.name = "home"
+root.add home
+readme := File ()
+readme.name = "readme.txt"
+readme.write "hello world"
+home.add readme
+etc := Folder ()
+etc.name = "etc"
+root.add etc
+config := File ()
+config.name = "config.txt"
+config.write "dark mode"
+etc.add config
+
+print "=== find ==="
+r := home.find "readme.txt"
+print (r.getName ())
+print (r.read ())
+
+print "=== list root ==="
+root.list ()
+
+print "=== write ==="
+c := etc.find "config.txt"
+c.write "updated"
+print (c.read ())
+
+print "=== not found ==="
+nf := root.find "nope"
+print (nf.getName ())
+ravel ""
+
+# ═══ 230_io_abstract(并入) ═══
+ravel "230_io_abstract"
+# 抽象那一层：`IEntry` / `IFile` / `IDir` —— "文件"先是个**形状**，磁盘只是其中一个实现。
+#
+# 这个用例在测试里**现写一个内存文件系统**（十几行，就用 tests/61 那种"content 字段"的做法），
+# 登记两条 `impl` 之后：`is` / 注解认得它，而 `Io.Copy` / `Io.EachDir` 这些**对着接口写的**
+# 代码两边都吃 —— 这就是"以后要加各种抽象文件"要的那个缝。
+using "io.rav"
+
+MemFile ::= class {
+    Label: string = ""
+    Text: string = ""
+
+    init = (label: string text: string) => { Label = label; Text = text; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Read := () => { Text; }
+    Write := (t: string) => { Text = t; (); }
+    Append := (t: string) => { Text = Text + t; (); }
+    Size := () => { Text.Length (); }
+    Delete := () => { Text = ""; (); }
+}
+
+MemDir ::= class {
+    Label: string = ""
+    Kids: dict = {}
+
+    init = (label: string) => { Label = label; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { true; }
+    Delete := () => { Kids = {}; (); }
+    Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
+
+    # 接口没规定顺序，但两个实现都按名字排 —— `Io.EachDir` 的输出才稳定
+    List := () => {
+        names := Kids.Keys ()
+        names.Sort ()
+        out := {}
+        foreach names (n: string) => { out.Set n (Kids.Get n); }
+        out
+    }
+}
+
+# 登记（用 impl：类型层面的事实）。只登记最具体的两条 —— `IEntry` 由接口继承兜着。
+impl (IFile MemFile {
+    ()
+})
+impl (IDir MemDir {
+    ()
+})
+
+m := MemFile "mem.txt" "内存里的内容"
+top := MemDir "memdir"
+sub := MemDir "sub"
+sub.Add (MemFile "deep.txt" "深")
+top.Add m
+top.Add sub
+
+# 形状认得出来（实现了 IFile 也就算 IEntry）
+print (m is IFile)
+print (m is IEntry)
+print (top is IDir)
+print (top is IEntry)
+print (m is IDir)
+print (MemFile.GetImplements ())
+print (IFile.GetImplementors ())
+print (IDir.GetImplementors ())
+
+# 对着接口写的函数：注解 (f: IFile) 收得下内存实现
+describe := (f: IFile) => { (f.Name ()) + " = " + (f.Read ()); }
+print (describe m)
+
+# 同一段代码两边跑：内存 → 磁盘，磁盘 → 内存
+root := Io.Dir ".io-test-abs"
+root.Create ()
+disk := root.Child "from-mem.txt"
+Io.Copy m disk
+print (disk.Read ())
+back := MemFile "back.txt" ""
+Io.Copy disk back
+print (back.Read ())
+print (Io.Lines back)
+
+# `Io.EachDir` 在内存目录上照样递归（路径那一段用 BaseName 打，免得带平台分隔符）
+print (m.Size ())
+Io.EachDir top (p: string e: IEntry) => { print ((string (e.IsDir ())) + " " + (e.Name ()) + " @ " + (Io.BaseName p)); }
+
+# 要和 IoMonad 搭台:`Io` 那几条是**直接做**的,下面这几条只是包成"说明书"
+act := Io.ReadAction m                                   # 到这儿什么都还没读
+print ((act.Map ((t: string) => { t.Length (); })).Perform ())
+job := Io.WriteAction disk ("从 Action 写进来\n")
+print ((job.Then (Io.ReadAction disk)).Perform ())       # 先写后读,交回后一份的结果
+print ((Io.EachLineAction m ((l: string) => { print ("行 " + l); })).Perform ())
+print ((Io.AppendAction disk ("又一行\n")).Then (Io.ReadAction disk) @ .Perform ())
+
+disk.Delete ()
+root.Delete ()
+print (root.Exists ())
+ravel ""
+
+# ═══ 232_io_console(并入) ═══
+ravel "232_io_console"
+# 控制台也是文件:`stdout` / `stderr` / `stdin` 三个单例值都实现 `IFile`。
+#
+# 这一层的好处就在这儿 —— 对着接口写的代码直接能用:`Io.Copy f Io.Stdout` 把文件倒进终端,
+# `Io.Copy Io.Stdin f` 把输入倒进文件。只写的那两个读不了、只读的那个写不了(报错说人话)。
+#
+# 两点说明:① 测试运行器只接管 **stdout**,所以 `Io.Stderr.Write` 那行会出现在终端上
+# (比对不到,只证明它不炸);② `Io.Stdin.Read ()` 是读到 EOF —— 测试里不去碰它(会挂住),
+# 只查它认不认这个形状。
+using "io.rav"
+
+print (Io.Stdout is IFile)
+print (Io.Stdout is IEntry)
+print (Io.Stderr is IFile)
+print (Io.Stdin is IFile)
+print (Io.Stdout.Name ())
+print (Io.Stderr.Name ())
+print (Io.Stdin.Name ())
+print (Io.Stdout.IsDir ())
+print (Io.Stdout.Exists ())
+
+Io.Stdout.Write "直接写到 stdout\n"
+Io.Stdout.Append "追一行(没有换行)"
+Io.Stdout.Write "\n"
+Io.Stderr.Write "这行去 stderr（比对不到，只在终端上看得见）\n"
+
+# 只写的读不了 / 只读的写不了 / 没有大小 / 删不掉
+try { Io.Stdout.Read (); } (e: Exception) => { print ("1: " + string e); }
+try { Io.Stderr.Read (); } (e: Exception) => { print ("2: " + string e); }
+try { Io.Stdin.Write "x"; } (e: Exception) => { print ("3: " + string e); }
+try { Io.Stdout.Size (); } (e: Exception) => { print ("4: " + string e); }
+try { Io.Stdout.Delete (); } (e: Exception) => { print ("5: " + string e); }
+
+# 实现者名单里有它们(磁盘那个 File 也在 —— 同一族的三个实现)
+print (IFile.GetImplementors ())
+
+# 对着接口写的代码:文件 → 终端
+d := Io.Dir ".io-test-con"
+d.Create ()
+f := d.Child "a.txt"
+f.Write "从文件来的一行\n"
+Io.Copy f Io.Stdout
+f.Append "又一行\n"
+Io.Copy f Io.Stdout
+print (Io.Lines f)
+
+f.Delete ()
+d.Delete ()
+print (d.Exists ())
+print "end"
+ravel ""
+
+# ═══ 240_cmd(并入) ═══
+ravel "240_cmd"
+# `cmd` —— 跑一条外部命令,**走系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`),
+# 管道 / 重定向 / 通配符都归它管。交回一张 dict:`out`(标准输出)/ `err`(标准错误)/ `code`(退出码)。
+#
+# **非零退出码不是错误** —— 程序失败是常事,原样放在 `code` 里,自己判断;真正起不来进程才报错。
+# (输出按"先试 UTF-8、不合法退回控制台编码"解 —— git/python 吐 UTF-8,`dir` 那类走控制台那套。)
+
+r := cmd "echo 你好"
+print (r.Get "code")
+print ((r.Get "out").Trim ())               # 尾部换行自己 Trim 掉
+
+print ((cmd "exit 3").Get "code")           # 非零照旧交回来,不抛
+print (((cmd "echo oops 1>&2").Get "err").Trim ())
+
+# 命令本身是算出来的:拼接、插值都行
+n := 2
+print (((cmd ("echo " + string (n * 2))).Get "out").Trim ())
+print (((cmd "echo ${n * 3}").Get "out").Trim ())
+
+# 交回来就是普通 dict
+print ((cmd "echo x").Keys ())
+print (typeof (cmd "echo x"))
+print "end"
+ravel ""
+
 # --- expected ---
 # true
 # hi
@@ -116,3 +407,70 @@ print (root.Exists ())
 # true
 # true
 # false
+# === find ===
+# readme.txt
+# hello world
+# === list root ===
+# home
+# etc
+# === write ===
+# updated
+# === not found ===
+
+# true
+# true
+# true
+# true
+# false
+# [IFile IEntry BaseInterface]
+# [MemFile ConsoleIn ConsoleOut File]
+# [MemDir Dir]
+# mem.txt = 内存里的内容
+# 内存里的内容
+# 内存里的内容
+# [内存里的内容]
+# 6
+# false mem.txt @ mem.txt
+# true sub @ sub
+# false deep.txt @ deep.txt
+# 6
+# 从 Action 写进来
+
+# 行 内存里的内容
+# ()
+# 从 Action 写进来
+# 又一行
+
+# false
+# true
+# true
+# true
+# true
+# stdout
+# stderr
+# stdin
+# false
+# true
+# 直接写到 stdout
+# 追一行(没有换行)
+# 1: 这是只写的（stdout），读不了
+# 2: 这是只写的（stderr），读不了
+# 3: 这是只读的（stdin），写不了
+# 4: 控制台没有大小：stdout
+# 5: 控制台删不掉：stdout
+# [MemFile ConsoleIn ConsoleOut File]
+# 从文件来的一行
+# 从文件来的一行
+# 又一行
+# [从文件来的一行 又一行]
+# false
+# end
+# 0
+# 你好
+# 3
+# oops
+# 4
+# 6
+# [out err code]
+# Dict
+# end

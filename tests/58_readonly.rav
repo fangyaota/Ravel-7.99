@@ -4,5 +4,46 @@ C := class {
 }
 c := C ()
 print (c.x)
+
+# ═══ 59_readonly_error(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "C := class {\n    init = () => { x = 99; this; }\n    readonly x: int = 10\n}\nc := C ()\nprint (c.x)"; } (e: Exception) => { print ("59_readonly_error: " + string e); }
+
+# ═══ 199_lib_readonly(并入) ═══
+ravel "199_lib_readonly"
+# lib/ 里的 API 都标了 readonly —— **`=` 和 `:=` 两条路都堵死**。
+# 理由是这些名字被顺手覆盖掉不会报错、只会让后面所有调用者算错,
+# 而 `:=` 从前能绕过:`true = 1` 报错、`true := 1` 静默成功,而且 readonly
+# 跟着老的那个 Variable 一起没了 —— 同一个"只读"两条路两个答案。
+# 而**状态**故意留可写(`Ex.HandlerStack` / `References`),那些本来就该能改。
+using "math.rav"
+Ex.Try { print = 1; } (e: Exception) => { print ("赋值: " + string e); }
+Ex.Try { true = false; } (e: Exception) => { print ("常量: " + string e); }
+Ex.Try { Math.Square := 1; } (e: Exception) => { print ("重新定义: " + string e); }
+Ex.Try { Ex.Throw := 1; } (e: Exception) => { print ("模块 API: " + string e); }
+
+# 状态不是 API:照旧可写
+Ex.HandlerStack = [1]
+print (Ex.HandlerStack)
+print (References)
+
+# 只查**本层**:块里的 `:=` 是另开一个局部变量(遮蔽),不是重新定义 —— 这条不拦
+f := () => { print := 9; print; }
+print (f ())
+print (print is function)
+print "done"
+ravel ""
+
+# ═══ 200_readonly_redefine(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "# 全局作用域里重新定义一个只读名字 —— 报「无法重新定义只读变量 'true'」。\n# 这条只能放在顶层:块里的 `:=` 是局部遮蔽(见 tests/199),包不进 try。\ntrue := 1"; } (e: Exception) => { print ("200_readonly_redefine: " + string e); }
 # --- expected ---
 # 10
+# 59_readonly_error: 无法给只读变量 'x' 赋值
+# 赋值: 无法给只读变量 'print' 赋值
+# 常量: 无法给只读变量 'true' 赋值
+# 重新定义: 无法重新定义只读变量 'Square'
+# 模块 API: 无法重新定义只读变量 'Throw'
+# [1]
+# []
+# 9
+# true
+# done

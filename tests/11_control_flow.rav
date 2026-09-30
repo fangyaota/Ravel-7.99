@@ -59,6 +59,39 @@ w { print i; i += 1; }
 # foreach 两参部分应用
 fe := foreach [10 20]
 fe (x: int) => { print x; }
+
+# ═══ 169_control_flow_args(并入) ═══
+ravel "169_control_flow_args"
+# if/while/foreach 是 Ravel 库函数,参数不对时要自己给出清楚的消息。
+# 以前 if { 1; } 报的是「值 1 不是函数，不能调用」——因为条件是直接当函数调的,
+# foreach 5 报的是含糊的「类型不匹配」。
+# (lambda 那条含糊的消息已经改成「参数 'x' 需要 list，得到 Integer」了,见 177;
+#  这里仍然在前置 assert 里拦,因为库函数想报的是「foreach 需要 IEnumerable」这个语境。)
+# 这里用 try 逐个测:运行时错误现在也能被接住,所以一个文件就能覆盖三条。
+try { if { 1; } { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
+try { while { 1; } { 0; } } (e: Exception) => { print ("2: " + string e); }
+try { foreach 5 (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
+print "after"
+ravel ""
+
+# ═══ 182_control_arg_types(并入) ═══
+ravel "182_control_arg_types"
+# 控制内建的参数类型不对:报 Ravel 错误,不要抛 C# 的 InvalidCastException
+# 从前控制帧一律 `(BlockVal)cf.Args.At(1)` 硬转,`with 5 6` 直接
+# InvalidCastException —— 它不是 RuntimeException,Ravel 的 try 接不住,程序被打掉。
+try { with 5 6; } (e: Exception) => { print ("1: " + string e); }
+try { with 5 {}; } (e: Exception) => { print ("2: " + string e); }
+try { using 5; } (e: Exception) => { print ("3: " + string e); }
+try { eval 5; } (e: Exception) => { print ("4: " + string e); }
+# 正常调用照常
+C := class {
+    init = () => { 0; this; }
+    x: int = 7
+}
+# 注意 (C ()) 的括号:with 收两个参数,写成 `with C () {...}` 会变成三参
+w := with (C ()) { x = 99; }
+print w.x
+ravel ""
 # --- expected ---
 # <block>
 # 0
@@ -84,3 +117,12 @@ fe (x: int) => { print x; }
 # 2
 # 10
 # 20
+# 1: if 的条件必须是 bool，得到 Integer
+# 2: while 的条件必须是 bool，得到 Integer
+# 3: foreach 需要 IEnumerable（list / set / dict），得到 Integer
+# after
+# 1: with 的第 2 个参数需要代码块，得到 Integer
+# 2: with 的第 2 个参数需要代码块，得到 Dict
+# 3: using 的第 1 个参数需要 string，得到 Integer
+# 4: eval 的第 1 个参数需要 string，得到 Integer
+# 99

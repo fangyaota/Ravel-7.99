@@ -17,9 +17,67 @@ c3 := c.Copy ()
 c3.set 7
 print (c.get ())
 print (c3.get ())
+
+# ═══ 166_copy_this(并入) ═══
+ravel "166_copy_this"
+# obj.Copy () 的副本里 this 要指向副本。
+# 以前只有 with 这么绑(StepWith 里显式写),Copy() 漏了,于是副本里
+# `this.v = n` 落到原对象上,而裸写 `v = n` 是对的——同一个副本两种行为。
+# 现在两者共用一个 CopyObject。
+C := class {
+    init = () => { 0; this; }
+    v: int = 1
+    setThis := (n: int) => { this.v = n; }
+    setBare := (n: int) => { v = n; }
+    get := () => { v; }
+}
+c := C ()
+c2 := c.Copy ()
+c2.setThis 99
+print (c.get ())
+print (c2.get ())
+c3 := c.Copy ()
+c3.setBare 42
+print (c.get ())
+print (c3.get ())
+ravel ""
+
+# ═══ 167_copy_attrs(并入) ═══
+ravel "167_copy_attrs"
+# 拷贝要连 attrs 一起带。以前 CopyScope 只复制值和类型约束,属性全丢了,
+# 于是副本上 `by` 属性的赋值不走 setter(变成给 Property 本身赋 Integer,报类型错),
+# readonly / private / core 也等于被副本绕过。
+C := class {
+    init = () => { 0; this; }
+    _v: int = 1
+    by v := property (() => { _v; }) ((n: int) => { _v = n; })
+    readonly w: int = 5
+}
+c := C ()
+print (c.v)
+c2 := with c { 0; }
+c2.v = 10
+print (c.v)
+print (c2.v)
+print (c2.w)
+print (c2.Fields ())
+ravel ""
+
+# ═══ 168_copy_readonly(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 readonly/core/private\n# 全被绕过——`with r { 0; }` 出来的副本能直接写只读字段。\n# 回归时会变成不报错,所以用 expect-error。\nR := class { init = () => { 0; this; }; readonly w: int = 5; }\nr := R ()\nr2 := with r { 0; }\nr2.w = 9"; } (e: Exception) => { print ("168_copy_readonly: " + string e); }
 # --- expected ---
 # 10
 # 1
 # 99
 # 1
 # 7
+# 1
+# 99
+# 1
+# 42
+# 1
+# 1
+# 10
+# 5
+# [init _v v w is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# 168_copy_readonly: 无法给只读变量 'w' 赋值

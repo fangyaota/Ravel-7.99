@@ -1,8 +1,0 @@
-C := class {
-    init = () => { 0; this; }
-    outdated old: int = 77
-}
-c := C ()
-print (c.old)
-# --- expected ---
-# 77

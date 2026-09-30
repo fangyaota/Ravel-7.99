@@ -169,6 +169,117 @@ print (ro.r)
 # 混着别的修饰符的换槽写法没有定义(`=` 那条只在**只有** by 时才是换槽)——
 # 从前这种会被当成换槽、然后把它静默丢掉
 try { eval "readonly by z = 1"; } (e2: Exception) => { print ("18: " + string e2); }
+
+# ═══ 142_property_attrs(并入) ═══
+ravel "142_property_attrs"
+# Property.Attrs —— 属性的 attrs 会跟着 Property 值走
+# (原来靠 C.Proto () 拿实例 scope,但 Proto 已不存在,得在类方法里用 currentScope ())
+C := class {
+    init = () => { 0; this; }
+    readonly x: int = 42
+    probe := () => {
+        p := (currentScope ()).Lookup "x"
+        print ((p.Attrs ()).Count ())
+    }
+}
+c := C ()
+c.probe ()
+ravel ""
+
+# ═══ 211_default_init(并入) ═══
+ravel "211_default_init"
+# 默认构造器:`object` 的类体里有一份 `init = () => { this; }` ——
+# 什么都不做,把正在建的那个对象交回去。每个类的祖先链都到 object,所以
+# **任何类只要没写 init 就继承这一份**,`C ()` 不再报「类型 C 没有构造器（init）」。
+#
+# 和 `function default` 给一个空函数(`() => { (); }`)是一个道理:空缺的地方给个
+# 什么都不做的对应物,而不是报错。
+
+# 没有 init 的类:两种构造写法都行
+C ::= class { x: int = 1; }
+print (C ())
+print ((C ()).x)
+print (C default)
+print (typeof (C ()))
+
+# 继承:子类没写就落回父类那份,一路都没写就落回 object 那份
+B ::= class C { y: int = 2; }
+print (B ())
+print ((B ()).x)
+print ((B ()).y)
+
+# 自己写了 init 就覆盖掉默认那份(和覆盖别的继承成员一个机制)
+D ::= class {
+    init = () => { print "D.init"; this; }
+    z: int = 3
+}
+d := D ()
+print (d.z)
+
+# 内建的构造器比默认那份具体,所以仍然赢:object 的类体先跑,List 的预设类体后跑
+MyInt ::= class int { 0; }
+print (MyInt "42")
+MyList ::= class list { 0; }
+print (MyList default)
+try { MyList (); } (e: Exception) => { print ("1: " + string e); }
+
+# object 自己现在也能构造了(它的类体就是那份默认构造器)
+print (System.Object ())
+
+# 但**没有自己类体**的类型还是不能当构造器调(护栏在 CallClassInto 上)
+try { System.Void (); } (e: Exception) => { print ("2: " + string e); }
+try { System.Every (); } (e: Exception) => { print ("3: " + string e); }
+ravel ""
+
+# ═══ 212_default_property(并入) ═══
+ravel "212_default_property"
+# `by a: int = default` —— `default` 是**属性的默认值**:一对什么都不做的函数
+#
+#     Get = () => { (); }
+#     Set = (_ : object) => { (); }
+#
+# 和 `int default` 给 0、`function default` 给空函数是同一个道理。
+# 于是"先声明、之后再装实现"这套写法通了(trait 要的正是这个形状):默认那份能读能写,
+# 只是都不做事 —— 读出来是 (), 写进去丢掉。之后用 `by a = property g s` 换掉它。
+
+Trait ::= class {
+    init = () => { 0; this; }
+    by a: int = default
+    by b: function = default
+}
+t := Trait ()
+
+# 装实现之前:读 ()、写丢掉、不报错
+print (t.a)
+print (t.a = 1)
+print (t.a)
+print (t.b)
+t.b = (x: int) => { x; }
+print (t.b)
+print (t.Fields ())
+
+# 装实现:换掉槽里的那份 property
+Install := (o: object) => {
+    by o.a = property (() => { 100; }) ((v: int) => { print ("装了 setter: " + string v); })
+    by o.b = property (() => { (x: int) => { x * 2; }; }) ((v: function) => { 0; })
+}
+Install t
+print (t.a)
+t.a = 5
+print (t.b 21)
+
+# 在**别的对象**身上建一个默认属性(`:=` 定义那条)
+Empty ::= class { init = () => { 0; this; }; }
+e := Empty ()
+by e.nick := default
+print (e.nick)
+by e.nick = property (() => { "someone"; }) ((v: string) => { 0; })
+print (e.nick)
+
+# 默认属性没有状态 —— 复制出来的副本和原件共享同一个,谁都不会被写坏
+print ((with t { 0; }).a)
+print (t.a)
+ravel ""
 # --- expected ---
 # 99
 # 7
@@ -221,3 +332,32 @@ try { eval "readonly by z = 1"; } (e2: Exception) => { print ("18: " + string e2
 # 17: 无法给只读变量 'd' 赋值
 # 1
 # 18: 修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）
+# 1
+# C { x = 1 }
+# 1
+# C { x = 1 }
+# C
+# B { x = 1, y = 2 }
+# 1
+# 2
+# D.init
+# 3
+# 42
+# []
+# 1: 类型 List 不能作为构造器调用
+# Object {}
+# 2: 类型 Void 不能作为构造器调用
+# 3: 类型 Every 不能作为构造器调用
+# ()
+# 1
+# ()
+# ()
+# ()
+# [init a b is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# 100
+# 装了 setter: 5
+# 42
+# ()
+# someone
+# 100
+# 100

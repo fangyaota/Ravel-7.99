@@ -11,8 +11,173 @@ print (c + 5)
 c.setN 99
 print (c.getN ())
 print (c + 1)
+
+# ═══ 54_inherit_basic(并入) ═══
+ravel "54_inherit_basic"
+Animal := class {
+    init = () => { this.name = "?"; this; }
+    name: string = ""
+    speak := () => { print name; }
+}
+Dog := class Animal {
+    init = () => {
+        name = "dog"
+        this;
+    }
+}
+d := Dog ()
+d.speak ()
+ravel ""
+
+# ═══ 55_inherit_multilevel(并入) ═══
+ravel "55_inherit_multilevel"
+A := class {
+    init = () => { 0; this; }
+    a: int = 1
+}
+B := class A {
+    init = () => { 0; this; }
+    b: int = 2
+}
+C := class B {
+    init = () => { c = 3; this; }
+    c: int = 0
+}
+obj := C ()
+print (obj.a)
+print (obj.b)
+print (obj.c)
+ravel ""
+
+# ═══ 56_inherit_empty(并入) ═══
+ravel "56_inherit_empty"
+Base := class {
+    init = () => { x = 5; this; }
+    x: int = 0
+}
+# 子类不写 init:实例化时向上找到 Base 的 init 来调
+Child := class Base { 0; }
+c := Child ()
+print (c.x)
+ravel ""
+
+# ═══ 57_inherit_isolation(并入) ═══
+ravel "57_inherit_isolation"
+Animal := class {
+    init = () => { 0; this; }
+    name: string = ""
+}
+Dog := class Animal {
+    init = () => { name = "hacked"; this; }
+}
+Dog2 := class Animal {
+    init = () => { 0; this; }
+}
+d := Dog ()
+d2 := Dog2 ()
+print (d.name)
+print (d2.name)
+ravel ""
+
+# ═══ 60_this_x_identity(并入) ═══
+ravel "60_this_x_identity"
+C := class {
+    init = () => { this.v = 0; this; }
+    v: int = 0
+    setDirect := () => { v = 42; }
+    setThis := () => { this.v = 99; }
+    get := () => { v; }
+}
+c := C ()
+c.setDirect ()
+print (c.get ())
+c.setThis ()
+print (c.get ())
+
+# 继承
+Parent := class {
+    init = () => { pv = 10; this; }
+    pv: int = 0
+}
+Child := class Parent {
+    init = () => {
+        pv = 99
+        print pv
+        print (this.pv)
+        this;
+    }
+}
+ch := Child ()
+print (ch.pv)
+ravel ""
+
+# ═══ 147_ctor_curry(并入) ═══
+ravel "147_ctor_curry"
+# 构造器调用和普通函数一样柯里化:Point 3 4 ≡ ((Point 3) 4)
+Point := class {
+    init = (x0: int y0: int) => {
+        x = x0
+        y = y0
+        this;
+    }
+    x: int = 0
+    y: int = 0
+}
+
+# 1) 一次写全
+p := Point 3 4
+print (p.x)
+print (p.y)
+
+# 2) 少参 → 半成品,补上参数才得到对象
+half := Point 10
+q := half 20
+print (q.x)
+print (q.y)
+
+# 3) 三参
+Vec := class {
+    init = (a: int b: int c: int) => { s = a + b + c; this; }
+    s: int = 0
+}
+v := Vec 1 2 3
+print (v.s)
+
+# 4) 单参/零参:init 一次应用完,直接是对象(不变成半成品)
+Box := class {
+    init = (n: int) => { x = n; this; }
+    x: int = 0
+}
+bx := Box 5
+print (bx.x)
+Zero := class {
+    init = () => { z = 9; this; }
+    z: int = 0
+}
+zz := Zero ()
+print (zz.z)
+ravel ""
 # --- expected ---
 # 10
 # 15
 # 99
 # 100
+# dog
+# 1
+# 2
+# 3
+# 5
+# hacked
+
+# 42
+# 99
+# 99
+# 99
+# 99
+# 3
+# 4
+# 10
+# 20
+# 6
+# 5
+# 9

@@ -43,6 +43,140 @@ xs.Set 0 100
 print xs
 print (xs.Count ())
 print (xs.At 0)
+
+# ═══ 161_empty_dict(并入) ═══
+ravel "161_empty_dict"
+# 单行 `{}` 是空字典。以前它报「不允许空的 '{ }'」,于是空集合的三种写法不一致:
+# 空列表能写 [],空字典只能写 `dict default`。
+# 空块本来就禁止(见 tests/25),所以把 `{}` 给空字典没有歧义;
+# 跨行的 `{\n}` 仍走块那条路,照旧报错。
+d := {}
+print d
+d.Set "a" 1
+print d
+print (d.Count ())
+print ([])
+print (set default)
+ravel ""
+
+# ═══ 188_hole_in_containers(并入) ═══
+ravel "188_hole_in_containers"
+# `_` 落在 Set/Dict 字面量里也要消糖
+# 从前 HasHoles/CollectHoles 都漏了这两种节点,于是 `{_ + 1}` 里的 HoleExpr
+# 一路带到求值器,用户看到的是「无法求值的节点类型: HoleExpr」。
+_ := 0
+f := {_ + 1}
+print (f 40)
+g := {"a": _}
+print (g 7)
+h := [_ 2]
+print (h 1)
+add1 := _ + 1
+print (add1 41)
+both := _ + _
+print (both 3 4)
+# 闭包边界:`_` 在嵌套 lambda 体内,属于那一层,不被外层收走
+outer := (y: int) => { _ + y; }
+print (typeof (outer 10))
+print ((outer 10) 5)
+ravel ""
+
+# ═══ 216_sequence_methods(并入) ═══
+ravel "216_sequence_methods"
+# 容器上的**序列方法** —— 三种容器共用的一份(BuiltinClasses.Sequences.cs),
+# 也就是将来 `IEnumerable` 那一层的落点:它们只跟元素顺序有关,跟容器是什么无关。
+#
+# 名字照 C# 的集合 / Linq API 起,语义也对齐:
+# - 变换与查询**交回新的 list**(今天"一串值"就是 list),要 Set 自己 `ToSet ()`;
+# - 顺序类的按**枚举顺序**(Set/Dict 的顺序是枚举器给的,别当插入顺序用);
+# - 比大小一律走 `<`(`Min`/`Max`/`Sort`/`SortBy` 一个口径),比不了**报错**不给假答案;
+# - 字典的"元素"是**值**(按键找用 `Has` / `Keys ()`)。
+#
+# 收函数的那些(Each/Map/Where/Fold/All/Any/Find/SortBy)是控制帧 —— 原生闭包调不了
+# Ravel 函数,所以成员值是个 `SeqMethod`(读出来绑好接收者再推帧)。
+
+xs := [3 1 2 2]
+
+# ---- 不收函数的:个数 / 查询 / 切片 / 聚合 ----
+print (xs.Count ())
+print (xs.IsEmpty ())
+print (xs.Any ())
+print (xs.Contains 2)
+print (xs.First ())
+print (xs.Last ())
+print (xs.Distinct ())
+print (xs.Reverse ())
+print (xs.Take 2)
+print (xs.Skip 2)
+print (xs.Concat [9 9])
+print (xs.Sum ())
+print (xs.Min ())
+print (xs.Max ())
+print (xs.Join "-")
+print (xs.Sort ())
+print (xs.IndexOf 2)
+print (xs.RemoveAt 0)      # 和 `xs.Remove 0` 是一件事(名字对齐 C# 的 List.RemoveAt)
+print xs
+xs.AddRange [7 8]
+print xs
+print ([].IsEmpty ())
+print ([].Sum ())          # 空的和给 0(C# 的 Sum() 也是这样)
+print ([10 20].Join ",")
+xs.Clear ()
+print (xs.Count ())
+
+# ---- 收函数的:每个元素调一次 ----
+ys := [1 2 3 4]
+ys.Each (x: int) => { print ("each " + string x); }
+print (ys.Map (x: int) => { x * 10; })
+print (ys.Where (x: int) => { x % 2 == 0; })
+print (ys.Fold 0 (acc: int x: int) => { acc + x; })
+print (ys.All (x: int) => { x > 0; })
+print (ys.All (x: int) => { x > 2; })
+print (ys.Any (x: int) => { x > 3; })
+print (ys.Any (x: int) => { x > 9; })
+print (ys.Find (x: int) => { x > 2; })
+print ([5 2 9 1].SortBy (x: int) => { 0 - x; })   # 按键降序,稳定
+
+# ---- 集合代数(Set 独有) ----
+s := {1 2 3}
+print (s.Union {3 4})
+print (s.Intersect {2 3 9})
+print (s.Except {1})
+print (s.IsSubsetOf {1 2 3 4})
+print (s.Contains 3)
+print (s.Max ())
+print (s.Where (x: int) => { x >= 2; })
+
+# ---- 字典:元素是值 ----
+d := {"a": 3 "b": 1 "c": 2}
+print (d.Count ())
+print (d.Min ())
+print (d.Max ())
+print (d.Join ",")
+print (d.Contains 2)
+print (d.HasValue 1)
+print (d.GetOr "a" 0)
+print (d.GetOr "zz" 0)
+print (d.Remove "a")
+print (d.Count ())
+print (d.Map (v: int) => { v * 100; })
+print (d.Keys ())
+
+# ---- 边界与错误:空容器、比不了、谓词不是 bool ----
+try { print (ys.Where (x: int) => { 1; }); } (e: Exception) => { print ("1: " + string e); }
+try { print (ys.Find (x: int) => { false; }); } (e: Exception) => { print ("2: " + string e); }
+try { print (ys.Any 5); } (e: Exception) => { print ("3: " + string e); }
+try { print ([].First ()); } (e: Exception) => { print ("4: " + string e); }
+try { print ([].Min ()); } (e: Exception) => { print ("5: " + string e); }
+try { print ([1 "a"].Sort ()); } (e: Exception) => { print ("6: " + string e); }
+try { print ([1 "a"].Max ()); } (e: Exception) => { print ("7: " + string e); }
+try { print ([1 2].Concat 5); } (e: Exception) => { print ("8: " + string e); }
+print ([].Map (x: int) => { x; })
+print ([].Fold 7 (acc: int x: int) => { acc + x; })
+print ([].Any ())
+print ([].All (x: int) => { false; })
+ravel ""
 # --- expected ---
 # 3
 # Set
@@ -69,3 +203,83 @@ print (xs.At 0)
 # [100 3 99 4 5]
 # 5
 # 100
+# {}
+# {a: 1}
+# 1
+# []
+# {}
+# {41}
+# {a: 7}
+# [1 2]
+# 42
+# 7
+# Function
+# 15
+# 4
+# false
+# true
+# true
+# 3
+# 2
+# [3 1 2]
+# [2 2 1 3]
+# [3 1]
+# [2 2]
+# [3 1 2 2 9 9]
+# 8
+# 1
+# 3
+# 3-1-2-2
+# [1 2 2 3]
+# 2
+# 3
+# [1 2 2]
+# [1 2 2 7 8]
+# true
+# 0
+# 10,20
+# 0
+# each 1
+# each 2
+# each 3
+# each 4
+# [10 20 30 40]
+# [2 4]
+# 10
+# true
+# false
+# true
+# false
+# 3
+# [9 5 2 1]
+# {1 2 3 4}
+# {2 3}
+# {2 3}
+# true
+# true
+# 3
+# [2 3]
+# 3
+# 1
+# 3
+# 3,1,2
+# true
+# true
+# 3
+# 0
+# true
+# 2
+# [100 200]
+# [b c]
+# 1: Where 的函数要交回 bool，得到 Integer
+# 2: Find: 没有满足条件的元素
+# 3: Any 需要一个函数参数，得到 Integer
+# 4: First: 元素不够（一共 0 个）
+# 5: Min: 空集合没有Min
+# 6: 比不了 String 与 Integer
+# 7: 比不了 Integer 与 String
+# 8: Concat 需要 list / set / dict，得到 Integer
+# []
+# 7
+# false
+# true

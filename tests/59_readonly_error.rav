@@ -1,7 +1,0 @@
-# expect-error
-C := class {
-    init = () => { x = 99; this; }
-    readonly x: int = 10
-}
-c := C ()
-print (c.x)

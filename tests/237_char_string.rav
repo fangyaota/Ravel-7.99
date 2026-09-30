@@ -87,6 +87,61 @@ print (Sorting.Sort ['c' 'a' 'b'])
 print (Sorting.Max ['c' 'a' 'b'])
 print (Keys.Of 'x')
 print "end"
+
+# ═══ 170_string_escape(并入) ═══
+ravel "170_string_escape"
+# 字符串转义。以前 lexer 只找下一个引号,所以字符串里根本放不进 `"`,
+# `"say \"hi\""` 会被当成两个串,再报「未预期的字符」。
+# 不认识的转义原样保留(含反斜杠),免得把 Windows 路径这类文本吃掉。
+print ("say \"hi\"")
+print ("tab:\tend")
+print ("line1\nline2")
+print ("back\\slash")
+print ("stays:\dz")
+ravel ""
+
+# ═══ 239_interpolation(并入) ═══
+ravel "239_interpolation"
+# 字符串插值:`"${表达式}"` —— 只有这一种写法(没有 `$名字` 那种短的)。
+#
+# 它**不是新语义**:解析器把 `"你好 ${n}"` 拼成 `"" + "你好 " + string (n)`,和手写
+# `"你好 " + (string n)` 一模一样 —— 于是求值、报错、显示全走现成那条路。
+# `$` 后面不是 `{` 就是**字面量**(`"$5"` / `"$name"` 不用转义);要写 `${` 本身,`\${`。
+
+name := "小明"
+n := 3
+
+# ① 基本
+print "你好 ${name}!"
+print "共 ${n} 个,${n * 2} 个才对"
+print "空${name}空"
+print "${n}"
+
+# ② 段里可以是任何表达式(位置也指得对:见最后的报错)
+print "括号:${(1 + 2) * 3}"
+print "括号加调用:${[3 1 2].Count ()}"
+pi := 3.14159
+print "浮点 ${pi}"
+c := 'x'
+print "字符 ${c}"
+print "表的显示 ${[1 2]}"
+
+# ③ 段里能再放字符串(扫描会跳过引号里的内容)
+print "嵌套:${"abc".ToUpper ()}"
+
+# ④ 字面量不算插值
+print "美元符号 $5 和 $name 都不是插值"
+print "要写记号本身:\${name}"
+
+# ⑤ 错误指得对地方
+try {
+    eval ("print \"值 " + "$" + "{noSuchVar} 啊\"");
+} (e: Exception) => { print ("1: " + string e); }
+try {
+    eval ("print \"缺收尾 " + "$" + "{1 + 2\"");
+} (e: Exception) => { print ("2: " + string e); }
+print "end"
+ravel ""
 # --- expected ---
 # a
 # Char
@@ -155,4 +210,25 @@ print "end"
 # [a b c]
 # c
 # x
+# end
+# say "hi"
+# tab:	end
+# line1
+# line2
+# back\slash
+# stays:\dz
+# 你好 小明!
+# 共 3 个,6 个才对
+# 空小明空
+# 3
+# 括号:9
+# 括号加调用:3
+# 浮点 3.14159
+# 字符 x
+# 表的显示 [1 2]
+# 嵌套:ABC
+# 美元符号 $5 和 $name 都不是插值
+# 要写记号本身:${name}
+# 1: 未定义的变量 'noSuchVar'
+# 2: 插值没有收尾的 '}'
 # end

@@ -67,6 +67,100 @@ C.name = "改过的"                 # `name` 照旧可写:那是它本来的用
 print C
 
 print "end"
+
+# ═══ 146_class_flat_inherit(并入) ═══
+ravel "146_class_flat_inherit"
+# 平铺继承:各层类体的字段落在同一个作用域,不做链式查找。
+# **同名就是错**(`:=` 是定义不是覆盖)—— 子类再声明父类已声明过的字段,实例化时当场报错。
+# 1) 子类没声明的字段 → 从父类那层可见;子类自己声明的另起一个名字
+Base := class {
+    init = () => { 0; this; }
+    x: int = 1
+    y: int = 5
+}
+Child := class Base {
+    init = () => { 0; this; }
+    x2: int = 100
+}
+c := Child ()
+print (c.x)
+print (c.x2)
+print (c.y)
+
+# 同名字段 → 报错(建类时不报,实例化那一刻各层类体跑进同一个作用域才撞上)
+Bad := class Base {
+    x: int = 100
+}
+try { Bad (); } (e: Exception) => { print ("1: " + string e); }
+# 2) 父类 init 不自动调用:父类 init 里的赋值不生效,初始值看字段声明
+Deferred := class {
+    init = () => { v = 10; this; }
+    v: int = 0
+}
+Child2 := class Deferred { init = () => { 0; this; } }
+c2 := Child2 ()
+print (c2.v)
+
+# 3) 只有最具体层的 init 被调用;祖先的 init 不跑
+A := class {
+    init = () => { a = 1; this; }
+    a: int = 0
+}
+B := class A {
+    init = () => { b = 2; this; }
+    b: int = 0
+}
+obj := B ()
+print (obj.a)
+print (obj.b)
+ravel ""
+
+# ═══ 243_body_scope(并入) ═══
+ravel "243_body_scope"
+# 每层类体的**自由名字**按"那一层写在哪"解析 —— 定义照旧平铺进**同一个**实例表。
+#
+# 从前只有一个词法父:最具体那个类的写法处。于是父类写在**别的作用域**时,它的类体看不见
+# 自己那儿的名字(P 的 `Helper` 在 `make` 里,而 Q 写在顶层 → 解析不到)。现在每层跑在自己的
+# `BodyScope` 上:词法父 = 该层的 `CaptureScope`,定义转发回实例表(见 `Runtime/BodyScope.cs`)。
+
+make := () => {
+    Helper := 7
+    class {
+        x: int = Helper          # 这一层写在 make 里面
+    }
+}
+P := make ()
+print (P ())
+
+TopHelper := 3
+Q ::= class (P) {
+    y: int = TopHelper           # 这一层写在顶层
+}
+print (Q ())
+
+# 平铺照旧:父层的字段就在**同一张表**上,子类的类体里读得到
+# (重声明同名是另一条规矩,当场报错 —— 见 tests/236)
+R ::= class (P) {
+    z: int = x + 1               # `x` 是父层那个字段
+}
+print (R ())
+
+# 自由名字与字段重名时**字段优先**(和从前一致):本层那个 `Helper` 就是字段
+H ::= class {
+    Helper: int = 9
+    got := () => { Helper; }     # 类体里的裸名字 → 先看实例表本层
+}
+print ((H ()).got ())
+
+# 闭包捕获的也是这一层(方法体里既读得到字段、也看得见定义处)
+M ::= class {
+    n: int = 5
+    f := () => { n + (make2 ()); }
+}
+make2 := () => { 10; }
+print ((M ()).f ())
+print "end"
+ravel ""
 # --- expected ---
 # 7
 # 7
@@ -93,4 +187,17 @@ print "end"
 # 7: 无法给只读变量 'parent' 赋值
 # 8: 无法给只读变量 'block' 赋值
 # 改过的
+# end
+# 1
+# 100
+# 5
+# 1: 'x' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
+# 0
+# 0
+# 2
+# class { x = 7 }
+# Q { x = 7, y = 3 }
+# R { x = 7, z = 8 }
+# 9
+# 15
 # end

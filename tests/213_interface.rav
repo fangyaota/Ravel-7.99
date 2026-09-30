@@ -81,6 +81,281 @@ try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + strin
 impl myImplement
 print u.a
 myImplement.Dispose ()
+
+# ═══ 221_instance_lifetime(并入) ═══
+ravel "221_instance_lifetime"
+# `instance` 是"**这一次调用**"的事，不是实现身上的一格共享变量。
+#
+# 从前它是实现 scope 里的一格普通变量，每次查找（`u.a` 命中实现）被换成这次的接收者 ——
+# 一格实现只有一格，于是**留存下来的东西会后漂**：`g := u.f` 拿到的闭包，在 `w.f` 被读过之后
+# 再去调 `g ()`，读到的是 w 的字段（静默错值，不报错）。
+#
+# 现在：分发命中的那一刻临场开一层作用域，把"这次服务谁"（`instance$active`）和"这次是哪个实现"
+# 放进去，槽的 getter/setter 绑到那层上跑。槽体里造的闭包捕获的正是这层
+# （`StepLambda` 的 `CaptureScope = nf.Scope`），所以它永远指它自己那个实例，
+# 同一个实现也就能同时服务多个实例。
+#
+# `instance` 本身成了实现身上的一条 **`by` 槽**：读它的时候现场解析"此刻在服务谁" ——
+# 沿当前调用链（先词法链、再帧链）找最近一层激活格，找不到就**报错**，不给陈旧值。
+# 它不进"`u.x` 能读到什么"（`TraitSlot` 见到这个名字就退回去），所以 `s.instance` 仍是「没有方法」。
+
+# ---- 1. 留存下来的闭包永远指它自己那个实例 ----
+T ::= interface {
+    by f : function = default
+    by a : int = default
+}
+C ::= class {
+    x : int = 0
+}
+
+impl (T C {
+    by f = property (() => { () => { instance.x; }; }) ((v: function) => { (); })
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+})
+
+u := C ()
+w := C ()
+u.x = 1
+w.x = 2
+
+g := u.f
+print (g ())
+h := w.f
+print (h ())
+print (g ())            # 还是 1（从前这里会跟着 w 漂成 2）
+
+# ---- 2. 一次实现同时服务两个实例：槽体里插一次别的实例的访问，回来还得是自己 ----
+N ::= interface {
+    by peek : int = default
+    by c : int = default
+}
+D ::= class {
+    y : int = 0
+}
+p := D ()
+q := D ()
+p.y = 10
+q.y = 20
+impl (N D {
+    by peek = property (() => { instance.y; }) ((v2: int) => { (); })
+    by c = property (() => { print q.peek; instance.y; }) ((v2: int) => { (); })
+})
+print (p.c)             # 先 20（q 的），再 10（p 自己的）
+
+# ---- 3. 读写交错：写要落回左边那个 ----
+A ::= interface {
+    by n : int = default
+}
+E ::= class {
+    z : int = 0
+}
+impl (A E {
+    by n = property (() => { instance.z; }) ((x: int) => { instance.z = x; })
+})
+l := E ()
+r := E ()
+l.z = 1
+r.z = 2
+l.n += r.n              # 读 l（1）、读 r（2）、写回 l（3）
+print (l.z)
+print (r.z)
+
+# ---- 4. 槽体里调用的辅助函数也看得见（帧链那一半）----
+H ::= interface {
+    by c : int = default
+}
+F ::= class {
+    w : int = 0
+}
+impl (H F {
+    helper := () => { instance.w; }
+    by c = property (() => { (helper ()) + 1; }) ((v3: int) => { (); })
+})
+s := F ()
+s.w = 41
+print (s.c)
+
+# ---- 5. 没有"正在被服务的实例"时，响亮报错（不给陈旧值）----
+# `by` 取出来的是**槽本身**，它没有"这一次"可言（同 StepSlot / StepSlotAssign 两支：只取槽，不绑接收者）
+slot := by s.c
+try { print (slot.Get ()); } (e: Exception) => { print ("1: " + string e); }
+try { print s.instance; } (e: Exception) => { print ("2: " + string e); }
+
+# ---- 6. instance 只读（它由引擎指到这次服务的实例）----
+R ::= interface {
+    by c : int = default
+}
+G ::= class {
+    v4 : int = 0
+}
+impl (R G {
+    by c = property (() => { (); }) ((v5: int) => { instance = 5; })
+})
+t := G ()
+try { t.c = 1; } (e: Exception) => { print ("3: " + string e); }
+
+# ---- 7. 换槽那条路照旧：`by s.c = property …` 换的是槽，之后走新的 getter ----
+print (s.c)
+by s.c = property (() => { 99; }) ((v6: int) => { (); })
+print (s.c)
+
+# ---- 8. 两条边界 ----
+# ① 接口不能自己占 `instance` 这个名字（那是引擎的）
+Bad ::= interface {
+    by instance : int = default
+}
+K ::= class {
+    x : int = 0
+}
+try {
+    impl (Bad K {
+        ()
+    })
+} (e: Exception) => { print ("4: " + string e); }
+
+# ② 实现体里别的方法**不在槽体的调用链里**时读 `instance` 也是「没有正在被服务的实例」——
+#    "这一次调用"指的是槽体那一次；而槽体里调它就行（帧链那一半）
+im := impl (H F {
+    show := () => { instance.w; }
+    by c = property (() => { show (); }) ((v7: int) => { (); })
+})
+z := F ()
+z.w = 8
+print (z.c)
+try { im.show (); } (e: Exception) => { print ("5: " + string e); }
+
+# ---- 9. 实现的**副本**照样好使 ----
+# 副本是另一个对象,但它是"同一个实现" —— 号(`impl$id`)是值语义的,`CopyScope` 拷过去,
+# 于是副本上的 `instance` 认的还是同一枚(从前拿实现对象本身认身份的话,副本会被判成外人)
+dup := im.Copy ()
+use dup
+z2 := F ()
+z2.w = 7
+print (z2.c)
+dup.Dispose ()
+print (z2.c)
+ravel ""
+
+# ═══ 222_interface_access(并入) ═══
+ravel "222_interface_access"
+# 接口的槽**支持访问控制**（和普通成员同一条路,只是 owner 是**接收者**）。
+#
+# 可见性写在**接口那次声明**上;实现体只是"换槽"(`by a = property …`),换槽时再写修饰符
+# 解析器直接拒(「修饰符后需要 ':='」)—— 可见性归声明那次管,不静默。实现体**新建**槽
+# (`private by a := …`)可以带修饰符,和类体一个规矩。
+#
+# 判据:读走 `TryGetByGetter` 的 `CheckObjectReadAccess`、写走 `StepMemberAssign` 的
+# `CheckMemberAccess`,对象都是**接收者**(不是实现)—— 所以:
+#   * `private`  = 这个类自己的代码能碰(实现体在类外面,碰不到);
+#   * `protected` = 子类的代码也能碰;
+#   * 外面读报「变量 'a' 是私有的」、写报「字段 'a' 是私有的」(两处措辞本来就不一样)。
+#
+# 另外记下一条**现在就是这个样子**的行为:接口声明成 `readonly` 的槽,实现体换不了它
+# (换槽要过 CheckWritable)—— 也就是这种槽形同没法实现,报的是「无法给只读变量 'r' 赋值」。
+
+P ::= interface {
+    private by a : int = default
+    protected by p : int = default
+    by b : int = default
+}
+
+C ::= class {
+    x : int = 0
+    readMine := () => { this.a; }
+}
+
+Sub ::= class C {
+    readBase := (o: C) => { o.p; }
+}
+
+Other ::= class {
+    readBase := (o: C) => { o.p; }
+}
+
+impl (P C {
+    by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
+    by p = property (() => { instance.x + 1; }) ((v: int) => { (); })
+    by b = property (() => { instance.x * 2; }) ((v: int) => { (); })
+})
+
+c := C ()
+c.x = 4
+
+# 公开的那条随便用
+print (c.b)
+
+# private:外面读不到、写不到;类自己的方法里读得到
+try { print (c.a); } (e: Exception) => { print ("1: " + string e); }
+try { c.a = 9; } (e: Exception) => { print ("2: " + string e); }
+print (c.readMine ())
+
+# protected:子类的代码能读基类实例的那条,别的类不行
+try { print (c.p); } (e: Exception) => { print ("3: " + string e); }
+print ((Sub ()).readBase c)
+try { print ((Other ()).readBase c); } (e: Exception) => { print ("4: " + string e); }
+
+# 实现体换槽时不许再写修饰符
+try {
+    eval "impl (P C {\n    private by b = 1\n})";
+} (e: Exception) => { print ("5: " + string e); }
+
+# 实现体里**新建**槽可以带修饰符(`by … := …` 那条路)——"新建"指接口**没声明过**的名字;
+# 接口声明过的那个只能换(光秃秃的 `by x = …`),再 `:=` 一次就是重复定义,当场报错
+Q ::= interface {
+    by s : int = default
+}
+D ::= class {
+    k : int = 0
+}
+try {
+    eval "impl (Q D {
+    private by s := property (() => { instance.k; }) ((v: int) => { instance.k = v; })
+})";
+} (e: Exception) => { print ("6: " + string e); }
+impl (Q D {
+    by s = property (() => { instance.k; }) ((v: int) => { instance.k = v; })
+    private by extra := property (() => { instance.k; }) ((v: int) => { instance.k = v; })
+})
+d := D ()
+d.k = 8
+print (d.s)
+try { print (d.extra); } (e: Exception) => { print ("7: " + string e); }
+
+# `readonly` 的槽:实现体换不了它(现状如此,钉住)
+R ::= interface {
+    readonly by r : int = default
+}
+E ::= class {
+    m : int = 0
+}
+try {
+    impl (R E {
+        by r = property (() => { instance.m; }) ((v: int) => { instance.m = v; })
+    })
+} (e: Exception) => { print ("7: " + string e); }
+
+# `instance` 那条机制槽自己挂 **protected**:它是**实现这一族**的东西 ——
+# `im.instance` / `by im.instance` 从外面碰就说人话;实现自己的代码(槽体里)照旧读得到。
+# 而 `u.instance` 仍然是「没有方法」:u 身上压根没这个成员(TraitSlot 那道名字闸管这半),
+# 可见性和"能不能读"是两道判据(同一个接口的另一个实现,可见性上让过,但它那次分发不在这儿,
+# 于是落到「此刻没有正在被服务的实例」)。
+T2 ::= interface {
+    by a : int = default
+}
+C2 ::= class {
+    x : int = 0
+}
+im2 := impl (T2 C2 {
+    by a = property (() => { instance.x + (im2.instance.x * 0); }) ((v: int) => { (); })
+})
+c2 := C2 ()
+c2.x = 7
+print (c2.a)
+try { print (c2.instance); } (e: Exception) => { print ("8: " + string e); }
+try { print (im2.instance); } (e: Exception) => { print ("9: " + string e); }
+try { print (by im2.instance); } (e: Exception) => { print ("10: " + string e); }
+try { im2.instance = 5; } (e: Exception) => { print ("11: " + string e); }
+ravel ""
 # --- expected ---
 # 1: 类型 'myClass' 没有方法 'a'
 # 2: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
@@ -106,3 +381,38 @@ myImplement.Dispose ()
 # false
 # 7: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
 # 7
+# 1
+# 2
+# 1
+# 20
+# 10
+# 3
+# 2
+# 42
+# 1: `instance` 只在实现体的槽里有效：此刻没有正在被服务的实例（它指的是「这一次调用在服务谁」，离开那次调用就没有了）
+# 2: 类型 'F' 没有方法 'instance'
+# 3: 无法给只读变量 'instance' 赋值
+# 42
+# 99
+# 4: 接口 Bad 里声明了名为 'instance' 的槽 —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个
+# 8
+# 5: `instance` 只在实现体的槽里有效：此刻没有正在被服务的实例（它指的是「这一次调用在服务谁」，离开那次调用就没有了）
+# 7
+# 7
+# 8
+# 1: 变量 'a' 是私有的
+# 2: 字段 'a' 是私有的
+# 4
+# 3: 变量 'p' 是受保护的
+# 5
+# 4: 变量 'p' 是受保护的
+# 5: 修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）
+# 6: 's' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
+# 8
+# 7: 变量 'extra' 是私有的
+# 7: 无法给只读变量 'r' 赋值
+# 7
+# 8: 类型 'C2' 没有方法 'instance'
+# 9: 变量 'instance' 是受保护的
+# 10: 变量 'instance' 是受保护的
+# 11: 字段 'instance' 是受保护的

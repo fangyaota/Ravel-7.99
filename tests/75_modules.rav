@@ -138,6 +138,9 @@ print "second done"
 References = ["./tests/"]
 using "132_mod_simple.rav"
 print "done"
+
+# ═══ 108_module_private(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 模块 private 变量外部不可访问\nReferences = [\"tests/\"]\nusing \"131_mod_lib.rav\"\nprint (Lib.priv_y)"; } (e: Exception) => { print ("108_module_private: " + string e); }
 # --- expected ---
 # 14
 # true
@@ -186,3 +189,4 @@ print "done"
 # first done
 # second done
 # done
+# 108_module_private: 变量 'priv_y' 是私有的

@@ -136,6 +136,376 @@ callcc (k: function) => { loop = k; }
 big += 1
 if { big < 500000; } { loop 0; } { 0; }
 print big
+
+# ═══ 223_callcc_try(并入) ═══
+ravel "223_callcc_try"
+# `callcc` × `try/throw`：**handler 栈是控制状态,续延恢复时跟着一起还原**。
+#
+# 为什么非这样:`try` 的 handler 是往 Ravel 列表 `Ex.HandlerStack` 里 push 的**副作用**,
+# 而续延一调用就把当前帧链整个丢掉 —— "跑完自己的收尾把 handler 摘掉"那一步再也不会执行。
+# 从前于是留下**僵尸 handler**:之后没人接的错误被它接住,而它的续延停在早被丢弃的那条链上
+# (和 tests/215 修过的"正常收尾泄漏"同一类,只是入口换成了 callcc)。
+#
+# 反过来也顺:调一个"在 try 体里捕获的"续延时,那段代码重新进了那个 try 的动态范围,
+# handler 跟着回来 —— 重进的这一段再抛错照样被它接住。
+#
+# 读这个文件时记着 callcc 的老规矩:**恢复会重跑捕获点之后的尾巴**,所以
+# ① 闩(那些 `done*`)一律声明在捕获点**之前**,否则尾巴一跑就把闩重置了(会死循环);
+# ② 同一段打印出现两次是正常的 —— 第二次是恢复后重跑出来的。
+
+# ---- ① 用外层续延逃出 try 体：handler 跟着走 ----
+esc: object = 0
+print (Ex.HandlerStack.Count ())
+r := callcc (k: function) => {
+    esc = k
+    try {
+        esc "escaped";
+        "normal";
+    } (e: Exception) => { "caught"; }
+}
+print r
+print (Ex.HandlerStack.Count ())     # 逃出去之后是 0，不是 1
+
+# ---- ② 逃出去之后，接后面的错的还是**新**的那层（僵尸不在了）----
+try { print (noSuchVar); } (e: Exception) => { print ("new try: " + string e); }
+print (Ex.HandlerStack.Count ())
+
+# ---- ③ 恢复进 try 体：那个 try 的 handler 回来，重进的那段照样受它保护 ----
+escT: object = 0
+armed := false
+doneT := false
+res := try {
+    k := callcc (k2: function) => { if { !armed; } { armed = true; escT = k2; } { 0; }; k2; };
+    if { (typeof (k)) == function; } { "armed"; } { throw (Exception "from resumed body"); }
+} (e: Exception) => { "caught by the same try"; }
+print res
+try { if { !doneT; } { doneT = true; escT (); } { 0; }; } (e: Exception) => { print ("X: " + string e); }
+print res                              # 恢复之后重跑：这次是被那个 try 自己接住的
+print (Ex.HandlerStack.Count ())
+
+# ---- ④ 嵌套 try 里往外层逃：两层 handler 一起走掉 ----
+deepEsc: object = 0
+res2 := try {
+    callcc (k: function) => {
+        deepEsc = k
+        try {
+            try { deepEsc "out of two"; } (e: Exception) => { "inner"; }
+        } (e: Exception) => { "middle"; }
+        "outer body";
+    }
+} (e: Exception) => { "outermost"; }
+print res2
+print (Ex.HandlerStack.Count ())
+print "end"
+ravel ""
+
+# ═══ 224_callcc_loops(并入) ═══
+ravel "224_callcc_loops"
+# `callcc` × 循环与枚举：`while` / `foreach` / 序列方法（`Each` `Map` …）。
+#
+# 这些控制结构本身就建立在 callcc 或控制帧上（`while` 是 predefined.rav 里用 callcc 写的），
+# 所以它们和用户手里的续延会互相踩。这里钉住四条:
+#
+#   ① **逃出去**（break）:调用外层捕获的续延 = 丢弃当前帧链 → 循环/枚举就地停下，它没做完的
+#      收尾也不再跑（`foreach` 不发第二次 `MoveNext`、`Map` 攒了一半的结果直接丢掉）;
+#   ② 枚举的**回调里抛错**照样能被外面的 `try` 接住，且 handler 栈收得干净;
+#   ③ **多发射**:同一枚续延可以调用多次 —— 拿它写"再来一遍"的循环;
+#   ④ **可变状态不回滚**:续延只还原**控制**状态（帧链、handler 栈、模块加载栈），
+#      累加器那种数据是原地改的 —— 所以恢复之后会接着往已有结果上追加，可能重复。
+#      （④ 是这个语义的代价，钉住它，别让它悄悄变。）
+
+# ---- ① 逃出 while（当 break 用）----
+i := 0
+out := callcc (esc: function) => {
+    while { i < 10; } {
+        i += 1
+        if { i == 3; } { esc i; } { 0; }
+    }
+    999
+}
+print out
+print i
+
+# ---- ① 逃出 foreach / Each ----
+seen: list = []
+r1 := callcc (k: function) => {
+    foreach [1 2 3 4] (x: int) => {
+        seen.Add x
+        if { x == 3; } { k x; } { 0; }
+    }
+    999
+}
+print r1
+print seen
+
+done: list = []
+r2 := callcc (k: function) => {
+    [1 2 3 4].Each (x: int) => { done.Add x; if { x == 2; } { k x; } { 0; } }
+    999
+}
+print r2
+print done
+
+# ---- ② 回调里抛错，外面接住 ----
+stuck := 0
+try {
+    foreach [1 2 3] (x: int) => {
+        stuck += 1
+        if { x == 2; } { throw (Exception "boom"); } { 0; }
+    }
+} (e: Exception) => { print ("caught " + string e); }
+print stuck
+print (Ex.HandlerStack.Count ())
+
+# ---- ③ 多发射：同一枚续延调多次 ----
+escN: object = 0
+n := 0
+r := callcc (k: function) => { escN = k; "first"; }
+print r
+n += 1
+if { n < 3; } { escN ("again " + string n); } { 0; }
+print r
+
+# ---- ④ 可变状态不回滚：Map 攒了一半的结果会接着长 ----
+escM: object = 0
+haveM := false
+doneM := false
+mm := [1 2 3].Map (x: int) => {
+    if { x == 2; } {
+        if { !haveM; } { haveM = true; escM = callcc (k: function) => { k; }; } { 0; }
+    } { 0; }
+    x * 10;
+}
+print mm
+try { if { !doneM; } { doneM = true; escM 99; } { 0; }; } (e: Exception) => { print ("M: " + string e); }
+print mm
+print "end"
+ravel ""
+
+# ═══ 225_callcc_scopes(并入) ═══
+ravel "225_callcc_scopes"
+# `callcc` × 作用域与接口槽：恢复之后**那一次的作用域链一起回来** ——
+# eval 出来的块、`with` 造的那份副本、接口槽那次分发的 `instance`（见 221 的"激活格"），
+# 都挂在帧链上，所以它们跟着续延走。
+#
+# 老规矩：闩声明在捕获点之前（恢复会重跑捕获点之后的尾巴）；同一段打印出现两次是恢复后重跑的。
+# ③ 那几行尤其吵，读法：`[1 100]` 是 u、w 各服务一次；恢复 u 那次之后又记了一条 ——
+# 「恢复之后 instance 还是 u」这条判据看的是恢复之后新出现的那条（1，不是 100）。
+# 尾巴重跑还会再服务一次 w（`kw := w.f` 重跑），所以列表末尾那个 100 是重跑留下的。
+
+# ---- ① eval 里捕获，事后恢复 ----
+escE: object = 0
+haveE := false
+doneE := false
+r := eval "callcc (k: function) => { if { !haveE; } { haveE = true; escE = k; } { 0; }; 5; }"
+print r
+try { if { !doneE; } { doneE = true; escE 7; } { 0; }; } (e: Exception) => { print ("E: " + string e); }
+print "after E"
+
+# ---- ② with 的副本：恢复后接着改的是**副本**，原件不动 ----
+K ::= class {
+    n : int = 1
+}
+escW: object = 0
+haveW := false
+doneW := false
+obj := K ()
+p2 := with obj {
+    n = 2
+    got := callcc (k: function) => { if { !haveW; } { haveW = true; escW = k; } { 0; }; () };
+    if { (typeof (got)) == int; } { n = got + 100; } { 0; }
+    n;
+}
+print p2.n
+print obj.n
+try { if { !doneW; } { doneW = true; escW 5; } { 0; }; } (e: Exception) => { print ("W: " + string e); }
+print p2.n
+print obj.n
+
+# ---- ③ 接口槽里捕获：恢复之后 `instance` 还是原来那个实例 ----
+T ::= interface {
+    by f : function = default
+}
+C ::= class {
+    x : int = 0
+}
+escI: object = 0
+haveI := false
+doneW2 := false
+doneU := false
+seenX: list = []
+impl (T C {
+    by f = property (() => {
+        k := callcc (k2: function) => { if { !haveI; } { haveI = true; escI = k2; } { 0; }; k2; };
+        seenX.Add instance.x
+        k;
+    }) ((v: function) => { (); })
+})
+u := C ()
+w := C ()
+u.x = 1
+w.x = 100
+ku := u.f
+kw := w.f
+print seenX                # [1 100]：u 那次、w 那次各记一条
+print (typeof ku)
+try { if { !doneW2; } { doneW2 = true; kw (); } { 0; }; } (e: Exception) => { print ("I: " + string e); }
+print seenX                # 恢复 w 那次 → 又记 100
+try { if { !doneU; } { doneU = true; escI (); } { 0; }; } (e: Exception) => { print ("I2: " + string e); }
+print seenX                # 恢复 u 那次 → 该记 1（u），不是 100（w）
+
+# ---- ④ 从槽体里用外层续延逃出去 ----
+escB: object = 0
+impl (T C {
+    by g := property (() => { escB "jumped"; 0; }) ((v: int) => { (); })
+})
+out := callcc (k: function) => {
+    escB = k
+    print (u.g)
+    "normal";
+}
+print out
+print (Ex.HandlerStack.Count ())
+
+# ---- ⑤ 槽体里抛错，外面接住 ----
+escC: object = 0
+impl (T C {
+    by h := property (() => { throw (Exception "from slot"); }) ((v: int) => { (); })
+})
+o2 := C ()
+try { print (o2.h); } (e: Exception) => { print ("caught " + string e); }
+print (Ex.HandlerStack.Count ())
+print "end"
+ravel ""
+
+# ═══ 226_callcc_module(并入) ═══
+ravel "226_callcc_module"
+# `callcc` × 模块：**模块加载栈 `_loading` 也是控制状态**，续延恢复时一起还原。
+#
+# 从模块体里逃出去 = 这次加载被**中断**。从前它两头都不对：既留在 `_loading` 里（之后
+# 正常 `using` 被误报「检测到循环引用」），又已经被记进"已加载"（于是 `using` 变成
+# 静默的空操作，定义缺着）。现在恢复时连 `_loading` 一起还原，并把被中断的那个从
+# "已加载"里摘掉 —— 下次 `using` 从头上重来（所以下面第二遍会再打一次 "body"）。
+#
+# 伴侣文件是 tests/226_abort_mod.rav（它单独跑会报错，那是它自己的预期）。
+References = ["tests/"]
+already := false
+hook: object = 0
+out := callcc (k: function) => {
+    hook = () => { k "escaped"; }
+    using "226_abort_mod.rav"
+    "loaded";
+}
+print out
+print "again:"
+using "226_abort_mod.rav"
+print "third:"
+using "226_abort_mod.rav"
+print "done"
+ravel ""
+
+# ═══ 227_callcc_generator(并入) ═══
+ravel "227_callcc_generator"
+# `callcc` × 多发射：拿**两枚**续延来回跳，写一个"生成器"——`pull ()` 一次拿一个值。
+#
+# 关键在**每一轮两枚续延都重新捕获**：消费者的续延由 `pull` 每次重新抓（所以回到的是**这一次**
+# `pull` 的调用点，不会把上一轮重跑一遍）；生产者的续延由它自己每吐一个值就重抓一次。
+# 这就是它和"同一枚续延反复调用"的区别 —— 后者会从捕获点重来（`again := callcc …` 那个坑）。
+#
+# 教程 4.4 原本说"它不是生成器"，那句话只对"同一枚续延反复调用"成立，这里把它补准。
+
+resumeProducer: object = 0
+resumeConsumer: object = 0
+started := false
+
+pull := () => {
+    callcc (kc: function) => {
+        resumeConsumer = kc
+        if { started; } { resumeProducer (); } { started = true; producerBody (); }
+    }
+}
+
+producerBody := () => {
+    i := 0
+    while { i < 3; } {
+        i += 1
+        callcc (kp: function) => {
+            resumeProducer = kp
+            resumeConsumer i          # 吐一个值就把控制权交回消费者
+        }
+    }
+    resumeConsumer "done"
+}
+
+print (pull ())
+print (pull ())
+print (pull ())
+print (pull ())
+print (Ex.HandlerStack.Count ())      # 这套来回跳不该留下 handler
+
+# ---- 顺带：槽运算符（`by +`）的 getter 里捕获续延，正常那条路照旧 ----
+T ::= interface {
+    by + := property (() => { 0; }) ((v: function) => { (); })
+}
+C ::= class {
+    x : int = 0
+}
+escOp: object = 0
+haveOp := false
+impl (T C {
+    by + = property (() => {
+        callcc (k: function) => { if { !haveOp; } { haveOp = true; escOp = k; } { 0; }; };
+        (o: object) => { instance.x + 1; };
+    }) ((v: function) => { (); })
+})
+c := C ()
+c.x = 41
+print (c + 0)
+print "end"
+ravel ""
+
+# ═══ 228_callcc_init(并入) ═══
+ravel "228_callcc_init"
+# `callcc` × 构造：`ClassInit` 帧的计数对续延重入很敏感（源码里那句"用 > 而非 ="就是为它写的），
+# 柯里化构造器还要经过 `PartialCtor` / `CtorApply` 两个合成帧 —— 这里把这两条路钉住。
+#
+# 老规矩：闩声明在捕获点之前；恢复会重跑捕获点之后的尾巴，同一段打印出现两次是重跑出来的。
+
+# ---- ① init 里捕获续延，恢复后接着往下走 ----
+escK: object = 0
+haveK := false
+doneK := false
+K ::= class {
+    n : int = 0
+    init = (v: int) => {
+        callcc (k: function) => { if { !haveK; } { haveK = true; escK = k; } { 0; }; };
+        n = v
+        this
+    }
+}
+kk := K 7
+print kk.n
+try { if { !doneK; } { doneK = true; escK (); } { 0; }; } (e: Exception) => { print ("K: " + string e); }
+print kk.n
+
+# ---- ② 柯里化的构造器（两参）：第一段里捕获续延，正常那条路照旧 ----
+escP: object = 0
+haveP := false
+P ::= class {
+    a : int = 0
+    b : int = 0
+    init = (x: int) => {
+        callcc (k: function) => { if { !haveP; } { haveP = true; escP = k; } { 0; }; };
+        (y: int) => { a = x; b = y; this; }
+    }
+}
+half := P 3          # 参数没收齐 → PartialCtor 半成品
+pp := half 4         # CtorApply 接着喂
+print pp.a
+print pp.b
+print "end"
+ravel ""
+
 # --- expected ---
 # 42
 # 3
@@ -151,3 +521,75 @@ print big
 # 99
 # 3
 # 500000
+# 0
+# escaped
+# 0
+# new try: 未定义的变量 'noSuchVar'
+# 0
+# armed
+# caught by the same try
+# caught by the same try
+# 0
+# out of two
+# 0
+# end
+# 3
+# 3
+# 3
+# [1 2 3]
+# 2
+# [1 2]
+# caught boom
+# 2
+# 0
+# first
+# again 1
+# again 2
+# again 2
+# [10 20 30]
+# [10 20 30 20 30]
+# [10 20 30 20 30]
+# end
+# 5
+# 7
+# after E
+# 2
+# 1
+# 105
+# 1
+# 105
+# 1
+# [1 100]
+# Function
+# [1 100 100]
+# Function
+# [1 100 100]
+# [1 100 100 1 100]
+# Void
+# [1 100 100 1 100]
+# [1 100 100 1 100]
+# jumped
+# 0
+# caught from slot
+# 0
+# end
+# body
+# escaped
+# again:
+# body
+# body end
+# third:
+# done
+# 1
+# 2
+# 3
+# done
+# 0
+# 42
+# end
+# 7
+# 7
+# 7
+# 3
+# 4
+# end

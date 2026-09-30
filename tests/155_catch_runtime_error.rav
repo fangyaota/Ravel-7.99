@@ -17,9 +17,115 @@ try {
     print ("thrown: " + string e)
 }
 try { print "try 一样能用"; } (e: Exception) => { 0; }
+
+# ═══ 215_try_handler_stack(并入) ═══
+ravel "215_try_handler_stack"
+# Ex.Try 的 handler 必须在结束时回到栈外。
+#
+# 从前只在"出错"那条路上摘(求值器调 handler 前先弹),**正常收尾不摘** —— 于是那个 handler
+# 一直挂在 HandlerStack 上:后面**没人接**的错误会被它接住,而它的续延停在上面那次 callcc,
+# 结果程序从「Try 之后」重跑一遍,报错位置也指到那儿去,原来的错反而看不见了。
+
+print (Ex.HandlerStack.Count ())
+Ex.Try { print "in try"; } (e: Exception) => { print ("1: " + string e); }
+print (Ex.HandlerStack.Count ())
+
+# 出错那条路照旧:接住了,栈也干净
+Ex.Try { print (missingVar); } (e: Exception) => { print ("2: " + string e); }
+print (Ex.HandlerStack.Count ())
+
+# 嵌套:内层出错只摘内层那一个,外层照常还在
+Ex.Try {
+    Ex.Try { print (alsoMissing); } (e: Exception) => { print ("3: " + string e); }
+    print (Ex.HandlerStack.Count ())
+} (e: Exception) => { print ("4: " + string e); }
+print (Ex.HandlerStack.Count ())
+ravel ""
+
+# ═══ 156_handler_error_no_recursion(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# handler 自己出错时不该无限递归:求值器调用 handler 前已把它弹出栈,\n# 所以这时栈是空的,错误照常冒泡成报告(而不是转回同一个 handler)。\n# 回归时会挂死而不是报错,所以这个用例用 expect-error 就够。\ntry {\n    print (missingVar)\n} (e: Exception) => {\n    print (\"inner: \" + string e)\n    print (1 + true)\n}\nprint \"unreachable\""; } (e: Exception) => { print ("156_handler_error_no_recursion: " + string e); }
+
+# ═══ 238_exception_class(并入) ═══
+ravel "238_exception_class"
+# `Exception` 是个**普通类**(不再是单独的 `ExceptionVal` 那套原子值):
+# 实例是 ObjectVal、有 `Message` 字段、能继承、能按类型接。
+#
+# 从前它是"半个标量":`Exception "msg"` 造的是 `ExceptionVal`(不是 ObjectVal —— 没字段、
+# 没实例 scope),于是**子类不写 `init` 就静默继承那个转换器** —— 交回一个 ExceptionVal,
+# 自己的字段全丢、`is` 也不认。现在构造器把消息写在正在构造的那个对象上、交回 `this`。
+
+# ① 基本
+e := Exception "boom"
+print (typeof e)
+print (e is Exception)
+print (e.Message)
+print (string e)                 # 显示成消息本身(不是 `Exception { Message = … }`)
+print (e == e)                   # 对象按身份比
+print (e == Exception "boom")    # 另造一个 → false
+
+# ② 继承:不写 init 也保得住自己
+Plain ::= class Exception {
+    tag: int = 1
+}
+p := Plain "hmm"
+print (typeof p)
+print (p is Plain)
+print (p is Exception)
+print (p.tag)
+print (p.Message)
+
+# ③ 自己写 init:显式设 Message(字段可读可写),字段照旧
+IoErr ::= class Exception {
+    Path: string = ""
+    init = (msg: string path: string) => { Message = msg; Path = path; this; }
+}
+f := IoErr "no file" "/tmp/x"
+print (f.Message)
+print (f.Path)
+print (string f)
+
+# ④ `|` 拼的 handler 按参数类型分派(整条交替得写在一行里 —— 换行它会断)
+handle := ((e: IoErr) => { print ("io: " + e.Message + " @ " + e.Path); }) | ((e: Exception) => { print ("base: " + e.Message); })
+try { throw f; } handle
+try { throw (Exception "plain"); } handle
+
+# ⑤ 引擎自己的错误也走同一个类型(错误钩子收到的就是 Exception 实例)
+try { print (noSuchVar); } (err: Exception) => { print ("engine: " + err.Message); }
+try { throw (Plain "again"); } (err: Plain) => { print ("typed: " + err.Message); } | ((err: Exception) => { print "base"; })
+print "end"
+ravel ""
 # --- expected ---
 # caught: 运算符 '+' 不支持 Bool 操作数
 # after
 # 5
 # thrown: boom
 # try 一样能用
+# 0
+# in try
+# 0
+# 2: 未定义的变量 'missingVar'
+# 0
+# 3: 未定义的变量 'alsoMissing'
+# 1
+# 0
+# inner: 未定义的变量 'missingVar'
+# 156_handler_error_no_recursion: 运算符 '+' 不支持 Bool 操作数
+# Exception
+# true
+# boom
+# boom
+# true
+# false
+# Plain
+# true
+# true
+# 1
+# hmm
+# no file
+# /tmp/x
+# no file
+# io: no file @ /tmp/x
+# base: plain
+# engine: 未定义的变量 'noSuchVar'
+# typed: again
+# end

@@ -54,6 +54,185 @@ safeDiv := (a: int b: int) => { if { b == 0; } { None; } { Some (a / b); } }
 ok := (Some 100).Bind (safeDiv 100)
 print ((ok.Bind (safeDiv 10)).Value ())
 print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())
+
+# ═══ 209_do(并入) ═══
+ravel "209_do"
+# do { … }:把一串"从 Monad 里取值"的语句折成 Bind 链。
+#
+#     do { x :< m1; y :< m2; Some (x + y); }
+#     ≡  m1.Bind ((x: object) => { m2.Bind ((y: object) => { Some (x + y); }); })
+#
+# 所以它没有任何运行时支持:链是解析期就地长出来的,`:<` 只是那个"把这个值绑个名字"的记号。
+
+# 一条绑定 + 一个结果(单行写就得用 `;` 收尾,和普通块一样)
+print (do { v :< Some 10; Some (v * 2); }.Value ())
+
+# 两条绑定:后一条用的是前一条取出来的值
+print (do {
+    x :< Some 3
+    y :< Some 4
+    Some (x + y)
+}.Value ())
+
+# 中间落空 -> 后面全不算(那些函数一次都不会被调)
+Calls := 0
+counted := (a: int b: int) => { Calls += 1; if { b == 0; } { None; } { Some (a / b); } }
+print (do {
+    a :< counted 100 10
+    b :< counted a 0
+    c :< counted b 5
+    Some c
+}.IsSome ())
+print ("算了几次: " + string Calls)
+
+# 块里可以有普通语句 —— 它们落在同一个 lambda 体里,还能改绑来的那个名字
+print (do {
+    x :< Some 2
+    y := x * 2
+    y += 1
+    Some y
+}.Value ())
+
+# 取出来的值可以是任何东西
+print (do { s :< Some "hi"; Some (s + "!"); }.Value ())
+
+# 上个 do 的结果本身还能接着绑(摊平:不会套成 Some (Some …))
+print (do {
+    inner :< Some (Some 7)
+    v :< inner
+    Some (v + 1)
+}.Value ())
+
+# 落在 None 上就直接短路 —— 连最后一个 Some 都不构造,拿到的就是共用那个 None
+print (do { x :< None; Some (x + 1); } == None)
+
+# 外面套一层:do 只是个表达式,当参数、当返回值都行
+pick := (b: bool) => { if { b; } { do { x :< Some 1; Some x; }; } { None; } }
+print ((pick true).Value ())
+print ((pick false).IsSome ())
+
+# `:<` 是词法里的一个 token,所以 `x < -1`(小于负一)一点不受影响
+print (5 < -1)
+print (-1 < 5)
+
+# do 只是语法糖:打印一个含 do 的函数,看到的是脱糖后的 Bind 链
+# (取成员的接收者是一次调用时打印器会套括号 —— `f a.b` 读起来是 `f (a.b)`)
+show ::= (x: int) => { do { y :< Some x; Some (y + 1); } }
+print show
+
+# 语法错误:三种写法当场报出来,不是留到运行时
+try { eval "x :< Some 1"; } (e: Exception) => { print ("1: " + string e); }
+try { eval "do { x :< Some 1; }"; } (e: Exception) => { print ("2: " + string e); }
+try { eval "do { }"; } (e: Exception) => { print ("3: " + string e); }
+# 绑到一个不是 Monad 的东西上:没有 Bind 方法
+try { eval "do { x :< 5; Some x; }"; } (e: Exception) => { print ("4: " + string e); }
+ravel ""
+
+# ═══ 210_iomonad(并入) ═══
+ravel "210_iomonad"
+# IO:效果做成"说明书"(一个值),`Perform ()` 那一刻才真的发生。
+# 这就是 IO Monad —— `do { x :< …; }` 拼的是说明书,Bind 把两份订成一份。
+using "iomonad.rav"
+
+# 1) 造出来什么都不做;而且说明书可以反复跑
+Calls := 0
+Tick := IoMonad.Action (() => { Calls += 1; "tick"; })
+print Calls
+print (Tick.Perform ())
+print Calls
+print (Tick.Perform ())
+print Calls
+
+# 2) PutStrLn 同理:造的时候不打印
+Hello := IoMonad.PutStrLn "hello"
+print "还没跑"
+Hello.Perform ()
+print "跑完了"
+
+# 3) do 串起来 —— 这才是它像 monad 的地方。
+#    输入拿一个列表冒充(测试里不去碰真 stdin)
+Lines := ["first" "second"]
+Read := IoMonad.Action (() => { Lines.Remove 0; })
+Main := do {
+    a :< Read
+    _ :< IoMonad.PutStrLn ("读到 " + a)
+    b :< Read
+    IoMonad.PutStrLn ("又读到 " + b)
+}
+print "Main 造好了(此时一个字都没读、也没打印)"
+Main.Perform ()
+
+# 4) Map / Bind 直接手写
+Plus1 := (IoMonad.Return 20).Map ((x: int) => { x + 1; })
+print (Plus1.Perform ())
+print (do { n :< IoMonad.Return 4; IoMonad.Return (n * n); }.Perform ())
+
+# 5) 纯计算不必包成说明书:Return 什么也不做,只是交出一个值
+print (do { a :< IoMonad.Return 3; b :< IoMonad.Return 4; IoMonad.Return (a + b); }.Perform ())
+
+# 6) 一串效果(括号照旧:`.Perform` 要贴给 Foreach 的结果,不是贴给那个 lambda)
+(IoMonad.Foreach [1 2 3] ((x: int) => {
+    IoMonad.PutStrLn ("第 " + (string (x)) + " 个")
+})).Perform ()
+
+# 7) 每一步都跑,值一路往下传(不像 Option 那样"落空就短路" —— IO 没有落空这回事)
+Trace: list = []
+Note := (s: string) => { IoMonad.Action (() => { Trace.Add s; s; }) }
+Seq := do {
+    _ :< Note "a"
+    _ :< Note "b"
+    Note "c"
+}
+Seq.Perform ()
+print Trace
+Seq.Perform ()
+print Trace
+
+# 8) 说明书是普通值:一样可以当参数、当返回值、放着不跑
+Build := (b: bool) => { if { b; } { IoMonad.PutStrLn "开了"; } { IoMonad.Return (); } }
+Left := Build true
+print "还没跑那个分支"
+Left.Perform ()
+# 4) IMonad:Option 与 Action 是**同一个形状的两个实例**(见 monad.rav / io.rav)。
+#    形状就是 do 要的那两条槽 Map / Bind;`Return` 那种构造子各归各的(这边 Some,Io 那边 IoMonad.Return)。
+print ((Some 5) is IMonad)
+print ((None) is IMonad)
+print ((IoMonad.PutStrLn "x") is IMonad)
+print (5 is IMonad)
+
+# 实现是**全局**登记的(用 impl 而不是 use),所以类型层面两个方向都问得出来
+print (Option.GetImplements ())
+print (IoMonad.Action.GetImplements ())
+print (IMonad.GetImplementors ())
+
+# 通用函数:只要求"是这个形状",同一个 monad 自己往下接
+Chain := (m: IMonad f: function) => { m.Bind f; }
+# (外面那层括号不能省：`.` 比并列的调用绑得紧，不括就变成"给 lambda 取成员")
+print ((Chain (Some 3) ((v: object) => { Some (v + 1); })).Value ())
+print ((Chain (IoMonad.Action (() => { 41; })) ((v: object) => { IoMonad.Action (() => { v + 1; }); })).Perform ())
+
+# 5) 组合子：Then / Discard / Attempt / Catch / Sequence / When / Unless
+Log: list = []
+A := IoMonad.Action (() => { Log.Add "a"; 1; })
+B := IoMonad.Action (() => { Log.Add "b"; 2; })
+
+print ((A.Then B).Perform ())          # 交回**后一份**的结果
+print (Log)
+print ((A.Discard ()).Perform ())      # 只跑，结果丢掉
+print (Log)
+print ((A.Attempt ()).Perform ())      # 成功 → Some 结果
+Bad := IoMonad.Action (() => { throw (Exception "boom"); })
+print ((Bad.Attempt ()).Perform () @ .IsSome ())     # 失败 → None
+print ((Bad.Catch ((e: Exception) => { IoMonad.PutStrLn ("接住 " + string e); })).Perform ())
+print ((IoMonad.Sequence [A B A]).Perform ())          # 结果的表
+print ((IoMonad.When (() => { true; }) A).Perform ())
+print ((IoMonad.When (() => { false; }) B).Perform ()) # 条件不成立 → ()
+print ((IoMonad.Unless (() => { false; }) B).Perform ())
+print (Log)
+
+# stderr 那两条写的是**真 stderr**（测试运行器只接管 stdout，这行只在终端上看得见）
+(IoMonad.PutStrLnErr "这行去 stderr").Perform ()
+ravel ""
 # --- expected ---
 # true
 # true
@@ -83,3 +262,63 @@ print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())
 # false
 # 10
 # false
+# 20
+# 7
+# false
+# 算了几次: 2
+# 5
+# hi!
+# 8
+# true
+# 1
+# false
+# false
+# true
+# <function show (x: int) => { (Some x).Bind ((y: object) => { Some (y + 1); }); }>
+# 1: ':<' 只能写在 do { … } 里
+# 2: do 块的最后一条语句要是个值（不能以 ':<' 收尾）
+# 3: do 块里得有语句
+# 4: 类型 'Integer' 没有方法 'Bind'
+# 0
+# tick
+# 1
+# tick
+# 2
+# 还没跑
+# hello
+# 跑完了
+# Main 造好了(此时一个字都没读、也没打印)
+# 读到 first
+# 又读到 second
+# 21
+# 16
+# 7
+# 第 1 个
+# 第 2 个
+# 第 3 个
+# [a b c]
+# [a b c a b c]
+# 还没跑那个分支
+# 开了
+# true
+# true
+# true
+# false
+# [IMonad BaseInterface]
+# [IMonad BaseInterface]
+# [Action Option]
+# 4
+# 42
+# 2
+# [a b]
+# ()
+# [a b a]
+# Option { Has = true, Inner = 1 }
+# false
+# 接住 boom
+# ()
+# [1 2 1]
+# 1
+# ()
+# 2
+# [a b a a a b a a b]

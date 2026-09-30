@@ -1,3 +1,0 @@
-# expect-error
-X: int = 1
-X = true

@@ -21,6 +21,199 @@ x: int = 3.9
 print x
 y: int = bigint 7
 print y
+
+# ═══ 159_conversion_consistency(并入) ═══
+ravel "159_conversion_consistency"
+# 隐式与显式的转换表要一致:显式 `bigint "123"` 走得通,
+# 隐式 `x: bigint = "123"` 也该走得通(以前 ConvertDirect 缺 String/Int 分支,
+# 于是同一件事两条路两种结果)
+x: bigint = "123"
+print x
+y: float = "1.5"
+print y
+z: bigint = 5
+print z
+print (bigint "123")
+print (float "1.5")
+# 隐式/显式之所以一致,是因为转换表**只有一份**(ConvertDirect 按目标类调各类型的 CastToXxx,
+# 不再逐类型各抄一遍)。这两条从前正好是对着来的:
+#   `int (fraction 7 2)` 走得通,`x: int = fraction 7 2` 报「类型不匹配」
+#   `bigint 1.5` 走得通(`(BigInteger)1.5` 截断成 1),`x: bigint = 1.5` 不行
+a: int = fraction 7 2
+print a
+b: bigint = 1.5
+print b
+ravel ""
+
+# ═══ 160_fraction_zero_den(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 分数的分母不能为零。以前 `fraction 1 0` 会造出一个 `1/0` 的无效分数,\n# 之后 `int (fraction 1 0)` 就抛 C# 的 DivideByZeroException。\n# 字符串形式 `fraction \"1/0\"` 一直有检查,构造器这条漏了。\nprint (fraction 1 0)"; } (e: Exception) => { print ("160_fraction_zero_den: " + string e); }
+
+# ═══ 181_randint_bounds(并入) ═══
+ravel "181_randint_bounds"
+# randint 的最小值大于最大值:C# 的 Random.Next 会抛 ArgumentOutOfRangeException,
+# 那是 C# 异常,绕过 Ravel 的 try 一路漏到顶层把程序打掉
+try { randint 5 1; } (e: Exception) => { print ("1: " + string e); }
+try { randint "a" 1; } (e: Exception) => { print ("2: " + string e); }
+# 合法调用照常(两端相等时 Next 返回那个值)
+print (randint 7 7)
+ravel ""
+
+# ═══ 185_int_overflow_arith(并入) ═══
+ravel "185_int_overflow_arith"
+# int 算术溢出:报错,不要静默回绕
+# 从前 C# 的 unchecked 让它悄悄绕过去:`100000 * 100000` 得 1410065408、
+# `2147483647 + 1` 得 -2147483648 ——「算出来了但是错的」比崩溃难查得多。
+try { 2147483647 + 1; } (e: Exception) => { print ("1: " + string e); }
+try { 100000 * 100000; } (e: Exception) => { print ("2: " + string e); }
+try { 0 - (0 - 2147483647 - 1); } (e: Exception) => { print ("3: " + string e); }
+# 装得下的照常
+print (2147483646 + 1)
+print (0 - 2147483647)
+print (0 - 2147483647 - 1)
+print (5 % 3)
+# 要更宽就写 bigint —— 一边是 bigint 时按宽度升级,不进 int 那条路
+print (2147483647 + bigint 1)
+print ((bigint (100000)) * 100000)
+print (typeof (2147483647 + bigint 1))
+ravel ""
+
+# ═══ 186_fraction_normalize(并入) ═══
+ravel "186_fraction_normalize"
+# 分数构造即约分,负号归分子
+# 不约分有两个后果:显示成 "2/4" "4/4" 这种;更要命的是 record 的结构相等
+# 认为 `1/2` 和 `2/4` 是两个不同的值,于是 {fraction 1 2, fraction 2 4} 有 2 个元素,
+# 而 `(fraction 1 2) == fraction 2 4` 又是 true —— 同一件事两套答案。
+print (fraction 2 4)
+print ((fraction 1 2) + fraction 1 2)
+print ((fraction 1 2) * fraction 2 3)
+print ((fraction 1 2) - fraction 1 2)
+print (fraction 1 (0 - 2))
+print (fraction 0 5)
+print (bigfraction 2 4)
+print ((bigfraction 1 2) + bigfraction 1 2)
+a := fraction 1 2
+b := fraction 2 4
+print (a == b)
+print ({a b}.Count ())
+# fraction 的分子分母是 32 位,算爆了明说改用 bigfraction(不静默回绕)
+try { (fraction 100000 1) * fraction 100000 1; } (e: Exception) => { print ("ovf: " + string e); }
+print ((bigfraction 100000 1) * bigfraction 100000 1)
+ravel ""
+
+# ═══ 198_nan_inf(并入) ═══
+ravel "198_nan_inf"
+# NaN / Inf —— 特殊浮点值,和 `true`/`false` 同款:
+# System 模块里的一个值(`System.NaN` / `System.Inf`),`predefined.rav` 给全局别名。
+# `-Inf` 不用另设:一元 `-` 对 Float 就是取负。
+
+print NaN
+print Inf
+print (-Inf)
+print (typeof NaN)
+print (typeof Inf)
+print (NaN is float)
+print (NaN isnot int)
+print (Inf is float)
+
+# 打印是 ASCII 的:别交给 double.ToString —— 它的无穷是文化相关的 `∞`
+print (0.0 / 0.0)
+print (1.0 / 0.0)
+print (-1.0 / 0.0)
+print (Inf == 1.0 / 0.0)
+
+# IEEE 语义:NaN 不等于自己
+print (NaN == NaN)
+print (NaN != NaN)
+print (Inf > 1)
+print (1 / Inf)
+print (Inf + 1)
+print (Inf - Inf)
+
+# 进了别的值里也照样
+using "math.rav"
+print ([NaN Inf])
+print ({"a": Inf})
+print (string Inf)
+print (string NaN)
+print (Math.Floor NaN)
+print (Math.Sqrt Inf)
+
+# 折不成 int:报错而不是静默(以前 double 那条是"饱和"转换,一个字都不说)
+try { int Inf; } (e: Exception) => { print ("int Inf: " + string e); }
+try { int NaN; } (e: Exception) => { print ("int NaN: " + string e); }
+print "done"
+ravel ""
+
+# ═══ 196_math(并入) ═══
+ravel "196_math"
+# Math **要显式引用才有**:成员是 C# 造的(System.Math 上落,见 Interpreter.Math.cs:
+# 常量 + 三角/双曲/幂对数/取整/极值),它们挂在 `lib/math.rav` 那句 `ravel "Math"`
+# 建模块的时候填进去 —— 在那之前 `Math` 根本不是一个名字。
+# `lib/math.rav` 另外补 Ravel 说得清楚的几个(square/cube/deg/rad)。
+try { Math.Pi; } (e: Exception) => { print ("还没引用: " + string e); }
+using "math.rav"
+
+# ---- 常量 ----
+print (Math.Pi)
+print (Math.Tau)
+print (Math.E)
+
+# ---- 三角(弧度) ----
+print (Math.Sin 0)
+print (Math.Cos 0)
+print (Math.Atan2 1 1)
+
+# ---- 取整:round 是**四舍五入**,不是 .NET 默认的"银行家舍入"(否则 2.5 → 2) ----
+print (Math.Floor 3.7)
+print (Math.Ceil 1.1)
+print (Math.Trunc (-3.7))
+print (Math.Round 2.5)
+print (Math.RoundTo 3.14159 2)
+
+# ---- 幂与对数 ----
+print (Math.Sqrt 16)
+print (Math.Sqrt (fraction 1 4))
+print (Math.Cbrt 27)
+print (Math.Pow 2 10)
+print (Math.Log Math.E)
+print (Math.Log2 8)
+print (Math.Log10 1000)
+print (Math.LogBase 8 2)
+print (Math.Hypot 3 4)
+
+# ---- 保型的那几个:交回原始实参,不折成 double。
+#      `abs -5` 还是 int,`max 3 bigint …` 还是 bigint ----
+print (Math.Abs (-5))
+print (typeof (Math.Abs (-5)))
+print (typeof (Math.Abs (-2.5)))
+print (Math.Abs (bigint "-7"))
+print (Math.Min 3 7)
+print (Math.Max 3 (bigint "9999999999999"))
+print (typeof (Math.Max 3 (bigint "9999999999999")))
+print (Math.Clamp 15 0 10)
+print (Math.MinMagnitude (-5) 3)
+print (Math.Fma 2 3 4)
+
+# ---- 参数收**任何数值**,内部按 double 算 —— 和 `<` 那批运算符同一个口径 ----
+print (Math.Sign (-3.2))
+print (Math.Sign 0)
+print (Math.Sin 1)
+
+# ---- lib/math.rav 那层:Ravel 能表达的那几个 ----
+print (Math.Square 5)
+print (Math.Square 2.5)
+print (Math.Cube 3)
+print (Math.Deg Math.Pi)
+print (Math.Rad 180)
+
+# ---- C# 会抛异常的地方自己先拦:那些异常不是 RuntimeException,
+#      Ravel 的 try 接不住,会一路把程序打掉(见 randint 的先例) ----
+try { Math.Sin "a"; } (e: Exception) => { print ("Sin: " + string e); }
+try { Math.RoundTo 3.14 20; } (e: Exception) => { print ("RoundTo: " + string e); }
+try { Math.Clamp 5 10 0; } (e: Exception) => { print ("Clamp: " + string e); }
+try { Math.Sign (0.0 / 0.0); } (e: Exception) => { print ("Sign: " + string e); }
+print "done"
+ravel ""
 # --- expected ---
 # 1: 数值 9999999999999 超出 int 范围（int 是 32 位，大数用 bigint）
 # 2: 数值 2147483648 超出 int 范围（int 是 32 位，大数用 bigint）
@@ -36,3 +229,106 @@ print y
 # 5
 # 3
 # 7
+# 123
+# 1.5
+# 5
+# 123
+# 1.5
+# 3
+# 1
+# 160_fraction_zero_den: 分数的分母不能为零
+# 1: randint 的最小值 5 不能大于最大值 1
+# 2: randint 的最小值需要 int，得到 String
+# 7
+# 1: 2147483647 + 1 超出 int 范围（int 是 32 位，大数用 bigint）
+# 2: 100000 * 100000 超出 int 范围（int 是 32 位，大数用 bigint）
+# 3: 0 - -2147483648 超出 int 范围（int 是 32 位，大数用 bigint）
+# 2147483647
+# -2147483647
+# -2147483648
+# 2
+# 2147483648
+# 10000000000
+# BigInt
+# 1/2
+# 1/1
+# 1/3
+# 0/1
+# -1/2
+# 0/1
+# 1/2
+# 1/1
+# true
+# 1
+# ovf: 分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）
+# 10000000000/1
+# NaN
+# Inf
+# -Inf
+# Float
+# Float
+# true
+# true
+# true
+# NaN
+# Inf
+# -Inf
+# true
+# false
+# true
+# true
+# 0
+# Inf
+# NaN
+# [NaN Inf]
+# {a: Inf}
+# Inf
+# NaN
+# NaN
+# Inf
+# int Inf: 数值 Inf 超出 int 范围（int 是 32 位，大数用 bigint）
+# int NaN: NaN 不能转换为 int
+# done
+# 3.141592653589793
+# 6.283185307179586
+# 2.718281828459045
+# 0
+# 1
+# 0.7853981633974483
+# 3
+# 2
+# -3
+# 3
+# 3.14
+# 4
+# 0.5
+# 3
+# 1024
+# 1
+# 3
+# 3
+# 3
+# 5
+# 5
+# Integer
+# Float
+# 7
+# 3
+# 9999999999999
+# BigInt
+# 10
+# 3
+# 10
+# -1
+# 0
+# 0.8414709848078965
+# 25
+# 6.25
+# 27
+# 180
+# 3.141592653589793
+# Sin: Sin 需要数值参数，得到 String
+# RoundTo: RoundTo 的小数位数要在 0..15，得到 20
+# Clamp: Clamp 的下界 10 不能大于上界 0
+# Sign: Sign 的 NaN 没有符号
+# done

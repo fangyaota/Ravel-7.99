@@ -1,13 +1,81 @@
-# 运行时错误报告:位置 + 源码行 + 插入符 + Ravel 层调用栈。
-# 这里做精确比对(而不是 expect-error 那样只看前缀),把格式锁住。
-# 路径取相对 cwd 且统一用 '/',所以期望是跨平台的。
-helper := (n: int) => { n + missing; }
-helper 1
+# ═══ 152_error_report(本文件自己:钉的是"报错",改成 try+eval) ═══
+try { eval "# 运行时错误报告:位置 + 源码行 + 插入符 + Ravel 层调用栈。\n# 这里做精确比对(而不是 expect-error 那样只看前缀),把格式锁住。\n# 路径取相对 cwd 且统一用 '/',所以期望是跨平台的。\nhelper := (n: int) => { n + missing; }\nhelper 1"; } (e: Exception) => { print ("152_error_report: " + string e); }
+
+# ═══ 154_operator_type_error(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 运算符的类型错误要给 Ravel 消息,不能把 C# 的硬转型异常漏出来。\n# 以前 `1 + true` 报的是:\n#   Unable to cast object of type 'Ravel.Runtime.BoolVal' to type 'Ravel.Runtime.IntVal'\n# 左操作数由方法表保证,所以只需在取右操作数时收窄(见 RuntimeType.Operators.cs 的 Operand)。\nprint (1 + true)"; } (e: Exception) => { print ("154_operator_type_error: " + string e); }
+
+# ═══ 157_builtin_arg_type(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 内建函数收到类型不对的参数时,要给 Ravel 消息,不能漏出 C# 的硬转型异常\n# (下面那条旧消息就是修之前的样子)\n# Unable to cast object of type .Ravel.Runtime.IntVal. to type .Ravel.Runtime.StringVal.\nf := () => { 1; }\nf.name = 123"; } (e: Exception) => { print ("157_builtin_arg_type: " + string e); }
+
+# ═══ 158_divide_by_zero(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 整除的除数为零要给 Ravel 消息,不能漏出 C# 的\n# \"Attempted to divide by zero.\"(英文,且是 DivideByZeroException)\nprint (1 / 0)"; } (e: Exception) => { print ("158_divide_by_zero: " + string e); }
+
+# ═══ 162_compare_type_error(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 比较运算符以前报的是含糊的「需要数值类型」(不说哪个运算符、也不说是哪个值),\n# 现在和算术运算符一致。\nprint (1 < \"x\")"; } (e: Exception) => { print ("162_compare_type_error: " + string e); }
+
+# ═══ 171_nesting_depth(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 递归下降解析器靠 C# 调用栈,而 StackOverflow 捕获不了——1000 层括号会让进程\n# 直接死在 \"Stack overflow.\" 上,连语法错误都看不到。Parser.Nested 卡在 400 层:\n# 实测 500 层没事、1000 层爆栈,所以留了余量。\n# 回归时会变成崩溃(而不是报错),expect-error 就抓住它。\nprint ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"; } (e: Exception) => { print ("171_nesting_depth: " + string e); }
+
+# ═══ 174_syntax_error_report(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 语法错误也走 ErrorReport:位置 + 源码行 + 插入符(没有调用栈——源码就没解析成功)。\n# 精确比对,和 152 一样把格式锁住。\nx := 1\nprint (x ~ 2)"; } (e: Exception) => { print ("174_syntax_error_report: " + string e); }
+
+# ═══ 176_old_init_syntax(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 旧写法 `init ctor := ...` 给一句能读的报错\n# 不拦的话会被当表达式 `init ctor` 求值,报「未定义的变量 'init'」——看不出哪里错了\nC := class {\n    init ctor := () => { 0; }\n}"; } (e: Exception) => { print ("176_old_init_syntax: " + string e); }
+
+# ═══ 178_error_messages(并入) ═══
+ravel "178_error_messages"
+# 报错消息要能定位问题:说清是哪个索引/哪个类型,而不是「索引超出范围」「未知的二元运算符」
+# (每个块都带 `;`——这是**表达式位置**的块,少了它会被当成 Set)
+try { [1 2 3].At 9; } (e: Exception) => { print ("1: " + string e); }
+try { [1 2].Remove 5; } (e: Exception) => { print ("2: " + string e); }
+# 字符串 `* int` 现在是"重复"了,拿 `* string` 当那条"运算符不支持"的例子
+try { "abc" * "x"; } (e: Exception) => { print ("3: " + string e); }
+try { [1 2 3].Insert 9 0; } (e: Exception) => { print ("4: " + string e); }
+# Insert 允许插到末尾(下标 == 长度)
+xs := [1 2 3]
+xs.Insert 3 99
+print xs
+ravel ""
+
+# ═══ 204_unterminated_string(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
+try { eval "# 字符串少了收尾的引号 -> 报错。从前是**静默接受**:剩下的源码(连换行带后面的代码)\n# 全被吞进那个字符串,`print \"abc` 打印出 abc —— 少打一个引号的人看不出自己错了。\nprint \"abc"; } (e: Exception) => { print ("204_unterminated_string: " + string e); }
+
+# ═══ 205_removed_modifiers(并入) ═══
+ravel "205_removed_modifiers"
+# 修饰符 `override` / `new` 已删:它们只被记下来,全库没有一处读
+# (语言里既没有重载也没有重定义检查,写上去等于没写)。
+# 不拦的话 `override x := 1` 会被当表达式 `override x` 求值,报「未定义的变量 'override'」,
+# 看不出是这个修饰符没了 —— 所以删的同时留一句明白话。
+try { eval "override x := 1"; } (e: Exception) => { print ("1: " + string e); }
+try { eval "new y := 2"; } (e: Exception) => { print ("2: " + string e); }
+# `forInstance` 同理已删:它当年是"类那一侧读不到"的凭据,而那个判据现在是**结构**的
+# —— 类对象有两张表(见 tests/242),给实例的成员住在 `ClassVal.InstanceTable` 里。
+try { eval "forInstance z := 3"; } (e: Exception) => { print ("3: " + string e); }
+# 而它们照样是普通名字(不是保留字):定义、读、当成员名都行
+override := 7
+print override
+C := class { init = () => { 0; this; }; }
+c := C ()
+c.new := 9
+print (c.new)
+ravel ""
 # --- expected ---
-# Error: 未定义的变量 'missing'
-#   --> tests/152_error_report.rav:4:29
-#   4 | helper := (n: int) => { n + missing; }
-#     |                             ^
-#   调用栈 (2 层):
-#     在 tests/152_error_report.rav:4:20
-#     在 tests/152_error_report.rav:1:1
+# 152_error_report: 未定义的变量 'missing'
+# 154_operator_type_error: 运算符 '+' 不支持 Bool 操作数
+# 157_builtin_arg_type: 函数名需要 string，得到 Integer
+# 158_divide_by_zero: 运算符 '/' 的除数为零
+# 162_compare_type_error: 运算符 '<' 不支持 String 操作数
+# 171_nesting_depth: 表达式嵌套太深（超过 400 层）
+# 174_syntax_error_report: 未预期的字符 '~'
+# 176_old_init_syntax: 构造器不再用 init 修饰符，直接写 `init = () => { ... }`
+# 1: list.At 的索引 9 越界 (列表长度 3)
+# 2: list.Remove 的索引 5 越界 (列表长度 2)
+# 3: 运算符 '*' 不支持 String 操作数
+# 4: list.Insert 的索引 9 越界 (列表长度 3)
+# [1 2 3 99]
+# 204_unterminated_string: 字符串没有收尾的 '"'
+# 1: 'override' 修饰符已删除（它只被记下来，没有任何地方读它）
+# 2: 'new' 修饰符已删除（它只被记下来，没有任何地方读它）
+# 3: 'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）
+# 7
+# 9

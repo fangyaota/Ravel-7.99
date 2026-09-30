@@ -8,6 +8,113 @@ c := C ()
 c.show ()
 c.set 99
 c.show ()
+
+# ═══ 69_access_private_err(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "C := class {\n    init = () => { 0; this; }\n    private secret: int = 42\n}\nc := C ()\nprint (c.secret)"; } (e: Exception) => { print ("69_access_private_err: " + string e); }
+
+# ═══ 70_access_protected(并入) ═══
+ravel "70_access_protected"
+Base := class {
+    init = () => { 0; ; this; }
+    protected val: int = 10
+    show := () => { print val; }
+}
+Child := class Base {
+    init = () => { 0; this; }
+    show2 := () => { print val; }
+}
+c := Child ()
+c.show ()
+c.show2 ()
+ravel ""
+
+# ═══ 71_access_protected_err(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "Base := class {\n    init = () => { 0; this; }\n    protected val: int = 10\n}\nb := Base ()\nprint (b.val)"; } (e: Exception) => { print ("71_access_protected_err: " + string e); }
+
+# ═══ 72_access_unreadable(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "C := class {\n    init = () => { 0; this; }\n    unreadable x: int = 99\n}\nc := C ()\nprint (c.x)"; } (e: Exception) => { print ("72_access_unreadable: " + string e); }
+
+# ═══ 73_access_outdated(并入) ═══
+ravel "73_access_outdated"
+C := class {
+    init = () => { 0; this; }
+    outdated old: int = 77
+}
+c := C ()
+print (c.old)
+ravel ""
+
+# ═══ 74_access_mixed(并入) ═══
+ravel "74_access_mixed"
+C := class {
+    init = () => { 0; this; }
+    public    a: int = 1
+    private   b: int = 2
+    protected c: int = 3
+    outdated  d: int = 4
+    show := () => {
+        print a
+        print b
+        print c
+        print d
+    }
+}
+c := C ()
+print (c.a)
+c.show ()
+ravel ""
+
+# ═══ 172_core_bare_ident(并入) ═══
+ravel "172_core_bare_ident"
+# core 字段:裸标识符和成员访问要走同一套门禁
+# 曾经 StepIdent 自己抄了一份门禁、漏抄 core 那条 —— `c.secret` 被拦住,
+# 类体里直接写 `secret` 却读得到,等于绕开整个 core 机制。
+C := class {
+    init = () => { 0; this; }
+    core secret: int = 42
+    show := () => { unsafe (); print secret; }
+}
+c := C ()
+c.show ()
+ravel ""
+
+# ═══ 173_core_bare_ident_err(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
+try { eval "# core 字段:类体里用裸标识符读,没进 unsafe 就该拦住(和 c.secret 一个待遇)\nC := class {\n    init = () => { 0; this; }\n    core secret: int = 42\n    peek := () => { print secret; }\n}\nc := C ()\nc.peek ()"; } (e: Exception) => { print ("173_core_bare_ident_err: " + string e); }
+
+# ═══ 180_unsafe_scope(并入) ═══
+ravel "180_unsafe_scope"
+# unsafe () 只作用于它所在的作用域,不外溢
+# 从前 UnsafeDepth 是个只增不减的计数器,任何一次 unsafe () 之后整个程序余下的
+# core 检查全关掉 —— 在无关函数里调一次就能从外部随便读核心字段。
+C := class {
+    init = () => { 0; this; }
+    core secret: int = 42
+    peek := () => { unsafe (); print secret; }
+}
+c := C ()
+c.peek ()
+# 这里调一次 unsafe,而且它早就返回了
+(unused: object) => { unsafe (); 0; } (0)
+try { print c.secret; } (e: Exception) => { print ("blocked: " + string e); }
+# core 字段的写同样要 unsafe
+try { c.secret = 1; } (e: Exception) => { print ("blocked: " + string e); }
+ravel ""
 # --- expected ---
 # 42
 # 99
+# 69_access_private_err: 变量 'secret' 是私有的
+# 10
+# 10
+# 71_access_protected_err: 变量 'val' 是受保护的
+# 72_access_unreadable: 变量 'x' 不可读取
+# 77
+# 1
+# 1
+# 2
+# 3
+# 4
+# 42
+# 173_core_bare_ident_err: 字段 'secret' 是核心字段，需要 unsafe
+# 42
+# blocked: 字段 'secret' 是核心字段，需要 unsafe
+# blocked: 字段 'secret' 是核心字段，需要 unsafe

@@ -432,7 +432,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   内建那些更具体的（`int` 的转换器、`List` 的 default 构造器）照样覆盖它。
   没有自己类体的类型（Void/Every/Any/Scope/Property/…）仍然不能当构造器调 ——
   那道护栏在 `CallClassInto`，看的是被实例化的那个类**自己**有没有类体。
-- 用例：`tests/117`（基本）、`118`（挂钩建类过程）、`121`（拿到类再交出去）、
+- 用例：`tests/98`（基本）、`118`（挂钩建类过程）、`121`（拿到类再交出去）、
   `122`（typeof 链）、`193`（用户手写的那份）、`211`（默认构造器）。
 
 ### 其余
@@ -443,7 +443,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   而**每一层**类体跑在自己的 `BodyScope` 上（`Runtime/BodyScope.cs`：词法父 = **那一层**写在哪，
   `Define` / `DefineOrReplace` 转发回实例表，`LookupHere` 先问实例表本层）—— 所以各层的自由名字
   **各按各的写法处**解析，定义仍旧平铺在同一个实例表里。从前只有一个父（最具体那个类的写法处），
-  父类写在别的作用域时它的类体就看不见自己那儿的名字（`tests/243`）。
+  父类写在别的作用域时它的类体就看不见自己那儿的名字（`tests/242`）。
 - **`:=` 是定义不是覆盖**：平铺之后「同名」就是同一个变量，所以在同一个作用域里再 `:=` 一次
   会当场报错（`Scope.Define` 那句）—— 包括**子类重声明父类已声明的字段**。要改值、要换掉
   继承来的那条，写 `=`。唯一的放行是「**同一条定义语句重跑**」：续延重入、同一个块被反复执行
@@ -539,7 +539,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 **控制状态跟着续延走,而"什么时候拍、什么时候还原"是库的策略**：帧链之外还有两样状态 ——
 `Ex.HandlerStack` 与模块加载栈 `_loading`。它们都是**副作用式**的、不在帧链里:帧链一丢,
 "跑完收尾去摘 handler / 退 `_loading`"那一步就再也不会执行。逃出 `try` 体会留下**僵尸 handler**
-(之后没人接的错误被它接住,而它的续延停在早被丢弃的链上;和 tests/215 修过的正常收尾泄漏同类),
+(之后没人接的错误被它接住,而它的续延停在早被丢弃的链上;和 tests/155 修过的正常收尾泄漏同类),
 逃出**模块体**会让那个模块永远"正在加载"(之后 `using` 被误报「检测到循环引用」),而且它已记进
 `_loaded`,于是 `using` 变成**静默空操作** —— 所以被中断的那个加载还要从 `_loaded` 里摘掉。
 反过来也顺:调一个在 `try` 体里捕获的续延,那个 try 的 handler 回来,重进的那段照样受保护。
@@ -750,7 +750,7 @@ IEnumerator ::= interface { by MoveNext : function = default
   实现块引用的 `Of` 就只在那儿可见)。
   **接口那半不用 `BodyScope`**(见 `StepClassInit` 里的 `LayerScope`):接口体是"给实现用的"
   (槽要落在实现身上),它得和实现块**共用一个环境** —— 实现写在哪,接口体就在哪解析,
-  这样 `use` 在哪个作用域里登记的实现在槽体里也看得见(`tests/219` 的"随作用域在/不在")。
+  这样 `use` 在哪个作用域里登记的实现在槽体里也看得见(`tests/218` 的"随作用域在/不在")。
   类的每层就不一样:它们各写各的,各按各的。
 
 代价是 `BaseInterface` 那份默认 `init` 也会落进实现 scope(`u.Fields ()` 里看得见一个 `init`)
@@ -900,7 +900,7 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
   没闭合的 `${` 报「插值没有收尾的 '}'」。
 - **和运算符 `$` 不冲突**:那个只在字符串**外面**有意义(见上面那节),这个只在**里面**。
 
-用例 `tests/239_interpolation.rav`。
+用例 `tests/237_interpolation.rav`。
 
 ## `$` / `@`（括号的语法糖）
 
@@ -961,7 +961,7 @@ add.name   # "add"
 没有别的信息能区分。`ParseMandatoryBlock`(`=>` 后面那个块)也要过这条检查。
 
 (这里曾经去掉过检查,理由是「`=>` 后面块是强制的、没有歧义」——那是按解析器好不好写
-在想问题。语言规则该由语言定;当时改完连 `tests/59`/`72` 都从「被语法错误抢先报错」
+在想问题。语言规则该由语言定;当时改完连 `tests/58`/`72` 都从「被语法错误抢先报错」
 变成了「靠语法错误通过」,两个用例始终没测到自己要测的 readonly/unreadable。)
 
 ## 序列方法(三种容器共用的一层)
@@ -1065,7 +1065,7 @@ impl (IComparable Rec { () })
 - 稳定性：键相等的保持原来的先后（`Merge` 里 `<= 0` 取左边）。
 - `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
 
-用例 `tests/234_icomparable.rav`。
+用例 `tests/217_icomparable.rav`。
 
 ## JSON（内置 `Json` 类，底层 Newtonsoft.Json）
 
@@ -1150,7 +1150,7 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 - 只做 syscall,**不做沙箱**(和文件那几条一个待遇):跑什么由调用方负责。
 
 引擎里的实现是 `System.Cmd`(`Runtime/Interpreter.System.cs`),`predefined.rav` 给全局别名
-`cmd`。用例 `tests/240_cmd.rav`。
+`cmd`。用例 `tests/229_cmd.rav`。
 
 ## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
 
@@ -1207,7 +1207,7 @@ d.SysGet (Rec 1 "甲")          # 报「dict.SysGet 的键得是值类型」—�
 **现装那条路（`by Key = property …`）在这儿用不了** —— 和 `CompareTo` 同一个理由：
 `Key` 这个名字 `Object` 上已经有了，成员查找是**类链先说话**，接口槽还没轮到。
 
-用例 `tests/235_ikey.rav`。
+用例 `tests/217_ikey.rav`。
 
 ## core 字段与 unsafe ()
 
@@ -1293,7 +1293,7 @@ Error: 未定义的变量 'missing'
 - 渲染在 `Runtime/ErrorReport.cs`：路径取相对 cwd、分隔符统一 `/`——报告短，
   且让 `tests/152_error_report.rav` 能精确比对（不是 `# expect-error` 那样只看前缀）。
 - **语法错误也走这份渲染**（`SyntaxException`，见 `RuntimeValue.cs`）：位置来自 token、
-  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/174_syntax_error_report.rav`）。
+  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/152_syntax_error_report.rav`）。
   它以前是个裸的 `System.Exception`，于是 CLI / 测试运行器分不清「用户代码写错了」
   和「解释器有 bug」——两者都落在同一个 `catch (Exception)` 里。现在三个类型各归各位：
   `RuntimeException`（求值期）/ `SyntaxException`（词法语法期）/ `ExitException`（exit 解栈），

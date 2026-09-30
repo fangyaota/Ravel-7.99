@@ -170,6 +170,152 @@ f := (a: int b: int) => {
 print (f 1 2)
 x = 100
 print (f 1 2)
+
+# ═══ 136_fn_meta(并入) ═══
+ravel "136_fn_meta"
+# fn.scope / fn.setScope
+# (原来还测 fn.setType 和 C.Proto (),但 setType 和 Proto 都已不存在——
+#  ADR-0001 里「Proto / Instantiate」本来就被判定为泄漏抽象、建议砍掉)
+f := () => { print "hi"; }
+print (typeof (f.Scope ()))
+
+# setScope:把函数的闭包 scope 换成实例 scope,于是函数能读到实例字段。
+# 拿实例 scope 得在类方法里用 currentScope ()——外面没有 API 能拿到它。
+C := class {
+    init = () => { 0; this; }
+    x: int = 99
+    attach := (fn: function) => { fn.SetScope (currentScope ()); }
+}
+g := () => { x; }
+c := C ()
+c.attach g
+print (g ())
+ravel ""
+
+# ═══ 177_param_type_mismatch(并入) ═══
+ravel "177_param_type_mismatch"
+# lambda 参数类型不对:消息要说清哪个参数、要什么、得到什么
+# 从前固定是四个字「类型不匹配」,调用失败时完全看不出错在哪
+f := (n: int) => { n; }
+# 注意 `{ f "abc"; }` 的分号:这是**表达式位置**的块,少了它会被当成 Set
+try { f "abc"; } (e: Exception) => { print ("1: " + string e); }
+# | 交替靠 TypeMismatchException 分流,消息变长不影响它
+g := f | (s: string) => { 0 - 1; }
+print (g "abc")
+print (g 7)
+ravel ""
+
+# ═══ 189_alternate_chain(并入) ═══
+ravel "189_alternate_chain"
+# `|` 三个以上分支也要能试到
+# `x | y | z` 解析成 `(x | y) | z`。从前 `|` 只是把两侧塞进 ControlFunction,
+# 于是外层那个 try 帧里那句 CallInto 只**推**了内层的帧就返回了,内层两分支都失败时
+# 抛的 TypeMismatchException 已经在外层 try 之外 —— 第三个分支永远试不到。
+# 现在 `|` 会把链条摊平成一个分支列表,一个帧顺序试完。
+f := (a: int) => { "int"; } | (a: string) => { "str"; } | (a: bool) => { "bool"; }
+print (f 1)
+print (f "x")
+print (f true)
+try { f 1.5; } (e: Exception) => { print ("none: " + string e); }
+# 两个分支照旧
+g := (a: int) => { "int"; } | (a: string) => { "str"; }
+print (g 1)
+print (g "x")
+try { g true; } (e: Exception) => { print ("none: " + string e); }
+# 四个分支
+h := (a: int) => { 0; } | (a: string) => { 1; } | (a: bool) => { 2; } | (a: float) => { 3; }
+print (h 1)
+print (h 1.5)
+print (h false)
+ravel ""
+
+# ═══ 206_cacher(并入) ═══
+ravel "206_cacher"
+# cacher count f:按实参缓存 f 的返回结果(记忆化)。`count` 是 **f 的参数个数**。
+# 缓存有没有生效,靠函数体里的副作用跑了几次来证明 —— 否则"命中"和"重算"看不出区别。
+
+Calls := 0
+slow := (x: int) => { Calls += 1; x * 10; }
+c1 := cacher 1 slow
+print (c1 1)
+print (c1 1)
+print (c1 2)
+print (c1 1)
+print ("单参算了 " + (string (Calls)) + " 次")
+
+# 两个参数的函数:喂够 2 个才算一次完整调用
+AddCalls := 0
+add := (a: int b: int) => { AddCalls += 1; a + b; }
+c2 := cacher 2 add
+print (c2 1 2)
+print (c2 1 2)
+print (c2 2 1)
+print (c2 1 3)
+print (c2 1 2)
+print ("加了两参的 " + (string (AddCalls)) + " 次")
+
+# 柯里化的半成品继续收参数,缓存认的是**整组**实参 —— 所以 half 拿到的那个半成品
+# 再喂 2,和刚才 `c2 1 2` 是同一个键(命中),而喂 9 是个新键
+half := c2 1
+print (half 2)
+print (half 9)
+print (half 2)
+print ("加了两参的 " + (string (AddCalls)) + " 次")
+
+# 原子值按值认,而 `1` 与 "1" 是两个键(拿字符串当键的缓存会把这两条撞成一条)
+EchoCalls := 0
+echo := (x: object) => { EchoCalls += 1; "算 " + string x; }
+ce := cacher 1 echo
+print (ce 1)
+print (ce "1")
+print (ce 1)
+print ("回声算了 " + (string (EchoCalls)) + " 次")
+
+# 对象按身份认:同一个对象命中,内容一样但另建一个的不命中
+C := class { init = () => { 0; this; }; }
+c := C ()
+ObjCalls := 0
+take := (o: object) => { ObjCalls += 1; "第一次看它"; }
+ct := cacher 1 take
+print (ct c)
+print (ct c)
+print (ct (C ()))
+print ("看对象看了 " + (string (ObjCalls)) + " 次")
+
+# 参数个数写错 -> 当场报错,不是悄悄收不满参数、永远不给结果
+try { cacher 0 add; } (e: Exception) => { print ("E: " + string e); }
+
+# 缓存是个**类型**(Cacher),但 init 交出的是**包装函数**而不是 this —— 拿到手就能直接调。
+# 所以 typeof 看到的是 Function,不是 Cacher。
+print (typeof (cacher 1 slow))
+print (Cacher.name)
+print (Cacher is type)
+# 每个 cacher 是**独立的一份缓存**:包同一个函数互不干扰
+TwoCalls := 0
+two := (x: int) => { TwoCalls += 1; x; }
+a1 := cacher 1 two
+a2 := cacher 1 two
+print (a1 5)
+print (a2 5)
+print (a1 5)
+print ("算了几次: " + string TwoCalls)
+
+# 无参函数:参数个数写 1,调用时喂 `()`。它的实参是 Void 值 ——
+# 这也正是 `Type` 那层 `==` 从前会崩的那条路(见 tests/207)。
+NoArgCalls := 0
+thunk := cacher 1 (() => { NoArgCalls += 1; "expensive"; })
+print (thunk ())
+print (thunk ())
+print ("算了几次: " + string NoArgCalls)
+
+# 正经用途:递归函数自己走缓存。函数体里读的是**外层那个名字**(调用时才解析),
+# 所以只要把缓存版的名字给它,递归的每一层都会经过缓存。
+FibCalls := 0
+fib: object = 0
+fib = cacher 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { (fib (n - 1)) + (fib (n - 2)); } })
+print (fib 25)
+print ("斐波那契算了几次: " + string FibCalls)
+ravel ""
 # --- expected ---
 # 42
 # 120
@@ -199,3 +345,54 @@ print (f 1 2)
 # hihihi
 # 13
 # 103
+# Scope
+# 99
+# 1: 参数 'n' 需要 Integer，得到 String
+# -1
+# 7
+# int
+# str
+# bool
+# none: | 的 3 个分支都不收这个参数（最后试的：参数 'a' 需要 Bool，得到 Float）
+# int
+# str
+# none: | 的 2 个分支都不收这个参数（最后试的：参数 'a' 需要 String，得到 Bool）
+# 0
+# 3
+# 2
+# 10
+# 10
+# 20
+# 10
+# 单参算了 2 次
+# 3
+# 3
+# 3
+# 4
+# 3
+# 加了两参的 3 次
+# 3
+# 10
+# 3
+# 加了两参的 4 次
+# 算 1
+# 算 1
+# 算 1
+# 回声算了 2 次
+# 第一次看它
+# 第一次看它
+# 第一次看它
+# 看对象看了 2 次
+# E: cacher 的参数个数至少是 1，得到 0
+# Function
+# Cacher
+# true
+# 5
+# 5
+# 5
+# 算了几次: 2
+# expensive
+# expensive
+# 算了几次: 1
+# 75025
+# 斐波那契算了几次: 26

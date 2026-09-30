@@ -118,6 +118,247 @@ print "cd"
 r := randint 1 10
 assert (1 <= r && r <= 9) "randint out of range"
 print "range ok"
+
+# ═══ 117_metaclass(并入) ═══
+ravel "117_metaclass"
+# metaclass:父类是 `type` 的类 —— 它建出来的东西是**类**,不是实例
+#
+# 沿用「覆盖之前先把继承来的存下来」这个惯用法(不需要 `base`):
+# 建类这件事本来就是 `type` 那层的 init 干的(参数标成 `type`,于是传块进来时会落到第二支),`parentInit := init` 把它存下来,
+# 覆盖之后照样能调到。
+MyMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        parentInit parent body
+    } | (body: function) => {
+        parentInit object body
+    }
+}
+print (typeof MyMeta)
+
+# 用 MyMeta 创建类:两分支的 init 让 `MyMeta { ... }`(不带父类)也能用
+MyClass := MyMeta {
+    init = () => { 0; this; }
+    x: int = 42
+}
+c := MyClass ()
+print (c.x)
+print (typeof MyClass)
+ravel ""
+
+# ═══ 118_metaclass_print(并入) ═══
+ravel "118_metaclass_print"
+# metaclass:在 init 里挂钩建类过程
+# `parentInit parent body` 就是"走默认那套建类逻辑",它返回建出来的那个类。
+LoggingMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        print "meta: creating..."
+        r := parentInit parent body
+        print "meta: done"
+        r
+    } | (body: function) => {
+        print "meta: creating..."
+        r := parentInit object body
+        print "meta: done"
+        r
+    }
+}
+M2 := LoggingMeta object {
+    init = () => { 0; this; }
+    name: string = "hello"
+}
+m := M2 ()
+print (m.name)
+ravel ""
+
+# ═══ 121_meta_default(并入) ═══
+ravel "121_meta_default"
+# metaclass:拿到建好的类再交出去(这里只是穿过去,真实用途是在这中间做手脚)
+HasDefaults ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        c := parentInit parent body
+        c
+    } | (body: function) => {
+        c := parentInit object body
+        c
+    }
+}
+Person ::= HasDefaults {
+    init = () => { name = "?"; age = 0; this; }
+    name: string = ""
+    age: int = 0
+}
+p := Person ()
+print (p.name)
+print (p.age)
+ravel ""
+
+# ═══ 122_meta_typeof(并入) ═══
+ravel "122_meta_typeof"
+# metaclass:typeof 检查链
+#   typeof 实例 = 它的类   typeof 类 = 它由谁建的   type 自己元类自指
+MyMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        parentInit parent body
+    } | (body: function) => {
+        parentInit object body
+    }
+}
+A ::= MyMeta object { init = () => { 0; this; }; }
+B ::= class { init = () => { 0; this; }; }
+print (typeof A)
+print (typeof B)
+print (typeof MyMeta)
+print (typeof (A ()))
+print (typeof (B ()))
+ravel ""
+
+# ═══ 126_meta_no_init(并入) ═══
+ravel "126_meta_no_init"
+# `class class {...}` 是个元类:它的父类是 `type`,于是继承了"建类"那层的 init。
+# 所以它建出来的东西是**类**,不是实例 —— 这条以前是 todo(元类没实现),现在成立。
+M ::= class class { x: int = 1; }
+C := M { init = () => { 0; this; }; y: int = 2 }
+print (typeof C)
+d := C ()
+print (d.y)
+# 没写 init 的类仍然调不动:引擎找构造器只看实例作用域那一层,
+# 不会沿原型链掉进 `type` 那层的默认建类逻辑(否则每个没写 init 的类都会去建类)
+print (typeof C.block)
+ravel ""
+
+# ═══ 164_subtypes_user_class(并入) ═══
+ravel "164_subtypes_user_class"
+# Subtypes() 该看得到用户类。AllTypes 以前只在静态构造器里填内置类型,
+# Define 不登记,于是 `object.Subtypes ()` 只列内置的。
+C ::= class { init = () => { 0; this; }; }
+D ::= class C { init = () => { 0; this; }; }
+print (C.Subtypes ())
+print ((C.parent) == object)
+ravel ""
+
+# ═══ 183_bool_is_function(并入) ═══
+ravel "183_bool_is_function"
+# 类型表里 Bool <: Function,值这边也必须跟上 —— 否则「类型说有这个方法、值却接不住」
+# 从前 BoolVal 是裸的 RuntimeValue,继承来的 Function 方法拿到 self 是 BoolVal,
+# `(FunctionVal)s` 直接抛 InvalidCastException(不是 RuntimeException,Ravel 的 try 接不住)
+print (true.Scope ())
+print (true.Prepend { 1; })
+print (true { 1; } { 2; })
+print ((typeof true) <: function)
+# 反过来,bool 是**数据**不是闭包,不能因为它是 FunctionVal 就被当成方法/半成品构造器
+C := class {
+    init = () => { true; this; }
+    flag: bool = true
+    n: int = 5
+}
+c := C ()
+print c
+print (c.Fields ())
+print (typeof c)
+# 相等性按值:`true` 和 `1 == 1` 算出来的 true 必须是同一个东西。
+# 它是 FunctionVal,所以不显式写就会落到 ObjectVal 的身份比较上
+# (record 合成的那个从前被 `Body` 里每次新建的捕获委托挡住了,一样是错的):
+# `{true}.Contains (1 == 1)` 会给 false,而 `{1 2 3}.Contains (1 + 2)` 给 true。
+print ({true}.Contains (1 == 1))
+print ({true false true}.Count ())
+print (typeof true)
+ravel ""
+
+# ═══ 191_class_is_type_alias(并入) ═══
+ravel "191_class_is_type_alias"
+# 没有单独的 Class 类型了:`class` 就是 `type` 的别名(同一个值)
+# 用户类直接挂在 Type 下面,所以 `typeof Person` 和 `typeof int` 都是 Type。
+print (class == type)
+print (typeof type)
+print (typeof class)
+C := class { init = () => { 0; this; }; x: int = 1; }
+print (typeof C)
+print (typeof (C ()))
+# 别名是同一个值,所以 type 也能建类(以前它被禁止建类)
+D := type { init = () => { 0; this; }; y: int = 2; }
+print ((D ()).y)
+print (typeof D)
+# 继承照旧:class Parent { ... } 走「参数是类型」那条分支
+E := class C { init = () => { x = 9; this; } }
+print ((E ()).x)
+print (type.parent)
+ravel ""
+
+# ═══ 193_metaclass_user_file(并入) ═══
+ravel "193_metaclass_user_file"
+# 用户手写的元类(原样收进来,只动了两处,见下)
+#
+# 相对 myMetaClass.rav 的两处改动:
+#   1. `parent: Type` → `parent: type` —— 大写 `Type` 不是全局别名,
+#      predefined.rav 只给小写别名(`type := System.Type`)。
+#   2. `print` 挪到 `parentInit` 之前 —— 构造**交出 init 的返回值**,
+#      而以 `print` 收尾时块的值是 `()`。要"建完再打"就用中间变量(见 118)。
+myMetaclass := class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        print "created by myMetaclass"
+        parentInit parent body
+    } | (body: function) => {
+        print "created by myMetaclass"
+        parentInit object body
+    }
+}
+MyClass ::= myMetaclass { init = () => { 0; this; }; x: int = 42; }
+c := MyClass ()
+print (c.x)
+print (typeof MyClass)          # 元类是 myMetaclass —— 它用 `:=` 建的、没名字,所以显示 class
+print (typeof c)                # 实例的类型是它的类
+print (typeof MyClass.block)    # 类体装上了
+print (typeof myMetaclass)
+ravel ""
+
+# ═══ 153_value_display(并入) ═══
+ravel "153_value_display"
+# 值和容器的打印形式
+
+# 对象:类名 + 数据字段。方法(含 init)和 this/block 这些机制字段不显示
+C := class { init = () => { 0; this; }; x: int = 1; s: string = "hi"; }
+c := C ()
+print c
+print ([c c])
+
+# `base` 从前也是机制字段(那套 super 机制早删了),于是**用户一个叫 base 的字段会被藏起来**。
+# 现在它只是普通名字,照常列出来。
+B := class { init = () => { 0; this; }; base: int = 9; }
+print (B ())
+
+# `:=` 建的类没有名字(只有 `::=` 命名),显示和报错时退化成 "class",
+# 而不是空串——否则错误信息是「类型 '' 不支持运算符」
+print (typeof c).name
+print (typeof c)
+
+# 函数打印成**它的代码**(函数值没有可显示的标量),::= 命名的带上名字。
+# 以前这些 record 会吐 C# 的自动 dump(System.Func`2[Ravel.Runtime...])
+print ((x: int) => { x; })
+add ::= (x: int) => { x; }
+print add
+# 柯里化喂过的实参跟在后面;签名里是**还等着**的那几个
+add2 := (a: int b: int) => { a + b; }
+print add2
+print (add2 1)
+print ((add2 1) 2)
+
+# 自引用容器靠深度护栏收住——以前是直接爆 C# 栈,进程都没了
+loop := []
+loop.Add loop
+print loop
+
+# 深度以内的嵌套照常展开
+print ([[[1]]])
+
+# 字典/集合
+print ({"a": 1 "b": "x"})
+print ({1 2 3})
+ravel ""
 # --- expected ---
 # Integer
 # Float
@@ -205,3 +446,60 @@ print "range ok"
 # true
 # abcd
 # range ok
+# Type
+# 42
+# MyMeta
+# meta: creating...
+# meta: done
+# hello
+# ?
+# 0
+# MyMeta
+# Type
+# Type
+# A
+# B
+# M
+# 2
+# Block
+# [Every D]
+# true
+# <scope>
+# <function true prepend { 1; }>
+# 1
+# true
+# class { flag = true, n = 5 }
+# [init flag n is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# class
+# true
+# 2
+# Bool
+# true
+# Type
+# Type
+# Type
+# class
+# 2
+# Type
+# 9
+# Function
+# created by myMetaclass
+# 42
+# class
+# MyClass
+# Block
+# Type
+# class { x = 1, s = hi }
+# [class { x = 1, s = hi } class { x = 1, s = hi }]
+# class { base = 9 }
+# class
+# class
+# <function (x: int) => { x; }>
+# <function add (x: int) => { x; }>
+# <function (a: int b: int) => { a + b; }>
+# <function (b: int) => { a + b; } applied a=1>
+# 3
+# [[[...]]]
+# [[[1]]]
+# {a: 1 b: x}
+# {1 2 3}
