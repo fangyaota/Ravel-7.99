@@ -1060,6 +1060,10 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
 （容器那批没这么办：`List`/`Set`/`Dict` 的值太常造，给每个值定义十几个成员太亏 ——
 它们的实例方法仍在类上，`list.Add 2` 照样会炸，是同一件事的另一个取舍。）
 
+**`Copy ()` 得记一笔**：`JsonVal` 要进 `CopyValue` 的 switch（浅拷那棵树、拷一份成员表），
+不然会退化成普通 `ObjectVal`、`Token` 全丢（新加一个 `ObjectVal` record 都要记得这条 ——
+`ListVal` / `SetVal` / `DictVal` 都在那儿）。
+
 依赖：`Ravel.csproj` 里的 `Newtonsoft.Json` 13.0.3（第二个包依赖，另一个是 Spectre.Console）。
 
 用例 `tests/241_json.rav`。

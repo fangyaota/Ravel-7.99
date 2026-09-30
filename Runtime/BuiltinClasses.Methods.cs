@@ -558,6 +558,9 @@ internal static partial class BuiltinClasses
         ListVal l => new ListVal([.. l.Elements], CopyScope(l.Scope)),
         SetVal s => new SetVal([.. s.Elements], CopyScope(s.Scope)),
         DictVal d => new DictVal(new Dictionary<RuntimeValue, RuntimeValue>(d.Entries), CopyScope(d.Scope)),
+        // Json 值:**浅拷**——那棵 `JToken` 树一起用(Ravel 这边没有改它的手段,`Get`/`At`
+        // 也是包个新 Json 指向同一棵树),要拷的是**成员表**(副本上 `tag = …` 才找得到)
+        JsonVal j => new JsonVal(j.Token, CopyScope(j.Scope)),
         // 必须排在 ObjectVal 之前:这四类现在也是 ObjectVal
         FunctionVal or ModuleVal or PropertyVal or ScopeVal => v,
         ObjectVal o => CopyObject(o),
