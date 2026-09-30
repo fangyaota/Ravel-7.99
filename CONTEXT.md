@@ -1074,15 +1074,16 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
   否则它会当成"解释器内部错误"把程序打穿、`try` 接不住。报错带行列。
 - 嵌套上限 64 层（防"容器包含自己"把栈转爆）。
 
-**实例方法住在"值自己的表"里**（`BuiltinClasses.NewJsonMembers`）：`JsonVal` 是 `ObjectVal`、
-本来就有自己的 `Scope`，实例方法就该放那儿 —— 放类上的话，类对象的成员表就是类自己的那张表，
-于是 `Json.Kind` 也能读到，调用时 `self` 是那个 `ClassVal`、方法体里 `((JsonVal)s)` 当场炸成
-「`!!` 解释器内部错误 InvalidCastException」（C# 异常，`try` 接不住）。放值自己表里之后：
-`Json.Kind` 是干净的「类型 'Type' 没有方法 'Kind'」，`j.tag := 1` 也只影响那一个值。
-（容器那批没这么办：`List`/`Set`/`Dict` 的值太常造，给每个值定义十几个成员太亏 ——
-它们的实例方法仍在类上，`list.Add 2` 照样会炸，是同一件事的另一个取舍。）
+**实例方法挂在类上**（`RegisterJsonMethods`：那九个 `Json.DefineMethod (…)`），
+靠 `forInstance` + `private` 分两侧：`j.Kind ()` ✓、`Json.Kind` 是干净的
+「类型 'Type' 没有方法 'Kind'」✓（见上面 "沿类链兜底只认 `forInstance`" 那条）。
+`JsonVal` 自己那层留给用户挂的东西（`j.tag := 1` 只影响那一个值）——和 `ListVal`/`DictVal` 同形状。
+（从前是**每个 Json 值一张表**：那时类那一侧拦不住，`Json.Kind` 会被解析成"类上的方法"，
+调用时 `self` 是那个 `ClassVal`、`((JsonVal)s)` 当场炸成「`!!` 解释器内部错误」。
+标记齐了这条理由就没了，而每个值一张表是要付钱的：`Get` / `At` 每取一个子节点就是一个新 Json 值。）
 
-**`Copy ()` 得记一笔**：`JsonVal` 要进 `CopyValue` 的 switch（浅拷那棵树、拷一份成员表），
+**`Copy ()` 得记一笔**：`JsonVal` 要进 `CopyValue` 的 switch（浅拷那棵树、拷一份自己那层的成员表
+—— 用户挂的 `j.tag` 别丢），
 不然会退化成普通 `ObjectVal`、`Token` 全丢（新加一个 `ObjectVal` record 都要记得这条 ——
 `ListVal` / `SetVal` / `DictVal` 都在那儿）。
 

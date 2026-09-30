@@ -127,40 +127,24 @@ internal static partial class BuiltinClasses
 
     private static JsonVal JsonOf(RuntimeValue v) => new(ToJson(v));
 
-    /// <summary>Json 那批成员(按类型分组,和别处一样)</summary>
-    /// <summary>注册 `Json` 这个**类型**上的东西。只有一条:解析。
+    /// <summary>Json 那一批成员(按类型分组,和别处一样)—— 实例方法挂在**类**上,
+    /// 靠 `forInstance` + `private` 这对标记分好两侧:
+    /// 实例读得到(`j.Kind ()`)、类对象那一侧读不到(`Json.Kind` → 「类型 'Type' 没有方法」)。
     ///
-    /// 注意**不是** `Json.DefineMethod (…)` 一下子把实例方法也挂上去 —— 见
-    /// <see cref="NewJsonMembers"/> 那段说明。</summary>
+    /// 从前这批成员是**每个 Json 值一张表**(`NewJsonMembers`):那时类那一侧没法拦,
+    /// `Json.Kind` 会被解析成"类上的方法",调用时 `self` 是那个 `ClassVal`、方法体里
+    /// `((JsonVal)s)` 当场炸成 `!! 解释器内部错误 InvalidCastException`。
+    /// 标记齐了之后那条理由就没了 —— 而每个值一张表是要付钱的:`Get` / `At` 每取一次子节点
+    /// 就造一个新 Json 值,每个都带一份 Scope + 十几个 BuiltinMethodVal。
+    /// 现在和容器那批(`List` / `Set` / `Dict`)一个路子,见 `Attr.ForInstance`。</summary>
     private static void RegisterJsonMethods()
     {
-        // 唯一的解析入口:挂在**类对象**上(即 `Json.FromString s`,和 `Type.Default` 那条同款)
-        // `isPrivate: false`:它就是**在类上读**的(`Json.FromString "…"`),挡了类那一侧就废了
+        // 唯一的解析入口:挂在**类对象**上(即 `Json.FromString s`,和 `Type.Default` 那条同款)。
+        // `isPrivate: false`:它就是**在类上读**的,挡了类那一侧就废了
         Json.DefineMethod("FromString", (_, a) => ParseJson(TextArg(a, "Json.FromString")),
             isPrivate: false);
-    }
 
-    /// <summary>一个 Json 值**自己的**成员表 —— 那批实例方法定义在这儿。
-    ///
-    /// **为什么不挂到类上**(像 `List.DefineMethod("Add", …)` 那样):类对象的成员表就是
-    /// **类自己的那张 scope**,于是从类对象上也能读到 —— `Json.Kind` 会被解析成"类上的
-    /// 方法",调用时 `self` 是那个 `ClassVal`,方法体里 `((JsonVal)s)` 当场炸成
-    /// `!! 解释器内部错误 InvalidCastException`(C# 异常,Ravel 的 `try` 接不住)。
-    ///
-    /// 而 `JsonVal` 是 `ObjectVal`,**本来就有自己的表**(`ObjectVal.Scope`)——
-    /// 实例方法就该放这儿:实例读得到 ✓、类对象读不到(于是 `Json.Kind` 是干净利落的
-    /// 「没有方法」)✓、每个值一张表也意味着 `j.tag := 1` 只影响那一个值 ✓。
-    ///
-    /// (容器那批没这么办:`List`/`Set`/`Dict` 的值是程序里最常造的东西,给每个值定义
-    /// 十几个成员太亏,所以它们的实例方法留在类上 —— 那边 `list.Add 2` 一样的炸法,
-    /// 是同一件事的另一个取舍。)</summary>
-    internal static Scope NewJsonMembers()
-    {
-        var scope = new Scope();
-        void Def(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-            => scope.DefineOrReplace(name, Function, new BuiltinMethodVal(impl) { Name = name });
-
-        Def("Kind", (s, _) => new StringVal(((JsonVal)s).Token.Type switch
+        Json.DefineMethod("Kind", (s, _) => new StringVal(((JsonVal)s).Token.Type switch
         {
             JTokenType.Object => "object",
             JTokenType.Array => "array",
@@ -170,10 +154,10 @@ internal static partial class BuiltinClasses
             _ => "null",
         }));
 
-        Def("IsNull", (s, _) => new BoolVal(
+        Json.DefineMethod("IsNull", (s, _) => new BoolVal(
             ((JsonVal)s).Token.Type is JTokenType.Null or JTokenType.Undefined));
 
-        Def("Get", (s, a) =>
+        Json.DefineMethod("Get", (s, a) =>
         {
             var key = TextArg(a, "Json.Get 的键");
             return ((JsonVal)s).Token is JObject o && o.TryGetValue(key, out var child)
@@ -182,7 +166,7 @@ internal static partial class BuiltinClasses
         });
 
         // `t.GetOr "k" 0` —— 没有就给替代值;替代值也包成 Json,免得"取到的"和"给的"两种形状
-        Def("GetOr", (s, a) =>
+        Json.DefineMethod("GetOr", (s, a) =>
         {
             var key = TextArg(a, "Json.GetOr 的键");
             return FunctionVal.From(dflt =>
@@ -191,7 +175,7 @@ internal static partial class BuiltinClasses
                     : JsonOf(dflt));
         });
 
-        Def("At", (s, a) =>
+        Json.DefineMethod("At", (s, a) =>
         {
             var i = IntArg(a, "Json.At");
             var arr = ((JsonVal)s).Token as JArray
@@ -201,24 +185,22 @@ internal static partial class BuiltinClasses
             return new JsonVal(arr[i]);
         });
 
-        Def("Count", (s, _) => new IntVal(((JsonVal)s).Token switch
+        Json.DefineMethod("Count", (s, _) => new IntVal(((JsonVal)s).Token switch
         {
             JObject o => o.Count,
             JArray a => a.Count,
             var t => throw new RuntimeException($"Json.Count: 这是 {t.Type}，没有「个数」"),
         }));
 
-        Def("Keys", (s, _) => new ListVal([
+        Json.DefineMethod("Keys", (s, _) => new ListVal([
             .. KeysOf((JsonVal)s).Select(k => (RuntimeValue)new StringVal(k))]));
 
         // `t.Text ()` 紧凑(实参是 ());`t.Text 2` 缩进两格
-        Def("Text", (s, a) => new StringVal(a is IntVal n
+        Json.DefineMethod("Text", (s, a) => new StringVal(a is IntVal n
             ? WriteJson(((JsonVal)s).Token, n.Value)
             : WriteJson(((JsonVal)s).Token, null)));
 
-        Def("Extract", (s, _) => FromJson(((JsonVal)s).Token));
-
-        return scope;
+        Json.DefineMethod("Extract", (s, _) => FromJson(((JsonVal)s).Token));
     }
 
     private static List<string> KeysOf(JsonVal j) => j.Token is JObject o

@@ -15,15 +15,19 @@ namespace Ravel.Runtime;
 ///
 /// `JToken` **不用 Dispose**(不是 IDisposable),所以这里不必持有别的活东西。
 ///
-/// **实例方法在值自己的表里**(`NewJsonMembers`):`JsonVal` 是 ObjectVal、本来就有自己的
-/// scope,实例方法就该放这儿 —— 放类上的话,类对象也能读到 `Kind`,调用时 `self` 是那个
-/// ClassVal,C# 强转当场炸(「!! 解释器内部错误」)。</summary>
+/// **方法在类那层**(`Json`),靠 `forInstance` + `private` 分两侧:实例读得到 `Kind ()`,
+/// 类对象那一侧读不到(`Json.Kind` → 「类型 'Type' 没有方法」)。自己那层留给用户挂的东西
+/// (`j.tag := 1`),实例化时是空的 —— 和 `ListVal` / `DictVal` 一个形状。
+///
+/// (从前是每个值一张成员表:那时类那一侧没法拦,`Json.Kind` 调用时会拿 `ClassVal` 当
+/// `self`、C# 强转当场炸。标记齐了就不必再给每个值造一份 —— 而 `Get` / `At` 每取一个子节点
+/// 就是一个新 Json 值。)</summary>
 public record JsonVal : ObjectVal
 {
     public JToken Token { get; init; }
 
     public JsonVal(JToken token, Scope? members = null)
-        : base(BuiltinClasses.Json, members ?? BuiltinClasses.NewJsonMembers())
+        : base(BuiltinClasses.Json, members ?? new Scope())
         => Token = token;
 
     /// <summary>显示成**紧凑的 JSON 文本**(和 `t.Text ()` 一样)——
