@@ -1813,6 +1813,10 @@ print (p.Fields ())   # [init name age ToString Copy Fields]
 模块（`ravel`/`using` 建立的）的成员就是它作用域里的变量，排在最前。
 只排掉 `this`：它是这个值自己，不是成员。
 
+**列的永远是"这一侧读得到的"**：从一个**类对象**上问（`list.Fields ()` / `Json.Fields ()`），
+里面就没有那些内置**实例方法**（`Add`/`Map`/`Kind`…）——它们带 `private`，类那一侧读不到
+（`list.Add 2` 报「没有方法」），列出来等于骗人；它们在**实例**那一侧列（`[1 2].Fields ()`）。
+
 `print p` 是另一回事——它是**数据快照**，方法不出现在里面（`class { name = ..., age = ... }`）。
 
 ### 7.10 元类

@@ -482,8 +482,11 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   （`BuiltinClasses.EngineMember` 是唯一的注册口）。
   实例那一侧 `forInstance` 成员不受私有门禁管（`CheckFieldAccess` 直接放行）：它们的
   "不公开"在另一侧；用户写在自己类里的 `private` 字段**照旧**只认"本对象内部"那条老规矩。
-  `Fields ()` 列名字不按这条过滤（和机制成员一个道理：`init`/`parent` 也列，读不到是另一回事）。
-  用例：`tests/242`。
+  **`Fields ()` 和查找共用同一份判据**：类那一侧列出来的就是那一侧读得到的 ——
+  `list.Fields ()` / `Json.Fields ()` 里没有 `Add` / `Kind` 那批（它们是"给实例的成员"，
+  在实例那一侧列），`Json.FromString` / 运算符不在 private 那一批里、照旧列。
+  实例那一侧照单全收（`[1 2].Fields ()` 仍是整串方法）。
+  用例：`tests/242`、`tests/241`（`Json.Fields ()` 那一行）。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
   绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，

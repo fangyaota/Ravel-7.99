@@ -41,16 +41,18 @@ internal sealed class MemberView(Scope? own, ObjectVal type, bool classSide = fa
         return classSide && ownVar.HasAttr(Attr.Private) ? null : ownVar;
     }
 
-    /// <summary>这个值**有哪些成员** —— 就是"查找能解析出什么",**类链那半**共用同一份判据
-    /// (见 <see cref="LookupField"/>:带 `forInstance` 才算是这个值的成员)。
+    /// <summary>这个值**有哪些成员** —— 就是"查找能解析出什么",两段和 <see cref="LookupField"/>
+    /// **共用同一份判据**:
+    /// 类链那半只收带 `forInstance` 的(见 <see cref="ObjectVal.MethodNames"/>),
+    /// 自己那层在**类那一侧**也把 `private` 挡掉(`ReadOwn` 挡的那批就是这同一批)。
     ///
-    /// 自己那层照单全收,连**类那一侧读不到的 `private`** 也列出来 —— 和机制成员一个道理:
-    /// `Fields ()` 列的是"这个 Scope 里有哪些名字"(`init` / `parent` 也列,读不到是另一回事),
-    /// 拦的只是**读**。不收自己那层的话,模块里一个叫 `name` 的变量就没了 ——
-    /// 它不是机制成员,是用户的变量。
+    /// 于是 `list.Fields ()` / `Json.Fields ()` 里没有 `Add` / `Kind` 那批 ——
+    /// 它们**从这一侧读不到**,列出来等于骗人(那是"给实例的成员",在实例那侧列)。
+    /// 类那一侧本来就要用的(`Json.FromString`、运算符)不在 private 那一批里,照旧列。
     ///
-    /// 唯一排掉的是 `this`:它不是"这个值的成员",是**这个值自己**的别名,引擎为了让
-    /// 类体写得出 `this` 才注入的。</summary>
+    /// 不收自己那层的话,模块里一个叫 `name` 的变量就没了 —— 它不是机制成员,是用户的变量。
+    /// 唯一另外排掉的是 `this`:它不是"这个值的成员",是**这个值自己**的别名,
+    /// 引擎为了让类体写得出 `this` 才注入的。</summary>
     public override IEnumerable<string> MemberNames => Names();
 
     private IEnumerable<string> Names()
@@ -58,8 +60,11 @@ internal sealed class MemberView(Scope? own, ObjectVal type, bool classSide = fa
         var seen = new HashSet<string>();
         if (own != null)
             foreach (var kv in own.Variables)
-                if (kv.Key != ObjectVal.ThisMember && seen.Add(kv.Key))
-                    yield return kv.Key;
+            {
+                if (kv.Key == ObjectVal.ThisMember) continue;
+                if (classSide && kv.Value.HasAttr(Attr.Private)) continue;
+                if (seen.Add(kv.Key)) yield return kv.Key;
+            }
 
         foreach (var t in ClassChain())
             foreach (var n in t.MethodNames)
