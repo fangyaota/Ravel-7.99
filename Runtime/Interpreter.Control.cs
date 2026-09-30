@@ -155,7 +155,7 @@ public partial class Interpreter
         {
             var instanceScope = new Scope(type.ClassBody!.CaptureScope);
             // 造出来的东西是类还是实例,取决于**被实例化的那个类**是不是 `type` 的子类
-            // (走 parent 原型链,不是元类链):
+            // (走 `parent` 原型链,不是"元类"那条):
             //   `type { body }` → `type <: type` 自反 → 造出来的就是类对象(ClassVal)
             //   `MyMeta := class type {…}` → MyMeta <: type → 同上
             //   `C := class {…}` 的实例 → C 的 parent 链是 `C → object`,不含 type → 普通实例

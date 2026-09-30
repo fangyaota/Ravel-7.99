@@ -64,15 +64,27 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
         return null;
     }
 
-    /// <summary>这个值所属的类,以及它沿 parent 的原型链上游(`object`/`Every`/`Any`
-    /// 自引用时到头)。**只取类对象**:链上理论上都是类(`parent` 是建类时装进去的),
-    /// 万一有个普通对象被当父类挂着,它没有实例表可言、也就贡献不了成员。</summary>
+    /// <summary>「**往上查**」那一半:这个值所属的类,再沿它的 `parent` 一层层往上。
+    ///
+    /// 就一条规则 —— 值读成员是"自己那层 + 它的类那层 + 类往上那些层";**类对象也是值**
+    /// (它的类是它的元类),所以从类对象上读成员时起点落在元类,一路还是"往上",不是另一条链。
+    ///
+    /// 自引用(`parent` 是自己)是"链到头"的标记。**唯一的例外**是 `object` 以外的两个自指:
+    /// `Every` / `Any` 借自指表示"不在继承链上"(底类型/顶类型按特判挂靠),而"任何值都有"
+    /// 的那批(`ToString` / `Copy` / `Fields` / `is` / `==`…)住在 `object` 上 ——
+    /// 所以它们**接上 `object` 再走完**。`object` 自己是根,到它就是到头。
+    ///
+    /// **只取类对象**:链上理论上都是类(`parent` 是建类时装进去的),万一有个普通对象
+    /// 被当父类挂着,它没有实例表可言、也就贡献不了成员。</summary>
     private IEnumerable<ClassVal> ClassChain()
     {
-        for (var t = type as ClassVal; t != null; t = t.Parent as ClassVal)
+        var t = type as ClassVal;
+        while (t != null)
         {
             yield return t;
-            if (t.Parent == t) yield break;     // 链到头
+            if (t.Parent != t) { t = t.Parent as ClassVal; continue; }   // 往上一层
+            if (t == BuiltinClasses.Object) yield break;                 // 根
+            t = BuiltinClasses.Object;                                   // Every / Any:接到 object
         }
     }
 

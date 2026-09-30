@@ -3,7 +3,7 @@ namespace Ravel.Runtime;
 /// <summary>类对象 —— 一个类就是一个 `ClassVal`。实例仍然是 <see cref="ObjectVal"/>。
 ///
 /// **类对象是一种函数**(`ClassVal : FunctionVal`),所以"能不能调用"落回**类型关系**
-/// (是不是函数),和 `IsClass`(元类链上有没有 `type`)同一个路子 —— 不必再在 Scope 里
+/// (是不是函数),和 `IsClass`(沿 `parent` 往上能不能查到 `type`)同一个路子 —— 不必再在 Scope 里
 /// 塞一个 `call` 成员、读出来绑成 `BoundCall` 再转发到实例化帧。类对象自己就是那个
 /// 可调用的东西,没有中间商。
 ///
@@ -39,7 +39,7 @@ public record ClassVal : FunctionVal
     ///   (`MemberView.LookupInClassChain` 沿 `parent` 链读的就是它)。
     ///
     /// 于是 `list.Add 2` 从**类那一侧**根本找不到(`Add` 不在 `List.Scope` 里,
-    /// 元类链上也没有),报的是干净的「类型 'Type' 没有方法 'Add'」——从前得靠
+    /// 再往上也没有),报的是干净的「类型 'Type' 没有方法 'Add'」——从前得靠
     /// `forInstance` + `private` 两个标记去挡,而那两个标记的判据其实就是"住哪张表"。
     ///
     /// 每张表一个类一份、内容是空的直到引擎挂东西,所以便宜;`Copy ()` 也不需要管它

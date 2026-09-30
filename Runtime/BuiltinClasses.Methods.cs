@@ -374,7 +374,7 @@ internal static partial class BuiltinClasses
         // 是求值器 —— 这里只挂上那个"绑好接收者、调用时由 CallInto 认出"的成员值。
         Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));
         // 挂在 `Type` 的**实例表**上:`Option.GetImplements ()` 里的 `Option` 是 `type` 的实例,
-        // 经元类链兜到这一张(`Option` 自己的表里没有,元类链上游 `Type` 那张里有)✓
+        // 沿 `parent` 往上兜到这一张(`Option` 自己的表里没有,`Type` 那张里有)✓
         EngineMember(Type, "GetImplements", new TraitQuery("GetImplements", TraitQueryKind.Implements));
         EngineMember(Type, "GetImplementors", new TraitQuery("GetImplementors", TraitQueryKind.Implementors));
         Type.DefineMethod("Subtypes", (s, _) =>
@@ -391,8 +391,8 @@ internal static partial class BuiltinClasses
         });
     }
 
-    /// <summary>取接收者当函数用。**不能硬转 `(FunctionVal)s`**:类对象的元类链里有
-    /// `Function`(type <: function),所以 `Fields ()` 会把 Function 的方法列成类的可用方法,
+    /// <summary>取接收者当函数用。**不能硬转 `(FunctionVal)s`**:类对象往上查到 `Function` 那层
+    /// (type <: function),所以 `Fields ()` 会把 Function 的方法列成类的可用方法,
     /// 而类对象是 `ObjectVal` —— 硬转就抛 InvalidCastException 漏到顶层。
     /// 换句话说,这是 BoolVal 那个「类型说有、值却接不住」的**反向**同款。</summary>
     private static FunctionVal AsFunction(RuntimeValue s, string what)

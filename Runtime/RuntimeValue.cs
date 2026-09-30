@@ -3,7 +3,7 @@
 /// <summary>运行时值的抽象基类</summary>
 public abstract record RuntimeValue
 {
-    /// <summary>这个值的类对象(元类链上的创建者)。`typeof X` 取的就是它。</summary>
+    /// <summary>这个值的类对象(创建它的那个类;类对象的"类"就是它的元类)。`typeof X` 取的就是它。</summary>
     public abstract ObjectVal Type { get; }
 
     /// <summary>这是个真的闭包(方法 / lambda / 内置函数 / 块),而不是**恰好**

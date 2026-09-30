@@ -38,7 +38,7 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Void;
 
     /// <summary>元类型 —— 所有类型的类型，也是"建类"这个动作本身（`class` 是它的别名）。
-    /// 它的元类是**它自己**（自指，元类链的起点）。用户类直接挂在它下面。</summary>
+    /// 它的元类是**它自己**（自指）。用户类直接挂在它下面。</summary>
     public static readonly ClassVal Type;
 
     // 底类型 — 为所有类的子类，default 是其唯一实例；不在继承树里，IsAssignableTo 全局特判

@@ -323,7 +323,7 @@ RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
 - **能不能调用** ⟺ `is FunctionVal`。类对象自己就是那个可调用的东西：`CallInto` 见
   `case ClassVal` 就推 ClassInit 帧。没有 `call` 成员、也没有中间的 `BoundCall` 转发
   （那套连同用户自定义 `call` 的能力一起删掉了）。
-- **`IsClass`**（我本身是不是一个类）⟺ **元类链上有 `type`**。
+- **`IsClass`**（我本身是不是一个类）⟺ **沿 `parent` 往上能查到 `type`**。
   注意它和"实例化造出来的是什么"走**两条不同的链**：`IsClass` 走**元类**链，
   而 `StepClassInit` 造 `ClassVal` 还是 `ObjectVal` 看的是**被实例化的那个类**的
   **parent** 链（`type { body }` 里 `type <: type` 自反 → 造出来的就是类对象）。
@@ -489,10 +489,11 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
     而 `LambdaVal.Body` 是"求值器漏了 case"的哨兵，所以那边必须 `is ISelfBinding` 才绑
     （`ClassOp` 帧里 `CallInto(cf, impl, arg)` 也是这么调的，两边一致）。
   - **"任何值都有"的那批写在 `object` 上**（`is` / `isnot` / `<:` / `:>` / `==` / `!=`）：
-    值那条链都到 `object`，所以谁都摸得到；而自指的 `Every` / `Any`（`parent` 是自己、链到头）
-    够不着，于是**它们两个也各挂一份**（`RegisterOperators` 里那个 `foreach (Object, Every, Any)`）。
-    `==` / `!=` 从前挂在 `Type` 上（靠元类链蒙到所有类对象），改走 `MemberScope` 之后挂 `object`
-    —— 否则普通实例、`property`、`()` 这些值的链都不经过 `Type`，`==` 会找不到。
+    往上一层层查，每个类都到 `object`，所以谁都摸得到 —— 自指的 `Every` / `Any` 也一样
+    （`MemberView.ClassChain` 里那条"自指的不是 `object` 就接上 `object`"）。就这一条规则，
+    **没有第二条链**：类对象是值、它的类是它的元类，从类对象往上查照样是"往上"。
+    `==` / `!=` 从前挂在 `Type` 上（靠"类对象往上会经过 `Type`"蒙到它们），改走 `MemberScope`
+    之后挂 `object` —— 否则普通实例、`property`、`()` 这些值往上都不经过 `Type`，`==` 会找不到。
 - **`private` 回到一件事**：实例侧的门禁（"当前作用域在不在这个对象的类里"）。内置方法不带它
   ——它们在实例表里、谁都读得到；借去当"方向"的那套（`MemberView` 的 `classSide` / `ReadOwn`）
   随两张表一起删了。用户写在自己类里的 `private` 字段照旧只认"本对象内部"那条老规矩。

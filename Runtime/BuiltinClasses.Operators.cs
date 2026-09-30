@@ -167,42 +167,35 @@ internal static partial class BuiltinClasses
         //   `int is type`  类对象是 type 的实例           ✓
         //   `default is int`  Every(底类型)特判           ✓
         // 右边必须是个类型对象,否则报 Ravel 错误(不是 InvalidCastException)。
-        // **Object + 自指的那两个也各挂一份**。这几条按设计是"任何值都有",靠的是
-        // "每个类的 parent 链都到 Object"—— 而 `Every` / `Any` 的 `parent` 是自己(链到头),
-        // 到不了 Object。从前运算符走**元类链**时它们蒙对了;运算符改走 `MemberScope`
-        // (值自己那层 → 沿类的 parent 链的实例表)之后,得在这儿明说。
-        foreach (var t in new[] { Object, Every, Any })
-        {
-            DefineOp(t, "is", (a, b) => new BoolVal(IsA(a, b, "is")));
-            DefineOp(t, "isnot", (a, b) => new BoolVal(!IsA(a, b, "isnot")));
-            DefineOp(t, "==", (a, b) => new BoolVal(SameValue(a, b, "==")));
-            DefineOp(t, "!=", (a, b) => new BoolVal(!SameValue(a, b, "!=")));
-        }
+        // 挂 Object 上,**任何值**都查得到 —— 值读成员是"自己那层 + 沿 `parent` 往上",
+        // 而每个类的 `parent` 链都到 `object`(自指的 `Every`/`Any` 在
+        // `MemberView.ClassChain` 里接上 `object`,所以它们也照样够得着)。
+        DefineOp(Object, "is", (a, b) => new BoolVal(IsA(a, b, "is")));
+        DefineOp(Object, "isnot", (a, b) => new BoolVal(!IsA(a, b, "isnot")));
+        DefineOp(Object, "==", (a, b) => new BoolVal(SameValue(a, b, "==")));
+        DefineOp(Object, "!=", (a, b) => new BoolVal(!SameValue(a, b, "!=")));
 
         // 类型**之间**:`A <: B`(A 是不是 B 的子类型)/ `A :> B`(父类型)。
         // 和 `is` 分工清楚:`is` 收**值**("这个值是不是这个类型"),这一对两边都得是**类型对象**。
         // 也注册在 Object 上,是为了报错能说人话(`1 <: int` 得到的是「左边得是个类型」,
         // 而不是「类型 Integer 不支持运算符」)。接口那一半("这个类在当前作用域里算不算那个接口")
         // 要问作用域,在求值器里补 —— 这里只给名义答案。
-        foreach (var t in new[] { Object, Every, Any })   // 同上:自指那两个也缺不得
+        DefineOp(Object, "<:", (a, b) =>
         {
-            DefineOp(t, "<:", (a, b) =>
-            {
-                var (x, y) = AsTypes(a, b, "<:");
-                return new BoolVal(x.IsAssignableTo(y));
-            });
-            DefineOp(t, ":>", (a, b) =>
-            {
-                var (x, y) = AsTypes(a, b, ":>");
-                return new BoolVal(y.IsAssignableTo(x));
-            });
-        }
+            var (x, y) = AsTypes(a, b, "<:");
+            return new BoolVal(x.IsAssignableTo(y));
+        });
+        DefineOp(Object, ":>", (a, b) =>
+        {
+            var (x, y) = AsTypes(a, b, ":>");
+            return new BoolVal(y.IsAssignableTo(x));
+        });
 
         // `==` / `!=`:对象按身份比(`SameValue`;类对象也是对象,所以"类型之间"和
         // "实例之间"用的**同一个实现**,只是各自的表不同)。挂在 Object 上而不是 Type 上
-        // —— 运算符走的是"值自己那条链"(`MemberScope`),而任何值那条链都到 Object;
-        // 挂在 Type 上只有**类对象**(元类链会经过 Type)够得着,普通实例、属性、`()`
-        // 这些就都摸不到了。
+        // —— 运算符查的是 `MemberScope`(自己那层 + 沿 `parent` 往上),而任何值往上都到
+        // Object;挂在 Type 上只有**类对象**够得着(它从元类起往上走会经过 Type),
+        // 普通实例、属性、`()` 这些就都摸不到了。
 
         // bool 逻辑运算符
         DefineOp(Bool, "&", (a, b) => new BoolVal(((BoolVal)a).Value && Operand<BoolVal>(b, "&").Value));
@@ -255,7 +248,7 @@ internal static partial class BuiltinClasses
     /// <summary>`Type` 那层 `==` / `!=` 的实现:<see cref="ObjectVal"/> 按**身份**比,
     /// 原子值按**值**比(`()` 是单例,异常值比消息)。
     ///
-    /// **两边都不能硬转 `ObjectVal`** —— 这条运算符是沿**元类链**兜底找来的
+    /// **两边都不能硬转 `ObjectVal`** —— 这条运算符是沿 `parent` 往上兜底找来的
     /// (`MemberView` 查完值自己那一层,还要往它的元类走),于是 `()`(Void)、
     /// `default`(Every)、异常值这些**原子值**也走得到它:硬转会抛 C# 的
     /// InvalidCastException 漏到顶层,`print (() == ())` 从前就是这么把程序打掉的
