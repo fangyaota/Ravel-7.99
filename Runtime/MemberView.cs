@@ -9,9 +9,14 @@ namespace Ravel.Runtime;
 /// 2. 沿**类对象的 parent 链**兜底:方法住在类那层,`1.Fields ()` 的 `Fields`
 ///    就在 `Integer → ValueType → Object` 链上的 `Object` 那层。
 ///
-/// 第 2 段**只认方法名**(<see cref="ObjectVal.IsMethodName"/>)且只收 `FunctionVal`:
-/// 类对象的表里还躺着 `parent`/`block`/`name`/`this`/`init` —— 那些是**类自己的数据**,
-/// 不是"这个值的成员"。不挡的话 `(5).parent` 会从报错变成返回 `ValueType`。
+/// 第 2 段**只认带 `forInstance` 标记的成员**(<see cref="Attr.ForInstance"/>),外加一条
+/// 机制名过滤(<see cref="ObjectVal.IsMethodName"/>):类对象的表里还躺着
+/// `parent`/`block`/`name`/`this`/`init` —— 那些是**类自己的数据**,不是"这个值的成员",
+/// 不挡的话 `(5).parent` 会从报错变成返回 `ValueType`。
+///
+/// 从前那半的判据是"值是不是 `FunctionVal`"这么一个猜法,于是**用户在类上挂的任何函数
+/// 都会漏给所有实例**(`C.func := …` → `c.func` 也读得到);挂数据则读不到 —— 同一件事
+/// 两个答案,全看那个值碰巧长什么样。现在凭据只有一个:带标记才给。
 ///
 /// 只读:定义/赋值一律拒绝。往这儿写等于把字段挂到整个类型上。
 ///
@@ -46,14 +51,18 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
                     yield return n;
     }
 
-    /// <summary>沿类对象的 parent 链找方法。自引用(`object`/`Every`/`Any` 的 parent 是自己)就地停。</summary>
-    private Variable? LookupInClassChain(string name)
+    /// <summary>沿类对象的 parent 链找**实例可见**的成员(`forInstance` 标记)。
+    /// 自引用(`object`/`Every`/`Any` 的 parent 是自己)就地停。
+    ///
+    /// 判据和 <see cref="ObjectVal.MethodNames"/>(`Fields ()` 那半)必须一致 ——
+    /// "查得到"和"列得出"是同一个问题的两个问法。</summary>
+    internal Variable? LookupInClassChain(string name)
     {
         if (!ObjectVal.IsMethodName(name)) return null;
         foreach (var t in ClassChain())
         {
             var vr = t.Scope.LookupField(name);
-            if (vr?.Value is FunctionVal) return vr;
+            if (vr != null && vr.HasAttr(Attr.ForInstance)) return vr;
         }
 
         return null;

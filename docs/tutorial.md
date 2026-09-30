@@ -1585,6 +1585,7 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 | `unreadable` | 读取时报「变量 'x' 不可读取」|
 | `outdated` | 读取时往 stderr 打一行 `[outdated] 'x' is deprecated` |
 | `core` | 读写都需要先 `unsafe ()`，见「十一、常见陷阱」 |
+| `forInstance` | **内部修饰符**：带它的成员实例才沿类链读得到（引擎挂内置方法时用）。用户写得先 `unsafe ()` |
 | `by` | 属性（getter/setter），见 7.7 |
 
 `lib/` 里的 API 都标了 `readonly`：`predefined.rav` 的语言级别名（`print` / `true` /
@@ -1597,6 +1598,22 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 **`override` / `new` 已删除**：它们从前被解析器接受、记进 attrs，而全库没有一处读它们
 （语言里既没有重载也没有重定义检查），写上去等于没写。现在写出来会明确报
 「'override' 修饰符已删除」。
+
+**挂在类上的东西，实例看不到。** 类体里写的字段/方法在实例化时落进**每个实例自己的表**，
+谁都能读；而事后往**类对象**上挂的（`C.func := …`）只进类自己那张表，实例一个都读不到：
+
+```ravel
+C ::= class { n: int = 7 }
+c := C ()
+C.func := (x: int) => { x + 1; }
+print C.func 5      # 6      —— 类对象自己读得到
+c.func 5            # ❌ 类型 'C' 没有方法 'func'
+c.n                 # 7      —— 类体里的字段在实例自己身上
+```
+
+沿类链兜底那一半**只认带 `forInstance` 标记的成员**（引擎给自己挂的内置方法、
+类运算符、序列方法都带）。想让实例看得见，就写在类体里（那才是每个实例自己的成员）。
+用例见 `tests/242`。
 
 **`init` 不在表里**——它只是构造器的名字，不是修饰符（见 7.2）。
 

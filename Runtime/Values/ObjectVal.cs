@@ -135,7 +135,8 @@ public record ObjectVal : RuntimeValue
     /// <summary>机制成员名 —— 它们**不是方法**:是类对象自己身上的数据(原型链指针、类体、
     /// 构造器、`this`)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
     ///
-    /// `Fields ()` 列方法时排掉它们、`TryLookupMethod` 找方法时也要排掉 —— **两处必须同一份定义**。
+    /// `Fields ()` 列成员(<see cref="MethodNames"/>)时排掉它们、沿类链查找
+    /// (<see cref="MemberView.LookupInClassChain"/>)时也要排掉 —— **两处必须同一份定义**。
     /// 这个漏过一回:机制成员被沿链找到、再被当方法绑到非对象 receiver 上,
     /// `(ObjectVal)self` 硬转就抛 InvalidCastException。
     ///
@@ -179,23 +180,37 @@ public record ObjectVal : RuntimeValue
     //  注册(S1 阶段内置成员仍走这里,S2 会改成往类体的 Scope 里定义)
     // ============================================================
 
-    /// <summary>注册内置同步方法:BuiltinMethodVal 标记,分派走快速同步路径</summary>
-    internal void DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => Scope.DefineOrReplace(name, BuiltinClasses.Function, new BuiltinMethodVal(impl) { Name = name });
+    /// <summary>注册内置同步方法:BuiltinMethodVal 标记,分派走快速同步路径。
+    ///
+    /// 同时挂两个属性,它们是**内置方法的身份**:
+    /// - <see cref="Attr.ForInstance"/> —— 实例沿类链兜底兜得到它(判据就在 MemberView 那一处);
+    /// - <see cref="Attr.Readonly"/> —— 谁都换不掉它(`List.Add = f` 报「无法给只读变量赋值」)。
+    ///
+    /// 这就是**引擎内部**的注册口:走这条路的都自动带上属性,所以那一串 `X.DefineMethod (…)`
+    /// 一行都不用改。用户代码碰不到它(它不在语言里,只有 C# 侧调得到)。</summary>
+    internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
+        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name });
 
     /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
-    /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。</summary>
+    /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。
+    ///
+    /// 只挂 `forInstance`(运算符是给实例用的),**不挂 readonly**:这条路上走的是**用户**类体里
+    /// 那句 `+ := f`(见 `BuiltinClasses.Install` 扫类体),照样得有覆盖的余地。</summary>
     internal void DefineClassOperator(string op)
-        => Scope.DefineOrReplace(op, BuiltinClasses.Function, new ClassOperatorFactory(op) { Name = op });
+        => BuiltinClasses.EngineMember(
+            this, op, new ClassOperatorFactory(op) { Name = op }, readOnly: false);
 
-    /// <summary>本层定义过的**方法**名(给 `Fields ()` 和类链查找用)。
-    /// 机制成员要排掉:`block` 是代码块(它也是 FunctionVal)、`call` 是"可调用"的凭据、
-    /// `parent` 是原型链指针、`init` 是构造器——它们都不是用户眼里的"方法"。
+    /// <summary>本层里**实例看得到**的成员名(给 `Fields ()` 和类链查找用)——
+    /// 判据和 <see cref="MemberView.LookupField"/> 那半**完全一致**:带 `forInstance` 标记、
+    /// 且不是机制成员。两处共用这一份定义,不然"查得到"和"列得出"迟早分叉。
+    ///
+    /// 机制成员要排掉:`block` 是代码块(它也是 FunctionVal)、`parent` 是原型链指针、
+    /// `init` 是构造器、`this` 是"这个值自己"的别名 —— 它们都不是"这个值的成员"。
     ///
     /// `init` 这一条容易漏:类体就跑在这个对象自己的实例作用域里,所以类对象的 Scope
     /// 里**装着它自己的构造器**,沿原型链查方法时会把子类的 `init` 一并列出来。</summary>
     internal IEnumerable<string> MethodNames => Scope.Variables
-        .Where(kv => kv.Value.Value is FunctionVal && IsMethodName(kv.Key))
+        .Where(kv => kv.Value.HasAttr(Attr.ForInstance) && IsMethodName(kv.Key))
         .Select(kv => kv.Key);
 
     // ============================================================

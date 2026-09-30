@@ -92,8 +92,10 @@ internal static partial class BuiltinClasses
         DefineSeq(type, "Fold", SeqMode.Fold, 4);      // 收两个:初值 + 函数(和 Aggregate(seed, f) 一致)
     }
 
+    /// <summary>高阶方法也是**引擎给这一类挂的成员**:走 <see cref="EngineMember"/>
+    /// (属性在那儿统一补 —— `SeqMethod` 不是 `BuiltinMethodVal`,所以没走 DefineMethod 那条路)。</summary>
     private static void DefineSeq(ObjectVal type, string name, SeqMode mode, int arity)
-        => type.Scope.DefineOrReplace(name, Function, new SeqMethod(mode, arity) { Name = name });
+        => EngineMember(type, name, new SeqMethod(mode, arity) { Name = name });
 
     /// <summary>任何容器的元素(按枚举顺序)。`Concat` 收别的容器时用它 ——
     /// 这是"C# 里接受 `IEnumerable`"这一步的临时形状,等接口出来了就换成接口。</summary>

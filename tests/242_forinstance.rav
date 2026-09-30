@@ -1,0 +1,70 @@
+# `forInstance`:**实例才看得到**的成员 —— 沿类链兜底那一半的唯一凭据。
+#
+# 从前那半的判据是"这个值是不是函数",于是**用户在类上挂的东西漏不漏全看它长什么样**:
+#     C.func := (x: int) => x + 1
+#     (C ()).func 5      → 6      # 挂的是函数 → 漏给所有实例
+#     C.num := 5
+#     (C ()).num         → 报错   # 挂的是数据 → 又不漏 —— 同一件事两个答案
+# 现在反过来:没带标记的东西实例一律看不到。引擎给自己挂的成员(内置方法、类运算符、
+# 序列方法、GetImplements 那种查询)都带它,所以那些照旧。
+#
+# 用户写 `forInstance` 要 `unsafe` —— 它是内部修饰符,不是给业务代码用的开关
+# (`Attr.ForInstance`;挂上去等于悄悄给整个类型加一个成员)。
+
+C ::= class {
+    n: int = 7
+    g := () => { this.n; }
+}
+c := C ()
+
+# ① 类体里写的成员:实例化时落进**每个实例自己的表**,和标记无关
+print c.n
+print (c.g ())
+
+# ② 事后挂在**类**上的:类对象自己看得到,实例一个都看不到
+C.func := (x: int) => { x + 1; }
+C.num := 5
+print (C.func 5)
+print C.num
+try { print (c.func 5); } (e: Exception) => { print ("1: " + string e); }
+try { print c.num; } (e: Exception) => { print ("2: " + string e); }
+
+# `Fields ()` 和查找同一份判据:类上那份列得出,实例那份列不出
+print ((C.Fields ()).Contains "func")
+print ((c.Fields ()).Contains "func")
+
+# ③ 内置方法照旧(它们是引擎挂的、带了标记的那批)
+print ([1 2].Count ())
+print (5.ToString ())
+print ("abc".Chars ())
+print (1.is int)
+print (int <: ValueType)
+
+# ④ 标记是引擎的内部凭据:用户写它要 unsafe
+try { forInstance x := 1; } (e: Exception) => { print ("3: " + string e); }
+unsafe ()
+forInstance y := 1
+print y
+
+# ⑤ 内置方法挂的是 readonly:谁都换不掉
+try { list.Add = () => { 0; }; } (e: Exception) => { print ("4: " + string e); }
+
+print "end"
+# --- expected ---
+# 7
+# 7
+# 6
+# 5
+# 1: 类型 'C' 没有方法 'func'
+# 2: 类型 'C' 没有方法 'num'
+# true
+# false
+# 2
+# 5
+# [a b c]
+# true
+# true
+# 3: 定义 'forInstance' 成员需要 unsafe（'x'）
+# 1
+# 4: 无法给只读变量 'Add' 赋值
+# end

@@ -287,6 +287,13 @@ public partial class Interpreter
         // 初始化静默不跑)"从前都是静默发生 —— 现在一律当场报出来。要覆盖就写 `=`:
         //     init = (…) => { … }        # 换掉继承来的那条(= 是赋值/覆盖)
         // 类的**实例成员**没有别的覆盖写法,重名就是错(换个名字,或者在 `=` 那侧写)。
+        // `forInstance` 是**内部修饰符**:带它的成员实例才沿类链兜得到(见 MemberView),
+        // 也就是"悄悄给整个类型加一个成员"—— 引擎自己挂内置方法时用它(C# 侧直接 SetAttr,
+        // 不经这里),用户要写得先 `unsafe ()`。和 core 字段那条门禁同一个道理:
+        // 修饰符越过了正常的封装边界,就得先明说要越界。
+        if (v.Attrs != null && v.Attrs.Contains(Attr.ForInstance) && !IsUnsafe)
+            throw new RuntimeException($"定义 'forInstance' 成员需要 unsafe（'{v.Name}'）");
+
         var vr = v.Preset
             ? nf.Scope.DefineOrReplace(v.Name, dt, val)   // 预设类体:每层覆盖上一层
             : nf.Scope.Define(v.Name, dt, val, v);

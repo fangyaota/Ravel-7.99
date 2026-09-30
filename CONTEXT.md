@@ -37,7 +37,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
   RuntimeValue.cs         值基类(含 IsClosure) + 全部 Ravel 层异常:
                           RuntimeException / TypeMismatchException / ExitException /
                           SyntaxException + SourceSpot(位置)
-  Attr.cs                 修饰符名常量(readonly/public/private/…/core),解析器和门禁共用;
+  Attr.cs                 修饰符名常量(readonly/public/private/…/core/forInstance),解析器和门禁共用;
                            **表里的每一个都得有地方读它** —— `override`/`new` 因为无人读
                            已连同修饰符一起删(`public` 是唯一例外:它是默认行为)
                            `lib/` 的 API 都标 readonly(语言级别名/模块函数);
@@ -462,6 +462,16 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   两条容易漏的：**`init`** —— 类体就跑在类对象自己的实例作用域里，所以类对象的 Scope 里
   **装着它自己的构造器**；**`this`** —— 类对象就是 `type` 的实例，而实例化时那句
   `instanceScope.Define("this", …)` 写进去的**正是这个类对象的成员表**。
+- **沿类链兜底只认 `forInstance`**（`Attr.ForInstance`）：实例读得到的成员分两处 ——
+  ①**它自己的实例作用域**（类体平铺进来的字段/方法，与标记无关）；②沿类对象 `parent` 链
+  兜的那一半，**只收带这个标记的**。引擎给自己挂的成员都带它：内置方法、类运算符、
+  序列方法、`GetImplements ()` 那类查询 —— 统一在 `BuiltinClasses.EngineMember` 里补上
+  （顺带 `readonly`：内置方法谁都换不掉）。用户事后挂在类上的东西（`C.func := …`）不带，
+  所以实例看不到。**从前那半的判据是"这个值是不是 `FunctionVal`"这么一个猜法**，于是同一件事
+  两个答案（挂函数漏给所有实例、挂数据不漏）—— 现在凭据只有一个。用户写 `forInstance`
+  要 `unsafe`（`StepVarDef` 那道门）：挂上去等于悄悄给整个类型加成员，理由和 core 字段一样。
+  判据只有一处（`MemberView.LookupInClassChain`），`Fields ()` 那半（`ObjectVal.MethodNames`）
+  和它共用 —— "查得到"和"列得出"是同一个问题的两个问法。用例：`tests/242`。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
   绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
