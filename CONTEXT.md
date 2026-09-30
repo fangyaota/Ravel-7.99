@@ -37,7 +37,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
   RuntimeValue.cs         值基类(含 IsClosure) + 全部 Ravel 层异常:
                           RuntimeException / TypeMismatchException / ExitException /
                           SyntaxException + SourceSpot(位置)
-  Attr.cs                 修饰符名常量(readonly/public/private/…/core/forInstance),解析器和门禁共用;
+  Attr.cs                 修饰符名常量(readonly/public/private/…/core),解析器和门禁共用;
                            **表里的每一个都得有地方读它** —— `override`/`new` 因为无人读
                            已连同修饰符一起删(`public` 是唯一例外:它是默认行为)
                            `lib/` 的 API 都标 readonly(语言级别名/模块函数);
@@ -462,31 +462,33 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   两条容易漏的：**`init`** —— 类体就跑在类对象自己的实例作用域里，所以类对象的 Scope 里
   **装着它自己的构造器**；**`this`** —— 类对象就是 `type` 的实例，而实例化时那句
   `instanceScope.Define("this", …)` 写进去的**正是这个类对象的成员表**。
-- **沿类链兜底只认 `forInstance`**（`Attr.ForInstance`）：实例读得到的成员分两处 ——
-  ①**它自己的实例作用域**（类体平铺进来的字段/方法，与标记无关）；②沿类对象 `parent` 链
-  兜的那一半，**只收带这个标记的**。引擎给自己挂的成员都带它：内置方法、类运算符、
-  序列方法、`GetImplements ()` 那类查询 —— 统一在 `BuiltinClasses.EngineMember` 里补上
-  （顺带 `readonly`：内置方法谁都换不掉）。用户事后挂在类上的东西（`C.func := …`）不带，
-  所以实例看不到。**从前那半的判据是"这个值是不是 `FunctionVal`"这么一个猜法**，于是同一件事
-  两个答案（挂函数漏给所有实例、挂数据不漏）—— 现在凭据只有一个。用户写 `forInstance`
-  要 `unsafe`（`StepVarDef` 那道门）：挂上去等于悄悄给整个类型加成员，理由和 core 字段一样。
-  判据只有一处（`MemberView.LookupInClassChain`），`Fields ()` 那半（`ObjectVal.MethodNames`）
-  和它共用 —— "查得到"和"列得出"是同一个问题的两个问法。
-- **`private` 还有一层"方向"的意思：类对象那一侧读不到**（`MemberView` 的 `classSide`，
-  建视图的是个类对象时才有）。内置实例方法都带它 —— `list.Add 2` 从类上读到的那份没绑
-  `self`，调用就是 `((ListVal)ClassVal)` 的 C# InvalidCastException（Ravel 的 `try` 接不住），
-  现在是干净利落的「类型 'Type' 没有方法 'Add'」。**只拦自己那层**：沿链继承来的照旧
-  （`C.Fields ()` / `C.Copy ()` / `GetImplements ()` 天天在类对象上读，拦了等于把反射全关掉）。
-  所以类那一侧本来就要用的成员不能标 private：运算符（`BindOperator` 找的正是"类型上的 `+`"）、
-  `Json.FromString`、`GetImplements ()` —— 注册时各自传 `isPrivate: false`
-  （`BuiltinClasses.EngineMember` 是唯一的注册口）。
-  实例那一侧 `forInstance` 成员不受私有门禁管（`CheckFieldAccess` 直接放行）：它们的
-  "不公开"在另一侧；用户写在自己类里的 `private` 字段**照旧**只认"本对象内部"那条老规矩。
-  **`Fields ()` 和查找共用同一份判据**：类那一侧列出来的就是那一侧读得到的 ——
-  `list.Fields ()` / `Json.Fields ()` 里没有 `Add` / `Kind` 那批（它们是"给实例的成员"，
-  在实例那一侧列），`Json.FromString` / 运算符不在 private 那一批里、照旧列。
-  实例那一侧照单全收（`[1 2].Fields ()` 仍是整串方法）。
-  用例：`tests/242`、`tests/241`（`Json.Fields ()` 那一行）。
+- **一个类对象有「两张表」**（`ClassVal.InstanceTable`）—— 分工是**结构**的，不靠标记、不靠过滤：
+  - **类自己那张**（`ClassVal.Scope`，就是基类那个 `ObjectVal.Scope`）：类对象是元类 `type` 的
+    实例，建类时平铺进来的 `name` / `parent` / `block` / `init` / `==` / `!=`，用户事后挂上去的
+    （`C.func := …`），以及**类那一侧**的 API（`Json.FromString`）。从**类对象**上读成员读的就是这张。
+  - **给实例的那张**（`ClassVal.InstanceTable`）：内置方法（`Add` / `Map` / `Kind`…）、类运算符、
+    序列方法、`GetImplements ()` 这类查询。**只有引擎往里写**（`BuiltinClasses.EngineMember`：
+    `DefineMethod` / `DefineOp` / `DefineSeq` / `TraitQuery`；用户类体里那句 `+ := f` 也由
+    `Install` 扫出来落这儿，它不吃 readonly），**只有实例读得到**
+    （`MemberView.LookupInClassChain` 沿 `parent` 链读的就是它）。
+  于是两件事都成了结构决定：**类上挂的东西实例看不到**（落①，实例读②）；**`list.Add 2` 从类那一侧
+  也读不到**（`Add` 在②里，而类对象自己的查找——第 1 段用它的 `Scope`、第 2 段沿**元类**链——
+  两条都不经过它），报的是干净的「类型 'Type' 没有方法 'Add'」。从前这两件事靠
+  `forInstance` + `private` 两个标记去挡（外加 `CheckFieldAccess` 的开口子、`DefineOp` 那三处
+  `isPrivate: false`、`Fields ()` 的一层过滤），而那两个标记的判据其实就是"住哪张表"——
+  拆表之后五个补丁一起退了场，`forInstance` 修饰符本身也删了（写 `Parser.Statements.cs` 那句
+  「已删除」）。`Fields ()` 和查找共用同一份判据（列的就是这一侧读得到的）：`list.Fields ()` 里
+  没有 `Add` 那批、`[1 2].Fields ()` 照旧整串、`Json.FromString` 在类那一侧照旧列。
+  用例：`tests/242`（`205` 钉"修饰符已删除"）、`tests/241`（`Json.Fields ()` 那一行）。
+- **运算符走的是"以左值为身份"的那张表**（`ObjectVal.OperatorMembers`）：**自己那张实例表**
+  ＋沿**元类链**（`type` → `function` → `object`）各层的。后一半是为了挂在 `object` 上的
+  `is` / `isnot` / `<:` / `:>`——"任何值都有"那批得连自指的 `Every` / `Any`（自己的 `parent`
+  链到不了 `object`）也摸得到；前一半是 `Integer` 的 `+`、`C1 == C2` 找 `Type` 那张、
+  `c1 == c2` 找 `C` 那张——「类型之间」和「实例之间」两个 `==` 就是这么分开的
+  （`DefineOp(Type, "==", SameValue)` 对实例就是比身份）。值类型的运算符也走这条路。
+- **`private` 回到一件事**：实例侧的门禁（"当前作用域在不在这个对象的类里"）。内置方法不带它
+  ——它们在实例表里、谁都读得到；借去当"方向"的那套（`MemberView` 的 `classSide` / `ReadOwn`）
+  随两张表一起删了。用户写在自己类里的 `private` 字段照旧只认"本对象内部"那条老规矩。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
   绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
@@ -1078,8 +1080,8 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
 - 嵌套上限 64 层（防"容器包含自己"把栈转爆）。
 
 **实例方法挂在类上**（`RegisterJsonMethods`：那九个 `Json.DefineMethod (…)`），
-靠 `forInstance` + `private` 分两侧：`j.Kind ()` ✓、`Json.Kind` 是干净的
-「类型 'Type' 没有方法 'Kind'」✓（见上面 "沿类链兜底只认 `forInstance`" 那条）。
+走 `DefineMethod` 落进 `Json` 的**实例表**：`j.Kind ()` ✓、`Json.Kind` 是干净的
+「类型 'Type' 没有方法 'Kind'」✓（见上面「一个类对象有两张表」那条）。
 `JsonVal` 自己那层留给用户挂的东西（`j.tag := 1` 只影响那一个值）——和 `ListVal`/`DictVal` 同形状。
 （从前是**每个 Json 值一张表**：那时类那一侧拦不住，`Json.Kind` 会被解析成"类上的方法"，
 调用时 `self` 是那个 `ClassVal`、`((JsonVal)s)` 当场炸成「`!!` 解释器内部错误」。
