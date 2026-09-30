@@ -135,7 +135,9 @@ internal static partial class BuiltinClasses
     private static void RegisterJsonMethods()
     {
         // 唯一的解析入口:挂在**类对象**上(即 `Json.FromString s`,和 `Type.Default` 那条同款)
-        Json.DefineMethod("FromString", (_, a) => ParseJson(TextArg(a, "Json.FromString")));
+        // `isPrivate: false`:它就是**在类上读**的(`Json.FromString "…"`),挡了类那一侧就废了
+        Json.DefineMethod("FromString", (_, a) => ParseJson(TextArg(a, "Json.FromString")),
+            isPrivate: false);
     }
 
     /// <summary>一个 Json 值**自己的**成员表 —— 那批实例方法定义在这儿。

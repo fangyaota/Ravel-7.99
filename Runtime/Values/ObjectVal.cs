@@ -61,8 +61,12 @@ public record ObjectVal : RuntimeValue
     /// 两段合成一个只读视图,见 <see cref="MemberView"/>。
     ///
     /// 注意它**不是** <see cref="Scope"/> 本身:后者是"只查一层"的实例作用域,
-    /// 写路径(定义/赋值)仍然直接对 `Scope` 走,视图只是读的门面。</summary>
-    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type);
+    /// 写路径(定义/赋值)仍然直接对 `Scope` 走,视图只是读的门面。
+    ///
+    /// **自己是类对象时是"类那一侧"**(<see cref="IsClass"/>):自己表里带 `private` 的成员
+    /// 从这一侧读不到 —— 内置的实例方法都是这样(`list.Add` 那种从类上读到的是没绑 self 的一份,
+    /// 调用就是 `((ListVal)ClassVal)` 的 InvalidCastException),要读得从一个**实例**上读。</summary>
+    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type, IsClass);
 
     private Scope? _memberScope;
 
@@ -70,7 +74,10 @@ public record ObjectVal : RuntimeValue
     ///
     /// 和 <see cref="MemberScope"/> 不是一回事 —— 那是"以**值**的身份取成员",
     /// 所以还要再往我的**元类**链上找(`C.Fields ()` 能看到 `type` 那层的方法)。
-    /// 原子值(它没有自己的成员表)借的是这一个。</summary>
+    /// 原子值(它没有自己的成员表)借的是这一个。
+    ///
+    /// 也正因为它是"值的身份",**不做类那一侧的 private 过滤**(那一侧才要
+    /// `ValueType` 那批运算符:`1 + 2` 找的正是"类型上的 `+`")。</summary>
     internal Scope InstanceMembers => _instanceMembers ??= new MemberView(null, this);
 
     private Scope? _instanceMembers;
@@ -182,23 +189,26 @@ public record ObjectVal : RuntimeValue
 
     /// <summary>注册内置同步方法:BuiltinMethodVal 标记,分派走快速同步路径。
     ///
-    /// 同时挂两个属性,它们是**内置方法的身份**:
-    /// - <see cref="Attr.ForInstance"/> —— 实例沿类链兜底兜得到它(判据就在 MemberView 那一处);
-    /// - <see cref="Attr.Readonly"/> —— 谁都换不掉它(`List.Add = f` 报「无法给只读变量赋值」)。
+    /// 属性由 <see cref="BuiltinClasses.EngineMember"/> 统一补上(`forInstance` + `private` +
+    /// `readonly`)——**`private` 的意思是"类对象那一侧读不到"**,这正是内置实例方法该有的:
+    /// `list.Add 2` 从类上读到的那份没绑 self,从前直接是 InvalidCastException。
+    /// 类那一侧本来就要用的(运算符、`GetImplements ()`)由各自的注册点传 `isPrivate: false`。
     ///
-    /// 这就是**引擎内部**的注册口:走这条路的都自动带上属性,所以那一串 `X.DefineMethod (…)`
+    /// 这是**引擎内部**的注册口:走这条路的都自动带上属性,所以那一串 `X.DefineMethod (…)`
     /// 一行都不用改。用户代码碰不到它(它不在语言里,只有 C# 侧调得到)。</summary>
-    internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name });
+    internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl,
+                                   bool isPrivate = true)
+        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name }, isPrivate);
 
     /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
     /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。
     ///
-    /// 只挂 `forInstance`(运算符是给实例用的),**不挂 readonly**:这条路上走的是**用户**类体里
-    /// 那句 `+ := f`(见 `BuiltinClasses.Install` 扫类体),照样得有覆盖的余地。</summary>
+    /// **`isPrivate: false` + `readOnly: false`**:这条路上走的是**用户**类体里那句 `+ := f`
+    /// (见 `BuiltinClasses.Install` 扫类体),不是内置实现 —— 而运算符本来就是在类那一侧找的
+    /// (`BindOperator` 查的正是"类型上的 `+`"),挡了类那一侧 `1 + 2` 就没法算。</summary>
     internal void DefineClassOperator(string op)
         => BuiltinClasses.EngineMember(
-            this, op, new ClassOperatorFactory(op) { Name = op }, readOnly: false);
+            this, op, new ClassOperatorFactory(op) { Name = op }, isPrivate: false, readOnly: false);
 
     /// <summary>本层里**实例看得到**的成员名(给 `Fields ()` 和类链查找用)——
     /// 判据和 <see cref="MemberView.LookupField"/> 那半**完全一致**:带 `forInstance` 标记、

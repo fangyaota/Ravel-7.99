@@ -471,7 +471,19 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   两个答案（挂函数漏给所有实例、挂数据不漏）—— 现在凭据只有一个。用户写 `forInstance`
   要 `unsafe`（`StepVarDef` 那道门）：挂上去等于悄悄给整个类型加成员，理由和 core 字段一样。
   判据只有一处（`MemberView.LookupInClassChain`），`Fields ()` 那半（`ObjectVal.MethodNames`）
-  和它共用 —— "查得到"和"列得出"是同一个问题的两个问法。用例：`tests/242`。
+  和它共用 —— "查得到"和"列得出"是同一个问题的两个问法。
+- **`private` 还有一层"方向"的意思：类对象那一侧读不到**（`MemberView` 的 `classSide`，
+  建视图的是个类对象时才有）。内置实例方法都带它 —— `list.Add 2` 从类上读到的那份没绑
+  `self`，调用就是 `((ListVal)ClassVal)` 的 C# InvalidCastException（Ravel 的 `try` 接不住），
+  现在是干净利落的「类型 'Type' 没有方法 'Add'」。**只拦自己那层**：沿链继承来的照旧
+  （`C.Fields ()` / `C.Copy ()` / `GetImplements ()` 天天在类对象上读，拦了等于把反射全关掉）。
+  所以类那一侧本来就要用的成员不能标 private：运算符（`BindOperator` 找的正是"类型上的 `+`"）、
+  `Json.FromString`、`GetImplements ()` —— 注册时各自传 `isPrivate: false`
+  （`BuiltinClasses.EngineMember` 是唯一的注册口）。
+  实例那一侧 `forInstance` 成员不受私有门禁管（`CheckFieldAccess` 直接放行）：它们的
+  "不公开"在另一侧；用户写在自己类里的 `private` 字段**照旧**只认"本对象内部"那条老规矩。
+  `Fields ()` 列名字不按这条过滤（和机制成员一个道理：`init`/`parent` 也列，读不到是另一回事）。
+  用例：`tests/242`。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
   绑接收者 —— 漏了的话 `type.Parent ()` 会把未绑定的内置方法当结果返回。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，

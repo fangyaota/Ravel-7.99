@@ -187,20 +187,25 @@ internal static partial class BuiltinClasses
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
 
-    /// <summary>往一个**类对象的表**里挂引擎成员 —— 那两个属性(`forInstance`:实例沿类链
-    /// 才兜得到;`readonly`:谁都换不掉)统一在这里补。内置方法、类运算符、序列方法
-    /// (`SeqMethod`)、`GetImplements ()` 这类查询(`TraitQuery`)实现各不相同,但身份是同一种:
-    /// **引擎给这一类挂的、实例该看得到的成员**。
+    /// <summary>往一个**类对象的表**里挂引擎成员 —— 那三个属性统一在这里补。内置方法、类运算符、
+    /// 序列方法(`SeqMethod`)、`GetImplements ()` 这类查询(`TraitQuery`)实现各不相同,
+    /// 但身份是同一种:**引擎给这一类挂的成员**。
     ///
-    /// 为什么必须集中一处:漏标一个就是从"实例看得到"变成"实例看得到才怪"——
-    /// `GetImplements` 漏标时十个测试一起报「类型 'Type' 没有方法 'GetImplements'」。
-    ///
-    /// `readOnly: false` 只给**用户类体里那句 `+ := f`**(见 <see cref="ObjectVal.DefineClassOperator"/>):
-    /// 那是用户的代码,不是内置实现,得留出覆盖的余地。</summary>
-    internal static Variable EngineMember(ObjectVal type, string name, RuntimeValue impl, bool readOnly = true)
+    /// - `forInstance`(一律挂):实例沿类链才兜得到。漏标一个就是从"实例看得到"变成
+    ///   "实例看得到才怪"—— `GetImplements` 漏标时十个测试一起报「类型 'Type' 没有方法」。
+    /// - `private`(`isPrivate`,默认挂):**类对象那一侧读不到**。内置的实例方法是这个默认 ——
+    ///   从类上读到的那份没绑 self,`list.Add 2` 从前直接是 InvalidCastException。
+    ///   类那一侧本来就要用的东西要传 false:运算符(`1 + 2` 找的正是"类型上的 `+`")、
+    ///   `GetImplements ()`(`Option.GetImplements ()` 就是在类上问的)。
+    /// - `readonly`(`readOnly`,默认挂):谁都换不掉。`readOnly: false` 只给**用户类体里那句
+    ///   `+ := f`**(见 <see cref="ObjectVal.DefineClassOperator"/>):那是用户的代码,
+    ///   不是内置实现,得留出覆盖的余地。</summary>
+    internal static Variable EngineMember(ObjectVal type, string name, RuntimeValue impl,
+                                          bool isPrivate = true, bool readOnly = true)
     {
         var v = type.Scope.DefineOrReplace(name, Function, impl);
         v.SetAttr(Attr.ForInstance);
+        if (isPrivate) v.SetAttr(Attr.Private);
         if (readOnly) v.SetAttr(Attr.Readonly);
         return v;
     }

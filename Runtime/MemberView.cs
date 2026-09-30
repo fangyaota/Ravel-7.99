@@ -18,20 +18,36 @@ namespace Ravel.Runtime;
 /// 都会漏给所有实例**(`C.func := …` → `c.func` 也读得到);挂数据则读不到 —— 同一件事
 /// 两个答案,全看那个值碰巧长什么样。现在凭据只有一个:带标记才给。
 ///
+/// **类那一侧**（`classSide`,建视图的是个类对象）多一条:自己那层里带 `private` 的成员
+/// 读不到 —— 「private = 类上读不到」（内置方法都带它,`list.Add` 从类上读到的那份没绑 self,
+/// 调用就是 `((ListVal)ClassVal)` 的 InvalidCastException）。**只拦自己那层**:
+/// 沿链继承来的(各家 `Object` / `Type` 那层的 `Fields ()` / `Copy ()` / `GetImplements ()`)
+/// 照旧读得到 —— `C.Fields ()` 天天在类对象上读,拦了等于把反射全关掉。
+///
 /// 只读:定义/赋值一律拒绝。往这儿写等于把字段挂到整个类型上。
 ///
 /// 它不是 `Scope` 的词法链:视图的 `Parent` 是 null,`Variables` 是空的 ——
 /// 它只覆写 `LookupField` 这一个动作。</summary>
-internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
+internal sealed class MemberView(Scope? own, ObjectVal type, bool classSide = false) : Scope
 {
     public override Variable? LookupField(string name)
-        => own?.LookupField(name) ?? LookupInClassChain(name);
+        => ReadOwn(name) ?? LookupInClassChain(name);
 
-    /// <summary>这个值**有哪些成员** —— 就是"查找能解析出什么",所以两个动作共用同一份判据。
+    /// <summary>自己那层(扁平,不走链)。类那一侧要把带 `private` 的那些挡掉。</summary>
+    private Variable? ReadOwn(string name)
+    {
+        var ownVar = own?.LookupField(name);
+        if (ownVar == null) return null;
+        return classSide && ownVar.HasAttr(Attr.Private) ? null : ownVar;
+    }
+
+    /// <summary>这个值**有哪些成员** —— 就是"查找能解析出什么",**类链那半**共用同一份判据
+    /// (见 <see cref="LookupField"/>:带 `forInstance` 才算是这个值的成员)。
     ///
-    /// 两段的规则和 <see cref="LookupField"/> 完全一致:自己那层照单全收(不收的话,
-    /// 模块里一个叫 `name` 的变量就没了 —— 它不是机制成员,是用户的变量),
-    /// 类链那半只认方法名。
+    /// 自己那层照单全收,连**类那一侧读不到的 `private`** 也列出来 —— 和机制成员一个道理:
+    /// `Fields ()` 列的是"这个 Scope 里有哪些名字"(`init` / `parent` 也列,读不到是另一回事),
+    /// 拦的只是**读**。不收自己那层的话,模块里一个叫 `name` 的变量就没了 ——
+    /// 它不是机制成员,是用户的变量。
     ///
     /// 唯一排掉的是 `this`:它不是"这个值的成员",是**这个值自己**的别名,引擎为了让
     /// 类体写得出 `this` 才注入的。</summary>

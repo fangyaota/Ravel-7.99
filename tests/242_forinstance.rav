@@ -10,6 +10,11 @@
 #
 # 用户写 `forInstance` 要 `unsafe` —— 它是内部修饰符,不是给业务代码用的开关
 # (`Attr.ForInstance`;挂上去等于悄悄给整个类型加一个成员)。
+#
+# 内置实例方法还捎带一个 `private`,它的意思是**"类对象那一侧读不到"**:从类上读到的那份
+# 没绑 self,调用时 `((ListVal)ClassVal)` 当场炸成 C# 的 InvalidCastException
+# (Ravel 的 try 接不住) —— 现在是干净利落的「没有方法」。类那一侧本来就在用的东西
+# (运算符、`Json.FromString`、`GetImplements ()`)不标 private。
 
 C ::= class {
     n: int = 7
@@ -49,6 +54,23 @@ print y
 # ⑤ 内置方法挂的是 readonly:谁都换不掉
 try { list.Add = () => { 0; }; } (e: Exception) => { print ("4: " + string e); }
 
+# ⑥ 那个 private:**类对象那一侧读不到**(从前是 InvalidCastException)
+try { print (list.Add 2); } (e: Exception) => { print ("5: " + string e); }
+print ([1 2 3].Count ())                    # 实例那一侧照旧
+print (Json.FromString "{\"a\":1}")         # 类侧的 API 没标 private,照旧
+print (int.Default ())
+print (1 + 2)                               # 运算符也没标:它本来就是"类型上"找的
+
+# ⑦ 用户的 private 字段:照旧走实例侧的门禁(和上一条不是一回事)
+D ::= class {
+    private secret: int = 7
+    reveal := () => { secret; }
+}
+d := D ()
+print (d.reveal ())
+try { print d.secret; } (e: Exception) => { print ("6: " + string e); }
+print (d.Fields ())                         # 名字列得出(和 init/parent 一个道理)
+
 print "end"
 # --- expected ---
 # 7
@@ -67,4 +89,12 @@ print "end"
 # 3: 定义 'forInstance' 成员需要 unsafe（'x'）
 # 1
 # 4: 无法给只读变量 'Add' 赋值
+# 5: 类型 'Type' 没有方法 'Add'
+# 3
+# {"a":1}
+# 0
+# 3
+# 7
+# 6: 变量 'secret' 是私有的
+# [init secret reveal is isnot <: :> ToString Copy Fields CompareTo Key]
 # end

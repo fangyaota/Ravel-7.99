@@ -67,9 +67,14 @@ public partial class Interpreter
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
     public RuntimeValue Interpret(Program p) => RunStack(p);
 
-    /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行</summary>
+    /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行。
+    ///
+    /// **`forInstance` 成员直接放行** —— 它们是引擎给这一类挂的实例 API(`Attr.ForInstance`),
+    /// 实例侧本来就是公开的;它们身上那个 `private` 管的是**另一侧**(类对象上读不到,
+    /// 见 <see cref="MemberView"/>),不是这一侧。用户写在自己类里的 `private` 字段不吃这一条。</summary>
     internal bool CheckFieldAccess(Variable field, ObjectVal obj)
     {
+        if (field.HasAttr(Attr.ForInstance)) return true;
         if (!field.HasAttr(Attr.Private) && !field.HasAttr(Attr.Protected)) return true;
         for (var cur = CurrentScope; cur != null; cur = cur.Parent)
         {
