@@ -176,7 +176,9 @@ armed := false
 doneT := false
 res := try {
     k := callcc (k2: function) => { if { !armed; } { armed = true; escT = k2; } { 0; }; k2; };
-    if { (typeof (k)) == function; } { "armed"; } { throw (Exception "from resumed body"); }
+    # 这里问的是"拿到的还是一枚调用得起来的东西吗"—— 续延现在是**自己的类型**
+    # (`typeof k` 报 Continuation,`<: function`),所以判据得用 `is`,不能写 `== function`
+    if { (k is function); } { "armed"; } { throw (Exception "from resumed body"); }
 } (e: Exception) => { "caught by the same try"; }
 print res
 try { if { !doneT; } { doneT = true; escT (); } { 0; }; } (e: Exception) => { print ("X: " + string e); }
@@ -348,7 +350,7 @@ w.x = 100
 ku := u.f
 kw := w.f
 print seenX                # [1 100]：u 那次、w 那次各记一条
-print (typeof ku)
+print (typeof ku)          # Continuation：续延是它自己的类型（不是含糊的 Function）
 try { if { !doneW2; } { doneW2 = true; kw (); } { 0; }; } (e: Exception) => { print ("I: " + string e); }
 print seenX                # 恢复 w 那次 → 又记 100
 try { if { !doneU; } { doneU = true; escI (); } { 0; }; } (e: Exception) => { print ("I2: " + string e); }
@@ -505,7 +507,6 @@ print pp.a
 print pp.b
 print "end"
 ravel ""
-
 # --- expected ---
 # 42
 # 3
@@ -560,9 +561,9 @@ ravel ""
 # 105
 # 1
 # [1 100]
-# Function
+# Continuation
 # [1 100 100]
-# Function
+# Continuation
 # [1 100 100]
 # [1 100 100 1 100]
 # Void

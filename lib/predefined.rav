@@ -23,6 +23,7 @@ readonly object := System.Object
 readonly class := System.Type  # 别名:没有单独的 Class 类型
 readonly interface := System.Interface  # 接口 —— 继承于 type,造出来的也是类对象
 readonly function := System.Function
+readonly Continuation := System.Continuation   # callcc 交出来的续延(是个函数的子类型)
 readonly type := System.Type
 readonly void := System.Void
 readonly Any := System.Any
@@ -112,11 +113,14 @@ readonly callcc := (f: function) => {
     System.CallCC (k: function) => {
         hs := Ex.HandlerStack.Copy ()
         ms := System.LoadingState ()
-        f ((x: object) => {
+        # 交给用户的那枚用 `Continuation` 包一下 —— 类型上它就是**续延**(typeof 给
+        # `Continuation`,能注解成 `Continuation` 的字段),而不是一个说不清的 lambda。
+        # 调的走法没变:先进这枚 lambda(还原控制状态),再 `k x` 跳回捕获点。
+        f (Continuation ((x: object) => {
             Ex.HandlerStack = hs.Copy ()
             System.RestoreLoading ms
             k x
-        })
+        }))
     }
 }
 

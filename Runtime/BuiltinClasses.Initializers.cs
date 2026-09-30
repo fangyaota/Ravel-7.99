@@ -36,6 +36,17 @@ internal static partial class BuiltinClasses
         Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
         Json.ClassBody = PresetCtor(MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
         List.ClassBody = PresetCtor(MakeDefaultCaster(List));
+        // `Continuation f` —— 把一枚函数**当成**续延(调它 = 调那枚函数)。
+        // 库里的 `callcc` 靠这条把"先还原控制状态、再跳回去"那层也做成续延:
+        // 于是用户手里那枚**类型上**就是 `Continuation`,而不是一个说不清的 lambda。
+        // `Continuation default` 走的是"还没到手的那一枚"(见 ContinuationVal.Default)。
+        Continuation.ClassBody = PresetCtor(FunctionVal.From(val => val switch
+        {
+            DefaultVal => ContinuationVal.Default,
+            ContinuationVal c => c,                                  // 已经是续延,原样(包两层没意义)
+            FunctionVal f => new ContinuationVal((Frame?)null, f),
+            _ => throw new RuntimeException($"Continuation 收一枚函数（或 default），得到 {val.Type}"),
+        }));
         Set.ClassBody = PresetCtor(MakeDefaultCaster(Set));
         Dict.ClassBody = PresetCtor(MakeDefaultCaster(Dict));
         // 建类不在这里:`type` 的 init 由 InstallTypeInit 装 —— 它要用 NativeClosure
@@ -283,6 +294,9 @@ internal static partial class BuiltinClasses
             if (target == Set) return new SetVal([]);
             if (target == Dict) return new DictVal([]);
             if (target == Function) return FunctionVal.From(_ => VoidVal.Instance);
+            // 续延的"空值"不是"什么都不做",而是"还没到手的那一枚" —— 它一调就报错
+            // (续延调用是跳转,没有目的地就该响;见 ContinuationVal.Default)
+            if (target == Continuation) return ContinuationVal.Default;
             if (target == Fraction) return new FractionVal(0, 1);
             if (target == BigFraction) return new BigFractionVal(0, 1);
             return val;

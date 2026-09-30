@@ -270,7 +270,12 @@ public partial class Interpreter
         var dt = hasType ? AsClass(nf.Result(0), v.Name) : isBy ? BuiltinClasses.Any : val.Type;
         // 没写注解时 dt 就是值自己的类型,一定"可赋值" —— 不必再判一次注解在不在
         // (Accepts 里那半"接口也算数"正是 `x : myTrait = u` 需要的)
-        if (!isBy && !Accepts(val, dt))
+        //
+        // `default` 要单独认一下:它的类型是**底类型** Every,`IsAssignableTo` 见谁都点头,
+        // 于是上面那条捷径会把它整段放过 —— 结果是 `n: int = default` 把 `default` 原样存下,
+        // 之后 `n + 1` 报「Every 不支持 '+'」。它要的是"按注解变成本类型的那个空值"
+        // (0 / "" / 空表 / 空函数 / 空续延…),而那正是 ConvertDirect 干的事。
+        if (!isBy && (val is DefaultVal || !Accepts(val, dt)))
         {
             var cv = TryConvert(val, dt, out var why);
             if (cv != null) val = cv;

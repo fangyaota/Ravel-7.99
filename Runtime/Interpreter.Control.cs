@@ -232,8 +232,20 @@ public partial class Interpreter
         // init 约定以 `this` 收尾,所以普通类拿到的还是实例;
         // 而元类的 init 可以建出一个类再交出来(或返回别的什么)。
         // init 若还返回函数(多参构造器只喂了一部分)就交出半成品,和普通函数一样柯里化。
-        Return(cf, cf.Last is FunctionVal rest && rest.IsClosure ? new PartialCtor(inst, rest) : cf.Last);
+        Return(cf, HalfCtor(inst, cf.Last));
     }
+
+    /// <summary>init 交回的东西是"还没收齐参数的半成品构造器"吗 —— 是就包成
+    /// <see cref="PartialCtor"/> 让它接着收参数,不是就原样交出去。
+    ///
+    /// 判据是 `IsClosure`(「是个闭包形状的函数」)再排掉**可调用、但调用起来不是
+    /// "接着收构造参数"**的那几种:`bool`(收两个块)、类对象(实例化它)已经在
+    /// `IsClosure` 那边排掉了,续延也得排 —— 调续延是**跳转**,不是喂参数。
+    /// 排不掉的话 `Continuation f` 一造出来就被包成半成品,`typeof` 立刻看不出它是续延。</summary>
+    private static RuntimeValue HalfCtor(ObjectVal target, RuntimeValue returned)
+        => returned is FunctionVal rest && rest.IsClosure && returned is not ContinuationVal
+            ? new PartialCtor(target, rest)
+            : returned;
 
     /// <summary>把**实现块**装进实现对象(`myTrait myClass { 实现体 }`)。阶段由 Count 推进:
     /// 0=推实现块,1=收尾并交出去。
@@ -451,7 +463,7 @@ public partial class Interpreter
         }
 
         // 和 StepClassInit 一个规则:交出 init 的返回值(半成品构造器继续柯里化)
-        Return(cf, cf.Result(0) is FunctionVal rest && rest.IsClosure ? new PartialCtor(target, rest) : cf.Result(0));
+        Return(cf, HalfCtor(target, cf.Result(0)));
     }
 
     /// <summary>prepend/append 合成:先跑块再调原函数,或先调原函数再跑块</summary>

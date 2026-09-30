@@ -175,6 +175,10 @@ bool default   # false
 list default   # []
 ```
 
+`default` 也认注解：`x: int = default` 拿到的是 **0**（不是一个万能占位）—— 按注解变成本类型
+的那个空值，`n: int = default` 之后 `n + 1` 照常算。各类型的空值：数值 `0`、字符串 `""`、
+`bool` 假、容器空表、`function` 空函数、`Continuation` 是"还没到手的那一枚"（见 4.5）。
+
 ### 2.6 类型层次
 
 ```
@@ -580,6 +584,26 @@ callcc (exit: function) => {
 
 调用续延会**丢弃当前帧链**、把值当作 `callcc` 表达式的返回值从捕获点继续，
 所以它是逃出多层嵌套的办法。
+
+拿到的续延**是它自己的类型** —— `Continuation`（`Continuation <: function`）：
+
+```ravel
+esc: Continuation = default          # 起手是"还没到手的那一枚"
+print (typeof esc)                   # Continuation
+callcc (k: function) => { esc = k; "先给个值"; }
+print (typeof esc)                   # Continuation
+print (esc is Continuation)          # true
+print (esc is function)              # true —— 它照样是函数(能调、能存进字段、能当参数传)
+```
+
+- `is function` 照旧成立（续延的父类就是 `function`）；**要和普通函数区分开的地方用
+  `is Continuation`**。注意 `typeof k == function` 在续延上**不再成立**（它现在报
+  `Continuation`）—— 那种写法要改成 `k is function`。
+- `default` 那枚是**哨兵**：照样能存、能传，一调**当场报错**（"这枚续延是 default（还没到手
+  的那一枚），调不了"）。做成"什么都不做"是不行的 —— 那会静默地把控制权留在原地，调用方
+  还以为跳走了；`lib/generator.rav` 里"还没起跑"那条路正需要它响。
+- `Continuation f` 是把一枚函数**当成**续延（调它 = 调那枚函数）—— 库里的 `callcc` 就是
+  用它把"先还原控制状态、再跳回去"那层也包成续延的，所以上面那枚类型上就是 `Continuation`。
 
 同一个机制反过来用就是循环——`while` 本身就是这么写的：
 
@@ -2525,7 +2549,7 @@ Error: 未预期的字符 '$'
 | `System.Args ()` | 脚本名之后的命令行参数（list，见 8.5） |
 | `System.Env n` / `EnvOr n d` | 环境变量（`SetEnv` / `UnsetEnv` / `EnvAll` 见 8.5） |
 | `f $ a b` / `x @ .g ()` | 括号的语法糖：`$` 封右边（一个实参），`@` 封左边（成员接着挂） |
-| `callcc fn` | 续延 |
+| `callcc fn` | 续延（拿到的类型是 `Continuation`，见 4.5） |
 | `with obj { }` | 浅拷贝修改 |
 | `assert cond` | 断言 |
 | `use impl` | 在**当前作用域**启用一个接口实现（`实现.Dispose ()` 取消；见 7.11） |

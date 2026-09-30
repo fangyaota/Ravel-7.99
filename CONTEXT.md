@@ -178,7 +178,9 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 不再静默交出 `()`,也不让硬转抛 C# 异常:漏一个 `case` 要当场出声)。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;**交出的是 `init` 的返回值**(约定 `this`),`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂。
+  判"还没收齐"那句是 `HalfCtor(...)`(`Interpreter.Control.cs`):`IsClosure` 再排掉**可调用但调用起来不是"接着收参数"**的那几种。除 `Bool`/类对象(`IsClosure` 里已经排掉)之外,**续延也得排** —— 调续延是跳转,不是喂参数;不排的话 `Continuation f` 一造出来就被包成半成品,`typeof` 立刻看不出它是续延。
 - callcc 只有一套语义:续延 = callcc 之后的剩余计算;调用它 = 丢弃当前帧链、从捕获点继续(详见「控制流」)。
+  交出去的那枚**类型是 `Continuation`**(`<: Function`,自己也挂 `Function` 下面):库里的 `callcc` 用 `Continuation f` 把"先还原控制状态、再跳"那层也包成续延,所以用户手里那枚类型上就是它(`ContinuationVal` 的两个字段:`Captured` = 引擎交出来的那种,`Jump` = 包出来的那种)。`default` 是**还没到手的那一枚**,一调就报错 —— 它是跳转,没有目的地就该响,不能做成"什么都不做"。
 - 深度递归 20 万层安全(原 CPS ~4k 层爆栈)——但那是 **C# 栈**安全,不是内存安全:
   每层留 5~6 个帧(BlockExecFrame + 各语句/表达式),合起来约 1KB,
   20 万层要 250MB 上下。所以它在默认堆下跑得通,在测试用的
@@ -215,6 +217,9 @@ Object (parent=自己)
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
+│   ├── Continuation  ← callcc 交出来的那枚续延(ContinuationVal):能调、能存进字段,
+│   │                   但 `typeof` 说得出它是续延。`default` = "还没到手的那一枚",
+│   │                   一调就报错(调用是跳转,没有目的地就该响,不能静默什么都不做)
 │   └── Type          ← 用户类挂这下面(类自己没名字,显示成 class)
 │       └── Interface ← `interface` 这个**工厂/元类**(和 `type` 之于类同一个位置):
 │                       `typeof 某接口` 就是它。它自己**不是**接口 —— 接口对象挂在
@@ -241,7 +246,7 @@ Object (parent=自己)
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
 **类型**: Integer String Char Bool Float BigInteger Fraction BigFraction
-        List Set Dict Object Void Function Type Interface BaseInterface
+        List Set Dict Object Void Function Continuation Type Interface BaseInterface
         Any Every Exception ValueType Json
 
 **函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
@@ -1293,6 +1298,10 @@ obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改
 # 类型注解是个表达式(求值在定义处/参数创建处):
 #   `x: int = v`            一个名字(可带 . 成员访问)
 #   `x: (pick ()) = v`      括号里的任意表达式 —— 括号必需,否则 `f ()` 会和下一个参数撞
+#   `x: int = default`      **按注解变成本类型的那个空值**(0/""/空表/空函数/空续延…)。
+#                           `default` 的类型是底类型 `Every`(谁都收得下),所以那条
+#                           "类型够不够宽"的捷径会把它整段放过 —— 求值器单独认了一下,
+#                           不然 `n: int = default` 会把 `default` 原样存下来,`n + 1` 报错
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
 obj.+             # 取绑定好 self 的运算符函数(符号就是成员名)
 

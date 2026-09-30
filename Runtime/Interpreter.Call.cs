@@ -72,8 +72,22 @@ public partial class Interpreter
                 break;
             }
             case ContinuationVal k:
+                // 用 `Continuation f` **包**出来的那一枚:调它 = 调它包着的那枚函数
+                // (库里 `callcc` 的包装就是这么派的 —— "先还原控制状态、再跳"写在那枚里,
+                //  所以这里只是一次普通调用,和从前交个 lambda 出去是一样的走法)。
+                if (k.Jump is not null)
+                {
+                    CallInto(sink, k.Jump, arg);
+                    break;
+                }
                 // 续延 = callcc 之后的剩余计算。调用它:丢弃当前帧链,把 arg 当作
                 // callcc 的返回值、从捕获点继续。丢弃当前链正是它能当「跳转」写循环的原因。
+                //
+                // `default` 那枚(还没到手)没有捕获点可跳,当场报错 —— 让它"什么都不做"
+                // 会静默地把控制权留在原地,而调用方还以为跳走了(见 ContinuationVal.Default)。
+                if (k.Captured is null)
+                    throw new RuntimeException("这枚续延是 default（还没到手的那一枚），调不了 —— "
+                                             + "能跳的续延只有 callcc 交出来的那种");
                 _top = k.Captured.WithResult(arg);
                 break;
             case BoolVal bv:

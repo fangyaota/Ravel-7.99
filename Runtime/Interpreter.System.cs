@@ -40,6 +40,7 @@ public partial class Interpreter
         DefType("Dict", BuiltinClasses.Dict);
         DefType("Object", BuiltinClasses.Object);
         DefType("Function", BuiltinClasses.Function);
+        DefType("Continuation", BuiltinClasses.Continuation);   // callcc 交出来的那枚续延
         DefType("Void", BuiltinClasses.Void);
         DefType("Type", BuiltinClasses.Type);
         DefType("Interface", BuiltinClasses.Interface);

@@ -13,6 +13,9 @@
 # **每次 `foreach` 都从头跑一遍体**(体是配方,和类体一个规矩):同一个 Generator
 # 遍历两次,两次各自从头。要"一次性"就在外面用变量兜住。
 #
+# 两枚续延是 `Continuation` 类型(`callcc` 交出来的就是它,`typeof` 报 `Continuation`,
+# 而不是含糊的 `Function`)—— 字段上写着类型,起手那份是 `default`。
+#
 # 实现就是 `tests/40` 里那个 `227_callcc_generator` 原型 —— "每一轮重抓两枚续延"
 # (消费者那枚由 `MoveNext` 每次重抓,所以回到的是**这一次**的调用点;生产者那枚由
 # `Yield` 每送一个值就重抓)。这里只是把那张脸包成 `IEnumerable`,并且把原型里的
@@ -31,15 +34,17 @@ GeneratorCursor ::= class {
     Body: function = () => { (); }
     Value: object = ()                # 最近送出来的那个值
     Started: bool = false             # 体起跑了吗(第一次 MoveNext 才起跑)
-    NextFromProducer: object = 0      # 生产者那枚续延(每送一个值重抓)
-    FromConsumer: object = 0          # 消费者那枚续延(每次 MoveNext 重抓)
+    # 两枚续延都是 `Continuation` 类型,起手那枚是 `default`(还没到手的哨兵:
+    # 一调就报错,不会静默什么都不做 —— 见 lib/predefined.rav 的 callcc 与 ContinuationVal)
+    NextFromProducer: Continuation = default   # 生产者那枚续延(每送一个值重抓)
+    FromConsumer: Continuation = default       # 消费者那枚续延(每次 MoveNext 重抓)
 
     init = (body: function) => { Body = body; this; }
 
     # 投喂口(体拿到的那一个):记下值、抓一枚"生产者续延",再跳回消费者等它再要
     Yield := (v: object) => {
         Value = v
-        callcc (kp: function) => {
+        callcc (kp: Continuation) => {
             NextFromProducer = kp
             FromConsumer true             # 告诉 MoveNext:这一个拿到了
         }
@@ -47,7 +52,7 @@ GeneratorCursor ::= class {
 
     # 要下一个:回到"停住的那一处"接着跑;体跑完就是没有了
     MoveNext := () => {
-        comes := callcc (kc: function) => {
+        comes := callcc (kc: Continuation) => {
             FromConsumer = kc
             if { Started; } { NextFromProducer (); } { Started = true; Body Yield; }
             FromConsumer false            # 体跑完了

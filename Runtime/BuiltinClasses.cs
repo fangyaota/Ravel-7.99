@@ -30,6 +30,11 @@ internal static partial class BuiltinClasses
     // 引用类型分支（可变/有行为）
     public static readonly ClassVal Function;
     public static readonly ClassVal Block;
+    /// <summary>`callcc` 交出来的那枚续延(`ContinuationVal`)。父类是 `Function` ——
+    /// 续延本来就能调、能存进字段、能当参数传;它只是**自己的类型**,好让 `typeof` /
+    /// 注解 / `is Continuation` 说得清"这是续延,不是普通函数"。
+    /// `default` 给的是"还没到手的那一枚"(一调就报错,见 ContinuationVal.Default)。</summary>
+    public static readonly ClassVal Continuation;
     public static readonly ClassVal List;
     public static readonly ClassVal Set;
     public static readonly ClassVal Dict;
@@ -86,6 +91,7 @@ internal static partial class BuiltinClasses
         Fraction = New("Fraction");
         BigFraction = New("BigFraction");
         Block = New("Block");
+        Continuation = New("Continuation");
         List = New("List");
         Set = New("Set");
         Dict = New("Dict");
@@ -119,6 +125,7 @@ internal static partial class BuiltinClasses
 
         // 引用类型
         Link(Block, Function, Type);
+        Link(Continuation, Function, Type);
         Link(List, Object, Type);
         Link(Set, Object, Type);
         Link(Dict, Object, Type);
@@ -155,7 +162,7 @@ internal static partial class BuiltinClasses
         foreach (var t in new[]
                  {
                      Object, ValueType, Int, Float, Bool, String, Char, BigInt,
-                     Fraction, BigFraction, Function, Block,
+                     Fraction, BigFraction, Function, Block, Continuation,
                      List, Set, Dict, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, Json, ScopeType, Property
                  })

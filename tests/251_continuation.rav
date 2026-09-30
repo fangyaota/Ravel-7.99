@@ -1,0 +1,110 @@
+# `Continuation` —— 续延是**自己的类型**(`Continuation <: function`)。
+#
+# 从前 `callcc` 交出来的那枚在类型上就是"一个函数"(typeof 报 Function):能调、
+# 能存进字段,但说不清"这是续延"。现在 `typeof` 报 Continuation,能写
+# `x: Continuation = …`、能用 `is Continuation` 认它,而 `is function` 照旧成立
+# (批量收函数的地方不用改)。**要和普通函数区分开的地方一律用 `is`** ——
+# `typeof k == function` 在续延上不再成立(见 tests/40 那处改法)。
+#
+# `default` 给的是"还没到手的那一枚":它照样能存、能传,一调**当场报错** ——
+# 续延调用是跳转,没有目的地就该响,不能做成"什么都不做"(那会静默留在原地,
+# 调用方还以为跳走了;生成器里"还没起跑"那条路正需要它响)。
+
+# 拿一枚真的续延:得**存进变量**再用 —— `callcc (k) => { k 1; }` 那整个表达式的值
+# 是 1(调用续延 = 从捕获点继续,后面那些不接着算)
+esc: Continuation = default
+print (typeof esc)
+print esc
+r := callcc (k: function) => { esc = k; "先给个值"; }
+print r
+print (typeof esc)
+print esc
+print (esc is Continuation)
+print (esc is function)
+print (esc is System.Function)
+
+# 调它:丢弃当前帧链、跳回捕获点(callcc 之后那段会重跑 —— 见 tests/40 那一整篇)
+seen := 0
+callcc (k: function) => { esc = k; 0; }
+seen += 1
+if { seen < 3; } { esc (seen * 10); } { 0; }
+print seen
+
+# ── 类型关系 ──
+print (Continuation <: System.Function)
+print (Continuation.parent)
+print (esc is object)
+print (Continuation.name)
+
+# ── default:那枚"还没到手"的 ──
+d := Continuation.Default ()
+print (typeof d)
+print d
+blank: Continuation = default
+print (typeof blank)
+print (blank == d)                       # 全语言就那一枚
+print ((Continuation default) == d)      # 走构造器那条路也是它（那层括号不能省：实参只吃主表达式）
+print (d is Continuation)
+print (d == esc)
+try { d (); } (e: Exception) => { print ("1: " + string e); }
+
+# 注解认它:别的类型塞不进来
+try { bad: Continuation = 5; } (e: Exception) => { print ("2: " + string e); }
+try { other: Continuation = (x: int) => { x; }; } (e: Exception) => { print ("3: " + string e); }
+
+# ── `Continuation f`:把一枚函数**当成**续延(库里 callcc 那一层包装用的就是它)──
+# 调它 = 调那枚函数,走的是普通调用那条路
+called: list = []
+wrapped := Continuation ((x: object) => { called.Add x; x; })
+print (typeof wrapped)
+print (wrapped is Continuation)
+print (wrapped 7)
+print called
+print ((Continuation wrapped) == wrapped)   # 已经是续延,原样(包两层没意义)
+
+# 别的值不收:`Continuation 5` / 空参数都当场报错
+try { Continuation 5; } (e: Exception) => { print ("4: " + string e); }
+try { Continuation (); } (e: Exception) => { print ("5: " + string e); }
+
+# 生成器那两枚字段现在就是这个类型(见 lib/generator.rav):注解写 Continuation、起手是 default
+G := Generator (y: function) => { y 1; y 2; }
+print (Seqs.Gather G)
+cur := GeneratorCursor (() => { (); })
+print cur.NextFromProducer
+print ((cur.NextFromProducer) is Continuation)
+print "end"
+# --- expected ---
+# Continuation
+# <续延 default>
+# 先给个值
+# Continuation
+# <continuation>
+# true
+# true
+# true
+# 3
+# true
+# Function
+# true
+# Continuation
+# Continuation
+# <续延 default>
+# Continuation
+# true
+# true
+# true
+# false
+# 1: 这枚续延是 default（还没到手的那一枚），调不了 —— 能跳的续延只有 callcc 交出来的那种
+# 2: 类型不匹配: 无法将 Integer 赋值给 Continuation — 无法将 Integer 转换为 Continuation
+# 3: 类型不匹配: 无法将 Function 赋值给 Continuation — 无法将 Function 转换为 Continuation
+# Continuation
+# true
+# 7
+# [7]
+# true
+# 4: Continuation 收一枚函数（或 default），得到 Integer
+# 5: Continuation 收一枚函数（或 default），得到 Void
+# [1 2]
+# <续延 default>
+# true
+# end
