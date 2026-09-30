@@ -1,0 +1,75 @@
+# `Seqs` —— 集合上再补几件:摊平 / 切块 / 拉链 / 分组 / 计数。
+# 全对着 `IEnumerable` 写,所以 list / set / dict / string / `Generator` 一视同仁;
+# 交回的是**当场算好的** list / dict(要惰性就用 `Generator`)。
+
+# 摊平一层
+print (Seqs.Flatten [[1 2] [3] [] [4 5]])
+print (Seqs.Flatten [{1 2} [3]])
+print (Seqs.Flatten [])
+
+# 切块:最后一组可能短一点;n 至少是 1
+print (Seqs.Chunk [1 2 3 4 5] 2)
+print (Seqs.Chunk [1 2 3 4] 2)
+print (Seqs.Chunk [1 2 3] 5)
+print (Seqs.Chunk [] 2)
+try { Seqs.Chunk [1 2] 0; } (e: Exception) => { print ("1: " + string e); }
+
+# 切出来的每一摞是**各自独立**的(不是同一个 list 反复用)
+cs := Seqs.Chunk [1 2 3 4] 2
+(cs.At 0).Add 99
+print cs
+print (cs.At 1)
+
+# 拉链:两边各取一个配成一对,到短的那边为止
+print (Seqs.Zip [1 2 3] ["a" "b"])
+print (Seqs.Zip ["x"] [1 2 3])
+print (Seqs.Zip [] [1])
+print ((Seqs.Zip [1 2] ["a" "b"]).At 0)
+
+# 分组:键是 `key` 结果规范化(`.Key ()`)之后的值;每组保持原顺序;键的先后 = 第一次出现
+print (Seqs.Group [1 2 3 4 5] ((n: int) => { n % 2; }))
+print (Seqs.Group ["aa" "b" "cc" "d"] ((s: string) => { s.Length (); }))
+print (Seqs.Group [] ((x: object) => { 0; }))
+
+# 计数;dict 的键那套规矩照旧:1 和 "1" 是两个键
+print (Seqs.Frequency ["a" "b" "a" "a" "b"])
+print (Seqs.Frequency [1 "1" 1])
+print (Seqs.Frequency [])
+
+# 对着 IEnumerable 写:生成器、字符串也吃
+G := Generator (y: function) => { y 1; y 2; y 3; }
+print (Seqs.Flatten [G [4 5]])
+print (Seqs.Frequency G)
+print (Seqs.Chunk "abcd" 2)
+print (Seqs.Zip "ab" [1 2 3])
+
+# 不是 IEnumerable:参数注解当场拦下
+try { Seqs.Flatten 5; } (e: Exception) => { print ("2: " + string e); }
+print "end"
+# --- expected ---
+# [1 2 3 4 5]
+# [1 2 3]
+# []
+# [[1 2] [3 4] [5]]
+# [[1 2] [3 4]]
+# [[1 2 3]]
+# []
+# 1: Chunk 的每组个数至少是 1，得到 0
+# [[1 2 99] [3 4]]
+# [3 4]
+# [[1 a] [2 b]]
+# [[x 1]]
+# []
+# [1 a]
+# {1: [1 3 5] 0: [2 4]}
+# {2: [aa cc] 1: [b d]}
+# {}
+# {a: 3 b: 2}
+# {1: 2 1: 1}
+# {}
+# [1 2 3 4 5]
+# {1: 1 2: 1 3: 1}
+# [[a b] [c d]]
+# [[a 1] [b 2]]
+# 2: 参数 'xss' 需要 IEnumerable，得到 Integer
+# end

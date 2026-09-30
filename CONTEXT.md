@@ -99,6 +99,8 @@ lib/
                           `callcc` 也在这儿(库函数:包装 System.CallCC,拍/还原两份控制状态)。
   numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
   iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
+  seqs.rav                `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
+                          (五件都对着 `IEnumerable` 写,交回当场算好的 list / dict)
   time.rav                `Time`(毫秒 + 一袋零件:Year/Month/… /WeekdayName/Text/AddDays…)
                           + `Now` / `TimeFrom` / `IsoFormat`;登记进 `IComparable`,Sorting 直接吃
                           (上面那五条 `System.*Time*` 是它的原语)

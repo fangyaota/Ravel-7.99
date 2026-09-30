@@ -1,0 +1,75 @@
+# 集合上再补几件:**摊平 / 切块 / 拉链 / 分组 / 计数**。
+# 全都**对着 `IEnumerable` 写**(和 `Io.Copy` / `Io.EachDir` 一个路子),所以
+# list / set / dict / string / `Generator` 一视同仁。
+#
+# 交回的是**当场算好的** `list` / `dict` —— 要"边要边给"的惰性,用 `Generator`。
+# 由 predefined.rav 加载(排在 iterator 之后:要用 `IEnumerable` 与 `foreach`)。
+ravel "Seqs"
+
+# 把一串收进一个 list(里面几件都要用)
+readonly Gather := (xs: IEnumerable) => {
+    out := []
+    foreach xs (x: object) => { out.Add x; }
+    out
+}
+
+# 摊平**一层**:一串"一串一串"的接成一串
+readonly Flatten := (xss: IEnumerable) => {
+    out := []
+    foreach xss (xs: IEnumerable) => { foreach xs (x: object) => { out.Add x; } }
+    out
+}
+
+# 每 n 个一组(最后一组可能短一点;n 至少是 1)
+readonly Chunk := (xs: IEnumerable) => {
+    (n: int) => {
+        assert (n >= 1) ("Chunk 的每组个数至少是 1，得到 " + string n)
+        out := []
+        cur := []
+        foreach xs (x: object) => {
+            cur.Add x
+            # 装满了就换一摞**新的**再往里放 —— 不换的话后面还会往已经交出去的那摞里加
+            if { (cur.Count ()) == n; } { out.Add cur; cur = []; } { 0; }
+        }
+        if { (cur.Count ()) > 0; } { out.Add cur; } { 0; }
+        out
+    }
+}
+
+# 拉链:两边各取一个配成一对(`[左 右]`),到短的那边为止
+readonly Zip := (a: IEnumerable) => {
+    (b: IEnumerable) => {
+        left := Gather a
+        right := Gather b
+        n := if { (left.Count ()) < (right.Count ()); } { left.Count (); } { right.Count (); }
+        out := []
+        i := 0
+        # 括号不能省:列表元素和实参一样,只吃"主表达式 + 取成员" ——
+        # `[left.At i right.At i]` 会把 `right.At` 也吞进第一个元素里去
+        while { i < n; } { out.Add [(left.At i) (right.At i)]; i += 1; }
+        out
+    }
+}
+
+# 按 `key` 分组:一个 dict,键是 `key` 结果**规范化**(`.Key ()`,和 dict 的键一个规矩)之后的值,
+# 每个键下是**保持原顺序**的 list;键的先后 = 第一次出现的先后(dict 保插入序)。
+readonly Group := (xs: IEnumerable) => {
+    (key: function) => {
+        out := {}
+        foreach xs (x: object) => {
+            k := (key x).Key ()
+            if { out.Has k; } { (out.Get k).Add x; } { out.Set k [x]; }
+        }
+        out
+    }
+}
+
+# 数一数每个值出现几次(键的规矩同 `Group`)
+readonly Frequency := (xs: IEnumerable) => {
+    out := {}
+    foreach xs (x: object) => {
+        k := x.Key ()
+        if { out.Has k; } { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
+    }
+    out
+}

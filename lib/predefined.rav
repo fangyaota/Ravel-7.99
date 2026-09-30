@@ -88,6 +88,7 @@ using "monad.rav"
 using "sorting.rav"
 using "time.rav"      # `Time` / `Now` / `TimeFrom` —— 毫秒 + IComparable 那一套
 using "keys.rav"
+using "seqs.rav"      # `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
 using "exceptions.rav"
 using "expected.rav"   # `Expected` / `Expect`(Option 的兄弟:失败那半是报错)
 using "match.rav"      # `match v [每对 条件/结果] 默认` —— 运算符节当条件
