@@ -1,0 +1,69 @@
+# `match v cases dflt`:从头试每一对 `[条件 结果]`,第一对条件为真的交出它的结果;
+# 一对都不真就给 `dflt`。条件是个**谓词**,`is.int` 这种运算符节就是现成的那个。
+
+kind := (v: object) => {
+    match v [[is.int "整数"] [is.bool "布尔"] [is.string "字符串"] [is.list "列表"]] "别的";
+}
+
+print (kind 3)
+print (kind true)
+print (kind "x")
+print (kind [1 2])
+print (kind 1.5)
+
+# 比值也这么写:`<=.0` 这种节
+sign := (n: int) => { match n [[<.0 "负"] [==.0 "零"] [>.0 "正"]] "?"; }
+
+print (sign (0 - 3))
+print (sign 0)
+print (sign 9)
+
+# 条件是普通函数:`(x) => bool`
+IsLong := (s: string) => { (s.Length ()) > 3; }
+print (match "hi" [[IsLong "长"]] "短")
+print (match "hello" [[IsLong "长"]] "短")
+
+# 顺序:第一个为真的胜出(短路 —— 后面的条件根本不会被问)
+Asked := 0
+Second := (x: object) => { Asked += 1; true; }
+print (match 3 [[is.int "甲"] [Second "乙"]] "丙")
+print Asked
+print (match "s" [[is.int "甲"] [Second "乙"]] "丙")
+print Asked
+
+# 一对都不真 -> 默认值
+print (match 1 [] "默认")
+print (match 1.5 [[is.int "整数"]] "默认")
+
+# 每对必须正好两项:不是就当场报错(说清是第几对)
+try { match 1 [[1 2 3]] "默认"; } (e: Exception) => { print ("1: " + string e); }
+try { match 1 [[1]] "默认"; } (e: Exception) => { print ("2: " + string e); }
+
+# 值是**当场算好**的:摆进去的调用都会跑(要延迟就在那一支里再调)
+Eager := 0
+Tag := (tag: string) => { Eager += 1; tag; }
+print (match 1 [[is.int (Tag "甲")] [is.string (Tag "乙")]] (Tag "丙"))
+print Eager
+print "end"
+# --- expected ---
+# 整数
+# 布尔
+# 字符串
+# 列表
+# 别的
+# 负
+# 零
+# 正
+# 短
+# 长
+# 甲
+# 0
+# 乙
+# 1
+# 默认
+# 默认
+# 1: match 的每一对要写成 [条件 结果]：第 1 对不是（它 3 项）
+# 2: match 的每一对要写成 [条件 结果]：第 1 对不是（它 1 项）
+# 甲
+# 3
+# end
