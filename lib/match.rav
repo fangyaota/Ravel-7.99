@@ -4,18 +4,29 @@
 # 条件是个**谓词**(拿值、回 bool),而 `is.int` 这种**运算符节**(运算符后面紧跟 `.`)
 # 就是现成的谓词 —— 它就是"是不是 int"那个函数。想比值也这么写:
 #
-#     kind := (v: object) => match v [
-#         [is.int    "整数"]
-#         [is.string "字符串"]
-#     ] "别的"
+#     kind := (v: object) => {
+#         match v [
+#             [is.int    {"整数";}]
+#             [is.string {"字符串";}]
+#         ] {"别的";}
+#     }
 #
-#     sign := (n: int) => match n [[<.0 "负"] [==.0 "零"] [>.0 "正"]] "?"
+#     sign := (n: int) => {
+#         match n [[<.0 {"负";}] [==.0 {"零";}] [>.0 {"正";}]] {"?";}
+#     }
 #
-# 两点先说清:
-#   * 值是**当场算好的**(列表字面量本来就全部求值),所以别把有副作用的调用摆进去 ——
-#     要延迟就在那一支里再调;
-#   * **条件按顺序试,第一个为真的胜出**,后面的不再问(短路)。
+# **结果写成块就是延迟的**(命中那一支才跑)—— 这是推荐的写法,和
+# `if { 条件 } { 这 } { 那 }` 一个规矩。写成别的值也认,那就是**当场算好**的
+# (它在列表字面量里,进 match 之前就已经跑完了)。
+#
+# 另外两条:条件按顺序试、**第一个为真的胜出**(后面的不再问);每对必须**正好两项**,
+# 不是就当场报错(说清是第几对)。
 readonly match ::= (v: object cases: list dflt: object) => {
+    Block := typeof { (); }              # "块"这个类型:用来分辨"延迟的分支"和"当场算好的值"
+
+    # 取一支的结果:是块就**调用**(延迟),别的原样交出去
+    armValue := (arm: object) => { if { (typeof arm) == Block; } { arm (); } { arm; } }
+
     hit := -1
     i := 0
     while { (i < (cases.Count ())) && (hit < 0); } {
@@ -28,5 +39,5 @@ readonly match ::= (v: object cases: list dflt: object) => {
         if { (c.At 0) v; } { hit = i; } { 0; }
         i += 1
     }
-    if { hit >= 0; } { (cases.At hit).At 1; } { dflt; }
+    if { hit >= 0; } { armValue ((cases.At hit).At 1); } { armValue dflt; }
 }

@@ -102,7 +102,8 @@ lib/
                           + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           + 构造子 `Some` / `None`
   match.rav               `match v [每对 条件/结果] 默认` —— 按顺序试谓词,第一个为真的胜出
-                          (条件多半就是 `is.int` / `<.0` 这种**运算符节**)
+                          (条件多半就是 `is.int` / `<.0` 这种**运算符节**;结果写成**块**才是
+                          延迟的,写成值就是当场算好的)
   expected.rav            同族的另一个实例 `Expected`(Ok/Err:Has/Inner/Err + IsOk/Value/Error/Message
                           + Map/Bind/Exists)+ 构造子 `Ok` / `Err`
                           + `Expect argCount f` —— 把一个函数包成"调用返回 Expected"的那种
