@@ -95,8 +95,9 @@ lib/
                           `callcc` 也在这儿(库函数:包装 System.CallCC,拍/还原两份控制状态)。
   numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
   iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
-  cacher.rav              `Cacher`(Count/Fn/Keys/Vals 四个字段,init 交出的是包装函数而不是 this)
-                          + 小写别名 `cacher`;两个类都进 AllTypes(`Subtypes ()` 看得到)
+  cached.rav              `Cached count f` —— 记忆化:按实参把 f 的结果记下来。**是个函数**
+                          (不是类型),直接交出包装函数;缓存本身是它捕获的两个 list
+                          (所以每调一次是独立的一份,也不进 AllTypes)
   monad.rav               **Monad 这一族**:`IMonad` 接口(Map + Bind 两条槽 —— 能进 `do { … }` 的形状)
                           + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           + 构造子 `Some` / `None`
@@ -226,8 +227,8 @@ Object (parent=自己)
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
 与「跑外部命令」两节:它们只做 syscall,策略在库里。）
 
-（`if`/`while`/`foreach`/`cacher`/`Some`/`None` 不在 System 模块里——它们在
-`lib/predefined.rav` 用 Ravel 写。那里还定义了几个类型：`Cacher`(缓存)、
+（`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
+`lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
 `Option`(可能没有值的包)、`Expected`(那次调用有没有出错)。）
 
 **值**: True False Default NaN Inf（特殊浮点值；`-Inf` 用一元 `-`）

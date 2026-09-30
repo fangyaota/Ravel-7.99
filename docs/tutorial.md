@@ -671,9 +671,9 @@ print (add2 3)            # <function (y: int) => { x + y; } applied x=3>
 签名里是**还等着**的参数，已经喂过的实参跟在 `applied` 后面 —— 两者合起来就是完整的形状。
 体太长会截断（它不是给你复制代码用的，是给你认出"这是哪个函数"的）。
 
-### 5.7 缓存函数的返回结果（cacher）
+### 5.7 缓存函数的返回结果（Cached）
 
-`cacher count f` 把 `f` 的返回结果记下来，同一组实参再来就直接给记下的那个 —— 不再重算。
+`Cached count f` 把 `f` 的返回结果记下来，同一组实参再来就直接给记下的那个 —— 不再重算。
 `count` 是 **`f` 的参数个数**。
 
 最典型的用法是给递归函数自己套上缓存（函数体里读的是外层那个名字，调用时才解析，
@@ -682,7 +682,7 @@ print (add2 3)            # <function (y: int) => { x + y; } applied x=3>
 ```ravel
 FibCalls := 0
 fib: object = 0
-fib = cacher 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { fib (n - 1) + fib (n - 2); } })
+fib = Cached 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { fib (n - 1) + fib (n - 2); } })
 print (fib 25)          # 75025
 print FibCalls          # 26 —— 没缓存是 242785 次
 ```
@@ -695,14 +695,14 @@ print FibCalls          # 26 —— 没缓存是 242785 次
 ```ravel
 Calls := 0
 slow := (x: int) => { Calls += 1; x * 10; }
-c := cacher 1 slow
+c := Cached 1 slow
 print (c 1)          # 10   算
 print (c 1)          # 10   命中
 print (c 2)          # 20   另一个实参,算
 print Calls          # 2
 
 add := (a: int b: int) => { a + b; }
-c2 := cacher 2 add   # 两个参数
+c2 := Cached 2 add   # 两个参数
 print (c2 1 2)       # 3
 print (c2 1 2)       # 3(整组实参命中)
 ```
@@ -716,23 +716,24 @@ print (c2 1 2)       # 3(整组实参命中)
   两项是两个键 —— 数值运算符碰到字符串会当场报错，所以这一步不能省。
 - **没有上限，也不过期**：这就是记忆化。实参取值很多时它会一直涨，
   要限容得在外面自己包一层。
-- 参数个数写成 0 当场报错（`cacher 的参数个数至少是 1，得到 0`），
-  不然那个函数会一直收参数、永远不给结果。无参函数写 `cacher 1`，调用时喂 `()`。
+- 参数个数写成 0 当场报错（`Cached 的参数个数至少是 1，得到 0`），
+  不然那个函数会一直收参数、永远不给结果。无参函数写 `Cached 1`，调用时喂 `()`。
 
-**它是个类型**（`Cacher`，`cacher` 是小写别名，和 `int` / `print` 一样）。
-缓存就是实例上的三个字段 —— `Count`（参数个数）、`Keys`（算过哪几组实参）、
-`Vals`（各得了什么结果），而不是藏在闭包里的局部变量。
+**它是个函数**（`lib/cached.rav` 里 `readonly Cached ::= (count f) => …`）——
+  直接交出包装函数，不是"要实例化的类型"，也没有小写别名：一个东西一个名字。
+缓存本身是 `Cached` 体里的两个 list —— `keys`（算过哪几组实参）与 `vals`（各得了什么结果），
+包装函数捕获它们，所以活得和包装函数一样长。
 
-但 `init` 交出来的**不是 `this`，而是那个包装函数**：
+交出来的是**包装函数**：
 
 ```ravel
-print (typeof (cacher 1 slow))   # Function —— 拿到手就能直接调
-print (Cacher.name)              # "Cacher"
+print (typeof (Cached 1 slow))   # Function —— 拿到手就能直接调
+print (Cached.name)              # "Cached"
 ```
 
-所以 `cacher 2 add` 可以直接 `(…) 1 2`。包装函数捕获了那块实例作用域，
-缓存因此活得和它一样长（实例本身退场了，Scope 被函数拎着走）。
-每次 `cacher …` 都是一份**独立**的缓存，包同一个函数互不干扰。
+所以 `Cached 2 add` 可以直接 `(…) 1 2`（`Cached` 自己是个 `(count f) => …` 的函数，
+不是要实例化的类型）。缓存本身是它捕获的那两个 list，所以活得和包装函数一样长。
+每次 `Cached …` 都是一份**独立**的缓存，包同一个函数互不干扰。
 
 ### 5.8 Option（可能没有值的包）
 

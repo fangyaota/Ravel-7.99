@@ -261,7 +261,7 @@ ravel "207_atomic_equality"
 #     !! 解释器内部错误 InvalidCastException: Unable to cast ... VoidVal ... ObjectVal
 #
 # 直接把程序打掉,而且不是 RuntimeException,Ravel 的 `Ex.try` 也接不住。
-# (cacher 拿 `()` 当实参去比的时候撞上了它,见 tests/206。)
+# (`Cached` 拿 `()` 当实参去比的时候撞上了它,见 tests/13 里那段。)
 print (() == ())
 print (() != ())
 print (default == default)

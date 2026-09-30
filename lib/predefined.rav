@@ -82,7 +82,7 @@ readonly while := (c: function body: function) => {
 # ── 标准库:各自一个文件 ──
 using "numbers.rav"
 using "iterator.rav"
-using "cacher.rav"
+using "cached.rav"
 using "monad.rav"
 using "sorting.rav"
 using "keys.rav"
