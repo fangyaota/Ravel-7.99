@@ -58,6 +58,14 @@ j.tag := 1
 print j.tag
 try { print (Json 2).tag; } (e: Exception) => { print ("6: " + string e); }
 
+# ⑦ 机制成员 `parent` / `block` 是**只读**的:它们是"这个类是什么"的定义,
+#    改它等于把类换一个(`C.parent = int` 之后 `C ()` 就去跑 Integer 的构造器了)
+print (C.parent)
+try { C.parent = int; } (e: Exception) => { print ("7: " + string e); }
+try { C.block = (); } (e: Exception) => { print ("8: " + string e); }
+C.name = "改过的"                 # `name` 照旧可写:那是它本来的用法(`F.name = "x"`)
+print C
+
 print "end"
 # --- expected ---
 # 7
@@ -81,4 +89,8 @@ print "end"
 # true
 # 1
 # 6: 类型 'Json' 没有方法 'tag'
+# Object
+# 7: 无法给只读变量 'parent' 赋值
+# 8: 无法给只读变量 'block' 赋值
+# 改过的
 # end

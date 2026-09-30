@@ -105,8 +105,11 @@ public record ObjectVal : RuntimeValue
     /// <summary>父类对象(原型链的上游)。自引用(如 `object`/`Every`/`Any`)表示链到头。</summary>
     public ObjectVal? Parent => Scope.LookupField(ParentMember)?.Value as ObjectVal;
 
-    /// <summary>类体——实例化时重跑的配方。可写:内置类的预设类体是 C# 侧装上去的
+    /// <summary>类体——实例化时重跑的配方。内置类的预设类体是 C# 侧装上去的
     /// (见 BuiltinClasses.PresetBody),用户类的类体由 `type` 的 init 装(见 Install)。
+    ///
+    /// 装好之后**只读**(和 `parent` 一个道理:换类体等于把类换一个)。引擎侧那些装类体的
+    /// 地方都在造类的那一刻写一次,所以这里挂着 `Readonly` 不影响它们。
     ///
     /// 名字不叫 `Body`:`FunctionVal` 已经占了那一个(函数的同步体),而类对象现在**也是**
     /// `FunctionVal`(见 <see cref="ClassVal"/>)。两个"体"住同一个类型上,各叫各的。</summary>
@@ -115,7 +118,8 @@ public record ObjectVal : RuntimeValue
         get => Scope.LookupField(BlockMember)?.Value as BlockVal;
         set
         {
-            if (value != null) Scope.DefineOrReplace(BlockMember, BuiltinClasses.Block, value);
+            if (value != null)
+                Scope.DefineOrReplace(BlockMember, BuiltinClasses.Block, value).SetAttr(Attr.Readonly);
         }
     }
 

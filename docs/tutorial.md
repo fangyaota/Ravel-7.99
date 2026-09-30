@@ -89,6 +89,8 @@ typeof "hello"   # String
 - **机制成员** —— `parent` / `block` / `name` / `init` / `this`：类对象自己那层的数据。
   `C.parent` 是原型链指针（父类），`C.name` 是类名。它们**不沿链继承**，所以实例上读不到
   （`c.parent` 报「没有方法」——不然 `(5).parent` 会从报错变成返回 `ValueType`）。
+  `parent` / `block` 是**只读**的（改它等于把类换一个：`C.parent = int` 之后 `C ()`
+  就去跑 `Integer` 的构造器）；`name` 故意可写，那是它的用法（`F.name = "x"`）。
 
 **注解里的名字就是作用域里的那个变量**（`int := System.Integer` 只是 `predefined.rav`
 里的普通赋值），所以：
@@ -1381,8 +1383,8 @@ print (typeof Person)    # Type
 
 | 成员 | 含义 | 怎么看 |
 |---|---|---|
-| `parent` | 父类对象（链的上游） | `print (Person.parent)` → `Object` |
-| `block` | 类体——实例化时重跑的配方 | `typeof Person.block` 是 `Block` |
+| `parent` | 父类对象（链的上游）。**只读** | `print (Person.parent)` → `Object` |
+| `block` | 类体——实例化时重跑的配方。**只读** | `typeof Person.block` 是 `Block` |
 | `name` | 类名 | `Person.name` → `"Person"` |
 
 类对象本身就是**可调用的东西**（不是靠某个成员表示"我能被调用"），所以写得出

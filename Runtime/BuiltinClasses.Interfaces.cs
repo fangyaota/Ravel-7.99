@@ -171,13 +171,14 @@ internal static partial class BuiltinClasses
 
         // 没有父的接口,parent 挂在 **`BaseInterface`** 上(不是 `object`)—— 它就是"接口的
         // 公共基类",`init` 那一份默认实现挂在那儿,于是每个接口都继承得到。
-        var trait = Install(scope, parent ?? BaseInterface, blk);
+        // **先烤、再装**:把父接口的声明接在自己前面(槽要并集),然后一次装进类里。
+        // 这个顺序是有讲究的 —— `block` 那一格现在是 readonly,而"先 Install 再
+        // `trait.ClassBody = …` 换一份"就是往同一格写第二次。
+        var trait = Install(scope, parent ?? BaseInterface, BakeParentDeclarations(blk, parent));
 
         if (requires.Count > 0)
             trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, List, new ListVal([.. requires]))
                 .SetAttr(Attr.Unreadable);
-
-        BakeParentDeclarations(trait, blk, parent);
 
         // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
         // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
@@ -186,7 +187,9 @@ internal static partial class BuiltinClasses
         return trait;
     }
 
-    /// <summary>把**父接口的声明**接在自己前面,一起烤进这个接口的**类体**。
+    /// <summary>把**父接口的声明**接在自己前面,做成这个接口最终的类体 —— **纯函数**:
+    /// 谁都不改,调用方拿它去 `Install`。所以 `block` 那一格只写一次(它是 readonly,
+    /// "先装上、再换一份"就是往同一格写第二次)。
     ///
     /// 槽要**并集**(父的那些 `by … = default` 是它"形"的一部分)—— 把父的抄进来最省事,
     /// 而且**父自己早就把它的父抄进来了**,所以一层不落。父的在前、自己的在后:
@@ -198,7 +201,7 @@ internal static partial class BuiltinClasses
     ///
     /// 类体必须是新的 BlockExpr(带用户那份的 Source/行列):原样改 `block` 会动到用户写的
     /// 那个 BlockExpr,`Source` 也就丢了。</summary>
-    private static void BakeParentDeclarations(ObjectVal trait, BlockVal blk, ObjectVal? parent)
+    private static BlockVal BakeParentDeclarations(BlockVal blk, ObjectVal? parent)
     {
         var statements = new List<Statement>();
         if (parent?.ClassBody is { } pb)
@@ -206,7 +209,7 @@ internal static partial class BuiltinClasses
 
         statements.AddRange(blk.Block.Statements);
 
-        trait.ClassBody = new BlockVal(
+        return new BlockVal(
             new BlockExpr(statements)
             {
                 Line = blk.Block.Line,

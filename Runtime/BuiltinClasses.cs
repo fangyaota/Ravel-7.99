@@ -266,8 +266,11 @@ internal static partial class BuiltinClasses
         // 所以改成说人话的 Ravel 错误。
         if (scope.Lookup(ObjectVal.ThisMember).Value is not ClassVal self)
             throw new RuntimeException("这个类型不能再套一个代码块来建类（它是个接口：接口是用 `interface { … }` 造的）");
-        self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
-        self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk);
+        // `parent` / `block` **只读**:它们是"这个类是什么"的定义,改它等于把类换一个
+        // (`C.parent = int` 之后 `C ()` 就去跑 Integer 的构造器了)。装类是**一次**的事
+        // —— 想换个父类就再造一个类,别改这一个。
+        self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
+        self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk).SetAttr(Attr.Readonly);
         self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
         AllTypes.Add(self);
 
@@ -296,7 +299,7 @@ internal static partial class BuiltinClasses
     private static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
     {
         t.ClassType = meta;
-        t.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent);
+        t.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
         t.Scope.LookupField(ObjectVal.NameMember)!.TypeConstraint = String;
     }
 
@@ -310,7 +313,7 @@ internal static partial class BuiltinClasses
     internal static ClassVal NewModuleClass(string name, ObjectVal parent)
     {
         var t = new ClassVal(Type, new Scope());
-        t.Scope.Define(ObjectVal.ParentMember, Object, parent);
+        t.Scope.Define(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
         t.Scope.Define(ObjectVal.NameMember, String, new StringVal(name));
         return t;
     }

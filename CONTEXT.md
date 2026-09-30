@@ -455,6 +455,13 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
     变成返回 `ValueType`。
   - **`Fields ()`** 不按名字挡 —— 它列的就是"这个 Scope 里的成员",`init` / `parent` / `block`
     都在里面。唯一排掉的是 `this`：它不是成员，是**这个值自己**的别名。
+  - **`parent` / `block` 是 `readonly`**（装它们的四个地方 —— `Install` / `Link` /
+    `NewModuleClass` / `ObjectVal.ClassBody` —— 挂上去的）：它们是"这个类是什么"的定义，
+    改它等于把类换一个（`C.parent = int` 之后 `C ()` 就去跑 `Integer` 的构造器了）。
+    装类因此都是**写一次**：接口那份类体是"父的声明接在自己前面"（`BakeParentDeclarations`），
+    现在**先烤好再 `Install`** —— 从前是"先装上、再 `trait.ClassBody = …` 换一份"，
+    那是往同一格写第二次，挂了 readonly 就当场报「无法重新定义只读变量 'block'」。
+    `name` **故意可写**：那是它本来的用法（`F.name = "x"`、`::=` 命名）。
   - **`init` 是 `protected`**（`PresetCtor` 给它挂的）：**类体系里照旧** —— 子类那句
     `init = …` 是普通赋值、不走成员门禁；外面 `obj.init` / `obj.init = …` 读不到也写不了
     （「变量/字段 'init' 是受保护的」）。构造器本来也不该是从外面拨的开关。
