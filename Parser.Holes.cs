@@ -43,12 +43,16 @@ public partial class Parser
         var uniq = holes.Distinct().ToList();
         // 替换 HoleExpr → IdentifierExpr
         var body = ReplaceHoles(e);
-        // 嵌套 lambda：最外层参数对应第一个 hole
+        // 嵌套 lambda：最外层参数对应第一个 hole。
+        // 参数名用的是 hole 的**全局序号**(`uniq[i]`,和 ReplaceHoles 换出来的标识符同一个数),
+        // 不是"第几个 hole"(`i`)—— `_` 的序号是解析期一个单调计数器(每语句归零),
+        // 同一条语句里第二个洞里,`i` 与序号对不上就会生成 `(_0) => { _1 is bool; }` 这种
+        // 「未定义的变量 '_1'」(同一个函数里的名字还得唯一:嵌套时同名会互相遮蔽)。
         for (int i = uniq.Count - 1; i >= 0; i--)
         {
             var block = new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
                 { Line = body.Line, Column = body.Column };
-            body = new LambdaExpr(new Parameter("_" + i, new IdentifierExpr("object") { Line = body.Line, Column = body.Column }), block) { Line = body.Line, Column = body.Column };
+            body = new LambdaExpr(new Parameter("_" + uniq[i], new IdentifierExpr("object") { Line = body.Line, Column = body.Column }), block) { Line = body.Line, Column = body.Column };
         }
 
         return body;
