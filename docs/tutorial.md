@@ -1068,6 +1068,7 @@ Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一�
 ```
 
 `Io.Copy` / `Io.EachDir` / `Io.Lines` 就是**对着接口写的**三段：任何实现都吃。
+`Io.Lines f` 是个**生成器**（见 4.3 那节）：边要边给，`foreach (Io.Lines f) (l: string) => { … }`。
 （zip 条目那种只读的实现，让 `Write` / `Delete` 抛一句"这份文件是只读的"就行。）
 
 #### 控制台也是文件
@@ -1079,7 +1080,7 @@ Io.Stdout.Write "直接写到终端
 "
 Io.Copy (Io.File "notes/a.txt") Io.Stdout      # 对着接口写的代码:文件 → 终端
 Io.Stdin.ReadLine ()                           # 一行(就是 input)
-Io.Lines Io.Stdin                              # 读到 EOF 的所有行
+foreach (Io.Lines Io.Stdin) (l: string) => { print l; }   # 读到 EOF 的每一行（生成器，边要边给）
 ```
 
 只写的那两个读不了、只读的那个写不了，报错说人话（控制台也没有大小、删不掉）：

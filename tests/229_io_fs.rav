@@ -261,7 +261,7 @@ print (disk.Read ())
 back := MemFile "back.txt" ""
 Io.Copy disk back
 print (back.Read ())
-print (Io.Lines back)
+foreach (Io.Lines back) (l: string) => { print l; }
 
 # `Io.EachDir` 在内存目录上照样递归（路径那一段用 BaseName 打，免得带平台分隔符）
 print (m.Size ())
@@ -324,7 +324,16 @@ f.Write "从文件来的一行\n"
 Io.Copy f Io.Stdout
 f.Append "又一行\n"
 Io.Copy f Io.Stdout
-print (Io.Lines f)
+# `Io.Lines` 是**生成器**:边要边给 —— 配 `match` 挑行、配 `Expected` 兜"读不到"
+IsBlank := (s: string) => { (s.Trim ()).IsEmpty (); }
+foreach (Io.Lines f) (l: string) => {
+    print (match l [[IsBlank {"空行";}]] {"有字";});
+}
+
+# 读不到的文件:`Expect` 把那次调用兜住,不往外抛
+missing := (Expect 1 (() => { (Io.File ".io-test/没有这个.txt").Read (); })) ()
+print (missing.IsErr ())
+print ((missing.Message ()).Contains "没有这个")
 
 f.Delete ()
 d.Delete ()
@@ -417,7 +426,7 @@ ravel ""
 # mem.txt = 内存里的内容
 # 内存里的内容
 # 内存里的内容
-# [内存里的内容]
+# 内存里的内容
 # 6
 # false mem.txt @ mem.txt
 # true sub @ sub
@@ -450,7 +459,10 @@ ravel ""
 # 从文件来的一行
 # 从文件来的一行
 # 又一行
-# [从文件来的一行 又一行]
+# 有字
+# 有字
+# true
+# true
 # false
 # end
 # 0

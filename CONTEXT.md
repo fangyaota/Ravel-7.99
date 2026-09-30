@@ -286,7 +286,8 @@ Object (parent=自己)
 3. **磁盘实现 + 通用件**（模块 `Io`）：`Io.File "a.txt"` / `Io.Dir "sub"` 造条目
    （`Child` 对不存在的名字**按文件算** —— 写新文件是常事；建目录走 `Mkdir`）；
    `List` / `Files` / `Dirs` 按名字排序；`CopyTo` / `MoveTo` / `Rename` / `LastWrite` 是磁盘特有的。
-   `Io.Lines (f: IFile)` / `Io.Copy (from to)` / `Io.EachDir (d f)`（递归走一遍，每见一个条目叫一次
+   `Io.Lines (f: IFile)`（**生成器**：边要边给，读到第几行就收工都行）/ `Io.Copy (from to)` /
+   `Io.EachDir (d f)`（递归走一遍，每见一个条目叫一次
    `f (路径, 条目)`）**对着接口写**，任何实现都吃 —— 以后加内存文件 / zip / 远程文件就是照这个缝插。
 
 **控制台也是文件**：`Io.Stdout` / `Io.Stderr` / `Io.Stdin` 三个单例值实现 `IFile`（模块 `Io` 里

@@ -227,8 +227,18 @@ readonly BaseName := (p: string) => { System.PathBase p; }
 readonly Ext := (p: string) => { System.PathExt p; }
 
 # 下面是**对着接口**写的：任何实现都吃（磁盘的、内存的、以后加的）。
-# 按行切开
-readonly Lines := (f: IFile) => { System.SplitLines (f.Read ()); }
+# 按行切开 —— 是个**生成器**：边要边给，`foreach` 直接吃。
+#
+#     foreach (Io.Lines (Io.File "a.txt")) (l: string) => { print l; }
+#
+# 惰性在**消费**那一头：`IFile` 只有 `Read () => string`（一口气读完），所以内容是一次读进来的，
+# 但"行"是逐条给的 —— 读到第 3 行就 `callcc` 收工，后面那些行不会进你的函数(见 tests/246)。
+# 要一次拿全就用 `System.SplitLines (f.Read ())`，或者磁盘实现上的 `f.Lines ()`（那是个 list）。
+readonly Lines := (f: IFile) => {
+    Generator (y: function) => {
+        foreach (System.SplitLines (f.Read ())) (l: string) => { y l; }
+    }
+}
 
 # 从一份倒进另一份
 readonly Copy := (from: IFile to: IFile) => { to.Write (from.Read ()); (); }
