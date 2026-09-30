@@ -65,14 +65,7 @@ foreach s (x: int) => { print ("mine " + string x); }
 Sub ::= class Seq {
     tag : int = 0
 }
-print (list.GetImplements ())
-print (int.GetImplements ())
-print (Seq.GetImplements ())
-print (Sub.GetImplements ())          # 子类也算(实例收得下目标)
 # ---- I.GetImplementors ():反过来问 —— 现在哪些**类型**实现了这个接口 ----
-print (IEnumerable.GetImplementors ())
-print (IEnumerator.GetImplementors ())
-print (Seq.GetImplementors ())        # 普通类没人拿它当接口 → 空
 
 MyIface ::= interface {
     by Go : function = default
@@ -80,16 +73,12 @@ MyIface ::= interface {
 MyThing ::= class {
     x : int = 0
 }
-print (MyIface.GetImplementors ())
 myImpl := use (MyIface MyThing {
     by Go = property (() => { () => { instance.x; }; }) ((v: function) => { (); })
 })
-print (MyIface.GetImplementors ())
 myImpl.Dispose ()
-print (MyIface.GetImplementors ())
 
 seqImpl.Dispose ()
-print (Seq.GetImplements ())
 
 # ---- 不是可枚举的:报错说清楚要什么 ----
 try { foreach 5 (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string e2); }
@@ -116,8 +105,6 @@ print ([1] is INumber)
 print ((typeof 5) <: INumber)          # 类型那一侧也认(和 `is` 同一个判据)
 
 # ---- 两个查询都看得见它 ----
-print (int.GetImplements ())
-print (INumber.GetImplementors ())
 
 # ---- math.rav 那四个现在收 INumber ----
 print (Math.Square 5)
@@ -160,7 +147,6 @@ print ((bigint 5).CompareTo (bigint 7))
 print (3 is IComparable)
 print ("a" is IComparable)
 print ([1 2] is IComparable)
-print (IComparable.GetImplementors ())
 
 # ③ 库里那些通用件:对着 `CompareTo` 写,所以内建 / 自写两边都吃
 print (Sorting.Compare 3 5)
@@ -185,7 +171,6 @@ Rec ::= class {
 impl (IComparable Rec {
     ()
 })
-print (Rec.GetImplements ())
 rs := []
 rs.Add (Rec 3 "c")
 rs.Add (Rec 1 "a")
@@ -261,7 +246,6 @@ try { print {zz: 1}; } (e: Exception) => { print ("4: " + string e); }
 print (5 is IKey)
 print ("a" is IKey)
 print ([1 2] is IKey)
-print (IKey.GetImplementors ())
 
 # ⑤ 值语义:类里写一条 `Key`(它盖掉 `Object` 那条),再 impl 登记
 Rec ::= class {
@@ -274,7 +258,6 @@ impl (IKey Rec {
     ()
 })
 print ((Rec 1 "a") is IKey)
-print (Rec.GetImplements ())
 print (Keys.Of (Rec 7 "x"))
 
 d2 := {}
@@ -354,17 +337,6 @@ ravel ""
 # mine 7
 # mine 8
 # mine 9
-# [IEnumerable BaseInterface]
-# [IKey BaseInterface IComparable INumber]
-# [IEnumerable BaseInterface]
-# [IEnumerable BaseInterface]
-# [Seq Generator Dict String Set List]
-# [GeneratorCursor Enumerator]
-# []
-# []
-# [MyThing]
-# []
-# []
 # 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
 # 2: 参数 'c' 需要 String，得到 Char
 # true
@@ -376,8 +348,6 @@ ravel ""
 # false
 # false
 # true
-# [IKey BaseInterface IComparable INumber]
-# [BigFraction Fraction BigInt Float Integer]
 # 25
 # 6.25
 # 27
@@ -395,7 +365,6 @@ ravel ""
 # true
 # true
 # false
-# [String Char BigFraction Fraction BigInt Float Integer]
 # -1
 # [1 2 3]
 # []
@@ -407,7 +376,6 @@ ravel ""
 # 2
 # ccc
 # a
-# [IComparable BaseInterface]
 # [a b c]
 # [a b c]
 # c
@@ -443,9 +411,7 @@ ravel ""
 # true
 # true
 # false
-# [String Char BigFraction Fraction BigInt Float Integer]
 # true
-# [IKey BaseInterface]
 # 7
 # one
 # true

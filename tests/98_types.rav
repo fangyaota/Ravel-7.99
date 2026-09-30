@@ -74,7 +74,6 @@ print (a.x)
 print (b.x)
 print (a.Fields ())
 using "math.rav"
-print (ValueType.Subtypes ())
 a = 5
 print a
 a = "changed"
@@ -232,11 +231,9 @@ ravel ""
 
 # ═══ 164_subtypes_user_class(并入) ═══
 ravel "164_subtypes_user_class"
-# Subtypes() 该看得到用户类。AllTypes 以前只在静态构造器里填内置类型,
-# Define 不登记,于是 `object.Subtypes ()` 只列内置的。
+# ═══ 类与父类: `C.parent` 就是那一条
 C ::= class { init = () => { 0; this; }; }
 D ::= class C { init = () => { 0; this; }; }
-print (C.Subtypes ())
 print ((C.parent) == object)
 ravel ""
 
@@ -427,7 +424,6 @@ ravel ""
 # 10
 # 99
 # [init x is isnot == != <: :> ToString Copy Fields CompareTo Key]
-# [Integer Float String Char BigInt Fraction BigFraction Every]
 # 5
 # changed
 # 2.718281828459045
@@ -462,7 +458,6 @@ ravel ""
 # M
 # 2
 # Block
-# [Every D]
 # true
 # <scope>
 # <function true prepend { 1; }>

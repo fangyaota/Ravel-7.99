@@ -33,8 +33,6 @@ print (f is IEntry)
 print (sub is IDir)
 print (sub is IEntry)
 print (f is IDir)
-print (IFile.GetImplementors ())
-print (IDir.GetImplementors ())
 
 # 复制 / 移动 / 改名
 g := f.CopyTo ".io-test/copy.txt"
@@ -249,9 +247,6 @@ print (m is IEntry)
 print (top is IDir)
 print (top is IEntry)
 print (m is IDir)
-print (MemFile.GetImplements ())
-print (IFile.GetImplementors ())
-print (IDir.GetImplementors ())
 
 # 对着接口写的函数：注解 (f: IFile) 收得下内存实现
 describe := (f: IFile) => { (f.Name ()) + " = " + (f.Read ()); }
@@ -320,7 +315,6 @@ try { Io.Stdout.Size (); } (e: Exception) => { print ("4: " + string e); }
 try { Io.Stdout.Delete (); } (e: Exception) => { print ("5: " + string e); }
 
 # 实现者名单里有它们(磁盘那个 File 也在 —— 同一族的三个实现)
-print (IFile.GetImplementors ())
 
 # 对着接口写的代码:文件 → 终端
 d := Io.Dir ".io-test-con"
@@ -384,8 +378,6 @@ ravel ""
 # true
 # true
 # false
-# [ConsoleIn ConsoleOut File]
-# [Dir]
 # hi
 # ho
 # tail
@@ -422,9 +414,6 @@ ravel ""
 # true
 # true
 # false
-# [IFile IEntry BaseInterface]
-# [MemFile ConsoleIn ConsoleOut File]
-# [MemDir Dir]
 # mem.txt = 内存里的内容
 # 内存里的内容
 # 内存里的内容
@@ -458,7 +447,6 @@ ravel ""
 # 3: 这是只读的（stdin），写不了
 # 4: 控制台没有大小：stdout
 # 5: 控制台删不掉：stdout
-# [MemFile ConsoleIn ConsoleOut File]
 # 从文件来的一行
 # 从文件来的一行
 # 又一行

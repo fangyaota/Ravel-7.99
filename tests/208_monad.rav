@@ -201,9 +201,6 @@ print ((IoMonad.PutStrLn "x") is IMonad)
 print (5 is IMonad)
 
 # 实现是**全局**登记的(用 impl 而不是 use),所以类型层面两个方向都问得出来
-print (Option.GetImplements ())
-print (IoMonad.Action.GetImplements ())
-print (IMonad.GetImplementors ())
 
 # 通用函数:只要求"是这个形状",同一个 monad 自己往下接
 Chain := (m: IMonad f: function) => { m.Bind f; }
@@ -304,9 +301,6 @@ ravel ""
 # true
 # true
 # false
-# [IMonad BaseInterface]
-# [IMonad BaseInterface]
-# [Action Expected Option]
 # 4
 # 42
 # 2

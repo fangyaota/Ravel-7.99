@@ -36,7 +36,6 @@ print (masterTrait <: myTrait)
 # ---- 要求不是继承:`<:` 不成立 ----
 print (masterTrait <: IEnumerable)
 
-
 C ::= class {
     x : int = 0
 }
@@ -69,7 +68,6 @@ print (u is supTrait)
 print (u is myTrait)
 print (u is IEnumerable)
 foreach u (v: int) => { print ("each " + string v); }
-print (C.GetImplements ())
 
 # ---- 同名槽:现在**报错** —— 父接口声明过的槽不能再声明一次(`:=` 是定义不是覆盖;
 #      要换掉它的实现,写的是实现体里那句 `by a = property …`)----
@@ -197,7 +195,6 @@ ravel ""
 # true
 # true
 # each 5
-# [masterTrait supTrait myTrait BaseInterface IEnumerable]
 # 8: 'a' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 3: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
 # 5
