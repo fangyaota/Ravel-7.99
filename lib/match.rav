@@ -21,11 +21,44 @@
 #
 # 另外两条:条件按顺序试、**第一个为真的胜出**(后面的不再问);每对必须**正好两项**,
 # 不是就当场报错(说清是第几对)。
+# `match v cases dflt` —— 从头试每一对 `[条件 结果]`,第一对条件为真的交出它的结果;
+# 一对都不真就给 `dflt`。由 predefined.rav 加载(名字落在全局作用域)。
+#
+# 条件是个**谓词**(拿值、回 bool),而 `is.int` 这种**运算符节**(运算符后面紧跟 `.`)
+# 就是现成的谓词 —— 它就是"是不是 int"那个函数。想比值也这么写:
+#
+#     kind := (v: object) => {
+#         match v [
+#             [is.int    {"整数";}]
+#             [is.string {"字符串";}]
+#         ] {"别的";}
+#     }
+#
+#     sign := (n: int) => {
+#         match n [
+#             [<.0  {"负";}]
+#             [==.0 {"零";}]
+#             [>.0  {"正";}]
+#         ] {"?";}
+#     }
+#
+# **结果和默认值都得是*可调用的*东西 —— 推荐写成块**:命中那一支才跑,和
+# `if { 条件 } { 这 } { 那 }` 一个规矩(块的值 = 最后一条语句的值)。拿普通值糊弄当场报错,
+# 不悄悄当成"进 match 之前就算好的值"—— 那会让人以为分支是延迟的,其实全都跑了。
+# (`() => { … }` 这种 lambda 也认:它同样是可调用的。)
+#
+# 另外两条:条件按顺序试、**第一个为真的胜出**(后面的不再问);每对必须**正好两项**,
+# 不是就当场报错(说清是第几对)。
 readonly match ::= (v: object cases: list dflt: object) => {
-    Block := typeof { (); }              # "块"这个类型:用来分辨"延迟的分支"和"当场算好的值"
+    # 形状当场查:每一支结果、以及默认值,都得**可调用**。查的是"能不能调",不是"是块"——
+    # 块和 lambda 都行(块 `is function` 成立),普通值不成立。
+    checkArm := (arm: object what: string) => {
+        if { !(arm is function); } {
+            throw (Exception "${what}要写成块（块里最后一条语句的值就是它的值）")
+        } { 0; }
+    }
 
-    # 取一支的结果:是块就**调用**(延迟),别的原样交出去
-    armValue := (arm: object) => { if { (typeof arm) == Block; } { arm (); } { arm; } }
+    checkArm dflt "match 的默认值"
 
     hit := -1
     i := 0
@@ -35,9 +68,12 @@ readonly match ::= (v: object cases: list dflt: object) => {
             msg := "match 的每一对要写成 [条件 结果]：第 ${i + 1} 对不是（它 ${c.Count ()} 项）"
             throw (Exception msg)
         } { 0; }
+        checkArm (c.At 1) "match 第 ${i + 1} 对的结果"
         # 实参位置只收"主表达式 + 取成员",所以 `(c.At 0)` 的括号不能省(见 lib/cached.rav 那段)
         if { (c.At 0) v; } { hit = i; } { 0; }
         i += 1
     }
-    if { hit >= 0; } { armValue ((cases.At hit).At 1); } { armValue dflt; }
+
+    # 到这儿才真跑:命中那一支的结果(或默认那一支)
+    if { hit >= 0; } { ((cases.At hit).At 1) (); } { dflt (); }
 }
