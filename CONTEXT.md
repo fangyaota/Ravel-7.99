@@ -480,12 +480,19 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   「已删除」）。`Fields ()` 和查找共用同一份判据（列的就是这一侧读得到的）：`list.Fields ()` 里
   没有 `Add` 那批、`[1 2].Fields ()` 照旧整串、`Json.FromString` 在类那一侧照旧列。
   用例：`tests/242`（`205` 钉"修饰符已删除"）、`tests/241`（`Json.Fields ()` 那一行）。
-- **运算符走的是"以左值为身份"的那张表**（`ObjectVal.OperatorMembers`）：**自己那张实例表**
-  ＋沿**元类链**（`type` → `function` → `object`）各层的。后一半是为了挂在 `object` 上的
-  `is` / `isnot` / `<:` / `:>`——"任何值都有"那批得连自指的 `Every` / `Any`（自己的 `parent`
-  链到不了 `object`）也摸得到；前一半是 `Integer` 的 `+`、`C1 == C2` 找 `Type` 那张、
-  `c1 == c2` 找 `C` 那张——「类型之间」和「实例之间」两个 `==` 就是这么分开的
-  （`DefineOp(Type, "==", SameValue)` 对实例就是比身份）。值类型的运算符也走这条路。
+- **运算符和方法走同一条路**：都在 `MemberScope` 里找（值自己那层 → 沿类的 `parent` 链读实例表）、
+  都按 `ISelfBinding` 绑接收者、都按 `is BuiltinMethodVal` 分"当场算 / 推帧"。于是：
+  `Integer` 的 `+` 找 `1` 的实例表、`C1 == C2` 找 `Type` 的、`c1 == c2` 找 `C` 的
+  ——「类型之间」和「实例之间」两个 `==` 是**不同表**上的两条，值类型的运算符也在这条路上。
+  - 引擎挂的成员是 `self → 剩下`，要 `BindMethod` 绑接收者；**用户类体里写的那份是普通 lambda**
+    （收的是右操作数、接收者靠捕获的作用域）—— `BindMethod` 会去读它的 `Body`，
+    而 `LambdaVal.Body` 是"求值器漏了 case"的哨兵，所以那边必须 `is ISelfBinding` 才绑
+    （`ClassOp` 帧里 `CallInto(cf, impl, arg)` 也是这么调的，两边一致）。
+  - **"任何值都有"的那批写在 `object` 上**（`is` / `isnot` / `<:` / `:>` / `==` / `!=`）：
+    值那条链都到 `object`，所以谁都摸得到；而自指的 `Every` / `Any`（`parent` 是自己、链到头）
+    够不着，于是**它们两个也各挂一份**（`RegisterOperators` 里那个 `foreach (Object, Every, Any)`）。
+    `==` / `!=` 从前挂在 `Type` 上（靠元类链蒙到所有类对象），改走 `MemberScope` 之后挂 `object`
+    —— 否则普通实例、`property`、`()` 这些值的链都不经过 `Type`，`==` 会找不到。
 - **`private` 回到一件事**：实例侧的门禁（"当前作用域在不在这个对象的类里"）。内置方法不带它
   ——它们在实例表里、谁都读得到；借去当"方向"的那套（`MemberView` 的 `classSide` / `ReadOwn`）
   随两张表一起删了。用户写在自己类里的 `private` 字段照旧只认"本对象内部"那条老规矩。

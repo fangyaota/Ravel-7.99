@@ -43,10 +43,12 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
 
     public BoxedValue GetMember(string name)
     {
-        // 运算符访问：`1.+` / `"a".==` → 返回绑好 self 的函数。类型层注册的(内置或类运算符)优先。
-        // 查的是**实例表**(`InstanceMembers`)——运算符就挂在那一张上,和 `BindOperator` 同一处。
-        if (OperatorSymbols.IsSymbol(name) && Value.Type.OperatorMembers.LookupField(name)?.Value is FunctionVal opMethod)
-            return new BoxedValue(ObjectVal.BindMethod(opMethod, Value), interp);
+        // 运算符访问：`1.+` / `"a".==` → 交回那个运算符函数,和 `BindOperator` 查的是**同一处**
+        // (`MemberScope`:值自己那层 → 沿类的 parent 链的实例表)。
+        if (OperatorSymbols.IsSymbol(name) && Value.MemberScope.LookupField(name)?.Value is FunctionVal opMethod)
+            return new BoxedValue(
+                // 引擎挂的要绑接收者;类体里写的那份是普通 lambda(收的是右操作数,见 BindOperator)
+                opMethod is ISelfBinding ? ObjectVal.BindMethod(opMethod, Value) : opMethod, interp);
 
         // `p.Get` / `p.Set` —— 属性值上那两个函数是**特判**出来的,不在任何作用域里
         if (Value is PropertyVal pv)

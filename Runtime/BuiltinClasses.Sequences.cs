@@ -149,7 +149,7 @@ internal static partial class BuiltinClasses
     /// <see cref="BuiltinMethodVal"/>,它的体是同步的可以直接调;查不到、或者被类运算符
     /// 换成了要推帧的东西(用户类自己写的 `+`)就当场报错 —— 别静默给个错答案。</summary>
     private static RuntimeValue ApplyOp(string op, RuntimeValue a, RuntimeValue b)
-        => a.Type.OperatorMembers.LookupField(op)?.Value is BuiltinMethodVal m
+        => a.MemberScope.LookupField(op)?.Value is BuiltinMethodVal m
             ? m.Impl(a, b)
             : throw new RuntimeException($"'{op}' 不支持 {a.Type}（{a.Type} 与 {b.Type} 之间）");
 
@@ -159,7 +159,7 @@ internal static partial class BuiltinClasses
     /// `[1 "a"].Max ()` 得一眼看出是 Integer 和 String 撞上了。</summary>
     internal static bool Less(RuntimeValue a, RuntimeValue b)
     {
-        if (a.Type.OperatorMembers.LookupField("<")?.Value is BuiltinMethodVal m)
+        if (a.MemberScope.LookupField("<")?.Value is BuiltinMethodVal m)
             try
             {
                 if (m.Impl(a, b) is BoolVal r) return r.Value;

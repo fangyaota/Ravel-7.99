@@ -82,21 +82,6 @@ public record ObjectVal : RuntimeValue
 
     private Scope? _instanceMembers;
 
-    /// <summary>「**以我为类型**的那些值找**运算符**」时用的表 —— 和 <see cref="InstanceMembers"/>
-    /// 只差链那一半:这里沿的是**元类链**(`type` → `function` → `object`),不是我自己那条
-    /// parent 链。
-    ///
-    /// 为什么要分这么细:运算符注册在**类自己**那张给实例的表里(`Integer` 的 `+`、用户类体里
-    /// 那句 `+ := f`),而"任何值都有"的那批(`is` / `isnot` / `<:` / `:>`)注册在 `object` 上 ——
-    /// 自指的 `Every` / `Any`(`parent` 是自己,自己的链到不了 `object`)也得摸到它们。
-    /// 走元类链两半都顾得上:每个**类对象**的元类链都是 `type` → `function` → `object`。
-    /// (`InstanceMembers` 那半不能这么走:`(1).Fields ()` 要列出 `Integer` 的 `+ - * /`,
-    /// 那是**自己**那条链上的东西。)</summary>
-    internal Scope OperatorMembers => _operatorMembers ??= new MemberView(
-        this is ClassVal c ? c.InstanceTable : null, ClassType);
-
-    private Scope? _operatorMembers;
-
     public override bool HasOwnMembers => true;
 
 

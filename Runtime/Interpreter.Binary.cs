@@ -93,22 +93,28 @@ public partial class Interpreter
     /// ——绑完能当场算,不必推帧;类运算符(`BuiltinClasses.DefineClassOperator`)和
     /// by 属性的 getter/setter 不是,得走 `CallInto`。
     ///
-    /// 查的是**实例表**(`InstanceMembers`:沿 `left.Type` 的 parent 链收集各层的
-    /// `InstanceTable`)—— 运算符就是"给实例的成员"。接收者的类型不同,找到的就是不同那一张:
+    /// 查的是 `left.MemberScope` —— **和方法调用同一个入口**(值自己那层 → 沿类的 `parent`
+    /// 链读实例表)。所以类体里写的那份 `+ := f`(落在每个实例的 scope 里)也找得到,
+    /// `ClassOp` 帧只在"类那张表上的工厂"被找到时才走。接收者的类型不同,找到的就是不同那张:
     /// `1 + 2` 找 `Integer` 的、`C1 == C2` 找 `Type` 的、`c1 == c2` 找 `C` 的。
     ///
     /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
     /// 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。</summary>
     private (FunctionVal Bound, bool Builtin) BindOperator(RuntimeValue left, string op)
     {
-        var fn = left.Type.OperatorMembers.LookupField(op)?.Value as FunctionVal;
+        var fn = left.MemberScope.LookupField(op)?.Value as FunctionVal;
         if (fn == null && left is ObjectVal o && HasTraitOperator(o, op))
             return (new BoundTraitOp(o, op), false);      // 槽运算符:两级,交给 TraitOp 帧
 
         if (fn == null)
             throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
 
-        return (ObjectVal.BindMethod(fn, left), fn is BuiltinMethodVal);
+        // 引擎挂的成员(self → 剩下)要先绑接收者;**用户写在类体里的那份是普通 lambda**
+        // ——它收的是右操作数,接收者靠捕获的作用域(`ClassOp` 帧里 `CallInto(cf, impl, arg)`
+        // 也是这么调的),原样交出去。`BindMethod` 会去读它的 `Body`,而 `LambdaVal.Body`
+        // 是占位(见 LambdaVal 那段:那是"求值器漏了一个 case"的哨兵)。
+        var bound = fn is ISelfBinding ? ObjectVal.BindMethod(fn, left) : fn;
+        return (bound, fn is BuiltinMethodVal);
     }
 
     /// <summary>这个对象身上有没有**槽运算符**(`by + := property g s`)。两处:自己那层

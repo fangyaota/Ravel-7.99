@@ -342,7 +342,6 @@ internal static partial class BuiltinClasses
         // 沿类链的实例表",**标量借的正是同一个视图**(它们不是 ObjectVal、没有自己那层,
         // `MemberScope` 对它们就是 `Type.InstanceMembers`)。
         if (receiver.MemberScope.LookupField(name) != null) return null;
-        if (OperatorSymbols.IsSymbol(name) && receiver.Type.OperatorMembers.LookupField(name) != null) return null;
 
         for (var s = interp.CurrentScope; s != null; s = s.Parent)
         {

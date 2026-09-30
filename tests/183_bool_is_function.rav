@@ -28,7 +28,7 @@ print (typeof true)
 # 1
 # true
 # class { flag = true, n = 5 }
-# [init flag n is isnot <: :> ToString Copy Fields CompareTo Key]
+# [init flag n is isnot == != <: :> ToString Copy Fields CompareTo Key]
 # class
 # true
 # 2
