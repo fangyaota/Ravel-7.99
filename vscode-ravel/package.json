@@ -2,7 +2,7 @@
     "name": "ravel-language",
     "displayName": "Ravel",
     "description": "Ravel 语言支持：语法高亮、折叠（按 {} 分块 + 注释段）、运行 .rav 文件与全量测试、打开 REPL",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "publisher": "ravel",
     "license": "MIT",
     "engines": {
@@ -15,6 +15,7 @@
     "activationEvents": [
         "onLanguage:ravel",
         "onCommand:ravel.runFile",
+        "onCommand:ravel.runFileInTerminal",
         "onCommand:ravel.runTests",
         "onCommand:ravel.openRepl"
     ],
@@ -46,6 +47,11 @@
                 "category": "Ravel"
             },
             {
+                "command": "ravel.runFileInTerminal",
+                "title": "在命令行中运行",
+                "category": "Ravel"
+            },
+            {
                 "command": "ravel.runTests",
                 "title": "运行全量测试",
                 "category": "Ravel"
@@ -61,6 +67,18 @@
                 {
                     "command": "ravel.runFile",
                     "when": "resourceLangId == ravel",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "ravel.runFileInTerminal",
+                    "when": "resourceLangId == ravel",
+                    "group": "navigation@2"
+                }
+            ],
+            "explorer/context": [
+                {
+                    "command": "ravel.runFileInTerminal",
+                    "when": "resourceExtname == .rav",
                     "group": "navigation@1"
                 }
             ]

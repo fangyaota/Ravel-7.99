@@ -21,7 +21,9 @@ dotnet out/ravel.dll                    # REPL
 那种"打一行汇总再抛出去"的脚本能让 CI 真的红掉)。`exit ""` 是"什么都不说就结束" → 0。
 
 VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前文件并可下断点、
-命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。语法高亮靠 `vscode-ravel/` 扩展
+命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」;`.rav` 文件上**右键 → 在命令行中运行**
+则是在**集成终端**里跑(不是输出面板)—— 要交互的脚本(`input ()`、`examples/repl.rav` 那种)
+得走那条。语法高亮靠 `vscode-ravel/` 扩展
 （见下），它调用的同样是 `bin/Debug/net10.0/ravel.dll`。
 
 扩展还提供**折叠**：按 `{}` / `[]` / `()` 分块（不是按缩进 —— Ravel 按括号分块，缩进对不上）、

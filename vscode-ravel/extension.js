@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const cp = require('child_process');
 const fs = require('fs');
+const path = require('path');
 const { foldingRanges } = require('./folding');
 
 /** @type {vscode.OutputChannel | undefined} */
@@ -88,6 +89,38 @@ async function runFile() {
     runToChannel(dll, [file], '运行');
 }
 
+/**
+ * 在**集成终端**里跑(不是输出面板)。
+ *
+ * 和 `runFile` 的分工:那个把输出流进面板,好处是不抢焦点、能一直翻;这个给你一个**真的
+ * shell** —— 脚本里 `input ()` 能敲、`examples/repl.rav` 那种交互的跑得起来、跑完还能
+ * 接着在那个终端里敲别的命令。要交互就用这个。
+ *
+ * @param {vscode.Uri | undefined} uri 资源管理器右键会把这个传进来;编辑器右键没有
+ */
+async function runFileInTerminal(uri) {
+    // 资源管理器那条路:文件就在眼前,不必存盘;编辑器那条路得先存(跑的是磁盘上的那份)
+    const file = uri && uri.fsPath ? uri.fsPath : await currentRavelFile();
+    if (!file) return;
+
+    const dll = await findRavelDll();
+    if (typeof dll !== 'string') {
+        vscode.window.showErrorMessage(dll.error);
+        return;
+    }
+
+    // **每次开一个新的**,不复用:上一条命令可能还在跑(`examples/repl.rav` 就是个不会退的
+    // REPL),复用的话下次那句会直接**打进那个还在运行的程序里**。名字带上文件名,
+    // 开多了也认得出哪个是哪个。
+    const term = vscode.window.createTerminal({
+        name: `Ravel: ${path.basename(file)}`,
+        cwd: workspaceCwd(),
+    });
+    term.show();
+    // 路径带空格是常事(这个仓库自己就叫 `Ravel 7.99`),两处引号都不能省
+    term.sendText(`dotnet "${dll}" "${file}"`);
+}
+
 async function runTests() {
     const dll = await findRavelDll();
     if (typeof dll !== 'string') {
@@ -138,6 +171,7 @@ const foldingProvider = {
 function activate(context) {
     context.subscriptions.push(
         vscode.commands.registerCommand('ravel.runFile', runFile),
+        vscode.commands.registerCommand('ravel.runFileInTerminal', runFileInTerminal),
         vscode.commands.registerCommand('ravel.runTests', runTests),
         vscode.commands.registerCommand('ravel.openRepl', openRepl),
         vscode.languages.registerFoldingRangeProvider({ language: 'ravel' }, foldingProvider)
