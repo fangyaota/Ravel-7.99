@@ -43,12 +43,16 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(References + 搜索目录、循环引用检测)
-  Interpreter.System.cs   RegisterBuiltins + **System 模块** —— 建模块那十来行 + 十一段
-                          (`Types` / `Constants` / `Controls` / `Output` / `Reflection` /
-                          `RegexPrimitives` / `RandomSources` / `Files` / `Commands` /
-                          `Time` / `Env`,一段一个方法)+ 四种登记口
-                          (`Def` / `DefType` / `DefFn` / `DefControl`,靠 `_sysScope` 这张
-                          "当前模块表"工作)+ 几段共用的小工具(`PathOf` / `NeedFile` / …)
+  Interpreter.System.cs   RegisterBuiltins + **System 模块** —— 建模块那几行 +
+                          三张明着的表(`Types` / `Constants` / `Controls`,它们是**数据**)
+                          + **`[Sys]` 注册机制**(特性 + 扫一遍 + 绑委托,见文件末尾)
+                          + 四种登记口(`Def` / `DefType` / `DefFn` / `DefControl`,
+                          靠 `_sysScope` 这张"当前模块表"工作)
+                          + 几段共用的小工具(`PathOf` / `NeedFile` / `Fn`…)
+  Interpreter.System.{Output,Core,Reflection,Random,Files,Cmd,Time,Env,Net}.cs
+                          **一个主题一个文件**,装那一批 `[Sys]` 方法 —— 加一个内置函数 =
+                          在对应主题里写一个方法,没有第二处要改(从前是"挑一段、找对位置、
+                          再补一行 `DefFn`";`Interpreter.System.cs` 那一千行就是这么散的)
   Interpreter.Math.cs           Math 模块(常量/三角/双曲/幂对数/取整/极值)
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
   Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;
@@ -339,6 +343,14 @@ Object (parent=自己)
         RegexEscape RegexIsMatch RegexMatch RegexFindAll RegexReplace RegexSplit
         Sleep ReadBytes WriteBytes DecodeText
         HttpReq HttpDownload HttpUpload
+
+上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——
+一个主题一个 partial 文件(`Interpreter.System.*.cs`),扫一遍、按名字排、绑成委托
+(见 `Runtime/Interpreter.System.cs` 末尾那一段)。**加一个内置 = 写一个方法**:
+不用挑分组、不用找位置、也不用记得回来补一行登记 —— 从前那种"漏了一行,静默少个成员"
+是这类文件最容易出的错。类型别名 / 常量 / 控制内建**不走这条路**:那是数据,
+`Types` / `Constants` / `Controls` 三张表一眼看全比撒在各处好读。
+**成员表整份钉在 `tests/271_system_members.rav`** —— 加了内置就顺手更新那一行。
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
 与「跑外部命令」两节;网络那四条见下面「网络」一节。它们一律**只做 syscall**,

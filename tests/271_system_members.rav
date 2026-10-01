@@ -1,0 +1,17 @@
+# `System` 里到底有哪些成员 —— **注册的合同**。
+#
+# 内置函数现在是**扫特性**扫出来的(`[Sys("名字")]`,见 Runtime/Interpreter.System.cs 末尾):
+# 加一个 = 在对应主题的文件里写一个方法,没有第二处要改。扫完**按名字排** ——
+# 反射给的方法先后没有保证,而成员表是按登记先后列出来的,不排的话同一份源码在
+# 不同运行时上打出来的顺序都可能不一样。
+#
+# 类型别名 / 常量 / 控制内建**不走特性**:它们是数据,摆在 `Types` / `Constants` /
+# `Controls` 三张表里,一眼看全。
+#
+# 这一条钉的是"一个都没漏、一个都没多":**加了内置就顺手更新下面这一行** ——
+# 它就是让别人一眼看见「System 变了」的那份清单。
+print ((System.Fields ()).Count ())
+print (System.Fields ())
+# --- expected ---
+# 125
+# [Integer String Char Bool Float BigInteger Fraction BigFraction Range List Set Dict Object Function Continuation Void Type Interface BaseInterface ValueType Any Every Exception TypeError NameError AttributeError IndexError KeyError ZeroDivisionError AssertionError AccessError ArgumentError ValueError IoError RegexError Json True False NaN Inf Default With CallCC SetErrorHook Unhandled LoadingState RestoreLoading Using Eval AppendText Args Assert ChDir Cmd CopyPath CreateDir CurrentDir CurrentScope DecodeText DeletePath DirExists Env EnvAll EnvOr Exit FileExists FormatTime HttpDownload HttpReq HttpUpload Impl ListDir MakeTime MovePath NewRandom NowMs ParseTime PathBase PathClean PathDir PathExt PathJoin PathSize PathTime Property RandomBytes RavelMod ReadAllInput ReadBytes ReadLine ReadText RegexEscape RegexFindAll RegexIsMatch RegexMatch RegexReplace RegexSplit SetEnv SharedRandom Sleep SplitLines TimeParts TypeOf Unsafe UnsetEnv Use WarnForgotCall Write WriteBytes WriteErr WriteLine WriteLineErr WriteText XoshiroRandom is isnot == != <: :> ToString Copy Fields CompareTo Key]
