@@ -110,6 +110,10 @@ public class Lexer(string source, string? file = null)
             if (TryMatch("*=", TokenType.StarEqual, tokens)) continue;
             if (TryMatch("/=", TokenType.SlashEqual, tokens)) continue;
             if (TryMatch("%=", TokenType.PercentEqual, tokens)) continue;
+            // 两个点连写 = **区间**的分隔符(`[1..3]` / `(3..5)`),得排在单字符 `.` 前面。
+            // 数字那边不受影响:`ReadNumber` 只在 `.` 后面跟数字时才当小数点,
+            // 所以 `1..3` 读成 `1` + `..` + `3`,而 `1.5` 还是 float、`a.b` 还是取成员。
+            if (TryMatch("..", TokenType.DotDot, tokens)) continue;
 
             // ========== 单字符 ==========
 

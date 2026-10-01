@@ -373,6 +373,24 @@ impl (IEnumerable dict {
 #
 # 枚举器**不用** `instance.ToList ()` 来取:那正是这条默认实现自己 —— 会转圈。
 # 这里直接问 Option 那两条(`IsSome ()` / `Value ()`)。
+# `Range` 也是一串(`[1..3]` 里那些整数,按开闭数出来)。枚举器是个**生成器的光标** ——
+# 惰性:`[1..1000000000].Take 3` 不会先铺一张表。`Count` / `Contains` / `ToList` 那几条
+# 由引擎那份先命中(它们住在类链上,类链先说话),语义一样、只是更快。
+impl (IEnumerable Range {
+    by GetEnumerator = property (() => {
+        () => {
+            g := Generator (y: function) => {
+                i := instance.Start ()
+                top := instance.End ()
+                while { i <= top; } {
+                    if { instance.Contains i; } { y i; } { 0; }
+                    i += 1
+                }
+            }
+            g.GetEnumerator ();
+        }
+    }) ((v: function) => { (); })
+})
 impl (IEnumerable Option {
     by GetEnumerator = property (() => {
         () => {

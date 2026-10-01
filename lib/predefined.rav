@@ -15,6 +15,7 @@ readonly float := System.Float
 readonly bigint := System.BigInteger
 readonly fraction := System.Fraction
 readonly bigfraction := System.BigFraction
+readonly Range := System.Range   # 区间值([1..3] / (3..5) …);语法不靠这个名字,库和用户才要
 readonly char := System.Char
 readonly list := System.List
 readonly set := System.Set

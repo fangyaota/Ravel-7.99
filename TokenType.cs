@@ -68,6 +68,7 @@ public enum TokenType
 
     Comma,         // ,  (暂时保留，报错用)
     Dot,           // .
+    DotDot,        // .. —— 区间 `[1..3]` / `(3..5)` 的分隔符
 
     // 特殊
     Newline,

@@ -68,6 +68,7 @@ name := input ()           # 读一行输入
 | List | 列表 | `[1 2 3]` |
 | Set | 集合 | `{1 2 3}` |
 | Dict | 字典 | `{"a":1 "b":2}` |
+| Range | 区间 | `[1..3]` `(3..5)` `[1..5)` `(1..5]` |
 | Void | 空 | `()` |
 
 ### 2.2 类型名
@@ -183,7 +184,7 @@ list default   # []
 
 ```
 Object (parent = 自身)
-├── ValueType → Integer Float String BigInt Fraction BigFraction   (并列)
+├── ValueType → Integer Float String BigInt Fraction BigFraction Range   (并列)
 ├── Function → Bool  Block  Type
 ├── List  Set  Dict
 ├── Void  Exception  Ravel(模块)  Scope  Property
@@ -1687,6 +1688,49 @@ draw (Random.Make 7).Join "," == draw (Random.Make 8).Join ","    # false
 现在取数只走 `Random` 这一条路。）
 
 **用例见 tests/254。**
+
+### 6.11 区间（`Range`）
+
+一个**内置值类型**：从 a 到 b 的一串整数。那一对括号**各带一半的意思** ——
+`[` `]` 含那一端、`(` `)` 不含 —— 所以四个组合都认：
+
+```ravel
+[1..3]     # 1 2 3            两端都含
+(3..5)     # 4                两端都不含
+[1..5)     # 1 2 3 4          左闭右开
+(1..5]     # 2 3 4 5          左开右闭
+```
+
+打印出来就是写出来那个样子，`Text ()` 也一样。端点、个数、包含都是 O(1)：
+
+```ravel
+lo := [1..3]
+lo.Start ()      # 1        lo.End ()      # 3
+lo.Count ()      # 3        allOpen.Count () # 1（(3..5) 里只剩 4）
+lo.Contains 2    # true     lo.Contains 5  # false
+lo.IsEmpty ()    # false
+```
+
+`Start > End`、或者开区间套着同样的两端，都是**空区间**（`(3..3)`、`(5..1)` 遍历一次都不走），
+不报错。两端**必须是 int** —— `[1.5..3]` 当场报错（想要小数区间就自己写一段）。
+
+**它也是一串**（`Range` 也是 `IEnumerable`），所以整套白拿：
+
+```ravel
+foreach [1..4] (i: int) => { print i; }
+([1..4]).Sum ()                        # 10
+([1..10]).Where ((i: int) => { (i % 3) == 0; }).ToList ()   # [3 6 9]
+([1..5]).Join "-"                      # 1-2-3-4-5
+```
+
+而且**是惰性的**（枚举器是生成器的光标）：`([1..1000000000]).Take 3` 秒回、
+`([1..1000000]).First ()` 拿一个就走。`Count ()` / `Contains n` / `ToList ()` 走的是引擎
+那几条（O(1) / O(1) / O(n)），所以`([1..1000000000]).Count ()` 也是秒回。
+
+区间**按内容比**：`[1..3] == [1..3]` 成立、`[1..3] == [1..4]` 不成立（它挂在 `ValueType`
+那一支下 —— `[1..3] is ValueType`）。
+
+**用例见 tests/255。**
 
 ## 七、类
 

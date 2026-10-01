@@ -86,6 +86,14 @@ public record UnaryExpr(string Op, Expression Operand) : Expression;
 public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression;
 public record PipeExpr(Expression Left, Expression Right) : Expression;
 public record ListLiteral(List<Expression> Elements) : Expression;
+/// <summary>一个**区间**:`[1..3]`(全闭)/ `(3..5)`(全开)/ `[1..5)` / `(1..5]`。
+///
+/// 那一对括号各带**一半的意思**:`[` `]` 含那一端、`(` `)` 不含 —— 所以四个组合都认,
+/// 收尾时也**两种右括号都收**(`[1..5)` 这种混着写是合法的)。
+///
+/// 只在括号里认:**裸的 `a..b` 不成立**(没必要,还多一层歧义)。求值见
+/// `Interpreter.StepRange`,造出来的是 `Runtime/Values/RangeVal.cs` 那个值。</summary>
+public record RangeExpr(Expression Lo, Expression Hi, bool StartClosed, bool EndClosed) : Expression;
 public record SetLiteral(List<Expression> Elements) : Expression;
 /// <summary>字典的一个条目。**键也是表达式**(从前的"标识符即字符串"那条糖已经去掉):
 /// `{"a": 1}` / `{1: "x"}` / `{k: v}` —— 键求出来得是**值类型**(数 / 字符串),

@@ -222,7 +222,8 @@ Int 与右操作数的二元运算按宽度升级（`IntOp`）：`float > bigint
 ```
 Object (parent=自己)
 ├── ValueType
-│   └── Integer / Float / String / Char / BigInt / Fraction / BigFraction   (并列,不是链)
+│   ├── Integer / Float / String / Char / BigInt / Fraction / BigFraction   (并列,不是链)
+│   └── Range         ← 区间(`[1..3]`)：不可变、按值比,自己不吃糖也在这一支下
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
@@ -254,7 +255,7 @@ Object (parent=自己)
 
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
-**类型**: Integer String Char Bool Float BigInteger Fraction BigFraction
+**类型**: Integer String Char Bool Float BigInteger Fraction BigFraction Range
         List Set Dict Object Void Function Continuation Type Interface BaseInterface
         Any Every Exception ValueType Json
 
@@ -285,6 +286,20 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 引擎面最小、也不必动类型树。三台生成器、`Int`/`Shuffle`/`Sample` 那些都在库里
 （`lib/random.rav` 的 `IRandom` 默认实现）—— 取数的那一面**只有**这一处（从前那个全局
 `randint lo hi` 已经删掉：它的上界不含是 .NET 的老规矩，`Int lo hi` 改成含两端）。
+
+**区间**`Range` 是个**内置值类型**（不是库里的类）：`[1..3]`（两端含）/ `(3..5)`（两端不含）/
+`[1..5)` / `(1..5]` —— 那一对括号**各带一半的意思**，所以四个组合都认（收尾两种右括号都收，
+混着写合法）。词法上 `..` 是一个 token（`Lexer` 里排在单个 `.` 前面；`ReadNumber` 只在 `.`
+后面跟数字时才当小数点，所以 `1..3` 与 `1.5` 互不干扰）；语法上**只在 `[` / `(` 里认**
+（裸的 `a..b` 不成立），两处入口都是"记下 `_pos` 试读一把、不成再退回去走原路"——
+先用 `HasDotDotAhead ()`（纯 token 扫描）挡一道，免得 1000 层括号那种嵌套把试读
+一层套一层地放大（tests/152 压着这条）。求值见 `Interpreter.StepRange`，
+值在 `Runtime/Values/RangeVal.cs`。
+
+它同时也是一个 `IEnumerable`（impl 在 `lib/iterator.rav`）：枚举器是**生成器的光标**，
+所以 `[1..1000000000].Take 3` 秒回、不会先铺一张表；`Count` / `Contains` / `ToList` 走引擎
+那几条 O(1)/O(n) 的（类链先命中）。`==` 是**按内容**比（record 的 `Equals`），
+`Start > End` 或者开区间套同样的两端都给**空**（不报错）。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
@@ -372,7 +387,9 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 ```
 RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
 ├── IntVal FloatVal BigIntVal FractionVal BigFractionVal
-│   StringVal CharVal VoidVal DefaultVal           ← 原子值：无字段，MemberScope = 伪 Scope
+│   StringVal CharVal VoidVal DefaultVal            ← 原子值：无字段，MemberScope = 伪 Scope
+│   RangeVal                                        ← 区间(`[1..3]` / `(3..5)` …)：不可变、
+│                                                     按值比（record 的 Equals + Object 的 `==`）
 │                                                    （**没有 ExceptionVal**：`Exception`
 │                                                     是个普通类，实例就是 ObjectVal）
 └── ObjectVal                         Scope 字段 = 真实成员表（取成员的落点）

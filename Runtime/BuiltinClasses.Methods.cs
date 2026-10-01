@@ -12,6 +12,7 @@ internal static partial class BuiltinClasses
         RegisterObjectMethods();
         RegisterIntMethods();
         RegisterStringMethods();
+        RegisterRangeMethods();
         RegisterJsonMethods();
         RegisterListMethods();
         RegisterSetMethods();
@@ -73,6 +74,35 @@ internal static partial class BuiltinClasses
         CharVal c => c.Value.ToString(),
         _ => throw new RuntimeException($"{what} 需要 string 或 char 参数，得到 {a.Type}"),
     };
+
+    /// <summary>区间那几条。都只跟那**一对边界 + 开闭**打交道,所以都是 O(1)
+    /// (只有 `ToList ()` 是 O(n) —— 那是用户自己要铺成表的)。
+    ///
+    /// 它同时也是一个 `IEnumerable`(impl 在 lib/iterator.rav,枚举走生成器的光标、惰性),
+    /// 所以 `Map` / `Where` / `Fold` / `Take` 那整套是白拿的;这里只把**该更快或者
+    /// 该更直白**的几条先摆出来(`Count` / `Contains` / `ToList` 与接口那份语义一致,
+    /// 只是不必走一遍迭代)。</summary>
+    private static void RegisterRangeMethods()
+    {
+        Range.DefineMethod("Start", (s, _) => new IntVal(((RangeVal)s).Start));
+        Range.DefineMethod("End", (s, _) => new IntVal(((RangeVal)s).End));
+        Range.DefineMethod("Count", (s, _) => new IntVal(((RangeVal)s).CountValue()));
+        Range.DefineMethod("IsEmpty", (s, _) => new BoolVal(((RangeVal)s).CountValue() == 0));
+        Range.DefineMethod("Contains", (s, a) =>
+            new BoolVal(((RangeVal)s).ContainsValue(IntArg(a, "区间.Contains"))));
+
+        // 铺成表 —— 只有这一条是 O(n)。空区间给空表(不是报错)
+        Range.DefineMethod("ToList", (s, _) =>
+        {
+            var (lo, hi) = ((RangeVal)s).Bounds();
+            var out_ = new List<RuntimeValue>();
+            for (var i = lo; i <= hi; i++) out_.Add(new IntVal(i));
+            return new ListVal(out_);
+        });
+
+        // `Text ()` 就是那个记号本身(和 `print` 一致)
+        Range.DefineMethod("Text", (s, _) => new StringVal(s.ToString()!));
+    }
 
     private static void RegisterStringMethods()
     {

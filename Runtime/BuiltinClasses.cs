@@ -26,6 +26,9 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal BigInt;
     public static readonly ClassVal Fraction;
     public static readonly ClassVal BigFraction;
+    /// <summary>区间(`[1..3]` / `(3..5)` …)—— `RangeVal`。
+    /// 它是**值类型**(不可变、按值比),所以挂在 `ValueType` 那一支下。</summary>
+    public static readonly ClassVal Range;
 
     // 引用类型分支（可变/有行为）
     public static readonly ClassVal Function;
@@ -90,6 +93,7 @@ internal static partial class BuiltinClasses
         BigInt = New("BigInt");
         Fraction = New("Fraction");
         BigFraction = New("BigFraction");
+        Range = New("Range");
         Block = New("Block");
         Continuation = New("Continuation");
         List = New("List");
@@ -122,6 +126,7 @@ internal static partial class BuiltinClasses
         Link(BigInt, ValueType, Type);
         Link(Fraction, ValueType, Type);
         Link(BigFraction, ValueType, Type);
+        Link(Range, ValueType, Type);
 
         // 引用类型
         Link(Block, Function, Type);
@@ -162,7 +167,7 @@ internal static partial class BuiltinClasses
         foreach (var t in new[]
                  {
                      Object, ValueType, Int, Float, Bool, String, Char, BigInt,
-                     Fraction, BigFraction, Function, Block, Continuation,
+                     Fraction, BigFraction, Range, Function, Block, Continuation,
                      List, Set, Dict, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, Json, ScopeType, Property
                  })

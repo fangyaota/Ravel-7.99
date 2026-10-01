@@ -50,6 +50,7 @@ public partial class Interpreter
             case MemberAccess ma: StepMemberAccess(nf, ma); break;
             case PipeExpr pipe: StepPipe(nf, pipe); break;
             case ListLiteral l: StepList(nf, l.Elements); break;
+            case RangeExpr r: StepRange(nf, r); break;
             case SetLiteral sl: StepSet(nf, sl.Elements); break;
             case DictLiteral dl: StepDict(nf, dl.Entries); break;
             case BlockExpr b: if (nf.Count == 0) Return(nf, new BlockVal(b, nf.Scope)); break;

@@ -36,6 +36,7 @@ public partial class Interpreter
         DefType("BigInteger", BuiltinClasses.BigInt);
         DefType("Fraction", BuiltinClasses.Fraction);
         DefType("BigFraction", BuiltinClasses.BigFraction);
+        DefType("Range", BuiltinClasses.Range);
         DefType("List", BuiltinClasses.List);
         DefType("Set", BuiltinClasses.Set);
         DefType("Dict", BuiltinClasses.Dict);

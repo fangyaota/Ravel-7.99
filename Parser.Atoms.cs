@@ -85,6 +85,9 @@ public partial class Parser
             int line = Previous().Line, col = Previous().Column;
             return Nested(() =>
             {
+                // `[1..3]` 是**区间**(两端都含);看不见 `..` 就照旧是一个列表字面量
+                if (TryParseRange(startClosed: true) is { } rng) return rng;
+
                 var elements = ParseSpaceSeparatedList(TokenType.RightBracket, "]");
                 return new ListLiteral(elements) { Line = line, Column = col };
             });
@@ -300,6 +303,10 @@ public partial class Parser
             return result;
         }
 
+        // `(3..5)` 是**区间**(两端都不含)。排在 lambda 判定**之后**:那一段本来就不是 lambda
+        // (`(1..3)` 里第一个 token 是数字,过不了 `名字 :` 那道前瞻)。
+        if (TryParseRange(startClosed: false) is { } rng) return rng;
+
         // 否则：就是普通括号分组 — 内部允许柯里化（与顶层一致）
         // (f a b)  →  f(a)(b)
         // (a)      →  a
@@ -437,6 +444,85 @@ public partial class Parser
             throw ParseError($"{context}需要代码块（单行要用 ';' 收尾，多行要换行）");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
+    }
+
+    /// <summary>刚吃掉 `[` 或 `(` 之后,试一把**区间**:`lo .. hi` 后面紧跟收尾的右括号。
+    ///
+    /// 那一对括号各带**一半的意思**(`[` `]` 含那一端、`(` `)` 不含),所以收尾**两种都收**
+    /// —— `[1..5)` 这种混着写是合法的 —— 按实际收到的那个定 `EndClosed`。
+    ///
+    /// 不是区间就把 `_pos` 退回去,让调用点照原路走(列表字面量 / 括号分组 / lambda);
+    /// 试读半路抛语法错也退,**最后报出来的还是原来那条路的错** —— `[]`、`(a + b)`、
+    /// `(x: int) => …` 全都不受影响。
+    ///
+    /// 试读用**完整表达式**:`[1 2 3]` 会读成 `1 2 3`(一个调用链),看不见 `..` 就退,
+    /// 于是普通列表照旧;而 `[f 1..3]` 读成 `(f 1)..3` —— 和这套语言"实参吃到运算符为止"
+    /// 一个脾气。**裸的 `a..b` 不认**:这个入口只在括号里说话。</summary>
+    private Expression? TryParseRange(bool startClosed)
+    {
+        // 先拿一眼就能看出来的便宜判据挡一道:**这一层有没有 `..`**。
+        // 没有就直接说"不是区间",一次试读都不做。
+        if (!HasDotDotAhead()) return null;
+
+        var save = _pos;
+        try
+        {
+            var lo = ParseExpression();
+            if (!Match(TokenType.DotDot))
+            {
+                _pos = save;
+                return null;
+            }
+
+            var hi = ParseExpression();
+
+            bool endClosed;
+            if (Match(TokenType.RightBracket)) endClosed = true;
+            else if (Match(TokenType.RightParen)) endClosed = false;
+            else
+            {
+                _pos = save;
+                return null;
+            }
+
+            return new RangeExpr(lo, hi, startClosed, endClosed) { Line = lo.Line, Column = lo.Column };
+        }
+        catch (SyntaxException)
+        {
+            _pos = save;
+            return null;
+        }
+    }
+
+    /// <summary>这一段括号里、**就在自己这一层**,有没有 `..`。
+    ///
+    /// 只是个"绝不可能是区间"的便宜门 —— 为什么非要有它:`TryParseRange` 的试读是拿
+    /// **完整表达式**跑一遍,而括号可以嵌套:每一层都试读一次,里面那层的试读又套一层……
+    /// 1000 层括号会直接炸成天文数字(`tests/152` 的 `171_nesting_depth` 就压在那儿,
+    /// 实测真挂住了)。这个扫描只数 token、不做任何解析,顺带把 `{}` 里、内层括号里的
+    /// `..` 都排除掉(那些不属于这一层)。</summary>
+    private bool HasDotDotAhead()
+    {
+        var depth = 0;
+        for (var i = _pos; i < tokens.Count; i++)
+        {
+            switch (tokens[i].Type)
+            {
+                case TokenType.LeftParen or TokenType.LeftBracket or TokenType.LeftBrace:
+                    depth++;
+                    break;
+                case TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace:
+                    if (depth == 0) return false;      // 这一层到头了,没看见 `..`
+                    depth--;
+                    break;
+                case TokenType.DotDot when depth == 0:
+                    return true;
+                case TokenType.EndOfFile:
+                    return false;
+            }
+        }
+
+        return false;
     }
 
     // ========================================

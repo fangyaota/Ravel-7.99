@@ -125,6 +125,32 @@ public partial class Interpreter
         => (self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
            || BuiltinClasses.TraitSlot(this, self, op) != null;
 
+    /// <summary>区间 `[1..3]` / `(3..5)` …:两个端点各推一帧(照 <see cref="StepBinary"/>
+    /// 那套),收的时候造一个 <see cref="RangeVal"/>。两端都得是 int —— 别的类型当场报错,
+    /// 不悄悄转换(`[1.5..3]` 那种想要小数区间的人得自己换一段逻辑)。
+    ///
+    /// **开闭由语法决定**:括号各带一半的意思,解析器已经把它记在节点上了。</summary>
+    private void StepRange(NodeFrame nf, RangeExpr rng)
+    {
+        if (nf.Count == 0)
+        {
+            PushChild(nf, rng.Lo);
+            return;
+        }
+
+        if (nf.Count == 1)
+        {
+            PushChild(nf, rng.Hi);
+            return;
+        }
+
+        if (nf.Result(0) is not IntVal lo || nf.Result(1) is not IntVal hi)
+            throw new RuntimeException(
+                $"Range 的两端需要 int，得到 {nf.Result(0).Type} 与 {nf.Result(1).Type}");
+
+        Return(nf, new RangeVal(lo.Value, hi.Value, rng.StartClosed, rng.EndClosed));
+    }
+
     private void StepBinaryOp(NodeFrame nf, BinaryExpr bin)
     {
         var left = nf.Result(0);
