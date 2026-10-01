@@ -1,0 +1,94 @@
+# `Xml` —— XML(见 lib/xml.rav)。**要显式引用**。
+#
+# 模型和 `lib/io.rav` 里的 `JsonNode` 是同一个:节点是一层包装,底下是普通的 dict / list,
+# 所以改一个节点就是改那棵树。它同时也是**一个文件系统**(`IFile` + `IDir`)。
+#
+# 三条取舍都在 lib/xml.rav 的开头写着:命名空间不参与(前缀和 `xmlns:` 丢掉)、
+# 空白文本节点不收、属性是有序表。
+using "xml.rav"
+
+x := Xml.Parse "<config version=\"2\"><port>8080</port><item>a</item><item>b</item><note/></config>"
+
+# ── 看 ──
+print (x.Name ())
+print ((x.Kind ()) == "element")
+print (x.Attr "version")
+print (x.AttrOr "nope" "-")
+print (x.HasAttr "version")
+print ((x.Child "port").Text ())
+print ((x.All "item") @ .Map ((e: object) => { e.Text (); }))
+print ((x.Elements ()).Map ((e: object) => { e.Name (); }))
+print ((x.List ()).Keys ())          # 重名的带 `[2]`
+print (x.AllText ())                 # 整棵子树的文本拼起来
+print ((x.Find "nope"))                 # 没有就是 `()`
+print ((x.Find "note").Name ())
+# 要看 XML 用 `Xml.Render`(或者 `x.Read ()`)—— `print x` 给的是字段表,
+# 那是引擎那边印实例的规矩(`print` 走 C#,调不了 Ravel 的 `ToString`)
+
+# ── 改 ──
+x.AttrPut "lang" "zh"
+x.AttrDrop "version"
+x.AddText "尾巴"
+n := Xml.Element "extra"
+n.AttrPut "id" "9"
+n.Add (Xml.Text "内容")
+x.Add n
+print (Xml.Render x)
+
+# ── 摘掉一个孩子 ──
+b := x.Child "port"
+b.Delete ()
+print (Xml.Render x)
+
+# ── 当文件 / 目录 ──
+print ((x.Read ()).Length ())
+print (x.IsDir ())
+print ((x.Child "extra").Text ())
+Io.EachDir x (p: string e: object) => { print (p); }
+
+# ── 报错 ──
+try { Xml.Parse "<a>"; } (e: Exception) => { print ("1: " + string e); }
+try { x.Child "nope"; } (e: Exception) => { print ("2: " + string e); }
+try { x.Attr "nope"; } (e: Exception) => { print ("3: " + string e); }
+try { (x.Child "extra").Append "x"; } (e: Exception) => { print ("4: " + string e); }
+try { x.Delete (); } (e: Exception) => { print ("5: " + string e); }
+try { (Xml.Text "hi").AttrPut "a" "b"; } (e: Exception) => { print ("6: " + string e); }
+# --- expected ---
+# config
+# true
+# 2
+# -
+# true
+# 8080
+# [a b]
+# [port item item note]
+# [port item item[2] note]
+# 8080ab
+# ()
+# note
+# <config lang="zh">
+#   <port>8080</port>
+#   <item>a</item>
+#   <item>b</item>
+#   <note />尾巴<extra id="9">内容</extra></config>
+# <config lang="zh">
+#   <item>a</item>
+#   <item>b</item>
+#   <note />尾巴<extra id="9">内容</extra></config>
+# 101
+# true
+# 内容
+# item
+# item\#text
+# item[2]
+# item[2]\#text
+# note
+# #text
+# extra
+# extra\#text
+# 1: 解析 XML失败: Data at the root level is invalid. Line 1, position 1.
+# 2: <config> 里没有 <nope> 这个孩子
+# 3: <config> 上没有 'nope' 这个属性
+# 4: XML 的节点没有追写这回事：<extra>
+# 5: 这是个根节点，没有爹可摘：<config>
+# 6: 这是段文本，没有属性可挂

@@ -2290,7 +2290,26 @@ Glob.Find "src/**/*.cs"                  # 递归找，交回相对路径（一�
 
 **用例见 tests/283。**
 
-### 6.22 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
+### 6.22 XML（`Xml`）
+
+```ravel
+using "xml.rav"
+x := Xml.Parse "<config><port>8080</port></config>"
+print (x.Name ())                 # config
+print ((x.Child "port").Text ())  # 8080
+print (Xml.Render x)              # 打回文本（`print x` 给的是字段表，要内容得显式取）
+(x.Child "port").Put (Xml.Text "9090")
+```
+
+和 `JsonNode` 是**同一个模型**：节点是一层包装，底下是普通的 dict / list——所以改一个节点
+就是改那棵树。它同时也**是一个文件系统**（`IFile` + `IDir`），`Io.EachDir` 那几件照吃。
+
+三条取舍：**命名空间不参与**（前缀和 `xmlns:` 都丢掉，按局部名认）、**空白文本节点不收**、
+属性是有序表。同名兄弟在 `List ()` 里带 `[2]` 这样的尾巴（XPath 那个写法）。
+
+**用例见 tests/284。**
+
+### 6.23 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
 
 **`Crypto`** —— 加密与口令。和 `Hash` 是两件事：那边是"防篡改"，这边是"藏起来"。
 

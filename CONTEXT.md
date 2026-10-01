@@ -223,6 +223,15 @@ lib/
                           error**,松的一律不落笔(过滤在拼串之前)。落点:给了 `"file"` 追加到文件、
                           `"err": true` 走 stderr,否则 stdout;落盘失败**当场报错**。
                           **要显式引用**
+  xml.rav                 `Xml` 模块 —— XML:`Xml.Parse text` → 一棵 `XmlNode` 树 /
+                          `Xml.Render n` / `Xml.Element name` / `Xml.Text s`。节点上是
+                          `Kind` / `Name` / `Attrs` / `Attr` / `AttrOr` / `Text` / `AllText` /
+                          `Child` / `Find` / `All` / `Kids` / `Elements` / `Add` / `AttrPut` /
+                          `Delete`,而且它**既是 `IFile` 又是 `IDir`**(孩子就是子元素)——
+                          和 `io.rav` 的 `JsonNode` 同一个模型:节点是一层包装,底下是
+                          普通的 dict / list。三条取舍:**命名空间不参与**(前缀与 `xmlns:`
+                          都丢掉,按局部名认)、**空白文本节点不收**、属性是有序表。
+                          本机两条在官方扩展里(`XmlParse` / `XmlRender`)。**要显式引用**
   glob.rav                `Glob` 模块 —— 通配符:`*`(不跨 `/`)/ `?` / `**`(跨 `/`,零层也算)/
                           `[...]`(`[!...]` 取反)。`Match pat path`(**整串比**)/ `Filter` /
                           `Split`(分成相符与不相符两堆)/ `Find pat`(从当前目录递归找)/
@@ -902,7 +911,7 @@ internal static class StackClass
 ### 官方扩展（`Ravel.Extensions` → `plugins/Ravel.Extensions.dll`）
 
 **那几个库的本机半边住在里面,不在引擎里**:`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` /
-`Random` / `Zip`(对外叫 `Native.HashBytes` 那几条,同一个 `[RavelModule("Native")]`)。
+`Random` / `Zip` / `Xml`(对外叫 `Native.HashBytes` 那几条,同一个 `[RavelModule("Native")]`)。
 留下来的那批照的是一条明着的尺子 —— **要么是语言本身要的,要么是进程边界**;
 这六个两样都不沾,它们说的是"这台机器能干什么",而 `Hash.Sha256` 那个库才是"这门语言里
 摘要是什么"。

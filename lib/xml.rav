@@ -1,0 +1,237 @@
+# `Xml` —— XML。**要显式引用**:`using "xml.rav"`。
+#
+#     x := Xml.Parse "<config><port>8080</port></config>"
+#     print (x.Name ())                 # config
+#     print ((x.Child "port").Text ())  # 8080
+#     print (Xml.Render x)              # 打出来就是那棵 XML
+#
+#     x.AttrPut "version" "2"
+#     (x.Child "port").Put (Xml.Text "9090")
+#     print (Xml.Render x)              # <config version="2"><port>9090</port></config>
+#
+# 模型和 `lib/io.rav` 里的 `JsonNode` **是同一个**:每个节点是一层包装,底下那棵树是
+# 普通的 dict / list(`Ravel.Extensions/XmlNative.cs` 说明它的形状)——
+# 所以改一个节点就是改那棵树,`Xml.Render` 再把同一形状打回文本。**没有第二个类型**。
+#
+# 于是它也是**一个文件系统**:`XmlNode` 既是 `IFile`(读出来是它那段 XML)又是 `IDir`
+# (孩子就是子元素)。`Io.EachDir` / `Io.Copy` 那几件照吃。
+#
+# 三条说得清的取舍:
+#
+#   * **命名空间不参与**:前缀和 `xmlns:` 声明都丢掉,元素与属性按**局部名**认。
+#   * **空白文本节点不收**:缩进用的那些是写代码的人的东西,不是数据。代价是
+#     `<a> </a>` 里那个有意义的空格也没了 —— 真要紧就别拿空白当内容。
+#   * **属性是有序表**:`Attrs ()` 交回 dict(打印时的先后是 XML 里那个先后)。
+using "native.rav"
+using "io.rav"      # `IFile` / `IDir` 是那儿的 —— 这一层就挂在它那条缝上
+
+ravel "Xml"
+
+# ── 解析 / 渲染 ──
+
+readonly Parse := (text: string) => { XmlNode (Native.XmlParse text) (); }
+readonly Render := (n: object) => { Native.XmlRender (TreeOf n); }
+
+# 造新节点(要自己拼一棵的时候用)
+readonly Element := (name: string) => { XmlNode {"kind": "element" "name": name "attrs": {} "kids": []} (); }
+readonly Text := (s: string) => { XmlNode {"kind": "text" "text": s} (); }
+
+# 节点或者那棵裸树都收
+readonly TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; } { n; } }
+
+# ── 一个节点 ──
+#
+# 一层包装(和 `JsonNode` 一模一样):`Tree` 指着底下那棵 dict 树,`Parent` 指着上一层。
+# 根没有 `Parent`(给 `()`),所以 `Delete ()` 在根上会报错。
+XmlNode ::= class {
+    Tree: dict = {}
+    Parent: object = ()
+
+    init = (tree: dict parent: object) => { Tree = tree; Parent = parent; this; }
+
+    # ── 它是什么 ──
+
+    Kind := () => { Tree.Get "kind"; }
+    IsElement := () => { (Kind ()) == "element"; }
+    IsText := () => { (Kind ()) == "text"; }
+
+    # 元素的名字;文本节点没有名字,给空串(不是 `()` —— 那一格永远是字符串)
+    Name := () => { if { IsElement (); } { Tree.Get "name"; } { ""; } }
+
+    # 直接文本子节点拼起来。元素取它的;文本节点取自己
+    Text := () => {
+        if { IsText (); } { Tree.Get "text"; } {
+            out := ""
+            foreach (Kids ()) (k: XmlNode) => { if { k.IsText (); } { out += (k.Text ()); } { 0; } }
+            out
+        }
+    }
+
+    # 整棵子树里的文本拼起来(忽略标签) —— 剥标记看内容用这个
+    # 文本节点就是它自己;元素**只把孩子的加起来** —— 别再单独加一次 `Text ()`,
+    # 那些直接文本子节点本来就在递归里(加了就每段文本数两遍)
+    AllText := () => {
+        if { IsText (); } { Text (); } {
+            out := ""
+            foreach (Kids ()) (k: XmlNode) => { out += (k.AllText ()); }
+            out
+        }
+    }
+
+    # ── 孩子 ──
+
+    Kids := () => {
+        out := []
+        # 文本节点没有孩子 —— 给空表,不给"键不存在"
+        if { IsText (); } { out; } {
+            foreach (Tree.Get "kids") (k: dict) => { out.Add (XmlNode k this); }
+            out
+        }
+    }
+
+    # 第一个叫这个名字的子元素。没有就当场报错(要"可能没有"用 `Find`)
+    Child := (name: string) => {
+        hit := Find name
+        assert ((typeof hit) == XmlNode) ("<" + (Name ()) + "> 里没有 <" + name + "> 这个孩子")
+        hit
+    }
+
+    # 可能没有,没有给 `()`。
+    # (别写成 `hit := ()` 再在循环里赋值 —— `:=` 会把类型**钉成 Void**,后面赋节点就报错了)
+    Find := (name: string) => {
+        hit := []
+        foreach (Kids ()) (k: XmlNode) => {
+            if { (hit.Count ()) == 0; } {
+                if { (k.IsElement ()) && ((k.Name ()) == name); } { hit.Add k; } { 0; }
+            } { 0; }
+        }
+        if { (hit.Count ()) == 0; } { (); } { hit.At 0; }
+    }
+
+    # 所有叫这个名字的子元素(XML 里同名兄弟是常事)
+    All := (name: string) => {
+        out := []
+        foreach (Kids ()) (k: XmlNode) => { if { (k.IsElement ()) && ((k.Name ()) == name); } { out.Add k; } { 0; } }
+        out
+    }
+
+    Elements := () => { Filter true; }
+    Texts := () => { Filter false; }
+
+    Filter := (wantElement: bool) => {
+        out := []
+        foreach (Kids ()) (k: XmlNode) => { ((k.IsElement ()) == wantElement) { out.Add k; } { 0; } }
+        out
+    }
+
+    # ── 属性 ──
+
+    Attrs := () => { if { IsElement (); } { Tree.Get "attrs"; } { {}; } }
+    Attr := (name: string) => {
+        a := Attrs ()
+        assert (a.Has name) ("<" + (Name ()) + "> 上没有 '" + name + "' 这个属性")
+        a.Get name;
+    }
+    AttrOr := (name: string dflt: string) => {
+        a := Attrs ()
+        if { a.Has name; } { a.Get name; } { dflt; }
+    }
+    HasAttr := (name: string) => { (Attrs ()).Has name; }
+
+    AttrPut := (name: string value: object) => {
+        assert (IsElement ()) ("这是段文本，没有属性可挂")
+        (Tree.Get "attrs").Set name (string value)
+        ();
+    }
+    AttrDrop := (name: string) => { (Tree.Get "attrs").Remove name; (); }
+
+    # ── 改 ──
+
+    # 添一个孩子(节点或一段文本都收)
+    Add := (kid: object) => { (Tree.Get "kids").Add (TreeOf kid); (); }
+    # 这儿要写 `Xml.Text` —— 类里那个 `Text ()` 是**取自己的文本**,把模块级的 `Xml.Text` 遮住了
+    AddText := (s: string) => { Add (Xml.Text s); }
+
+    # 把这一棵**原地变成**别的一棵。
+    # **不能换成另一个 dict 对象**:父那边的 `kids` 里指的是**这一个** dict,
+    # 换对象它就指丢了(和 `JsonNode` 那边一个考虑)。所以是"清空 + 抄进来"。
+    Put := (other: object) => {
+        tree := TreeOf other
+        foreach ((Tree.Keys ()).Sort ()) (k: string) => { Tree.Remove k; }
+        foreach (tree.Keys ()) (k: string) => { Tree.Set k (tree.Get k); }
+        ();
+    }
+
+    # 把自己从父那儿摘掉(根没有父,摘不了)
+    Delete := () => {
+        ((typeof Parent) == XmlNode) {
+            (Parent).Drop (TreeOf this)
+            ();
+        } { throw (Exception ("这是个根节点，没有爹可摘：<" + (Name ()) + ">")); }
+    }
+
+    # ── 给父节点用的两件(孩子通过它们改到那棵树上) ──
+
+    Drop := (tree: dict) => {
+        kids := Tree.Get "kids"
+        i := 0
+        found := 0 - 1
+        foreach kids (k: dict) => {
+            if { k == tree; } { found = i; } { 0; }
+            i += 1
+        }
+        assert (found >= 0) "要摘的那个孩子不在这棵树上"
+        kids.RemoveAt found
+        ();
+    }
+
+    # `x.ToString ()` 交回这段 XML。
+    #
+    # **但 `print x` 不走它**:`print` 那条路是 C# 的 `ObjectVal.ToString()`(实例就印字段),
+    # 那是同步的、调不了 Ravel 函数 —— 所以打印节点给的是 `XmlNode { Tree = … }`。
+    # 要看 XML 写 `print (Xml.Render x)` 或者 `print (x.Read ())`。
+    # (这一条和 `JsonNode` 一模一样:`print` 那两个都不好看,要内容是显式取出来的。)
+    ToString := () => { Read (); }
+
+    # ── 当作文件 / 目录 ──
+
+    # 读出来是**这一段 XML**(文本节点就是它那段文本)
+    Read := () => { if { IsText (); } { Text (); } { Xml.Render this; } }
+    Size := () => { (Read ()).Length (); }
+    Exists := () => { true; }
+    IsDir := () => { IsElement (); }
+    NameOf := () => { if { IsElement (); } { Name (); } { "#text"; } }
+
+    # 写回来:交上来的文本**当 XML 解析**,换掉这一棵
+    Write := (t: string) => {
+        Put (Native.XmlParse t)
+        ();
+    }
+    Append := (t: string) => { throw (Exception ("XML 的节点没有追写这回事：<" + (Name ()) + ">")); }
+
+    # ── 目录那一面 ──
+
+    # 这一层的孩子:名字 → 节点。**重名的加 `[2]` `[3]` 这样的尾巴**
+    # (XPath 里 `item[2]` 就是这个意思 —— 不是新发明的记号)。
+    # 文本节点按 `#text` 排进去(要有 `#text[2]`)
+    List := () => {
+        out := {}
+        seen := {}
+        foreach (Kids ()) (k: XmlNode) => {
+            tag := k.NameOf ()
+            n := if { seen.Has tag; } { (seen.Get tag) + 1; } { 1; }
+            seen.Set tag n
+            out.Set (if { n == 1; } { tag; } { (tag + "[") + (string n) + "]"; }) k
+        }
+        out
+    }
+
+    ChildNamed := (name: string) => { List () @ .Get name; }
+}
+
+impl (IFile XmlNode {
+    ()
+})
+impl (IDir XmlNode {
+    ()
+})
