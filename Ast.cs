@@ -70,8 +70,20 @@ public abstract record Expression : AstNode;
 
 /// <summary>数字文字。存**原始文本**而不是 double:double 只有 15~17 位有效数字,
 /// 大整数转一手就丢精度(12345678901234567890 → 12345678901234567000),再转回来已经不是原来那个数。</summary>
-public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression;
-public record StringLiteral(string Value) : Expression;
+public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression
+{
+    /// <summary>解析出来的值。字面量是**纯**的(文本 → 值,不看环境),所以算一次存下来 ——
+    /// 循环体里的 `1000000` 从前每轮都要 `int.Parse` / `BigInteger.Parse` 一遍。
+    /// 私有字段不进 record 的相等与打印。</summary>
+    internal RuntimeValue? Parsed;
+}
+
+public record StringLiteral(string Value) : Expression
+{
+    /// <summary>包成值的那一个 —— 和数字同理:字符串值不可变、按值比,同一个字面量
+    /// 每次求值交回**同一个** `StringVal` 就行,不必每次新建。</summary>
+    internal StringVal? Packed;
+}
 /// <summary>`'a'` —— 一个字符(UTF-16 码元)。字面量本身不区分转义写法,词法已经解码好了。</summary>
 public record CharLiteral(char Value) : Expression;
 public record IdentifierExpr(string Name) : Expression;

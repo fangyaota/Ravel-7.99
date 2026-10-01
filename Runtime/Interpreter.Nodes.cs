@@ -25,11 +25,13 @@ public partial class Interpreter
     /// 以前一律 (int) 硬转,2147483648 静默绕成 -2147483648,而且 double 中转还会丢精度。</summary>
     private static RuntimeValue MakeNumber(NumberLiteral nn)
     {
+        if (nn.Parsed is { } cached) return cached;      // 纯函数:算过一次就够了(见 NumberLiteral.Parsed)
         var ci = System.Globalization.CultureInfo.InvariantCulture;
-        if (nn.IsFloat) return new FloatVal(double.Parse(nn.Lexeme, ci));
-        return int.TryParse(nn.Lexeme, System.Globalization.NumberStyles.None, ci, out var i)
-            ? new IntVal(i)
-            : new BigIntVal(System.Numerics.BigInteger.Parse(nn.Lexeme, ci));
+        RuntimeValue v = nn.IsFloat ? new FloatVal(double.Parse(nn.Lexeme, ci))
+            : int.TryParse(nn.Lexeme, System.Globalization.NumberStyles.None, ci, out var i)
+                ? new IntVal(i)
+                : new BigIntVal(System.Numerics.BigInteger.Parse(nn.Lexeme, ci));
+        return nn.Parsed = v;
     }
 
     private void StepNode(NodeFrame nf)
@@ -37,7 +39,7 @@ public partial class Interpreter
         switch (nf.Node)
         {
             case NumberLiteral nn: if (nf.Count == 0) Return(nf, MakeNumber(nn)); break;
-            case StringLiteral ss: if (nf.Count == 0) Return(nf, new StringVal(ss.Value)); break;
+            case StringLiteral ss: if (nf.Count == 0) Return(nf, ss.Packed ??= new StringVal(ss.Value)); break;
             case CharLiteral cc: if (nf.Count == 0) Return(nf, new CharVal(cc.Value)); break;
             case VoidLiteral: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
             case SlotExpr slot: StepSlot(nf, slot); break;

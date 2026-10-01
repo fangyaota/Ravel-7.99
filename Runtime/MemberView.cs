@@ -49,21 +49,6 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
                     yield return n;
     }
 
-    /// <summary>沿类对象的 parent 链读**实例表** —— "给它那些实例用的成员"住在那一张。
-    /// 自引用(`object`/`Every`/`Any` 的 parent 是自己)就地停。
-    ///
-    /// 判据和 <see cref="ClassVal.MethodNames"/>(`Fields ()` 那半)必须一致 ——
-    /// "查得到"和"列得出"是同一个问题的两个问法。</summary>
-    internal Variable? LookupInClassChain(string name)
-    {
-        if (!ObjectVal.IsMethodName(name)) return null;
-        foreach (var t in ClassChain())
-            if (t.InstanceTable.LookupField(name) is { Value: FunctionVal } vr)
-                return vr;
-
-        return null;
-    }
-
     /// <summary>「**往上查**」那一半:这个值所属的类,再沿它的 `parent` 一层层往上。
     ///
     /// 就一条规则 —— 值读成员是"自己那层 + 它的类那层 + 类往上那些层";**类对象也是值**
@@ -75,17 +60,45 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
     /// 所以它们**接上 `object` 再走完**。`object` 自己是根,到它就是到头。
     ///
     /// **只取类对象**:链上理论上都是类(`parent` 是建类时装进去的),万一有个普通对象
-    /// 被当父类挂着,它没有实例表可言、也就贡献不了成员。</summary>
-    private IEnumerable<ClassVal> ClassChain()
+    /// 被当父类挂着,它没有实例表可言、也就贡献不了成员。
+    ///
+    /// **算一次就存下来**:取成员是解释器最热的一条路,而链建好之后不会再变(各方都只在
+    /// 建类那一刻写 `parent`,之后只读) —— 从前这是个迭代器,每次取成员都要新建一堆
+    /// 状态机对象。值类型那批(`IntVal` / `StringVal`…)的 `MemberScope` 直接借
+    /// `Type.InstanceMembers`,每个类一份,于是这份缓存**所有同类值共享**。</summary>
+    private ClassVal[]? _chain;
+
+    private ClassVal[] ClassChain() => _chain ??= BuildChain();
+
+    private ClassVal[] BuildChain()
     {
+        var chain = new List<ClassVal>(4);
         var t = type as ClassVal;
         while (t != null)
         {
-            yield return t;
+            chain.Add(t);
             if (t.Parent != t) { t = t.Parent as ClassVal; continue; }   // 往上一层
-            if (t == BuiltinClasses.Object) yield break;                 // 根
+            if (t == BuiltinClasses.Object) break;                       // 根
             t = BuiltinClasses.Object;                                   // Every / Any:接到 object
         }
+
+        return [.. chain];
+    }
+
+    /// <summary>沿类对象的 parent 链读**实例表** —— "给它那些实例用的成员"住在那一张。
+    /// 自引用(`object`/`Every`/`Any` 的 parent 是自己)就地停。
+    ///
+    /// 判据和 <see cref="ClassVal.MethodNames"/>(`Fields ()` 那半)必须一致 ——
+    /// "查得到"和"列得出"是同一个问题的两个问法。</summary>
+    internal Variable? LookupInClassChain(string name)
+    {
+        if (!ObjectVal.IsMethodName(name)) return null;
+        var chain = ClassChain();
+        for (int i = 0; i < chain.Length; i++)
+            if (chain[i].InstanceTable.LookupField(name) is { Value: FunctionVal } vr)
+                return vr;
+
+        return null;
     }
 
     private static RuntimeException ReadOnly()

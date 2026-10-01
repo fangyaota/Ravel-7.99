@@ -19,15 +19,91 @@ public partial class Interpreter
     {
         var moduleType = BuiltinClasses.NewModuleClass("System", BuiltinClasses.Ravel);
         var module = new ModuleVal(moduleType, new Scope(_global));
-        var scope = module.Scope;
+        _sysScope = module.Scope;
 
-        void Def(string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);
-        // 类对象自己就是那个值,不再包一层
-        void DefType(string name, ObjectVal type) => Def(name, BuiltinClasses.Type, type);
-        void DefFn(string name, FunctionVal fn) => Def(name, BuiltinClasses.Function, fn);
-        void DefControl(string name, ControlKind kind, int arity) => DefFn(name, new ControlFunction(kind, arity, RList<RuntimeValue>.Empty));
+        Types();
+        Constants();
+        Controls();
+        Output();
+        Reflection();
+        RegexPrimitives();
+        RandomSources();
+        Files();
+        Commands();
+        Time();
+        Env();
 
-        // ---- 类型(System.Integer 等权威名;小写别名在 predefined.rav) ----
+        _sysScope = null;
+        return module;
+    }
+
+    /// <summary>建 `System` 模块期间"往哪张表登记" —— `BuildSystemModule` 起个头,
+    /// 下面那一串 `Xxx ()` 各登记一段,建完置回 null。它们从前是同一个方法里的局部函数与语句,
+    /// 靠闭包攥着这张表;拆成方法之后就得有个地方放它。</summary>
+    private Scope? _sysScope;
+
+    private void Def(string name, ObjectVal type, RuntimeValue value) => _sysScope!.Define(name, type, value);
+    // 类对象自己就是那个值,不再包一层
+    private void DefType(string name, ObjectVal type) => Def(name, BuiltinClasses.Type, type);
+    private void DefFn(string name, FunctionVal fn) => Def(name, BuiltinClasses.Function, fn);
+    private void DefControl(string name, ControlKind kind, int arity) => DefFn(name, new ControlFunction(kind, arity, RList<RuntimeValue>.Empty));
+
+    // ── 下面几段共用的小工具(从前它们是某一段里的局部函数,拆开之后得放这儿)──
+
+    private static byte[] ReadAllBytes(Stream s)
+    {
+        using var ms = new MemoryStream();
+        s.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    private static string DecodeOutput(byte[] bytes)
+    {
+        try
+        {
+            return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes);
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            return Console.OutputEncoding.GetString(bytes);
+        }
+    }
+
+    private static string PathOf(RuntimeValue v, string what)
+            => v is StringVal s
+                ? s.Value
+                : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}", ErrorKind.Argument);
+
+    private static void NeedFile(string p, string what)
+    {
+        if (Directory.Exists(p))
+            throw new RuntimeException($"{what}: 这是个目录，不是文件 —— {p}", ErrorKind.Io);
+        if (!File.Exists(p))
+            throw new RuntimeException($"{what}: 找不到文件 —— {p}", ErrorKind.Io);
+    }
+
+    private static void NeedParentDir(string p, string what)
+    {
+        // 父目录**按用户写的那串**切(最后一个分隔符之前),不转绝对路径、也不交给 .NET 归一化 ——
+        // 报错里要看到的就是他写的那串:`.io-test/nodir`,而不是被换成反斜杠的版本,
+        // 更不是带盘符的完整路径。就一个文件名(没有分隔符)时没有父目录可查,交给下面去管。
+        var cut = Math.Max(p.LastIndexOf('/'), p.LastIndexOf('\\'));
+        if (cut <= 0) return;
+        var dir = p[..cut];
+        if (!Directory.Exists(dir))
+            throw new RuntimeException($"{what}: 目录不存在 —— {dir}", ErrorKind.Io);
+    }
+
+    private static string EnvName(RuntimeValue v, string what)
+    {
+        var name = As<StringVal>(v, $"{what} 的名字").Value;
+        if (name.Length == 0) throw new RuntimeException($"{what}: 变量名不能是空的", ErrorKind.Value);
+        return name;
+    }
+
+    /// <summary>类型与错误族 —— `System.Integer` 那些**权威名**(小写别名在 predefined.rav)</summary>
+    private void Types()
+    {
         DefType("Integer", BuiltinClasses.Int);
         DefType("String", BuiltinClasses.String);
         DefType("Char", BuiltinClasses.Char);
@@ -66,7 +142,11 @@ public partial class Interpreter
         DefType("RegexError", BuiltinClasses.RegexError);
         DefType("Json", BuiltinClasses.Json);
 
-        // ---- 常量 ----
+    }
+
+    /// <summary>常量,以及几个"顺手"的建库钩子(错误钩子、模块加载状态、`use`/`impl`/`eval` 那几个控制内建)</summary>
+    private void Constants()
+    {
         Def("True", BuiltinClasses.Bool, new BoolVal(true));
         Def("False", BuiltinClasses.Bool, new BoolVal(false));
         // 特殊浮点值。和 True/False 同款:系统模块里的一个值,`predefined.rav` 给全局别名
@@ -75,7 +155,11 @@ public partial class Interpreter
         Def("Inf", BuiltinClasses.Float, new FloatVal(double.PositiveInfinity));
         Def("Default", BuiltinClasses.Every, DefaultVal.Instance);
 
-        // ---- 控制内建:收满参数后由求值器推控制帧 ----
+    }
+
+    /// <summary>控制内建 —— 收满参数后由求值器推控制帧</summary>
+    private void Controls()
+    {
         // if/while/foreach 不在这里——它们在 predefined.rav 用 Ravel 写(靠可调用的 true/false + callcc)
         DefControl("With", ControlKind.With, 2);
         DefControl("CallCC", ControlKind.CallCC, 1);
@@ -93,7 +177,11 @@ public partial class Interpreter
         DefControl("Using", ControlKind.Using, 1);
         DefControl("Eval", ControlKind.Eval, 1);
 
-        // ---- 输出 ----
+    }
+
+    /// <summary>打印与输入</summary>
+    private void Output()
+    {
         DefFn("WriteLine", FunctionVal.From(a =>
         {
             Console.WriteLine(Show(a));
@@ -123,7 +211,11 @@ public partial class Interpreter
         // 想读一行用 ReadLine(它是 `input`)。
         DefFn("ReadAllInput", FunctionVal.From(_ => new StringVal(Console.In.ReadToEnd())));
 
-        // ---- 反射 / 作用域 ----
+    }
+
+    /// <summary>反射与作用域</summary>
+    private void Reflection()
+    {
         DefFn("TypeOf", FunctionVal.From(a => a.Type));
         // 接口实现:`use` 登记进**当前作用域**(随作用域在/不在),`impl` 登记进**全局作用域**
         // (每个作用域链都到全局,于是处处生效)。两个共用一套登记与查找,见 BuiltinClasses.Interfaces.cs
@@ -137,11 +229,18 @@ public partial class Interpreter
             return VoidVal.Instance;
         }));
 
-        // ---- 其他核心函数 ----
-        // ── 正则 ──(那六条的实现在 Interpreter.Regex.cs;策略在 lib/regex.rav)
+    }
+
+    /// <summary>正则 —— 那六条的实现在 `Interpreter.Regex.cs`,策略在 `lib/regex.rav`</summary>
+    private void RegexPrimitives()
+    {
         RegisterRegexPrimitives(DefFn);
 
-        // ── 随机数的"源头" ──
+    }
+
+    /// <summary>随机数的**源头** —— 引擎只造"一枚取数的函数",哪几台、怎么用是 `lib/random.rav` 的事</summary>
+    private void RandomSources()
+    {
         // 引擎只造**一枚取数的函数**(`() => int`,范围 0 .. 2^30-1);"哪几台、怎么用"是库的事
         // (lib/random.rav:三台 —— 进程共享 / 带种子可复现 / 加密级 —— 各包一枚它,
         //  掷骰子 / 洗牌 / 抽样那些写成 `IRandom` 的默认实现)。
@@ -196,58 +295,20 @@ public partial class Interpreter
         DefFn("Exit", FunctionVal.From(a => throw new ExitException(As<StringVal>(a, "exit 的消息").Value)));
         DefFn("RavelMod", FunctionVal.From(a => EnterModule(As<StringVal>(a, "ravel 的模块名").Value)));
 
-        // ---- 文件系统:只做 syscall,不做策略 ----
+    }
+
+    /// <summary>文件系统 —— **只做 syscall,不做策略**</summary>
+    private void Files()
+    {
         // 失败就报 Ravel 错误(中文、带路径);"要不要先问一句"交给 FileExists / DirExists 那两个探针,
         // 它们**不报错**。路径基准 = 进程当前目录;不做沙箱 —— 和 `using` 找模块一个待遇,用户自己负责。
         // 上面那些预检查是为了消息说人话;**Fs 那层兜底是为了不让 C# 异常漏到顶层**
         // (目录不存在、没权限、路径里有非法字符…… 漏出去会绕过 Ravel 的 try 把程序打掉,
         //  和这批原语一条道理)。
-        static byte[] ReadAllBytes(Stream s)
-        {
-            using var ms = new MemoryStream();
-            s.CopyTo(ms);
-            return ms.ToArray();
-        }
 
         // 外部命令的输出按什么编码解?——**先按 UTF-8 试,不合法就退回控制台编码**。
         // 两边都常见:git / python 那些吐 UTF-8,而 `dir` 这类走的是控制台那套(中文 Windows
         // 上就是 GBK)。合法的 UTF-8 里出现 GBK 字节的概率极低,所以这个判据够用。
-        static string DecodeOutput(byte[] bytes)
-        {
-            try
-            {
-                return new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes);
-            }
-            catch (System.Text.DecoderFallbackException)
-            {
-                return Console.OutputEncoding.GetString(bytes);
-            }
-        }
-
-        static string PathOf(RuntimeValue v, string what)
-            => v is StringVal s
-                ? s.Value
-                : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}", ErrorKind.Argument);
-
-        static void NeedFile(string p, string what)
-        {
-            if (Directory.Exists(p))
-                throw new RuntimeException($"{what}: 这是个目录，不是文件 —— {p}", ErrorKind.Io);
-            if (!File.Exists(p))
-                throw new RuntimeException($"{what}: 找不到文件 —— {p}", ErrorKind.Io);
-        }
-
-        static void NeedParentDir(string p, string what)
-        {
-            // 父目录**按用户写的那串**切(最后一个分隔符之前),不转绝对路径、也不交给 .NET 归一化 ——
-            // 报错里要看到的就是他写的那串:`.io-test/nodir`,而不是被换成反斜杠的版本,
-            // 更不是带盘符的完整路径。就一个文件名(没有分隔符)时没有父目录可查,交给下面去管。
-            var cut = Math.Max(p.LastIndexOf('/'), p.LastIndexOf('\\'));
-            if (cut <= 0) return;
-            var dir = p[..cut];
-            if (!Directory.Exists(dir))
-                throw new RuntimeException($"{what}: 目录不存在 —— {dir}", ErrorKind.Io);
-        }
 
         DefFn("FileExists", FunctionVal.From(a => Fs("FileExists", () => new BoolVal(File.Exists(PathOf(a, "FileExists"))))));
         DefFn("DirExists", FunctionVal.From(a => Fs("DirExists", () => new BoolVal(Directory.Exists(PathOf(a, "DirExists"))))));
@@ -309,7 +370,11 @@ public partial class Interpreter
             return new DictVal(entries);
         })));
 
-        // ── 跑外部命令 ──
+    }
+
+    /// <summary>跑外部命令</summary>
+    private void Commands()
+    {
         // 走**系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`):管道、重定向、通配符
         // 这些都归它管,我们不解析。**非零退出码不是错误** —— 程序失败是常事,原样放在
         // `code` 里交给调用方判断(真正起不来进程才是错)。
@@ -425,7 +490,11 @@ public partial class Interpreter
         DefFn("PathExt", FunctionVal.From(a => Fs("取扩展名", () =>
             new StringVal(Path.GetExtension(PathOf(a, "PathExt"))))));
 
-        // ── 时间 ──
+    }
+
+    /// <summary>时间</summary>
+    private void Time()
+    {
         // 一个时刻就是"1970-01-01 00:00:00 UTC 起的**毫秒数**"(bigint —— 毫秒那个数量级 int 装不下)。
         // 原语只做换算,不做判断:显示成什么样、哪天算一周开头,都是库(lib/time.rav)的事。
         // 时区一律**本地**;格式串按 .NET 那一套(`yyyy-MM-dd HH:mm:ss`),这几条只负责转交。
@@ -476,16 +545,14 @@ public partial class Interpreter
             return new BigIntVal(new DateTimeOffset(t).ToUnixTimeMilliseconds());
         })));
 
-        // ── 命令行参数与环境变量 ──
+    }
+
+    /// <summary>命令行参数与环境变量</summary>
+    private void Env()
+    {
         // 和文件系统那层一个规矩:**只做 syscall,不做策略** —— 外面给进来什么就是什么,
         // "要不要先问一句"交给 `EnvOr`(不报错的那条)。变量名空着那种没用的情况当场拦下,
         // 免得 `System.SetEnv "" "x"` 静默变成一次什么都没做的调用。
-        static string EnvName(RuntimeValue v, string what)
-        {
-            var name = As<StringVal>(v, $"{what} 的名字").Value;
-            if (name.Length == 0) throw new RuntimeException($"{what}: 变量名不能是空的", ErrorKind.Value);
-            return name;
-        }
 
         // `Args ()` 给的是**脚本名之后**那些参数,由 CLI 填进来(见 Program.cs 的 RunFile)。
         // 解释器自己不读命令行 —— 不这么切的话,`dotnet out/ravel.dll a.rav` 里第一个参数
@@ -537,7 +604,6 @@ public partial class Interpreter
             return new DictVal(entries);
         }));
 
-        return module;
     }
 
     /// <summary>把一类 C# 异常兜成 Ravel 错误 —— 文件 / 进程 / 正则那批原语共用。
