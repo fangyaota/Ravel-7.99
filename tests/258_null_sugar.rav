@@ -1,24 +1,32 @@
 # 空值那三条语法糖:`?.` / `??` / `??=`。
 #
-# **「空」= `()` 或 `None`**(`Some ()` 不算 —— 那是"有个值,值是 ()")。
+# **「空」只有 `None` 一样** —— `()` 不是空:它是 Void 类型那个**值**,和 `0` / `""` / `[]`
+# 平起平坐;`Some ()` 更不是(有个值,值是 `()`)。要"没设过"就明写 `None`:
+#
+#     Cache: Option = None
+#     Cache ??= 算一次 ()
+#
 # 语义在库里(`lib/predefined.rav` 的 IsNothing / NilChain / NilOr / NilFill),
 # 引擎只管把这三条脱糖成对它们的调用(词法/语法见 Lexer、Parser.Expressions)。
 #
-#     a ?? b    空就给 b(**惰性**:要用才求值);`Some x` 交 `x`
+#     a ?? b    空就给 b(**惰性**:要用才求值);`Some x` 交 `x`,别的值原样
 #     a?.b c    空**原样**短路;`Some x` 拿着 `x` 走完整条链(含调用)再包回去
 #     x ??= v   空才写;不空一个字符都不碰(连 setter 都不调)
 
-# ── `??`:空就给后备 ──
-nothing := ()
-print (nothing ?? "后备")
-print (5 ?? "后备")
-print ("有值" ?? "后备")
-print ((Some 7) ?? 0)          # Some 交的是**值**(不是 Option 本身)
+# ── `??`:空才给后备 ──
 print ((None ?? 0))
+print ((Some 7) ?? 0)          # Some 交的是**值**(不是 Option 本身)
+后备值 := "有值"
+print (5 ?? 后备值)
+print ("串" ?? 后备值)
+nothing := ()
+print (nothing ?? "后备")       # `()` **不是空** —— 照原样交出去
 
-# ── `?.` ──
-print (nothing?.Text)                    # () → 原样短路
-print ((None?.Count ()) ?? "空")          # None → 短路
+# `Some ()` 也不是空(值是 `()` 而已)
+print ((Some () ?? "后备"))
+
+# ── `?.`:只有 None 短路 ──
+print ((None?.Count ()) ?? "空")
 print ((Some "abc")?.Length ())           # Some 里的值走完链,**再包回去**
 print (((Some "abc")?.Length ()) ?? -1)   # 收口时解包
 print ((None?.Length ()) ?? -1)
@@ -27,14 +35,16 @@ print ((None?.Length ()) ?? -1)
 d := {"a": 1 "b": 2}
 print ((d?.Count ()) ?? -1)
 
+# `()` 上取成员**照旧报错** —— 不被悄悄吞掉
+try { nothing?.Text (); } (e: Exception) => { print ("1: " + string e); }
+
 # 短路:后面的调用**不该跑**
 boom := () => { print "不该跑"; 0; }
 print ((None?.Value ()) ?? "没跑")
-print ((nothing?.F ()) ?? "没跑")
 
 # ── `??=`:空才写 ──
 Holder ::= class {
-    Name: object = ()
+    Name: object = None
     Hits: int = 0
 }
 h := Holder ()
@@ -50,7 +60,7 @@ print h.Hits
 # 不空就**一个字符都不碰**:setter 里记账,看得见
 Counted ::= class {
     Writes: int = 0
-    Storage: object = ()
+    Storage: object = None
     by Value := property (() => { Storage; }) ((v: object) => { Writes += 1; Storage = v; })
 }
 c := Counted ()
@@ -71,25 +81,25 @@ pick := (_ ?? "兜底")
 print (pick ())
 print (pick (Some "有"))
 has := (_?.Length ())
-print (((has "abc") ?? -1))
+print ((has "abc") ?? -1)
 print (has (None))
 
 # ── 报错:左值不是变量/成员、单独的 `?` ──
-try { eval "(1 + 2) ??= 3"; } (e: Exception) => { print ("1: " + string e); }
-try { eval "1 ? 2"; } (e: Exception) => { print ("2: " + string e); }
+try { eval "(1 + 2) ??= 3"; } (e: Exception) => { print ("2: " + string e); }
+try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # --- expected ---
-# 后备
-# 5
-# 有值
-# 7
 # 0
+# 7
+# 5
+# 串
 # ()
+# Option { Has = true, Inner = () }
 # 空
 # Option { Has = true, Inner = 3 }
 # 3
 # -1
 # 2
-# 没跑
+# 1: 类型 'Void' 没有方法 'Text'
 # 没跑
 # 第一次
 # 第一次
@@ -104,9 +114,9 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("2: " + string e); }
 # 1
 # 写上
 # 1
-# 兜底
+# ()
 # 有
 # 3
 # Option { Has = false, Inner = () }
-# 1: '??=' 的左边得是变量或成员（就像 '=' 那样）
-# 2: '?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）
+# 2: '??=' 的左边得是变量或成员（就像 '=' 那样）
+# 3: '?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）
