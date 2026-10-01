@@ -103,6 +103,13 @@ internal static partial class BuiltinClasses
             nb != 0
                 ? MakeFraction(na * db, da * nb)
                 : throw new RuntimeException("运算符 '/' 的除数为零", ErrorKind.ZeroDivision)));
+        // `%` 和 Int 那条**一个口径** —— 余数取**截断**那个(`-7 % 3` 是 -1,不是 Python 的 2):
+        //     a % b = a - b * trunc(a / b)
+        // 这里的 `(na * db) / (da * nb)` 就是 `trunc(a / b)`(C# 的整数除法朝零截断)。
+        DefineOp(Fraction, "%", (a, b) => FractionBinOp(a, b, (na, da, nb, db) =>
+            nb != 0
+                ? MakeFraction(na * db - ((na * db) / (da * nb)) * (nb * da), da * db)
+                : throw new RuntimeException("运算符 '%' 的除数为零", ErrorKind.ZeroDivision)));
 
         // BigFraction 运算符
         DefineOp(BigFraction, "+",
@@ -116,6 +123,11 @@ internal static partial class BuiltinClasses
                 nb.IsZero
                     ? throw new RuntimeException("运算符 '/' 的除数为零", ErrorKind.ZeroDivision)
                     : new BigFractionVal(na * db, da * nb)));
+        DefineOp(BigFraction, "%",
+            (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) =>
+                nb.IsZero
+                    ? throw new RuntimeException("运算符 '%' 的除数为零", ErrorKind.ZeroDivision)
+                    : new BigFractionVal(na * db - ((na * db) / (da * nb)) * (nb * da), da * db)));
 
         // 比较运算符 — 数字
         foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })

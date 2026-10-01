@@ -67,6 +67,25 @@ print ((bigint (100000)) * 100000)
 print (typeof (2147483647 + bigint 1))
 ravel ""
 
+# ═══ 取模 % ═══
+# 余数取**截断**那个(和 C#/C 一样,和 Python 不一样):`-7 % 3` 是 -1,不是 2。
+# 一个口径贯穿 int / float / 分数:`a % b = a - b * trunc(a / b)`。
+print ((0 - 7) % 3)
+print (7 % (0 - 3))
+print (typeof (5 % 3))
+print (5 % 3.5)
+# 分数也有(从前只有 int / bigint / float 三种有 `%`)
+print ((fraction 7 2) % 2)
+print ((fraction 7 2) % (fraction 1 2))
+print ((bigfraction 7 2) % 2)
+print ((fraction (0 - 7) 2) % 2)
+# `%=` 走同一条路
+n := 10
+n %= 3
+print n
+# 除零和 `/` 一个说法
+try { (fraction 1 2) % (fraction 0 3); } (e: Exception) => { print ("mod0: " + string e); }
+
 # ═══ 186_fraction_normalize(并入) ═══
 ravel "186_fraction_normalize"
 # 分数构造即约分,负号归分子
@@ -238,6 +257,16 @@ ravel ""
 # 2147483648
 # 10000000000
 # BigInt
+# -1
+# 1
+# Integer
+# 1.5
+# 3/2
+# 0/1
+# 3/2
+# -3/2
+# 1
+# mod0: 运算符 '%' 的除数为零
 # 1/2
 # 1/1
 # 1/3
