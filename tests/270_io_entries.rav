@@ -80,11 +80,11 @@ System.DeletePath ".io-test"
 # 换掉
 # false
 # 换掉
-# [b.txt a.txt sub]
-# [b.txt a.txt]
+# [a.txt b.txt sub]
+# [a.txt b.txt]
 # [sub]
-# 走: b.txt
 # 走: a.txt
+# 走: b.txt
 # 走: sub
 # true
 # {"name":"Ravel","ver":2,"tags":["a","b"],"db":{"host":"x"}}
@@ -96,10 +96,10 @@ System.DeletePath ".io-test"
 # "b"
 # {"name":"Ravel","ver":3,"tags":["a","b"]}
 #   name
-#   ver
 #   tags
 #   tags\0
 #   tags\1
+#   ver
 # {"name":"Ravel","ver":3,"tags":["a","b"]}
 # "Ravel"
 # conf.json

@@ -118,8 +118,10 @@ Dir ::= class {
     # 列目录：**名字 → 条目**，按名字排序。顺序稳定，输出和测试才可期待。
     List := () => {
         raw := System.ListDir Path
-        names := raw.Keys ()
-        names.Sort ()
+        # `xs.Sort ()` **不是排自己** —— 它交回一份排好的新表(`SortByKey` 从头造一个 ListVal)。
+        # 写成光秃秃一句 `names.Sort ()` 就是**静默什么都不做**:Windows 上目录枚举常常
+        # 看着本来就是有序的,到 Linux 上顺序就随机的 —— 这种"在你这台机器上看不出来"的错最难查。
+        names := (raw.Keys ()).Sort ()
         out := {}
         # 那层括号不能省：实参位置上的「raw.Get n」会被读成「((EntryAt …) raw.Get) n」
         foreach names (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
@@ -251,10 +253,10 @@ MemDir ::= class {
 
     Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
 
-    # 接口没规定顺序，但两个实现都按名字排 —— `Io.EachDir` 的输出才稳定
+    # 接口没规定顺序，但几个实现都按名字排 —— `Io.EachDir` 的输出才稳定
+    # (记住 `Sort ()` 是**交回一份新的**,不是排自己 —— 见上面 `Dir.List` 那段)
     List := () => {
-        names := Kids.Keys ()
-        names.Sort ()
+        names := (Kids.Keys ()).Sort ()
         out := {}
         foreach names (n: string) => { out.Set n (Kids.Get n); }
         out
@@ -353,8 +355,8 @@ JsonNode ::= class {
                 i += 1
             }
         } {
-            (Value.Keys ()).Sort ()
-            foreach (Value.Keys ()) (k: string) => { out.Set k (Kid k); }
+            # 按名字排(和别的实现一个规矩);`Sort ()` 交回的是**新表**,别写成一句光秃秃的调用
+            foreach ((Value.Keys ()).Sort ()) (k: string) => { out.Set k (Kid k); }
         }
         out
     }

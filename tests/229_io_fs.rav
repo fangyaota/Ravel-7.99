@@ -217,9 +217,9 @@ MemDir ::= class {
     Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
 
     # 接口没规定顺序，但两个实现都按名字排 —— `Io.EachDir` 的输出才稳定
+    # (`Sort ()` 交回一份**新的**,不是排自己 —— 写成光秃秃一句 `names.Sort ()` 就是空操作)
     List := () => {
-        names := Kids.Keys ()
-        names.Sort ()
+        names := (Kids.Keys ()).Sort ()
         out := {}
         foreach names (n: string) => { out.Set n (Kids.Get n); }
         out
@@ -329,7 +329,7 @@ IsBlank := (s: string) => { (s.Trim ()).IsEmpty (); }
 foreach (Io.Lines f) (l: string) => {
     print (match l [[IsBlank {"空行";}]] {"有字";});
 }
-
+
 # 读不到的文件:`Expect` 把那次调用兜住,不往外抛
 missing := (Expect 1 (() => { (Io.File ".io-test/没有这个.txt").Read (); })) ()
 print (missing.IsErr ())
@@ -366,7 +366,6 @@ print ((cmd "echo x").Keys ())
 print (typeof (cmd "echo x"))
 print "end"
 ravel ""
-
 # --- expected ---
 # true
 # hi
@@ -379,7 +378,7 @@ ravel ""
 # ho
 # tail
 # [hi ho tail]
-# [sub a.txt]
+# [a.txt sub]
 # [a.txt]
 # [sub]
 # true
