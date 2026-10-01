@@ -11,6 +11,13 @@ print ("[" + (Encoding.Base64 []) + "]")
 print (Encoding.Base64 [255])            # 一个字节 → 补两个 `=`
 print (Encoding.Base64 [255 255])        # 两个字节 → 补一个 `=`
 
+# **解开之后的字节数**也要对得上:填充那两位是"补出来的",不是真字节。
+# (从前这里漏了 —— 第三格判的是 `b2` 有没有,写成 `b1`,于是带 `=` 的一律多吐一个 0)
+print (Encoding.Unbase64 "AQ==")                  # 一个字节 + 两个 `=`
+print (Encoding.Unbase64 "AQI=")                  # 两个字节 + 一个 `=`
+print (Encoding.Unbase64 (Encoding.Base64 [255]))       # 转一圈回来还是一个字节
+print ((Encoding.Unbase64 (Encoding.Base64 [1 2 3 4])).Count ())   # 转一圈回来还是四个
+
 # ── 十六进制 ──
 print (Encoding.Hex [255 0 16])
 print ("[" + (Encoding.Hex []) + "]")
@@ -44,6 +51,10 @@ try { Encoding.UrlDecode "%2"; } (e: Exception) => { print ("3: " + string e); }
 # []
 # /w==
 # //8=
+# [1]
+# [1 2]
+# [255]
+# 4
 # ff0010
 # []
 # [255 0 16]

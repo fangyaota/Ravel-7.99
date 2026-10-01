@@ -58,6 +58,15 @@ internal static class SysKit
         }
     }
 
+    /// <summary>从一个**参数表**(dict)里取一个键,没给(或者给的是 `()`)就是 null。
+    /// 「收一个 dict、缺的走默认」那几批原语(网络 / 加密)共用这一条 —— 加字段不用改签名。</summary>
+    public static RuntimeValue? Opt(DictVal d, string key)
+        => d.Entries.TryGetValue(new StringVal(key), out var v) && v is not VoidVal ? v : null;
+
+    public static string OptText(DictVal d, string key, string dflt) => Opt(d, key) is StringVal s ? s.Value : dflt;
+    public static int OptInt(DictVal d, string key, int dflt) => Opt(d, key) is IntVal i ? i.Value : dflt;
+    public static bool OptBool(DictVal d, string key, bool dflt) => Opt(d, key) is BoolVal b ? b.Value : dflt;
+
     /// <summary>字节表(list,0..255)→ byte[]。元素不是字节就当场说清楚是**第几个**不对</summary>
     public static byte[] BytesOf(RuntimeValue v, string what)
     {

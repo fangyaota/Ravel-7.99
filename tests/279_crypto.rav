@@ -1,0 +1,94 @@
+# `Crypto` —— 加密与口令(见 lib/crypto.rav)。**要显式引用**。
+#
+# 钉的是**已知答案**:PBKDF2 那几条对的是公开的测试向量,AES-256-GCM 对的是标准算法 ——
+# 哪天算歪了,这一条立刻红。密文本身带随机 nonce,所以钉的是**转一圈能不能回到原样**。
+using "crypto.rav"
+
+# ── PBKDF2-SHA256:公开测试向量(口令 "password"、盐 "salt"、1 轮)──
+print (Encoding.Hex (Crypto.Key "password" (Encoding.Utf8 "salt") 1))
+print (Encoding.Hex (Crypto.Key "password" (Encoding.Utf8 "salt") 4096))
+print ((Crypto.Key "密码" (Crypto.Salt ()) 1000).Count ())         # 一律 32 字节
+saltLen := Crypto.Salt ()
+print (saltLen.Count ())
+
+# ── AES-256-GCM:固定的密钥 / nonce → 密文也是定死的 ──
+key := Crypto.Key "password" (Encoding.Utf8 "salt") 1
+nonce := System.RandomBytes 12
+print ((System.AesSeal key nonce (Encoding.Utf8 "")).Count ())     # 空的也带 16 字节标签
+sealed := System.AesSeal key nonce (Encoding.Utf8 "秘密")
+print (sealed.Count ())                                            # 6 字节明文 + 16 标签
+print (Encoding.Utf8Text (System.AesOpen key nonce sealed))
+
+# ── 转一圈:nonce 随在密文前面,`Open` 自己认得出来 ──
+c := Crypto.Seal key "藏起来的一段"
+print (Crypto.Open key c)
+
+# 字节表那一半(不进 base64 的走法)
+print (Encoding.Utf8Text (Crypto.OpenBytes key (Crypto.SealBytes key (Encoding.Utf8 "字节表也行"))))
+
+# 每次封出来的密文**都不一样**(nonce 是现取的),但都解得回同一份明文
+s1 := Crypto.Seal key "x"
+s2 := Crypto.Seal key "x"
+print (s1 == s2)
+print (Crypto.Open key s1)
+print (Crypto.Open key s2)
+
+# ── 口令:**存的是"怎么校验",不是口令本身** ──
+stored := Crypto.HashPassword "hunter2"
+print (Crypto.CheckPassword "hunter2" stored)
+print (Crypto.CheckPassword "hunter3" stored)
+print ((stored.Split "$").At 0)
+print ((stored.Split "$").At 1)
+print ((stored.Split "$").At 2)                 # 轮数跟着一起存 —— 以后加轮数,老的还认得
+print ((Encoding.Unbase64 ((stored.Split "$").At 3)).Count ())   # 盐是 16 字节
+print (Crypto.CheckPassword "任何口令" "乱七八糟")     # 认不出的串一律"不通过",不报错
+print (Crypto.CheckPassword "任何口令" "pbkdf2$sha256$1$AAAA$AAAA")
+t1 := Crypto.HashPassword "x"
+t2 := Crypto.HashPassword "x"
+print (t1 == t2)                                     # 盐是随机的,两次不一样
+
+# ── 常数时间比 + 令牌 ──
+print (Crypto.Equal "ab" "ab")
+print (Crypto.Equal "ab" "abc")
+print ((Crypto.Token 8).Length ())
+
+# ── 报错的几种:当场说人话 ──
+try { Crypto.Seal [1 2 3] "x"; } (e: Exception) => { print ("1: " + string e); }
+try { System.AesOpen key (System.RandomBytes 13) sealed; } (e: Exception) => { print ("2: " + string e); }
+try { Crypto.Open (Crypto.Key "别的" (Encoding.Utf8 "salt") 1) c; } (e: Exception) => { print ("3: " + string e); }
+tampered := (Crypto.SealBytes key "abc").Skip 1        # 掐掉一个字节:nonce 就此对不上
+try { Crypto.OpenBytes key tampered; } (e: Exception) => { print ("4: " + string e); }
+try { Crypto.Key "p" (Encoding.Utf8 "s") 0; } (e: Exception) => { print ("5: " + string e); }
+try { System.AesOpen key (System.RandomBytes 12) [1 2 3]; } (e: Exception) => { print ("6: " + string e); }
+
+# --- expected ---
+# 120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b
+# c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a
+# 32
+# 16
+# 16
+# 22
+# 秘密
+# 藏起来的一段
+# 字节表也行
+# false
+# x
+# x
+# true
+# false
+# pbkdf2
+# sha256
+# 600000
+# 16
+# false
+# false
+# false
+# true
+# false
+# 16
+# 1: AesSeal: 密钥要 32 字节（AES-256），得到 3 —— 从口令派生用 `Crypto.Key`
+# 2: AesOpen: nonce 要 12 字节，得到 13
+# 3: AesOpen: 拆不开 —— 密钥或 nonce 不对，或者数据被改过
+# 4: AesOpen: 拆不开 —— 密钥或 nonce 不对，或者数据被改过
+# 5: Pbkdf2: 迭代次数要是正数，得到 0
+# 6: AesOpen: 密文太短（至少要有 16 字节的认证标签，得到 3）

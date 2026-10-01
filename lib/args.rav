@@ -1,0 +1,198 @@
+# `Args` —— 命令行参数。**要显式引用**:`using "args.rav"`。
+#
+#     a := Args.Parse (System.Args ())                          # 不看规格:长什么样就是什么样
+#     a := Args.ParseWith (System.Args ()) {"port": "int" "v": "flag"}
+#
+#     Args.Get a "port" 8080                            # 没给就用默认值
+#     Args.Has a "v"                                    # 开关在不在
+#     Args.Positional a                                 # 位置参数那一串(script.rav 后面那些)
+#     Args.Usage {"port": "int" "v": "flag"}            # 生成一行用法说明
+#
+# 收的是 `System.Args ()`(脚本名**之后**那些),分出来的东西是一张 dict:
+# **选项进同名的键,位置参数进 `"_"`**。
+#
+# 认这几种写法:
+#
+#     --name=value   --name value   --name        # 长选项;后面那个不是选项就吃掉当值,不然当开关
+#     -v             -a=1                         # 短选项;也是"跟着一个值或不吃"
+#     -abc                                        # 合并的开关 = a b c 三个(**不带值**)
+#     --                                          # 这之后全算位置参数
+#     -5   -                                      # 负数和光杆一个 `-`:位置参数
+#
+# **合并的短开关一律不带值** —— 想给 `-n` 一个值就写 `-n 5` 或 `-n=5`。
+# 这样 `-abc` 永远只有一种读法,不用先查规格再猜作者什么意思。
+#
+# 规格是一张**名字 → 类型**的 dict,类型有 `flag`(开关)/ `int` / `float` / `string` /
+# `list`(同名再来一次就攒成一串)。**不写规格就是 `string`**,一个键都不查。
+# 写了规格之后,**不认识的选项当场报错**(打错一个字母却什么都不说,是最难查的那种)。
+# 别名就写两条(`{"v": "flag" "verbose": "flag"}`)—— 比再发明一套"别名语法"直白。
+ravel "Args"
+
+readonly Rest := "_"          # 位置参数落在这个键下
+
+# ── 认不认得出"这是个选项" ──
+# 光看 `-` 开头不够:`-5` 是负数,`-` 常常是"标准输入"。这两样都该当**位置参数**。
+readonly IsOpt := (v: string) => {
+    if { (v.Length ()) < 2; } { false; } {
+        if { !(v.StartsWith "-"); } { false; } { !((v.At 1).IsDigit ()); }
+    }
+}
+
+# 剥掉前缀:`--name` / `-n` → `name` / `n`
+readonly Peel := (arg: string) => {
+    if { arg.StartsWith "--"; } { arg.Skip 2; } { arg.Skip 1; }
+}
+
+# ── 解析 ──
+#
+# **两条入口,因为 Ravel 的函数没有"可选参数"**:少给一个实参得到的是**半成品**
+# (一个还等着喂参数的函数),不是"用默认值跑一遍"。所以"看看规格"这件事单开一条
+# `ParseWith`——`Parse argv` 才真的是"就这么跑"。
+readonly Parse := (argv: list) => { ParseWith argv (); }
+
+readonly ParseWith := (argv: list spec: object) => {
+    given := (typeof spec) == dict
+    n := argv.Count ()
+    out := {}
+    out.Set Rest []
+    i := 0
+    tail := false                                  # 见过 `--` 了?
+
+    addRest := (v: object) => { (out.Get Rest).Add v; (); }
+
+    # 「光杆一个名字算不算开关?」**没给规格时一律算**(也就是:不带 `=` 就不吃后面的实参)。
+    # 不这么做的话 `-v a.txt` 里的 `a.txt` 会被 `v` 吃掉 —— 而作者想说的明明是"开关 + 位置参数"。
+    # 要带值,要么写 `-v=a`、要么在规格里声明它的类型。
+    isFlag := (name: string) => {
+        if { given; } { ((SpecOf spec name) == "flag"); } { true; }
+    }
+
+    # 收下一对"名字 → 原始值"。认不认识、按什么类型转,都在这儿判。
+    put := (name: string raw: object) => {
+        if { given && (!(spec.Has name)); } {
+            # 拼接前先落成变量:`... .Join " " + "）"` 里的 `" "` 会把后面的 `+ "）"` **一起吃进去**
+            # (实参吃到运算符为止),拼出来就少一截。调用接运算符的地方都得这么让一步。
+            known := ((spec.Keys ()).Sort ()).Join " "
+            throw (Exception ("Args.Parse: 不认识的选项 '" + name + "'（规格里有：" + known + "）"))
+        } { 0; }
+        t := if { given; } { SpecOf spec name; } { "string"; }
+        v := Coerce t name raw
+        if { t == "list"; } {
+            if { out.Has name; } { (out.Get name).Add v; } { out.Set name [v]; }
+        } { out.Set name v; }
+        ();
+    }
+
+    # 一个不带 `=` 的选项:是开关就当 true,不是就看看下一个实参能不能吃
+    take := (name: string) => {
+        if { isFlag name; } { put name true; } {
+            if { (i < n) && (!(IsOpt (argv.At i))); } {
+                put name (argv.At i)
+                i += 1
+            } { throw (Exception ("Args.Parse: '" + name + "' 缺一个值")); }
+        }
+        ();
+    }
+
+    # 合并的短开关 `-abc`。**每个字母都得是开关** —— 声明成 int 的那种混进来就报错,
+    # 不猜"作者是不是想把 bc 当 a 的值"(同一个写法两种读法,是最坏的那种设计)。
+    merge := (body: string) => {
+        foreach (body.Chars ()) (c: object) => {
+            nm := string c
+            if { given && (!(isFlag nm)); } {
+                throw (Exception ("Args.Parse: 合并的短开关不能带值 —— '-" + body + "' 里的 '" + nm + "' 是带值的，请写 '-" + nm + " 值'"))
+            } { 0; }
+            put nm true
+        }
+        ();
+    }
+
+    # `名字=值` 这一边(长选项走 `arg.Slice [2..eq)`,短选项同理)
+    assign := (name: string raw: string) => {
+        if { name.IsEmpty (); } {
+            throw (Exception ("Args.Parse: 选项名是空的 —— " + raw))
+        } { put name raw; }
+        ();
+    }
+
+    while { i < n; } {
+        arg := argv.At i
+        i += 1
+        if { tail; } { addRest arg; } {
+            if { arg == "--"; } {
+                tail = true
+            } {
+                if { IsOpt arg; } {
+                    body := Peel arg
+                    # `Find` 找不到给 **-1**,`IndexOf` 找不到**当场报错** —— 这儿问的就是"有没有"
+                    eq := body.Find "="
+                    if { eq >= 0; } {
+                        assign (body.Slice [0..eq)) (body.Skip (eq + 1))
+                    } {
+                        # 合并的开关只看**短选项**:`-abc` 拆成 a b c;
+                        # `--abc` 是一个叫 "abc" 的长选项(长名字里的字母不是一个一个开关)
+                        if { (!(arg.StartsWith "--")) && ((body.Length ()) > 1); } {
+                            merge body
+                        } { take body; }
+                    }
+                } { addRest arg; }
+            }
+        }
+    }
+
+    out
+}
+
+# 「这名字该按什么类型收」—— 规格里没写就是 string
+readonly SpecOf := (spec: dict name: string) => {
+    if { spec.Has name; } { spec.Get name; } { "string"; }
+}
+
+# 原始值 → 该有的样子。**转不动就报错,而且要说清是哪个选项** ——
+# "123abc" 是个 int 这件事,不说明白的话用户得自己去数第几个参数。
+readonly Coerce := (t: string name: string v: object) => {
+    if { t == "flag"; } { true; } {
+        if { t == "int"; } { AsInt name v; } {
+            if { t == "float"; } { AsFloat name v; } { v; }
+        }
+    }
+}
+
+readonly AsInt := (name: string v: object) => {
+    if { (typeof v) == string; } {
+        s := if { v.StartsWith "-"; } { v.Skip 1; } { v; }
+        ok := (s.Length ()) > 0
+        foreach (s.Chars ()) (c: object) => {
+            if { !(c.IsDigit ()); } { ok = false; } { 0; }
+        }
+        if { ok; } { int v; } { throw (Exception ("Args.Parse: '--" + name + "' 要一个整数，得到 '" + v + "'")); }
+    } { v; }
+}
+
+readonly AsFloat := (name: string v: object) => {
+    if { (typeof v) == string; } {
+        try { float v; } (e: Exception) => { throw (Exception ("Args.Parse: '--" + name + "' 要一个数，得到 '" + v + "'")); }
+    } { v; }
+}
+
+# ── 拿了怎么用 ──
+
+# 没给就用默认值。**开关的"给没给"要用 `Has` 问** —— `Get a "v" false` 在只给了 `--v` 时
+# 也交回 `true`,而在没给时交回 `false`,两种都说得通,别在这儿绕。
+readonly Get := (a: dict name: string dflt: object) => {
+    if { a.Has name; } { a.Get name; } { dflt; }
+}
+
+readonly Has := (a: dict name: string) => { a.Has name; }
+
+readonly Positional := (a: dict) => { a.Get Rest; }
+
+# 一行用法说明(`--port <int> --v`),名字排过序 —— 每次跑都长一样,好放进 `--help` 里
+readonly Usage := (spec: dict) => {
+    parts := []
+    foreach ((spec.Keys ()).Sort ()) (k: string) => {
+        t := spec.Get k
+        parts.Add (if { t == "flag"; } { "--" + k; } { (("--" + k) + " <") + (t + ">"); })
+    }
+    (parts).Join " "
+}

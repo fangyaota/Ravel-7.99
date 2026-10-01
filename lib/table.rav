@@ -1,0 +1,208 @@
+# `Table` —— 把一串行打成人看的表格。**要显式引用**:`using "table.rav"`。
+#
+#     Table.Render [{"名字": "张三" "年龄": 30} {"名字": "李四" "年龄": 7}]
+#     ┌──────┬──────┐
+#     │ 名字 │ 年龄 │
+#     ├──────┼──────┤
+#     │ 张三 │   30 │
+#     │ 李四 │    7 │
+#     └──────┴──────┘
+#     Table.RenderWith rows {"cols": ["名字"] "style": "plain" "align": {"名字": "right"}}
+#     Table.Width "中文 abc"                 # 8 —— 显示宽度,不是字符数
+#
+# 两种行都收:**一串 dict**(表头 = 键)或者**一串 list**(表头 = 0 1 2…,默认不印)。
+#
+# **这个库最要紧的一件事是"宽度"**:`Format.PadL` 那几条数的是**字符个数**,而一个汉字在
+# 终端里占**两格**。拿字符数去对齐,一整列中文就会歪 —— 所以这儿自己算一遍显示宽度
+# (东亚宽/全角算 2,其余算 1,emoji 也算 2)。`Table.Width` 单独交出来,别处要对齐也能用。
+#
+# 选项(dict,缺的都走默认):`cols`(要哪几列、什么顺序)/ `header`(印不印表头)/
+# `align`(`列名 → "left" / "right" / "center"`)/ `style`(`"box"` 框线 / `"plain"` 光板)。
+# 没指定对齐的列:**整列都是数就右对齐,否则左对齐** —— 数字右对齐是表格好看与否的一半。
+ravel "Table"
+
+# ── 显示宽度 ──
+# 东亚"宽"和"全角"的那几段码位占两格。范围取的是 Unicode `East_Asian_Width` 里的
+# W/F 两类的**主要区间** —— 不做全量表(那表几 MB),要的是"中文、假名、全角标点、
+# emoji 别歪",这几段够了。
+readonly WideRange := [
+    4352 4447          # 0x1100-0x115F  谚文字母
+    11904 12350        # 0x2E80-0x303E  部首 / 康熙 / CJK 符号标点
+    12353 13311        # 0x3041-0x33FF  假名 ～ CJK 兼容
+    13312 19903        # 0x3400-0x4DBF  扩展 A
+    19968 40959        # 0x4E00-0x9FFF  基本区
+    40960 42191        # 0xA000-0xA4CF  彝文
+    44032 55203        # 0xAC00-0xD7A3  谚文音节
+    63744 64255        # 0xF900-0xFAFF  兼容表意
+    65072 65103        # 0xFE30-0xFE6F  竖排标点 / 小写变体
+    65280 65376        # 0xFF00-0xFF60  全角
+    65504 65510        # 0xFFE0-0xFFE6  全角符号
+    127744 129791      # 0x1F300-0x1FBFF emoji
+]
+
+readonly IsWide := (n: int) => {
+    w := false
+    i := 0
+    while { i < (WideRange.Count ()); } {
+        if { (n >= (WideRange.At i)) && (n <= (WideRange.At (i + 1))); } { w = true; } { 0; }
+        i += 2
+    }
+    w
+}
+
+# 一格字在终端里占几格。**表头、格子、框线宽度全走它** —— 只有一处说了算。
+readonly Width := (s: string) => {
+    w := 0
+    foreach (s.Chars ()) (c: object) => {
+        if { IsWide (c.Code ()); } { w += 2; } { w += 1; }
+    }
+    w
+}
+
+# ── 摆一格 ──
+readonly Spaces := (n: int) => { (" ").Repeat n; }
+
+readonly Fit := (s: string n: int align: string) => {
+    gap := n - (Width s)
+    if { gap <= 0; } { s; } {
+        if { align == "right"; } { (Spaces gap) + s; } {
+            if { align == "center"; } {
+                left := Spaces (gap / 2)
+                left + s + (Spaces (gap - (Width left)))
+            } { s + (Spaces gap); }
+        }
+    }
+}
+
+# 值 → 放进去的样子。字符串原样(不然 `string "a"` 多一对引号),别的走 `string`
+# (和 `print` / `Format` 一个口径)。
+readonly Cell := (v: object) => { if { (typeof v) == string; } { v; } { string v; }; }
+
+# 这一列的格子是不是**都是数**(空格子不算)。是就右对齐 —— 列里有字有数时不硬凑。
+readonly AllNum := (rows: list c: object) => {
+    seen := 0
+    ok := true
+    foreach rows (r: object) => {
+        v := At r c
+        if { (typeof v) != string; } {
+            seen += 1
+            if { v is INumber; } { 0; } { ok = false; }
+        } { 0; }
+    }
+    ok && (seen > 0)
+}
+
+# 一行里取一列的值。dict 行按名字、list 行按下标;缺了就是空串(缺一格的表比报错有用)
+readonly At := (row: object c: object) => {
+    if { (typeof row) == dict; } {
+        if { row.Has c; } { row.Get c; } { ""; }
+    } {
+        if { c < (row.Count ()); } { row.At c; } { ""; }
+    }
+}
+
+# ── 渲染 ──
+#
+# 两条入口 —— Ravel 的函数没有"可选参数"(少给一个实参得到的是**半成品**,不是"走默认值"),
+# 所以"带选项"这件事单开一条 `RenderWith`。
+readonly Render := (rows: list) => { RenderWith rows (); }
+
+readonly RenderWith := (rows: list opts: object) => {
+    given := (typeof opts) == dict
+    if { (rows.Count ()) == 0; } { ""; } { Build rows given opts; }
+}
+
+readonly Build := (rows: list given: bool opts: object) => {
+    head := rows.At 0
+    asDict := (typeof head) == dict
+
+    # 列:给了 `cols` 就用它,否则 dict 行取**所有行键的并集**(按第一次出现的顺序 ←
+    # 光看第一行会漏掉后面才出现的键),list 行就是下标。
+    cols := []
+    if { given && (opts.Has "cols"); } { foreach (opts.Get "cols") (c: object) => { cols.Add c; }; } {
+        if { asDict; } {
+            seen := {}
+            foreach rows (r: object) => {
+                foreach (r.Keys ()) (k: object) => {
+                    if { seen.Has k; } { 0; } { seen.Set k true; cols.Add k; }
+                }
+            }
+        } {
+            n := 0
+            foreach head (v: object) => { cols.Add n; n += 1; }
+        }
+    }
+
+    # 表头:dict 行默认印,list 行默认不印;`header` 给了就听它的
+    header := asDict
+    if { given && (opts.Has "header"); } { header = opts.Get "header"; } { 0; }
+
+    # 宽度:表头那一格也算进去
+    widths := []
+    foreach cols (c: object) => {
+        w := if { header; } { Width (string c); } { 0; }
+        foreach rows (r: object) => {
+            t := Width (Cell (At r c))
+            if { t > w; } { w = t; } { 0; }
+        }
+        widths.Add w
+    }
+
+    # 对齐:指定了的听指定的,没指定的看整列是不是数
+    aligns := []
+    foreach cols (c: object) => {
+        a := if { AllNum rows c; } { "right"; } { "left"; }
+        if { given && (opts.Has "align"); } {
+            al := opts.Get "align"
+            if { al.Has c; } { a = al.Get c; } { 0; }
+        } { 0; }
+        aligns.Add a
+    }
+
+    style := if { given && (opts.Has "style"); } { opts.Get "style"; } { "box"; }
+    box := style == "box"
+
+    # 一条横线:`l` / `m` / `r` 是三个接头处的字符,横线本身一律是 `─`
+    ruler := (l: string m: string r: string) => {
+        out := ""
+        i := 0
+        while { i < (cols.Count ()); } {
+            if { i > 0; } { out += m; } { 0; }
+            out += ("─".Repeat (widths.At i))
+            i += 1
+        }
+        l + out + r
+    }
+
+    # 一行数据:黑框那条是 `│ 格 格 │`,光板那条是空格子连起来
+    line := (cells: list) => {
+        out := if { box; } { "│"; } { ""; }
+        i := 0
+        while { i < (cols.Count ()); } {
+            if { i > 0; } { out += (if { box; } { " │ "; } { "  "; }); } { out += (if { box; } { " "; } { ""; }); }
+            out += (Fit (cells.At i) (widths.At i) (aligns.At i))
+            i += 1
+        }
+        out + (if { box; } { " │"; } { ""; })
+    }
+
+    cellsOf := (r: object) => {
+        cs := []
+        foreach cols (c: object) => { cs.Add (Cell (At r c)); }
+        cs
+    }
+
+    out := []
+    if { box; } { out.Add (ruler "┌" "┬" "┐"); } { 0; }
+    if { header; } {
+        hs := []
+        foreach cols (c: object) => { hs.Add (string c); }
+        out.Add (line hs)
+        out.Add (if { box; } { ruler "├" "┼" "┤"; } { ruler "" "  " ""; })
+    } { 0; }
+    foreach rows (r: object) => { out.Add (line (cellsOf r)); }
+    if { box; } { out.Add (ruler "└" "┴" "┘"); } { 0; }
+
+    out.Join "
+"
+}

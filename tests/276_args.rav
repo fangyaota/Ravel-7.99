@@ -1,0 +1,62 @@
+# `Args` —— 命令行参数(见 lib/args.rav)。**要显式引用**。
+#
+# 分出来的东西是一张 dict:**选项进同名的键,位置参数进 `"_"`**。
+using "args.rav"
+
+# ── 不看规格:长什么样就是什么样 ──
+# 认得出 `--x=v` / `--x v` / `--x` / `-x` / `-abc` / `--` / 负数和光杆 `-`
+a := Args.Parse ["--name=1" "-v" "pos1" "--port=8080" "-abc" "--" "--x" "tail"]
+print a
+print (Args.Positional a)
+print (Args.Get a "name" "")
+print (Args.Has a "zz")
+print (Args.Get a "zz" 42)         # 没给就用默认值
+
+# **光杆选项一律是开关**(没写 `=`,就不吃后面那个实参)——
+# 不然 `-v a.txt` 里的 `a.txt` 会被 `v` 吞掉,而作者想说的是"开关 + 位置参数"。
+print (Args.Parse ["-v" "a.txt"])
+
+# `-5` 是负数、`-` 常常是"标准输入":两个都当位置参数,不当选项
+print (Args.Parse ["-5" "-" "--x"])
+
+# ── 带规格:只有声明成"带值"的名字才吃后面的实参 ──
+b := Args.ParseWith ["--port" "8080" "-v" "x" "--ratio" "0.5"] {"port": "int" "ratio": "float" "v": "flag"}
+print (Args.Get b "port" 0)
+print (typeof (Args.Get b "port" 0))      # 转成真的整数了,不是字符串
+print (Args.Get b "ratio" 0.0)
+print (Args.Has b "v")
+print (Args.Positional b)
+
+# 同一个名字给多次 → 攒成一串(`list` 类型)
+print (Args.ParseWith ["--tag" "a" "--tag" "b"] {"tag": "list"})
+
+# ── 用法那行:名字排过序,每次跑都长一样,好放进 `--help` ──
+print (Args.Usage {"port": "int" "v": "flag" "verbose": "flag"})
+
+# ── 报错的几种:当场说人话 ──
+try { Args.ParseWith ["--oops" "1"] {"port": "int"}; } (e: Exception) => { print ("1: " + string e); }
+try { Args.ParseWith ["--port" "abc"] {"port": "int"}; } (e: Exception) => { print ("2: " + string e); }
+try { Args.ParseWith ["--n" "x"] {"n": "float"}; } (e: Exception) => { print ("3: " + string e); }
+try { Args.ParseWith ["--n"] {"n": "int"}; } (e: Exception) => { print ("4: " + string e); }
+try { Args.ParseWith ["-ab"] {"a": "int" "b": "flag"}; } (e: Exception) => { print ("5: " + string e); }
+
+# --- expected ---
+# {_: [pos1 --x tail] name: 1 v: true port: 8080 a: true b: true c: true}
+# [pos1 --x tail]
+# 1
+# false
+# 42
+# {_: [a.txt] v: true}
+# {_: [-5 -] x: true}
+# 8080
+# Integer
+# 0.5
+# true
+# [x]
+# {_: [] tag: [a b]}
+# --port <int> --v --verbose
+# 1: Args.Parse: 不认识的选项 'oops'（规格里有：port）
+# 2: Args.Parse: '--port' 要一个整数，得到 'abc'
+# 3: Args.Parse: '--n' 要一个数，得到 'x'
+# 4: Args.Parse: 'n' 缺一个值
+# 5: Args.Parse: 合并的短开关不能带值 —— '-ab' 里的 'a' 是带值的，请写 '-a 值'

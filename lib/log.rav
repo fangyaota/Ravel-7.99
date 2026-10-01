@@ -1,0 +1,138 @@
+# `Log` —— 分级日志。**要显式引用**:`using "log.rav"`。
+#
+#     lg := Log.New ()
+#     lg.Info "启动"
+#     lg.Warn "磁盘快满了"
+#
+#     lg := Log.New {"level": "debug" "file": "app.log" "tag": "db" "stamp": false}
+#     lg.Debug "只有 debug 级别才看得见的一句"
+#
+#     Log.Info "懒得拎着一个 logger 的写法(走默认那台)"
+#     Log.SetLevel "debug"
+#
+# 四个级别,从松到紧:**debug < info < warn < error**。比当前级别松的一律**不落笔**
+# (过滤在拼字符串之前 —— 关掉的日志不该还去组一遍)。
+#
+# 一行长这样:
+#
+#     2026-10-01 09:30:00 [INFO] db: 连接上了
+#
+# 时间戳 / 级别 / 标签三段,后两段都能不要(`"tag"` 不写就没有;**时间戳**要关就 `"stamp": false`)。
+#
+# 落点三选一:给了 `"file"` 就**追加**到那个文件;`"err": true` 写 stderr;否则 stdout。
+# **落盘失败当场报错,不咽下去** —— 日志库最不该做的就是"悄悄什么都没写"。
+# 它也不替谁建目录:路径不对就是路径不对,报出来比猜好。
+using "time.rav"
+
+ravel "Log"
+
+# 由松到紧。**顺序就是这张表**,`Rank` 拿的是下标 —— 加一级只动这一行。
+readonly Levels := ["debug" "info" "warn" "error"]
+
+readonly Known := (name: string) => {
+    ok := false
+    foreach Levels (l: string) => {
+        if { l == name; } { ok = true; } { 0; }
+    }
+    ok
+}
+
+# 级别 → 名次。认不出的按 `info` 算(但正规入口 `SetLevel` 会先拦下来,
+# 走到这儿还认不出的只可能是从文件里读来的旧名字,那时候宁可多打点也别静默全灭)。
+readonly Rank := (name: string) => {
+    r := 1
+    i := 0
+    while { i < (Levels.Count ()); } {
+        if { (Levels.At i) == name; } { r = i; } { 0; }
+        i += 1
+    }
+    r
+}
+
+Logger ::= class {
+    Level: string = "info"
+    Sink: string = ""            # 落盘路径;空串 = 不落盘
+    ToErr: bool = false
+    Tag: string = ""
+    Stamp: bool = true
+
+    init = (opts: object) => {
+        if { (typeof opts) == dict; } {
+            if { opts.Has "level"; } { SetLevel (opts.Get "level"); } { 0; }
+            if { opts.Has "file"; } { Sink = opts.Get "file"; } { 0; }
+            if { opts.Has "err"; } { ToErr = opts.Get "err"; } { 0; }
+            if { opts.Has "tag"; } { Tag = opts.Get "tag"; } { 0; }
+            if { opts.Has "stamp"; } { Stamp = opts.Get "stamp"; } { 0; }
+        } { 0; }
+        this
+    }
+
+    # 改级别。**认不出的名字当场报错** —— `{"level": "verbose"}` 这种笔误要是静默按 info 走,
+    # 用户会以为 debug 开着,却怎么也等不到那几行。
+    SetLevel := (name: string) => {
+        assert (Known name) ("Log: 不认识的级别 '" + name + "'（有 debug / info / warn / error）")
+        Level = name
+        this
+    }
+
+    Enabled := (name: string) => { (Rank name) >= (Rank Level); }
+
+    # 组一行(不写出去)。想自己转手给别人(网络、界面)时用这条。
+    Line := (name: string message: object) => {
+        out := ""
+        if { Stamp; } { out += ((Now ()).Text ()); out += " "; } { 0; }
+        out += "["
+        out += (name.ToUpper ())
+        out += "] "
+        if { !(Tag.IsEmpty ()); } { out += Tag; out += ": "; } { 0; }
+        out += (string message)
+        out
+    }
+
+    Emit := (text: string) => {
+        if { !(Sink.IsEmpty ()); } {
+            System.AppendText Sink (text + "
+")
+        } {
+            if { ToErr; } { System.WriteLineErr text; } { System.WriteLine text; }
+        }
+        ();
+    }
+
+    Write := (name: string message: object) => {
+        if { Enabled name; } { Emit (Line name message); } { 0; }
+        ();
+    }
+
+    Debug := (message: object) => { Write "debug" message; }
+    Info := (message: object) => { Write "info" message; }
+    Warn := (message: object) => { Write "warn" message; }
+    Error := (message: object) => { Write "error" message; }
+}
+
+# 造一台。`Log.New ()` = 全默认(打屏幕、info 级);`Log.New {"level": … "file": …}` 按需调。
+readonly New := (opts: object) => { Logger opts; }
+
+# ── 默认那台 ──
+#
+# `Log.Info "…"` 不必先拎一个 logger 出来。级别看环境变量 `RAVEL_LOG`(`RAVEL_LOG=debug` 就全打开),
+# 没设就 `info` —— 让"调试那天临时多打点"不必改代码。
+#
+# 用一张 dict 当盒子而不是直接存一个变量:**模块里没有"先声明后赋值"的写法**,
+# `readonly X := …` 一写就定了,而这一台要能被 `Log.SetLevel` 换掉。
+readonly Holder := {"lg": ()}
+
+readonly Default := () => {
+    if { (Holder.Get "lg") is Logger; } { Holder.Get "lg"; } {
+        lg := Logger {"level": (System.EnvOr "RAVEL_LOG" "info")}
+        Holder.Set "lg" lg
+        lg
+    }
+}
+
+readonly SetLevel := (name: string) => { (Default ()).SetLevel name; (); }
+
+readonly Debug := (message: object) => { (Default ()).Debug message; (); }
+readonly Info := (message: object) => { (Default ()).Info message; (); }
+readonly Warn := (message: object) => { (Default ()).Warn message; (); }
+readonly Error := (message: object) => { (Default ()).Error message; (); }

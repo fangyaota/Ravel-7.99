@@ -2241,6 +2241,69 @@ ss.Add 4 / ss.Min () / ss.Max ()
 `[RavelModule("模块名")]` + `[RavelClass("类名")]`,方法挂 `[ClassMethod]` / `[ClassCtor]`,
 模块里的函数挂 `[RavelFn]` —— `using "你的.dll"` 之后就能用(见 `Runtime/Builtins/PluginApi.cs`)。
 
+### 6.19 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
+
+**`Crypto`** —— 加密与口令。和 `Hash` 是两件事：那边是"防篡改"，这边是"藏起来"。
+
+```ravel
+using "crypto.rav"
+key := Crypto.Key "口令" (Crypto.Salt ()) 600000   # PBKDF2-SHA256 → 32 字节
+c   := Crypto.Seal key "秘密"                      # AES-256-GCM → base64 串
+Crypto.Open key c                                  # "秘密"；拆不开就报错，不给垃圾
+
+stored := Crypto.HashPassword "hunter2"            # "pbkdf2$sha256$600000$盐$哈希"
+Crypto.CheckPassword "hunter2" stored              # true（常数时间比）
+Crypto.CheckPassword "hunter3" stored              # false
+```
+
+两条路分得很开：**藏数据**用 `Seal` / `Open`（密钥在手，丢了就没了）；
+**存口令**用 `HashPassword` / `CheckPassword`（存的是"怎么校验"，还原不出口令，
+所以这两条**没有**"解密"那一半——那是故意的）。
+
+**`Args`** —— 命令行参数：
+
+```ravel
+using "args.rav"
+a := Args.Parse (System.Args ())                          # 不看规格
+a := Args.ParseWith (System.Args ()) {"port": "int" "v": "flag"}
+Args.Get a "port" 8080 / Args.Has a "v" / Args.Positional a / Args.Usage spec
+```
+
+认 `--x=v` / `--x v` / `--x` / `-x` / `-abc`（合并的短开关，**不带值**）/ `--`（之后全算位置参数）；
+`-5` 和光杆 `-` 当位置参数。**没给规格时光杆一律当开关**（不带 `=` 就不吃后面那个实参）——
+不然 `-v a.txt` 里的 `a.txt` 会被 `v` 吞掉。结果是一张 dict：选项进同名的键，位置参数进 `"_"`。
+
+**`Table`** —— 打表格。最要紧的是**宽度**：算的是"终端里占几格"（汉字 2、其余 1），
+不是 `s.Length ()` —— `Format` 那几条数的是字符数，拿来对齐中文会歪。
+
+```ravel
+using "table.rav"
+print (Table.Render [{"名字": "张三" "年龄": 30} {"名字": "李四" "年龄": 7}])
+# ┌──────┬──────┐
+# │ 名字 │ 年龄 │
+# ├──────┼──────┤
+# │ 张三 │   30 │      ← 数那一列自动右对齐
+# │ 李四 │    7 │
+# └──────┴──────┘
+Table.RenderWith rows {"cols": ["名字"] "style": "plain" "align": {"名字": "right"}}
+Table.Width "中文 abc"      # 8
+```
+
+**`Log`** —— 分级日志：
+
+```ravel
+using "log.rav"
+lg := Log.New {"level": "debug" "file": "app.log" "tag": "db"}
+lg.Info "连接上了"          # 2026-10-01 09:30:00 [INFO] db: 连接上了
+lg.Warn "磁盘快满了"
+Log.Info "不拎 logger 的写法（走默认那台，级别看 RAVEL_LOG）"
+```
+
+`debug < info < warn < error`，比当前级别松的一律**不落笔**（过滤在拼串之前）。落点：给了
+`"file"` 追加到文件、`"err": true` 走 stderr，否则 stdout；落盘失败**当场报错**，不咽下去。
+
+**用例见 tests/276 ～ tests/279。**
+
 ## 七、类
 
 ### 7.1 类就是一个对象

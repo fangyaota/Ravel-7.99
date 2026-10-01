@@ -203,12 +203,42 @@ lib/
                           或 list 都行,表头按键**第一次出现**的先后)/ `Quote`(单个格子怎么转义)。
                           转义就一条:含 `,` / `"` / 换行的格子整体包引号、里面的 `"` 写成 `""`
                           —— 所以引号里的逗号和换行都是**内容**。**要显式引用**
+  args.rav                `Args` 模块 —— 命令行参数:`Parse argv`(不看规格)/
+                          `ParseWith argv spec`(名 → 类型:`flag`/`int`/`float`/`string`/`list`)/
+                          `Get a name dflt` / `Has` / `Positional` / `Usage spec`。
+                          认 `--x=v` / `--x v` / `--x` / `-x` / `-abc`(合并的短开关,**不带值**)/
+                          `--`(之后全算位置参数);`-5` 和光杆 `-` 当位置参数。
+                          **没给规格时光杆一律当开关**(不带 `=` 就不吃后面那个实参),
+                          给了规格就只在声明成带值的名字上吃 —— 不猜。结果是一张 dict:
+                          选项进同名的键,位置参数进 `"_"`。**要显式引用**
+  table.rav               `Table` 模块 —— 打表格:`Render rows`(一串 dict → 表头取键;
+                          一串 list → 不带表头)/ `RenderWith rows opts`(`cols`/`header`/
+                          `align`/`style`:box 框线 or plain 光板)/ `Width s`。
+                          **最要紧的是宽度**:算的是"终端里占几格"(东亚宽/全角/emoji 算 2),
+                          不是 `s.Length ()` —— `Format` 那几条数的是字符数,拿来对齐中文会歪。
+                          数值列自动右对齐,整列混着字和数就不硬凑。**要显式引用**
+  log.rav                 `Log` 模块 —— 分级日志:`Log.New {"level" "file" "tag" "stamp" "err"}`
+                          → `Logger`(`Debug`/`Info`/`Warn`/`Error`/`Write level msg`/`Line`/
+                          `SetLevel`/`Enabled`);不拎 logger 就用默认那台 `Log.Info "…"`
+                          (级别看 `RAVEL_LOG`,没设就 info)。四个级别 **debug < info < warn <
+                          error**,松的一律不落笔(过滤在拼串之前)。落点:给了 `"file"` 追加到文件、
+                          `"err": true` 走 stderr,否则 stdout;落盘失败**当场报错**。
+                          **要显式引用**
   hash.rav                `Hash` 模块 —— 摘要与校验:`Sha256`/`Sha512`/`Sha1`/`Md5`(字符串按
                           UTF-8 进、交回小写十六进制;要字节表用 `...Bytes`)、`Hmac algo key data`、
                           `File path algo`(**流式**,多大的文件都不进内存)、`Crc32`(纯 Ravel 算的)、
                           `Equal a b`(**常数时间**比,防时序攻击)、`Token n`(随机十六进制串)。
                           底层三条原语在引擎(`HashBytes`/`HashFile`/`HmacBytes`,收字节表交字节表)。
                           **要显式引用**
+  crypto.rav              `Crypto` 模块 —— **加密与口令**(和 `hash.rav` 是两件事:那边是
+                          "防篡改",这边是"藏起来")。`Seal key data` / `Open key text`
+                          (AES-256-GCM,nonce 现取、随在密文前面,交回/收下 base64 串;
+                          要字节表走 `...Bytes`)/ `Key password salt rounds`(PBKDF2-SHA256 →
+                          32 字节)/ `Salt ()` / `HashPassword password` /
+                          `CheckPassword password stored`(**存的是"怎么校验",不是口令本身**——
+                          格式 `pbkdf2$sha256$轮数$盐$哈希`,轮数跟着一起存,以后加轮数老串照样校验;
+                          校验走常数时间比)/ `Equal` / `Token`。底层三条原语在引擎
+                          (`AesSeal`/`AesOpen`/`Pbkdf2`,收字节表交字节表)。**要显式引用**
   uuid.rav                `Uuid` 模块 —— `V4 ()`(随机)/ `V7 ()`(头 6 字节是毫秒时间戳,
                           先造的排前面,拿来当数据库主键不捅索引)/ `Nil ()` / `IsValid s` /
                           `Version s` / `Bytes s` / `FromBytes bs` / `Time s`。**不占引擎**:
@@ -370,6 +400,7 @@ Object (parent=自己)
         Sleep ReadBytes WriteBytes DecodeText
         HttpReq HttpDownload HttpUpload
         HashBytes HashFile HmacBytes
+        AesSeal AesOpen Pbkdf2
         SqliteOpen SqliteClose SqliteExec SqliteQuery SqliteLastId
 
 上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——

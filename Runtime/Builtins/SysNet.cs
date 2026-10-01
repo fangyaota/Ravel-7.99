@@ -268,13 +268,6 @@ internal static class SysNet
     private const int DefaultTimeoutMs = 30_000;
     private const int DefaultMaxBytes = 16 * 1024 * 1024;
 
-    public static RuntimeValue? Opt(DictVal d, string key)
-        => d.Entries.TryGetValue(new StringVal(key), out var v) && v is not VoidVal ? v : null;
-
-    public static string OptText(DictVal d, string key, string dflt) => Opt(d, key) is StringVal s ? s.Value : dflt;
-    public static int OptInt(DictVal d, string key, int dflt) => Opt(d, key) is IntVal i ? i.Value : dflt;
-    public static bool OptBool(DictVal d, string key, bool dflt) => Opt(d, key) is BoolVal b ? b.Value : dflt;
-
     /// <summary>网络那一批的兜底:兜住的比 <see cref="Fs"/> 宽 —— 网络能出的岔子
     /// (DNS、连接被拒、TLS、坏 URL)本来就不是 `IOException` 那一族,漏出去会把程序打掉。</summary>
     public static RuntimeValue Http(string what, Func<RuntimeValue> body)

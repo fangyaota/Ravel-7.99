@@ -1,0 +1,116 @@
+# `Crypto` —— 加密与口令。**要显式引用**:`using "crypto.rav"`。
+#
+#     Crypto.Seal key "秘密"                  # → base64 串
+#     Crypto.Open key text                    # → "秘密";拆不开就报错,不交回垃圾
+#     Crypto.Key "口令" salt 600000           # PBKDF2-SHA256 → 32 字节的密钥
+#     Crypto.HashPassword "口令"              # → "pbkdf2$sha256$600000$<盐>$<哈希>"
+#     Crypto.CheckPassword "口令" stored      # → bool
+#     Crypto.Salt ()                          # 16 字节随机盐
+#
+# 规矩和 `hash.rav` 一样:字符串**一律按 UTF-8** 进,交回**字节表**;
+# 要文本用 `Encoding.Base64` / `Unbase64`(这两个只有 `using "encoding.rav"` 才有)。
+#
+# **加密和口令不是一回事**,这个库把两件事分得很开:
+#
+#   * `Seal` / `Open` —— 藏一段数据。**密钥在手**(从哪儿来是你的事:配置、环境变量、
+#     `Crypto.Key` 派生的都行),密钥丢了数据就没了。
+#   * `HashPassword` / `CheckPassword` —— 存用户口令。**存的是"怎么校验",不是口令本身**;
+#     就算整个库被人拖走,也还原不出口令。所以这两条**没有**"解密"这一半,那是故意的。
+#
+# 加密用的是 **AES-256-GCM**:除了保密,还带认证 —— 密文被改动过一位,`Open` 当场报错。
+# 口令用的是 **PBKDF2-SHA256**:故意算得慢,慢到拿显卡硬试也不划算。
+using "encoding.rav"
+using "hash.rav"      # `Equal`(常数时间比)
+
+ravel "Crypto"
+
+# ── 一件小事:字符串按 UTF-8 变字节,字节表原样 ──
+readonly BytesOf := (v: object) => { ((typeof v) == string) { Encoding.Utf8 v; } { v; } }
+
+# ── 对称加密 ──
+#
+# **nonce 每次都要新取一个**,而且同一密钥下**绝不能重用**(GCM 重用 nonce 会把密钥漏出去)。
+# 所以 `Seal` 自己现取,并把它拼在密文**前面** —— `Open` 从同一个位置读回来,调用方不用管。
+# 密文格式就是 `nonce(12) ‖ 密文 ‖ 标签(16)`,整个再 base64。
+
+readonly NonceLen := 12
+
+# 两张字节表接起来。**不能用 `+`**(list 没这个运算符),`Concat` 给的又是惰性的一串
+# (交回 `IEnumerable`,不是 list)—— 这儿要的就是一张**平的 list**,那就自己垒。
+readonly Together := (a: list b: list) => {
+    out := []
+    foreach a (x: object) => { out.Add x; }
+    foreach b (x: object) => { out.Add x; }
+    out
+}
+
+readonly SealBytes := (key: object data: object) => {
+    nonce := System.RandomBytes NonceLen
+    Together nonce (System.AesSeal key nonce (BytesOf data))
+}
+
+readonly OpenBytes := (key: object blob: object) => {
+    all := BytesOf blob
+    assert ((all.Count ()) > NonceLen) "Crypto.Open: 这串太短了（不是 Seal 出来的？）"
+    System.AesOpen key (all.Take NonceLen) (all.Skip NonceLen)
+}
+
+# 交回 / 收下的是 **base64 串** —— 好存、好放进配置、好塞进 URL 和 JSON
+readonly Seal := (key: object data: object) => { Encoding.Base64 (SealBytes key data); }
+readonly Open := (key: object text: string) => { Encoding.Utf8Text (OpenBytes key (Encoding.Unbase64 text)); }
+
+# ── 从口令派生密钥 ──
+#
+# `Salt ()` 每次给一串新的(16 字节)。盐**不必保密**,它的用处是让"两个人用同一个口令"
+# 也得不出同一个密钥 —— 不然一张彩虹表就同时破掉一片。
+readonly SaltLen := 16
+readonly Salt := () => { System.RandomBytes SaltLen; }
+
+# 轮数:2026 年那批建议是 60 万起步(salt 16 字节)。数越大越难被硬试,代价是自己也慢。
+readonly Rounds := 600000
+
+readonly Key := (password: object salt: object rounds: int) => {
+    System.Pbkdf2 (BytesOf password) (BytesOf salt) rounds;
+}
+
+# 常用那份:轮数用默认的(和 `HashPassword` 存的轮数一致)
+readonly Derive := (password: object salt: object) => { Key password salt Rounds; }
+
+# ── 口令:存"怎么校验",不存口令 ──
+#
+# 格式照那套 `pbkdf2$sha256$<轮数>$<盐>$<哈希>`,**盐和轮数跟着哈希一起存**:
+# 以后想加轮数、换算法,老的那一批照样能校验 —— 读的是串里写着的那个数,不是今天的默认值。
+
+readonly Prefix := "pbkdf2$sha256$"
+
+readonly HashWith := (password: object salt: object rounds: int) => {
+    # 一行写完:换行再接 `+` 不认(表达式不跨行)
+    (((((Prefix + (string rounds)) + "$") + (Encoding.Base64 (BytesOf salt))) + "$") + (Encoding.Base64 (Key password salt rounds)))
+}
+
+readonly HashPassword := (password: object) => { HashWith password (Salt ()) Rounds; }
+
+# 校验。**常数时间比**(`Hash.Equal`),别写成 `==`:早退省下的那点时间差,
+# 足够让人一个字符一个字符地把哈希试出来。
+#
+# 认不出的串一律当**不通过**,不报错 —— 别人换过算法、库升级过、存了个空串,
+# 这些都该是"口令不对",不该是程序崩掉。
+readonly CheckPassword := (password: object stored: object) => {
+    if { (typeof stored) == string; } {
+        parts := stored.Split "$"
+        if { ((parts.Count ()) == 5) && (((parts.At 0) == "pbkdf2") && ((parts.At 1) == "sha256")); } {
+            rounds := int (parts.At 2)
+            salt := Encoding.Unbase64 (parts.At 3)
+            want := Encoding.Hex (Encoding.Unbase64 (parts.At 4))
+            Hash.Equal (Encoding.Hex (Key password salt rounds)) want
+        } { false; }
+    } { false; }
+}
+
+# ── 顺手的几条 ──
+
+# 一枚随机令牌(凭据、防伪码)。十六进制串 —— 要 URL 安全的那种用 `Encoding.Base64`
+readonly Token := (n: int) => { Hash.Token n; }
+
+# 两串一不一样,**常数时间**(和 `Hash.Equal` 是同一条;放这儿省得为了比一下再 `using "hash.rav"`)
+readonly Equal := (a: string b: string) => { Hash.Equal a b; }
