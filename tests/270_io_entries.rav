@@ -1,0 +1,109 @@
+# `IEntry` 那一族另外两种实现(见 lib/io.rav):
+#   * **内存里的** —— `Io.MemFile` / `Io.MemDir`
+#   * **一棵 JSON 树** —— `Io.JsonNode` / `Io.JsonFile`
+#
+# 有了它们,对着接口写的那三段(`Io.Copy` / `Io.Lines` / `Io.EachDir`)在这四种之间随便搬:
+# 磁盘、控制台、内存、网络(网络那种见 tests/269)。
+using "io.rav"
+
+# ── 内存文件:内容就是一个字符串 ──
+m := Io.MemFile "mem.txt" "内存里的内容"
+print (m.Name ())
+print (m.Read ())
+print (m.Size ())
+m.Append " + 追加"
+print (m.Read ())
+m.Write "换掉"
+print (m.Read ())
+print (m.IsDir ())
+
+# 对着接口写的那段不认它是内存还是磁盘
+System.CreateDir ".io-test"
+Io.Copy m (Io.File ".io-test/from-mem.txt")
+print ((Io.File ".io-test/from-mem.txt").Read ())
+
+# ── 内存目录:孩子摆在一张 dict 里,`Add` 用条目自己的名字当键 ──
+d := Io.MemDir "d"
+d.Add (Io.MemFile "b.txt" "B")
+d.Add (Io.MemFile "a.txt" "A")
+d.Add (Io.MemDir "sub")
+print ((d.List ()).Keys ())          # 按名字排(和磁盘那边一个规矩,`Io.EachDir` 才稳定)
+print ((d.Files ()).Keys ())
+print ((d.Dirs ()).Keys ())
+Io.EachDir d (path: string e: object) => { print ("走: " + path); }
+
+# ── 一棵 JSON 树:每个节点的内容是**它的 JSON 文本** ──
+j := Json.FromString "{\"name\": \"Ravel\", \"ver\": 2, \"tags\": [\"a\", \"b\"], \"db\": {\"host\": \"x\"}}"
+t := Io.JsonOf j
+print (t.IsDir ())
+print (t.Read ())
+print ((t.Child "name").Read ())     # 字符串叶子读出来也带引号 —— 这层是 JSON 文本,不是原生值
+print ((t.Child "ver").Read ())
+
+# 写回去:交上来的文本**当 JSON 解析**,换掉那棵子树(所以 Read / Write 正好来回)
+(t.Child "ver").Write "3"
+print ((t.Child "ver").Read ())
+
+# 数组也算目录:名字是下标
+print ((t.Child "tags").IsDir ())
+print (((t.Child "tags").List ()).Keys ())
+print (((t.Child "tags").Child "1").Read ())
+
+# 摘掉一个孩子(改的是那棵 Json 值本身)
+(t.Child "db").Delete ()
+print (t.Read ())
+
+# 目录视角走一遍整棵树
+Io.EachDir t (path: string e: object) => { print ("  " + path); }
+
+# 攒好的树可以落盘,也能再读回来(`Io.Copy` 不认它是 Json 还是磁盘)
+Io.Copy t (Io.File ".io-test/conf.json")
+print ((Io.File ".io-test/conf.json").Read ())
+back := Io.JsonFile ".io-test/conf.json"
+print ((back.Child "name").Read ())
+print (back.Name ())
+
+# 报错的几种:当场说人话
+try { t.Delete (); } (e: Exception) => { print ("1: " + string e); }
+try { (t.Child "name").Append "x"; } (e: Exception) => { print ("2: " + string e); }
+try { (t.Child "tags").Child "9"; } (e: Exception) => { print ("3: " + string e); }
+try { (t.Child "name").Child "x"; } (e: Exception) => { print ("4: " + string e); }
+
+System.DeletePath ".io-test/from-mem.txt"
+System.DeletePath ".io-test/conf.json"
+System.DeletePath ".io-test"
+# --- expected ---
+# mem.txt
+# 内存里的内容
+# 6
+# 内存里的内容 + 追加
+# 换掉
+# false
+# 换掉
+# [b.txt a.txt sub]
+# [b.txt a.txt]
+# [sub]
+# 走: b.txt
+# 走: a.txt
+# 走: sub
+# true
+# {"name":"Ravel","ver":2,"tags":["a","b"],"db":{"host":"x"}}
+# "Ravel"
+# 2
+# 3
+# true
+# [0 1]
+# "b"
+# {"name":"Ravel","ver":3,"tags":["a","b"]}
+#   name
+#   ver
+#   tags
+#   tags\0
+#   tags\1
+# {"name":"Ravel","ver":3,"tags":["a","b"]}
+# "Ravel"
+# conf.json
+# 1: 这是个根节点，没有爹可摘：json
+# 2: JSON 的节点没有追写这回事：name
+# 3: Json.At: 索引 9 超出范围（长度 2）
+# 4: JSON 的节点 'name' 不是目录（string），没有孩子可取

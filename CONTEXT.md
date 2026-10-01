@@ -157,7 +157,9 @@ lib/
                           就是它:`System.SetErrorHook`)+ 小写别名 `try` / `throw`。
                           引擎不认识 HandlerStack,那块状态归这儿管 —— 从前是单独的 try.rav,
                           并进来之后又拆成这个文件。
-  io.rav                  文件系统:接口 `IEntry` / `IFile` / `IDir`(全局名)+ 磁盘实现 + 通用件。
+  io.rav                  文件系统:接口 `IEntry` / `IFile` / `IDir`(全局名)+ 四种实现
+                          (磁盘 `File`/`Dir`、控制台 `Stdout`/`Stderr`/`Stdin`、内存
+                          `MemFile`/`MemDir`、JSON 树 `JsonNode`/`JsonFile`)+ 通用件。
                           要显式 `using "io.rav"`;详见「文件系统」一节
   test.rav                `Test` 模块 —— 给自己的库写断言用(`Check` / `Equal` / `Fails` /
                           `Report`),要显式 `using "test.rav"`。断言跑的是"一段东西报不报错"
@@ -467,6 +469,18 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 只写的那两个 `Read` 报错、只读的那个 `Write` 报错、控制台没有 `Size` 也删不掉（报错说人话）。
 `Stdin.Read ()` 是**读到 EOF**（终端上 Ctrl+Z/D 收），读一行用 `ReadLine ()`（就是 `input`）；
 `print` / `input` 照旧是日常那两个，这里是"抽象的视角"。
+
+**内存里的**：`Io.MemFile "名字" "内容"` / `Io.MemDir "名字"`（`Add` 用条目自己的 `Name ()` 当键、
+`List ()` 按名字排）。内容就是一个字符串（`Exists` 恒真、`Delete` 是清空 —— 它不在谁里面，
+"删掉"只能这么算）；`MemDir` 另给 `Files ()` / `Dirs ()`，和磁盘那个 `Io.Dir` 对齐。
+
+**一棵 JSON 树也是文件系统**：`Io.JsonNode v` / `Io.JsonFile "conf.json"`。模型一句话 ——
+**每个节点是一个文件，内容是它的 JSON 文本**：`Read ()` 给紧凑 JSON（字符串叶子也带引号），
+`Write (t)` 把 `t` **当 JSON 解析**了换掉那棵子树（所以 `Write (Read ())` 正好是原样）。
+对象和数组都算目录（数组的名字是 `"0"` `"1"`），`Child name` / `List ()` / `Delete ()` 齐活，
+于是 `Io.EachDir` 能把一棵配置树走一遍、`Io.Copy 树 (Io.File "conf.json")` 就落盘。
+它改的是**那棵 Json 值本身**（窗口，不是副本）；想要原生值那是 `Extract ()` 的事。
+（`io.rav` 能直接引用 `Json` —— 那是 predefined 的全局名，不用 `using`。）
 
 **一个 URL 也是文件**：`Http.Url "https://…"`（见「网络」一节）照同一条缝插进来 ——
 它自己就有 `IFile` 那几条成员，再 `impl (IFile Url { () })` 登记一下。于是

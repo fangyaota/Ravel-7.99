@@ -216,6 +216,169 @@ readonly Stdout := ConsoleOut "stdout" false
 readonly Stderr := ConsoleOut "stderr" true
 readonly Stdin := ConsoleIn ()
 
+# ── 内存里的一份：`Io.MemFile` / `Io.MemDir` ──
+# 「内存里的」也是 `IEntry` 家族的一员(开头那段话里点了名)。它有真用途:`Io.Copy` 两头都能是它、
+# 拿它当"先拼好再落地"的暂存、往对着 `IFile` 写的代码里塞一份假的(测试最常用)。
+#
+# `MemFile` 的内容就是一个字符串(`Exists` 恒真、`Delete` 是清空 —— 它不在谁里面,"删掉"只能这么算);
+# `MemDir` 的孩子摆在一张 dict 里,`Add` 用条目自己的 `Name ()` 当键。
+MemFile ::= class {
+    Label: string = ""
+    Text: string = ""
+
+    init = (label: string text: string) => { Label = label; Text = text; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Read := () => { Text; }
+    Write := (t: string) => { Text = t; (); }
+    Append := (t: string) => { Text = Text + t; (); }
+    Size := () => { Text.Length (); }
+    Delete := () => { Text = ""; (); }
+}
+
+MemDir ::= class {
+    Label: string = ""
+    Kids: dict = {}
+
+    init = (label: string) => { Label = label; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { true; }
+    Delete := () => { Kids = {}; (); }
+
+    Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
+
+    # 接口没规定顺序，但两个实现都按名字排 —— `Io.EachDir` 的输出才稳定
+    List := () => {
+        names := Kids.Keys ()
+        names.Sort ()
+        out := {}
+        foreach names (n: string) => { out.Set n (Kids.Get n); }
+        out
+    }
+    Files := () => { Filter (false); }
+    Dirs := () => { Filter (true); }
+
+    Filter := (wantDir: bool) => {
+        out := {}
+        all := List ()
+        foreach (all.Keys ()) (n: string) => {
+            e := all.Get n
+            ((e.IsDir ()) == wantDir) { out.Set n e; } { 0; }
+        }
+        out
+    }
+}
+
+impl (IFile MemFile {
+    ()
+})
+impl (IDir MemDir {
+    ()
+})
+
+# ── 一棵 JSON 树也是一个文件系统 ──
+# 这条也是那道缝里的:`Json` 里的对象和"目录"是同一个形状(名字 → 子节点),数组就当"下标当名字"的目录。
+# 于是一棵配置树能被 `Io.EachDir` 走、被 `Io.Copy` 抄进文件、用 `Child` / `Read` / `Write` 一格一格挪。
+#
+# 模型就一句话:**每个节点是一个文件,内容是它的 JSON 文本** —— 所以 `Read ()` 给的是 JSON
+# (字符串也带引号),`Write (t)` 是把 `t` **当 JSON 解析**了换掉这棵子树。两边正好来回
+# (`Write (Read ())` 是原样)。想要原生值那是 `Extract ()` 的事,不是这一层。
+#
+# 改的是**那棵 Json 值本身**(窗口,不是副本)—— 攒好之后 `Io.Copy 树 (Io.File "conf.json")`
+# 就落盘了。
+JsonNode ::= class {
+    Label: string = ""
+    Value: Json = Json ()
+    Parent: object = ()
+
+    init = (label: string value: Json parent: object) => {
+        Label = label
+        Value = value
+        Parent = parent
+        this;
+    }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+
+    # 对象和数组都算"目录"(数组的名字是下标 `"0"` `"1"`)
+    IsDir := () => { ((Value.Kind ()) == "object") || ((Value.Kind ()) == "array"); }
+
+    # 内容是它的 JSON 文本(紧凑)
+    Read := () => { Value.Text (); }
+    Size := () => { (Read ()).Length (); }
+
+    # 写回来:交上来的文本**当 JSON 解析**,替换这棵子树
+    Write := (t: string) => { Replace (Json.FromString t); (); }
+    Append := (t: string) => { throw (Exception ("JSON 的节点没有追写这回事：" + Label)); }
+
+    # 从父那棵树上摘掉自己(根没有父,摘不了)
+    Delete := () => {
+        ((typeof Parent) == JsonNode) {
+            (Parent).Drop Label
+            ();
+        } { throw (Exception ("这是个根节点，没有爹可摘：" + Label)); }
+    }
+
+    # 换掉自己的值 —— 有父就写回父那棵树,没有就换自己这份
+    Replace := (v: Json) => {
+        ((typeof Parent) == JsonNode) { (Parent).Put Label v; } { Value = v; }
+        ();
+    }
+
+    # 下面两条是给父节点用的(子节点通过它们改到那棵树上)
+    Put := (name: string v: Json) => {
+        ((Value.Kind ()) == "array") { Value.SetAt (int name) v; } { Value.Set name v; }
+        ();
+    }
+    Drop := (name: string) => {
+        ((Value.Kind ()) == "array") { Value.RemoveAt (int name); } { Value.Remove name; }
+        ();
+    }
+
+    Child := (name: string) => { Kid name; }
+
+    # 子节点(对象按 JSON 原顺序;数组按下标)
+    List := () => {
+        out := {}
+        ((Value.Kind ()) == "array") {
+            i := 0
+            while { i < (Value.Count ()); } {
+                n := string i
+                out.Set n (JsonNode n (Value.At i) this)
+                i += 1
+            }
+        } {
+            (Value.Keys ()).Sort ()
+            foreach (Value.Keys ()) (k: string) => { out.Set k (Kid k); }
+        }
+        out
+    }
+
+    # 取一个孩子。不是目录、或者没有这个孩子,都当场报错 —— 和 `Json.Get` 一个脾气
+    Kid := (name: string) => {
+        (IsDir ()) {
+            ((Value.Kind ()) == "array") { JsonNode name (Value.At (int name)) this; } { JsonNode name (Value.Get name) this; }
+        } { throw (Exception ("JSON 的节点 '" + Label + "' 不是目录（" + (Value.Kind ()) + "），没有孩子可取")); }
+    }
+}
+
+impl (IFile JsonNode {
+    ()
+})
+impl (IDir JsonNode {
+    ()
+})
+
+# 一个文件、一棵 Json,合起来:`Io.JsonFile "conf.json"` —— 读进来就是一棵能当目录走的树
+# (落盘那头记得 `Io.Copy 树 (Io.File "conf.json")`,它不会自己盯着文件)
+readonly JsonFile := (p: object) => { JsonNode (BaseName (PathOf p)) (Json.FromString ((File (PathOf p)).Read ())) (); }
+readonly JsonOf := (v: Json) => { JsonNode "json" v (); }
+
 # ── ③ 路径函数与通用件 ──
 # `File` / `Dir` 两个类自己就是工厂：`Io.File "a.txt"` 直接构造。
 readonly Current := () => { System.CurrentDir (); }

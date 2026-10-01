@@ -1263,7 +1263,22 @@ try { (Io.File "notes/nope.txt").Read (); } (e: Exception) => { print (string e)
 describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
 ```
 
-想加一个自己的实现（比如内存文件），就把那几条成员写出来、登记一下：
+**库里已经有了四种**（第四种见 6.16 那个 `Http.Url`）：磁盘的 `Io.File` / `Io.Dir`、
+控制台的 `Io.Stdout` / `Io.Stderr` / `Io.Stdin`、**内存里的** `Io.MemFile` / `Io.MemDir`、
+**一棵 JSON 树** `Io.JsonNode`（`Io.JsonFile "conf.json"` 从文件读一棵出来）：
+
+```ravel
+m := Io.MemFile "mem.txt" "内存里的内容"     # 内容就是一个字符串
+Io.Copy m (Io.File "a.txt")                 # 内存 → 磁盘，同一段代码
+
+t := Io.JsonFile "conf.json"                 # 一棵 JSON = 一个目录树
+(t.Child "ver").Read ()                      # "2"（节点内容是它的 JSON 文本）
+(t.Child "ver").Write "3"                    # 当 JSON 解析，换掉那棵子树
+Io.EachDir t (p: string e: object) => { print p; }   # 把配置树当目录走一遍
+Io.Copy t (Io.File "conf.json")              # 攒好了落盘
+```
+
+想加一个自己的实现，就把那几条成员写出来、登记一下：
 
 ```ravel
 MemFile ::= class {
