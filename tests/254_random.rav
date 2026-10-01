@@ -64,6 +64,41 @@ print (inRange (() => { pr.Int [1..100]; }) 1 100)
 ck := crypto.Int [0..999]
 print ((ck >= 0) && (ck <= 999))
 
+# ── xoshiro256**:算法**定死**的那台 ──
+# 和 `Make` 的区别就在这儿:它是我们自己实现的固定算法,同一个种子在哪个运行时、
+# 哪台机器上都给同一串 —— 所以**具体的数能钉进用例**;`Make` 走 .NET 的 `Random(seed)`,
+# 那个换版本就可能变,只能钉"两次相同"。
+x1 := Random.Xoshiro 42
+x2 := Random.Xoshiro 42
+print (x1.Kind)
+print (x1 is IRandom)
+x := []
+x.Add (x1.Below 1000000)
+x.Add (x1.Below 1000000)
+x.Add (x1.Below 1000000)
+print x
+y := []
+y.Add (x2.Below 1000000)
+y.Add (x2.Below 1000000)
+y.Add (x2.Below 1000000)
+print y
+print ((x.Join ",") == (y.Join ","))
+z := Random.Xoshiro 43
+print (z.Below 1000000)
+# 和 .NET 那台不是一串(算法不同)
+m42 := Random.Make 42
+print ((m42.Below 1000000) == (x.At 0))
+# 分布的大致样子:2000 次 0/1 各约一半(定死的种子,这个数也是定死的)
+coin := Random.Xoshiro 1
+heads := 0
+i := 0
+while { i < 2000; } { heads += coin.Below 2; i += 1; }
+print ((heads > 800) && (heads < 1200))
+# 整套方法照旧(它也是一个 IRandom)
+sq := (Random.Xoshiro 5).Shuffle [1 2 3 4 5]
+print ((Sorting.Sort sq).Join ",")
+print (typeof (System.XoshiroRandom 1))
+
 # ── 常用件:三台白拿(默认实现在 IRandom 的体里)──
 xs := [1 2 3 4 5]
 sh := (Random.Make 3).Shuffle xs
@@ -110,6 +145,16 @@ print "end"
 # Bool
 # true
 # true
+# xoshiro
+# true
+# [47179 926945 191052]
+# [47179 926945 191052]
+# true
+# 678884
+# false
+# true
+# 1,2,3,4,5
+# Function
 # 5
 # [1 2 3 4 5]
 # 1,2,3,4,5

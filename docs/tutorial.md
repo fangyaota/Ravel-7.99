@@ -1655,8 +1655,19 @@ Seqs.Frequency ["a" "b" "a"]          # {a: 2 b: 1}        数出现几次
 
 ```ravel
 r := Random.Shared ()      # 进程共享(.NET Random.Shared)—— 不可复现
-r := Random.Make 42        # 带种子 —— 同一个运行时里同种子给同一串
+r := Random.Make 42        # 带种子(.NET Random(seed))—— 同一个运行时里可复现
+r := Random.Xoshiro 42     # 带种子(xoshiro256**)—— **算法定死**:跨版本跨机器都一样
 r := Random.Crypto ()      # 加密级 —— 不可复现、也没有种子
+```
+
+两台带种子的差别在**"可复现"到什么程度**：`Make` 走的是 .NET 的 `Random(seed)`，
+它只保证**同一个运行时里**同种子同序列（换个 .NET 版本就可能变）；`Xoshiro` 是我们自己
+实现的 xoshiro256**（Blackman & Vigna，公有领域）—— 算法是固定的，所以同一个种子在
+**哪个运行时、哪台机器**上都给同一串。要把具体的数写死（对答案、发出去的脚本、
+当伪随机表用）就用它：
+
+```ravel
+Random.Xoshiro 42 @ .Below 1000000     # 47179（定死的，换台机器也是它）
 ```
 
 取数那一面是一套方法（写成接口 `IRandom` 的**默认实现**，所以三台都白拿）：
@@ -1671,13 +1682,13 @@ r.Shuffle [1 2 3 4 5]      # 洗过的**新 list**（原表不动）
 r.Sample 2 [1 2 3 4 5]     # 取 2 个不重复的
 ```
 
-**要可复现就用 `Make seed`**（写测试、复现 bug 的场合）：同一个运行时里，同种子给出同一串 ——
-换种子就换一串。加密那台和共享那台都**钉不住**（本来就没有种子）。
+**要可复现就用带种子那两台**（写测试、复现 bug 的场合）：同种子给出同一串，换种子就换一串。
+加密那台和共享那台都**钉不住**（本来就没有种子）。
 
 ```ravel
 draw := (rng: IRandom) => { out := []; i := 0; while { i < 5; } { out.Add (rng.Below 100); i += 1; } out; }
-draw (Random.Make 7).Join "," == draw (Random.Make 7).Join ","    # true
-draw (Random.Make 7).Join "," == draw (Random.Make 8).Join ","    # false
+draw (Random.Xoshiro 7).Join "," == draw (Random.Xoshiro 7).Join ","    # true
+draw (Random.Xoshiro 7).Join "," == draw (Random.Xoshiro 8).Join ","    # false
 ```
 
 `Random.Make 42` 交回的是一个**能调方法的值**（`Kind` 是 `"seeded"`），可以传、可以存：

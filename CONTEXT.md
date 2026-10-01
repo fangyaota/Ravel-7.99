@@ -279,11 +279,12 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Env name`（没有就报错）/ `EnvOr name dflt` / `SetEnv name value` / `UnsetEnv name` / `EnvAll ()`。
 这几条只动**本进程**那份（新起的子进程看得见），写空串等于删掉（.NET 那套）。
 
-**随机数的"源头"**也在这儿，三条：`NewRandom seed` / `SharedRandom ()` 各交回**一枚函数**
+**随机数的"源头"**也在这儿，四条：`NewRandom seed` / `SharedRandom ()` / `XoshiroRandom seed`
+各交回**一枚函数**
 （`() => int`，0 .. 2^30-1 —— 包着 `new Random(seed)` / `Random.Shared`），
 `RandomBytes n` 交回 `list`（元素 0..255，走 `RandomNumberGenerator`）。
 **交回函数而不是新造一个值类型**：和 `Cached` 一个路子（"是个函数，不是要实例化的类型"），
-引擎面最小、也不必动类型树。三台生成器、`Int`/`Shuffle`/`Sample` 那些都在库里
+引擎面最小、也不必动类型树。四台生成器（共享 / .NET 带种子 / **xoshiro256\*\*** / 加密）、`Int`/`Shuffle`/`Sample` 那些都在库里
 （`lib/random.rav` 的 `IRandom` 默认实现）—— 取数的那一面**只有**这一处（从前那个全局
 `randint lo hi` 已经删掉：它的上界不含是 .NET 的老规矩，`Int lo hi` 改成含两端）。
 

@@ -134,10 +134,19 @@ public partial class Interpreter
         DefFn("NewRandom", FunctionVal.From(a => Fs("造随机源", () =>
         {
             var seed = As<IntVal>(a, "NewRandom 的种子").Value;
-            return NumberSource(new Random(seed));
+            var rng = new Random(seed);
+            return NumberSource(() => rng.Next(1 << 30));
         })));
         // 进程共享那台(`Random.Shared`)
-        DefFn("SharedRandom", FunctionVal.From(_ => NumberSource(Random.Shared)));
+        DefFn("SharedRandom", FunctionVal.From(_ => NumberSource(() => Random.Shared.Next(1 << 30))));
+        // xoshiro256** —— **算法定死**的那台:同一个种子在哪个运行时、哪台机器上都给同一串
+        // (`.NET` 的 `Random(seed)` 只保证同一个运行时里可复现)。写法见 Runtime/Xoshiro256.cs
+        DefFn("XoshiroRandom", FunctionVal.From(a => Fs("造随机源", () =>
+        {
+            var seed = As<IntVal>(a, "XoshiroRandom 的种子").Value;
+            var rng = new Xoshiro256(seed);
+            return NumberSource(rng.Next30);
+        })));
         // 原始随机字节(0..255):加密那台的原料,也留给"就是要字节"(拿它自己拼整数)的人
         DefFn("RandomBytes", FunctionVal.From(a => Fs("取随机字节", () =>
         {
@@ -148,8 +157,8 @@ public partial class Interpreter
             return new ListVal([.. buf.Select(b => (RuntimeValue)new IntVal(b))]);
         })));
 
-        static FunctionVal NumberSource(Random rng)
-            => new NativeClosure("_", BuiltinClasses.Any, (_, _) => new IntVal(rng.Next(1 << 30)));
+        static FunctionVal NumberSource(Func<int> next)
+            => new NativeClosure("_", BuiltinClasses.Any, (_, _) => new IntVal(next()));
 
         DefFn("Property", FunctionVal.From((g, s) =>
         {
