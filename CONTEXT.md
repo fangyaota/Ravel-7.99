@@ -687,7 +687,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 
   这样帧链不随迭代增长（100 万轮实测跑得完）。**写成 `again := callcc (k) => { k; }` 不行**：恢复时会重跑那条赋值、`again` 被覆盖成 `0`，循环建立不起来。
 
-`with`/`using`/`eval` 仍是 C# 内建——`with` 需要「用副本的 scope 执行块」，`using`/`eval` 需要文件 IO 与词法/语法分析，Ravel 层做不到。
+`with`/`using`/`eval` 仍是 C# 内建——`with` 需要「换掉接下来这段代码的成员表」(不拷：见 `StepWith`)，`using`/`eval` 需要文件 IO 与词法/语法分析，Ravel 层做不到。
 
 **控制状态跟着续延走,而"什么时候拍、什么时候还原"是库的策略**：帧链之外还有两样状态 ——
 `Ex.HandlerStack` 与模块加载栈 `_loading`。它们都是**副作用式**的、不在帧链里:帧链一丢,

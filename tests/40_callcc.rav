@@ -304,7 +304,7 @@ print r
 try { if { !doneE; } { doneE = true; escE 7; } { 0; }; } (e: Exception) => { print ("E: " + string e); }
 print "after E"
 
-# ---- ② with 的副本：恢复后接着改的是**副本**，原件不动 ----
+# ---- ② with：不拷，块里改的就是原对象；续延恢复之后接着改的**还是它** ----
 K ::= class {
     n : int = 1
 }
@@ -555,11 +555,11 @@ ravel ""
 # 7
 # after E
 # 2
-# 1
+# 2
 # 105
-# 1
 # 105
-# 1
+# 105
+# 105
 # [1 100]
 # Continuation
 # [1 100 100]

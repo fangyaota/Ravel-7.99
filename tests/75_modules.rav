@@ -21,6 +21,8 @@ Point := class {
 p := Point ()
 p.x = 1
 p.y = 2
+# `with p { … }` **不拷**:块跑在 p 的成员表上,`x = 10` 改的就是 p;
+# 交回的也是 p 本身(要副本请写 `p.Copy ()`)。
 q: object = with p {
     x = 10
 }
@@ -64,7 +66,7 @@ Dog := class Animal {
 dog := Dog ()
 dog.name = "Rex"
 dog.breed = "Husky"
-dog2 := with dog { name = "Max"; }
+dog2 := with dog { name = "Max"; }     # 就地改:dog 也成了 "Max"、dog2 就是 dog
 print (dog.name)
 print (dog2.name)
 print (dog2.breed)
@@ -153,16 +155,16 @@ try { eval "# 模块 private 变量外部不可访问\nReferences = [\"tests/\"]
 # hello
 # hi
 #  there
-# 1
+# 10
 # 2
 # 10
 # 2
 # 100
-# 1
+# 10
 # 10
 # 2
 # 100
-# Rex
+# Max
 # Max
 # Husky
 # 10

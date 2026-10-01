@@ -641,6 +641,14 @@ internal static partial class BuiltinClasses
         _ => v,
     };
 
+    /// <summary>这个值有**自己**的成员表吗 —— 也就是 <see cref="CopyValue"/> 会真的拷一份的
+    /// 那些(数据对象 / 容器 / Json)。函数、类对象、模块、属性、作用域值都不算,
+    /// 原子值更是连表都没有 —— 它们的成员表要么不存在,要么不属于"这一个值"。
+    ///
+    /// `with` 用它决定块跑在谁的作用域上(见 `Interpreter.StepWith`)。</summary>
+    internal static bool HasOwnTable(RuntimeValue v)
+        => v is ObjectVal and not (FunctionVal or ModuleVal or PropertyVal or ScopeVal);
+
     /// <summary>拷贝一个对象:新实例 scope(方法闭包重绑,见 CopyScope)+ `this` 指向副本。
     /// 漏掉重绑 `this` 的话,副本里写 `this.v = n` 会落到原对象上,
     /// 而裸写 `v = n` 却是对的,行为自相矛盾。</summary>

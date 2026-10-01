@@ -26,26 +26,41 @@ public partial class Interpreter
         }
     }
 
+    /// <summary>`with (对象: 块)` —— **进到那个对象的成员表里跑一段**,不拷任何东西。
+    ///
+    /// 从前它是"先 `Copy ()` 一份、再在副本上跑",值也交回副本 —— 那是个**隐形的拷贝**:
+    /// `with c { v = 10; }` 改的是副本,`c` 不动。两个毛病:每用一次整份拷一次(方法闭包、
+    /// attrs 全在里面),而且"改副本、原件不动"这件事 `Copy ()` 说得更明白 ——
+    /// `with` 本来该是**作用域**的事。
+    ///
+    /// 现在:块跑在原对象成员表上推出来的那一层里。于是
+    /// <list type="bullet">
+    /// <item>`v = 10` 这种**赋值**沿链落回原对象的字段 —— 改的就是它;</item>
+    /// <item>`x := 1` 这种**定义**落在推出来的那一层,块一结束就没了(和块里新开的局部变量
+    /// 一个待遇);</item>
+    /// <item>交回的是那个对象本身。</item>
+    /// </list>
+    ///
+    /// 一句话:`with` 只做一件事 —— 换一下"接下来这段代码算谁的成员"。</summary>
     private void StepWith(ControlFrame cf)
     {
         var obj = cf.Arg<RuntimeValue>(0, "with");
         var body = cf.Arg<BlockVal>(1, "with");
         if (cf.Count == 0)
         {
-            var copy = BuiltinClasses.CopyValue(obj);
-            var newCf = cf with { State = copy };
-            // 只有**真的拷出了副本**的那些,块才跑在副本的成员表里;其余(原子值、函数/类对象、
-            // 模块/属性/作用域值 —— 都是原样交回的)跑在 body 自己的捕获作用域里。
-            // 判据不能写 `copy is ObjectVal`:函数也是 ObjectVal,那样会把块的
-            // 作用域换成函数自己的成员表。
-            var bodyScope = !ReferenceEquals(copy, obj)
-                ? ((ObjectVal)copy).Scope.Push()
+            // **不拷**:块跑在那个对象成员表上推出来的那一层里。
+            // 有自己成员表的值(`HasOwnTable`:数据对象 / 容器 / Json)才这么走;
+            // 其余的(原子值、函数、类对象、模块、属性、作用域值)块跑在自己的捕获作用域里
+            // —— 判据不能写 `is ObjectVal`:函数也是 ObjectVal,那样会把块的作用域换成
+            // 函数自己的成员表。
+            var bodyScope = BuiltinClasses.HasOwnTable(obj)
+                ? ((ObjectVal)obj).Scope.Push()
                 : body.CaptureScope.Push();
-            _top = new BlockExecFrame(body.Block) { Parent = newCf, Scope = bodyScope };
+            _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = bodyScope };
             return;
         }
 
-        Return(cf, cf.State);
+        Return(cf, obj);
     }
 
     /// <summary>callcc:把「捕获点之后要算的东西」作为续延交给 lambda。

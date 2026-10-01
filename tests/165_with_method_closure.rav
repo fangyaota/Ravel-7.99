@@ -1,6 +1,10 @@
-# with / Copy 的副本上调方法,不该动到原对象。
-# 以前 CopyScope 只是浅拷贝,方法(lambda)的闭包 Scope 仍指向原实例,
-# 于是 `副本.set 99` 改的是原对象的字段——`with` 完全白拷。
+# `with` —— **进到那个对象的成员表里跑一段**,不拷任何东西。
+#
+# 块里的**赋值**(`v = 10`)沿作用域链落回原对象的字段:改的就是它本身;
+# **定义**(`x := 1`)落在推出来的那一层,块一结束就没了。块跑完交回的还是那个对象。
+#
+# (从前它先 `Copy ()` 一份、在副本上跑、值也交回副本 —— 那是个隐形的整份拷贝;
+#  "改副本、原件不动"这件事现在归 `Copy ()` 管,见下面几节。)
 C := class {
     init = () => { 0; this; }
     v: int = 1
@@ -8,15 +12,21 @@ C := class {
     get := () => { v; }
 }
 c := C ()
-c2 := with c { v = 10; }
+c2 := with c { v = 10; }          # 就地改;交回的就是 c 本身
 print (c2.get ())
-c2.set 99
+c2.set 99                          # c2 就是 c,方法照常落在原对象上
 print (c.get ())
 print (c2.get ())
-c3 := c.Copy ()
-c3.set 7
-print (c.get ())
-print (c3.get ())
+
+# 块里的**定义**不进对象,块一结束就没了
+c3 := with c { tmp := 123; print (string tmp); }
+print (c3.Fields ())
+
+# 要副本请明说:Copy () 才是拷
+c4 := c.Copy ()
+c4.set 7
+print (c.get ())                   # 原件不动
+print (c4.get ())
 
 # ═══ 166_copy_this(并入) ═══
 ravel "166_copy_this"
@@ -55,7 +65,7 @@ C := class {
 }
 c := C ()
 print (c.v)
-c2 := with c { 0; }
+c2 := c.Copy ()                    # 拷贝要带上 attrs —— 用 Copy(),`with` 不拷
 c2.v = 10
 print (c.v)
 print (c2.v)
@@ -67,9 +77,11 @@ ravel ""
 try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 readonly/core/private\n# 全被绕过——`with r { 0; }` 出来的副本能直接写只读字段。\n# 回归时会变成不报错,所以用 expect-error。\nR := class { init = () => { 0; this; }; readonly w: int = 5; }\nr := R ()\nr2 := with r { 0; }\nr2.w = 9"; } (e: Exception) => { print ("168_copy_readonly: " + string e); }
 # --- expected ---
 # 10
-# 1
 # 99
-# 1
+# 99
+# 123
+# [init v set get is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# 99
 # 7
 # 1
 # 99
