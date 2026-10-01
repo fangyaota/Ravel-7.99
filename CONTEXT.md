@@ -284,7 +284,9 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 （`() => int`，0 .. 2^30-1 —— 包着 `new Random(seed)` / `Random.Shared`），
 `RandomBytes n` 交回 `list`（元素 0..255，走 `RandomNumberGenerator`）。
 **交回函数而不是新造一个值类型**：和 `Cached` 一个路子（"是个函数，不是要实例化的类型"），
-引擎面最小、也不必动类型树。四台生成器（共享 / .NET 带种子 / **xoshiro256\*\*** / 加密）、`Int`/`Shuffle`/`Sample` 那些都在库里
+引擎面最小、也不必动类型树。四台生成器（共享 / .NET 带种子 / **xoshiro256\*\*** / 加密）、`Int`/`Below`/`Float`（也能收区间）/
+`Bool`/`Choice`/`Shuffle`/`Sample`/`Choices`（有放回）/`Weighted`（按权重）/`Normal`（箱–穆勒）/
+`Bytes` 那些都在库里
 （`lib/random.rav` 的 `IRandom` 默认实现）—— 取数的那一面**只有**这一处（从前那个全局
 `randint lo hi` 已经删掉：它的上界不含是 .NET 的老规矩，`Int lo hi` 改成含两端）。
 

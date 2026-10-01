@@ -118,6 +118,58 @@ try { (Random.Make 1).Sample 9 [1 2]; } (e: Exception) => { print ("2: " + strin
 try { (Random.Make 1).Int (5..5); } (e: Exception) => { print ("3: " + string e); }   # 空区间里没得挑
 try { (Random.Make 1).Below 0; } (e: Exception) => { print ("4: " + string e); }
 
+# ── 分布与抽样 ──
+r7 := Random.Xoshiro 42
+
+# 小数:`Float ()` 还是 [0, 1);收一个区间就是区间里的小数(连续的东西统一按 [lo, hi) 看)
+f0 := r7.Float ()
+print ((f0 >= 0.0) && (f0 < 1.0))
+fr := r7.Float (0.0..10.0)
+print ((fr >= 0.0) && (fr < 10.0))
+fn := r7.Float [-1.0..1.0]
+print ((fn >= -1.0) && (fn <= 1.0))
+print (typeof (r7.Float ()))
+try { r7.Float (5.0..1.0); } (e: Exception) => { print ("1: " + string e); }
+
+# 正态:σ 给 0 就是那个均值;一堆抽样的均值该落在均值附近
+print (r7.Normal 5.0 0.0)
+print (typeof (r7.Normal 0.0 1.0))
+sum := 0.0
+k := 0
+while { k < 500; } { sum += r7.Normal 0.0 1.0; k += 1; }
+avg := sum / 500.0
+print ((avg > -0.5) && (avg < 0.5))
+try { r7.Normal 0.0 (0.0 - 1.0); } (e: Exception) => { print ("2: " + string e); }
+
+# 加权挑:权重 0 的永远轮不到;权重全压在谁身上就一直是它
+print (r7.Weighted ["a" "b" "c"] [1 0 0])
+print (r7.Weighted ["a" "b" "c"] [0.0 0.0 2.5])
+only := []
+i = 0
+while { i < 30; } { only.Add (r7.Weighted ["x" "y"] [1 0]); i += 1; }
+got := only.Distinct ()
+print (got.ToList ())
+try { r7.Weighted ["a"] [1 2]; } (e: Exception) => { print ("3: " + string e); }
+try { r7.Weighted ["a" "b"] [1 (0 - 1)]; } (e: Exception) => { print ("4: " + string e); }
+try { r7.Weighted ["a" "b"] [0 0]; } (e: Exception) => { print ("5: " + string e); }
+
+# 有放回(Choices)和无放回(Sample)配成一对
+c := r7.Choices 5 [1 2 3]
+print (c.Count ())
+cd := (c.Distinct ()).Count ()
+print (cd <= 3)
+s3 := r7.Sample 3 [1 2 3]
+sd := s3.Distinct ()
+print (sd.Count ())
+try { r7.Choices 2 []; } (e: Exception) => { print ("6: " + string e); }
+
+# 随机字节
+bs := r7.Bytes 8
+print (bs.Count ())
+print (((bs.At 0) >= 0) && ((bs.At 0) <= 255))
+cbs := (Random.Crypto ()).Bytes 4
+print (cbs.Count ())
+
 # ── 引擎那三条原语(库只是包了一层)──
 print (typeof (System.SharedRandom ()))
 print (typeof (System.NewRandom 1))
@@ -166,6 +218,28 @@ print "end"
 # 2: Random.Sample: 要 9 个，只有 2 个可取
 # 3: Random.Int: (5..5) 里没有可取的数
 # 4: Random.Below 的上界至少是 1，得到 0
+# true
+# true
+# true
+# Float
+# 1: Random.Float: (5..1) 的起点在终点后面
+# 5
+# Float
+# true
+# 2: Random.Normal: 标准差不能是负的，得到 -1
+# a
+# c
+# [x]
+# 3: Random.Weighted: 值的个数 1 和权重的个数 2 对不上
+# 4: Random.Weighted: 权重不能是负的（得到 -1）
+# 5: Random.Weighted: 权重加起来得大于 0
+# 5
+# true
+# 3
+# 6: Random.Choices: 空的一串里挑不出东西
+# 8
+# true
+# 4
 # Function
 # Function
 # 4
