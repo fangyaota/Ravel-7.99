@@ -21,16 +21,36 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>数字文字 → 值。整数按字面量文本定类型:装得下 int 就是 int,装不下退化成 bigint。
-    /// 以前一律 (int) 硬转,2147483648 静默绕成 -2147483648,而且 double 中转还会丢精度。</summary>
+    /// <summary>数字文字 → 值。
+    ///
+    /// **没写后缀**时按文本定类型:带小数点就是 float(`2.0` 也是 —— 形状说了算,不是值),
+    /// 整数装得下 int 就是 int、装不下退化成 bigint。(以前一律 (int) 硬转,
+    /// 2147483648 静默绕成 -2147483648,而且 double 中转还会丢精度。)
+    ///
+    /// **写了后缀**就是明说类型,不再猜(见 <see cref="NumberLiteral.Suffix"/>):
+    /// `2n` 大整数、`2i` 普通整数(装不下 int 当场报错,不悄悄升级)、`2.5f` / `2f` 浮点。
+    /// `2.5i` / `2.5n` 报错 —— 小数没有"整数后缀"这回事。</summary>
     private static RuntimeValue MakeNumber(NumberLiteral nn)
     {
         if (nn.Parsed is { } cached) return cached;      // 纯函数:算过一次就够了(见 NumberLiteral.Parsed)
         var ci = System.Globalization.CultureInfo.InvariantCulture;
-        RuntimeValue v = nn.IsFloat ? new FloatVal(double.Parse(nn.Lexeme, ci))
-            : int.TryParse(nn.Lexeme, System.Globalization.NumberStyles.None, ci, out var i)
+        var text = nn.Digits;
+
+        RuntimeValue v = nn.Suffix switch
+        {
+            'f' => new FloatVal(double.Parse(text, ci)),
+            'n' when !nn.IsFloat => new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
+            'i' when !nn.IsFloat => int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var i)
                 ? new IntVal(i)
-                : new BigIntVal(System.Numerics.BigInteger.Parse(nn.Lexeme, ci));
+                : throw new RuntimeException($"'{text}i' 超出 int 范围（int 是 32 位，要这么大就写 {text}n）", ErrorKind.Value),
+            '\0' => nn.IsFloat
+                ? new FloatVal(double.Parse(text, ci))
+                : int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var d)
+                    ? new IntVal(d)
+                    : new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
+            _ => throw new RuntimeException($"后缀 '{nn.Suffix}' 只能贴在整数上：{text} 是小数，而小数天生就是 float", ErrorKind.Value),
+        };
+
         return nn.Parsed = v;
     }
 

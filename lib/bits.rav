@@ -1,0 +1,145 @@
+# `Bits` —— 位那一套。**要显式引用**:`using "bits.rav"`。
+#
+#     Bits.Test 5 0           # true —— 第 0 位是不是 1
+#     Bits.Count 255          # 8 —— 置起来的位有几个(popcount)
+#     Bits.Width 255          # 8 —— 要几位才装得下
+#     Bits.High 5             # 2 —— 最高的那一位在哪(0 基;一个都没有给 -1)
+#     Bits.Set 5 1            # 7 —— 把第 1 位置起来(原值不动,交回新的)
+#     Bits.Mask 4             # 15 —— 低 4 位全 1
+#     Bits.Field n 4 4        # 从第 4 位起取 4 位
+#     Bits.Shr 5 1            # 2 —— **逻辑**右移(补零)
+#     Bits.Bytes 16909060     # [1 2 3 4] —— 大端
+#     Bits.Unsigned (0 - 1)   # 4294967295 —— 32 位位型读成非负数(bigint)
+#
+# 运算符那边已经有 `&` `|` `^` `<<` `>>` `<<<` `>>>` 了,这里补的是它们给不了的:
+# **逻辑**右移、数位、取位/置位、位域、和字节表互转、把位型读成非负数。
+#
+# **`>>` 是算术右移**(保符号,`(0 - 8) >> 1` 是 -4)—— 要对"32 个格子"动刀子就用 `Shr`。
+# 位下标一律 **0..31**(0 是最低那一位),越界**当场报错**:静默"什么都没做"是最难查的那种。
+ravel "Bits"
+
+# 位下标:0..31,越界报错。名字带上来,报错时知道是谁在问(`what` 是模块里的全名)
+readonly BitIndex := (what: string i: int) => {
+    assert ((i >= 0) && (i < 32)) (what + ": 位下标要在 0..31 里，得到 " + (string i))
+    i
+}
+
+# ── 先把两块地铺平:`Mask` 和 `Shr` ──
+
+# 低 w 位全 1(`w` 是 0 给 0、32 给 -1 —— 两头都收得下)
+readonly Mask := (w: int) => {
+    (w <= 0) { 0; } {
+        (w >= 32) { 0 - 1; } {
+            # **31 那一格得单写**:`1 << 31` 是位型 0x80000000,int 里读出来是 -2147483648,
+            # 再 `- 1` 就溢出了。而"低 31 位全 1"正好是 int 装得下的那个最大数。
+            (w == 31) { 2147483647; } { (1 << w) - 1; }
+        }
+    }
+}
+
+# **逻辑**右移(补零):`>>` 是算术的(保符号),这一条是缺的那半。
+# 做法就是算术右移之后把补进来的那几个符号位再抹掉(`& Mask`)。
+readonly Shr := (n: int k: int) => {
+    (k <= 0) { n; } {
+        (k >= 32) { 0; } { (n >> k) & (Mask (32 - k)); }
+    }
+}
+
+# 逐位取反(`!` 那个是**逻辑**取反,管 bool;这一条管 int 的 32 个格子)
+readonly Not := (n: int) => { n ^ (0 - 1); }
+
+# ── 查一位 ──
+
+readonly Test := (n: int i: int) => { ((Shr n (BitIndex "Bits.Test" i)) & 1) == 1; }
+
+# 置起来的位有几个(popcount)。负数是按 32 位位型数的:`Count (0 - 1)` 是 32。
+#
+# 一个个数,不用那个"`m & (m - 1)` 抹掉最低的 1"的巧劲 —— 它在这儿**会溢出**:
+# `m` 是 `-2147483648`(位型只有最高那一位)时 `m - 1` 就超出 int 了。
+readonly Count := (n: int) => {
+    c := 0
+    i := 0
+    while { i < 32; } {
+        (Test n i) { c += 1; } { 0; }
+        i += 1
+    }
+    c
+}
+
+# 要几位才装得下(0 给 0;负数的符号位也算一格,所以给 32)
+readonly Width := (n: int) => { (n < 0) { 32; } { (High n) + 1; } }
+
+# 最高 / 最低那个置位在哪(0 基);一个都没有给 -1
+readonly High := (n: int) => {
+    (n == 0) { 0 - 1; } {
+        i := 31
+        while { !(Test n i); } { i -= 1; }
+        i
+    }
+}
+
+readonly Low := (n: int) => {
+    (n == 0) { 0 - 1; } {
+        i := 0
+        while { !(Test n i); } { i += 1; }
+        i
+    }
+}
+
+# 前导零 / 尾随零的个数(0 给 32 —— 32 个格子全是零)
+readonly ZerosHigh := (n: int) => { 32 - (Width n); }
+readonly ZerosLow := (n: int) => { (n == 0) { 32; } { Low n; } }
+
+# ── 改一位:原值不动,交回新的(int 是值类型) ──
+
+readonly Set := (n: int i: int) => { n | (1 << (BitIndex "Bits.Set" i)); }
+readonly Clear := (n: int i: int) => { n & (Not (1 << (BitIndex "Bits.Clear" i))); }
+readonly Toggle := (n: int i: int) => { n ^ (1 << (BitIndex "Bits.Toggle" i)); }
+
+# ── 一段位 ──
+# 位域就是这么读写的:低 lo 位是位置,中间 w 位是内容(网络协议头、文件格式里到处都是)。
+# `lo + w` 超过 32 的话,高出去的那些位**丢掉了**(和 `<<` 一个脾气)。
+
+readonly Field := (n: int lo: int w: int) => { (Shr n (BitIndex "Bits.Field" lo)) & (Mask w); }
+
+readonly PutField := (n: int lo: int w: int v: int) => {
+    at := BitIndex "Bits.PutField" lo
+    keep := n & (Not ((Mask w) << at))     # 那一段先腾空,别处不动
+    keep | ((v & (Mask w)) << at)          # 再把 v 的低 w 位放进去
+}
+
+# ── 和字节表来回 ──
+# 大端 = 高位字节在前(网络序),小端 = 低位字节在前(x86)。
+# 字节表就是 `Encoding` 那套形状:一串 0..255 的 int。
+
+readonly Bytes := (n: int) => {
+    out := []
+    i := 3
+    while { i >= 0; } {
+        out.Add ((Shr n (i * 8)) & 255)
+        i -= 1
+    }
+    out
+}
+
+# 字节表 → int。**只留低 4 个字节**,多出来的那几个会被挤掉(和 `<<` 一样不报错)
+readonly FromBytes := (bs: list) => {
+    n := 0
+    foreach bs (b: object) => { n = (n << 8) | (int b); }
+    n
+}
+
+readonly BytesLE := (n: int) => { (Bytes n).Reverse (); }
+readonly FromBytesLE := (bs: list) => { FromBytes (bs.Reverse ()); }
+
+# ── 位型 ↔ 非负数 ──
+# 32 位位型读成 0..4294967295(交回 bigint —— 4294967295 装不进 int)
+
+readonly Unsigned := (n: int) => { (n >= 0) { bigint n; } { (bigint n) + 4294967296n; } }
+
+# 反过来:一个 0..4294967295 的数读成那个 32 位位型(过了 2^31 就成负数)
+readonly Signed := (v: object) => {
+    b := bigint v
+    assert ((b >= 0) && (b < 4294967296n)) ("Bits.Signed: 要在 0..4294967295 里，得到 " + (string b))
+    (b >= 2147483648n) { int (b - 4294967296n); } { int b; }
+}

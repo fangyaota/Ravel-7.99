@@ -1,0 +1,58 @@
+# 数字后缀:`2n` 大整数 / `3i` 普通整数 / `2.5f` 浮点。**没写后缀**时按文本猜
+# (带小数点就是 float;整数装得下 int 就是 int,装不下退化成 bigint)。
+#
+# 后缀说的是**类型**,不是形状 —— 所以 **`2.0` 是 float**(形状说了算,即使小数位是 0)。
+
+print (typeof 5)          # 没后缀:装得下 → int
+print (typeof 99999999999)  # 没后缀:装不下 → bigint
+print (typeof 5n)         # 明说大整数
+print (typeof 5i)         # 明说普通整数
+print (typeof 2.0)        # 有小数点 → float(哪怕小数位是 0)
+print (typeof 2f)         # 明说浮点
+print (typeof 2.5f)
+
+# 算起来和别的类型一个规矩(宽度升级:float > bigint > int)
+print (5n + 1)
+print (5i * 2)
+print (2f / 4)
+print (2.0 + 1)
+print (typeof (5n + 1))
+print (typeof (2f / 4))
+
+# `i` 是"我就要 int" —— 装不下当场报错,不悄悄升级成 bigint(那正是它跟没后缀的区别)
+print 99999999999n
+try { print 99999999999i; } (e: Exception) => { print ("1: " + string e); }
+
+# 小数没有"整数后缀"这回事
+try { print 2.5i; } (e: Exception) => { print ("2: " + string e); }
+try { print 2.5n; } (e: Exception) => { print ("3: " + string e); }
+
+# 后缀**要吞得干净才算**:后面还粘着标识符字符就不是后缀。
+# 所以 `0if` 还是"`0` 和 `if`"两个词(和从前一个字都没差),用的是 `0if true {…} {…}`。
+try { print (0if true { 1; } { 2; }); } (e: Exception) => { print ("4: " + string e); }
+
+# 值本身还是那个值;打印函数时后缀原样还原(`AstPrinter` 打的是源码)
+f := (x: int) => { x + 5n; }
+print f
+print (f 1)
+# --- expected ---
+# Integer
+# BigInt
+# BigInt
+# Integer
+# Float
+# Float
+# Float
+# 6
+# 10
+# 0.5
+# 3
+# BigInt
+# Float
+# 99999999999
+# 1: '99999999999i' 超出 int 范围（int 是 32 位，要这么大就写 99999999999n）
+# 2: 后缀 'i' 只能贴在整数上：2.5 是小数，而小数天生就是 float
+# 3: 后缀 'n' 只能贴在整数上：2.5 是小数，而小数天生就是 float
+# 4: 值 0 不是函数，不能调用
+# <function (x: int) => { x + 5n; }>
+# 6

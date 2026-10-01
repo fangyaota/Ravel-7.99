@@ -196,13 +196,32 @@ public partial class Parser
     /// (`int &lt;: object` —— 两边都得是**类型**)</summary>
     private Expression ParseComparison(bool allowCall = true)
     {
-        var left = ParseTerm(allowCall);
+        var left = ParseShift(allowCall);
 
         while (Match(TokenType.NotEqual) || Match(TokenType.EqualEqual) ||
                Match(TokenType.Less) || Match(TokenType.Greater) ||
                Match(TokenType.LessEqual) || Match(TokenType.GreaterEqual) ||
                Match(TokenType.Subtype) || Match(TokenType.Supertype) ||
                MatchWordOperator())
+        {
+            var op = Previous().Lexeme;
+            var right = ParseShift(allowCall);
+            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
+        }
+
+        return left;
+    }
+
+    /// <summary>移位与循环移位 `&lt;&lt;` / `&gt;&gt;` / `&lt;&lt;&lt;` / `&gt;&gt;&gt;`。
+    /// 优先级照 C 的脾气:**比加减低、比比较高** ——
+    /// `1 + 2 &lt;&lt; 3` 是 `(1 + 2) &lt;&lt; 3`,`x &lt;&lt; 1 == 4` 是 `(x &lt;&lt; 1) == 4`。
+    /// 所以它夹在 <see cref="ParseComparison"/> 和 <see cref="ParseTerm"/> 中间。</summary>
+    private Expression ParseShift(bool allowCall = true)
+    {
+        var left = ParseTerm(allowCall);
+
+        while (Match(TokenType.ShiftLeft) || Match(TokenType.ShiftRight) ||
+               Match(TokenType.RotateLeft) || Match(TokenType.RotateRight))
         {
             var op = Previous().Lexeme;
             var right = ParseTerm(allowCall);

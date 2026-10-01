@@ -59,6 +59,12 @@ public enum TokenType
     Slash,         // /
     Percent,       // %
 
+    // 移位与循环移位(见 BuiltinClasses.Operators 里那段说明)
+    ShiftLeft,     // <<   左移(位型:高位丢出去就没了)
+    ShiftRight,    // >>   算术右移(保符号)
+    RotateLeft,    // <<<  循环左移(32 位转圈)
+    RotateRight,   // >>>  循环右移
+
     // 复合赋值
     PlusEqual,     // +=
     MinusEqual,    // -=

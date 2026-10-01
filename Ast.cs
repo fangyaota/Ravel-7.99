@@ -14,7 +14,8 @@ using Ravel.Runtime;
 public static class OperatorSymbols
 {
     public static readonly HashSet<string> All =
-        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^", "is", "isnot", "<:", ":>"];
+        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^",
+         "<<", ">>", "<<<", ">>>", "is", "isnot", "<:", ":>"];
 
     public static bool IsSymbol(string name) => All.Contains(name);
 
@@ -80,10 +81,21 @@ public record BindStatement(string Name, Expression Monad) : Statement;
 // --- 表达式 ---
 public abstract record Expression : AstNode;
 
-/// <summary>数字文字。存**原始文本**而不是 double:double 只有 15~17 位有效数字,
-/// 大整数转一手就丢精度(12345678901234567890 → 12345678901234567000),再转回来已经不是原来那个数。</summary>
+/// <summary>数字文字。存**原始文本**(连后缀)而不是 double:double 只有 15~17 位有效数字,
+/// 大整数转一手就丢精度(12345678901234567890 → 12345678901234567000),再转回来已经不是原来那个数。
+/// 原始文本还让 `AstPrinter` 把字面量原样打印回去(`2n` 打印出来还是 `2n`)。</summary>
 public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression
 {
+    /// <summary>后缀那一个字母:`2n` / `3i` / `2.5f`。没写就是 `'\0'`。
+    ///
+    /// 词法那一步已经认过只可能是这三个(`Lexer.ReadNumber`),所以这儿只看末尾是不是字母。
+    /// 后缀说的是**类型**,不是形状:`2n` 是大整数、`2i` 是普通整数(装不下 int 当场报错)、
+    /// `2f` 是浮点。所以 **`2.0` 是 float,`2` 是 int** —— 有小数的形状说了算,不是值。</summary>
+    public char Suffix => char.IsLetter(Lexeme[^1]) ? Lexeme[^1] : '\0';
+
+    /// <summary>纯数字那一段(后缀去掉)—— 真正拿去 `Parse` 的文本</summary>
+    internal string Digits => Suffix == '\0' ? Lexeme : Lexeme[..^1];
+
     /// <summary>解析出来的值。字面量是**纯**的(文本 → 值,不看环境),所以算一次存下来 ——
     /// 循环体里的 `1000000` 从前每轮都要 `int.Parse` / `BigInteger.Parse` 一遍。
     /// 私有字段不进 record 的相等与打印。</summary>

@@ -152,7 +152,7 @@ public class Lexer(string source, string? file = null)
             }
 
             // 标识符 / 关键字
-            if (char.IsLetter(c) || c == '_')
+            if (IsIdentStart(c))
             {
                 tokens.Add(ReadIdentifier());
                 continue;
@@ -229,6 +229,11 @@ public class Lexer(string source, string? file = null)
         ("=>", TokenType.Arrow),
         ("==", TokenType.EqualEqual),
         ("!=", TokenType.NotEqual),
+        // 三个尖的排在两个尖的前面(`<<<` 别被读成 `<<` + `<`)
+        ("<<<", TokenType.RotateLeft),
+        (">>>", TokenType.RotateRight),
+        ("<<", TokenType.ShiftLeft),
+        (">>", TokenType.ShiftRight),
         ("<=", TokenType.LessEqual),
         ("<|", TokenType.PipeLeft),
         (">=", TokenType.GreaterEqual),
@@ -282,6 +287,14 @@ public class Lexer(string source, string? file = null)
         _col++;
     }
 
+    /// <summary>这个名字的字符**能开一个标识符**吗(标识符的第一个字符 —— 数字不算)。
+    /// 认标识符开头那一处用。</summary>
+    private static bool IsIdentStart(char c) => char.IsLetter(c) || c == '_';
+
+    /// <summary>这个名字的字符**能当标识符的一部分**吗(`abc_1` 里每一个都算)。
+    /// 数字后缀"后面是不是还粘着个名字"那一问用它 —— 所以 `2n` 算后缀、`2n1` 不算。</summary>
+    private static bool IsIdentChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
     private Token ReadNumber()
     {
         int start = _pos, line = _line, col = _col;
@@ -293,6 +306,13 @@ public class Lexer(string source, string? file = null)
             while (_pos < source.Length && char.IsDigit(source[_pos]))
                 _pos++;
         }
+
+        // 类型后缀:`2n` 大整数 / `3i` 普通整数 / `2.5f` 浮点(见 NumberLiteral.Suffix)。
+        // **要吞得干净才算**:后面再跟标识符字符就不是后缀(所以 `0if`、`2not x` 照旧读成
+        // "数字 + 标识符",一个字都没变);`2n` 后面跟 `)` `.` `[` 空格这些才算数。
+        if (_pos < source.Length && source[_pos] is 'n' or 'i' or 'f' &&
+            (_pos + 1 >= source.Length || !IsIdentChar(source[_pos + 1])))
+            _pos++;
 
         string num = source[start.._pos];
         _col += (_pos - start);
@@ -465,7 +485,7 @@ public class Lexer(string source, string? file = null)
     private Token ReadIdentifier()
     {
         int start = _pos, line = _line, col = _col;
-        while (_pos < source.Length && (char.IsLetterOrDigit(source[_pos]) || source[_pos] == '_'))
+        while (_pos < source.Length && IsIdentChar(source[_pos]))
             _pos++;
         string word = source[start.._pos];
 

@@ -53,6 +53,57 @@ internal static partial class BuiltinClasses
     /// 不检查的话 C# 的 unchecked 会**静默回绕**:`100000 * 100000` 得 1410065408、
     /// `2147483647 + 1` 得 -2147483648 —— 「算出来了但是错的」比直接崩难查得多。
     /// int 是 32 位的类型,装不下就该说;要更宽就写 bigint,消息里明说。</summary>
+    // ── 移位与循环移位(见 RegisterOperators 里注册的那四条)──
+    //
+    // `<<` / `>>` 是**位型**操作,和 `&` `|` `^` 一伙:只看那 32 个格子,不检查数值溢出 ——
+    // 所以 `1 << 31` 是 -2147483648(位型就是 0x80000000),不报错。
+    //   · `<<`  左移:高位丢出去就没了
+    //   · `>>`  **算术**右移(保符号):`-8 >> 1` 是 -4 —— 对一个带符号的数来说,右移就是除以 2
+    //   · `<<<` / `>>>`  **循环移位**:移出去的位从另一头回来,在 32 位里转圈。
+    //     `>>>` 是**循环右移**,不是"无符号右移";要逻辑右移(补零)用 `lib/bits.rav` 的 `Shr`。
+    //
+    // 移位量收成一个**非负的 int**(bigint 能收下也收);`<<` / `>>` 超过 31 的按数学来
+    // (全移出去了:`x << 32` 是 0,`x >> 32` 是 0 或 -1),循环移位取 `k % 32`。
+    // 都**不**接受负数 —— 想往另一头移,换个方向的符号就行(`<<<` ↔ `>>>`)。
+    private const int WordBits = 32;
+
+    /// <summary>移位数:一个非负的 int。负数/大得装不下/根本不是数,各报各的。</summary>
+    private static int ShiftCount(RuntimeValue v, string op)
+    {
+        if (v is IntVal i)
+        {
+            if (i.Value < 0)
+                throw new RuntimeException($"运算符 '{op}' 的移位数不能是负数（{i.Value}）—— 想往另一头移就换 `<<<` / `>>>`", ErrorKind.Value);
+            return i.Value;
+        }
+
+        if (v is BigIntVal g && g.Value >= 0 && g.Value <= int.MaxValue) return (int)g.Value;
+
+        throw new RuntimeException($"运算符 '{op}' 的移位数需要一个非负的 int，得到 {v.Type}", ErrorKind.Type);
+    }
+
+    /// <summary>左移(位型):高位丢出去就没了。移满 32 位及以上,32 个格子全空 —— 给 0。</summary>
+    private static int ShiftUp(int x, int k)
+        => k >= WordBits ? 0 : unchecked((int)((uint)x << k));
+
+    /// <summary>算术右移(保符号):移满 32 位及以上只剩符号本身 —— 负数给 -1,其余给 0。</summary>
+    private static int ShiftDown(int x, int k)
+        => k >= WordBits ? (x < 0 ? -1 : 0) : x >> k;
+
+    /// <summary>循环左移。`k % 32` 之后再转 —— 转 32 位就是原样一圈。</summary>
+    private static int RotateUp(int x, int k)
+    {
+        k %= WordBits;
+        return k == 0 ? x : unchecked((int)(((uint)x << k) | ((uint)x >> (WordBits - k))));
+    }
+
+    /// <summary>循环右移(同上,方向反过来)</summary>
+    private static int RotateDown(int x, int k)
+    {
+        k %= WordBits;
+        return k == 0 ? x : unchecked((int)(((uint)x >> k) | ((uint)x << (WordBits - k))));
+    }
+
     internal static IntVal Narrow(long r, string what)
         => r >= int.MinValue && r <= int.MaxValue
             ? new IntVal((int)r)
@@ -75,6 +126,13 @@ internal static partial class BuiltinClasses
             (x, y) => Narrow((long)x % NonZero(y, "%"), $"{x} % {y}"), (x, y) => new FloatVal(x % y),
             (x, y) => new BigIntVal(x % NonZero(y, "%"))));
 
+        // 移位 / 循环移位(四条,`int` 上;语义见上面那一段)。
+        // **不走 IntOp**:右边是"移多少位",不是参与运算的另一个值 —— 不该按宽度升级。
+        DefineOp(Int, "<<", (a, b) => new IntVal(ShiftUp(((IntVal)a).Value, ShiftCount(b, "<<"))));
+        DefineOp(Int, ">>", (a, b) => new IntVal(ShiftDown(((IntVal)a).Value, ShiftCount(b, ">>"))));
+        DefineOp(Int, "<<<", (a, b) => new IntVal(RotateUp(((IntVal)a).Value, ShiftCount(b, "<<<"))));
+        DefineOp(Int, ">>>", (a, b) => new IntVal(RotateDown(((IntVal)a).Value, ShiftCount(b, ">>>"))));
+
         // float 运算符 —— **全程 double**。
         // 曾经这里走 `AsFloat`(转成 32 位 float 再算),于是 `Math.pi * 180` 得
         // 565.4866943359375(float32 的 π 乘出来的),而 `180 * Math.pi` 得
@@ -92,6 +150,14 @@ internal static partial class BuiltinClasses
         DefineOp(BigInt, "*", (a, b) => new BigIntVal(AsBigInt(a, "*") * AsBigInt(b, "*")));
         DefineOp(BigInt, "/", (a, b) => new BigIntVal(AsBigInt(a, "/") / NonZero(AsBigInt(b, "/"), "/")));
         DefineOp(BigInt, "%", (a, b) => new BigIntVal(AsBigInt(a, "%") % NonZero(AsBigInt(b, "%"), "%")));
+        // 移位:bigint 没有固定宽度,`<<` 就是乘 2^k,**没有丢位这回事**(要多少位有多少位)。
+        // 循环移位对 bigint **不成立** —— 转圈得先有个圈,所以那两条明确报错(而不是偷偷当普通移位)。
+        DefineOp(BigInt, "<<", (a, b) => new BigIntVal(AsBigInt(a, "<<") << ShiftCount(b, "<<")));
+        DefineOp(BigInt, ">>", (a, b) => new BigIntVal(AsBigInt(a, ">>") >> ShiftCount(b, ">>")));
+        DefineOp(BigInt, "<<<", (a, b) =>
+            throw new RuntimeException("运算符 '<<<' 不支持 bigint：循环移位要在**固定宽度**上转，而 bigint 没有宽度（要移就用 '<<'）", ErrorKind.Type));
+        DefineOp(BigInt, ">>>", (a, b) =>
+            throw new RuntimeException("运算符 '>>>' 不支持 bigint：循环移位要在**固定宽度**上转，而 bigint 没有宽度（要移就用 '>>'）", ErrorKind.Type));
 
         // Fraction 运算符
         DefineOp(Fraction, "+",
