@@ -136,7 +136,7 @@ public partial class Interpreter
     private static double Num(RuntimeValue v, string fn)
         => BuiltinClasses.TryAsDouble(v, out var d)
             ? d
-            : throw new RuntimeException($"{fn} 需要数值参数，得到 {v.Type}");
+            : throw new RuntimeException($"{fn} 需要数值参数，得到 {v.Type}", ErrorKind.Type);
 
     /// <summary>`abs` 按实参类型给回同类型的结果 —— int 的绝对值还是 int(大数还是 bigint)。
     /// 整数那条走 `Narrow`:`abs` 的 `int.MinValue` 翻不过来,报错比静默回绕成自己强。</summary>
@@ -147,7 +147,7 @@ public partial class Interpreter
         BigIntVal bi => new BigIntVal(System.Numerics.BigInteger.Abs(bi.Value)),
         FractionVal fr => new FractionVal(Math.Abs(fr.Num), fr.Den),          // 分母恒正,符号在分子上
         BigFractionVal bf => new BigFractionVal(System.Numerics.BigInteger.Abs(bf.Num), bf.Den),
-        _ => throw new RuntimeException($"Abs 需要数值参数，得到 {v.Type}"),
+        _ => throw new RuntimeException($"Abs 需要数值参数，得到 {v.Type}", ErrorKind.Type),
     };
 
     /// <summary>`sign`:负 -1 / 零 0 / 正 1(int)。NaN 没有符号,报 Ravel 错误
@@ -161,6 +161,6 @@ public partial class Interpreter
         BigIntVal bi => new IntVal(bi.Value.Sign),
         FractionVal fr => new IntVal(Math.Sign(fr.Num)),
         BigFractionVal bf => new IntVal(bf.Num.Sign),
-        _ => throw new RuntimeException($"Sign 需要数值参数，得到 {v.Type}"),
+        _ => throw new RuntimeException($"Sign 需要数值参数，得到 {v.Type}", ErrorKind.Type),
     };
 }

@@ -66,7 +66,7 @@ public partial class Interpreter
                     'm' => RegexOptions.Multiline,
                     's' => RegexOptions.Singleline,
                     'x' => RegexOptions.IgnorePatternWhitespace,
-                    _ => throw new RuntimeException($"不认识的选项 '{c}'（有 i / m / s / x）"),
+                    _ => throw new RuntimeException($"不认识的选项 '{c}'（有 i / m / s / x）", ErrorKind.Regex),
                 };
             return opts;
         }
@@ -81,11 +81,11 @@ public partial class Interpreter
             catch (RegexMatchTimeoutException)
             {
                 throw new RuntimeException(
-                    $"匹配超时（{RegexTimeout.TotalSeconds:0} 秒）—— 这个模式可能有灾难性回溯：{pattern}");
+                    $"匹配超时（{RegexTimeout.TotalSeconds:0} 秒）—— 这个模式可能有灾难性回溯：{pattern}", ErrorKind.Regex);
             }
             catch (ArgumentException ex)
             {
-                throw new RuntimeException($"正则式写错了 —— {ex.Message}");
+                throw new RuntimeException($"正则式写错了 —— {ex.Message}", ErrorKind.Regex);
             }
         }
 

@@ -212,7 +212,7 @@ public partial class Interpreter
             // 构造器就是实例作用域里名为 init 的那个:各层平铺在同一 scope,
             // 子类的 init 覆盖父类的,所以直接找名字 = 只调最具体层声明的那个
             var init = inst.Scope.LookupField(ObjectVal.InitMember)?.Value as FunctionVal
-                       ?? throw new RuntimeException($"类型 {type.DisplayName} 没有构造器（init）");
+                       ?? throw new RuntimeException($"类型 {type.DisplayName} 没有构造器（init）", ErrorKind.Type);
             // 调用点用**实例作用域**:init 要能看见 `this` 和各层类体落的成员。
             // 内置类的默认建类函数(NativeClosure)正是靠这个把 parent/block 装到 self 上。
             //
@@ -339,7 +339,7 @@ public partial class Interpreter
                 return;
             }
 
-            throw new RuntimeException($"{label} 需要一个函数参数，得到 {cf.Arg<RuntimeValue>(fnAt, label).Type}");
+            throw new RuntimeException($"{label} 需要一个函数参数，得到 {cf.Arg<RuntimeValue>(fnAt, label).Type}", ErrorKind.Argument);
         }
 
         var done = cf.Count;                     // 已经调过几次
@@ -518,7 +518,7 @@ public partial class Interpreter
         if (cf.Count == 0)
         {
             var impl = FindClassOperator(self.Scope, op)
-                       ?? throw new RuntimeException($"对象没有运算符 '{op}'");
+                       ?? throw new RuntimeException($"对象没有运算符 '{op}'", ErrorKind.Attribute);
             CallInto(cf, impl, arg);
             return;
         }
@@ -551,7 +551,7 @@ public partial class Interpreter
             else if (BuiltinClasses.TraitSlot(this, self, op) is { } hit)
                 prop = BuiltinClasses.Activate(this, hit);
             else
-                throw new RuntimeException($"对象没有运算符 '{op}'");
+                throw new RuntimeException($"对象没有运算符 '{op}'", ErrorKind.Attribute);
 
             CallInto(cf, PropertyGetter(prop, op), VoidVal.Instance);   // 读槽 → 运算符函数
             return;

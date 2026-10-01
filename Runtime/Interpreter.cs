@@ -135,7 +135,7 @@ public partial class Interpreter
     /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
     /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>
     private static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
-        => v as T ?? throw new RuntimeException($"{what}需要{ArgNames.Of(typeof(T))}，得到 {v.Type}");
+        => v as T ?? throw new RuntimeException($"{what}需要{ArgNames.Of(typeof(T))}，得到 {v.Type}", ErrorKind.Type);
 
     /// <summary>值转字符串（Ravel 语义）</summary>
     private static string Show(RuntimeValue v) => v.ToString();

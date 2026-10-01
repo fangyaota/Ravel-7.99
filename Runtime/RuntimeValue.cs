@@ -41,10 +41,40 @@ public abstract record RuntimeValue
     public virtual bool HasOwnMembers => false;
 }
 
-/// <summary>Ravel 运行时错误。抛出点只管给消息——位置和调用栈由求值器在异常冒泡到
-/// `StepOnce` 时补上(见 <c>Interpreter.Locate</c>),所以 90 多处 throw 不用各自操心这些。</summary>
-public class RuntimeException(string message) : Exception(message)
+/// <summary>引擎报的错**属于哪一族** —— 决定它交给 Ravel 那边时是**哪一类异常**
+/// (见 <c>BuiltinClasses.ErrorClass</c> 与 `Runtime/BuiltinClasses.Errors.cs`)。
+///
+/// 那 11 个类是**内置类**(和 `Exception` 一样在 C# 侧建):报错的是引擎,分类自然也该由
+/// 引擎说了算 —— 库里再定义一遍就成了两处各管一半。用户在 Ravel 里照样能继承它们、
+/// `throw (TypeError "自己造的")`、按类型接:
+///
+///     try { 1 + "a"; } (e: TypeError) => { … }
+///
+/// 默认 `Error` = 还没归类的一律落基类 `Exception`(分类可以慢慢补,不必一次到位)。</summary>
+public enum ErrorKind
 {
+    Error,
+    Type,
+    Name,
+    Attribute,
+    Index,
+    Key,
+    ZeroDivision,
+    Assert,
+    Argument,
+    Value,
+    Io,
+    Regex,
+}
+
+/// <summary>Ravel 运行时错误。抛出点只管给消息(和**哪一族**)——位置和调用栈由求值器在
+/// 异常冒泡到 `StepOnce` 时补上(见 <c>Interpreter.Locate</c>),所以 180 多处 throw
+/// 不用各自操心这些。</summary>
+public class RuntimeException(string message, ErrorKind kind = ErrorKind.Error) : Exception(message)
+{
+    /// <summary>哪一族 —— Ravel 那边接住它的是哪一类异常(见 <see cref="ErrorKind"/>)。</summary>
+    public ErrorKind Kind { get; } = kind;
+
     /// <summary>出错位置所在的源文件(沿帧链找到最近一个有 Source 的块)</summary>
     public string? File { get; internal set; }
     public int Line { get; internal set; }
@@ -59,8 +89,11 @@ public class RuntimeException(string message) : Exception(message)
 
 /// <summary>参数类型不匹配(lambda 参数检查失败,供 | 交替 / 多 init 捕捉)。
 /// 消息由抛出点给全(哪个参数、要什么、得到什么)——从前它固定是「类型不匹配」,
-/// 于是 `M { ... }` 这类调用失败时只看到四个字,完全不知道错在哪。</summary>
-public sealed class TypeMismatchException(string message) : RuntimeException(message);
+/// 于是 `M { ... }` 这类调用失败时只看到四个字,完全不知道错在哪。
+///
+/// 归**类型错误**那一族:它冒到用户眼前时说的确实是"类型不对"
+/// (交给用户看的只有没被任何分支/`try` 接住的那些)。</summary>
+public sealed class TypeMismatchException(string message) : RuntimeException(message, ErrorKind.Type);
 
 /// <summary>exit 专用异常——不被 EvalCall 捕获，直接向上抛出</summary>
 public class ExitException(string message) : Exception(message);

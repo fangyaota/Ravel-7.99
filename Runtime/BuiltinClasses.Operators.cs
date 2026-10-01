@@ -19,7 +19,7 @@ internal static partial class BuiltinClasses
     /// `Ravel.Runtime.BoolVal` 这种实现细节,`1 + true` 就长这样。
     /// 左操作数不用过这里:它由方法表保证(查的就是该类型的方法)。</summary>
     private static T Operand<T>(RuntimeValue v, string op) where T : RuntimeValue
-        => v as T ?? throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
+        => v as T ?? throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type);
 
     /// <summary>拼接的右操作数:字符串或字符都行(别的照旧报「不支持 X 操作数」)——
     /// 于是 `"abc" + 'd'`、`'d' + "abc"`、`'a' + 'b'` 三条都通,结果都是字符串。</summary>
@@ -27,7 +27,7 @@ internal static partial class BuiltinClasses
     {
         StringVal s => s.Value,
         CharVal c => c.Value.ToString(),
-        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数"),
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type),
     };
 
     /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:float > bigint > int——
@@ -44,7 +44,7 @@ internal static partial class BuiltinClasses
             FloatVal f => id(x, f.Value),
             BigIntVal g => ib(x, g.Value),
             IntVal i => ii(x, i.Value),
-            _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数"),
+            _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数", ErrorKind.Type),
         };
     }
 
@@ -56,7 +56,7 @@ internal static partial class BuiltinClasses
     internal static IntVal Narrow(long r, string what)
         => r >= int.MinValue && r <= int.MaxValue
             ? new IntVal((int)r)
-            : throw new RuntimeException($"{what} 超出 int 范围（int 是 32 位，大数用 bigint）");
+            : throw new RuntimeException($"{what} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
 
     private static void RegisterOperators()
     {
@@ -102,7 +102,7 @@ internal static partial class BuiltinClasses
         DefineOp(Fraction, "/", (a, b) => FractionBinOp(a, b, (na, da, nb, db) =>
             nb != 0
                 ? MakeFraction(na * db, da * nb)
-                : throw new RuntimeException("运算符 '/' 的除数为零")));
+                : throw new RuntimeException("运算符 '/' 的除数为零", ErrorKind.ZeroDivision)));
 
         // BigFraction 运算符
         DefineOp(BigFraction, "+",
@@ -114,7 +114,7 @@ internal static partial class BuiltinClasses
         DefineOp(BigFraction, "/",
             (a, b) => BigFractionBinOp(a, b, (na, da, nb, db) =>
                 nb.IsZero
-                    ? throw new RuntimeException("运算符 '/' 的除数为零")
+                    ? throw new RuntimeException("运算符 '/' 的除数为零", ErrorKind.ZeroDivision)
                     : new BigFractionVal(na * db, da * nb)));
 
         // 比较运算符 — 数字
@@ -222,10 +222,10 @@ internal static partial class BuiltinClasses
     /// <summary>整除的除数。不查的话 C# 会抛 DivideByZeroException,
     /// 用户看到的是英文的 "Attempted to divide by zero."</summary>
     private static int NonZero(int d, string op)
-        => d != 0 ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零");
+        => d != 0 ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零", ErrorKind.ZeroDivision);
 
     private static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
-        => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零");
+        => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零", ErrorKind.ZeroDivision);
 
     /// <summary>把数值收成 double(大数/分数也接受 —— 和 `<` 那批运算符同一个口径)。
     /// 非数值返回 false,由调用方决定报什么:运算符说"运算符 X 不支持",Math 模块说函数名。</summary>
@@ -243,7 +243,7 @@ internal static partial class BuiltinClasses
     }
 
     private static double AsDouble(RuntimeValue v, string op)
-        => TryAsDouble(v, out var d) ? d : throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数");
+        => TryAsDouble(v, out var d) ? d : throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type);
 
     /// <summary>`Type` 那层 `==` / `!=` 的实现:<see cref="ObjectVal"/> 按**身份**比,
     /// 原子值按**值**比(`()` 是单例,异常值比消息)。
@@ -259,7 +259,7 @@ internal static partial class BuiltinClasses
     {
         (ObjectVal oa, ObjectVal ob) => ReferenceEquals(oa, ob),
         (not ObjectVal, not ObjectVal) => a.Equals(b),
-        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数"),
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数", ErrorKind.Type),
     };
 
     /// <summary>`<:` / `:>` 的操作数:两边都得是**类型对象**(类对象,接口也是)。
@@ -270,20 +270,20 @@ internal static partial class BuiltinClasses
     private static ObjectVal AsType(RuntimeValue v, string op, string side)
         => v as ObjectVal is { IsClass: true } t
             ? t
-            : throw new RuntimeException($"'{op}' 的{side}边得是个类型，得到 {v.Type} 的实例");
+            : throw new RuntimeException($"'{op}' 的{side}边得是个类型，得到 {v.Type} 的实例", ErrorKind.Type);
 
     /// <summary>`is` / `isnot` 的实现:值的类型是不是(是某个类型的子类型)。
     /// 返回 bool,由调用点决定要不要取反 —— `isnot` 是同一个判据,不是两套。</summary>
     private static bool IsA(RuntimeValue v, RuntimeValue type, string op)
         => type is ObjectVal t
             ? v.Type.IsAssignableTo(t)
-            : throw new RuntimeException($"'{op}' 的右边要是一个类型，得到 {type.Type}");
+            : throw new RuntimeException($"'{op}' 的右边要是一个类型，得到 {type.Type}", ErrorKind.Type);
 
     private static System.Numerics.BigInteger AsBigInt(RuntimeValue v, string op) => v switch
     {
         IntVal i => i.Value,
         BigIntVal bi => bi.Value,
-        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数")
+        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type)
     };
 
     /// <summary>分数的分子分母**在 long 里**参与运算:两个 int 相乘再收窄会静默回绕
@@ -303,7 +303,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue MakeFraction(long num, long den)
     {
         if (num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue)
-            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）");
+            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
         return new FractionVal((int)num, (int)den);
     }
 

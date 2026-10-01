@@ -2925,6 +2925,35 @@ try { throw (Exception "plain"); } handle             # base: plain
 `e.Message` 可读可写 ✓（`init` 里想改就 `Message = msg` ✓）；`e == 别的异常` 按**身份**比
 （要问内容就比 `e.Message`）。不写 `init` 的异常子类也有 `Message`（它继承基类那条构造器 ✓）。
 
+**引擎报的错自带分类** —— `Exception` 底下挂着一族（在 **C# 侧**建，见
+`Runtime/BuiltinClasses.Errors.cs`），报错那一刻由引擎挑：
+
+| 类 | 什么时候报 |
+|---|---|
+| `TypeError` | 类型不对：运算符不吃这个操作数、赋值类型不符、转换不了、构造不了 |
+| `NameError` | 未定义的变量 |
+| `AttributeError` | 对象没有这个字段 / 类型没有这个方法 |
+| `IndexError` | 下标越界、空集合取 `First` |
+| `KeyError` | 键不存在、环境变量没有 |
+| `ZeroDivisionError` | 除零 |
+| `AssertionError` | `assert` 不成立 |
+| `ArgumentError` | 实参的形状不对（要代码块、要字符串、要类型对象…） |
+| `ValueError` | 值本身不对：数值超范围、解析不动、JSON 转不了 |
+| `IoError` | 文件 / 目录 / 命令那批 |
+| `RegexError` | 正则：模式写错、匹配超时 |
+
+```ravel
+try { 1 + "a"; } (e: TypeError) => { print "类型错: " + e.Message; }
+try { nope; } (e: NameError) => { print "名字找不到"; }
+
+# 按类型分派:挑不上就试下一个
+handle := ((e: TypeError) => { …; }) | ((e: Exception) => { …; })
+```
+
+它们**都是普通类**：`try (e: Exception)` 照旧接得住全部（老的写法一个都没坏），
+可以继承（`MyErr ::= class TypeError { 0; }`）、可以自己 `throw (TypeError "…")`。
+没归类的错误落基类 `Exception`。**用例见 tests/259。**
+
 ### 9.1 报错长什么样
 
 运行时错误会带**位置**和**调用栈**，跨文件时也能看出是哪一层、在哪个文件。

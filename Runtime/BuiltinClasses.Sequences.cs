@@ -143,7 +143,7 @@ internal static partial class BuiltinClasses
     internal static int IntArg(RuntimeValue a, string what)
         => a is IntVal i
             ? i.Value
-            : throw new RuntimeException($"{what} 需要 int 参数，得到 {a.Type}");
+            : throw new RuntimeException($"{what} 需要 int 参数，得到 {a.Type}", ErrorKind.Argument);
 
     /// <summary>把内置运算符当普通函数用(只在 C# 这一侧)。成员表里那格是
     /// <see cref="BuiltinMethodVal"/>,它的体是同步的可以直接调;查不到、或者被类运算符
@@ -175,7 +175,7 @@ internal static partial class BuiltinClasses
     /// <summary>最小 / 最大。相等时留**先出现**的那个(稳定)。</summary>
     private static RuntimeValue Extreme(List<RuntimeValue> xs, string what, bool keepLess)
     {
-        if (xs.Count == 0) throw new RuntimeException($"{what}: 空集合没有{what}");
+        if (xs.Count == 0) throw new RuntimeException($"{what}: 空集合没有{what}", ErrorKind.Index);
         var best = xs[0];
         foreach (var x in xs.Skip(1))
             if (keepLess ? Less(x, best) : Less(best, x))

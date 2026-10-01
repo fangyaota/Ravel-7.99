@@ -107,7 +107,7 @@ public partial class Interpreter
             return (new BoundTraitOp(o, op), false);      // 槽运算符:两级,交给 TraitOp 帧
 
         if (fn == null)
-            throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'");
+            throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'", ErrorKind.Type);
 
         // 引擎挂的成员(self → 剩下)要先绑接收者;**用户写在类体里的那份是普通 lambda**
         // ——它收的是右操作数,接收者靠捕获的作用域(`ClassOp` 帧里 `CallInto(cf, impl, arg)`
@@ -230,7 +230,7 @@ public partial class Interpreter
 
         var own = ov.Scope.LookupField(ma.Member);
         var hit = own == null ? BuiltinClasses.TraitSlot(this, ov, ma.Member) : null;
-        var field = own ?? hit?.Slot ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+        var field = own ?? hit?.Slot ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         CheckMemberAccess(field, ov, ma.Member);
 
         if (field.HasAttr(Attr.By))
@@ -342,7 +342,7 @@ public partial class Interpreter
             var field = ownF ?? (ownF == null ? BuiltinClasses.TraitSlot(this, ov, ma.Member)?.Slot : null);
             if (field == null)
             {
-                if (!isDefine) throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+                if (!isDefine) throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
             }
             else
             {
@@ -377,7 +377,7 @@ public partial class Interpreter
         //  接收者就是 nf.Result(0) 那个,所以两次各建一份激活格是等价的)
         var own2 = ov2.Scope.LookupField(ma.Member);
         var hit2 = own2 == null ? BuiltinClasses.TraitSlot(this, ov2, ma.Member) : null;
-        var field2 = own2 ?? hit2?.Slot ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+        var field2 = own2 ?? hit2?.Slot ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         WriteVariable(nf, field2, rv, PropOf(field2, hit2));
     }
 }

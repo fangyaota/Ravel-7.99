@@ -1,0 +1,59 @@
+# 引擎报的错**按类分**:`Exception` 底下挂着一族错误类,报错那一刻由引擎挑
+# (见 Runtime/BuiltinClasses.Errors.cs 那张表)。于是 `try` 的 handler 能**按类型接** ——
+# 挑不上就试下一个(和 `|` 造自定义函数是同一套机制)。
+#
+#   Exception
+#   ├── TypeError / NameError / AttributeError / IndexError / KeyError
+#   ├── ZeroDivisionError / AssertionError / ArgumentError
+#   └── ValueError / IoError / RegexError
+using "regex.rav"
+
+# 先看"引擎这一趟报的是哪一类":跑一下、把 typeof 打出来
+probe := (f: function) => {
+    try { f (); "没报错"; } (e: Exception) => { (typeof e).name + " / " + e.Message; }
+}
+
+print (probe () => { 1 + "a"; })                    # 运算符不吃这个操作数
+print (probe () => { nope; })                       # 未定义的变量
+print (probe () => { (5).没有这个方法 (); })          # 类型上没有这个方法
+print (probe () => { [1 2].At 9; })                 # 下标越界
+print (probe () => { {"a": 1}.Get "b"; })           # 键不存在
+print (probe () => { 1 / 0; })                       # 除零
+print (probe () => { assert false "断言没通过"; })    # assert
+print (probe () => { ((x: int) => { x; }).Prepend 5; })   # 参数形状不对
+print (probe () => { int "abc"; })                   # 值本身不对
+print (probe () => { System.ReadText "没有这个/文件.txt"; })   # 文件那批
+print (probe () => { (Regex.C "(").IsMatch "x"; })    # 正则写错
+
+# ── 按类型接:挑不上就试下一个 ──
+handle := ((e: TypeError) => { "类型错: " + e.Message; }) | ((e: Exception) => { "别的: " + e.Message; })
+print (try { 1 + "a"; } handle)
+print (try { nope; } handle)
+
+# ── 那一族都还是 Exception:老的写法一个都没坏 ──
+print (probe () => { 1 + "a"; })                    # 上面已经证明接了
+print ((try { 1 / 0; } (e: Exception) => { e is Exception; }))
+print ((try { 1 / 0; } (e: ZeroDivisionError) => { e is Exception; }))
+# ── 它们就是普通类:能继承、自己能 throw ──
+MyErr ::= class TypeError { 0; }        # `{ }` 是空字典,类体得写点什么
+print (try { throw (MyErr "自己造的"); } (e: TypeError) => { "接住了: " + e.Message; })
+print (probe () => { throw (TypeError "手工抛的"); })     # 手工抛的也是那一族
+# --- expected ---
+# TypeError / 运算符 '+' 不支持 String 操作数
+# NameError / 未定义的变量 'nope'
+# AttributeError / 类型 'Integer' 没有方法 '没有这个方法'
+# IndexError / list.At 的索引 9 越界 (列表长度 2)
+# KeyError / 键不存在: b
+# ZeroDivisionError / 运算符 '/' 的除数为零
+# AssertionError / 断言没通过
+# ArgumentError / prepend 需要代码块参数
+# ValueError / 无法将字符串 'abc' 转换为 int（超出 int 范围或不是数字）
+# IoError / 读文件: 找不到文件 —— 没有这个/文件.txt
+# RegexError / 正则式写错了 —— Invalid pattern '(' at offset 1. Not enough )'s.
+# 类型错: 运算符 '+' 不支持 String 操作数
+# 别的: 未定义的变量 'nope'
+# TypeError / 运算符 '+' 不支持 String 操作数
+# true
+# true
+# 接住了: 自己造的
+# TypeError / 手工抛的

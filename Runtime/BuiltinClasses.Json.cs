@@ -23,7 +23,7 @@ internal static partial class BuiltinClasses
     private static JToken ToJson(RuntimeValue v, int depth = 0)
     {
         if (depth > MaxJsonDepth)
-            throw new RuntimeException($"Json: 嵌套超过 {MaxJsonDepth} 层（是不是有容器包含自己？）");
+            throw new RuntimeException($"Json: 嵌套超过 {MaxJsonDepth} 层（是不是有容器包含自己？）", ErrorKind.Value);
 
         return v switch
         {
@@ -63,9 +63,9 @@ internal static partial class BuiltinClasses
             JTokenType.String => new StringVal(v.Value as string ?? ""),
             JTokenType.Boolean => new BoolVal(v.Value is true),
             JTokenType.Null or JTokenType.Undefined => VoidVal.Instance,
-            _ => throw new RuntimeException($"Json.Extract: {v.Type} 不知道怎么转成 Ravel 值"),
+            _ => throw new RuntimeException($"Json.Extract: {v.Type} 不知道怎么转成 Ravel 值", ErrorKind.Value),
         },
-        _ => throw new RuntimeException($"Json.Extract: {t.Type} 不知道怎么转成 Ravel 值"),
+        _ => throw new RuntimeException($"Json.Extract: {t.Type} 不知道怎么转成 Ravel 值", ErrorKind.Value),
     };
 
     /// <summary>JSON 的整数:Ravel 侧装得下就是 `int`,装不下退成 `bigint`
@@ -77,7 +77,7 @@ internal static partial class BuiltinClasses
         ulong u => u <= int.MaxValue ? new IntVal((int)u) : new BigIntVal(u),
         System.Numerics.BigInteger bi => bi >= int.MinValue && bi <= int.MaxValue
             ? new IntVal((int)bi) : new BigIntVal(bi),
-        _ => throw new RuntimeException($"Json.Extract: 认不出的整数 {o}"),
+        _ => throw new RuntimeException($"Json.Extract: 认不出的整数 {o}", ErrorKind.Value),
     };
 
     /// <summary>`Json.FromString s` —— 解析。**不用 `JToken.Parse`**:那个不给调

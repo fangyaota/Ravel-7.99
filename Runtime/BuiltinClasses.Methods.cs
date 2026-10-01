@@ -72,7 +72,7 @@ internal static partial class BuiltinClasses
     {
         StringVal s => s.Value,
         CharVal c => c.Value.ToString(),
-        _ => throw new RuntimeException($"{what} 需要 string 或 char 参数，得到 {a.Type}"),
+        _ => throw new RuntimeException($"{what} 需要 string 或 char 参数，得到 {a.Type}", ErrorKind.Argument),
     };
 
     /// <summary>区间那几条。都只跟那**一对边界 + 开闭**打交道,所以都是 O(1)
@@ -145,7 +145,7 @@ internal static partial class BuiltinClasses
         var lo = System.Numerics.BigInteger.Min(first, last);
         var hi = System.Numerics.BigInteger.Max(first, last);
         if (lo < 0 || hi + 1 > length)
-            throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）");
+            throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）", ErrorKind.Index);
 
         return ((int)lo, (int)(hi + 1), !up);           // 半开:`hi` 那个元素也要,所以 +1
     }
@@ -256,11 +256,11 @@ internal static partial class BuiltinClasses
     /// 在几号元素上越的,全看不出来。allowEnd 给 Insert 用(插到末尾是合法的)。</summary>
     private static ListVal Indexed(RuntimeValue s, RuntimeValue a, string what, bool allowEnd = false)
     {
-        if (a is not IntVal i) throw new RuntimeException($"{what} 需要 int 参数");
+        if (a is not IntVal i) throw new RuntimeException($"{what} 需要 int 参数", ErrorKind.Argument);
         var lst = (ListVal)s;
         var n = lst.Elements.Count;
         if (i.Value < 0 || i.Value > (allowEnd ? n : n - 1))
-            throw new RuntimeException($"{what} 的索引 {i.Value} 越界 (列表长度 {n})");
+            throw new RuntimeException($"{what} 的索引 {i.Value} 越界 (列表长度 {n})", ErrorKind.Index);
         return lst;
     }
 
@@ -393,7 +393,7 @@ internal static partial class BuiltinClasses
             var key = KeyArg(a, "dict.SysGet 的键");
             var d = (DictVal)s;
             if (d.Entries.TryGetValue(key, out var v)) return v;
-            throw new RuntimeException($"键不存在: {key}");
+            throw new RuntimeException($"键不存在: {key}", ErrorKind.Key);
         });
         Dict.DefineMethod("SysSet", (s, a) =>
         {
@@ -504,18 +504,18 @@ internal static partial class BuiltinClasses
         // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
         Function.DefineMethod("SetScope", (s, a) =>
         {
-            if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数");
+            if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数", ErrorKind.Argument);
             AsFunction(s, "SetScope").CaptureScope = sv.Inner;
             return VoidVal.Instance;
         });
         Function.DefineMethod("Prepend", (s, a) =>
         {
-            if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数");
+            if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数", ErrorKind.Argument);
             return AsFunction(s, "Prepend").Prepend(p);
         });
         Function.DefineMethod("Append", (s, a) =>
         {
-            if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数");
+            if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数", ErrorKind.Argument);
             return AsFunction(s, "Append").Append(p);
         });
     }
@@ -530,12 +530,12 @@ internal static partial class BuiltinClasses
         ScopeType.DefineMethod("Define", (s, a) =>
         {
             if (a is not StringVal name)
-                throw new RuntimeException("scope.Define 需要字符串名称");
+                throw new RuntimeException("scope.Define 需要字符串名称", ErrorKind.Argument);
             var scope = ((ScopeVal)s).Inner;
             return FunctionVal.From(tv =>
             {
                 if (tv is not ObjectVal t)
-                    throw new RuntimeException("scope.Define 需要 type 参数");
+                    throw new RuntimeException("scope.Define 需要 type 参数", ErrorKind.Argument);
                 scope.Define(name.Value, t, VoidVal.Instance);
                 return VoidVal.Instance;
             });
@@ -543,7 +543,7 @@ internal static partial class BuiltinClasses
         ScopeType.DefineMethod("Lookup", (s, a) =>
         {
             if (a is not StringVal name)
-                throw new RuntimeException("scope.Lookup 需要字符串参数");
+                throw new RuntimeException("scope.Lookup 需要字符串参数", ErrorKind.Argument);
             return Wrap(((ScopeVal)s).Inner.Lookup(name.Value));
         });
         ScopeType.DefineMethod("Variables", (s, _) =>

@@ -56,6 +56,26 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Any;
 
     public static readonly ClassVal Exception;
+
+    /// <summary>**引擎报错的那一族** —— 一个 <see cref="ErrorKind"/> 一个类,全是 `Exception`
+    /// 的子类,所以 `try { … } (e: Exception) => …` 照旧接得住全部,而
+    /// `(e: TypeError) => …` 只接那一族(挑哪一类见 `BuiltinClasses.Errors.cs`)。
+    ///
+    /// 它们在**引擎**里建、不在 `lib/exceptions.rav` 里建:报错的是引擎,分类也该由引擎说了算
+    /// (库里再定义一遍就成两处各管一半)。用户在 Ravel 里照样能继承、能
+    /// `throw (TypeError "自己造的")` —— 它们和别的内置类没两样。</summary>
+    public static readonly ClassVal TypeError;
+    public static readonly ClassVal NameError;
+    public static readonly ClassVal AttributeError;
+    public static readonly ClassVal IndexError;
+    public static readonly ClassVal KeyError;
+    public static readonly ClassVal ZeroDivisionError;
+    public static readonly ClassVal AssertionError;
+    public static readonly ClassVal ArgumentError;
+    public static readonly ClassVal ValueError;
+    public static readonly ClassVal IoError;
+    public static readonly ClassVal RegexError;
+
     /// <summary>JSON 值:里面包着一棵 Newtonsoft 的 `JToken` 树,`Extract ()` 才转成
     /// dict / list / 原生值。`predefined.rav` 给全局别名 `Json`。</summary>
     public static readonly ClassVal Json;
@@ -107,6 +127,17 @@ internal static partial class BuiltinClasses
         Interface = New("Interface");
         BaseInterface = New("BaseInterface");
         Exception = New("Exception");
+        TypeError = New("TypeError");
+        NameError = New("NameError");
+        AttributeError = New("AttributeError");
+        IndexError = New("IndexError");
+        KeyError = New("KeyError");
+        ZeroDivisionError = New("ZeroDivisionError");
+        AssertionError = New("AssertionError");
+        ArgumentError = New("ArgumentError");
+        ValueError = New("ValueError");
+        IoError = New("IoError");
+        RegexError = New("RegexError");
         Json = New("Json");
         Every = New("Every");
         Any = New("Any");
@@ -144,6 +175,18 @@ internal static partial class BuiltinClasses
         Link(ScopeType, Object, Type);
         Link(Property, Object, Type);
         Link(Exception, Object, Type);
+        // 错误那一族 —— 都挂在 Exception 下面(`try (e: Exception)` 照旧全接)
+        Link(TypeError, Exception, Type);
+        Link(NameError, Exception, Type);
+        Link(AttributeError, Exception, Type);
+        Link(IndexError, Exception, Type);
+        Link(KeyError, Exception, Type);
+        Link(ZeroDivisionError, Exception, Type);
+        Link(AssertionError, Exception, Type);
+        Link(ArgumentError, Exception, Type);
+        Link(ValueError, Exception, Type);
+        Link(IoError, Exception, Type);
+        Link(RegexError, Exception, Type);
         Link(Json, Object, Type);
         // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
         Link(BaseInterface, Object, Interface);   // 它自己就是个接口(所有接口的根)
@@ -169,7 +212,10 @@ internal static partial class BuiltinClasses
                      Object, ValueType, Int, Float, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
                      List, Set, Dict, Void, Type, Interface, BaseInterface,
-                     Ravel, Any, Every, Exception, Json, ScopeType, Property
+                     Ravel, Any, Every, Exception, Json, ScopeType, Property,
+                     TypeError, NameError, AttributeError, IndexError, KeyError,
+                     ZeroDivisionError, AssertionError, ArgumentError, ValueError,
+                     IoError, RegexError
                  })
             AllTypes.Add(t);
 
@@ -336,7 +382,7 @@ internal static partial class BuiltinClasses
                     pieces.Add(c.Block);
                     break;
                 default:
-                    throw new RuntimeException("class 需要代码块参数");
+                    throw new RuntimeException("class 需要代码块参数", ErrorKind.Argument);
             }
         }
     }

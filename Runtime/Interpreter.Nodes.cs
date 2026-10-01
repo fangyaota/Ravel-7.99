@@ -67,7 +67,7 @@ public partial class Interpreter
     {
         if (nf.Count > 0) return;
         var v = nf.Scope.LookupVar(id.Name);
-        if (v == null) throw new RuntimeException($"未定义的变量 '{id.Name}'");
+        if (v == null) throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
         BoxedValue.GateRead(v, id.Name, this);   // 和成员访问共用一套门禁,别各抄一份
         if (v.HasAttr(Attr.By))
         {
@@ -282,7 +282,7 @@ public partial class Interpreter
             if (cv != null) val = cv;
             // 用 `—` 而不是括号:why 自己常带括号(「超出 int 范围(大数用 bigint)」),
             // 套起来会变成双层括号
-            else throw new RuntimeException($"类型不匹配: 无法将 {val.Type} 赋值给 {dt} — {why}");
+            else throw new RuntimeException($"类型不匹配: 无法将 {val.Type} 赋值给 {dt} — {why}", ErrorKind.Type);
         }
 
         // **`:=` 是定义,不是覆盖** —— 同一个作用域里同名再 `:=` 就报错(`Scope.Define` 本来
@@ -325,7 +325,7 @@ public partial class Interpreter
         // `by a`:变量槽
         if (slot.Path is IdentifierExpr id)
         {
-            var v = nf.Scope.LookupVar(id.Name) ?? throw new RuntimeException($"未定义的变量 '{id.Name}'");
+            var v = nf.Scope.LookupVar(id.Name) ?? throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
             CheckSlot(v, id.Name);
             Return(nf, v.Value);
             return;
@@ -347,7 +347,7 @@ public partial class Interpreter
         // 之后再 `Get ()` / `Set v` 时已经没有"这次服务谁"可言,`instance` 会**明确报错**。
         var field = obj.Scope.LookupField(ma.Member)
                     ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot
-                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         BoxedValue.GateRead(field, ma.Member, this);
         if (!CheckFieldAccess(field, obj)) throw BoxedValue.AccessDenied(field, ma.Member);
         CheckSlot(field, ma.Member);
@@ -397,7 +397,7 @@ public partial class Interpreter
             if (sa.Define && v != null && !nf.Scope.Contains(id.Name)) v = null;
             if (v == null)
             {
-                if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'");
+                if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
                 val = SlotValue(val);
                 v = nf.Scope.DefineOrReplace(id.Name, BuiltinClasses.Any, val);
                 v.SetAttr(Attr.By);
@@ -444,7 +444,7 @@ public partial class Interpreter
         // 同 StepSlot:这里只**换槽**,不走 getter/setter,所以不绑接收者
         var field = obj.Scope.LookupField(ma.Member)
                     ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot
-                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'");
+                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
         field.ReplaceSlot(SlotValue(val2));

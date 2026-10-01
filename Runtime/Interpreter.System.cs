@@ -51,6 +51,18 @@ public partial class Interpreter
         DefType("Any", BuiltinClasses.Any);
         DefType("Every", BuiltinClasses.Every);
         DefType("Exception", BuiltinClasses.Exception);
+        // 错误那一族 —— 引擎报错时挑的就是它们(见 Runtime/BuiltinClasses.Errors.cs)
+        DefType("TypeError", BuiltinClasses.TypeError);
+        DefType("NameError", BuiltinClasses.NameError);
+        DefType("AttributeError", BuiltinClasses.AttributeError);
+        DefType("IndexError", BuiltinClasses.IndexError);
+        DefType("KeyError", BuiltinClasses.KeyError);
+        DefType("ZeroDivisionError", BuiltinClasses.ZeroDivisionError);
+        DefType("AssertionError", BuiltinClasses.AssertionError);
+        DefType("ArgumentError", BuiltinClasses.ArgumentError);
+        DefType("ValueError", BuiltinClasses.ValueError);
+        DefType("IoError", BuiltinClasses.IoError);
+        DefType("RegexError", BuiltinClasses.RegexError);
         DefType("Json", BuiltinClasses.Json);
 
         // ---- 常量 ----
@@ -70,7 +82,8 @@ public partial class Interpreter
         // handler 栈那种库的状态不在引擎视野里(见 predefined.rav 的 `callcc`)。
         // 错误交给谁:库注册一个钩子(引擎不认识 handler 栈),没人接时库调 Unhandled 交回引擎报告
         DefFn("SetErrorHook", FunctionVal.From(a => {
-            _errorHook = a as FunctionVal ?? throw new RuntimeException($"SetErrorHook 要一个函数，得到 {a.Type}");
+            _errorHook = a as FunctionVal
+                ?? throw new RuntimeException($"SetErrorHook 要一个函数，得到 {a.Type}", ErrorKind.Argument);
             return VoidVal.Instance;
         }));
         DefFn("Unhandled", FunctionVal.From(Unhandled));
@@ -171,8 +184,10 @@ public partial class Interpreter
         }));
         DefFn("Assert", FunctionVal.From((cond, msg) =>
         {
-            if (cond is not BoolVal b) throw new RuntimeException("assert 需要 bool 参数");
-            if (!b.Value) throw new RuntimeException(msg is StringVal s ? s.Value : "assertion failed: " + Show(cond));
+            if (cond is not BoolVal b)
+                throw new RuntimeException("assert 需要 bool 参数", ErrorKind.Argument);
+            if (!b.Value)
+                throw new RuntimeException(msg is StringVal s ? s.Value : "assertion failed: " + Show(cond), ErrorKind.Assert);
             return VoidVal.Instance;
         }));
         // 参数**必须是字符串**:从前非字符串会退化成空消息,CLI 打出一个光秃秃的 `Error:` ——
@@ -209,12 +224,16 @@ public partial class Interpreter
         }
 
         static string PathOf(RuntimeValue v, string what)
-            => v is StringVal s ? s.Value : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}");
+            => v is StringVal s
+                ? s.Value
+                : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}", ErrorKind.Argument);
 
         static void NeedFile(string p, string what)
         {
-            if (Directory.Exists(p)) throw new RuntimeException($"{what}: 这是个目录，不是文件 —— {p}");
-            if (!File.Exists(p)) throw new RuntimeException($"{what}: 找不到文件 —— {p}");
+            if (Directory.Exists(p))
+                throw new RuntimeException($"{what}: 这是个目录，不是文件 —— {p}", ErrorKind.Io);
+            if (!File.Exists(p))
+                throw new RuntimeException($"{what}: 找不到文件 —— {p}", ErrorKind.Io);
         }
 
         static void NeedParentDir(string p, string what)
@@ -226,7 +245,7 @@ public partial class Interpreter
             if (cut <= 0) return;
             var dir = p[..cut];
             if (!Directory.Exists(dir))
-                throw new RuntimeException($"{what}: 目录不存在 —— {dir}");
+                throw new RuntimeException($"{what}: 目录不存在 —— {dir}", ErrorKind.Io);
         }
 
         DefFn("FileExists", FunctionVal.From(a => Fs("FileExists", () => new BoolVal(File.Exists(PathOf(a, "FileExists"))))));
@@ -452,7 +471,7 @@ public partial class Interpreter
             // 漏出去就是"解释器内部错误"、Ravel 的 try 接不住(和 Json 那边同款说明)
             if (!DateTime.TryParseExact(text, fmt, CultureInfo.InvariantCulture,
                                         DateTimeStyles.None, out var t))
-                throw new RuntimeException($"ParseTime: 读不动 —— '{text}' 对不上格式 '{fmt}'");
+                throw new RuntimeException($"ParseTime: 读不动 —— '{text}' 对不上格式 '{fmt}'", ErrorKind.Value);
             return new BigIntVal(new DateTimeOffset(t).ToUnixTimeMilliseconds());
         })));
 
@@ -480,7 +499,7 @@ public partial class Interpreter
         {
             var name = EnvName(a, "Env");
             var v = Environment.GetEnvironmentVariable(name);
-            if (v == null) throw new RuntimeException($"环境变量 '{name}' 没有（想给个默认值用 System.EnvOr）");
+            if (v == null) throw new RuntimeException($"环境变量 '{name}' 没有（想给个默认值用 System.EnvOr）", ErrorKind.Key);
             return new StringVal(v);
         })));
 
@@ -536,7 +555,7 @@ public partial class Interpreter
                                    or OverflowException
                                    or NotSupportedException or System.Security.SecurityException)
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}");
+            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
         }
     }
 

@@ -34,6 +34,20 @@ internal static partial class BuiltinClasses
         Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
         BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
         Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
+        // 错误那一族共用同一份预设类体(Message 字段 + 那个构造器)。类体**不可变**,
+        // 几层类体又都平铺进同一个实例作用域,所以共用一份不会有副作用。
+        var errBody = Exception.ClassBody;
+        TypeError.ClassBody = errBody;
+        NameError.ClassBody = errBody;
+        AttributeError.ClassBody = errBody;
+        IndexError.ClassBody = errBody;
+        KeyError.ClassBody = errBody;
+        ZeroDivisionError.ClassBody = errBody;
+        AssertionError.ClassBody = errBody;
+        ArgumentError.ClassBody = errBody;
+        ValueError.ClassBody = errBody;
+        IoError.ClassBody = errBody;
+        RegexError.ClassBody = errBody;
         Json.ClassBody = PresetCtor(MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
         List.ClassBody = PresetCtor(MakeDefaultCaster(List));
         // `Continuation f` —— 把一枚函数**当成**续延(调它 = 调那枚函数)。
@@ -69,7 +83,7 @@ internal static partial class BuiltinClasses
     private static FunctionVal MakeDefaultCaster(ObjectVal type)
         => MakeCaster(val => val is DefaultVal
             ? ConvertDirect(type, val)
-            : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用"));
+            : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用", ErrorKind.Type));
 
     /// <summary>收进 int32，越界明确报错。以前是直接 `(int)` 硬转，两头都不对：
     /// BigInteger 那条越界会抛 C# 的 OverflowException 一直漏到顶层（`int 9999999999999` 就崩），
@@ -99,7 +113,7 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (int.TryParse(s.Value, out var n)) return new IntVal(n);
-            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）");
+            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）", ErrorKind.Value);
         }
 
         if (val is BoolVal b) return new IntVal(b.Value ? 1 : 0);
@@ -108,7 +122,7 @@ internal static partial class BuiltinClasses
         // 分数先在 BigInteger 里除，免得 int 除法自己先溢出（MinValue / -1）
         if (val is FractionVal fr) return FromBig((System.Numerics.BigInteger)fr.Num / fr.Den);
         if (val is BigFractionVal bfr) return FromBig(bfr.Num / bfr.Den);
-        throw new RuntimeException($"无法将 {val.Type} 转换为 int");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 int", ErrorKind.Type);
     }
 
     private static RuntimeValue CastToFloat(RuntimeValue val)
@@ -122,10 +136,10 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (double.TryParse(s.Value, out var n)) return new FloatVal(n);
-            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 float");
+            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 float", ErrorKind.Value);
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 float");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 float", ErrorKind.Type);
     }
 
     // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型
@@ -133,7 +147,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue CastToBool(RuntimeValue val)
         => val is DefaultVal ? new BoolVal(false)
             : val is BoolVal b ? b
-            : throw new RuntimeException($"无法将 {val.Type} 转换为 bool");
+            : throw new RuntimeException($"无法将 {val.Type} 转换为 bool", ErrorKind.Type);
 
     private static RuntimeValue CastToString(RuntimeValue val)
         => val is DefaultVal ? new StringVal("")
@@ -162,7 +176,7 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (System.Numerics.BigInteger.TryParse(s.Value, out var n)) return new BigIntVal(n);
-            throw new RuntimeException("无法将字符串转换为 bigint");
+            throw new RuntimeException("无法将字符串转换为 bigint", ErrorKind.Value);
         }
 
         if (val is FloatVal f)
@@ -171,7 +185,7 @@ internal static partial class BuiltinClasses
             return double.IsNaN(f.Value) || double.IsInfinity(f.Value)
                 ? throw new RuntimeException($"数值 {f} 不能转换为 bigint（NaN 和无穷没有对应的整数）")
                 : new BigIntVal((System.Numerics.BigInteger)f.Value);
-        throw new RuntimeException($"无法将 {val.Type} 转换为 bigint");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 bigint", ErrorKind.Type);
     }
 
     private static RuntimeValue CastToFraction(RuntimeValue val)
@@ -192,7 +206,7 @@ internal static partial class BuiltinClasses
             throw new RuntimeException("无效的分数字符串");
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 fraction");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 fraction", ErrorKind.Type);
     }
 
     private static RuntimeValue CastToBigFraction(RuntimeValue val)
@@ -206,7 +220,7 @@ internal static partial class BuiltinClasses
                 : new BigFractionVal(GetBi(val), GetBi(d)));
         if (val is FractionVal fr) return new BigFractionVal(fr.Num, fr.Den);
         if (val is BigFractionVal bf) return bf;
-        throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction", ErrorKind.Type);
     }
 
     /// <summary>`Exception` 的类体:一条 `Message` 字段 + 一条构造器。
@@ -248,17 +262,6 @@ internal static partial class BuiltinClasses
 
     /// <summary>异常的消息字段名。</summary>
     internal const string MessageMember = "Message";
-
-    /// <summary>引擎自己造一个异常实例(Ravel 侧报错要交给错误钩子时用)。
-    /// 不走构造器 —— 那样要推帧;这里直接建对象、把 `Message` 放进去,和 `StepClassInit` 一个形状。</summary>
-    internal static ObjectVal NewException(string message)
-    {
-        var scope = new Scope(Exception.ClassBody?.CaptureScope);
-        var obj = new ObjectVal(Exception, scope);
-        scope.Define(ObjectVal.ThisMember, Exception, obj);
-        scope.Define(MessageMember, String, new StringVal(message));
-        return obj;
-    }
 
     /// <summary>这个值是不是 `Exception` 一族?是的话交回它的 `Message`(显示和错误回传都要用)。
     /// 不是就交回 null —— 调用方自己决定怎么显示。</summary>
@@ -302,7 +305,7 @@ internal static partial class BuiltinClasses
             return val;
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}");
+        throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}", ErrorKind.Type);
     }
 
 }

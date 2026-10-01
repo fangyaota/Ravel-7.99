@@ -160,7 +160,7 @@ public partial class Interpreter
 
         _handed = ex;
         // 钩子体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
-        CallInto(_top.Parent ?? _top, hook, BuiltinClasses.NewException(ex.Message));
+        CallInto(_top.Parent ?? _top, hook, BuiltinClasses.NewException(ex.Message, ex.Kind));
         return true;
     }
 

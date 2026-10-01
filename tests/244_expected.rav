@@ -51,7 +51,7 @@ print "end"
 # 50
 # true
 # 105
-# Expected { Has = false, Inner = (), Err = Exception {...} }
+# Expected { Has = false, Inner = (), Err = TypeError {...} }
 # 6
 # 6
 # true

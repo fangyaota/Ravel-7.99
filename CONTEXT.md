@@ -250,6 +250,9 @@ Object (parent=自己)
 ├── BaseInterface [Interface]  ← **所有接口的基类**,它自己**也是**一个接口;`interface { … }`
 │                              造出来的接口都挂在这下面(它类体里那份 `init` 就这么继承下去)
 ├── Void / Exception / Ravel(模块) / Scope / Property
+│                      └── 错误那一族:TypeError / NameError / AttributeError / IndexError /
+│                          KeyError / ZeroDivisionError / AssertionError / ArgumentError /
+│                          ValueError / IoError / RegexError(见 BuiltinClasses.Errors.cs)
 ├── Any (顶类型, parent=自己)
 └── Every (底类型, parent=自己)
 ```
@@ -699,7 +702,9 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 **异常处理整套也在库里**。引擎只有一个"错误钩子":冒泡上来一个 `RuntimeException` 时,它把
 `System.SetErrorHook` 注册的那个函数调起来(库启动时注册的是 predefined.rav 的 `onError`),
 剩下的事库自己定 —— 有人接就弹掉 `Ex.HandlerStack` 栈顶那个 handler 再调它(`try` 的 handler 会
-escape 回它那个 callcc),没人接就 `System.Unhandled e` 把控制交回引擎去报告(引擎**原样**抛出
+escape 回它那个 callcc),没人接就 `System.Unhandled e` 把控制交回引擎去报告。
+交给钩子的那个值是 `BuiltinClasses.NewException(message, kind)` 现造的 **Ravel 对象**:`typeof e` 就是
+那一族(`TypeError` / `NameError` / …),`e.Message` 是原话,所以 `try { … } (e: TypeError) => …` 接得准。(引擎**原样**抛出
 原来那个异常,位置与调用栈都不变,也不会混进库的帧)。非函数的栈顶(手写 `Ex.HandlerStack = [1]`)
 照样当"没人接"。于是引擎对"handler 栈"这件事**零知识** —— 和它不知道 `while` / `try` 是什么一样。
 
@@ -1497,7 +1502,10 @@ Error: 未定义的变量 'missing'
 
 （取自 `tests/152_error_report.rav` 的实际输出——它是精确比对用例，所以这段不会漂。）
 
-- **抛出点只管给消息**：90 多处 `throw new RuntimeException("...")` 不用操心位置。
+- **抛出点只管给消息**(和**哪一族**)：180 多处 `throw new RuntimeException("...")` 不用操心位置。
+  族 = `ErrorKind`(类型 / 名字 / 成员 / 下标 / 键 / 除零 / 断言 / 参数 / 值 / IO / 正则),
+  由 `HandToRavelHandler` 那**一处**翻成 Ravel 的对应类(见 `Runtime/BuiltinClasses.Errors.cs`)——
+  引擎报错是引擎的事,分类也归引擎;库里再定义一遍就成了两处各管一半。没归类的落基类 `Exception`。
   位置和栈由求值器在冒泡时补（`Interpreter.Stack.cs` 的 `StepOnce` → `Locate`）——
   `catch (...) when (!ex.Located)` 保证只有**最内层**补，外层不覆盖成更外侧的位置。
 - **帧链就是调用栈**，沿 `Parent` 收集即可，这是显式帧栈架构白捡的好处。
