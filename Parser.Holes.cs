@@ -26,6 +26,12 @@ public partial class Parser
         // 键也是表达式了(`{"a": 1}`),所以两栏都要列 —— 漏了键的话 `{_: v}` 里的洞
         // 会一路带到求值器(正是这个 switch 从前漏掉 Set/Dict 的那个毛病)
         DictLiteral d => d.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
+        // 唯一一种**要钻进去**的 lambda:语法糖生成的(`?.` / `??` / `??=` 脱糖时那几枚,
+        // 见 `Parser.Expressions`)。它们只是"把这段表达式挪个地方",不引入自己的 `_`
+        // 作用域 —— 里面的洞还是**外层语句**的洞,不收的话会一路带到求值器报
+        // 「无法求值的节点类型: HoleExpr」(`_ ?? 1` 就是这么坏的)。
+        // 用户写的 lambda 照旧是边界,一个都不钻。
+        LambdaExpr { Sugar: true } l when l.Body.Statements is [ExpressionStatement es] => [es.Expr],
         _ => [],
     };
 
@@ -86,6 +92,9 @@ public partial class Parser
             SetLiteral s => new SetLiteral([.. s.Elements.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
             DictLiteral d => new DictLiteral([.. d.Entries.Select(entry =>
                 new DictEntry(ReplaceHoles(entry.Key), ReplaceHoles(entry.Value)))]) { Line = e.Line, Column = e.Column },
+            // 糖生成的 lambda:体一律是"一条表达式语句"(见 `Children` 那条的理由)
+            LambdaExpr { Sugar: true } l when l.Body.Statements is [ExpressionStatement es]
+                => l with { Body = l.Body with { Statements = [es with { Expr = ReplaceHoles(es.Expr) }] } },
             _ => e
         };
     }

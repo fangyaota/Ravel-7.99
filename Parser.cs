@@ -11,6 +11,11 @@ public partial class Parser(List<Token> tokens, string? source = null)
 
     private int _holeCount;
 
+    /// <summary>`?.` / `??` / `??=` 脱糖时那几枚闭包的参数名(`_nil{n}`)。
+    /// 全进程单调递增,不归零 —— 名字只要不撞就行(`_holeCount` 每条语句归零是因为
+    /// 它代表"第几个洞"这个语义,这个纯粹是"取个没人用的名字")。</summary>
+    private int _nilCount;
+
     /// <summary>当前括号/块的嵌套深度(见 Nested)</summary>
     private int _depth;
     private const int MaxDepth = 400;

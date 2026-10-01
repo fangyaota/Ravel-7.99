@@ -130,3 +130,42 @@ readonly callcc := (f: function) => {
 # 只能放在这儿 —— 上面那段 `ravel "Ex"` 得先把模块建出来,`ravel ""` 得先把作用域换回全局。
 readonly try := Ex.Try
 readonly throw := Ex.Throw
+
+# ── 空值那三条:`.?` / `??` / `??=` 的落点 ──
+#
+# 词法和语法在引擎那层(`TokenType.QuestionDot` / `Coalesce` / `CoalesceEqual`,
+# 解析期就地折成对下面这四条的调用),**"空"是什么意思、Option 要不要包回去**在这儿 ——
+# 和 `if` / `while` / `foreach` 一个路子:控制流用 Ravel 写,引擎不掺和。
+#
+# 「空」= `()`(没有值)或 `None`(Option 里没有)。这两样都表示"没有",
+# 但**不是一回事**:`Some ()` 是"有个值,值是 `()`",不算空。
+
+readonly IsNothing := (v: object) => {
+    if { v is void; } { true; } { if { v is Option; } { v.IsNone (); } { false; } }
+}
+
+# `a?.b c` → `NilChain (() => { a; }) (v) => { v.b c; }`
+#
+# 空**原样**短路(`()` 给 `()`、`None` 给 `None`);`Some x` 拿着里面的值走完整条链,
+# 再**包回去** —— 所以 `u?.Name ()` 还是 Option,一路 `?.` 下去形状不变,最后用 `??` 收口。
+# 别的值(普通对象)照常取成员,不包。
+readonly NilChain := (get: function step: function) => {
+    v := get ()
+    if { (IsNothing v); } { v; } { if { v is Option; } { Some (step (v.Value ())); } { step v; } }
+}
+
+# `a ?? b` → `NilOr (() => { a; }) (() => { b; })` —— 惰性:右边要用才跑
+#
+# 空就给后备,否则把值交出来(`Some x` 交 `x`,普通值交自己)。
+readonly NilOr := (get: function fallback: function) => {
+    v := get ()
+    if { (IsNothing v); } { fallback (); } { if { v is Option; } { v.Value (); } { v; } }
+}
+
+# `x ??= v` → `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`
+#
+# **空才写**:不空就一个字符都不碰(连 setter 都不调),原值原样交回。
+readonly NilFill := (get: function set: function fallback: function) => {
+    v := get ()
+    if { (IsNothing v); } { set (fallback ()); } { v; }
+}

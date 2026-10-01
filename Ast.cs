@@ -83,7 +83,19 @@ public record CallExpr(Expression Function, Expression Argument) : Expression;
 public record MemberAccess(Expression Object, string Member) : Expression;
 public record BinaryExpr(Expression Left, string Op, Expression Right) : Expression;
 public record UnaryExpr(string Op, Expression Operand) : Expression;
-public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression;
+public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression
+{
+    /// <summary>这枚 lambda 是**语法糖**生成的(不是用户写在那儿的)。
+    ///
+    /// 只为一件事:`_` 占位符消糖那趟(`Parser.Holes`)平时把 lambda 当**闭包边界**
+    /// —— 里面的 `_` 归内层,不往外收。而糖生成的那些(lambda 只是"把这段表达式挪个地方",
+    /// 并不引入自己的 `_` 作用域)**不是**边界:`_ ?? 1` 里那个 `_` 还是外层语句的洞,
+    /// 不收的话它会一路带到求值器报「无法求值的节点类型: HoleExpr」。
+    ///
+    /// 它们的体**一律**是"一条表达式语句"(见 `Parser.Expressions` 那三条糖的构造),
+    /// 所以消糖那趟只认那一种形状。</summary>
+    public bool Sugar { get; init; }
+}
 public record PipeExpr(Expression Left, Expression Right) : Expression;
 public record ListLiteral(List<Expression> Elements) : Expression;
 /// <summary>一个**区间**:`[1..3]`(全闭)/ `(3..5)`(全开)/ `[1..5)` / `(1..5]`。

@@ -110,6 +110,12 @@ public class Lexer(string source, string? file = null)
             if (TryMatch("*=", TokenType.StarEqual, tokens)) continue;
             if (TryMatch("/=", TokenType.SlashEqual, tokens)) continue;
             if (TryMatch("%=", TokenType.PercentEqual, tokens)) continue;
+            // `?` 这一族(**空值**那三条):`??=` 排在 `??` 前面,`?.` 自成一对。
+            // 单独的 `?` 不是这套语言里的东西(没有三目),见下面单字符表后面那句。
+            if (TryMatch("??=", TokenType.CoalesceEqual, tokens)) continue;
+            if (TryMatch("??", TokenType.Coalesce, tokens)) continue;
+            if (TryMatch("?.", TokenType.QuestionDot, tokens)) continue;
+
             // 两个点连写 = **区间**的分隔符(`[1..3]` / `(3..5)`),得排在单字符 `.` 前面。
             // 数字那边不受影响:`ReadNumber` 只在 `.` 后面跟数字时才当小数点,
             // 所以 `1..3` 读成 `1` + `..` + `3`,而 `1.5` 还是 float、`a.b` 还是取成员。
@@ -181,6 +187,12 @@ public class Lexer(string source, string? file = null)
                 tokens.Add(ReadIdentifier());
                 continue;
             }
+
+            // 单个 `?` 落到这儿说明后面没跟 `.` / `?`。这套语言没有三目,
+            // 直说它只在这三条里出现,比"未预期的字符"有用。
+            if (c == '?')
+                throw new SyntaxException("'?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）",
+                    new SourceSpot(file, _line, _col));
 
             throw new SyntaxException($"未预期的字符 '{c}'", new SourceSpot(file, _line, _col));
         }

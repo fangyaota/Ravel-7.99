@@ -1,0 +1,112 @@
+# 空值那三条语法糖:`?.` / `??` / `??=`。
+#
+# **「空」= `()` 或 `None`**(`Some ()` 不算 —— 那是"有个值,值是 ()")。
+# 语义在库里(`lib/predefined.rav` 的 IsNothing / NilChain / NilOr / NilFill),
+# 引擎只管把这三条脱糖成对它们的调用(词法/语法见 Lexer、Parser.Expressions)。
+#
+#     a ?? b    空就给 b(**惰性**:要用才求值);`Some x` 交 `x`
+#     a?.b c    空**原样**短路;`Some x` 拿着 `x` 走完整条链(含调用)再包回去
+#     x ??= v   空才写;不空一个字符都不碰(连 setter 都不调)
+
+# ── `??`:空就给后备 ──
+nothing := ()
+print (nothing ?? "后备")
+print (5 ?? "后备")
+print ("有值" ?? "后备")
+print ((Some 7) ?? 0)          # Some 交的是**值**(不是 Option 本身)
+print ((None ?? 0))
+
+# ── `?.` ──
+print (nothing?.Text)                    # () → 原样短路
+print ((None?.Count ()) ?? "空")          # None → 短路
+print ((Some "abc")?.Length ())           # Some 里的值走完链,**再包回去**
+print (((Some "abc")?.Length ()) ?? -1)   # 收口时解包
+print ((None?.Length ()) ?? -1)
+
+# 普通对象照常取成员(不包)
+d := {"a": 1 "b": 2}
+print ((d?.Count ()) ?? -1)
+
+# 短路:后面的调用**不该跑**
+boom := () => { print "不该跑"; 0; }
+print ((None?.Value ()) ?? "没跑")
+print ((nothing?.F ()) ?? "没跑")
+
+# ── `??=`:空才写 ──
+Holder ::= class {
+    Name: object = ()
+    Hits: int = 0
+}
+h := Holder ()
+print (h.Name ??= "第一次")
+print (h.Name ??= "第二次（不该盖）")
+print h.Name
+print (h.Hits ??= 7)          # 0 是**值**不是空 —— 不写
+print h.Hits
+h.Hits = 5
+print (h.Hits ??= 100)
+print h.Hits
+
+# 不空就**一个字符都不碰**:setter 里记账,看得见
+Counted ::= class {
+    Writes: int = 0
+    Storage: object = ()
+    by Value := property (() => { Storage; }) ((v: object) => { Writes += 1; Storage = v; })
+}
+c := Counted ()
+print (c.Value ??= "写上")     # 空 → 写一次
+print c.Writes
+print (c.Value ??= "再来")     # 不空 → 一次都不写
+print c.Writes
+
+# 成员那条:接收者只求一次
+Times := 0
+mk := () => { Times += 1; c; }
+print (mk () @ .Value ??= "不该写")
+print Times
+
+# ── 和 `_` 占位符处得来:糖生成的那几枚闭包**不是**闭包边界 ──
+# (它们只是把表达式挪个地方,里面的 `_` 还是外层语句的洞 —— 见 Parser.Holes 的 Children)
+pick := (_ ?? "兜底")
+print (pick ())
+print (pick (Some "有"))
+has := (_?.Length ())
+print (((has "abc") ?? -1))
+print (has (None))
+
+# ── 报错:左值不是变量/成员、单独的 `?` ──
+try { eval "(1 + 2) ??= 3"; } (e: Exception) => { print ("1: " + string e); }
+try { eval "1 ? 2"; } (e: Exception) => { print ("2: " + string e); }
+# --- expected ---
+# 后备
+# 5
+# 有值
+# 7
+# 0
+# ()
+# 空
+# Option { Has = true, Inner = 3 }
+# 3
+# -1
+# 2
+# 没跑
+# 没跑
+# 第一次
+# 第一次
+# 第一次
+# 0
+# 0
+# 5
+# 5
+# 写上
+# 1
+# 写上
+# 1
+# 写上
+# 1
+# 兜底
+# 有
+# 3
+# Option { Has = false, Inner = () }
+# 1: '??=' 的左边得是变量或成员（就像 '=' 那样）
+# 2: '?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）

@@ -69,6 +69,11 @@ public enum TokenType
     Comma,         // ,  (暂时保留，报错用)
     Dot,           // .
     DotDot,        // .. —— 区间 `[1..3]` / `(3..5)` 的分隔符
+    QuestionDot,   // ?. —— 空值穿透的成员访问(`a?.b c`:空就短路)
+
+    // 空值合并(语法糖,见 Parser.Expressions 那三条)
+    Coalesce,      // ??  a 空就用 b
+    CoalesceEqual, // ??= 空才写
 
     // 特殊
     Newline,
