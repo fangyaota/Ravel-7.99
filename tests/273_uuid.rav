@@ -1,0 +1,48 @@
+# `Uuid`(见 lib/uuid.rav)。**要显式引用**。
+#
+# 值本身是随机的,钉不住;钉的是**形状与性质** —— 版本位、variant 位、往返、
+# V7 的"按时间排",以及形状不对的认得出来。
+using "uuid.rav"
+
+u := Uuid.V4 ()
+print ((u.Length ()) == 36)
+print (Uuid.IsValid u)
+print (Uuid.Version u)                      # 4
+print ((Uuid.Bytes u).Count ())             # 16 个字节
+print ((Uuid.FromBytes (Uuid.Bytes u)) == u)   # 转一圈回来还是它
+
+print (Uuid.Nil ())
+print (Uuid.Version (Uuid.Nil ()))          # 版本位是 0
+
+v := Uuid.V7 ()
+print (Uuid.Version v)                      # 7
+print ((Uuid.Time v) > ((System.NowMs ()) - 60000))   # 里头那个时间戳就是刚才
+print (Uuid.Time u)                         # V4 没有时间戳 → -1
+
+print ((Uuid.V4 ()) == (Uuid.V4 ()))        # 两枚不会一样
+print ((Uuid.V7 ()) < (Uuid.V7 ()))         # V7 按时间排:先造的在前
+
+# ── 形状不对的:认得出来(不当它是 uuid) ──
+print (Uuid.IsValid "nope")
+print (Uuid.IsValid "9f1b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4")      # 少一位
+print (Uuid.IsValid "9f1b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5")        # 没有连字符
+print (Uuid.IsValid "9f1b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4g")      # 有个 g
+print (Uuid.Version "nope")                                     # 认不出来 → 0
+# --- expected ---
+# true
+# true
+# 4
+# 16
+# true
+# 00000000-0000-0000-0000-000000000000
+# 0
+# 7
+# true
+# -1
+# false
+# true
+# false
+# false
+# false
+# false
+# 0

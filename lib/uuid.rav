@@ -1,0 +1,136 @@
+# `Uuid` —— 那种 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` 的标识。**要显式引用**:`using "uuid.rav"`。
+#
+#     Uuid.V4 ()        # 随机(最常用)—— 每一枚都不重样
+#     Uuid.V7 ()        # **按时间排**:同一毫秒内也大致有序(数据库主键喜欢它)
+#     Uuid.Nil ()       # 全零那枚(哨兵值)
+#     Uuid.IsValid s    # 形状对不对
+#     Uuid.Version s    # 第几代(4 / 7;认不出给 0)
+#     Uuid.Bytes s      # → 16 个字节;`Uuid.FromBytes bs` 转回来
+#     Uuid.Time s       # V7 里那个毫秒时间戳(V4 没有,给 -1)
+#
+# **不占引擎**:随机数是现成的 `System.RandomBytes`,时间是 `System.NowMs` ——
+# 剩下的就是"哪几位置成什么"和格式化,写在库里刚好。
+#
+# 位按 RFC 9562 摆:第 7 个字节的高 4 位是**版本**,第 9 个字节的高 2 位是 **variant**(10xx)。
+# 摆对了别人才认得出这是 UUID,也才知道是哪一代。
+using "encoding.rav"     # `Encoding.Hex` / `Unhex`
+
+ravel "Uuid"
+
+# 32 个十六进制字符 → 8-4-4-4-12(`Skip` 一段段断开 —— 调用后面直接接 `.成员` 要 `@`,
+# 这里用不着为它绕)
+readonly Format := (h: string) => {
+    rest := h
+    a := rest.Take 8
+    rest = rest.Skip 8
+    b := rest.Take 4
+    rest = rest.Skip 4
+    c := rest.Take 4
+    rest = rest.Skip 4
+    d := rest.Take 4
+    e := rest.Skip 4
+    a + "-" + b + "-" + c + "-" + d + "-" + e;
+}
+
+# 逐字节摆位:头 6 个字节照 `stamp`(V7 的时间戳;V4 给 `()`,那就用随机的),
+# 第 7 / 第 9 个字节按版本和 variant 改,其余原样。
+readonly Shape := (bytes: list who: int stamp: object) => {
+    out := []
+    i := 0
+    while { i < 16; } {
+        v := int (bytes.At i)
+        (i < 6) {
+            ((typeof stamp) == list) { v = int (stamp.At i); } { 0; }   # 条件整个括起来
+        } { 0; }
+        (i == 6) { v = (v & 15) | (who * 16); } { 0; }     # 版本塞进高 4 位
+        (i == 8) { v = (v & 63) | 128; } { 0; }            # variant = 10xxxxxx
+        out.Add v
+        i += 1
+    }
+    out
+}
+
+# 随机那一代
+readonly V4 := () => { Format (Encoding.Hex (Shape (System.RandomBytes 16) 4 ())); }
+
+# **按时间排**那一代:头 6 个字节是毫秒时间戳(大端)—— 于是先后造出来的大致按字典序排,
+# 数据库拿它当主键不会把索引捅得稀碎。
+readonly V7 := () => {
+    t := System.NowMs ()
+    stamp := []
+    k := 0
+    while { k < 6; } { stamp.Add (TimestampByte t (8 * (5 - k))); k += 1; }
+    Format (Encoding.Hex (Shape (System.RandomBytes 16) 7 stamp));
+}
+
+# 时间戳里第 `shift` 位那一个字节。用**除法**取,不碰位运算 ——
+# bigint 那边没有 `&`(只有移位),而毫秒这个数量级 int 装不下。
+readonly TimestampByte := (ms: object shift: int) => {
+    int ((((bigint ms) / ((bigint 1) << shift)) % 256));
+}
+
+readonly Nil := () => { "00000000-0000-0000-0000-000000000000"; }
+
+# 形状:36 个字符、四个连字符在 8 / 13 / 18 / 23,其余是十六进制
+readonly IsValid := (s: string) => {
+    ((s.Length ()) == 36) {
+        ok := true
+        i := 0
+        while { i < 36; } {
+            c := s.At i
+            (IsDashAt i) {
+                (c != '-') { ok = false; } { 0; }
+            } {
+                (IsHex c) { 0; } { ok = false; }
+            }
+            i += 1
+        }
+        ok
+    } { false; }
+}
+
+# 那几个位置该是连字符(写成一层层的块,不是一串 `||` 套括号 —— 那种数括号数错一次就再见)
+readonly IsDashAt := (i: int) => {
+    (i == 8) { true; } {
+        (i == 13) { true; } {
+            (i == 18) { true; } { i == 23; }
+        }
+    }
+}
+
+readonly IsHex := (c: char) => {
+    ((c >= '0') && (c <= '9')) { true; } { IsHexLetter c; }
+}
+
+readonly IsHexLetter := (c: char) => {
+    ((c >= 'a') && (c <= 'f')) { true; } { (c >= 'A') && (c <= 'F'); }
+}
+
+# 第 13 个字符(下标 14)就是版本那一位
+readonly Version := (s: string) => { (IsValid s) { Digit (s.At 14); } { 0; } }
+
+readonly Digit := (c: char) => {
+    ((c >= '0') && (c <= '9')) { (int c) - 48; } {
+        ((c >= 'a') && (c <= 'f')) { (int c) - 87; } {
+            ((c >= 'A') && (c <= 'F')) { (int c) - 55; } { 0; }
+        }
+    }
+}
+
+readonly Bytes := (s: string) => { Encoding.Unhex (s.Replace "-" ""); }
+readonly FromBytes := (bs: list) => { Format (Encoding.Hex bs); }
+
+# V7 里那个毫秒时间戳(V4 没有 —— 给它 -1)
+readonly Time := (s: string) => {
+    ((Version s) == 7) {
+        bs := Bytes s
+        # 毫秒那个数量级 int 装不下 —— 从 bigint 起头往上并(`NowMs` 交回的也是 bigint)
+        ms := bigint 0
+        i := 0
+        while { i < 6; } {
+            ms = (ms * 256n) + (bigint (int (bs.At i)))
+            i += 1
+        }
+        ms
+    } { 0 - 1; }
+}
