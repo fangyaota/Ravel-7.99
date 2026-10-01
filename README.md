@@ -74,7 +74,7 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 
 - **REPL**:`dotnet out/ravel.dll` 不带参数就进,多页缓冲 + 高亮 + 光标(靠 Spectre.Console)。
 - **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test` 比对。
-- **VS Code 扩展**(`vscode-ravel/`):语法高亮 + 折叠(按 `{}` 分块、注释段)+ 跑当前文件 / 全量测试 / 开 REPL。
+- **VS Code 扩展**(`vscode-ravel/`):语法高亮 + 折叠(按 `{}` 分块、注释段)+ 跑当前文件 / 全量测试 / 开 REPL;括号匹配认区间的交叉括号(`[1..5)` / `(1..5]`)。
 - **全中文**:注释、文档、报错、提交信息。
 
 ## 编译运行

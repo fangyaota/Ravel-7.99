@@ -16,9 +16,20 @@
  * 判据必须和词法器一致,否则字符串里的 `{` 会被当成块开始。所以扫描带着一个**模式栈**:
  * `code` / `string` / `interp`(`"${…}"` 里那段是代码,而它里面还能再写字符串,所以得压栈)。
  *
+ * **括号怎么算配对**:Ravel 的区间**故意**让括号各带一半意思 —— `[1..5)` 左闭右开、
+ * `(1..5]` 左开右闭 —— 所以 `[` 收 `)` 是**对的**。见下面 `CLOSERS`
+ * (和 `language-configuration.json` 里那份 `brackets` 是同一套五对)。
+ *
  * @param {string} text
  * @returns {{start: number, end: number, kind: string}[]} 行号 0 基,`end` 是**含**的
  */
+/**
+ * 一个开括号后面,哪些右括号算"配对"。比 VS Code 默认那三对多两对 —— 中间这两对是 Ravel 区间
+ * 的正规写法:`[1..5)`(左闭右开)、`(1..5]`(左开右闭)。
+ * `language-configuration.json` 的 `brackets` 里写着同样五对(那边管括号着色与匹配,这边管折叠)。
+ */
+const CLOSERS = { '{': '}', '[': '])', '(': ')]' };
+
 function foldingRanges(text) {
     const lines = text.split(/\r\n|\r|\n/);
     const ranges = [];
@@ -56,8 +67,11 @@ function foldingRanges(text) {
             }
 
             if (ch === '}' || ch === ']' || ch === ')') {
-                const top = open.pop();
-                if (!top) continue;                              // 多出来的右括号:交给词法器去报
+                const top = open[open.length - 1];
+                // 配不上的右括号(打错了)当噪音:不动栈 —— 否则它会把一个还没闭合的 `{` 顶掉,
+                // 折叠区间就断在错的地方了
+                if (!top || !CLOSERS[top.ch].includes(ch)) continue;
+                open.pop();
                 if (top.interp) modes.pop();                     // `${…}` 收尾,回字符串
                 if (top.line < i) ranges.push({ start: top.line, end: i, kind: 'region' });
             }

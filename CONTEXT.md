@@ -28,6 +28,11 @@ VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前
 外加连着两行以上的整行注释段。判据在 `vscode-ravel/folding.js`（纯函数，
 `node vscode-ravel/test/folding.test.js` 直接跑），字符串与 `${…}` 插值里的括号不算。
 
+`language-configuration.json` 的 `brackets` 里**多写了两对交叉括号**（`[`↔`)`、`(`↔`]`）：
+区间的括号**各带一半意思**（`[1..5)` 左闭右开、`(1..5]` 左开右闭），不写这两对的话
+VS Code 会把 `[1..5)` 的 `[` 判成"没闭合"、`)` 判成"多余的"，括号对着色与匹配提示全红。
+`folding.js` 里那份 `CLOSERS` 是同一套五对。
+
 ## 文件结构
 
 ```
