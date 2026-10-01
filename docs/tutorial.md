@@ -2046,6 +2046,57 @@ Bits.Signed 4294967295   # -1
 
 **用例见 tests/267。**
 
+### 6.16 网络（`Http`）
+
+抓一个网页、调一个 API 都走这个模块，**要显式引用**：
+
+```ravel
+using "http.rav"
+
+r := Http.Get "https://example.com"
+r.status              # 200
+r.reason              # "OK"
+r.Ok ()               # 2xx?
+r.Text ()             # 正文（按响应头里的 charset 解，没写就是 UTF-8）
+r.Bytes ()            # 原样的字节表
+r.Json ()             # 直接当 Json 用（先看再转那一套都在）
+r.Header "content-type" / r.HeaderOr "x-nope" "-"
+r.Size ()             # 多少字节
+r.Save "page.html"    # 正文写进文件
+```
+
+**发什么**：`body` 给字符串就按 UTF-8 发，给 dict / list / set 就**自动当 JSON**
+（连 `content-type` 一起补上）：
+
+```ravel
+Http.Post "https://…/api" {"name": "Ravel"}      # JSON
+Http.Post "https://…/form" "a=1&b=2"             # 原样发字符串（记得自己写 content-type）
+Http.Put / Http.Patch / Http.Delete / Http.Head
+Http.Request {"url": … "method": "PATCH" "headers": {"x-token": "…"} "body": …
+              "retries": 2 "backoff": 500 "timeout": 30000 "follow": true}
+Http.Query "https://…/s" {"q": "中文 词"}         # 拼查询串（值先转义）
+```
+
+**下载与上传**：正文**边收边写**，不进内存 —— 几百 MB 也不怕（普通请求有条 16 MB 的封顶，
+超了会明确让你改用 `Download`）：
+
+```ravel
+d := Http.Download "https://…/a.zip" "a.zip"     # d.size 是写了多少字节
+Http.Upload "https://…/put" "a.zip"             # multipart，字段名默认 file
+Http.UploadTo "https://…/put" "a.zip" "upload"   # 换个字段名
+```
+
+几条规矩：
+
+- **4xx / 5xx 不是错误**，那是响应 —— 自己看 `status`。想"非 2xx 就抛"用
+  `Http.Expect r`（消息里带状态和正文的头一段）。
+- **连不上 / 超时 / 域名解析不了**才是错误，是 `IoError`，消息里带 URL 和原因。
+- **同步**：一个请求等一个，回来了才往下走。（以后加并发时这一层不变 —— 见 CONTEXT。）
+- 老编码认：响应头写着 `charset=gbk` 的老网页照样解得对。
+
+**用例见 tests/268（离线）、tests/269（真发请求，靠运行器起的回环服务器）；
+想真出网看 `examples/http.rav`。**
+
 ## 七、类
 
 ### 7.1 类就是一个对象

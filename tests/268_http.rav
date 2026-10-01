@@ -1,0 +1,60 @@
+# `Http` —— 网络那一层(见 lib/http.rav)。**要显式引用**。
+#
+# 这一条**不连网**:钉的是查询串、响应对象那几个纯函数、以及出错时的文案。
+# 真发请求的那条在 269(它要靠 `ravel test` 起的回环服务器)。
+using "http.rav"
+using "encoding.rav"
+
+# ── 查询串:值做百分号转义;URL 里已经有 `?` 就用 `&` 接 ──
+print (Http.Query "http://x/y" {})
+print (Http.Query "http://x/y" {"a": 1})
+print (Http.Query "http://x/y" {"a": 1 "b": "x y&z"})
+print (Http.Query "http://x/y?z=1" {"a": 1})
+
+# ── 网址不对 / 连不上:当场说人话 ──
+# (不能用 .NET 自己那句:它跟着系统语言变,而这几行是要被钉住的)
+try { Http.Get "这不是个网址"; } (e: Exception) => { print ("1: " + string e); }
+try { Http.Get "ftp://x/"; } (e: Exception) => { print ("2: " + string e); }
+try { Http.Get "http://127.0.0.1:1/"; } (e: Exception) => { print ("3: " + string e); }
+
+# ── 响应对象:手搓一个,只看那几个纯函数 ──
+r := Response {"status": 404 "reason": "Not Found" "headers": {"content-type": "text/plain; charset=utf-8" "x-n": "1"} "body": (Encoding.Utf8 "没有这一页") "url": "http://x/nope"}
+print (r.status)
+print (r.reason)
+print (r.Ok ())
+print (r.Text ())
+print (r.Size ())
+print (r.Header "content-type")
+print (r.HeaderOr "x-none" "-")
+print (r.Charset ())
+print (r.Header "x-N")             # 名字不区分大小写(引擎那边一律折成小写)
+
+# 非 2xx 才炸,消息里带状态和一段正文
+try { Http.Expect r; } (e: Exception) => { print ("4: " + string e); }
+
+# 2xx 原样交回
+ok := Response {"status": 201 "reason": "Created" "headers": {} "body": [] "url": "http://x"}
+print ((Http.Expect ok).status)
+
+# 非 ASCII 的值走 UTF-8 的百分号编码(和浏览器地址栏一致)
+print (Http.Query "http://x/y" {"q": "中文"})
+# --- expected ---
+# http://x/y
+# http://x/y?a=1
+# http://x/y?a=1&b=x%20y%26z
+# http://x/y?z=1&a=1
+# 1: 不是个能发的网址（要 http:// 或 https:// 开头）：这不是个网址
+# 2: 不是个能发的网址（要 http:// 或 https:// 开头）：ftp://x/
+# 3: GET http://127.0.0.1:1/ 失败: 连接被拒绝（对面那个端口没人听）
+# 404
+# Not Found
+# false
+# 没有这一页
+# 15
+# text/plain; charset=utf-8
+# -
+# utf-8
+# 1
+# 4: Http 404 Not Found：没有这一页
+# 201
+# http://x/y?q=%E4%B8%AD%E6%96%87

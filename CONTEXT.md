@@ -189,6 +189,12 @@ lib/
                           或 list 都行,表头按键**第一次出现**的先后)/ `Quote`(单个格子怎么转义)。
                           转义就一条:含 `,` / `"` / 换行的格子整体包引号、里面的 `"` 写成 `""`
                           —— 所以引号里的逗号和换行都是**内容**。**要显式引用**
+  http.rav                `Http` 模块 —— 网络那一层(HTTP 客户端):`Get`/`Post`/`Put`/`Patch`/
+                          `Delete`/`Head`、`Request`(全参数:头/正文/重试/超时/跟不跟重定向)、
+                          `Download`(流式落盘)/ `Upload`(multipart)、`Query`(拼查询串)、
+                          `Expect`(非 2xx 就抛);交回 `Response`(status / reason / headers /
+                          body,`Text ()` 按 charset 解、`Json ()` 直接当 Json 用)。
+                          **同步**:一个请求等一个。**要显式引用**
   bits.rav                `Bits` 模块 —— 位那一套:`Test`/`Set`/`Clear`/`Toggle`/`Not`(单个位)、
                           `Count`(popcount)/`Width`/`High`/`Low`/`ZerosHigh`/`ZerosLow`(数位)、
                           `Mask`/`Field`/`PutField`(一段位)、`Bytes`/`FromBytes` 与 `...LE`
@@ -329,9 +335,12 @@ Object (parent=自己)
         Args Env EnvOr SetEnv UnsetEnv EnvAll
         NewRandom SharedRandom XoshiroRandom RandomBytes
         RegexEscape RegexIsMatch RegexMatch RegexFindAll RegexReplace RegexSplit
+        Sleep ReadBytes WriteBytes DecodeText
+        HttpReq HttpDownload HttpUpload
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
-与「跑外部命令」两节:它们只做 syscall,策略在库里。）
+与「跑外部命令」两节;网络那四条见下面「网络」一节。它们一律**只做 syscall**,
+策略在库里。）
 
 时间同理,五条原语全在 `System` 里:`NowMs ()`(1970 年起的**毫秒**,bigint)、
 `TimeParts ms`(一袋零件:year/month/day/hour/minute/second/millisecond/weekday)、
@@ -1436,6 +1445,53 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 
 引擎里的实现是 `System.Cmd`(`Runtime/Interpreter.System.cs`),`predefined.rav` 给全局别名
 `cmd`。用例 `tests/229_cmd.rav`。
+
+## 网络（`lib/http.rav`，要显式 `using "http.rav"`）
+
+**引擎只给"发一个请求"四条原语**,URL 拼装、响应对象、重试、上传体全是 `Http` 模块的事 ——
+和正则、随机数一个分工。四条都**收一个 dict、交回一个 dict**:加字段不用改签名,
+而且以后加并发时"发请求"整个变成一次**挂起点**,调用点一个字都不用改。
+
+| 原语 | 收 | 交回 |
+|---|---|---|
+| `System.HttpReq` | `url` / `method` / `headers` / `body`(字节表)/ `bodyFile` / `follow` / `timeout` / `max` | `status` / `reason` / `headers` / `body`(字节表)/ `url`(跟完重定向停在哪儿) |
+| `System.HttpDownload` | 上面的 + `path` | 同上,但把 `body` 换成 `bytes`(写了多少) |
+| `System.HttpUpload` | 上面的 + `path` / `field` | 同上(multipart,文件**流式**发出去) |
+| `System.DecodeText` | 字节表 + 字符集名 | 字符串 |
+
+- **正文一律是字节表**(0..255,和 `Encoding` / `Random.Bytes` / `Bits` 那套一个形状),
+  解码是 Ravel 的事:响应对象 `Text ()` 按 `content-type` 里的 charset 解。
+- **下载和上传全程流式**,几百 MB 也不经过 Ravel 堆;普通请求**默认 16 MB 封顶**
+  (超了报错并指向 `Http.Download`)—— 堆是有上限的(测试里 256 MB)。
+- 一处**进程级共享的 `HttpClient`**(连接池在它身上,一次请求一个新的话会把本机端口耗光),
+  两台只差"跟不跟重定向"—— 那是处理器级的开关,没法按请求改。
+- **错误消息不能说 .NET 那句**:那是跟着系统语言变的,而报错文案要被用例钉住。
+  `Why()` 把常见的几类翻成固定中文(域名解析不了 / 连接被拒绝 / TLS 没过…),
+  网址先自己验一遍(要 `http://` 或 `https://` 开头)。
+- **4xx / 5xx 不是错误** —— 那是响应,自己看 `status`(`Http.Expect` 是"非 2xx 就抛"那条糖)。
+- 老编码(GBK / Big5)靠 `System.Text.Encoding.CodePages` 那个包 + 启动时注册;
+  认不出来的 charset 退回 UTF-8,不报错。
+- 配套加的还有 `System.ReadBytes` / `System.WriteBytes`(字节表和文件来回 ——
+  从前只有文本那三条,字节表存不下来也读不回来)和 `System.Sleep ms`(重试退避、限速)。
+
+**用例**:`tests/268_http.rav`(离线:查询串、响应对象、报错文案)、
+`tests/269_http_live.rav`(真发请求 —— 运行器按 `# net` 标记起一台**回环服务器**,
+见下)。例子 `examples/http.rav` 打的是真网络。
+
+### 测试怎么不飘:`# net` 与回环服务器
+
+网络那几条用例**不碰真网络**(会断、会限流、对面内容会变),而是让运行器起一台
+`Testing/LoopbackServer.cs` —— 自己拿 `TcpListener` 说 HTTP,给的是**定死的字节**
+(`/hello` `/json` `/gbk` `/redirect` `/notfound` `/slow` `/big` `/flaky` `/echo` `/upload`)。
+端口自己挑,基址塞进环境变量 `RAVEL_TEST_HTTP`;用例里**不打印 URL**,所以期望输出钉得住。
+单独跑那条用例(不经运行器)会因为没接上服务器而不同 —— 和别的 golden 用例一样,只在
+`ravel test` 下比对。
+
+### 以后加并发时
+
+现在是**同步**的:一个请求等一个。要加并发(任务 / 多线程)时,`Http.Get` 的形状不变 ——
+引擎那条原语从"阻塞"变成"挂起当前任务"、调度器换人跑,`lib/http.rav` 和用户代码都不用动。
+这也是"发请求"整个收进**一条原语**里的原因。
 
 ## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
 

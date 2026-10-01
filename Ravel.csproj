@@ -12,6 +12,9 @@
   <ItemGroup>
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- GBK / Big5 那批老编码:`Encoding.GetEncoding("gbk")` 在 .NET Core 上要它才认。
+         中文网页常见,不注册的话 `charset=gbk` 会静默退回 UTF-8、整页乱码 -->
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

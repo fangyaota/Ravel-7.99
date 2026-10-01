@@ -16,6 +16,16 @@ internal static class GoldenTestRunner
     /// 那两条"只在终端上看得见"的输出)。</summary>
     private const string WarnMarker = "# warn";
 
+    /// <summary>要连网的用例:运行器先把**回环服务器**拉起来,并把基址塞进环境变量
+    /// (`LoopbackServer.EnvName`),用例里用 `System.Env` 读。
+    ///
+    /// 为什么不连真网络:那种用例会飘 —— 断网、限流、对面改了内容,都会让一份精确比对的
+    /// 用例莫名其妙地红。回环服务器给的是**定死的字节**(见 LoopbackServer 里那几条路由)。</summary>
+    private const string NetMarker = "# net";
+
+    /// <summary>回环服务器:第一次有人要才起,整个跑完关掉</summary>
+    private static LoopbackServer? _server;
+
     /// <summary>跑 tests/ 下全部 *.rav,打印逐条结果与汇总。有 FAIL 时返回 false(调用方据此设退出码)。
     /// `warn` 是一次性的总开关(CLI 的 `--warn`):每条用例都带着它跑,
     /// 好把整个用例库当成一份样本,过一遍"是不是忘了调用"的筛子。</summary>
@@ -33,6 +43,14 @@ internal static class GoldenTestRunner
         {
             var test = Parse(File.ReadAllText(file));
             Console.Write($"{Path.GetFileName(file),-35} ");
+
+            // `# net` 的用例要真发请求:先把回环服务器拉起来(它自己把基址写进环境变量)。
+            // 起不来就让它起不来 —— 用例会以"连不上"明显报错,不静默跳过
+            if (test.Net)
+            {
+                try { _server ??= new LoopbackServer(); }
+                catch (Exception ex) { Console.WriteLine($"(回环服务器起不来: {ex.Message})"); }
+            }
 
             // `# warn` 的用例把 stderr 收进比对里;**`--warn` 那一趟只开开关、不动比对** ——
             // 它是"整库过筛子",警告照旧往真 stderr 上冒,不因此让谁红掉
@@ -57,6 +75,9 @@ internal static class GoldenTestRunner
 
             Report(test, output);
         }
+
+        _server?.Dispose();          // 把回环服务器收掉(顺手清掉那个环境变量)
+        _server = null;
 
         Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo");
         return failed == 0;
@@ -116,7 +137,7 @@ internal static class GoldenTestRunner
 
     private static GoldenTest Parse(string content)
     {
-        bool expectError = false, isTodo = false, warn = false, inExpected = false;
+        bool expectError = false, isTodo = false, warn = false, net = false, inExpected = false;
         var sourceLines = new List<string>();
         var expectedLines = new List<string>();
 
@@ -139,11 +160,12 @@ internal static class GoldenTestRunner
             if (trimmed.StartsWith("# expect-error")) { expectError = true; sourceLines.Add(""); continue; }
             if (trimmed.StartsWith("# todo")) { isTodo = true; sourceLines.Add(""); continue; }
             if (trimmed == WarnMarker) { warn = true; sourceLines.Add(""); continue; }
+            if (trimmed == NetMarker) { net = true; sourceLines.Add(""); continue; }
 
             sourceLines.Add(line);
         }
 
-        return new GoldenTest(string.Join("\n", sourceLines), string.Join("\n", expectedLines), expectError, isTodo, warn);
+        return new GoldenTest(string.Join("\n", sourceLines), string.Join("\n", expectedLines), expectError, isTodo, warn, net);
     }
 
     private static string? FindTestDir()
@@ -159,5 +181,5 @@ internal static class GoldenTestRunner
     }
 }
 
-/// <summary>一个 golden test 文件解析后的五要素(标记 → 各自那一份,见 <see cref="GoldenTestRunner"/> 顶上的说明)</summary>
-internal sealed record GoldenTest(string Source, string Expected, bool ExpectError, bool IsTodo, bool Warn);
+/// <summary>一个 golden test 文件解析后的几要素(标记 → 各自那一份,见 <see cref="GoldenTestRunner"/> 顶上的说明)</summary>
+internal sealed record GoldenTest(string Source, string Expected, bool ExpectError, bool IsTodo, bool Warn, bool Net);

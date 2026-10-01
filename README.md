@@ -66,6 +66,8 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **续延是一等值**:`callcc` 交回的东西 `typeof` 就是 `Continuation`,`while` 和生成器
   (`Generator`) 都是用它在库里写出来的。
 - **数据类**:`dataclass { … }` 一个元类,自动注入 `Text ()` / `==` / 按位置构造。
+- **出得了网**:`Http.Get "https://…"` 抓网页、`Http.Post` 发 JSON、`Http.Download` 流式落盘,
+  响应对象带 `Text ()` / `Json ()` / `Header` —— 引擎只给"发一个请求"四条原语,策略都在库里。
 - **错误按类分**:`TypeError` / `NameError` / `AttributeError` / `IndexError` / `KeyError` /
   `ZeroDivisionError` / `AssertionError` / `AccessError` / `ArgumentError` / `ValueError` /
   `IoError` / `RegexError`,都挂在 `Exception` 下,老的 `(e: Exception)` 一个没坏。
@@ -117,7 +119,7 @@ Program.cs          CLI 入口(REPL / test / 单文件)
 Repl/               REPL 前端(多页缓冲、渲染、会话持久化)
 Testing/            golden 测试运行器
 lib/                **标准库 —— 用 Ravel 自己写的**(控制流、序列、Option、IO、Random、
-                    Regex、时间、格式化、文本、编码、位、CSV、数据类、测试库…)
+                    Regex、时间、格式化、文本、编码、位、网络(HTTP)、CSV、数据类、测试库…)
 tests/              golden 用例(.rav + 文件末尾的 `# --- expected ---`)
 examples/           例子(不进测试,给你看着玩)
 docs/               tutorial.md(语言教程)+ adr/(架构决策)

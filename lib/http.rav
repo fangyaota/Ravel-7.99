@@ -1,0 +1,184 @@
+# `Http` —— 网络那一层(HTTP 客户端)。**要显式引用**:`using "http.rav"`。
+#
+#     r := Http.Get "https://example.com"
+#     print (r.status)                 # 200
+#     print (r.Text ())                # 正文(按 charset 解,默认 UTF-8)
+#     print ((r.Json ()).Get "name")   # 直接当 Json 用(底层是现成的 Json)
+#     Http.Post "https://…/api" {"a": 1}       # dict / list 自动当 JSON 发
+#     Http.Download "https://…/a.png" "a.png"  # 边收边写,正文不进内存
+#     Http.Upload "https://…/put" "a.png"      # multipart 上传
+#
+# **同步**:一个请求等一个,回来了才往下走。(以后加并发时这一层不改 —— 引擎那条原语
+# 会变成"挂起当前任务",`Http.Get` 还是这么写。)
+#
+# 引擎只有"发一个请求"那四条原语(见 CONTEXT 的「网络」一节),这个文件补的是 URL 拼装、
+# 响应对象、重试、上传体这些**策略** —— 和 Regex / Random 一样的分工。
+#
+# 连不上 / 超时 / 域名解析不了 / 证书不对 一律是 `IoError`;**4xx 和 5xx 不是错误**,
+# 那是响应,自己看 `status`(`Http.Expect` 是"非 2xx 就抛"那条糖)。
+using "encoding.rav"
+
+# 响应。**全局名**(和 io.rav 的 `IFile` 一个待遇),这样注解写得出来:`r: Response`。
+#
+# 头是**小写名 → 值**,同名的多个值用 `, ` 连起来(HTTP 头不区分大小写,给两套写法只会让人猜);
+# 正文是**字节表**(要文本用 `Text ()`)。
+Response ::= class {
+    status: int = 0
+    reason: string = ""
+    headers: dict = {}
+    body: list = []
+    url: string = ""
+    size: int = 0
+
+    init = (raw: dict) => {
+        status = raw.Get "status"
+        reason = raw.Get "reason"
+        headers = raw.Get "headers"
+        url = raw.Get "url"
+        # 下载 / 上传那两条交回的是"写了多少字节",正文不在手里(那种 size 才是真大小)
+        body = raw.Has "body" { raw.Get "body"; } { []; }
+        size = raw.Has "bytes" { raw.Get "bytes"; } { (body.Count ()); }
+        this;
+    }
+
+    Ok := () => { (status >= 200) && (status < 300); }
+    Bytes := () => { body; }
+    Size := () => { size; }
+
+    # 正文按 `content-type` 里的 charset 解(没写就是 UTF-8;认不出的名字也退回 UTF-8)
+    Text := () => { System.DecodeText body (Charset ()); }
+
+    # 直接当 JSON 用 —— 底层就是现成那个 `Json`(先看再转那一套都在)。
+    # 这儿得写 `System.Json` 而不能写 `Json`:**成员名把外层的类型名遮住了**
+    # (方法自己就叫 `Json`),`Json.FromString` 会去这个类的成员表里找。
+    Json := () => { System.Json.FromString (Text ()); }
+
+    Header := (name: string) => { HeaderOr name ""; }
+    HeaderOr := (name: string dflt: string) => { headers.GetOr (name.ToLower ()) dflt; }
+
+    # `content-type: text/html; charset=gbk` 里那个 charset(抠不出来就给 utf-8)
+    Charset := () => {
+        ct := HeaderOr "content-type" ""
+        (ct.Contains "charset=") {
+            rest := ct.Skip ((ct.IndexOf "charset=") + 8)
+            head := (rest.Split ";").At 0
+            trimmed := head.Trim ()
+            trimmed.ToLower ()
+        } { "utf-8"; }
+    }
+
+    # 正文写进文件(二进制原样 —— 下载图片、压缩包走这条;大文件用 `Http.Download` 更好)
+    Save := (path: string) => { System.WriteBytes path body; (); }
+}
+
+ravel "Http"
+
+# 读一个可选 int 字段(没写给默认)。
+readonly IntOr := (d: dict k: string dflt: int) => { (d.Has k) { d.Get k; } { dflt; } }
+
+# 正文交上来的是什么?
+#   字符串             → 按 UTF-8 编成字节
+#   dict / list / set  → **JSON**(顺带补 `content-type`;要发别的类型自己写个头盖掉它)
+# 二进制走 `bodyFile`(从文件流式发)或 `Http.Upload` —— 别塞进 Ravel 堆里。
+readonly BodyOf := (body: object) => {
+    # 条件**整个**括起来:不括的话 `string { … }` 会被读成"拿这个块当实参调 string"
+    # (实参吃到运算符为止 —— 见教程「常见陷阱」那条)
+    ((typeof body) == string) {
+        {"bytes": (Encoding.Utf8 body) "contentType": ""};
+    } {
+        {"bytes": (Encoding.Utf8 ((Json body).Text ())) "contentType": "application/json"};
+    }
+}
+
+# 用户交的那张 dict → 引擎要的那张:补上 url / method,正文统一成字节表。
+readonly Spec := (url: string method: string opts: dict) => {
+    s := opts.Copy ()
+    s.Set "url" url
+    s.Set "method" method
+    (s.Has "body") {
+        b := BodyOf (s.Get "body")
+        s.Set "body" (b.Get "bytes")
+        ((b.Get "contentType") != "") {
+            h := (s.Has "headers") { s.Get "headers"; } { {}; }
+            (h.Has "content-type") { 0; } { h.Set "content-type" (b.Get "contentType"); }
+            s.Set "headers" h
+        } { 0; }
+    } { 0; }
+    s
+}
+
+# 发一次。网络错误原样抛出,由下面那层决定要不要再来。
+readonly Once := (spec: dict) => { Response (System.HttpReq spec); }
+
+# 带重试:`retries` 是**额外**次数(默认 0 = 只发一次)。5xx 和网络错误都算"没成";
+# 每次之间睡 `backoff` 毫秒(默认 0)。**4xx 不重试** —— 那是"你要的东西不对",再发一百遍也一样。
+readonly TrySpec := (spec: dict n: int) => {
+    r := try { Once spec; } (e: Exception) => {
+        (n <= 0) { throw e; } {
+            System.Sleep (IntOr spec "backoff" 0)
+            TrySpec spec (n - 1)
+        }
+    }
+    ((r.status >= 500) && (n > 0)) {
+        System.Sleep (IntOr spec "backoff" 0)
+        TrySpec spec (n - 1)
+    } { r; }
+}
+
+readonly Send := (url: string method: string opts: dict) => {
+    spec := Spec url method opts
+    TrySpec spec (IntOr spec "retries" 0)
+}
+
+# ── 动词那几个 ──
+readonly Get := (url: string) => { Send url "GET" {}; }
+readonly Post := (url: string body: object) => { Send url "POST" {"body": body}; }
+readonly Put := (url: string body: object) => { Send url "PUT" {"body": body}; }
+readonly Patch := (url: string body: object) => { Send url "PATCH" {"body": body}; }
+readonly Delete := (url: string) => { Send url "DELETE" {}; }
+readonly Head := (url: string) => { Send url "HEAD" {}; }
+
+# 全参数那条:`Http.Request {"url": … "method": "PATCH" "headers": {…} "body": … "retries": 2}`。
+# `method` 不写就是 GET;引擎还认 `bodyFile` / `follow` / `timeout` / `max`(见 CONTEXT)。
+readonly Request := (spec: dict) => {
+    Send (spec.Get "url") ((spec.Has "method") { spec.Get "method"; } { "GET"; }) spec
+}
+
+# ── 下载 / 上传 ──
+
+# 下载到文件:正文**边收边写**,不进内存(几百 MB 也不怕)。交回的 Response 里
+# `size` 是写了多少字节,`body` 是空的。
+readonly Download := (url: string path: string) => {
+    Response (System.HttpDownload {"url": url "path": path});
+}
+
+# multipart 上传(表单里一个文件,字段名默认 `file`)。要改字段名用 `UploadTo`。
+readonly Upload := (url: string path: string) => {
+    Response (System.HttpUpload {"url": url "path": path});
+}
+
+readonly UploadTo := (url: string path: string field: string) => {
+    Response (System.HttpUpload {"url": url "path": path "field": field});
+}
+
+# ── 小工具 ──
+
+# 往 URL 后面拼查询串(值先做百分号转义)。URL 里已经有 `?` 就用 `&` 接。
+readonly Query := (url: string params: dict) => {
+    (params.IsEmpty ()) { url; } {
+        pairs := []
+        foreach (params.Keys ()) (k: object) => {
+            pairs.Add ((string k) + "=" + (Encoding.UrlEncode (string (params.Get k))));
+        }
+        url + ((url.Contains "?") { "&"; } { "?"; }) + (pairs.Join "&")
+    }
+}
+
+# 非 2xx 就抛(消息里带上状态和正文的头一段)。调 API 时最常忘的就是看状态码,
+# 而这个错通常只有第一次跑才看得见(以后就被 try 吞了)。
+readonly Expect := (r: Response) => {
+    (r.Ok ()) { r; } {
+        text := r.Text ()
+        throw (Exception ("Http " + (string (r.status)) + " " + (r.reason) + "：" + (text.Take 200)))
+    }
+}

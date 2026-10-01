@@ -1,0 +1,39 @@
+# 抓一个网页、调一个 JSON 接口、下一个文件 —— `Http` 那套怎么用(见 lib/http.rav)。
+#
+# **这是例子,不是用例**:它真要出网(对面回什么、多大、快不快都由不得我们),
+# 而 golden 用例里那条(269)走的是回环服务器。所以这里只是打出来给你看。
+#
+#     ravel examples/http.rav
+using "http.rav"
+using "regex.rav"      # 从 HTML 里抠个 <title>(顺手演示两套库怎么接)
+
+# ── 1. 抓一个网页 ──
+r := Http.Get "https://example.com"
+print ("状态: " + (string (r.status)) + " " + (r.reason))
+print ("类型: " + (r.Header "content-type"))
+print ("长度: " + (string (r.Size ())) + " 字节")
+
+# 正文按响应头里的 charset 解(没写就是 UTF-8)—— 老中文网页写着 gbk 也认
+html := r.Text ()
+found := (Regex.C "<title>(.*?)</title>").TryMatch html
+if { (found.IsSome ()); } { print ("标题: " + ((found.Value ()).Group 1)); } { print "标题: （没找到）"; }
+
+# ── 2. 调一个 JSON 接口(`Json ()` 交回的就是现成那个 `Json`)──
+j := (Http.Get "https://httpbin.org/json").Json ()
+show := j.Get "slideshow"
+print ("slideshow: " + ((show.Get "title").Extract ()))
+
+# ── 3. 下载:边收边写,正文不进内存(几百 MB 也不怕)──
+System.CreateDir ".io-test"
+d := Http.Download "https://example.com" ".io-test/http-example.html"
+print ("下载 " + (string (d.size)) + " 字节，盘上 " + (string (System.PathSize ".io-test/http-example.html")))
+System.DeletePath ".io-test/http-example.html"
+
+# ── 4. 发 JSON(dict / list 自动当 JSON;4xx 不是错误,是响应)──
+echoed := (Http.Post "https://httpbin.org/post" {"name": "Ravel" "n": 42}).Json ()
+print ("发出去的: " + ((echoed.Get "json").Text ()))
+
+# ── 5. 上传(multipart)—— 要真发就对着自己的服务试:
+#     Http.Upload "http://…/put" "本机文件.bin"
+#     Http.UploadTo "http://…/put" "本机文件.bin" "upload"      # 换个字段名
+System.DeletePath ".io-test"

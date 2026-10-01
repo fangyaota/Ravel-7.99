@@ -1,0 +1,96 @@
+# `Http` 真发请求那一条。**要靠 `ravel test`**:运行器会起一台回环服务器,
+# 基址塞进环境变量 `RAVEL_TEST_HTTP`(见 Testing/LoopbackServer.cs)。
+#
+# 端口每次都不一样,所以**这里不许打印 URL** —— 一打印,期望输出就钉不住了。
+# net
+using "http.rav"
+
+base := System.Env "RAVEL_TEST_HTTP"
+
+# ── 基本来往 ──
+r := Http.Get (base + "/hello")
+print (r.status)
+print (r.reason)
+print (r.Ok ())
+print (r.Text ())
+print (r.Header "content-type")
+
+# ── JSON:`Json ()` 交回的就是现成那个 `Json`(先看再转那一套都在)──
+j := (Http.Get (base + "/json")).Json ()
+print (j.Get "a")
+print ((j.Get "b").At 1)
+print ((j.Get "s").Extract ())
+
+# ── POST / PUT:服务器把收到的"方法|正文|自定义头"原样吐回来 ──
+print ((Http.Post (base + "/echo") "你好").Text ())
+print ((Http.Post (base + "/echo") {"a": 1}).Text ())            # dict → 自动 JSON
+print ((Http.Request {"url": base + "/echo" "method": "PUT" "body": "x" "headers": {"x-test": "42"}}).Text ())
+
+# ── 4xx 不是错误 —— 那是响应,自己看状态码 ──
+nf := Http.Get (base + "/notfound")
+print (nf.status)
+print (nf.Ok ())
+print (nf.Text ())
+
+# ── 重定向:默认跟到底;`follow: false` 就停在 302 上 ──
+print ((Http.Get (base + "/redirect")).status)
+print ((Http.Get (base + "/redirect")).Text ())
+print ((Http.Request {"url": base + "/redirect" "follow": false}).status)
+
+# ── 老编码:响应头里写着 charset=gbk,`Text ()` 按它解 ──
+print ((Http.Get (base + "/gbk")).Text ())
+
+# ── 重试:头两次 500,第三次才成(`retries` 是**额外**次数)──
+print ((Http.Request {"url": base + "/flaky" "retries": 2}).status)
+print ((Http.Request {"url": base + "/flaky" "retries": 2}).Text ())
+
+# ── 超时(服务器睡 1.5 秒,这边只等 300 毫秒)──
+print (try { Http.Request {"url": base + "/slow" "timeout": 300}; false; } (e: Exception) => { true; })
+
+# ── 正文封顶:超了当场报错,消息指向 Http.Download ──
+big := try { Http.Request {"url": base + "/big" "max": 1000}; ""; } (e: Exception) => { string e; }
+print ((big.Split "：").At 0)      # 后半截带 URL(端口每次都变),只钉前半截
+
+# ── 下载 / 上传:正文不进内存,字节数对得上就行(都写 `.io-test/`,结尾删干净)──
+System.CreateDir ".io-test"
+d := Http.Download (base + "/big") ".io-test/http.bin"
+print (d.status)
+print (d.size)
+print (System.PathSize ".io-test/http.bin")
+
+System.WriteText ".io-test/up.txt" "上传的内容"
+u := Http.Upload (base + "/upload") ".io-test/up.txt"
+print (u.status)
+print (u.Text ())
+
+System.DeletePath ".io-test/http.bin"
+System.DeletePath ".io-test/up.txt"
+System.DeletePath ".io-test"
+# --- expected ---
+# 200
+# OK
+# true
+# hello 你好
+# text/plain; charset=utf-8
+# 1
+# 2
+# x
+# POST|你好|-
+# POST|{"a":1}|-
+# PUT|x|42
+# 404
+# false
+# nope
+# 200
+# hello 你好
+# 302
+# 中文网页
+# 200
+# 好了
+# true
+# 响应太大（超过 1000 字节）
+# 200
+# 300000
+# 300000
+# 200
+# name=up.txt bytes=186
