@@ -29,6 +29,10 @@ print ((Math.Fields ()).Count ())
 try { System.Class; } (e: Exception) => { print ("1: " + string e); }
 try { Math.Nope; } (e: Exception) => { print ("2: " + string e); }
 
+# `<:` 那种"两边都得是类型"的地方也一样:`Math <: object` 报的是**模块**,不是"Ravel 的实例"
+try { Math <: object; } (e: Exception) => { print ("3: " + string e); }
+try { 5 <: int; } (e: Exception) => { print ("4: " + string e); }
+
 # 自己建的模块也一样
 ravel "Mine"
 print (typeof (Mine))
@@ -46,7 +50,9 @@ print (Mine)
 # false
 # 36
 # 53
-# 1: 类型 'System' 没有方法 'Class'
-# 2: 类型 'Math' 没有方法 'Nope'
+# 1: 模块 'System' 没有方法 'Class'
+# 2: 模块 'Math' 没有方法 'Nope'
+# 3: '<:' 的左边得是个类型，得到模块 'Math'
+# 4: '<:' 的左边得是个类型，得到 Integer 的实例
 # Ravel
 # <module Mine>

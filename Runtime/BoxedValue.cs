@@ -81,7 +81,7 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         // 不落地成字段,所以值相等保得住)。机制名的过滤在 MemberView 里,不在这。
         var member = Value.MemberScope.LookupField(name);
         if (member == null)
-            throw new RuntimeException($"类型 '{Value.TypeLabel}' 没有方法 '{name}'", ErrorKind.Attribute);
+            throw new RuntimeException($"{Value.KindName} 没有方法 '{name}'", ErrorKind.Attribute);
 
         // 门禁只对对象做:借来的类成员表里放的是内置方法,没有 core/private 可言
         if (Value is ObjectVal obj) CheckObjectReadAccess(obj, member, name);

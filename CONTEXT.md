@@ -381,11 +381,13 @@ Object (parent=自己)
 ```
 
 **`Ravel` 是个光杆**:它下面不挂东西 —— 模块(`System` / `Math` / 各库的模块)是它的
-**实例**,不是子类(所以 `Math is Ravel` 为真,`Math <: Ravel` 不成立 —— 后者要两边都是类型)。从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
+**实例**,不是子类(所以 `Math is Ravel` 为真,`Math <: Ravel` 不成立 —— 后者要两边都是类型)。
+从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
 那份类对象只为 `print` / `typeof` 打得出名字,却**不登记进 `AllTypes`** ——
 类型树底下于是挂着一堆看不见的子类,树和现实对不上。现在一个 `Ravel` 就够,
-名字改由 `ModuleVal.Label` 担(报错里说"类型 'System' 没有方法"也走它,
-见 `RuntimeValue.TypeLabel`)。
+名字改由 `ModuleVal.Label` 担 —— 报错里也一样:模块单说成**「模块 'System'」**
+(`RuntimeValue.KindName`),不混进"类型 'X'"里。照类型报的话全指向那个共用的 `Ravel`,
+会打出「类型 'Ravel' 没有方法 'Class'」—— 用户写的那行里根本没有 Ravel 这个词。
 
 `parent` 是类对象 Scope 里的一个普通成员(不是 C# 字段),所以链到头的方式是**自引用**
 (`object`/`Every`/`Any` 的 parent 是自己)—— 遍历这些链的地方都要在 `t.Parent == t` 处停。

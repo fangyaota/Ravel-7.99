@@ -290,7 +290,7 @@ ravel ""
 # hi
 # {1 2}
 # 190_lambda_body_needs_semicolon: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）
-# 192_no_class_type: 类型 'System' 没有方法 'Class'
+# 192_no_class_type: 模块 'System' 没有方法 'Class'
 # 3
 # 1
 # 3

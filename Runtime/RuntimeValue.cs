@@ -6,11 +6,13 @@ public abstract record RuntimeValue
     /// <summary>这个值的类对象(创建它的那个类;类对象的"类"就是它的元类)。`typeof X` 取的就是它。</summary>
     public abstract ObjectVal Type { get; }
 
-    /// <summary>报错里说"这是个什么"时用的名字。**模块是唯一的特例**:它的类对象统一是
-    /// `Ravel`(所有模块共用一个,见 <see cref="ModuleVal"/>),照 `Type.DisplayName` 走的话
-    /// `System.Class` 打错一个字会报「类型 'Ravel' 没有方法 'Class'」——
-    /// 而用户从头到尾没提过 Ravel,那句话等于把人往错地方指。</summary>
-    internal string TypeLabel => this is ModuleVal m ? m.Label : Type.DisplayName;
+    /// <summary>报错里"这是个什么"那半句 —— **`类型 'Integer'` / `模块 'System'`**。
+    ///
+    /// 模块得单说,不能混进"类型"里:所有模块的类对象都是同一个 `Ravel`(见
+    /// <see cref="ModuleVal"/>),照类型报就成了「类型 'Ravel' 没有方法 'Class'」——
+    /// 用户写的那行里从头到尾没有 `Ravel` 这个词,那句话等于把人往错地方指。
+    /// 连带的好处是报出来还是**他手上那个名字**,一眼看得出是哪个模块打的错。</summary>
+    internal string KindName => this is ModuleVal m ? $"模块 '{m.Label}'" : $"类型 '{Type.DisplayName}'";
 
     /// <summary>这是个真的闭包(方法 / lambda / 内置函数 / 块),而不是**恰好**
     /// 落在 Function 类型下的数据值吗?

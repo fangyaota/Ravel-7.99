@@ -348,7 +348,12 @@ internal static partial class BuiltinClasses
     private static ObjectVal AsType(RuntimeValue v, string op, string side)
         => v as ObjectVal is { IsClass: true } t
             ? t
-            : throw new RuntimeException($"'{op}' 的{side}边得是个类型，得到 {v.Type} 的实例", ErrorKind.Type);
+            : throw new RuntimeException(v is ModuleVal m
+                // 模块单说:它的类对象统一是 `Ravel`,照"X 的实例"报就成了
+                // 「得到 Ravel 的实例」—— 而用户写的那个名字(比如 `Math`)是个**模块**,
+                // 报出来得让他认出是自己那一行。(普通值那句一个字没动。)
+                ? $"'{op}' 的{side}边得是个类型，得到模块 '{m.Label}'"
+                : $"'{op}' 的{side}边得是个类型，得到 {v.Type} 的实例", ErrorKind.Type);
 
     /// <summary>`is` / `isnot` 的实现:值的类型是不是(是某个类型的子类型)。
     /// 返回 bool,由调用点决定要不要取反 —— `isnot` 是同一个判据,不是两套。</summary>
