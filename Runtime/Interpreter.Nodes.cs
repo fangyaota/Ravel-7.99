@@ -132,7 +132,7 @@ public partial class Interpreter
             return;
         }
 
-        if (nf.Result(1) is not FunctionVal fn) throw new RuntimeException("<| 左边必须是函数");
+        if (nf.Result(1) is not FunctionVal fn) throw new RuntimeException("<| 左边必须是函数", ErrorKind.Type);
         CallInto(nf.Parent!, fn, nf.Result(0));
     }
 
@@ -146,7 +146,7 @@ public partial class Interpreter
         BigIntVal b => new BigIntVal(-b.Value),
         FractionVal fr => new FractionVal(-fr.Num, fr.Den),
         BigFractionVal bf => new BigFractionVal(-bf.Num, bf.Den),
-        _ => throw new RuntimeException($"一元 '-' 不支持 {v.Type}"),
+        _ => throw new RuntimeException($"一元 '-' 不支持 {v.Type}", ErrorKind.Type),
     };
 
     private void StepUnary(NodeFrame nf, UnaryExpr un)
@@ -160,7 +160,7 @@ public partial class Interpreter
         var o = nf.Result(0);
         if (un.Op == "!")
         {
-            if (o is not BoolVal bn) throw new RuntimeException("! 需要 bool 操作数");
+            if (o is not BoolVal bn) throw new RuntimeException("! 需要 bool 操作数", ErrorKind.Type);
             Return(nf, new BoolVal(!bn.Value));
         }
         else if (un.Op == "-")
@@ -236,7 +236,7 @@ public partial class Interpreter
     private static ObjectVal AsClass(RuntimeValue v, string what)
         => v as ObjectVal is { IsClass: true } cls
             ? cls
-            : throw new RuntimeException($"'{what}' 的类型注解要是个类型，得到 {v.Type}");
+            : throw new RuntimeException($"'{what}' 的类型注解要是个类型，得到 {v.Type}", ErrorKind.Type);
 
     private void StepVarDef(NodeFrame nf, VarDefinition v)
     {
@@ -341,7 +341,7 @@ public partial class Interpreter
 
         var target = nf.Result(0);
         if (target is not ObjectVal obj)
-            throw new RuntimeException($"`by` 只能取对象身上的属性，得到 {target.Type}");
+            throw new RuntimeException($"`by` 只能取对象身上的属性，得到 {target.Type}", ErrorKind.Type);
         // 取槽本身(`by x.a`)也认接口实现那条:作用域里没有生效的实现时才是「没有字段」。
         // 这一支**不绑接收者**(只取 `.Slot`)—— `by` 取出来的就是实现 scope 里那条 property,
         // 之后再 `Get ()` / `Set v` 时已经没有"这次服务谁"可言,`instance` 会**明确报错**。
@@ -358,7 +358,7 @@ public partial class Interpreter
     private static void CheckSlot(Variable v, string name)
     {
         if (!v.HasAttr(Attr.By))
-            throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）");
+            throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）", ErrorKind.Type);
     }
 
     /// <summary>要放进槽里的值:`default` 换成**属性的默认值**(一对什么都不做的 getter/setter,
@@ -406,7 +406,7 @@ public partial class Interpreter
             }
 
             if (v.HasAttr(Attr.Core) && !IsUnsafe)
-                throw new RuntimeException($"字段 '{id.Name}' 是核心字段，需要 unsafe");
+                throw new RuntimeException($"字段 '{id.Name}' 是核心字段，需要 unsafe", ErrorKind.Access);
             CheckSlot(v, id.Name);
             v.ReplaceSlot(SlotValue(val));
             Return(nf, val);
@@ -429,7 +429,7 @@ public partial class Interpreter
 
         var target = nf.Result(0);
         if (target is not ObjectVal obj)
-            throw new RuntimeException($"`by` 只能换对象身上的属性，得到 {target.Type}");
+            throw new RuntimeException($"`by` 只能换对象身上的属性，得到 {target.Type}", ErrorKind.Type);
         var val2 = nf.Result(1);
         if (sa.Define)
         {
@@ -470,7 +470,7 @@ public partial class Interpreter
         if (field != null)
         {
             if (field.HasAttr(Attr.Core) && !IsUnsafe)
-                throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe");
+                throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe", ErrorKind.Access);
             WriteVariable(nf, field, val);
             return;
         }

@@ -70,21 +70,21 @@ public class Scope(Scope? parent = null)
         //     true := 1       → 从前静默成功,而且 readonly 就此消失
         // 只查**本层**:在外层作用域里 `x := 1` 是新开一个局部变量(遮蔽),不是重新定义。
         if (_vars.TryGetValue(name, out var old) && old.HasAttr(Attr.Readonly))
-            throw new RuntimeException($"无法重新定义只读变量 '{name}'");
+            throw new RuntimeException($"无法重新定义只读变量 '{name}'", ErrorKind.Access);
         var v = new Variable(name, typeConstraint, initialValue);
         _vars[name] = v;
         return v;
     }
 
     public Variable Lookup(string name)
-        => Find(name) ?? throw new RuntimeException($"未定义的变量 '{name}'");
+        => Find(name) ?? throw new RuntimeException($"未定义的变量 '{name}'", ErrorKind.Name);
 
     /// <summary>查找变量，找不到返回 null（不抛异常）</summary>
     public Variable? TryLookup(string name) => Find(name);
 
     public virtual void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
     {
-        var v = Find(name) ?? throw new RuntimeException($"无法给未定义变量 '{name}' 赋值");
+        var v = Find(name) ?? throw new RuntimeException($"无法给未定义变量 '{name}' 赋值", ErrorKind.Name);
         v.Assign(value, alsoAccepts);
     }
 

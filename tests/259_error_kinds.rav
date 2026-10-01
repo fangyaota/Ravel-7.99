@@ -25,6 +25,15 @@ print (probe () => { int "abc"; })                   # 值本身不对
 print (probe () => { System.ReadText "没有这个/文件.txt"; })   # 文件那批
 print (probe () => { (Regex.C "(").IsMatch "x"; })    # 正则写错
 
+# ── 这一趟补上的那些(读写被挡、值/参数、分数除零、字符串下标、Json 的键)──
+print (probe () => { readonly r := 1; r = 2; })       # 只读
+print (probe () => { char "ab"; })                    # 值不对
+print (probe () => { "a,b".Split ""; })               # 分隔符不能是空串
+print (probe () => { (object ()).Key (); })           # 对象不是值类型,没有默认的键
+print (probe () => { fraction 1 0; })                 # 分母为零
+print (probe () => { "abc".At 9; })                   # 字符串下标越界
+print (probe () => { (Json.FromString "{}").Get "k"; })   # Json 里没有这个键
+
 # ── 按类型接:挑不上就试下一个 ──
 handle := ((e: TypeError) => { "类型错: " + e.Message; }) | ((e: Exception) => { "别的: " + e.Message; })
 print (try { 1 + "a"; } handle)
@@ -54,6 +63,13 @@ print (probe () => { throw (TypeError "手工抛的"); })     # 手工抛的也�
 # ValueError / 无法将字符串 'abc' 转换为 int（超出 int 范围或不是数字）
 # IoError / 读文件: 找不到文件 —— 没有这个/文件.txt
 # RegexError / 正则式写错了 —— Invalid pattern '(' at offset 1. Not enough )'s.
+# AccessError / 无法给只读变量 'r' 赋值
+# ValueError / char: 字符串得正好一个字符，得到 2 个
+# ValueError / s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）
+# TypeError / Key: Object 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# ZeroDivisionError / 分数的分母不能为零
+# IndexError / s.At: 索引 9 超出范围（长度 3）
+# KeyError / Json.Get: 没有这个键 'k'（对象里有 0 个键）
 # 类型错: 运算符 '+' 不支持 String 操作数
 # 别的: 未定义的变量 'nope'
 # IndexError / First: 元素不够（一共 0 个）

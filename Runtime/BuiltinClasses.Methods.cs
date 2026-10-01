@@ -58,7 +58,7 @@ internal static partial class BuiltinClasses
                 ? s
                 : throw new RuntimeException(
                     $"Key: {s.Type} 没有默认的键（只有值类型有：数、字符串）。"
-                    + "要拿它当键，就在类里写一条 Key，交回一个值类型的键"));
+                    + "要拿它当键，就在类里写一条 Key，交回一个值类型的键", ErrorKind.Type));
     }
 
     private static void RegisterIntMethods()
@@ -162,7 +162,7 @@ internal static partial class BuiltinClasses
             var v = ((StringVal)s).Value;
             var i = IntArg(a, "s.At");
             if (i < 0 || i >= v.Length)
-                throw new RuntimeException($"s.At: 索引 {i} 超出范围（长度 {v.Length}）");
+                throw new RuntimeException($"s.At: 索引 {i} 超出范围（长度 {v.Length}）", ErrorKind.Index);
             return new CharVal(v[i]);
         });
         // 拆成一串字符(想逐个处理就它,别拿 `At` 配下标手摇)
@@ -181,7 +181,7 @@ internal static partial class BuiltinClasses
         {
             var v = ((StringVal)s).Value;
             var i = v.IndexOf(TextArg(a, "s.IndexOf"), StringComparison.Ordinal);
-            if (i < 0) throw new RuntimeException($"s.IndexOf: 找不到 {TextArg(a, "s.IndexOf")}");
+            if (i < 0) throw new RuntimeException($"s.IndexOf: 找不到 {TextArg(a, "s.IndexOf")}", ErrorKind.Value);
             return new IntVal(i);
         });
         String.DefineMethod("Find", (s, a) =>
@@ -190,7 +190,7 @@ internal static partial class BuiltinClasses
         {
             var v = ((StringVal)s).Value;
             var i = v.LastIndexOf(TextArg(a, "s.LastIndexOf"), StringComparison.Ordinal);
-            if (i < 0) throw new RuntimeException($"s.LastIndexOf: 找不到 {TextArg(a, "s.LastIndexOf")}");
+            if (i < 0) throw new RuntimeException($"s.LastIndexOf: 找不到 {TextArg(a, "s.LastIndexOf")}", ErrorKind.Value);
             return new IntVal(i);
         });
 
@@ -200,7 +200,7 @@ internal static partial class BuiltinClasses
         String.DefineMethod("Slice", (s, a) =>
         {
             if (a is not RangeVal rng)
-                throw new RuntimeException($"s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {a.Type}");
+                throw new RuntimeException($"s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {a.Type}", ErrorKind.Argument);
 
             var v = ((StringVal)s).Value;
             var (from, to, reverse) = SliceBounds(rng, v.Length, "s.Slice");
@@ -229,7 +229,7 @@ internal static partial class BuiltinClasses
         {
             var sep = TextArg(a, "s.Split");
             if (sep.Length == 0)
-                throw new RuntimeException("s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）");
+                throw new RuntimeException("s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）", ErrorKind.Value);
             return new ListVal([.. ((StringVal)s).Value
                 .Split(sep, StringSplitOptions.None)
                 .Select(p => (RuntimeValue)new StringVal(p))]);
@@ -376,7 +376,7 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue KeyArg(RuntimeValue a, string what)
         => a.Type.IsAssignableTo(ValueType)
             ? a
-            : throw new RuntimeException($"{what}得是值类型（数 / 字符串），得到 {a.Type}");
+            : throw new RuntimeException($"{what}得是值类型（数 / 字符串），得到 {a.Type}", ErrorKind.Type);
 
     /// <summary>字典的**底层**操作,名字一律带 `Sys` —— 它们只吃**值类型**键(见 <see cref="KeyArg"/>),
     /// 因为这里是同步的 C#:`Key ()` 是 Ravel 函数,调它要推帧,这儿调不了。
@@ -471,7 +471,7 @@ internal static partial class BuiltinClasses
     /// 而类对象是 `ObjectVal` —— 硬转就抛 InvalidCastException 漏到顶层。
     /// 换句话说,这是 BoolVal 那个「类型说有、值却接不住」的**反向**同款。</summary>
     private static FunctionVal AsFunction(RuntimeValue s, string what)
-        => s as FunctionVal ?? throw new RuntimeException($"{what} 只对函数有意义，{s.Type} 不行");
+        => s as FunctionVal ?? throw new RuntimeException($"{what} 只对函数有意义，{s.Type} 不行", ErrorKind.Type);
 
     private static void RegisterFunctionMethods()
     {

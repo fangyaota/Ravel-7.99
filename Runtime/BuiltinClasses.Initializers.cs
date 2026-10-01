@@ -44,6 +44,7 @@ internal static partial class BuiltinClasses
         KeyError.ClassBody = errBody;
         ZeroDivisionError.ClassBody = errBody;
         AssertionError.ClassBody = errBody;
+        AccessError.ClassBody = errBody;
         ArgumentError.ClassBody = errBody;
         ValueError.ClassBody = errBody;
         IoError.ClassBody = errBody;
@@ -59,7 +60,7 @@ internal static partial class BuiltinClasses
             DefaultVal => ContinuationVal.Default,
             ContinuationVal c => c,                                  // 已经是续延,原样(包两层没意义)
             FunctionVal f => new ContinuationVal((Frame?)null, f),
-            _ => throw new RuntimeException($"Continuation 收一枚函数（或 default），得到 {val.Type}"),
+            _ => throw new RuntimeException($"Continuation 收一枚函数（或 default），得到 {val.Type}", ErrorKind.Type),
         }));
         Set.ClassBody = PresetCtor(MakeDefaultCaster(Set));
         Dict.ClassBody = PresetCtor(MakeDefaultCaster(Dict));
@@ -93,14 +94,14 @@ internal static partial class BuiltinClasses
     private static IntVal FromBig(System.Numerics.BigInteger v)
         => v >= int.MinValue && v <= int.MaxValue
             ? new IntVal((int)v)
-            : throw new RuntimeException($"数值 {v} 超出 int 范围（int 是 32 位，大数用 bigint）");
+            : throw new RuntimeException($"数值 {v} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
 
     private static IntVal FromDouble(double v)
     {
-        if (double.IsNaN(v)) throw new RuntimeException("NaN 不能转换为 int");
+        if (double.IsNaN(v)) throw new RuntimeException("NaN 不能转换为 int", ErrorKind.Value);
         if (v < int.MinValue || v > int.MaxValue)
             // 插值用 FloatVal 而不是裸 double:后者的无穷是"∞",值的形式该是 ASCII
-            throw new RuntimeException($"数值 {new FloatVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）");
+            throw new RuntimeException($"数值 {new FloatVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
         return new IntVal((int)v);
     }
 
@@ -162,10 +163,10 @@ internal static partial class BuiltinClasses
         DefaultVal => new CharVal('\0'),
         IntVal i => i.Value is >= 0 and <= char.MaxValue
             ? new CharVal((char)i.Value)
-            : throw new RuntimeException($"char: 码位 {i.Value} 超出范围（0..65535）"),
+            : throw new RuntimeException($"char: 码位 {i.Value} 超出范围（0..65535）", ErrorKind.Value),
         StringVal s when s.Value.Length == 1 => new CharVal(s.Value[0]),
-        StringVal s => throw new RuntimeException($"char: 字符串得正好一个字符，得到 {s.Value.Length} 个"),
-        _ => throw new RuntimeException($"char: 转不了 {val.Type}"),
+        StringVal s => throw new RuntimeException($"char: 字符串得正好一个字符，得到 {s.Value.Length} 个", ErrorKind.Value),
+        _ => throw new RuntimeException($"char: 转不了 {val.Type}", ErrorKind.Type),
     };
 
     private static RuntimeValue CastToBigInt(RuntimeValue val)
@@ -183,7 +184,7 @@ internal static partial class BuiltinClasses
             // `(BigInteger)double` 对 NaN/Inf 抛的是 C# 的 OverflowException ——
             // 它不是 RuntimeException,Ravel 的 try 接不住,会一路把程序打掉。
             return double.IsNaN(f.Value) || double.IsInfinity(f.Value)
-                ? throw new RuntimeException($"数值 {f} 不能转换为 bigint（NaN 和无穷没有对应的整数）")
+                ? throw new RuntimeException($"数值 {f} 不能转换为 bigint（NaN 和无穷没有对应的整数）", ErrorKind.Value)
                 : new BigIntVal((System.Numerics.BigInteger)f.Value);
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigint", ErrorKind.Type);
     }
@@ -194,16 +195,16 @@ internal static partial class BuiltinClasses
         // int 当分子,再收一个 int 分母
         if (val is IntVal i)
             return FunctionVal.From(d =>
-                d is not IntVal dd ? throw new RuntimeException("分数需要 int 分母")
+                d is not IntVal dd ? throw new RuntimeException("分数需要 int 分母", ErrorKind.Type)
                 : dd.Value != 0 ? new FractionVal(i.Value, dd.Value)
-                : throw new RuntimeException("分数的分母不能为零"));
+                : throw new RuntimeException("分数的分母不能为零", ErrorKind.ZeroDivision));
         if (val is FractionVal f) return f;
         if (val is StringVal s)
         {
             var p = s.Value.Split('/');
             if (p.Length == 2 && int.TryParse(p[0], out var n) && int.TryParse(p[1], out var d) && d != 0)
                 return new FractionVal(n, d);
-            throw new RuntimeException("无效的分数字符串");
+            throw new RuntimeException("无效的分数字符串", ErrorKind.Value);
         }
 
         throw new RuntimeException($"无法将 {val.Type} 转换为 fraction", ErrorKind.Type);
@@ -215,8 +216,8 @@ internal static partial class BuiltinClasses
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;
         if (val is IntVal || val is BigIntVal)
             return FunctionVal.From(d =>
-                d is not (IntVal or BigIntVal) ? throw new RuntimeException("大分数需要整数分母")
-                : GetBi(d).IsZero ? throw new RuntimeException("大分数的分母不能为零")
+                d is not (IntVal or BigIntVal) ? throw new RuntimeException("大分数需要整数分母", ErrorKind.Type)
+                : GetBi(d).IsZero ? throw new RuntimeException("大分数的分母不能为零", ErrorKind.ZeroDivision)
                 : new BigFractionVal(GetBi(val), GetBi(d)));
         if (val is FractionVal fr) return new BigFractionVal(fr.Num, fr.Den);
         if (val is BigFractionVal bf) return bf;

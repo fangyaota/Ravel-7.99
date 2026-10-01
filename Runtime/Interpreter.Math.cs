@@ -90,9 +90,9 @@ public partial class Interpreter
         D("Round", x => Math.Round(x, MidpointRounding.AwayFromZero));
         Fn("RoundTo", FunctionVal.From((v, digits) =>
         {
-            if (digits is not IntVal d) throw new RuntimeException($"RoundTo 的小数位数需要 int，得到 {digits.Type}");
+            if (digits is not IntVal d) throw new RuntimeException($"RoundTo 的小数位数需要 int，得到 {digits.Type}", ErrorKind.Argument);
             // Math.Round 的 digits 只收 0..15,越界抛的是 C# 的 ArgumentOutOfRangeException
-            if (d.Value is < 0 or > 15) throw new RuntimeException($"RoundTo 的小数位数要在 0..15，得到 {d.Value}");
+            if (d.Value is < 0 or > 15) throw new RuntimeException($"RoundTo 的小数位数要在 0..15，得到 {d.Value}", ErrorKind.Value);
             return new FloatVal(Math.Round(Num(v, "roundTo"), d.Value, MidpointRounding.AwayFromZero));
         }));
 
@@ -111,10 +111,10 @@ public partial class Interpreter
         Fn("Clamp", FunctionVal.From((x, lo) =>
         {
             if (lo is not RangeVal rng)
-                throw new RuntimeException($"Clamp 的第二个实参要是个区间（如 `Math.Clamp x [0..1]`），得到 {lo.Type}");
+                throw new RuntimeException($"Clamp 的第二个实参要是个区间（如 `Math.Clamp x [0..1]`），得到 {lo.Type}", ErrorKind.Argument);
 
             double v = Num(x, "clamp"), l = Num(rng.Start, "clamp"), h = Num(rng.End, "clamp");
-            if (l > h) throw new RuntimeException($"Clamp 的下界 {rng.Start} 不能大于上界 {rng.End}");
+            if (l > h) throw new RuntimeException($"Clamp 的下界 {rng.Start} 不能大于上界 {rng.End}", ErrorKind.Value);
             return v < l ? rng.Start : v > h ? rng.End : x;
         }));
         Fn("Fma", FunctionVal.From((a, b, c) =>
@@ -156,7 +156,7 @@ public partial class Interpreter
     {
         IntVal i => new IntVal(Math.Sign(i.Value)),
         FloatVal f => double.IsNaN(f.Value)
-            ? throw new RuntimeException("Sign 的 NaN 没有符号")
+            ? throw new RuntimeException("Sign 的 NaN 没有符号", ErrorKind.Value)
             : new IntVal(Math.Sign(f.Value)),
         BigIntVal bi => new IntVal(bi.Value.Sign),
         FractionVal fr => new IntVal(Math.Sign(fr.Num)),

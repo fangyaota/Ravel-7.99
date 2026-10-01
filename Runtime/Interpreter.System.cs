@@ -59,6 +59,7 @@ public partial class Interpreter
         DefType("KeyError", BuiltinClasses.KeyError);
         DefType("ZeroDivisionError", BuiltinClasses.ZeroDivisionError);
         DefType("AssertionError", BuiltinClasses.AssertionError);
+        DefType("AccessError", BuiltinClasses.AccessError);
         DefType("ArgumentError", BuiltinClasses.ArgumentError);
         DefType("ValueError", BuiltinClasses.ValueError);
         DefType("IoError", BuiltinClasses.IoError);
@@ -167,7 +168,7 @@ public partial class Interpreter
         DefFn("RandomBytes", FunctionVal.From(a => Fs("取随机字节", () =>
         {
             var n = As<IntVal>(a, "RandomBytes 的个数").Value;
-            if (n < 0) throw new RuntimeException($"RandomBytes 的个数不能是负的，得到 {n}");
+            if (n < 0) throw new RuntimeException($"RandomBytes 的个数不能是负的，得到 {n}", ErrorKind.Value);
             var buf = new byte[n];
             RandomNumberGenerator.Fill(buf);
             return new ListVal([.. buf.Select(b => (RuntimeValue)new IntVal(b))]);
@@ -178,8 +179,8 @@ public partial class Interpreter
 
         DefFn("Property", FunctionVal.From((g, s) =>
         {
-            if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数");
-            if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数");
+            if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数", ErrorKind.Argument);
+            if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数", ErrorKind.Argument);
             return new PropertyVal(gf, sf);
         }));
         DefFn("Assert", FunctionVal.From((cond, msg) =>
@@ -281,12 +282,12 @@ public partial class Interpreter
             if (Directory.Exists(p))
             {
                 if (Directory.EnumerateFileSystemEntries(p).Any())
-                    throw new RuntimeException($"删除失败: 目录不是空的（不递归删）—— {p}");
+                    throw new RuntimeException($"删除失败: 目录不是空的（不递归删）—— {p}", ErrorKind.Io);
                 Directory.Delete(p);
                 return VoidVal.Instance;
             }
 
-            if (!File.Exists(p)) throw new RuntimeException($"删除失败: 找不到要删的东西 —— {p}");
+            if (!File.Exists(p)) throw new RuntimeException($"删除失败: 找不到要删的东西 —— {p}", ErrorKind.Io);
             File.Delete(p);
             return VoidVal.Instance;
         })));
@@ -300,7 +301,7 @@ public partial class Interpreter
         DefFn("ListDir", FunctionVal.From(a => Fs("列目录", () =>
         {
             var p = PathOf(a, "ListDir");
-            if (!Directory.Exists(p)) throw new RuntimeException($"列目录失败: 找不到目录 —— {p}");
+            if (!Directory.Exists(p)) throw new RuntimeException($"列目录失败: 找不到目录 —— {p}", ErrorKind.Io);
 
             var entries = new Dictionary<RuntimeValue, RuntimeValue>();
             foreach (var d in Directory.EnumerateDirectories(p)) entries[new StringVal(Path.GetFileName(d))] = new BoolVal(true);
@@ -330,7 +331,7 @@ public partial class Interpreter
             };
 
             using var proc = System.Diagnostics.Process.Start(psi)
-                ?? throw new RuntimeException("跑命令失败: 进程起不来");
+                ?? throw new RuntimeException("跑命令失败: 进程起不来", ErrorKind.Io);
             var outTask = System.Threading.Tasks.Task.Run(() => ReadAllBytes(proc.StandardOutput.BaseStream));
             var errTask = System.Threading.Tasks.Task.Run(() => ReadAllBytes(proc.StandardError.BaseStream));
             proc.WaitForExit();
@@ -363,7 +364,7 @@ public partial class Interpreter
             var src = PathOf(a, "CopyPath");
             var dst = PathOf(b, "CopyPath");
             NeedFile(src, "复制");
-            if (Directory.Exists(dst)) throw new RuntimeException($"复制失败: 目标是目录 —— {dst}");
+            if (Directory.Exists(dst)) throw new RuntimeException($"复制失败: 目标是目录 —— {dst}", ErrorKind.Io);
             NeedParentDir(dst, "复制");
             File.Copy(src, dst, overwrite: true);
             return VoidVal.Instance;
@@ -384,7 +385,7 @@ public partial class Interpreter
         DefFn("ChDir", FunctionVal.From(a => Fs("切目录", () =>
         {
             var p = PathOf(a, "ChDir");
-            if (!Directory.Exists(p)) throw new RuntimeException($"切目录失败: 找不到目录 —— {p}");
+            if (!Directory.Exists(p)) throw new RuntimeException($"切目录失败: 找不到目录 —— {p}", ErrorKind.Io);
             Directory.SetCurrentDirectory(p);
             return VoidVal.Instance;
         })));
@@ -482,7 +483,7 @@ public partial class Interpreter
         static string EnvName(RuntimeValue v, string what)
         {
             var name = As<StringVal>(v, $"{what} 的名字").Value;
-            if (name.Length == 0) throw new RuntimeException($"{what}: 变量名不能是空的");
+            if (name.Length == 0) throw new RuntimeException($"{what}: 变量名不能是空的", ErrorKind.Value);
             return name;
         }
 
@@ -565,7 +566,7 @@ public partial class Interpreter
     {
         BigIntVal b => DateTimeOffset.FromUnixTimeMilliseconds((long)b.Value).LocalDateTime,
         IntVal i => DateTimeOffset.FromUnixTimeMilliseconds(i.Value).LocalDateTime,
-        _ => throw new RuntimeException($"{what} 的毫秒数需要 bigint，得到 {v.Type}"),
+        _ => throw new RuntimeException($"{what} 的毫秒数需要 bigint，得到 {v.Type}", ErrorKind.Type),
     };
 
     /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里。

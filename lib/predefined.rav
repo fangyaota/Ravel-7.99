@@ -39,6 +39,7 @@ readonly IndexError := System.IndexError
 readonly KeyError := System.KeyError
 readonly ZeroDivisionError := System.ZeroDivisionError
 readonly AssertionError := System.AssertionError
+readonly AccessError := System.AccessError
 readonly ArgumentError := System.ArgumentError
 readonly ValueError := System.ValueError
 readonly IoError := System.IoError

@@ -47,6 +47,7 @@ Types.PrintTree object
 # │   ├── KeyError [Type]
 # │   ├── ZeroDivisionError [Type]
 # │   ├── AssertionError [Type]
+# │   ├── AccessError [Type]
 # │   ├── ArgumentError [Type]
 # │   ├── ValueError [Type]
 # │   ├── IoError [Type]

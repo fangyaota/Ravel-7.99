@@ -33,7 +33,7 @@ public partial class Interpreter
     private BlockExpr? LoadModuleAst(string path)
     {
         var full = ResolveModulePath(path);
-        if (full == null) throw new RuntimeException("找不到文件: " + path);
+        if (full == null) throw new RuntimeException("找不到文件: " + path, ErrorKind.Io);
         if (_loading.Contains(full)) throw new RuntimeException("检测到循环引用: " + path);
         if (_loaded.Contains(full)) return null;
         _loaded.Add(full);

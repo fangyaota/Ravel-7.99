@@ -147,7 +147,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     private static BigInteger Bound(RuntimeValue v, bool closed, bool goingUp)
     {
         if (!Whole(v, closed, goingUp, out var b))
-            throw new RuntimeException($"区间的端点不能是 {v} —— 它给不出界");
+            throw new RuntimeException($"区间的端点不能是 {v} —— 它给不出界", ErrorKind.Value);
         return b;
     }
 
@@ -170,7 +170,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 }
 
                 if (double.IsInfinity(f.Value))
-                    throw new RuntimeException($"区间的端点不能是 {f.Value} —— 无穷长的区间给不出界");
+                    throw new RuntimeException($"区间的端点不能是 {f.Value} —— 无穷长的区间给不出界", ErrorKind.Value);
 
                 bound = new BigInteger(goingUp ? Math.Ceiling(f.Value) : Math.Floor(f.Value));
                 return true;
@@ -181,7 +181,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 bound = Div(bf.Num, bf.Den, goingUp);
                 return true;
             default:
-                throw new RuntimeException($"区间的端点需要数值，得到 {v.Type}");
+                throw new RuntimeException($"区间的端点需要数值，得到 {v.Type}", ErrorKind.Type);
         }
     }
 
@@ -189,7 +189,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     /// (见 `FractionVal` 的说明)。C# 的整数除法往零截断(负数那边不对),所以按余数符号分一分。</summary>
     private static BigInteger Div(BigInteger num, BigInteger den, bool goingUp)
     {
-        if (den.IsZero) throw new RuntimeException("区间的端点是分数，分母不能为零");
+        if (den.IsZero) throw new RuntimeException("区间的端点是分数，分母不能为零", ErrorKind.ZeroDivision);
 
         var q = BigInteger.DivRem(num, den, out var r);
         if (r.IsZero) return q;                             // 本来就整

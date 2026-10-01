@@ -19,6 +19,7 @@ namespace Ravel.Runtime;
 /// | `KeyError` | 键不存在 |
 /// | `ZeroDivisionError` | 除零 |
 /// | `AssertionError` | `assert` 不成立 |
+/// | `AccessError` | 读写被挡:只读 / 私有 / 受保护 / 核心字段 / 不可读取 |
 /// | `ArgumentError` | 实参的形状不对(要代码块、要字符串、要类型对象…) |
 /// | `ValueError` | 值本身不对:数值超范围、解析不动、JSON 转不了 |
 /// | `IoError` | 文件/目录/命令那批(`Fs` 那一族) |
@@ -40,6 +41,7 @@ internal static partial class BuiltinClasses
         ErrorKind.Key => KeyError,
         ErrorKind.ZeroDivision => ZeroDivisionError,
         ErrorKind.Assert => AssertionError,
+        ErrorKind.Access => AccessError,
         ErrorKind.Argument => ArgumentError,
         ErrorKind.Value => ValueError,
         ErrorKind.Io => IoError,

@@ -32,7 +32,7 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
     /// (从前 `Assign` 和 <see cref="ReplaceSlot"/> 各抄了一遍那句消息。)</summary>
     public void CheckWritable()
     {
-        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值");
+        if (HasAttr(Attr.Readonly)) throw new RuntimeException("无法给只读变量 '" + Name + "' 赋值", ErrorKind.Access);
     }
 
     /// <summary>换掉槽里的东西(`by a = X`)。
@@ -62,7 +62,7 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
         if (TypeConstraint == BuiltinClasses.Any || newValue.Type.IsAssignableTo(TypeConstraint)) return;
         if (alsoAccepts != null && alsoAccepts(TypeConstraint)) return;
         throw new RuntimeException(
-            "类型错误: 无法将 " + newValue.Type + " 赋值给 '" + Name + "' (声明为 " + TypeConstraint + ")");
+            "类型错误: 无法将 " + newValue.Type + " 赋值给 '" + Name + "' (声明为 " + TypeConstraint + ")", ErrorKind.Type);
     }
 
     public override string ToString() => Name + ": " + TypeConstraint + " = " + Value;

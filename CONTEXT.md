@@ -251,7 +251,7 @@ Object (parent=自己)
 │                              造出来的接口都挂在这下面(它类体里那份 `init` 就这么继承下去)
 ├── Void / Exception / Ravel(模块) / Scope / Property
 │                      └── 错误那一族:TypeError / NameError / AttributeError / IndexError /
-│                          KeyError / ZeroDivisionError / AssertionError / ArgumentError /
+│                          KeyError / ZeroDivisionError / AssertionError / AccessError / ArgumentError /
 │                          ValueError / IoError / RegexError(见 BuiltinClasses.Errors.cs)
 ├── Any (顶类型, parent=自己)
 └── Every (底类型, parent=自己)
@@ -1503,7 +1503,7 @@ Error: 未定义的变量 'missing'
 （取自 `tests/152_error_report.rav` 的实际输出——它是精确比对用例，所以这段不会漂。）
 
 - **抛出点只管给消息**(和**哪一族**)：180 多处 `throw new RuntimeException("...")` 不用操心位置。
-  族 = `ErrorKind`(类型 / 名字 / 成员 / 下标 / 键 / 除零 / 断言 / 参数 / 值 / IO / 正则),
+  族 = `ErrorKind`(类型 / 名字 / 成员 / 下标 / 键 / 除零 / 断言 / 访问 / 参数 / 值 / IO / 正则),
   由 `HandToRavelHandler` 那**一处**翻成 Ravel 的对应类(见 `Runtime/BuiltinClasses.Errors.cs`)——
   引擎报错是引擎的事,分类也归引擎;库里再定义一遍就成了两处各管一半。没归类的落基类 `Exception`。
   位置和栈由求值器在冒泡时补（`Interpreter.Stack.cs` 的 `StepOnce` → `Locate`）——

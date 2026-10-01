@@ -107,19 +107,19 @@ internal static partial class BuiltinClasses
                         FunctionVal.From(body => BuildInterface(scope, o, Requirements((ListVal)rs), body))),
                     new NativeClosure("body", Function, (_, body) => BuildInterface(scope, o, [], body)))
                 : throw new RuntimeException($"`interface` 只能继承接口（{of} 是个类）；"
-                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`"));
+                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`", ErrorKind.Type));
 
         // 代码块:不继承、不要求
         var factoryBody = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, null, [], body));
 
         // 光有要求、没写父 —— 不收
         var factoryList = new NativeClosure("requires", List, (_, _) => throw new RuntimeException(
-            "要求得跟在父接口后面：`interface 那个接口 [A B] { … }`"));
+            "要求得跟在父接口后面：`interface 那个接口 [A B] { … }`", ErrorKind.Argument));
 
         // 别的:把能写什么说全(不然只会得到「| 的 N 个分支都不收这个参数」)
         var factoryJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
             "`interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），"
-            + $"得到 {v.Type}"));
+            + $"得到 {v.Type}", ErrorKind.Argument));
 
         Interface.ClassBody = PresetCtor(Alternate(factoryOf, factoryBody, factoryList, factoryJunk));
 
@@ -138,7 +138,7 @@ internal static partial class BuiltinClasses
 
         var implJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
             "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
-            + $"得到 {v.Type}"));
+            + $"得到 {v.Type}", ErrorKind.Argument));
 
         BaseInterface.ClassBody = PresetCtor(Alternate(implOf, implJunk));
     }
@@ -150,7 +150,7 @@ internal static partial class BuiltinClasses
         for (var i = 0; i < list.Elements.Count; i++)
         {
             if (list.Elements[i] is not ObjectVal { Type: var meta } o || !meta.IsAssignableTo(Interface))
-                throw new RuntimeException($"要求表里得全是接口，第 {i + 1} 个是 {list.Elements[i].Type}");
+                throw new RuntimeException($"要求表里得全是接口，第 {i + 1} 个是 {list.Elements[i].Type}", ErrorKind.Type);
             reqs.Add(o);
         }
 
@@ -170,7 +170,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue BuildInterface(Scope scope, ObjectVal? parent, List<ObjectVal> requires, RuntimeValue body)
     {
         if (body is not BlockVal blk)
-            throw new RuntimeException($"接口的体得是个代码块（`interface … {{ … }}`），得到 {body.Type}");
+            throw new RuntimeException($"接口的体得是个代码块（`interface … {{ … }}`），得到 {body.Type}", ErrorKind.Argument);
 
         // 没有父的接口,parent 挂在 **`BaseInterface`** 上(不是 `object`)—— 它就是"接口的
         // 公共基类",`init` 那一份默认实现挂在那儿,于是每个接口都继承得到。
@@ -215,15 +215,15 @@ internal static partial class BuiltinClasses
     {
         if (impl.Scope.LookupField(InstanceMember) != null)
             throw new RuntimeException($"接口 {impl.Type.DisplayName} 里声明了名为 '{InstanceMember}' 的槽"
-                + " —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个");
+                + " —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个", ErrorKind.Argument);
 
         var id = ImplId(impl);
         var getter = new NativeClosure(InstanceMember, Any, (scope, _) =>
             interp.ActiveInstance(scope, id.Value) ?? throw new RuntimeException(
                 "`instance` 只在实现体的槽里有效：此刻没有正在被服务的实例"
-                + "（它指的是「这一次调用在服务谁」，离开那次调用就没有了）"));
+                + "（它指的是「这一次调用在服务谁」，离开那次调用就没有了）", ErrorKind.Name));
         var setter = new NativeClosure(InstanceMember, Any, (_, _) => throw new RuntimeException(
-            "`instance` 是只读的：它由引擎指到这一次服务的实例，不能赋值"));
+            "`instance` 是只读的：它由引擎指到这一次服务的实例，不能赋值", ErrorKind.Access));
 
         var vr = impl.Scope.Define(InstanceMember, Any, new PropertyVal(getter, setter));
         vr.SetAttr(Attr.By);
@@ -254,7 +254,7 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Use(Interpreter interp, RuntimeValue v, Scope into, string caller)
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
-            throw new RuntimeException($"{caller} 要的是「接口 类 实现」造出来的实现，得到 {v.Type.DisplayName}");
+            throw new RuntimeException($"{caller} 要的是「接口 类 实现」造出来的实现，得到 {v.Type.DisplayName}", ErrorKind.Type);
         RegisterUse(into, impl);
         return impl;
     }

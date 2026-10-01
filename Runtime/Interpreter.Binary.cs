@@ -67,7 +67,7 @@ public partial class Interpreter
         if (nf.Count == 1)
         {
             var left = nf.Result(0);
-            if (left is not BoolVal lb) throw new RuntimeException(bin.Op + " 左边必须是 bool");
+            if (left is not BoolVal lb) throw new RuntimeException(bin.Op + " 左边必须是 bool", ErrorKind.Type);
             if (bin.Op == "&&" && !lb.Value)
             {
                 Return(nf, left);
@@ -85,7 +85,7 @@ public partial class Interpreter
         }
 
         var right = nf.Result(1);
-        if (right is not BoolVal) throw new RuntimeException(bin.Op + " 右边必须是 bool");
+        if (right is not BoolVal) throw new RuntimeException(bin.Op + " 右边必须是 bool", ErrorKind.Type);
         Return(nf, right);
     }
 
@@ -148,7 +148,7 @@ public partial class Interpreter
         if (!BuiltinClasses.TryAsDouble(nf.Result(0), out _) ||
             !BuiltinClasses.TryAsDouble(nf.Result(1), out _))
             throw new RuntimeException(
-                $"Range 的两端需要数值，得到 {nf.Result(0).Type} 与 {nf.Result(1).Type}");
+                $"Range 的两端需要数值，得到 {nf.Result(0).Type} 与 {nf.Result(1).Type}", ErrorKind.Type);
 
         Return(nf, new RangeVal(nf.Result(0), nf.Result(1), rng.StartClosed, rng.EndClosed));
     }
@@ -225,7 +225,7 @@ public partial class Interpreter
         if (nf.Count == 1) { PushChild(nf, bin.Right); return; }
 
         if (!nf.Result(0).HasOwnMembers)
-            throw new RuntimeException($"复合赋值的字段目标需要有自己的成员，{nf.Result(0).Type} 没有");
+            throw new RuntimeException($"复合赋值的字段目标需要有自己的成员，{nf.Result(0).Type} 没有", ErrorKind.Type);
         var ov = (ObjectVal)nf.Result(0);
 
         var own = ov.Scope.LookupField(ma.Member);
@@ -305,9 +305,9 @@ public partial class Interpreter
     private void CheckMemberAccess(Variable field, ObjectVal obj, string member)
     {
         if (field.HasAttr(Attr.Core) && !IsUnsafe)
-            throw new RuntimeException($"字段 '{member}' 是核心字段，需要 unsafe");
+            throw new RuntimeException($"字段 '{member}' 是核心字段，需要 unsafe", ErrorKind.Access);
         if (!CheckFieldAccess(field, obj))
-            throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}");
+            throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}", ErrorKind.Access);
     }
 
     /// <summary>成员写入。`=` 是赋值(字段必须已存在),`:=` 是定义(不存在就新建、存在就整条替换)。</summary>
@@ -332,7 +332,7 @@ public partial class Interpreter
             // 判据是"有没有**自己**的成员表",不是"是不是 ObjectVal":
             // 原子值借的是类那层的表,往里写等于改掉整个类型,所以按只读挡回去。
             if (!obj.HasOwnMembers)
-                throw new RuntimeException($"无法给 {obj.Type} 的值设置字段（值类型没有自己的成员）");
+                throw new RuntimeException($"无法给 {obj.Type} 的值设置字段（值类型没有自己的成员）", ErrorKind.Type);
             var ov = (ObjectVal)obj;
             // `:=` 是定义:字段不存在也放行(到 count==2 时新建)。已存在的字段照样受 core/访问控制约束,
             // 否则 `:=` 就成了绕过封装的万能钥匙。

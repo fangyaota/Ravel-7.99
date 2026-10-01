@@ -280,7 +280,7 @@ public partial class Interpreter
                 foreach (var r in reqs.Elements)
                     if (r is ObjectVal rt && !BuiltinClasses.HasTrait(this, target, rt))
                         throw new RuntimeException($"`{trait.DisplayName}` 要求 {target.DisplayName} "
-                            + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）");
+                            + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）", ErrorKind.Type);
 
             // 接口那几层类体已经跑过了(实例化那趟跑的,跑的就是这个对象的 scope)——
             // 这里只追加**实现块**。但这张表得换一个词法父:它由那趟建出来时接的是
@@ -437,7 +437,7 @@ public partial class Interpreter
     private static bool Yes(RuntimeValue got, string label)
         => got is BoolVal b
             ? b.Value
-            : throw new RuntimeException($"{label} 的函数要交回 bool，得到 {got.Type}");
+            : throw new RuntimeException($"{label} 的函数要交回 bool，得到 {got.Type}", ErrorKind.Type);
 
     /// <summary>收工时交出去的东西。Find 没找到是**错误**(「没有满足的」和「找到一个是 ()」
     /// 不该长得一样);SortBy 这时候按键排(稳定)。</summary>
@@ -446,7 +446,7 @@ public partial class Interpreter
         SeqMode.Each => VoidVal.Instance,
         SeqMode.All => new BoolVal(true),
         SeqMode.Any => new BoolVal(false),
-        SeqMode.Find => throw new RuntimeException("Find: 没有满足条件的元素"),
+        SeqMode.Find => throw new RuntimeException("Find: 没有满足条件的元素", ErrorKind.Value),
         // SortBy 攒的是「键 + 元素」对:按键排(稳定),交出去的是**元素**
         SeqMode.SortBy => new ListVal([.. BuiltinClasses
             .SortByKey(((ListVal)acc).Elements, p => ((ListVal)p).Elements[0]).Elements

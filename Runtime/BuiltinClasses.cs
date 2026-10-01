@@ -71,6 +71,7 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal KeyError;
     public static readonly ClassVal ZeroDivisionError;
     public static readonly ClassVal AssertionError;
+    public static readonly ClassVal AccessError;
     public static readonly ClassVal ArgumentError;
     public static readonly ClassVal ValueError;
     public static readonly ClassVal IoError;
@@ -134,6 +135,7 @@ internal static partial class BuiltinClasses
         KeyError = New("KeyError");
         ZeroDivisionError = New("ZeroDivisionError");
         AssertionError = New("AssertionError");
+        AccessError = New("AccessError");
         ArgumentError = New("ArgumentError");
         ValueError = New("ValueError");
         IoError = New("IoError");
@@ -183,6 +185,7 @@ internal static partial class BuiltinClasses
         Link(KeyError, Exception, Type);
         Link(ZeroDivisionError, Exception, Type);
         Link(AssertionError, Exception, Type);
+        Link(AccessError, Exception, Type);
         Link(ArgumentError, Exception, Type);
         Link(ValueError, Exception, Type);
         Link(IoError, Exception, Type);
@@ -214,7 +217,7 @@ internal static partial class BuiltinClasses
                      List, Set, Dict, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, Json, ScopeType, Property,
                      TypeError, NameError, AttributeError, IndexError, KeyError,
-                     ZeroDivisionError, AssertionError, ArgumentError, ValueError,
+                     ZeroDivisionError, AssertionError, AccessError, ArgumentError, ValueError,
                      IoError, RegexError
                  })
             AllTypes.Add(t);
@@ -327,7 +330,7 @@ internal static partial class BuiltinClasses
         // 硬转就是 C# 的 InvalidCastException(不是 RuntimeException,`try` 接不住,一路打穿到顶层),
         // 所以改成说人话的 Ravel 错误。
         if (scope.Lookup(ObjectVal.ThisMember).Value is not ClassVal self)
-            throw new RuntimeException("这个类型不能再套一个代码块来建类（它是个接口：接口是用 `interface { … }` 造的）");
+            throw new RuntimeException("这个类型不能再套一个代码块来建类（它是个接口：接口是用 `interface { … }` 造的）", ErrorKind.Type);
         // `parent` / `block` **只读**:它们是"这个类是什么"的定义,改它等于把类换一个
         // (`C.parent = int` 之后 `C ()` 就去跑 Integer 的构造器了)。装类是**一次**的事
         // —— 想换个父类就再造一个类,别改这一个。

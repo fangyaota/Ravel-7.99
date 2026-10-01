@@ -101,9 +101,9 @@ public class BoxedValue(RuntimeValue value, Interpreter interp)
     /// private/protected 不在这里判:那要看「当前作用域能否走到该对象/模块」,得先有 owner。</summary>
     internal static void GateRead(Variable v, string name, Interpreter interp)
     {
-        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{name}' 不可读取");
+        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{name}' 不可读取", ErrorKind.Access);
         if (v.HasAttr(Attr.Core) && !interp.IsUnsafe)
-            throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe");
+            throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe", ErrorKind.Access);
         if (v.HasAttr(Attr.Outdated)) Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
     }
 

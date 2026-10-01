@@ -35,7 +35,7 @@ public record ControlFrame(ControlKind Kind, RList<RuntimeValue> Args, RuntimeVa
     {
         var v = Args.At(i);
         return v as T ?? throw new RuntimeException(
-            $"{owner} 的第 {i + 1} 个参数需要{ArgNames.Of(typeof(T))}，得到 {v.Type}");
+            $"{owner} 的第 {i + 1} 个参数需要{ArgNames.Of(typeof(T))}，得到 {v.Type}", ErrorKind.Type);
     }
 }
 

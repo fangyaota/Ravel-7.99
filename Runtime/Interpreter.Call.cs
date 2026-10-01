@@ -87,16 +87,16 @@ public partial class Interpreter
                 // 会静默地把控制权留在原地,而调用方还以为跳走了(见 ContinuationVal.Default)。
                 if (k.Captured is null)
                     throw new RuntimeException("这枚续延是 default（还没到手的那一枚），调不了 —— "
-                                             + "能跳的续延只有 callcc 交出来的那种");
+                                             + "能跳的续延只有 callcc 交出来的那种", ErrorKind.Value);
                 _top = k.Captured.WithResult(arg);
                 break;
             case BoolVal bv:
                 // true/false 是函数(lisp 式):收两个块,返回选中那个块的结果
-                if (arg is not BlockVal thenBlock) throw new RuntimeException("true/false 需要两个代码块");
+                if (arg is not BlockVal thenBlock) throw new RuntimeException("true/false 需要两个代码块", ErrorKind.Argument);
                 _top = sink.WithResult(new PartialBool(bv.Value, thenBlock));
                 break;
             case PartialBool pb:
-                if (arg is not BlockVal elseBlock) throw new RuntimeException("true/false 需要两个代码块");
+                if (arg is not BlockVal elseBlock) throw new RuntimeException("true/false 需要两个代码块", ErrorKind.Argument);
                 var chosen = pb.Value ? pb.Then : elseBlock;
                 _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope.Push() };
                 break;
@@ -109,7 +109,7 @@ public partial class Interpreter
                 break;
             // 非函数的值(原子值、普通对象、容器、模块…)：不能调
             default:
-                throw new RuntimeException($"值 {fn} 不是函数，不能调用");
+                throw new RuntimeException($"值 {fn} 不是函数，不能调用", ErrorKind.Type);
         }
     }
 

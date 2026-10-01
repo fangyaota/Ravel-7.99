@@ -61,6 +61,7 @@ public enum ErrorKind
     Key,
     ZeroDivision,
     Assert,
+    Access,
     Argument,
     Value,
     Io,

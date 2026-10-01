@@ -39,7 +39,7 @@ internal static partial class BuiltinClasses
             BoolVal b => new JValue(b.Value),
             VoidVal => JValue.CreateNull(),
             _ => throw new RuntimeException($"Json: {v.Type} 在 JSON 里没有对应"
-                + "（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）"),
+                + "（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）", ErrorKind.Value),
         };
     }
 
@@ -94,7 +94,7 @@ internal static partial class BuiltinClasses
         {
             var token = JToken.ReadFrom(reader);
             if (reader.Read())                           // 一个 JSON 文档只该有一个值
-                throw new RuntimeException($"Json.FromString: 第一个值后面还有东西（位置 {reader.LineNumber}:{reader.LinePosition}）");
+                throw new RuntimeException($"Json.FromString: 第一个值后面还有东西（位置 {reader.LineNumber}:{reader.LinePosition}）", ErrorKind.Value);
             return new JsonVal(token);
         }
         catch (JsonReaderException ex)
@@ -102,7 +102,7 @@ internal static partial class BuiltinClasses
             // ⚠️ 它不在 `Fs` 的 catch 白名单里 —— 不自己接住的话会当成"解释器内部错误"
             // 把程序打掉 Ravel 的 try 接不住(见 Interpreter.Math.cs 那段注释)
             throw new RuntimeException(
-                $"Json.FromString: 第 {ex.LineNumber + 1} 行第 {ex.LinePosition + 1} 列读不动 —— {ex.Message}");
+                $"Json.FromString: 第 {ex.LineNumber + 1} 行第 {ex.LinePosition + 1} 列读不动 —— {ex.Message}", ErrorKind.Value);
         }
     }
 
@@ -162,7 +162,7 @@ internal static partial class BuiltinClasses
             var key = TextArg(a, "Json.Get 的键");
             return ((JsonVal)s).Token is JObject o && o.TryGetValue(key, out var child)
                 ? new JsonVal(child)
-                : throw new RuntimeException($"Json.Get: 没有这个键 '{key}'（对象里有 {KeysOf((JsonVal)s).Count} 个键）");
+                : throw new RuntimeException($"Json.Get: 没有这个键 '{key}'（对象里有 {KeysOf((JsonVal)s).Count} 个键）", ErrorKind.Key);
         });
 
         // `t.GetOr "k" 0` —— 没有就给替代值;替代值也包成 Json,免得"取到的"和"给的"两种形状
@@ -179,9 +179,9 @@ internal static partial class BuiltinClasses
         {
             var i = IntArg(a, "Json.At");
             var arr = ((JsonVal)s).Token as JArray
-                ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)s).Token.Type}，不是数组");
+                ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)s).Token.Type}，不是数组", ErrorKind.Type);
             if (i < 0 || i >= arr.Count)
-                throw new RuntimeException($"Json.At: 索引 {i} 超出范围（长度 {arr.Count}）");
+                throw new RuntimeException($"Json.At: 索引 {i} 超出范围（长度 {arr.Count}）", ErrorKind.Index);
             return new JsonVal(arr[i]);
         });
 
@@ -189,7 +189,7 @@ internal static partial class BuiltinClasses
         {
             JObject o => o.Count,
             JArray a => a.Count,
-            var t => throw new RuntimeException($"Json.Count: 这是 {t.Type}，没有「个数」"),
+            var t => throw new RuntimeException($"Json.Count: 这是 {t.Type}，没有「个数」", ErrorKind.Type),
         }));
 
         Json.DefineMethod("Keys", (s, _) => new ListVal([
@@ -205,5 +205,5 @@ internal static partial class BuiltinClasses
 
     private static List<string> KeysOf(JsonVal j) => j.Token is JObject o
         ? [.. o.Properties().Select(p => p.Name)]
-        : throw new RuntimeException($"Json.Keys: 这是 {j.Token.Type}，不是对象");
+        : throw new RuntimeException($"Json.Keys: 这是 {j.Token.Type}，不是对象", ErrorKind.Type);
 }

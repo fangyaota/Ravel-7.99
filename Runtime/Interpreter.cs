@@ -69,7 +69,7 @@ public partial class Interpreter
 
         throw new RuntimeException(
             "找不到 lib/predefined.rav（别名与控制流都在那里）。搜过:"
-            + string.Join(" ", ModuleSearchPath.Defaults));
+            + string.Join(" ", ModuleSearchPath.Defaults), ErrorKind.Io);
     }
 
     /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>

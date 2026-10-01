@@ -61,7 +61,7 @@ internal static partial class BuiltinClasses
 
         type.DefineMethod("Join", (s, a) =>
         {
-            if (a is not StringVal sep) throw new RuntimeException("Join 需要 string 分隔符");
+            if (a is not StringVal sep) throw new RuntimeException("Join 需要 string 分隔符", ErrorKind.Argument);
             return new StringVal(string.Join(sep.Value, items(s).Select(x => x.ToString())));
         });
         type.DefineMethod("Sum", (s, _) =>
@@ -104,7 +104,7 @@ internal static partial class BuiltinClasses
         ListVal l => [.. l.Elements],
         SetVal s => [.. s.Elements],
         DictVal d => [.. d.Entries.Values],
-        _ => throw new RuntimeException($"{what} 需要 list / set / dict，得到 {v.Type}"),
+        _ => throw new RuntimeException($"{what} 需要 list / set / dict，得到 {v.Type}", ErrorKind.Argument),
     };
 
     /// <summary>按键排序(**稳定** —— 相等的元素保持原来的先后,`OrderBy` 就是稳定的)。
@@ -129,7 +129,7 @@ internal static partial class BuiltinClasses
         }
         catch (InvalidOperationException)
         {
-            throw new RuntimeException("排序时比不了:元素之间类型不一致");
+            throw new RuntimeException("排序时比不了:元素之间类型不一致", ErrorKind.Type);
         }
     }
 
@@ -151,7 +151,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue ApplyOp(string op, RuntimeValue a, RuntimeValue b)
         => a.MemberScope.LookupField(op)?.Value is BuiltinMethodVal m
             ? m.Impl(a, b)
-            : throw new RuntimeException($"'{op}' 不支持 {a.Type}（{a.Type} 与 {b.Type} 之间）");
+            : throw new RuntimeException($"'{op}' 不支持 {a.Type}（{a.Type} 与 {b.Type} 之间）", ErrorKind.Type);
 
     /// <summary>比大小:走 `<` 那个内置运算符 —— `Min` / `Max` / `Sort` / `SortBy` 同一个口径。
     /// 比不了就**报错**(不是给个 false、也不是给个元素),而且**两边都说出来**:
@@ -169,7 +169,7 @@ internal static partial class BuiltinClasses
                 // 落到下面统一报"比不了 X 与 Y"(运算符自己的那句话只说了一半)
             }
 
-        throw new RuntimeException($"比不了 {a.Type} 与 {b.Type}");
+        throw new RuntimeException($"比不了 {a.Type} 与 {b.Type}", ErrorKind.Type);
     }
 
     /// <summary>最小 / 最大。相等时留**先出现**的那个(稳定)。</summary>
