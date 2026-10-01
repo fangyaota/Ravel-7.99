@@ -27,6 +27,7 @@
 
 # 正态那一条要用 `Math`(开方、对数、余弦、Pi),所以这个文件把 math.rav 一起拉进来
 # (和 io.rav 拉 iomonad.rav 一个路子)。
+using "native.rav"
 using "math.rav"
 
 # ── 形状:一条槽 ──
@@ -193,22 +194,22 @@ ravel "Random"
 
 # 从 4 个随机字节拼一个 0..2^30-1。走 bigint 中转:4 字节能到 2^32-1,int 装不下(会报溢出)。
 readonly CryptoNext := () => {
-    bs := System.RandomBytes 4
+    bs := Native.RandomBytes 4
     big := (bigint (bs.At 0)) * 16777216 + (bigint (bs.At 1)) * 65536 + (bigint (bs.At 2)) * 256 + bigint (bs.At 3)
     int (big % 1073741824)
 }
 
 # 进程共享那台:底下是 `Random.Shared`,大家共用一台(不可复现)。
-readonly Shared := () => { RandomSource "shared" (System.SharedRandom ()); }
+readonly Shared := () => { RandomSource "shared" (Native.SharedRandom ()); }
 
 # 带种子那台(.NET 的 `Random(seed)`):**同一个运行时里**同种子给出同一串。
 # (种子是 int;.NET 的算法换版本可能变,跨版本不保证同一串。)
-readonly Make := (seed: int) => { RandomSource "seeded" (System.NewRandom seed); }
+readonly Make := (seed: int) => { RandomSource "seeded" (Native.NewRandom seed); }
 
 # 带种子那台(xoshiro256**,Blackman & Vigna 那个,**公有领域**):**算法定死** ——
 # 同一个种子在哪个运行时、哪台机器上都给同一串,所以**能把具体的数钉进用例**。
 # 要"可复现"又要"跨环境一致"(发出去的脚本、对答案、写死种子当伪随机表)就用它。
-readonly Xoshiro := (seed: int) => { RandomSource "xoshiro" (System.XoshiroRandom seed); }
+readonly Xoshiro := (seed: int) => { RandomSource "xoshiro" (Native.XoshiroRandom seed); }
 
 # 加密级那台:源是操作系统的密码学随机数,不可复现、也没有种子。
 readonly Crypto := () => { RandomSource "crypto" CryptoNext; }

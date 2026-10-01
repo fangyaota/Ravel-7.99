@@ -1,6 +1,9 @@
 bin/
 obj/
 out/
+# 插件 dll 的落点:构建时拷到 `out/plugins/`(见 Ravel.csproj 的 CopyPlugins)。
+# 主程序的搜索路径里有「跑起来的那个程序集的目录」,所以从仓库根跑也找得到 ——
+# 不必在仓库根再放一份(从前那份就是这么没的)。
 plugins/
 *.bak
 .claude/

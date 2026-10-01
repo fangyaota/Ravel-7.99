@@ -97,7 +97,7 @@ print ((heads > 800) && (heads < 1200))
 # 整套方法照旧(它也是一个 IRandom)
 sq := (Random.Xoshiro 5).Shuffle [1 2 3 4 5]
 print ((Sorting.Sort sq).Join ",")
-print (typeof (System.XoshiroRandom 1))
+print (typeof (Native.XoshiroRandom 1))
 
 # ── 常用件:三台白拿(默认实现在 IRandom 的体里)──
 xs := [1 2 3 4 5]
@@ -171,9 +171,9 @@ cbs := (Random.Crypto ()).Bytes 4
 print (cbs.Count ())
 
 # ── 引擎那三条原语(库只是包了一层)──
-print (typeof (System.SharedRandom ()))
-print (typeof (System.NewRandom 1))
-rb := System.RandomBytes 4
+print (typeof (Native.SharedRandom ()))
+print (typeof (Native.NewRandom 1))
+rb := Native.RandomBytes 4
 print (rb.Count ())
 print (((rb.At 0) >= 0) && ((rb.At 0) <= 255))
 print "end"

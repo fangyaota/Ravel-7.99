@@ -1,0 +1,24 @@
+# `Native` —— **官方扩展**那一层:Ravel 那半边。
+#
+#     using "native.rav"
+#     Native.HashBytes "sha256" (Encoding.Utf8 "abc")
+#
+# 里面装的是**几个库的本机半边** —— 那些"落到 BCL 上、写不出 Ravel 源码"的原语:
+#
+#     Native.HashBytes / HashFile / HmacBytes                  ← lib/hash.rav
+#     Native.AesSeal / AesOpen / Pbkdf2                        ← lib/crypto.rav
+#     Native.HttpReq / HttpDownload / HttpUpload / DecodeText  ← lib/http.rav
+#     Native.RegexMatch / IsMatch / FindAll / Replace / Split / Escape   ← lib/regex.rav
+#     Native.SqliteOpen / Close / Exec / Query / LastId        ← lib/sqlite.rav
+#     Native.RandomBytes / NewRandom / SharedRandom / XoshiroRandom      ← lib/random.rav
+#
+# 从前这些挂在 `System` 底下(`System.HashBytes`),可它们**不是语言的一部分** ——
+# 拿 `System` 那把尺子量("解释器跑起来就要有的东西":类型、控制流、输出、文件、环境变量、时间),
+# 它们一条都不沾。它们是那几个库的**外壳**,于是搬进一个官方的扩展 dll:
+# `Ravel.Extensions/` 编出 `plugins/Ravel.Extensions.dll`,`using` 这个文件把它装进来。
+#
+# **这一层为什么存在**:`using` 一个 `.dll` 要在别处写死那个路径,而这个文件是那**唯一一处**
+# —— 上面那个 `plugins/...` 就是全部。要用扩展的库都是 `using "native.rav"`,不自己碰 dll。
+# (对照着看 `lib/structures.rav`:那个也是"dll 的 Ravel 那半边",只是它还有活儿要干 ——
+# 得登记 `IEnumerable` 那几条 `impl`;这边没有任何 Ravel 代码,就一行装进来。)
+using "plugins/Ravel.Extensions.dll"

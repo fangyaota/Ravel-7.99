@@ -13,11 +13,11 @@ print (saltLen.Count ())
 
 # ── AES-256-GCM:固定的密钥 / nonce → 密文也是定死的 ──
 key := Crypto.Key "password" (Encoding.Utf8 "salt") 1
-nonce := System.RandomBytes 12
-print ((System.AesSeal key nonce (Encoding.Utf8 "")).Count ())     # 空的也带 16 字节标签
-sealed := System.AesSeal key nonce (Encoding.Utf8 "秘密")
+nonce := Native.RandomBytes 12
+print ((Native.AesSeal key nonce (Encoding.Utf8 "")).Count ())     # 空的也带 16 字节标签
+sealed := Native.AesSeal key nonce (Encoding.Utf8 "秘密")
 print (sealed.Count ())                                            # 6 字节明文 + 16 标签
-print (Encoding.Utf8Text (System.AesOpen key nonce sealed))
+print (Encoding.Utf8Text (Native.AesOpen key nonce sealed))
 
 # ── 转一圈:nonce 随在密文前面,`Open` 自己认得出来 ──
 c := Crypto.Seal key "藏起来的一段"
@@ -54,12 +54,12 @@ print ((Crypto.Token 8).Length ())
 
 # ── 报错的几种:当场说人话 ──
 try { Crypto.Seal [1 2 3] "x"; } (e: Exception) => { print ("1: " + string e); }
-try { System.AesOpen key (System.RandomBytes 13) sealed; } (e: Exception) => { print ("2: " + string e); }
+try { Native.AesOpen key (Native.RandomBytes 13) sealed; } (e: Exception) => { print ("2: " + string e); }
 try { Crypto.Open (Crypto.Key "别的" (Encoding.Utf8 "salt") 1) c; } (e: Exception) => { print ("3: " + string e); }
 tampered := (Crypto.SealBytes key "abc").Skip 1        # 掐掉一个字节:nonce 就此对不上
 try { Crypto.OpenBytes key tampered; } (e: Exception) => { print ("4: " + string e); }
 try { Crypto.Key "p" (Encoding.Utf8 "s") 0; } (e: Exception) => { print ("5: " + string e); }
-try { System.AesOpen key (System.RandomBytes 12) [1 2 3]; } (e: Exception) => { print ("6: " + string e); }
+try { Native.AesOpen key (Native.RandomBytes 12) [1 2 3]; } (e: Exception) => { print ("6: " + string e); }
 
 # --- expected ---
 # 120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b

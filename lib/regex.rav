@@ -81,11 +81,11 @@ RegexPattern ::= class {
 
     init = (pattern: string flags: string) => { Pattern = pattern; Flags = flags; this; }
 
-    IsMatch := (text: string) => { System.RegexIsMatch Pattern text Flags; }
+    IsMatch := (text: string) => { Native.RegexIsMatch Pattern text Flags; }
 
     # 有没有命中 —— 给的是 `Option`(没有命中不是用错,是**常事**)
     TryMatch := (text: string) => {
-        d := System.RegexMatch Pattern text Flags
+        d := Native.RegexMatch Pattern text Flags
         if { (typeof d) == dict; } { Some (RegexMatch d); } { None; }
     }
 
@@ -98,15 +98,16 @@ RegexPattern ::= class {
 
     FindAll := (text: string) => {
         out := []
-        foreach (System.RegexFindAll Pattern text Flags) (d: dict) => { out.Add (RegexMatch d); }
+        foreach (Native.RegexFindAll Pattern text Flags) (d: dict) => { out.Add (RegexMatch d); }
         out
     }
 
-    Replace := (text: string replacement: string) => { System.RegexReplace Pattern text Flags replacement; }
+    Replace := (text: string replacement: string) => { Native.RegexReplace Pattern text Flags replacement; }
 
-    Split := (text: string) => { System.RegexSplit Pattern text Flags; }
+    Split := (text: string) => { Native.RegexSplit Pattern text Flags; }
 }
 
+using "native.rav"
 ravel "Regex"
 
 # 两种构造:光给模式(常见),或者再给一串选项
@@ -121,4 +122,4 @@ readonly With := (pattern: string flags: string) => {
 }
 
 # 把一串**字面量**转成能当模式用的样子(`.` 变成 `\.` 之类)
-readonly Escape := (text: string) => { System.RegexEscape text; }
+readonly Escape := (text: string) => { Native.RegexEscape text; }

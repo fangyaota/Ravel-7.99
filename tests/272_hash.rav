@@ -17,7 +17,7 @@ print (Hash.Sha256Bytes (Encoding.Utf8 "abc"))
 print ((Hash.Sha256Bytes "abc").Count ())   # 32 个字节
 
 # 算法名不计较大写和连字符(`SHA-256` / `sha_256` / `Sha256` 是一个东西)
-print (Encoding.Hex (System.HashBytes "SHA-256" (Encoding.Utf8 "abc")))
+print (Encoding.Hex (Native.HashBytes "SHA-256" (Encoding.Utf8 "abc")))
 
 # ── HMAC:带密钥的摘要 ──
 print (Hash.Hmac "sha256" "key" "The quick brown fox jumps over the lazy dog")
@@ -45,7 +45,7 @@ print ((Hash.Token 16).Length ())
 print (Hash.Equal (Hash.Token 16) (Hash.Token 16))      # 两次不会一样
 
 # ── 不认识的算法 / 不是字节表的东西:当场说人话 ──
-try { System.HashBytes "sha3" [1]; } (e: Exception) => { print ("1: " + string e); }
+try { Native.HashBytes "sha3" [1]; } (e: Exception) => { print ("1: " + string e); }
 try { Hash.Md5 {"a": 1}; } (e: Exception) => { print ("2: " + string e); }
 # --- expected ---
 # ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad

@@ -1,0 +1,19 @@
+# `Native` 里到底有哪些成员 —— **官方扩展的合同**。
+#
+# 这些原语从前挂在 `System` 底下(`System.HashBytes` 那种),可它们不是语言的一部分 ——
+# 是 `Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random` 那六个库的**本机半边**。
+# 现在它们住在 `plugins/Ravel.Extensions.dll` 里,`using "native.rav"` 装进来,
+# 成员落在 `Native` 模块下。
+#
+# 271 钉的是"引擎自带的那张表"(因为不装扩展,**里面一条都没有**);
+# 这一条钉的是"扩展带来的那张表"。两张合起来,正好是搬之前 271 那一份。
+using "native.rav"
+using "encoding.rav"   # 底下要拿 `Encoding.Utf8` 给字节
+
+print ((Native.Fields ()).Count ())
+print (Native.Fields ())
+print (Native.HashBytes "sha256" (Encoding.Utf8 "abc"))
+# --- expected ---
+# 36
+# [AesOpen AesSeal DecodeText HashBytes HashFile HmacBytes HttpDownload HttpReq HttpUpload NewRandom Pbkdf2 RandomBytes RegexEscape RegexFindAll RegexIsMatch RegexMatch RegexReplace RegexSplit SharedRandom SqliteClose SqliteExec SqliteLastId SqliteOpen SqliteQuery XoshiroRandom is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# [186 120 22 191 143 1 207 234 65 65 64 222 93 174 34 35 176 3 97 163 150 23 122 156 180 16 255 97 242 0 21 173]

@@ -19,6 +19,7 @@
 #
 # 加密用的是 **AES-256-GCM**:除了保密,还带认证 —— 密文被改动过一位,`Open` 当场报错。
 # 口令用的是 **PBKDF2-SHA256**:故意算得慢,慢到拿显卡硬试也不划算。
+using "native.rav"
 using "encoding.rav"
 using "hash.rav"      # `Equal`(常数时间比)
 
@@ -45,14 +46,14 @@ readonly Together := (a: list b: list) => {
 }
 
 readonly SealBytes := (key: object data: object) => {
-    nonce := System.RandomBytes NonceLen
-    Together nonce (System.AesSeal key nonce (BytesOf data))
+    nonce := Native.RandomBytes NonceLen
+    Together nonce (Native.AesSeal key nonce (BytesOf data))
 }
 
 readonly OpenBytes := (key: object blob: object) => {
     all := BytesOf blob
     assert ((all.Count ()) > NonceLen) "Crypto.Open: 这串太短了（不是 Seal 出来的？）"
-    System.AesOpen key (all.Take NonceLen) (all.Skip NonceLen)
+    Native.AesOpen key (all.Take NonceLen) (all.Skip NonceLen)
 }
 
 # 交回 / 收下的是 **base64 串** —— 好存、好放进配置、好塞进 URL 和 JSON
@@ -64,13 +65,13 @@ readonly Open := (key: object text: string) => { Encoding.Utf8Text (OpenBytes ke
 # `Salt ()` 每次给一串新的(16 字节)。盐**不必保密**,它的用处是让"两个人用同一个口令"
 # 也得不出同一个密钥 —— 不然一张彩虹表就同时破掉一片。
 readonly SaltLen := 16
-readonly Salt := () => { System.RandomBytes SaltLen; }
+readonly Salt := () => { Native.RandomBytes SaltLen; }
 
 # 轮数:2026 年那批建议是 60 万起步(salt 16 字节)。数越大越难被硬试,代价是自己也慢。
 readonly Rounds := 600000
 
 readonly Key := (password: object salt: object rounds: int) => {
-    System.Pbkdf2 (BytesOf password) (BytesOf salt) rounds;
+    Native.Pbkdf2 (BytesOf password) (BytesOf salt) rounds;
 }
 
 # 常用那份:轮数用默认的(和 `HashPassword` 存的轮数一致)

@@ -8,11 +8,12 @@
 #     Uuid.Bytes s      # → 16 个字节;`Uuid.FromBytes bs` 转回来
 #     Uuid.Time s       # V7 里那个毫秒时间戳(V4 没有,给 -1)
 #
-# **不占引擎**:随机数是现成的 `System.RandomBytes`,时间是 `System.NowMs` ——
+# **不占引擎**:随机数是现成的 `Native.RandomBytes`,时间是 `System.NowMs` ——
 # 剩下的就是"哪几位置成什么"和格式化,写在库里刚好。
 #
 # 位按 RFC 9562 摆:第 7 个字节的高 4 位是**版本**,第 9 个字节的高 2 位是 **variant**(10xx)。
 # 摆对了别人才认得出这是 UUID,也才知道是哪一代。
+using "native.rav"
 using "encoding.rav"     # `Encoding.Hex` / `Unhex`
 
 ravel "Uuid"
@@ -51,7 +52,7 @@ readonly Shape := (bytes: list who: int stamp: object) => {
 }
 
 # 随机那一代
-readonly V4 := () => { Format (Encoding.Hex (Shape (System.RandomBytes 16) 4 ())); }
+readonly V4 := () => { Format (Encoding.Hex (Shape (Native.RandomBytes 16) 4 ())); }
 
 # **按时间排**那一代:头 6 个字节是毫秒时间戳(大端)—— 于是先后造出来的大致按字典序排,
 # 数据库拿它当主键不会把索引捅得稀碎。
@@ -60,7 +61,7 @@ readonly V7 := () => {
     stamp := []
     k := 0
     while { k < 6; } { stamp.Add (TimestampByte t (8 * (5 - k))); k += 1; }
-    Format (Encoding.Hex (Shape (System.RandomBytes 16) 7 stamp));
+    Format (Encoding.Hex (Shape (Native.RandomBytes 16) 7 stamp));
 }
 
 # 时间戳里第 `shift` 位那一个字节。用**除法**取,不碰位运算 ——

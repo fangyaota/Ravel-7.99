@@ -1,25 +1,29 @@
-namespace Ravel.Runtime;
-
 using Microsoft.Data.Sqlite;
-using static Ravel.Runtime.Interpreter;
-using static Ravel.Runtime.SysKit;
+
+namespace Ravel.Extensions;
+
+using Ravel.Runtime;
+using static Ravel.Runtime.PluginKit;
 
 /// <summary>SQLite 的原语 —— 库(`lib/sqlite.rav`)管策略,这里只负责"开一个连接、说一句 SQL"。
+/// 它住在**官方扩展**(`plugins/Ravel.Extensions.dll`)里,对外是 `Native.SqliteOpen` 那几条;
+/// `Microsoft.Data.Sqlite` 这个包也跟着搬进来了 —— 主项目从此不引用它。
 ///
 /// **连接不进 Ravel 堆**:那是个要 Dispose 的本机句柄,而 Ravel 值没有析构那一套。
-/// 所以引擎这边存着(一张 号 → 连接 的表),交给 Ravel 的是个 **int 号** ——
+/// 所以这一格存着(一张 号 → 连接 的表),交给 Ravel 的是个 **int 号** ——
 /// 库里那个 `Db` 对象拿着号,`Close ()` 时把号还回来。这也是为什么这几条原语的第一个
 /// 参数都是 `handle`。
 ///
 /// 参数一律用**名字**(`@名字` + 一张 dict),不做 `?` 那种按位置的替换:
 /// SQL 里 `?` 也可能是字符串里的一个字面量,靠数问号来绑是给自己埋雷。
 /// SQL 执行失败报 `ValueError`(你给的 SQL 不对),开关连接失败报 `IoError`(库文件打不开)。</summary>
-internal static class SysSqlite
+[RavelModule("Native")]
+internal static class SqliteNative
 {
     private static readonly Dictionary<int, SqliteConnection> Opened = [];
     private static int _next;
 
-    [Sys("SqliteOpen")]
+    [RavelFn("SqliteOpen")]
     public static RuntimeValue Open(RuntimeValue path) => Io("开数据库", () =>
     {
         var p = PathOf(path, "SqliteOpen");
@@ -30,10 +34,10 @@ internal static class SysSqlite
         return new IntVal(id);
     });
 
-    [Sys("SqliteClose")]
+    [RavelFn("SqliteClose")]
     public static RuntimeValue Close(RuntimeValue handle) => Io("关数据库", () =>
     {
-        var id = IntArg(handle, "SqliteClose 的句柄");     // 已经关了就当"关过了"(幂等)
+        var id = Int(handle, "SqliteClose 的句柄");     // 已经关了就当"关过了"(幂等)
         if (Opened.Remove(id, out var conn))
         {
             // **ClearPool 不能省**:Microsoft.Data.Sqlite 默认**连接池**着,光 Dispose 只是
@@ -42,11 +46,11 @@ internal static class SysSqlite
             SqliteConnection.ClearPool(conn);
             conn.Dispose();
         }
-        return VoidVal.Instance;
+        return Void;
     });
 
     /// <summary>说一句不取结果的 SQL(建表 / 增删改 / `begin`/`commit`),交回**影响了几行**</summary>
-    [Sys("SqliteExec")]
+    [RavelFn("SqliteExec")]
     public static RuntimeValue Exec(RuntimeValue handle, RuntimeValue sql, RuntimeValue args) => Sql("执行", () =>
     {
         using var cmd = Command(handle, sql, args);
@@ -54,7 +58,7 @@ internal static class SysSqlite
     });
 
     /// <summary>取结果:`{columns: [列名…] rows: [[值…]…]}` —— 列名跟着来,库那边才拼得出一行行 dict</summary>
-    [Sys("SqliteQuery")]
+    [RavelFn("SqliteQuery")]
     public static RuntimeValue Query(RuntimeValue handle, RuntimeValue sql, RuntimeValue args) => Sql("查询", () =>
     {
         using var cmd = Command(handle, sql, args);
@@ -81,7 +85,7 @@ internal static class SysSqlite
     /// <summary>刚插进去那一行的 rowid(bigint —— 主键可以是 64 位)。
     /// **问一句 SQL** 而不是读某个属性:`Microsoft.Data.Sqlite` 这个版本没把
     /// `last_insert_rowid()` 挂成属性,而它本来就是一条 SQL 函数。</summary>
-    [Sys("SqliteLastId")]
+    [RavelFn("SqliteLastId")]
     public static RuntimeValue LastId(RuntimeValue handle) => Sql("取 last_insert_rowid", () =>
     {
         using var cmd = Connection(handle, "SqliteLastId").CreateCommand();
@@ -93,10 +97,10 @@ internal static class SysSqlite
 
     private static SqliteConnection Connection(RuntimeValue h, string what)
     {
-        var id = IntArg(h, $"{what} 的句柄");
+        var id = Int(h, $"{what} 的句柄");
         return Opened.TryGetValue(id, out var c)
             ? c
-            : throw new RuntimeException($"这个数据库已经关了（Close () 过,或者压根没开成）：句柄 {id}", ErrorKind.Value);
+            : throw Fail($"这个数据库已经关了（Close () 过,或者压根没开成）：句柄 {id}", ErrorKind.Value);
     }
 
     /// <summary>拼一条命令:SQL + 按**名字**绑的参数(一张 dict;值经 `ToSql` 换算)。
@@ -104,12 +108,12 @@ internal static class SysSqlite
     private static SqliteCommand Command(RuntimeValue handle, RuntimeValue sql, RuntimeValue args)
     {
         var cmd = Connection(handle, "执行").CreateCommand();
-        cmd.CommandText = As<StringVal>(sql, "SQL").Value;
+        cmd.CommandText = Text(sql, "SQL").Value;
 
         if (args is DictVal d)
             foreach (var (k, v) in d.Entries)
             {
-                var name = As<StringVal>(k, "参数名").Value;
+                var name = Text(k, "参数名").Value;
                 cmd.Parameters.AddWithValue(name.StartsWith('@') ? name : "@" + name, ToSql(v) ?? DBNull.Value);
             }
 
@@ -127,8 +131,8 @@ internal static class SysSqlite
         CharVal c => c.Value.ToString(),
         BoolVal b => b.Value ? 1 : 0,
         BigIntVal g => (long)g.Value,
-        ListVal l => BytesOf(l, "SQL 参数"),
-        _ => throw new RuntimeException(
+        ListVal l => Bytes(l, "SQL 参数"),
+        _ => throw Fail(
             $"SQL 参数存不进 SQLite: {v.Type}（先转成 数 / 字符串 / 布尔 / ()，二进制用字节表）", ErrorKind.Type),
     };
 
@@ -136,16 +140,13 @@ internal static class SysSqlite
     /// (和数字字面量、`Json.Extract` 一个口径)。</summary>
     private static RuntimeValue FromSql(object? o) => o switch
     {
-        null or DBNull => VoidVal.Instance,
+        null or DBNull => Void,
         long l => l is >= int.MinValue and <= int.MaxValue ? new IntVal((int)l) : new BigIntVal(l),
         double d => new FloatVal(d),
         string s => new StringVal(s),
         byte[] b => BytesList(b),
         _ => new StringVal(o.ToString() ?? ""),
     };
-
-    private static int IntArg(RuntimeValue v, string what)
-        => v is IntVal i ? i.Value : throw new RuntimeException($"{what} 需要 int，得到 {v.Type}", ErrorKind.Type);
 
     /// <summary>SQL 不对 / 数据库关着 —— 说人话,别把 `SqliteException` 漏到顶层
     /// (它接不住,会把程序打掉 —— 这批原语一条老规矩)</summary>
@@ -157,11 +158,11 @@ internal static class SysSqlite
         }
         catch (SqliteException ex)
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Value);
+            throw Fail($"{what}失败: {ex.Message}", ErrorKind.Value);
         }
         catch (InvalidOperationException ex)
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Value);
+            throw Fail($"{what}失败: {ex.Message}", ErrorKind.Value);
         }
     }
 
@@ -174,7 +175,7 @@ internal static class SysSqlite
         catch (Exception ex) when (ex is SqliteException or IOException or InvalidOperationException
                                    or ArgumentException or UnauthorizedAccessException)
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
+            throw Fail($"{what}失败: {ex.Message}", ErrorKind.Io);
         }
     }
 }

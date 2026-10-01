@@ -85,8 +85,11 @@ static void RunFile(string path, string[] scriptArgs, bool warn)
     }
     catch (Exception ex)
     {
-        // 走到这里说明解释器自己有 bug:该转成 RuntimeException/SyntaxException 的没转
-        Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}");
+        // 走到这里说明解释器自己有 bug:该转成 RuntimeException/SyntaxException 的没转。
+        // **内层异常一并打出来**:TypeInitializationException 这类外面那层什么都不说
+        // (「静态构造函数抛了」),真正的缘由(少了哪个本机库、哪个文件)全在内层 ——
+        // 只看外层那句,等于什么都没说。
+        Console.WriteLine($"!! 解释器内部错误 {ex.GetType().Name}: {ex.Message}{Inner(ex)}");
         Environment.ExitCode = 1;
         // 上面那句故意不带栈,免得刷屏;但解释器自己的 bug 只能靠栈才查得下去
         // (递归到栈溢出这类尤其如此,消息里什么线索都没有)。要的时候开这个开关。
@@ -94,4 +97,15 @@ static void RunFile(string path, string[] scriptArgs, bool warn)
     }
 
     Console.WriteLine();
+}
+
+/// <summary>把内层异常一层层接在后面。**判断一条 C# 异常"到底为什么"常常全在内层** ——
+/// `TypeInitializationException`(静态构造函数抛了)就是最典型的一个:它自己那句话
+/// 什么线索都没有,真正的原因(文件不在、本机库加载不了)在下一层。</summary>
+static string Inner(Exception ex)
+{
+    var text = "";
+    for (var x = ex.InnerException; x is not null; x = x.InnerException)
+        text += $"\n   :: {x.GetType().Name}: {x.Message}";
+    return text;
 }

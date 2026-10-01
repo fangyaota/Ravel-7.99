@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- **官方扩展**:引擎里那批"其实是某个库的本机半边"的原语(`Hash` / `Crypto` / `Net` /
+       `Regex` / `Sqlite` / `Random`)搬出来编成一个 dll,由 `lib/native.rav` 在运行时
+       `using "plugins/Ravel.Extensions.dll"` 装进来。装进来之后它们在 `Native` 模块下,
+       比如 `Native.HashBytes`。
+
+       和 `Ravel.Structures/` 一个做法:反过来引用主项目(要 `RuntimeValue` 和那几个标记特性),
+       主项目**不**引用它 —— 编译时它依赖主项目,运行时主项目才把它读进来,两边不成环。
+
+       搬出来还带走一个依赖:主项目从此**不再引用 `Microsoft.Data.Sqlite`** ——
+       那个包现在是这一格的。所以 `plugins/` 里除了本 dll,还得躺着 `Microsoft.Data.Sqlite.dll`
+       ～ `SQLitePCLRaw.*.dll`(拷过去的那一步见主项目 `Ravel.csproj` 的 `CopyPlugins`)。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Ravel.Extensions</AssemblyName>
+    <!-- **库项目默认不把 NuGet 依赖拷到自己的 bin**,只有 exe / publish 才拷 ——
+         而这一格的 dll(和它拖来的 `Microsoft.Data.Sqlite.dll`)是要被主项目那个
+         `*.dll` 通配扫进 `plugins/` 的,所以得显式打开。 -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- 产物照常落在自己 bin/ 下;"拷到 plugins/" 那一步在主项目的 Target 里做
+         (见 Ravel.csproj 的 CopyPlugins)—— `OutDir` 改到共享目录会把**中间产物**也带偏。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- `Private=false`:要它的**引用**,但别把它的输出抄一份到我这儿的 bin ——
+         抄了的话上面那个 `*.dll` 通配会把 ravel.dll / Spectre / Newtonsoft 一起
+         扫进 `plugins/`,那几件主程序自己就有,多一份就多一份过期的。 -->
+    <ProjectReference Include="..\Ravel.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 就这一条包引用。SQLitePCLRaw 那几件是它的传递依赖,不在这儿明着写。 -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+  </ItemGroup>
+
+</Project>

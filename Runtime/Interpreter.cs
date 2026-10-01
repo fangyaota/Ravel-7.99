@@ -34,9 +34,26 @@ public partial class Interpreter
     /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。</summary>
     public bool WarnForgotCall { get; set; }
 
+    /// <summary>进程级的一次性准备 —— 静态构造,第一次造解释器时跑一遍。
+    ///
+    /// **把老编码(GBK / GB2312 / Big5…)注册上**。.NET 默认只认 Unicode 那几套,不注册的话
+    /// `Encoding.GetEncoding("gbk")` 直接抛。这是"本进程认不认老编码"的一件**进程级**的事,
+    /// 有两处要它:官方扩展里那条 `Native.DecodeText`(网页 `charset=gbk`),
+    /// 和测试用的回环服务器(造 GBK 的响应字节)。
+    ///
+    /// 从前它挂在 `SysNet` 的静态构造里 —— 那是"谁先碰网络谁顺手注册",而搬去扩展之后
+    /// 就不是这个顺序了。放在引擎这边,**一次、无条件、谁也不必记得**。
+    /// (`System.Text.Encoding.CodePages` 从 net10 起在共享框架里,不必挂 PackageReference。)</summary>
+    static Interpreter()
+    {
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+    }
+
     /// <summary>注册内置:建 `System` 模块 —— 它是唯一「用 C# 写死」的模块(其余模块都来自
     /// .rav 文件),而且**启动就有**(不像 `Math` 要显式 `ravel` 才有)。
-    /// 装进去的东西全在 `Runtime/Builtins/`:`SysModule` 摆三张数据表,`[Sys]` 那一族填函数。</summary>
+    /// 装进去的东西全在 `Runtime/Builtins/`:`SysModule` 摆三张数据表,`[Sys]` 那一族填函数。
+    /// (「某个库的本机半边」不在这儿 —— 那些是 `Ravel.Extensions/` 那个官方扩展,
+    /// 由 `lib/native.rav` 在用到时装进来,成员落在 `Native` 模块。)</summary>
     private void RegisterBuiltins()
     {
         var moduleType = BuiltinClasses.NewModuleClass("System", BuiltinClasses.Ravel);

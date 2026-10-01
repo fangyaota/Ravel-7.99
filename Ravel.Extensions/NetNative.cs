@@ -2,12 +2,14 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace Ravel.Runtime;
+namespace Ravel.Extensions;
 
-using static Ravel.Runtime.Interpreter;
-using static Ravel.Runtime.SysKit;
+using Ravel.Runtime;
+using static Ravel.Runtime.PluginKit;
 
 /// <summary>网络 —— 只做到 HTTP 这一层(裸 TCP 以后再说)。
+/// 它是 `lib/http.rav` 的本机半边,住在**官方扩展**(`plugins/Ravel.Extensions.dll`)里,
+/// 对外是 `Native.HttpReq` 那几条。
 ///
 /// 和文件系统那批一个规矩:**只做 syscall,不做策略** —— URL 怎么拼、响应怎么解、
 /// 重试几次、重定向跟不跟,全是 `lib/http.rav` 的事(和正则、随机数一个路子)。
@@ -20,16 +22,17 @@ using static Ravel.Runtime.SysKit;
 /// `max`(响应正文封顶,默认 16 MB)。
 /// 交回:`status` / `reason` / `headers`(小写名→值,重复的用 `, ` 连起来)/ `body`(字节表)/
 /// `url`(跟完重定向之后那个)。下载、上传那两条把 `body` 换成 `bytes`(写出去多少字节)。</summary>
-internal static class SysNet
+[RavelModule("Native")]
+internal static class NetNative
 {
-    [Sys("HttpReq")]
+    [RavelFn("HttpReq")]
     public static RuntimeValue HttpReq(RuntimeValue a)
-        => Http("发请求", () => Send(As<DictVal>(a, "HttpReq 的请求"), null));
+        => Http("发请求", () => Send(Dict(a, "HttpReq 的请求"), null));
 
-    [Sys("HttpDownload")]
+    [RavelFn("HttpDownload")]
     public static RuntimeValue HttpDownload(RuntimeValue a) => Http("下载", () =>
     {
-        var req = As<DictVal>(a, "HttpDownload 的请求");
+        var req = Dict(a, "HttpDownload 的请求");
         var path = OptText(req, "path", "");
         NeedParentDir(path, "下载");
         // 边收边落盘:正文**不进 Ravel 堆** —— 下载一个 500 MB 的东西,堆里不该多一个字节表
@@ -37,10 +40,10 @@ internal static class SysNet
         return Send(req, file);
     });
 
-    [Sys("HttpUpload")]
+    [RavelFn("HttpUpload")]
     public static RuntimeValue HttpUpload(RuntimeValue a) => Http("上传", () =>
     {
-        var req = As<DictVal>(a, "HttpUpload 的请求");
+        var req = Dict(a, "HttpUpload 的请求");
         var path = OptText(req, "path", "");
         NeedFile(path, "上传的文件");
         return Send(req, null, path, OptText(req, "field", "file"));
@@ -48,9 +51,9 @@ internal static class SysNet
 
     /// <summary>字节 → 文本。**认不出来的字符集不报错**、按 UTF-8 解:网上写着 `charset=utf8`、
     /// `charset=UTF8`、甚至拼错的大把,为一个只影响显示的字段把整次请求打断不值当。</summary>
-    [Sys("DecodeText")]
-    public static RuntimeValue DecodeText(RuntimeValue a, RuntimeValue b) => Fs("解码文本", () =>
-        new StringVal(Decode(BytesOf(a, "DecodeText 的字节"), As<StringVal>(b, "DecodeText 的字符集").Value)));
+    [RavelFn("DecodeText")]
+    public static RuntimeValue DecodeText(RuntimeValue a, RuntimeValue b) => Guarded("解码文本", () =>
+        new StringVal(Decode(Bytes(a, "DecodeText 的字节"), Text(b, "DecodeText 的字符集").Value)));
 
     /// <summary>进程级共享的那一台 —— **别每次请求 new 一个**:连接池挂在它身上,
     /// 一次请求一台的话连接永远复用不上,请求一多就把本机端口耗光(.NET 上最经典的那个坑)。
@@ -74,13 +77,13 @@ internal static class SysNet
     public static RuntimeValue Send(DictVal req, Stream? bodyOut, string? uploadPath = null, string field = "file")
     {
         var url = OptText(req, "url", "");
-        if (url.Length == 0) throw new RuntimeException("请求 dict 里没有 url", ErrorKind.Argument);
+        if (url.Length == 0) throw Fail("请求 dict 里没有 url", ErrorKind.Argument);
         // 网址**先自己验一遍**:`HttpRequestMessage` 对"这是个相对 URI"是构造得出来的,
         // 那要等到发的时候才报,而那时的话是 .NET 说的(还跟着系统语言变)。
         // 这里挡下来,报的是我们自己那句,用例也钉得住。
         if (!Uri.TryCreate(url, UriKind.Absolute, out var target) ||
             (target.Scheme != Uri.UriSchemeHttp && target.Scheme != Uri.UriSchemeHttps))
-            throw new RuntimeException($"不是个能发的网址（要 http:// 或 https:// 开头）：{url}", ErrorKind.Value);
+            throw Fail($"不是个能发的网址（要 http:// 或 https:// 开头）：{url}", ErrorKind.Value);
 
         var what = OptText(req, "method", uploadPath is null ? "GET" : "POST");
         var timeout = OptInt(req, "timeout", DefaultTimeoutMs);
@@ -101,7 +104,7 @@ internal static class SysNet
         }
         else if (Opt(req, "body") is { } body)
         {
-            msg.Content = new ByteArrayContent(BytesOf(body, "请求正文"));
+            msg.Content = new ByteArrayContent(Bytes(body, "请求正文"));
         }
 
         using var cts = new CancellationTokenSource(timeout <= 0 ? Timeout.Infinite : timeout);
@@ -126,19 +129,19 @@ internal static class SysNet
             else
             {
                 using var stream = resp.Content.ReadAsStream(cts.Token);
-                entries[new StringVal("bytes")] = BuiltinClasses.Narrow(CopyTo(stream, bodyOut, cts.Token), "下载的字节数");
+                entries[new StringVal("bytes")] = Narrow(CopyTo(stream, bodyOut, cts.Token), "下载的字节数");
             }
 
             return new DictVal(entries);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
-            throw new RuntimeException($"{what} {url} 超时（{timeout} 毫秒没回来）", ErrorKind.Io);
+            throw Fail($"{what} {url} 超时（{timeout} 毫秒没回来）", ErrorKind.Io);
         }
         catch (HttpRequestException ex)
         {
             // 连不上、域名解析不了、证书不对…… 都落这儿。消息里带上 URL:批量抓的时候才知道是哪一个
-            throw new RuntimeException($"{what} {url} 失败: {Why(ex)}", ErrorKind.Io);
+            throw Fail($"{what} {url} 失败: {Why(ex)}", ErrorKind.Io);
         }
     }
 
@@ -163,7 +166,7 @@ internal static class SysNet
     {
         foreach (var (k, v) in headers.Entries)
         {
-            var name = k as StringVal ?? throw new RuntimeException($"请求头的名字要是字符串，得到 {k.Type}", ErrorKind.Type);
+            var name = k as StringVal ?? throw Fail($"请求头的名字要是字符串，得到 {k.Type}", ErrorKind.Type);
             var values = (v is ListVal l ? l.Elements : [v]).Select(x => Show(x)).ToArray();
             if (!msg.Headers.TryAddWithoutValidation(name.Value, values))
             {
@@ -206,7 +209,7 @@ internal static class SysNet
         while ((n = s.Read(buffer, 0, buffer.Length)) > 0)
         {
             if (ms.Length + n > cap)
-                throw new RuntimeException(
+                throw Fail(
                     $"响应太大（超过 {Human(cap)}）：{url} —— 大文件用 `Http.Download` 直接落盘", ErrorKind.Io);
             ms.Write(buffer, 0, n);
         }
@@ -256,19 +259,10 @@ internal static class SysNet
     /// 网页上出现个把乱码不值得把整次请求打断。</summary>
     public static readonly UTF8Encoding LenientUtf8 = new(false, throwOnInvalidBytes: false);
 
-    /// <summary>第一次用到这个类时把老编码注册上 —— 就挂在要用它的这一格,
-    /// 不必再挂到解释器身上(那是「整台引擎」的事,而这是「解码文本」的事)。</summary>
-    static SysNet()
-    {
-        // 老编码(GBK / GB2312 / Big5…)在 .NET Core 上要显式注册才认 —— 中文网页常见,
-        // 不注册的话 `charset=gbk` 会静默退回 UTF-8,整页乱码还找不到原因
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-    }
-
     private const int DefaultTimeoutMs = 30_000;
     private const int DefaultMaxBytes = 16 * 1024 * 1024;
 
-    /// <summary>网络那一批的兜底:兜住的比 <see cref="Fs"/> 宽 —— 网络能出的岔子
+    /// <summary>网络那一批的兜底:兜住的比 <see cref="Guarded"/> 宽 —— 网络能出的岔子
     /// (DNS、连接被拒、TLS、坏 URL)本来就不是 `IOException` 那一族,漏出去会把程序打掉。</summary>
     public static RuntimeValue Http(string what, Func<RuntimeValue> body)
     {
@@ -280,7 +274,7 @@ internal static class SysNet
                                    or NotSupportedException or InvalidOperationException
                                    or System.Security.SecurityException or System.Net.Sockets.SocketException)
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
+            throw Fail($"{what}失败: {ex.Message}", ErrorKind.Io);
         }
     }
 }

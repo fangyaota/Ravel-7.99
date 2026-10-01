@@ -21,6 +21,7 @@
 # **一个 URL 就是一个文件**(文件末尾的 `Url`):`io.rav` 开头那句"磁盘上的、内存里的、
 # zip 条目、远程的……都只是 `IFile` 的实现"在这儿落地 —— 所以 `using "http.rav"` 顺手
 # 把 `io.rav` 也带进来(URL 要登记成 `IFile`,那套成员是 `Io` 那边的接口)。
+using "native.rav"
 using "encoding.rav"
 using "io.rav"
 
@@ -52,7 +53,7 @@ Response ::= class {
     Size := () => { size; }
 
     # 正文按 `content-type` 里的 charset 解(没写就是 UTF-8;认不出的名字也退回 UTF-8)
-    Text := () => { System.DecodeText body (Charset ()); }
+    Text := () => { Native.DecodeText body (Charset ()); }
 
     # 直接当 JSON 用 —— 底层就是现成那个 `Json`(先看再转那一套都在)。
     # 这儿得写 `System.Json` 而不能写 `Json`:**成员名把外层的类型名遮住了**
@@ -114,7 +115,7 @@ readonly Spec := (url: string method: string opts: dict) => {
 }
 
 # 发一次。网络错误原样抛出,由下面那层决定要不要再来。
-readonly Once := (spec: dict) => { Response (System.HttpReq spec); }
+readonly Once := (spec: dict) => { Response (Native.HttpReq spec); }
 
 # 带重试:`retries` 是**额外**次数(默认 0 = 只发一次)。5xx 和网络错误都算"没成";
 # 每次之间睡 `backoff` 毫秒(默认 0)。**4xx 不重试** —— 那是"你要的东西不对",再发一百遍也一样。
@@ -159,16 +160,16 @@ readonly PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
 # 下载到文件:正文**边收边写**,不进内存(几百 MB 也不怕)。交回的 Response 里
 # `size` 是写了多少字节,`body` 是空的。
 readonly Download := (url: string path: object) => {
-    Response (System.HttpDownload {"url": url "path": (PathOr path)});
+    Response (Native.HttpDownload {"url": url "path": (PathOr path)});
 }
 
 # multipart 上传(表单里一个文件,字段名默认 `file`)。要改字段名用 `UploadTo`。
 readonly Upload := (url: string path: object) => {
-    Response (System.HttpUpload {"url": url "path": (PathOr path)});
+    Response (Native.HttpUpload {"url": url "path": (PathOr path)});
 }
 
 readonly UploadTo := (url: string path: object field: string) => {
-    Response (System.HttpUpload {"url": url "path": (PathOr path) "field": field});
+    Response (Native.HttpUpload {"url": url "path": (PathOr path) "field": field});
 }
 
 # ── 小工具 ──

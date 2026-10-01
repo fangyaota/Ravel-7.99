@@ -18,6 +18,7 @@
 #
 # **摘要不是加密**:MD5 / SHA-1 早就不该用来防篡改(只配做校验和),
 # 口令要用专门的算法(加盐 + 慢哈希),`Hash.Token` 只负责给随机串。
+using "native.rav"
 using "encoding.rav"
 using "bits.rav"      # `Shr`(逻辑右移)—— CRC32 那台要用
 
@@ -29,8 +30,8 @@ ravel "Hash"
 readonly HashOf := (algo: string data: object) => {
     # 条件**整个**括起来:不括的话 `string { … }` 会被读成「拿这个块当实参调 string」
     ((typeof data) == string) {
-        System.HashBytes algo (Encoding.Utf8 data);
-    } { System.HashBytes algo data; }        # 给字节表就原样进
+        Native.HashBytes algo (Encoding.Utf8 data);
+    } { Native.HashBytes algo data; }        # 给字节表就原样进
 }
 
 # 小写十六进制(要字节表用 `...Bytes` 那几条 —— 它们收字节表、交回字节表)
@@ -47,7 +48,7 @@ readonly Sha1 := (data: object) => { HexOf (Sha1Bytes data); }
 readonly Md5 := (data: object) => { HexOf (Md5Bytes data); }
 
 # 文件的摘要(流式):交回十六进制串;`...Bytes` 那条交回字节表
-readonly FileBytes := (path: object algo: string) => { System.HashFile algo ((PathStr path)); }
+readonly FileBytes := (path: object algo: string) => { Native.HashFile algo ((PathStr path)); }
 readonly File := (path: object algo: string) => { HexOf (FileBytes path algo); }
 
 # 收路径字符串,或一个**磁盘条目**(`Io.File "a.zip"`)—— 和 `io.rav` 的 `CopyTo dest` 一个待遇
@@ -55,7 +56,7 @@ readonly PathStr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
 
 # ── HMAC:带密钥的摘要 ──
 readonly HmacBytes := (algo: string key: object data: object) => {
-    System.HmacBytes algo ((BytesOf key)) ((BytesOf data));
+    Native.HmacBytes algo ((BytesOf key)) ((BytesOf data));
 }
 
 # 字符串(按 UTF-8)或字节表都收 —— 报文两边常常一个是文本一个是二进制
@@ -108,4 +109,4 @@ readonly Equal := (a: string b: string) => {
 }
 
 # 一枚随机令牌:`n` 个字节 → `2n` 个十六进制字符(会话令牌、盐、防伪码)
-readonly Token := (n: int) => { Encoding.Hex (System.RandomBytes n); }
+readonly Token := (n: int) => { Encoding.Hex (Native.RandomBytes n); }

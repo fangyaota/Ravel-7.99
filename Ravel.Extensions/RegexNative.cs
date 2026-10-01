@@ -1,9 +1,13 @@
-namespace Ravel.Runtime;
-
 using System.Text.RegularExpressions;
-using static Ravel.Runtime.Interpreter;
 
-/// <summary>`System` 模块里的**正则原语** —— 把 .NET 的 `System.Text.RegularExpressions` 包一层。
+namespace Ravel.Extensions;
+
+using Ravel.Runtime;
+using static Ravel.Runtime.PluginKit;
+
+/// <summary>**正则原语** —— 把 .NET 的 `System.Text.RegularExpressions` 包一层。
+/// 它是 `lib/regex.rav` 的本机半边,住在**官方扩展**(`plugins/Ravel.Extensions.dll`)里,
+/// 对外是 `Native.RegexMatch` 那几条(从前挂在 `System` 底下)。
 ///
 /// **策略在库**(`lib/regex.rav`):这几条只做"给模式 + 文本 + 选项,交出数据"(匹配交回普通
 /// dict,由库拼成人话的对象),和文件那批 syscall 一个规矩。
@@ -14,12 +18,13 @@ using static Ravel.Runtime.Interpreter;
 /// 能把进程**卡死**。卡死不是异常,Ravel 的 `try` 接不住,只能在这一层给个时限
 /// (见 <see cref="RegexTimeout"/>)—— 超了报成普通的 Ravel 错误。</item>
 /// <item>**C# 异常** —— 模式写错抛的是 `ArgumentException`,漏出去会绕过 Ravel 的 `try`
-/// 把程序打掉(和 `Fs` 那条规矩一样);这里接住,换成说人话的 Ravel 错误。</item>
+/// 把程序打掉(和 `Guarded` 那条规矩一样);这里接住,换成说人话的 Ravel 错误。</item>
 /// </list>
 ///
 /// 用的都是**静态**那组重载(`Regex.IsMatch (input, pattern, options, timeout)`):
 /// 它们走 .NET 内部那张模式缓存,同一个模式不必反复编译。</summary>
-internal static class SysRegex
+[RavelModule("Native")]
+internal static class RegexNative
 {
     /// <summary>一条正则最多跑多久。够日常用,又不至于让一个坏模式把程序挂死。</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
@@ -31,14 +36,14 @@ internal static class SysRegex
     {
         var groups = new List<RuntimeValue>();
         foreach (Group g in m.Groups)
-            groups.Add(g.Success ? new StringVal(g.Value) : VoidVal.Instance);
+            groups.Add(g.Success ? new StringVal(g.Value) : Void);
 
         var named = new Dictionary<RuntimeValue, RuntimeValue>();
         foreach (var name in m.Groups.Keys)
         {
             if (int.TryParse(name, out _)) continue;      // 数字组已经在 groups 里了
             var g = m.Groups[name];
-            named[new StringVal(name)] = g.Success ? new StringVal(g.Value) : VoidVal.Instance;
+            named[new StringVal(name)] = g.Success ? new StringVal(g.Value) : Void;
         }
 
         return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
@@ -65,7 +70,7 @@ internal static class SysRegex
                 'm' => RegexOptions.Multiline,
                 's' => RegexOptions.Singleline,
                 'x' => RegexOptions.IgnorePatternWhitespace,
-                _ => throw new RuntimeException($"不认识的选项 '{c}'（有 i / m / s / x）", ErrorKind.Regex),
+                _ => throw Fail($"不认识的选项 '{c}'（有 i / m / s / x）", ErrorKind.Regex),
             };
         return opts;
     }
@@ -79,24 +84,24 @@ internal static class SysRegex
         }
         catch (RegexMatchTimeoutException)
         {
-            throw new RuntimeException(
+            throw Fail(
                 $"匹配超时（{RegexTimeout.TotalSeconds:0} 秒）—— 这个模式可能有灾难性回溯：{pattern}", ErrorKind.Regex);
         }
         catch (ArgumentException ex)
         {
-            throw new RuntimeException($"正则式写错了 —— {ex.Message}", ErrorKind.Regex);
+            throw Fail($"正则式写错了 —— {ex.Message}", ErrorKind.Regex);
         }
     }
 
-    private static string Str(RuntimeValue v, string what) => As<StringVal>(v, what).Value;
+    private static string Str(RuntimeValue v, string what) => Text(v, what).Value;
 
     // ── 六条 ──(统一形状:**模式、文本、选项**,`Replace` 再多一个替换串)
 
-    [Sys("RegexEscape")]
+    [RavelFn("RegexEscape")]
     public static RuntimeValue RegexEscape(RuntimeValue a)
         => new StringVal(Regex.Escape(Str(a, "RegexEscape 的文本")));
 
-    [Sys("RegexIsMatch")]
+    [RavelFn("RegexIsMatch")]
     public static RuntimeValue RegexIsMatch(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexIsMatch 的模式");
@@ -105,7 +110,7 @@ internal static class SysRegex
                 Flags(Str(f, "RegexIsMatch 的选项")), RegexTimeout)));
     }
 
-    [Sys("RegexMatch")]
+    [RavelFn("RegexMatch")]
     public static RuntimeValue RegexMatch(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexMatch 的模式");
@@ -113,11 +118,11 @@ internal static class SysRegex
         {
             var m = Regex.Match(Str(t, "RegexMatch 的文本"), pattern,
                 Flags(Str(f, "RegexMatch 的选项")), RegexTimeout);
-            return m.Success ? Shape(m) : VoidVal.Instance;      // 没有就是 `()`,由库决定报错还是 None
+            return m.Success ? Shape(m) : Void;      // 没有就是 `()`,由库决定报错还是 None
         });
     }
 
-    [Sys("RegexFindAll")]
+    [RavelFn("RegexFindAll")]
     public static RuntimeValue RegexFindAll(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexFindAll 的模式");
@@ -133,7 +138,7 @@ internal static class SysRegex
 
     /// <summary>四个参数:前三个进这一层,交回的是"还等着替换串"的那枚函数
     /// (柯里化,和 `FunctionVal.From` 那套一个走法)。</summary>
-    [Sys("RegexReplace")]
+    [RavelFn("RegexReplace")]
     public static RuntimeValue RegexReplace(RuntimeValue p, RuntimeValue t, RuntimeValue f)
         => FunctionVal.From(r =>
         {
@@ -144,7 +149,7 @@ internal static class SysRegex
                     Flags(Str(f, "RegexReplace 的选项")), RegexTimeout)));
         });
 
-    [Sys("RegexSplit")]
+    [RavelFn("RegexSplit")]
     public static RuntimeValue RegexSplit(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexSplit 的模式");

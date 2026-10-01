@@ -21,6 +21,7 @@
 #
 # 一次连接一条线;`Close ()` 之后再用这个 `Db` 会报"已经关了"。
 # SQL 出错是 `ValueError`(你写的 SQL 不对),库文件打不开是 `IoError`。
+using "native.rav"
 ravel "Sqlite"
 
 # 一个库。拿着一张**句柄号**(连接本身在引擎那边 —— 它要 Dispose,Ravel 值没有析构那一套)。
@@ -38,11 +39,11 @@ Db ::= class {
 
     # ── 写 ──
     # 建表、增删改、`begin`/`commit` 都走它;交回**影响了几行**
-    Exec := (sql: string args: dict) => { System.SqliteExec Handle sql args; }
+    Exec := (sql: string args: dict) => { Native.SqliteExec Handle sql args; }
 
     # ── 读 ──
     # 一次全拿回来:一行一个 dict(列名当键)。行多的时候用 `Each`。
-    All := (sql: string args: dict) => { Rows (System.SqliteQuery Handle sql args); }
+    All := (sql: string args: dict) => { Rows (Native.SqliteQuery Handle sql args); }
 
     # 只要第一行(一行都没有给 `()`)。**不是"取一行"** —— SQL 自己写 `limit 1`,
     # 这儿只是"我知道至多一行,懒得多写一层"
@@ -64,7 +65,7 @@ Db ::= class {
     }
 
     # 刚插进去那行的 rowid(交回 bigint —— 主键可以是 64 位)
-    LastId := () => { System.SqliteLastId Handle; }
+    LastId := () => { Native.SqliteLastId Handle; }
 
     # ── 事务 ──
     # 块里全部成、或者全部不成。出错(`throw` 也算)自己回滚,再把错抛出去 ——
@@ -81,7 +82,7 @@ Db ::= class {
         }
     }
 
-    Close := () => { System.SqliteClose Handle; (); }
+    Close := () => { Native.SqliteClose Handle; (); }
 }
 
 # 把引擎交回的那张 `{columns rows}` 摆成一行行 dict
@@ -103,7 +104,7 @@ readonly Rows := (raw: dict) => {
 # 打开一个库文件(**不存在就建**)。目录得先有 —— 和 `System.WriteText` 一条规矩
 readonly Open := (path: object) => {
     p := PathOf path
-    Db (System.SqliteOpen p) p;
+    Db (Native.SqliteOpen p) p;
 }
 
 # 内存库:关掉就没了。临时数据、测试用它最省事(不落盘、不打扰谁)

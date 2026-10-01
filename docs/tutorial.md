@@ -2241,7 +2241,22 @@ ss.Add 4 / ss.Min () / ss.Max ()
 `[RavelModule("模块名")]` + `[RavelClass("类名")]`,方法挂 `[ClassMethod]` / `[ClassCtor]`,
 模块里的函数挂 `[RavelFn]` —— `using "你的.dll"` 之后就能用(见 `Runtime/Builtins/PluginApi.cs`)。
 
-### 6.19 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
+### 6.19 官方扩展（`Native`）
+
+有六个库的本机半边**不在引擎里**,在一个官方的扩展 dll 里(`Ravel.Extensions/` →
+`plugins/Ravel.Extensions.dll`):`Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random`。
+它们是"这台机器能干什么"(算摘要、发请求、开数据库),不是"这门语言是什么"——
+所以搬出了 `System`,在 `Native` 模块下:
+
+```ravel
+using "native.rav"                        # 或者直接 using "hash.rav" 那类库,它们会带进来
+print (Native.HashBytes "sha256" (Encoding.Utf8 "abc"))
+```
+
+平时用不着碰这一层:`Hash.Sha256` / `Http.Get` / `Sqlite.Open` 那些库面才是给人用的。
+一层薄壳(native.rav)是为了把 `plugins/...` 这个路径收在**一处**。
+
+### 6.20 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
 
 **`Crypto`** —— 加密与口令。和 `Hash` 是两件事：那边是"防篡改"，这边是"藏起来"。
 
@@ -3191,6 +3206,11 @@ System.ReadLine ()
 ```
 
 小写别名在 `predefined.rav` 中定义。
+
+`System` 里装的是**语言本身要的**(类型、控制流、`eval`、反射)和**进程边界**
+(输出、文件、环境变量、子进程、时间) —— 一句话,是"这个语言"和"这台机器",不是"某个库"。
+那六个库的本机半边(`Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random`)不在这儿,
+在官方扩展的 `Native` 模块里(见 6.19)。
 
 ### 8.4 Math 模块
 

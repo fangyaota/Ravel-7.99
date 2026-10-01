@@ -224,11 +224,16 @@ lib/
                           error**,松的一律不落笔(过滤在拼串之前)。落点:给了 `"file"` 追加到文件、
                           `"err": true` 走 stderr,否则 stdout;落盘失败**当场报错**。
                           **要显式引用**
+  native.rav              **官方扩展的 Ravel 那一半** —— 就一行 `using "plugins/Ravel.Extensions.dll"`,
+                          把 `Native` 模块装进来(`Hash`/`Crypto`/`Http`/`Regex`/`Sqlite`/`Random`
+                          六个库的本机半边都在那儿)。要用扩展的库都 `using "native.rav"`,
+                          dll 的字面路径**只有这一处**。见「官方扩展」一节
   hash.rav                `Hash` 模块 —— 摘要与校验:`Sha256`/`Sha512`/`Sha1`/`Md5`(字符串按
                           UTF-8 进、交回小写十六进制;要字节表用 `...Bytes`)、`Hmac algo key data`、
                           `File path algo`(**流式**,多大的文件都不进内存)、`Crc32`(纯 Ravel 算的)、
                           `Equal a b`(**常数时间**比,防时序攻击)、`Token n`(随机十六进制串)。
-                          底层三条原语在引擎(`HashBytes`/`HashFile`/`HmacBytes`,收字节表交字节表)。
+                          底层三条原语在**官方扩展**里(`Native.HashBytes`/`HashFile`/`HmacBytes`,
+                          收字节表交字节表 —— 见「官方扩展」一节)。
                           **要显式引用**
   crypto.rav              `Crypto` 模块 —— **加密与口令**(和 `hash.rav` 是两件事:那边是
                           "防篡改",这边是"藏起来")。`Seal key data` / `Open key text`
@@ -237,12 +242,12 @@ lib/
                           32 字节)/ `Salt ()` / `HashPassword password` /
                           `CheckPassword password stored`(**存的是"怎么校验",不是口令本身**——
                           格式 `pbkdf2$sha256$轮数$盐$哈希`,轮数跟着一起存,以后加轮数老串照样校验;
-                          校验走常数时间比)/ `Equal` / `Token`。底层三条原语在引擎
-                          (`AesSeal`/`AesOpen`/`Pbkdf2`,收字节表交字节表)。**要显式引用**
+                          校验走常数时间比)/ `Equal` / `Token`。底层三条原语在**官方扩展**里
+                          (`Native.AesSeal`/`AesOpen`/`Pbkdf2`,收字节表交字节表)。**要显式引用**
   uuid.rav                `Uuid` 模块 —— `V4 ()`(随机)/ `V7 ()`(头 6 字节是毫秒时间戳,
                           先造的排前面,拿来当数据库主键不捅索引)/ `Nil ()` / `IsValid s` /
                           `Version s` / `Bytes s` / `FromBytes bs` / `Time s`。**不占引擎**:
-                          随机数是 `System.RandomBytes`、时间是 `System.NowMs`,剩下的就是
+                          随机数是 `Native.RandomBytes`(在官方扩展里,见「插件」)、时间是 `System.NowMs`,剩下的就是
                           摆位(RFC 9562:第 7 字节高 4 位是版本、第 9 字节高 2 位是 variant)
                           和格式化。**要显式引用**
   sqlite.rav              `Sqlite` 模块 —— 一个文件就是一个库:`Sqlite.Open path`(不存在就建)/
@@ -391,19 +396,24 @@ Object (parent=自己)
         List Set Dict Object Void Function Continuation Type Interface BaseInterface
         Any Every Exception ValueType Json
 
-**函数**: WriteLine Write ReadLine Assert TypeOf Eval
-        CallCC Exit With RavelMod Using Use unsafe Cmd
-        property currentScope
-        Args Env EnvOr SetEnv UnsetEnv EnvAll
-        NewRandom SharedRandom XoshiroRandom RandomBytes
-        RegexEscape RegexIsMatch RegexMatch RegexFindAll RegexReplace RegexSplit
-        Sleep ReadBytes WriteBytes DecodeText
-        HttpReq HttpDownload HttpUpload
-        HashBytes HashFile HmacBytes
-        AesSeal AesOpen Pbkdf2
-        SqliteOpen SqliteClose SqliteExec SqliteQuery SqliteLastId
+**函数**(和类型一样,这就是**全部**,一个不多一个不少 —— 钉在 tests/271):
 
-上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——
+    语言本身   WriteLine Write ReadLine WriteErr WriteLineErr ReadAllInput WriteBytes ReadBytes
+              Assert TypeOf Eval CallCC Exit With RavelMod Using Use Impl Unsafe
+              Property CurrentScope LoadingState RestoreLoading SetErrorHook WarnForgotCall Unhandled
+    进程边界   Args Env EnvOr SetEnv UnsetEnv EnvAll              ← 命令行与环境变量
+              Cmd                                               ← 子进程
+              NowMs TimeParts MakeTime FormatTime ParseTime Sleep ← 时间(predefined 加载 time.rav 就要用)
+              FileExists DirExists ReadText WriteText AppendText DeletePath CreateDir ListDir
+              PathSize PathTime CopyPath MovePath CurrentDir ChDir SplitLines
+              PathClean PathJoin PathDir PathBase PathExt          ← 文件那 22 条(syscall 层)
+
+**`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` / `Random` 那六族原语不在这张表里** ——
+它们是那几个库的本机半边,住在**官方扩展**里,`using "native.rav"` 之后在 `Native`
+模块下(钉在 tests/280)。见下面「插件」那节。
+
+上面那份名单**不是手抄的**(分组是我分的,名字不是):谁在 `System` 里,看的是
+**方法上的 `[Sys("名字")]`** ——
 写在 `Runtime/Builtins/Sys*.cs` 里(**一个主题一个类**,扫的是整个程序集,不列名单),
 扫一遍、按名字排、绑成委托(见 `SysRegistry`)。**加一个内置 = 写一个 `static` 方法**:
 不用挑分组、不用找位置、也不用记得回来补一行登记 —— 从前那种"漏了一行,静默少个成员"
@@ -413,9 +423,13 @@ Object (parent=自己)
 那是数据,`SysModule` 里三张表一眼看全比撒在各处好读。
 **成员表整份钉在 `tests/271_system_members.rav`** —— 加了内置就顺手更新那一行。
 
+**哪一条该留在这儿,尺子是明着的**:要么是**语言本身**要的(类型、控制流、`eval`、反射、
+状态钩子),要么是**进程边界**(输出、文件、环境变量、子进程、时间)。剩下的一律是
+"某个库的本机半边",去官方扩展(见下面「插件」那节)—— 那道线不按"好不好写"划,
+按"这句话说的是这个语言,还是说的一台机器"划。
+
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
-与「跑外部命令」两节;网络那四条见下面「网络」一节。它们一律**只做 syscall**,
-策略在库里。）
+与「跑外部命令」两节。它们一律**只做 syscall**,策略在库里。）
 
 时间同理,五条原语全在 `System` 里:`NowMs ()`(1970 年起的**毫秒**,bigint)、
 `TimeParts ms`(一袋零件:year/month/day/hour/minute/second/millisecond/weekday)、
@@ -834,14 +848,39 @@ internal static class StackClass
 **为什么外置的那一套特性是 `public` 的**:引擎自己用的 `[Sys]` / `BuiltinClasses` 全是
 `internal` —— 同一个程序集里随便用,外部 dll **看不见**。所以 `PluginApi.cs` 把
 "写扩展需要的东西"重新公开一遍:三个特性 + `PluginKit`(比大小 / 取元素 / 键规范 /
-拿类对象 / 说人话的错误)—— 都不新造,背后就是引擎里那几处,只是换个 `public` 的门。
+拿类对象 / 说人话的错误 / 取值收束 / 路径与错误兜底 / 造原生闭包)—— 都不新造,
+背后就是引擎里那几处,只是换个 `public` 的门。
 
 **`Runtime/Values` 里那些类型引擎不认识**:插件的值类型(如 `StackVal`)不在主项目里,
 `ElementsOf` 于是多了一条**按名字**的路 —— 谁有 `ToList ()` 谁就是容器,`Impl` 直接调
 (插件登记的方法就是那个)。
 
+**插件自带依赖**:托管那几件由 `LoadFrom` 从插件目录解出来;**本机库要自己兜**
+(`PluginLoader.HookDependencies` 挂在 `ResolvingUnmanagedDll` 上,按当前 RID 探
+`runtimes/<rid>/native/`)—— 默认探测看的是**主程序**的 `deps.json`,插件带的包不在里面。
+
+**扫出来的函数按名字排**(先模块后名字)。反射给的先后取决定元数据顺序、没有保证,
+而成员表是按登记先后列的(`Native.Fields ()` 打的就是它)—— 和 `SysRegistry` 同一条理由。
+
 一个提醒:**插件的 Ravel 那一半得另写**(`lib/structures.rav`)—— dll 只能给"类和函数",
 而 `foreach` / `Map` 那套是 Ravel 的 `IEnumerable` 接口给的,得有人在 Ravel 里 `impl` 一次。
+
+### 官方扩展（`Ravel.Extensions` → `plugins/Ravel.Extensions.dll`）
+
+**六个库的本机半边住在里面,不在引擎里**:`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` /
+`Random`(25 条原语,对外叫 `Native.HashBytes` 那几条,同一个 `[RavelModule("Native")]`)。
+留下来的那批照的是一条明着的尺子 —— **要么是语言本身要的,要么是进程边界**;
+这六个两样都不沾,它们说的是"这台机器能干什么",而 `Hash.Sha256` 那个库才是"这门语言里
+摘要是什么"。
+
+- Ravel 那一半是 `lib/native.rav`(就一行 `using "plugins/Ravel.Extensions.dll"`)——
+  dll 的字面路径**只有那一处**;七个小库都 `using "native.rav"`,不自己碰 dll。
+- `Microsoft.Data.Sqlite` 那个包也跟着搬了 —— 主项目从此不引用它。所以插件目录里除了
+  本 dll,还躺着 `Microsoft.Data.Sqlite.dll` 和 `SQLitePCLRaw.*.dll`(见 `Ravel.csproj`
+  的 `CopyPlugins`),本机的 `e_sqlite3.dll` 在 `plugins/runtimes/<rid>/native/`。
+- `Xoshiro256` 那个算法也一起搬了过去(只有 `Random` 用它)。
+- **合同钉在两处**:`tests/271` 是"引擎自带那张表",`tests/280` 是"扩展带来那张表",
+  两张合起来正好是搬之前的全集。
 
 ## 数据结构（插件 `Ravel.Structures`,见「插件」一节）
 
@@ -1601,21 +1640,23 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
   `dir` 那类走控制台那套),而合法的 UTF-8 里出现 GBK 字节的概率极低,判据够用。
 - 只做 syscall,**不做沙箱**(和文件那几条一个待遇):跑什么由调用方负责。
 
-引擎里的实现是 `System.Cmd`(`Runtime/Builtins/Cmd.cs`),`predefined.rav` 给全局别名
-`cmd`。用例 `tests/229_cmd.rav`。
+引擎里的实现是 `System.Cmd`(`Runtime/Builtins/SysCmd.cs`),`predefined.rav` 给全局别名
+`cmd`。用例在 `tests/229_io_fs.rav` 里。
 
 ## 网络（`lib/http.rav`，要显式 `using "http.rav"`）
 
-**引擎只给"发一个请求"四条原语**,URL 拼装、响应对象、重试、上传体全是 `Http` 模块的事 ——
-和正则、随机数一个分工。四条都**收一个 dict、交回一个 dict**:加字段不用改签名,
+**官方扩展只给"发一个请求"四条原语**,URL 拼装、响应对象、重试、上传体全是 `Http` 模块的事 ——
+和正则、随机数一个分工。(这四条住在 `plugins/Ravel.Extensions.dll` 里,成员名叫 `Native.HttpReq`
+那几条 —— 它们是这个库的本机半边,不是语言的一部分,所以和 `Hash` / `Regex` / `Sqlite` / `Random`
+一起搬出了 `System`。见下面「插件」那节。C# 那一侧:`Ravel.Extensions/NetNative.cs`。)四条都**收一个 dict、交回一个 dict**:加字段不用改签名,
 而且以后加并发时"发请求"整个变成一次**挂起点**,调用点一个字都不用改。
 
 | 原语 | 收 | 交回 |
 |---|---|---|
-| `System.HttpReq` | `url` / `method` / `headers` / `body`(字节表)/ `bodyFile` / `follow` / `timeout` / `max` | `status` / `reason` / `headers` / `body`(字节表)/ `url`(跟完重定向停在哪儿) |
-| `System.HttpDownload` | 上面的 + `path` | 同上,但把 `body` 换成 `bytes`(写了多少) |
-| `System.HttpUpload` | 上面的 + `path` / `field` | 同上(multipart,文件**流式**发出去) |
-| `System.DecodeText` | 字节表 + 字符集名 | 字符串 |
+| `Native.HttpReq` | `url` / `method` / `headers` / `body`(字节表)/ `bodyFile` / `follow` / `timeout` / `max` | `status` / `reason` / `headers` / `body`(字节表)/ `url`(跟完重定向停在哪儿) |
+| `Native.HttpDownload` | 上面的 + `path` | 同上,但把 `body` 换成 `bytes`(写了多少) |
+| `Native.HttpUpload` | 上面的 + `path` / `field` | 同上(multipart,文件**流式**发出去) |
+| `Native.DecodeText` | 字节表 + 字符集名 | 字符串 |
 
 - **正文一律是字节表**(0..255,和 `Encoding` / `Random.Bytes` / `Bits` 那套一个形状),
   解码是 Ravel 的事:响应对象 `Text ()` 按 `content-type` 里的 charset 解。
@@ -1627,7 +1668,8 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
   `Why()` 把常见的几类翻成固定中文(域名解析不了 / 连接被拒绝 / TLS 没过…),
   网址先自己验一遍(要 `http://` 或 `https://` 开头)。
 - **4xx / 5xx 不是错误** —— 那是响应,自己看 `status`(`Http.Expect` 是"非 2xx 就抛"那条糖)。
-- 老编码(GBK / Big5)靠 `System.Text.Encoding.CodePages` 那个包 + 启动时注册;
+- 老编码(GBK / Big5)靠 `CodePagesEncodingProvider`,**在 `Interpreter` 的静态构造里注册一次**
+  (进程级的一件能力:扩展里那条 `DecodeText` 和测试的回环服务器都要它);
   认不出来的 charset 退回 UTF-8,不报错。
 - 配套加的还有 `System.ReadBytes` / `System.WriteBytes`(字节表和文件来回 ——
   从前只有文本那三条,字节表存不下来也读不回来)和 `System.Sleep ms`(重试退避、限速)。
