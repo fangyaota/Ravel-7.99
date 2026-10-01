@@ -65,6 +65,20 @@ Empty ::= dataclass { 0; }
 print ((Empty ()).Text ())
 print ((Empty ()) == (Empty ()))
 print ((Empty ()).Fields ())
+
+# 拼块的两个方向(元类那层):Append 接着类体跑,Prepend 排在类体**前面**
+Meta ::= class type {
+    private parentInit := init
+    private before := { Early := (this.Fields ()).Contains "x"; 0; }
+    private after := { Late := (this.Fields ()).Contains "x"; 0; }
+    init = (body: function) => { parentInit object ((body.Append after).Prepend before); this; } | (parent: type body: function) => { parentInit parent ((body.Append after).Prepend before); this; }
+}
+C ::= Meta {
+    x: int = 1
+}
+c := C ()
+print c.Early          # Prepend:那一刻 x 还没声明
+print c.Late           # Append:接着类体跑,x 已经在了
 # --- expected ---
 # Point(x=1, y=2)
 # [1 2]
@@ -89,3 +103,5 @@ print ((Empty ()).Fields ())
 # Empty()
 # true
 # [init Values Text Eq == != is isnot <: :> ToString Copy Fields CompareTo Key]
+# false
+# true
