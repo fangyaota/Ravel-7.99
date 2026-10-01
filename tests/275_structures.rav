@@ -1,0 +1,131 @@
+# 数据结构那一族:栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合。
+#
+# 它们在**引擎**里各自一个类(`Runtime/Builtins/*Class.cs`,挂 `[BuiltinClass]` 扫出来的),
+# 值是 `Runtime/Values/*Val.cs`。都是类型树上的新节点:有构造器(`Stack ()`)、有方法,
+# 而且实现了 `IEnumerable` —— 于是 `foreach` / `Map` / `Fold` 那一整套序列方法白拿。
+using "iterator.rav"     # 底下要用 Map / Fold / foreach
+
+# ── 栈:后进先出 ──
+s := Stack ()
+s.Push 1
+s.PushRange [2 3]
+print s                       # 打印时**顶在前**
+print (s.Peek ())             # 只看不弹
+print (s.Pop ())
+print (s.Count ())
+print (s.IsEmpty ())
+print (Stack [1 2 3])         # 也可以从一串垒起来(底 → 顶)
+
+# ── 队列:先进先出 ──
+q := Queue [1 2 3]
+print (q.Dequeue ())
+print q
+print (q.Peek ())
+
+# ── 双端队列:两头都能进能出(`Push` / `Pop` 是后端的简写) ──
+d := Deque [2 3]
+d.PushFront 1
+d.Push 4
+print d
+print (d.PopFront ())
+print (d.PopBack ())
+
+# ── 堆:每次弹出来的都是当前最小的那个 ──
+h := Heap [3 1 4 1 5]
+print (h.Peek ())
+print (h.Pop ())
+print (h.ToList ())           # 一个个弹出来的顺序 = 排好序
+mx := Heap true               # 大顶堆(`lib/heap.rav` 的 `MaxHeap ()` 就这么写)
+mx.PushRange [1 9 5]
+print (mx.ToList ())
+print (mx.Max ())
+
+# ── 有序字典:键永远有序 ──
+sd := SortedDict ()
+sd.Set "b" 2
+sd.Set "a" 1
+print (sd.Keys ())
+print (sd.Values ())          # 跟着键走
+print (sd.Get "b")
+print (sd.GetOr "zz" 0)
+print (sd.Has "a")
+print (sd.Remove "a")
+print sd
+
+# ── 有序集合:重复的加不进去,枚举就是升序 ──
+ss := SortedSet ()
+ss.Add 3
+ss.Add 1
+ss.Add 2
+ss.Add 1
+print (ss.ToList ())
+print (ss.Min ())
+print (ss.Max ())
+print (ss.Count ())
+
+# ── 实现了 `IEnumerable`:整套序列方法白拿 ──
+print ((Stack [1 2 3]).Map ((x: object) => { x * 10; }) @ .ToList ())
+print ((Queue [1 2 3]).Fold 0 ((a: object b: object) => { a + b; }))
+print ((SortedSet [3 1 2]).Sum ())
+foreach (Heap [3 1 2]) (x: object) => { print ("堆: " + (string x)); }
+
+# ── 它们是类型树上的节点 ──
+print (typeof (Stack ()))
+print (Stack <: object)
+print ((SortedDict ()) is object)
+
+# ── 报错的几种:当场说人话 ──
+try { (Stack ()).Pop (); } (e: Exception) => { print ("1: " + string e); }
+try { (Queue ()).Peek (); } (e: Exception) => { print ("2: " + string e); }
+try { (Heap ()).Pop (); } (e: Exception) => { print ("3: " + string e); }
+try { (Deque ()).PopFront (); } (e: Exception) => { print ("4: " + string e); }
+try { (SortedSet ()).Min (); } (e: Exception) => { print ("5: " + string e); }
+try { (SortedDict ()).Get "nope"; } (e: Exception) => { print ("6: " + string e); }
+try { (Heap [1 "a"]).Pop (); } (e: Exception) => { print ("7: " + string e); }      # 比不了
+try { (SortedDict ()).Set [1] 1; } (e: Exception) => { print ("8: " + string e); }  # 键要值类型
+# --- expected ---
+# Stack [3 2 1]
+# 3
+# 3
+# 2
+# false
+# Stack [3 2 1]
+# 1
+# Queue [2 3]
+# 2
+# Deque [1 2 3 4]
+# 1
+# 4
+# 1
+# 1
+# [1 3 4 5]
+# [9 5 1]
+# true
+# [a b]
+# [1 2]
+# 2
+# 0
+# true
+# true
+# SortedDict {b: 2}
+# [1 2 3]
+# 1
+# 3
+# 3
+# [30 20 10]
+# 6
+# 6
+# 堆: 1
+# 堆: 2
+# 堆: 3
+# Stack
+# true
+# true
+# 1: Stack.Pop: 空栈没有可弹的
+# 2: Queue.Peek: 空队列没有头可看
+# 3: Heap.Pop: 空的，没有可弹的
+# 4: Deque.PopFront: 空的双端队列没有可弹的
+# 5: SortedSet.Min: 空集合没有最小
+# 6: SortedDict.Get: 键不存在: nope
+# 7: 比不了 String 与 Integer
+# 8: SortedDict.Set 的键得是值类型（数 / 字符串），得到 List

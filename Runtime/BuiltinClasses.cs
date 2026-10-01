@@ -222,6 +222,11 @@ internal static partial class BuiltinClasses
                  })
             AllTypes.Add(t);
 
+        // 数据结构那一族(栈/队列/双端队列/堆/有序表)不在上面那张表里:它们各自一个 C# 类,
+        // 挂 `[BuiltinClass("名字")]`,扫一遍自己捡(见 Builtins/ClassRegistry.cs)。
+        // **必须在 `_builtinCount` 之前**:那个数用来切"哪些是内置"(`ResetUserTypes`),
+        // 早记一步的话,新建一个解释器时这几族会被当成用户类型清掉。
+        ClassRegistry.Install(AllTypes);
         _builtinCount = AllTypes.Count;
     }
 
@@ -247,6 +252,11 @@ internal static partial class BuiltinClasses
                 { Line = 1, Column = 1, Preset = true, Attrs = [Attr.Protected] }])
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
+
+    /// <summary>给一个内置类装**构造器**(`[ClassCtor]` 那个方法):一条 `init := <工厂>`,
+    /// 和 `List` / `Integer` 那些预设类体一个做法(见 `PresetCtor`)。</summary>
+    internal static void SetCtor(ClassVal cls, System.Reflection.MethodInfo factory)
+        => cls.ClassBody = PresetCtor(FunctionVal.From(arg => ClassRegistry.Call(factory, [arg])));
 
     /// <summary>往一个**类对象**的**实例表**里挂引擎成员 —— `ClassVal.InstanceTable` 那张
     /// "给实例的成员表"。内置方法、类运算符、序列方法(`SeqMethod`)、`GetImplements ()`
@@ -390,15 +400,30 @@ internal static partial class BuiltinClasses
         }
     }
 
-    private static ClassVal New(string name)
+    /// <summary>建一个类对象(第一趟:只有名字,元类先自指)。**顺手登记进名字表** ——
+    /// `ClassOf` 就是查它,结构那一族(`[BuiltinClass]`)也靠它找父类。</summary>
+    internal static ClassVal New(string name)
     {
         var t = new ClassVal(null, new Scope());   // null → ClassType 先自指
         t.Scope.Define(ObjectVal.NameMember, null!, new StringVal(name));
+        ByName[name] = t;
         return t;
     }
 
+    /// <summary>名字 → 类对象(建树那趟顺手填)。给"按名字拿类"的地方用:
+    /// 内置值类型的 `Type`(如 `StackVal`)、`[BuiltinClass]` 找父类。
+    ///
+    /// 从前每个结构要自己留一个 `internal static ClassVal` 字段 —— 那是"加一个结构就得
+    /// 记得改几处"的老毛病,一张表就够了。</summary>
+    private static readonly Dictionary<string, ClassVal> ByName = [];
+
+    internal static ClassVal ClassOf(string name, string what = "类型")
+        => ByName.TryGetValue(name, out var t)
+            ? t
+            : throw new RuntimeException($"{what}: 没有 '{name}' 这个内置类", ErrorKind.Name);
+
     /// <summary>第二趟：挂 parent、回填元类。约束这时才给得上（String/Object 已经存在）。</summary>
-    private static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
+    internal static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
     {
         t.ClassType = meta;
         t.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);

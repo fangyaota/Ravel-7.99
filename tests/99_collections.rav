@@ -278,7 +278,7 @@ ravel ""
 # 5: Min: 空集合没有Min
 # 6: 比不了 String 与 Integer
 # 7: 比不了 Integer 与 String
-# 8: Concat 需要 list / set / dict，得到 Integer
+# 8: Concat 需要一个容器（list / set / dict / 栈 队列 堆…），得到 Integer
 # []
 # 7
 # false

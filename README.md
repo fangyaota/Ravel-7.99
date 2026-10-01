@@ -66,6 +66,8 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **续延是一等值**:`callcc` 交回的东西 `typeof` 就是 `Continuation`,`while` 和生成器
   (`Generator`) 都是用它在库里写出来的。
 - **数据类**:`dataclass { … }` 一个元类,自动注入 `Text ()` / `==` / 按位置构造。
+- **数据结构**:`Stack` / `Queue` / `Deque` / `Heap`(优先队列)/ `SortedDict` / `SortedSet` ——
+  引擎里的类型,实现 `IEnumerable`,整套序列方法白拿。
 - **出得了网**:`Http.Get "https://…"` 抓网页、`Http.Post` 发 JSON、`Http.Download` 流式落盘,
   响应对象带 `Text ()` / `Json ()` / `Header` —— 引擎只给"发一个请求"四条原语,策略都在库里。
 - **错误按类分**:`TypeError` / `NameError` / `AttributeError` / `IndexError` / `KeyError` /

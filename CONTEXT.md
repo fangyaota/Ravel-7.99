@@ -334,6 +334,9 @@ Object (parent=自己)
 │                       `typeof 某接口` 就是它。它自己**不是**接口 —— 接口对象挂在
 │                       `BaseInterface` 下面那一支
 ├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
+├── Stack / Queue / Deque / Heap / SortedDict / SortedSet
+│                      ← **数据结构那一族**:各自一个 C# 类,挂 `[BuiltinClass("名字")]`,
+│                        扫一遍自己捡(见「数据结构」一节)。也直接挂在 Object 下
 ├── BaseInterface [Interface]  ← **所有接口的基类**,它自己**也是**一个接口;`interface { … }`
 │                              造出来的接口都挂在这下面(它类体里那份 `init` 就这么继承下去)
 ├── Void / Exception / Ravel(模块) / Scope / Property
@@ -773,6 +776,37 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   绑接收者 —— 漏了的话 `C.Fields ()` 会把未绑定的内置方法当结果返回(`self` 是 `()`)。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
   但绑完是 `BoundClassOp`（推帧的标记），不能直接算 —— 合并会让 `a + 5` 交出标记而不是数。
+
+## 数据结构（`Runtime/Builtins/*Class.cs` + `Runtime/Values/*Val.cs`）
+
+栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合 —— 和 `List` / `Set` / `Dict` 一样是
+**类型树上的节点**,只是它们**不在那几张大表里**:
+
+```csharp
+[BuiltinClass("Stack")]                       // 名字;parent 默认 object
+internal static class StackClass
+{
+    [ClassCtor] public static RuntimeValue New(RuntimeValue arg) => …;
+    [ClassMethod("Push")] public static RuntimeValue Push(RuntimeValue self, RuntimeValue v) => …;
+}
+```
+
+- **加一个结构 = 新写一个类文件**:`ClassRegistry` 扫**整个程序集**(和 `[Sys]` 那趟一样,
+  不列名单)、按名字排、建类对象、登记方法、进 `AllTypes`。`BuiltinClasses.InstallClasses`
+  (`BuiltinClasses` 静态构造器最后一步)调它一次。
+- **`ClassVal` 不进那些类**:建出来的类对象统一在 `BuiltinClasses.ClassOf ("Stack")` 那张
+  名字表里(`New` 建的时候顺手登记);值那边就写 `StackVal.Type => ClassOf ("Stack")` ——
+  一次字典查,不必为每个结构再留一个静态字段(留了就又多一处"加新结构要记得改")。
+  **顺序要紧**:`Install` 必须在 `_builtinCount = AllTypes.Count` **之前** ——
+  那个数用来切"哪些是内置"(`ResetUserTypes`),早记一步,新建解释器时这几族会被当用户类型清掉。
+- **反射那层壳要剥掉**:`MethodInfo.Invoke` 会把方法里抛的 `RuntimeException` 包成
+  `TargetInvocationException`,那玩意儿求值器接不住、一路打成「解释器内部错误」——
+  `ClassRegistry.Call` 用 `ExceptionDispatchInfo` 剥开(成员那几条和构造器那条都要)。
+- 数据在**值**身上(`Values/StackVal.cs` 那些),类只放"有哪些成员";共用的小工具在
+  `Builtins/Structure.cs`(播种走 `ElementsOf`、键走 `KeyArg`、比大小走 `Less`)——
+  于是这一族和语言里别的东西**同一套脾气**。
+- 实现了 `IEnumerable`(`lib/iterator.rav` 里六条 `impl`):`foreach` / `Map` / `Fold` 那一整套白拿。
+  `SortedDict` 还登记成 `IDict`(成员名本来就齐)。
 
 ## 控制流
 

@@ -384,6 +384,27 @@ impl (IEnumerable string {
 impl (IEnumerable dict {
     by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
 })
+# 数据结构那一族(栈 / 队列 / 双端队列 / 堆 / 有序表)—— 每个都有自己的 `ToList ()`,
+# 枚举顺序就是它:栈是"顶在前"、堆是"一个个弹出来的顺序"、有序表是排好的。
+# (`SortedDict` 枚举的是**值**,和 `dict` 枚举值一个口径。)
+impl (IEnumerable Stack {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Queue {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Deque {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Heap {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable SortedSet {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable SortedDict {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Values ()); }; }) ((v: function) => { (); })
+})
 # `Option` 也是"一串" —— **0 个或 1 个**:`Some x` 走一次、`None` 一次都不走。
 # 于是 `foreach (Some 5) …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法
 # (ToList / Take / First / Fold …)照旧走默认实现。

@@ -104,7 +104,15 @@ internal static partial class BuiltinClasses
         ListVal l => [.. l.Elements],
         SetVal s => [.. s.Elements],
         DictVal d => [.. d.Entries.Values],
-        _ => throw new RuntimeException($"{what} 需要 list / set / dict，得到 {v.Type}", ErrorKind.Argument),
+        // 数据结构那一族(`Runtime/Values/*Val.cs`):按**枚举顺序**给,
+        // 和 `foreach` 一个读法(栈是"顶在前"、堆是堆序、有序表是排好的)
+        StackVal st => [.. st.Items],
+        QueueVal q => [.. q.Items],
+        DequeVal dq => [.. dq.Items],
+        HeapVal h => [.. h.Items],
+        SortedDictVal sd => [.. sd.Entries.Values],
+        SortedSetVal ss => [.. ss.Elements],
+        _ => throw new RuntimeException($"{what} 需要一个容器（list / set / dict / 栈 队列 堆…），得到 {v.Type}", ErrorKind.Argument),
     };
 
     /// <summary>按键排序(**稳定** —— 相等的元素保持原来的先后,`OrderBy` 就是稳定的)。

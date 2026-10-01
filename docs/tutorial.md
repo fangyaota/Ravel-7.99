@@ -2195,6 +2195,42 @@ db.Close ()
 
 **用例见 tests/272、tests/273、tests/274（内存库，不落盘）。**
 
+### 6.18 数据结构（`Stack` / `Queue` / `Deque` / `Heap` / `SortedDict` / `SortedSet`）
+
+六个**引擎里就有的**类型（不用 `using`）—— 都是类型树上的节点，有构造器、有方法，
+而且实现了 `IEnumerable`，所以 `foreach` / `Map` / `Fold` 那一整套白拿：
+
+```ravel
+s := Stack ()            # 也可以 Stack [1 2 3]（从底往上垒）
+s.Push 1 / s.PushRange [2 3] / s.Pop () / s.Peek () / s.ToList ()
+
+q := Queue [1 2 3]       # 先进先出
+q.Enqueue 4 / q.Dequeue () / q.Peek ()
+
+d := Deque [2 3]         # 两头都能进能出（Push / Pop 是后端的简写）
+d.PushFront 1 / d.PopFront () / d.PopBack ()
+
+h := Heap [3 1 4]        # 每次弹出**最小**的那个；Heap true 是大顶堆
+h.Push 0 / h.Pop () / h.ToList ()      # ToList 是弹出来的顺序 = 排好序
+
+sd := SortedDict ()      # 键永远有序
+sd.Set "b" 2 / sd.Keys () / sd.Get "b" / sd.Remove "b"
+
+ss := SortedSet [3 1 2, ]  # 升序、去重
+ss.Add 4 / ss.Min () / ss.Max ()
+```
+
+几条规矩：
+
+- **比大小的那些结构**（`Heap` / `SortedDict` / `SortedSet`）按 Ravel 的 `<` 排 ——
+  里面装的得能互相比大小，比不了当场报「比不了 Integer 与 String」。
+  相等也按 `<` 算：`1` 与 `1.0` 在这儿是同一个（`dict` / `set` 那边按类型分，不一样）。
+- 有序字典的键是**值类型**（数 / 字符串），和 `dict` 一个规矩。
+- 空结构上 `Pop` / `Peek` / `Min` 这类**报错**（不是给 `()` ——「没有」和「是空值」不该长得一样）。
+- 打印出来带前缀（`Stack [3 2 1]` / `SortedSet {1 2 3}`），枚举顺序就是那个顺序。
+
+**用例见 tests/275。**
+
 ## 七、类
 
 ### 7.1 类就是一个对象
