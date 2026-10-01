@@ -45,10 +45,14 @@ Option ::= class {
     # 有值且满足条件 -> true
     Exists := (p: function) => { Has && p Inner; }
 
-    # 交给"一串"那一族(`IEnumerable` 也是 monad,见 lib/iterator.rav):
-    # 有值就是只含它的一串,没值就是空的一串 —— `None` 于是成了"空序列"而不是"报错"。
-    # 反过来那一头是 `xs.TryFirst ()` / `xs.TryFind p`(给你一个 Option)。
-    ToList := () => { if { Has; } { [Inner]; } { []; } }
+    # 它**也是 `IEnumerable`**(见 lib/iterator.rav 末尾那条 `impl`):有值就是"只含它的一串",
+    # 没值就是"空的一串" —— 于是 `foreach (Some 5) …` 走一次、`Seqs.Gather (None)` 是 `[]`、
+    # `(Some 5).Count ()` 是 1。整串方法(ToList / Take / First / Fold …)由 `IEnumerable` 的
+    # **默认实现**给,不必在这儿再写一份;反过来那一头是 `xs.TryFirst ()` / `xs.TryFind p`。
+    #
+    # 注意 `Map` / `Bind` / `Where` 仍是**上面那三条**(类链上的先命中)—— 它们在这一族里
+    # 的语义是"包着/摊平",不是"变一串":`(Some 5).Map f` 交回的还得是 Option。
+
 
     init = (has: bool v: object) => {
         Has = has

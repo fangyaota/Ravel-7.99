@@ -911,10 +911,26 @@ print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())   # false �
 | `Bind f` | 有值就把 `f` 的结果**摊平**接上（`f` 自己得回一个 `Option`），链起来不套娃 |
 | `Where p` | 不满足 `p` 就变成 `None` |
 | `Exists p` | 有值且满足 `p` |
-| `ToList ()` | 往**序列**那半走：有值就是 `[x]`，没值就是 `[]`（见 5.9 末尾）|
+| `ToList ()` | 往**序列**那半走：有值就是 `[x]`，没值就是 `[]`（见下）|
 
 `None` 是**一个值**（单例，大家共用它），不用写 `None ()`；`(Some 5).Where (…)` 落空拿到的
 就是它，所以 `== None` 成立（对象按身份比）。
+
+**`Option` 本身就是一串 —— 0 个或 1 个**（`impl (IEnumerable Option …)`，见 4.3）：
+
+```ravel
+(Some 5) is IEnumerable     # true
+foreach (Some 7) (x: int) => { print x; }   # 走一次
+foreach None (x: int) => { print x; }       # 一次都不走
+Seqs.Flatten [(Some 1) (None) (Some 3)]     # [1 3]
+(Some 5).Count ()           # 1
+(None).ToList ()            # []
+```
+
+整串方法（`ToList` / `Count` / `First` / `Fold` / `Take` …）由 `IEnumerable` 的
+**默认实现**给。但 `Map` / `Bind` / `Where` 还是**上面那三条**（类链上的先命中）——
+它们在这族的语义是"包着 / 摊平"，`(Some 5).Map f` 交回的仍是 `Option`，
+`do { n :< Some 5; Some (n * 2); }` 也仍在 `Option` 里。
 
 **括号提醒**（柯里化那条规则的正常结果：实参只吃「主表达式 + 取成员」）：
 
@@ -1022,9 +1038,9 @@ sums := do { a :< Nats; b :< Nats; [a + b]; }
 Seqs.Gather (sums.Take 5)     # [0 1 2 3 4]
 ```
 
-和 `Option` 那半有两座桥：`Option.ToList ()`（`Some x` → `[x]`，`None` → `[]`，
-于是"没有"在序列里就是"空的一串"）、`xs.TryFirst ()` / `xs.TryFind p`（给你一个 `Option`，
-不用去 `try` 里接 `First` / `Find` 那句错）。
+和 `Option` 那半本来就通着 —— **`Option` 自己就是"0 个或 1 个的一串"**
+（`Seqs.Flatten [(Some 1) (None)]` → `[1]`，见 5.8），反方向则用
+`xs.TryFirst ()` / `xs.TryFind p`（给你一个 `Option`，不用去 `try` 里接 `First` / `Find` 那句错）。
 
 ### 5.10 IO Monad（把效果做成值）
 

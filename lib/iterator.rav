@@ -357,6 +357,26 @@ impl (IEnumerable string {
 impl (IEnumerable dict {
     by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
 })
+# `Option` 也是"一串" —— **0 个或 1 个**:`Some x` 走一次、`None` 一次都不走。
+# 于是 `foreach (Some 5) …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法
+# (ToList / Take / First / Fold …)照旧走默认实现。
+#
+# 枚举器**不用** `instance.ToList ()` 来取:那正是这条默认实现自己 —— 会转圈。
+# 这里直接问 Option 那两条(`IsSome ()` / `Value ()`)。
+impl (IEnumerable Option {
+    by GetEnumerator = property (() => {
+        () => {
+            if { instance.IsSome (); } {
+                # 先取到手里再放进表:列表元素和实参一样只吃"主表达式 + 取成员",
+                # `[instance.Value ()]` 会被读成"两件"(那个函数 + 一个 `()`)
+                v := instance.Value ()
+                Enumerator [v];
+            } {
+                Enumerator [];
+            }
+        }
+    }) ((v: function) => { (); })
+})
 
 # 枚举器自己也实现 IEnumerator(这样 `e is IEnumerator` 成立,注解也收得下它)
 impl (IEnumerator Enumerator {

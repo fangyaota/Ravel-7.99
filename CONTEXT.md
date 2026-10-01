@@ -120,6 +120,7 @@ lib/
                           (所以每调一次是独立的一份,也不进 AllTypes)
   monad.rav               **Monad 这一族**:`IMonad` 接口(Map + Bind 两条槽 —— 能进 `do { … }` 的形状)
                           + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
+                          —— 它**也是 `IEnumerable`**(0 个或 1 个的一串,impl 在 iterator.rav 末尾)
                           + 构造子 `Some` / `None`
   match.rav               `match v [每对 条件/结果] 默认` —— 按顺序试谓词,第一个为真的胜出
                           (条件多半就是 `is.int` / `<.0` 这种**运算符节**;结果与默认值都得是
@@ -739,7 +740,11 @@ IEnumerator ::= interface { by MoveNext : function = default
 —— 所以接口的 parent 一挂上,list / set / dict / string / Generator / 用户类全都
 `is IMonad`。(`lib/predefined.rav` 里 `monad.rav` 因此排在 `iterator.rav` **前面**。)
 
-和 `Option` 那半的桥:`Option.ToList ()`(→ `[x]` / `[]`)、`xs.TryFirst ()` / `xs.TryFind p`(→ `Option`)。
+和 `Option` 那半通着:**`Option` 自己也 impl 了 `IEnumerable`** —— 它是"0 个或 1 个的一串"
+(`Some x` 走一次、`None` 一次不走):`foreach (Some 5) …`、`Seqs.Flatten [(Some 1) (None) (Some 3)]`
+都成立,整串方法照旧走默认实现。**`Map` / `Bind` / `Where` 仍是 Option 类体里那三条**
+(类链先命中)—— 那是这一族的"包着 / 摊平",`(Some 5).Map f` 交回的还得是 Option。
+反方向:`xs.TryFirst ()` / `xs.TryFind p`(→ `Option`)。
 
 `GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
 `Current` 是当前那个(C# 里是属性,这边也做成属性)。库里的 `Enumerator` 就是"拿一串值"的
