@@ -46,6 +46,46 @@ internal static class SysOutput
     [Sys("ReadAllInput")]
     public static RuntimeValue ReadAllInput(RuntimeValue _) => new StringVal(Console.In.ReadToEnd());
 
+    // ── 抓 stdout ──
+    //
+    // 这两条是 `Console.SetOut` 那一对的**原语化** —— 库想要"先把这段代码的打印收起来,
+    // 回头再决定打不打"时用它(REPL 的「显示结果」开关就是;C# 那版 REPL 里写的是
+    // 同两句话)。**只动 stdout,不动 stderr**:报错报告、警告那些引擎自己的话不受影响。
+    //
+    // 为什么是**两条**而不是"收一个函数进去":内置这一族没有从 C# 这边回调 Ravel 函数的
+    // 口子,收函数就得碰求值器内部;两条不必,而且 Ravel 那边本来就有 `try`,
+    // 收尾该放哪一目了然 —— 失败那条路也得收,不然 stdout 一直被抓着。
+
+    /// <summary>开始把 stdout 收进缓冲区。**已经在收就什么都不做** —— 嵌套没有意义,
+    /// 内层那一下收工也不该把外层正在收的东西放出去。</summary>
+    [Sys("CaptureStart")]
+    public static RuntimeValue CaptureStart(RuntimeValue _)
+    {
+        if (_capture is not null) return VoidVal.Instance;
+
+        _savedOut = Console.Out;
+        _capture = new StringWriter();
+        Console.SetOut(_capture);
+        return VoidVal.Instance;
+    }
+
+    /// <summary>收工:把 stdout 换回去,交出这段时间写出去的那串。
+    /// **没在收就交回空串** —— 忘了配对、或者在收尾那条路上又调了一次,都不该炸。</summary>
+    [Sys("CaptureEnd")]
+    public static RuntimeValue CaptureEnd(RuntimeValue _)
+    {
+        if (_capture is not { } buffer) return new StringVal("");
+
+        Console.SetOut(_savedOut ?? Console.Out);
+        _capture = null;
+        _savedOut = null;
+        return new StringVal(buffer.ToString());
+    }
+
+    // `Console.SetOut` 本来就是进程级的,收的那一份状态跟着一起放这儿
+    private static StringWriter? _capture;
+    private static TextWriter? _savedOut;
+
     // ── 终端:读单个键 + 屏幕 ──
     //
     // 这四条是"写一个编辑器"绕不开的那一格。前三条本来能用 ANSI 转义串拼出来,

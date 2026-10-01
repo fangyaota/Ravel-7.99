@@ -22,8 +22,9 @@ dotnet out/ravel.dll                    # REPL
 
 VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前文件并可下断点、
 命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」;`.rav` 文件上**右键 → 在命令行中运行**
-则是在**集成终端**里跑(不是输出面板)—— 要交互的脚本(`input ()`、`examples/repl.rav` 那种)
-得走那条。语法高亮靠 `vscode-ravel/` 扩展
+则会**弹一个独立的系统命令行窗口**出来跑(`cmd /c start … cmd /k`,跑完窗口留着;不是 VS Code
+里那个终端面板、也不是输出面板)—— 要交互的脚本(`input ()`、`examples/repl.rav` 那种)得走那条。
+语法高亮靠 `vscode-ravel/` 扩展
 （见下），它调用的同样是 `bin/Debug/net10.0/ravel.dll`。
 
 扩展还提供**折叠**：按 `{}` / `[]` / `()` 分块（不是按缩进 —— Ravel 按括号分块，缩进对不上）、
@@ -110,6 +111,10 @@ Lexer.cs / Ast.cs / Token.cs / TokenType.cs
                                 Token.Length 是**源码跨度**(字符串含引号、带转义),
                                 和 Lexeme(给人看的文本)不是一回事
                                 字符串没收到尾的引号 = 语法错误(从前静默吞掉后面全部源码)
+                                `"""…"""` 是**原始字符串**:里面一个字符都不动(不转义、
+                                不插值、`#` 不是注释),只有连着三个引号才收;空白按 C# 那套
+                                (去开头换行 + 剥收尾引号那一行的缩进,对不齐就报错)。
+                                `ScanState` 也得跟着认它,不然多行原始字符串会被判成"没写完"
 Parser.cs                       入口 + token 辅助(Peek/Consume/ParseError)
   Parser.Statements.cs          语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
   Parser.Expressions.cs         优先级链(管道→逻辑→比较→加减→乘除)
@@ -452,6 +457,9 @@ Object (parent=自己)
               Assert TypeOf Eval CallCC Exit With RavelMod Using Use Impl Unsafe
               Property CurrentScope LoadingState RestoreLoading SetErrorHook WarnForgotCall Unhandled
               FormatError                       ← 把一个异常渲染成 CLI 那份报告
+              CaptureStart CaptureEnd           ← 把 stdout 收进字符串的那一对(只有 stdout,
+                                                 stderr 不动)。**要成对用**:失败那条路也得收,
+                                                 不然 stdout 一直被抓着
     终端       ReadKey ScreenClear CursorTo CursorShow
                                               ← 写编辑器绕不开的那四格(见「REPL 也是用
                                                 Ravel 写的」一节):读单个键、清屏、定位、藏光标
@@ -947,14 +955,16 @@ internal static class StackClass
   (先 `ravel "Math"` 建一个、之后才 `using "math.rav"`),装库这一刻该**以库为准**;
   `Define` 撞名就报「已经定义过」是 `:=` 的规矩,不是装库的规矩。(`readonly` 的那些照拦。)
 - **合同钉在两处**:`tests/271` 是"引擎自带那张表",`tests/280` 是"扩展带来那张表"
-  (`Native` 36 条 + `Math` 49 条),两张合起来正好是搬之前的全集。
+  (`Native` 58 条 + `Math` 49 条),两张合起来正好是搬之前的全集。
 
 ## REPL 也是用 Ravel 写的（`lib/repl.rav`）
 
-`Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**对照物**:同样的多页缓冲、三维光标、
-按词上色的行渲染、按键编辑、主菜单、运行整页。写它是为了回答一个问题 ——
-**这门语言自己够不够用**。答案:够,而且只多要了**五条原语**,全落在"进程边界"那一类
-(`ReadKey` / `ScreenClear` / `CursorTo` / `CursorShow` / `FormatError`)。
+`Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**一比一复刻**:同样的多页缓冲、三维光标、
+按词上色的行渲染、按键编辑、主菜单(**连菜单项的顺序都一样**)、启动那张 ASCII 大图、
+运行整页、读写文件、会话存盘。写它是为了回答一个问题 ——
+**这门语言自己够不够用**。答案:够,而且只多要了**六样原语**,全落在"进程边界"那一类
+(`ReadKey` / `ScreenClear` / `CursorTo` / `CursorShow` / `FormatError`,外加
+`CaptureStart` + `CaptureEnd` 这一对)。
 
 - **高亮的扫描器是库自己写的**(`Segments`):高亮只要"编辑器那种粗细"(字符串 / 数字 /
   词 / 别的),不必是完整的词法 —— 而"哪些算一个词"本来就该由库说。
@@ -962,12 +972,15 @@ internal static class StackClass
   深度只做加减不校验(多一个右括号让解析器去报),`'a'` 里的括号也算进去。
   那边写着为什么不能让库自己发明规则:`NeoInteractor` 从前抄的那份不认 `\` 转义,
   `"a\"b"` 就把字符串状态判反、后面整行的括号跟着数错。
-- **不抓输出**。C# 那版用 `Console.SetOut` 把用户代码的打印收进一个字符串、再按开关打;
-  Ravel 抓不了(那是引擎那侧的事),所以"显示结果"那个开关的意思是**求不值**:
-  关掉时把整段包进一个**不去调用的 lambda** 里编一遍(体照样过词法语法,而一行都不会跑),
-  副作用一个都不会发生。
+- **抓输出靠那对新原语**(`CaptureStart` / `CaptureEnd`)—— 就是 C# 那两句
+  `Console.SetOut` 的原语化,只动 stdout 不动 stderr。「显示结果」那个开关于是和 C# 一样:
+  **关掉照样求值**,只是输出和 `==>` 都不显示。为它加原语是划算的 ——
+  "把这段代码说的话收起来"是库自己写不出来的能力,而 C# 那版天生就有。
 - **看不见终端就不当编辑器**:管道里把喂进来的整段当程序跑完就走 ——
   `echo 'print 1 + 1' | dotnet out/ravel.dll examples/repl.rav` 给 `2`。
+- **`Terminal.Panel` / `Terminal.Menu` / `AskDefault` / `ConfirmDefault`** 是为这一版新加的
+  扩展面:方框和"带搜索的主菜单"交给 Spectre 那台现成的控件(和 C# 用的是**同一个**),
+  两边才长得一模一样 —— 自己拼那圈边框得先算每行的**纯文本**宽度,不划算。
 
 ## 数据结构（插件 `Ravel.Structures`,见「插件」一节）
 
@@ -1434,8 +1447,12 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
 - `$` 后面不是 `{` 就是**字面量**(`"$5"` / `"$name"` 都不用转义);要写 `${` 本身用 `\${`。
   没闭合的 `${` 报「插值没有收尾的 '}'」。
 - **和运算符 `$` 不冲突**:那个只在字符串**外面**有意义(见上面那节),这个只在**里面**。
+- **原始字符串(`"""…"""`)不插值**,连转义也不做 —— 那才是"原始"。要 `${…}` 就用普通
+  字符串。(`$"""…"""` 那种"原始的 + 还插值"的变体**没做**:`$` 那边本身还有设计问题,
+  等它定了再说。)
 
-用例 `tests/237_interpolation.rav`。
+用例 `tests/237_interpolation.rav`;原始字符串见 `tests/287`(快乐路径)+ `288` / `289`
+(缩进对不齐、没收到尾,两条 `# expect-error`)。
 
 ## 空值那三条（`?.` / `??` / `??=`）
 

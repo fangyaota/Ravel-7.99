@@ -1,5 +1,5 @@
-# 用 Ravel 写的 REPL —— 见 `lib/repl.rav`(那里面写着和 C# 那版 `Repl/NeoInteractor.cs`
-# 的对照:哪儿一样、哪儿故意不一样、以及**一共只多要了五条原语**)。
+# 用 Ravel 写的 REPL —— 见 `lib/repl.rav`。它是 C# 那版 `Repl/NeoInteractor.cs` 的
+# **一比一复刻**(连启动那张大图和菜单项的顺序都一样),另外多要了**六样原语**。
 #
 #     dotnet out/ravel.dll examples/repl.rav
 #

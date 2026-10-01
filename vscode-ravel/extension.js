@@ -90,11 +90,21 @@ async function runFile() {
 }
 
 /**
- * 在**集成终端**里跑(不是输出面板)。
+ * 在**外面那个命令行窗口**里跑 —— 真的弹一个独立控制台出来,不在 VS Code 里。
  *
- * 和 `runFile` 的分工:那个把输出流进面板,好处是不抢焦点、能一直翻;这个给你一个**真的
- * shell** —— 脚本里 `input ()` 能敲、`examples/repl.rav` 那种交互的跑得起来、跑完还能
- * 接着在那个终端里敲别的命令。要交互就用这个。
+ * 为什么不用 `TerminalLocation.External`:那条路试过了,**不吭声地回退** —— 外部终端要
+ * `terminal.external` 那族设置配对了才认,配不对它不报错,直接在 VS Code 底部的终端面板里
+ * 开一个,看起来就跟没用一样。所以这里自己起进程,走的是 cmd 自己那套。
+ *
+ * `cmd /c start` 让 Windows 开一个新的控制台窗口(Win11 默认终端是 Windows Terminal,
+ * 所以开出来多半就是它);`/k` 让窗口跑完**留着**,你能接着敲下一句。
+ *
+ * `start` 后面那个**带引号的第一个参数是窗口标题** —— 这条规矩必须喂一个,不然 cmd 会把
+ * 后面的 `cmd /k …` 整串当标题吃掉,结果什么都不开。顺带把文件名放进去,开多了一眼认得出。
+ *
+ * 和 `runFile` 的分工:那个把输出流进输出面板,不抢焦点、能一直翻;这个给你一个**真的
+ * shell 窗口** —— 脚本里 `input ()` 能敲、`examples/repl.rav` 那种交互的跑得起来。
+ * (这套是 Windows 的写法,别的系统上得另写。)
  *
  * @param {vscode.Uri | undefined} uri 资源管理器右键会把这个传进来;编辑器右键没有
  */
@@ -109,16 +119,22 @@ async function runFileInTerminal(uri) {
         return;
     }
 
-    // **每次开一个新的**,不复用:上一条命令可能还在跑(`examples/repl.rav` 就是个不会退的
-    // REPL),复用的话下次那句会直接**打进那个还在运行的程序里**。名字带上文件名,
-    // 开多了也认得出哪个是哪个。
-    const term = vscode.window.createTerminal({
-        name: `Ravel: ${path.basename(file)}`,
-        cwd: workspaceCwd(),
-    });
-    term.show();
     // 路径带空格是常事(这个仓库自己就叫 `Ravel 7.99`),两处引号都不能省
-    term.sendText(`dotnet "${dll}" "${file}"`);
+    const line = `dotnet "${dll}" "${file}"`;
+
+    // windowsVerbatimArguments:这串要**原样**交给 cmd,不能让 Node 好心再包一层引号 ——
+    // 它会给每个参数都套引号,`cmd /k dotnet "…"` 那样一散,cmd 就解析错了。
+    // 代价是自己写的引号(比如上面那个标题)得自己带上。
+    cp.spawn('cmd.exe', [
+        '/c', 'start',
+        `"Ravel: ${path.basename(file)}"`,
+        'cmd', '/k', line,
+    ], {
+        cwd: workspaceCwd(),    // Ravel 靠 cwd 找 lib/predefined.rav
+        detached: true,
+        stdio: 'ignore',
+        windowsVerbatimArguments: true,
+    }).unref();
 }
 
 async function runTests() {

@@ -2,9 +2,11 @@
 #
 #     Terminal.Line (Terminal.Green "好了")            # 上色写一行(管道里自动不上色)
 #     print (Terminal.Plain "[b]粗[/]")                # 只看渲染结果,不带颜色
+#     print (Terminal.Panel ["一行" "两行"])            # 装进一个方框(宽度跟终端走)
 #     Terminal.Ask "叫什么？"                           # 问一句、读一行
 #     Terminal.Confirm "删掉？"                         # 是 / 否
 #     Terminal.Choose "选一个" ["a" "b" "c"]            # 上下键挑
+#     Terminal.Menu "------主菜单------" (Items ())     # 带搜索的菜单,交回序号
 #     print (Terminal.Bar 3 10 20)                     # [######..............] 30%
 #     Terminal.Rule (Terminal.Width ())                # 一条横线
 #
@@ -42,6 +44,11 @@ readonly Write := (markup: object) => { System.Write (Render markup); (); }
 readonly Line := (markup: object) => { System.WriteLine (Render markup); (); }
 readonly ToErr := (markup: object) => { System.WriteLineErr (Render markup); (); }
 
+# 把几行装进一个方框(宽度跟终端走)。交回的是**一整块标记**、末尾带换行 ——
+# 要按行拿到手就自己过一遍 `System.SplitLines`。
+# 行里可以带标记:方框只负责包边和补齐,每行的颜色照旧。
+readonly Panel := (lines: list) => { Native.TerminalPanel lines (Tty ()); }
+
 # ── 问终端 ──
 
 # 输出是不是一个**真终端** —— 管道的另一头不是。决定要不要上色看它
@@ -52,12 +59,24 @@ readonly Width := () => { Native.TerminalWidth (); }
 
 # ── 交互 ──
 #
-# 这三条**要真的终端**:它们读键盘。接管道跑(`echo x | ravel a.rav`)时该走的是
+# 这几条**要真的终端**:它们读键盘。接管道跑(`echo x | ravel a.rav`)时该走的是
 # `System.ReadLine`,不是这儿。
 
 readonly Ask := (prompt: string) => { Native.TerminalAsk prompt; }              # 读一行(空行也收)
 readonly Confirm := (prompt: string) => { Native.TerminalConfirm prompt; }      # 是 / 否(默认是)
 readonly Choose := (question: string choices: list) => { Native.TerminalChoose question choices; }
+
+# 上面三条的"带默认值 / 带序号"那两版:
+#
+#     Terminal.AskDefault "选择代码文件" "temp.ravel"      # 回车就收那个默认值
+#     Terminal.ConfirmDefault "开关显示执行结果吗？" false   # 默认值由调用方给
+#     Terminal.Menu "------主菜单------" (Items ())         # 交回**选中的序号**
+#
+# `Menu` 是主菜单那种用法(带搜索、每屏 6 条、每项挂着序号),参数照着
+# `Repl/NeoInteractor.cs` 那台 `SelectionPrompt<int>` 抄的。
+readonly AskDefault := (prompt: string dflt: string) => { Native.TerminalAskDefault prompt dflt; }
+readonly ConfirmDefault := (prompt: string dflt: bool) => { Native.TerminalConfirmDefault prompt dflt; }
+readonly Menu := (title: string items: list) => { Native.TerminalMenu title items; }
 
 # ── 几条糖:交回的是**标记串** ──
 #

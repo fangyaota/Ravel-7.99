@@ -6,19 +6,12 @@
     "publisher": "ravel",
     "license": "MIT",
     "engines": {
-        "vscode": "^1.60.0"
+        "vscode": "^1.74.0"
     },
     "categories": [
         "Programming Languages"
     ],
     "main": "./extension.js",
-    "activationEvents": [
-        "onLanguage:ravel",
-        "onCommand:ravel.runFile",
-        "onCommand:ravel.runFileInTerminal",
-        "onCommand:ravel.runTests",
-        "onCommand:ravel.openRepl"
-    ],
     "contributes": {
         "languages": [
             {

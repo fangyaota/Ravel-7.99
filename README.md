@@ -59,6 +59,8 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
   被覆盖掉语言就变样 —— 这是有意的。
 - **柯里化**:`f a b` ≡ `(f a) b`,多参函数就是"一层层收一个";`_` 占位符、`+.1` 运算符节、
   `<|` 喂参、`$` / `@` 两个括号糖,都是围绕这一条长出来的。
+- **原始字符串**:`"""…"""` 里一个字符都不动 —— 正则、Windows 路径那种满是反斜杠的文本
+  画什么样写什么样;块按收尾引号的缩进对齐(照 C# 那套),所以能跟着代码正常缩进。
 - **接口 + 默认实现**:`IEnumerable ::= interface IMonad { …一整套默认实现… }` ——
   谁 `impl` 了它,`Map` / `Where` / `Fold` / `Take` 立刻都有;`by X := …` 写的是"实现体不填时的样子"。
 - **monad 进语法**:`do { x :< xs; y :< ys; [x y]; }` 折成 `.Bind` 链(`Option`、`IEnumerable`、
@@ -81,7 +83,7 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **`--warn`**:少给一块的 `if`、`assert 条件` 忘了写消息 —— 这类"半成品函数被静默丢掉"的坑,
   开着它就当场提醒一句(见 `CONTEXT.md` 的「诊断」一节)。
 - **VS Code 扩展**(`vscode-ravel/`):语法高亮 + 折叠(按 `{}` 分块、注释段)+ 跑当前文件 /
-  全量测试 / 开 REPL;文件上右键还有**在命令行中运行**(集成终端里跑,交互的脚本用它);
+  全量测试 / 开 REPL;文件上右键还有**在命令行中运行**(弹一个独立的系统命令行窗口,跑完留着,交互的脚本用它);
   括号匹配认区间的交叉括号(`[1..5)` / `(1..5]`)。
 - **全中文**:注释、文档、报错、提交信息。
 
@@ -112,6 +114,21 @@ DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test
 打开仓库就有 `.vscode/` 里的任务:`Ctrl+Shift+B` 跑当前 `.rav`(先编译)、`F5` 跑当前文件
 并可下断点;命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。它们调的都是
 `bin/Debug/net10.0/ravel.dll`。
+
+`vscode-ravel/` 那份扩展**不是开在窗口里就装上**的 —— VS Code 只认
+`~/.vscode/extensions/` 里的那一份。要让它生效,把仓库里那个文件夹**接**过去
+(用目录联接,改的是源码本身,以后改完重载窗口就见效,不必重装):
+
+```bash
+cd "%USERPROFILE%\.vscode\extensions"
+cmd //c mklink /J "ravel.ravel-language-0.3.0" "D:\Codes\Ravel 7.99\vscode-ravel"
+```
+
+版本号在文件夹名里,`package.json` 里升了就顺手改这个名。装完
+`Ctrl+Shift+P` → `Developer: Reload Window`。
+
+**改扩展时最容易踩的坑**:明明源码改了、`git status` 里也看得见,VS Code 里却没动静 ——
+多半是它加载的仍是 `~/.vscode/extensions/` 里的老副本。
 
 ## 仓库结构
 

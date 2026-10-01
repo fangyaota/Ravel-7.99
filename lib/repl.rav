@@ -5,13 +5,16 @@
 #
 # (`examples/repl.rav` 就是这么两行;跑 `dotnet out/ravel.dll examples/repl.rav`)
 #
-# 它是 `Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**对照物**:多页缓冲、三维光标、
-# 按词上色的行渲染、按键编辑、主菜单、运行整页、读写文件、会话存盘。
-# 照它写一遍是想看看**这门语言自己够不够用** —— 结论是够:**五条新原语**,
-# 而且全落在"进程边界"那一类(读单个键、清屏、定位光标、藏光标、把异常渲染成那份报告)。
-# 其余的一样都不缺:字符串增删改、`eval`(连语法错误都接得住)、`try`、文件读写、
-# `Terminal` 那套标记渲染。**连高亮的扫描器都是在这儿写的**(见下面 ①)——
-# 它本来就该是库的事,不必向引擎要。
+# 它是 `Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**一比一复刻** —— 多页缓冲、三维光标、
+# 按词上色的行渲染、按键编辑、主菜单、运行整页、读写文件、会话存盘,连启动那张大图
+# 和菜单项的顺序都一样。两边跑同一个流程,逐屏看应当看不出分别。
+#
+# 照它写一遍是想看看**这门语言自己够不够用**。结论是够:**六样新原语**,全落在
+# "进程边界"那一类 —— 读单个键、清屏、定位光标、藏光标、把异常渲染成那份报告,
+# 再加上"把 stdout 收进字符串"(那个「显示结果」开关要它,`System.CaptureStart` /
+# `CaptureEnd` 两条)。其余一样都不缺:字符串增删改、`eval`(连语法错误都接得住)、
+# `try`、文件读写、`Terminal` 那套标记渲染、终端宽度。**连高亮的扫描器都是在这儿写的**
+# (见下面 ①)—— 它本来就该是库的事,不必向引擎要。
 #
 # 两半的分法就是"测不测得动"那条线:
 #
@@ -20,15 +23,9 @@
 #   ② **壳的**:`Editor` 那个类 —— 按键、重画、菜单、运行。这一半要有真键盘才跑得动,
 #      所以它只在 `examples/` 里手动试。
 #
-# 和 C# 那版**故意不一样**的三处:
-#
-#   * **不抓输出**。它用 `Console.SetOut` 把用户代码的打印收进一个字符串,再按开关决定
-#     打不打。Ravel 这边抓不了(那是引擎那侧的事),所以"显示结果"那个开关的意思是
-#     **求不值**:关掉时只把这段送去编译一遍,报语法错,不跑。
-#   * **看不见终端就不当编辑器**。管道里画什么都是白画 —— 那时候把喂进来的整段
-#     当一段程序跑完就走(`RunPipe`)。
-#   * **提示行画在屏幕里**(不是打到 stderr 上):打到 stderr 会跟着往上滚,
-#     把这台"自己管屏幕"的编辑器搅乱。
+# **只有一处**和 C# 那版不是照着写的:`Run` 分了"看得见终端"和"看不见终端"两条路。
+# 管道里画什么都是白画,那时候把喂进来的整段当一段程序跑完就走(`RunSource`)——
+# 于是 `echo 'print 1' | ravel examples/repl.rav` 退得出来,而且有用。
 using "native.rav"
 using "terminal.rav"
 using "io.rav"
@@ -131,7 +128,8 @@ readonly Colored := (text: string) => {
 }
 
 # 一行的渲染:行号(蓝)+ 上色的源码;`cursorX` 给了就在这一行画光标块
-# (给 `()` 表示"光标不在这儿")
+# (给 `()` 表示"光标不在这儿")。
+# **行号是调用方给的**(壳那边传的是下标,0 起 —— 照 C# 那版 `RenderRow (index, …)`)。
 readonly Row := (n: int text: string cursorX: object) => {
     out := "[blue]" + (Pad (string n) 3) + "|[/] "
     pos := 0
@@ -173,25 +171,53 @@ readonly ClampTo := (v: int lo: int hi: int) => {
 # 不认 `\` 转义,`"a\"b"` 就把字符串状态判反、后面整行的括号都跟着数错)。
 # 深度只做加减**不做校验** —— 多一个右括号该让解析器去报,不是卡在"还没写完"上。
 # 和那边一样,`'a'` 这种字符字面量里的括号**也会被数进去**(引擎那份就这脾气)。
+# `src` 从第 `i` 格起是不是连着三个引号(原始字符串的定界符)。
+# **三格都查** —— 只查后两格的话,`"""abc"""` 里 `c` 那一格也会被判成"是"(它后面正好
+# 跟着收尾那三下),于是那个串永远收不了尾。
+#
+# **先落成变量再比**:实参位置只收"主表达式 + 取成员",写成 `src.At (i + 1) == '"'`
+# 会把 `== '"'` 整个当成 `At` 的实参(于是拿 `int` 和 `char` 去比,报「运算符 '==' 不支持
+# Char 操作数」)—— 和 `lib/cached.rav` 那段是同一个坑。顺带这样也才越不了界。
+readonly IsTriple := (src: string i: int) => {
+    n := src.Length ()
+    hit := false
+    if { i + 2 < n; } {
+        a := src.At i
+        b := src.At (i + 1)
+        d := src.At (i + 2)
+        hit = ((a == '"') && (b == '"')) && (d == '"')
+    } { 0; }
+    hit
+}
+
 readonly Balanced := (src: string) => {
     depth := 0
     inStr := false
+    inRaw := false
     i := 0
     n := src.Length ()
     while { i < n; } {
         c := src.At i
         if { inStr; } {
-            if { c == '\\'; } { i += 2; } {
-                if { c == '"'; } { inStr = false; } { 0; }
-                i += 1
+            if { inRaw; } {
+                # 原始字符串:**只有连着三个引号能收** —— 里面的 `\` 和 `#` 一律不算
+                if { IsTriple src i; } { inStr = false; inRaw = false; i += 3; } { i += 1; }
+            } {
+                if { c == '\\'; } { i += 2; } {
+                    if { c == '"'; } { inStr = false; } { 0; }
+                    i += 1
+                }
             }
         } {
             if { c == '#'; } { i = n; } {
-                if { c == '"'; } { inStr = true; i += 1; } {
-                    if { "([{".Contains (string c); } { depth += 1; } {
-                        if { ")]}".Contains (string c); } { depth -= 1; } { 0; }
+                # 原始字符串要排在 `""` 空串前面,不然那两下先把串开开关关一遍
+                if { IsTriple src i; } { inStr = true; inRaw = true; i += 3; } {
+                    if { c == '"'; } { inStr = true; i += 1; } {
+                        if { "([{".Contains (string c); } { depth += 1; } {
+                            if { ")]}".Contains (string c); } { depth -= 1; } { 0; }
+                        }
+                        i += 1
                     }
-                    i += 1
                 }
             }
         }
@@ -208,23 +234,65 @@ readonly Window := (total: int y: int) => {
     [left right]
 }
 
+# 一个字符串能不能当非负整数读(读不动交回 -1)。
+# 「读取」问页码那一步用它 —— **不引 `Numbers` 那套**,就为这一处,十来行不值当。
+readonly PageOf := (s: string) => {
+    t := s.Trim ()
+    n := 0
+    ok := (t.Length ()) > 0
+    foreach (t.Chars ()) (c: object) => {
+        if { c.IsDigit (); } { n = (n * 10) + ((c.Code ()) - 48); } { ok = false; }
+    }
+    if { ok; } { n; } { -1; }
+}
+
 # ============================================================
 #  ② 壳:那个编辑器
 # ============================================================
 
 readonly PageMark := string (char 12)        # 存盘时的分页符(源码里几乎见不到)
 
+# 启动那张大图 —— **一个字没动**,照抄 `NeoInteractor.EvaluateShowRavel`。
+#
+# 写成**原始字符串**(`"""…"""`):这里头全是反斜杠,普通字符串得把它们一个个双写,
+# 那份"双写过的版本"从前是拿脚本生成贴进来的 —— 想改一个字符都难,而且真改错过
+# (第 14 行少打过一个下划线)。原始字符串不处理转义,画什么样写什么样。
+#
+# 缩进按收尾那三个引号算(4 格),所以这块能跟着代码排齐。
+readonly Banner := () => {
+    """
+     ____                                   ___
+    /\  _`\                                /\_ \
+    \ \ \L\ \      __      __  __     __   \//\ \
+     \ \ ,  /    /'__`\   /\ \/\ \  /'__`\   \ \ \
+      \ \ \\ \  /\ \L\.\_ \ \ \_/ |/\  __/    \_\ \_
+       \ \_\ \_\\ \__/.\_\ \ \___/ \ \____\   /\____\
+        \/_/\/ / \/__/\/_/  \/__/   \/____/   \/____/
+                _____           ___           ___
+               /\  ___\        /'__`\        /'__`\
+               \ \ \__/       /\ \/\ \      /\ \/\ \
+                \ \___``\     \ \ \ \ \     \ \ \ \ \
+                 \/\ \L\ \ __  \ \ \_\ \ __  \ \ \_\ \
+                  \ \____//\_\  \ \____//\_\  \ \____/
+                   \/___/ \/_/   \/___/ \/_/   \/___/
+    Ravel 7.99
+    """
+}
+
 # 重画的公共那一手:**先把上一屏整个盖掉再画**。
 # (只盖"多出来的那几行"不够:某一行变短了,尾巴上的旧字符会留在那儿)
+#
+# 收的是**已经渲染好的**几行(不带标记) —— 方框那一份是 `Terminal.Panel` 出来的、
+# 里面可能带 ANSI 和字面的 `[`,再过一遍标记那一层就把它读坏了,所以走 `System.WriteLine`。
 # 交回这一屏画了几行,调用方存回去当下次的"上一屏"。
 readonly Paint := (drawn: int lines: list) => {
     blank := (" ").Repeat ((Terminal.Width ()) - 1)
     System.CursorTo 0 0
     i := 0
-    while { i < drawn; } { Terminal.Line blank; i += 1; }
+    while { i < drawn; } { System.WriteLine blank; i += 1; }
     System.CursorTo 0 0
     n := 0
-    foreach lines (l: string) => { Terminal.Line l; n += 1; }
+    foreach lines (l: string) => { System.WriteLine l; n += 1; }
     n
 }
 
@@ -243,8 +311,7 @@ Editor ::= class {
 
     Lines := () => { Pages.At Z; }
     Current := () => { if { ((Lines ()).Count ()) == 0; } { ""; } { (Lines ()).At Y; } }
-    Text := () => { (Lines ()).Join "
-"; }
+    Text := () => { (Lines ()).Join "\n"; }
 
     # 空页先垫一行 —— 没有它 `Lines.At Y` 直接越界(`NeoInteractor.EnsureLine` 那条)
     Ensure := () => { if { ((Lines ()).Count ()) == 0; } { (Lines ()).Add ""; } { 0; }; }
@@ -260,39 +327,68 @@ Editor ::= class {
 
     # ── 画 ──
 
-    Tips := () => {
-        ["  [grey]Ins[/] 清页   [grey]PgUp/PgDn[/] 翻页   [grey]Home/End[/] 首尾   [grey]Esc[/] 回菜单"]
-    }
-
-    # 这一屏该长什么样(一串标记,一个元素一行)。高度**定死** ——
-    # 定死才好盖:上一屏和这一屏一样高,盖一遍就干净了。
+    # 方框里那几行(**不含边框**)。照 `NeoInteractor.GetRenderText`:
+    # 标题一行,然后光标那一段(最多 16 行),不够 8 行就拿 `   |` 垫够 ——
+    # 定死下限是为了方框别忽高忽低。
     Screen := () => {
         out := ["[purple]------第" + (string Z) + "页------[/]"]
+        rows := 0
         lines := Lines ()
         if { (lines.Count ()) == 0; } { out.Add "   | <空>"; } {
             w := Window (lines.Count ()) Y
             i := w.At 0
             while { i < (w.At 1); } {
-                out.Add (Row (i + 1) (lines.At i) (if { i == Y; } { X; } { (); }))
+                # 行号传的是**下标**(0 起)—— 照 C# 那版 `RenderRow (index, …)`
+                out.Add (Row i (lines.At i) (if { i == Y; } { X; } { (); }))
                 i += 1
             }
+            rows = (w.At 1) - (w.At 0)
         }
-        while { (out.Count ()) < 17; } { out.Add "   |"; }
-        foreach (Tips ()) (t: string) => { out.Add t; }
+        while { (out.Count ()) < 9; } { out.Add "   |"; }
+        # C# 那边 `GetRenderText` 是把每一行 `AppendLine` 拼成**一整串**交出去的,末尾于是
+        # 挂着一个换行,而 `Panel` 把那当成一行空的 —— 框底就多一条空行。
+        # **除了"行数不到 8、要垫 `   |`"那一种**:垫出来的那串(`AppendJoin`)末尾不带换行。
+        # 空页和行数 ≥ 8 都是这样。照抄,免得两边的框差一行。
+        if { (rows == 0) || (rows >= 8); } { out.Add ""; } { 0; }
         out
     }
 
-    Draw := () => { Drawn = Paint Drawn (Screen ()); }
+    # 快捷栏 —— 照抄 `NeoInteractor.RenderEditTips`(在方框**外面**,底下)
+    Tips := () => {
+        [
+            "------快捷栏------"
+            ""
+            "  [yellow]Ins [/] : 清除该页"
+            "  [yellow]PgUp[/] : 上一条记录"
+            "  [yellow]PgDn[/] : 下一条记录"
+            "  [yellow]Home[/] : 跳至开头"
+            "  [yellow]End [/] : 跳至结尾"
+            "  [yellow]Del [/] : 向后删除"
+            "  [yellow]Esc [/] : 退出编辑"
+        ]
+    }
+
+    # 方框那一层交给 `Terminal.Panel`,和 C# 那边 `AnsiConsole.Write (new Panel (…))` 是同一件事。
+    # 自己拼的话每行的**纯文本**宽度都得先算一遍(行里全是标记),那笔账不该在这儿算。
+    Framed := (lines: list) => { System.SplitLines (Terminal.Panel lines); }
+
+    # 菜单那一屏:只有方框(照 C# 的 `ClearAndRender`)
+    DrawMenu := () => { Drawn = Paint Drawn (Framed (Screen ())); }
+
+    # 编辑那一屏:方框 + 快捷栏
+    DrawEdit := () => {
+        rows := Framed (Screen ())
+        foreach (Tips ()) (t: string) => { rows.Add (Terminal.Render t); }
+        Drawn = Paint Drawn rows;
+    }
 
     # ── 编辑 ──
 
     Edit := () => {
         System.CursorShow false
-        System.ScreenClear ()
-        Drawn = 0
         running := true
         while { running; } {
-            Draw ()
+            DrawEdit ()
             k := System.ReadKey ()
             if { (typeof k) != string; } { running = false; } {      # 没有输入了(管道)
                 if { k == "esc"; } { running = false; } {
@@ -412,41 +508,42 @@ Editor ::= class {
 
     # ── 主菜单 ──
 
+    # 菜单项的顺序**照抄 C# 那张 map** —— 「退出」在第六个、「作者」在第七个,
+    # 不是放在最后。`Pick` 里那串 `match` 的序号和这里**一一对应**。
     Items := () => {
-        ["编辑" "运行" "普通 Repl" "读取" "保存" "关于" "开关自动对齐" "开关结果显示" "退出"]
+        ["编辑" "运行" "普通 Repl" "读取" "保存" "退出" "作者" "开关自动对齐" "开关结果显示"]
     }
 
+    # 主菜单。控件走 `Terminal.Menu` —— 和 C# 那边同一台 Spectre `SelectionPrompt`
+    # (带搜索、每屏 6 条、`0: 编辑` 那种序号),所以长得一模一样。
     Menu := () => {
-        sel := 0
         running := true
         while { running; } {
-            Drawn = Paint Drawn (MenuScreen sel)
-            k := System.ReadKey ()
-            if { (typeof k) != string; } { running = false; } {
-                if { k == "up"; } { sel = ClampTo (sel - 1) 0 (((Items ()).Count ()) - 1); } {
-                    if { k == "down"; } { sel = ClampTo (sel + 1) 0 (((Items ()).Count ()) - 1); } {
-                        if { k == "esc"; } { running = false; } {
-                            if { k == "enter"; } { running = (Pick sel); } { 0; }
-                        }
-                    }
-                }
-            }
+            DrawMenu ()
+            sel := Terminal.Menu "------主菜单------" (Items ())
+            running = Guard sel;
         }
         ();
     }
 
-    MenuScreen := (sel: int) => {
-        out := ["[purple]====== 主菜单 ======[/]" ""]
-        i := 0
-        foreach (Items ()) (name: string) => {
-            # 三块**必须写在同一句里**:`if { c } { t }` 少给最后一块会**静默变成半成品**,
-            # 那一整块不跑(菜单项会一个都不出现)。`--warn` 一眼看得出来。
-            if { i == sel; } { out.Add ("  [yellow]> [/][bold]" + name + "[/]"); } { out.Add ("    " + name); }
-            i += 1
+    # 菜单项里全是文件 IO 和解析:路径非法、文件被锁、语法写错都会抛。
+    # **不接的话异常会从 `Menu` 里溜出去,整个 REPL 直接结束** —— 缓冲区还在内存里但没落盘,
+    # 用户写的东西就没了。接住,报一句,回菜单。(C# 那版 `Interact` 里写着同一段理由)
+    #
+    # 交回"菜单要不要接着转":抛了就当"接着转"(缓冲区还在,继续编辑就是了)。
+    #
+    # 收工后把屏幕抹干净再回菜单 —— C# 那边靠"抹掉光标以上的所有行"做到同一件事,
+    # 而这儿问不到光标在哪,抹干净是最省事的等价做法(画的还是同一个屏幕)。
+    # **成功失败都要抹**,所以它在 `try` 外面:动作抛了的话那一条路也得走到。
+    Guard := (sel: int) => {
+        ok := true
+        try { ok = Pick sel; } (e: Exception) => {
+            Terminal.Line ("[red]出错了：" + (Terminal.Escape e.Message) + "[/]")
+            Hold ()
         }
-        out.Add ""
-        out.Add "  [grey]↑↓ 选,回车进去,Esc 退出[/]"
-        out
+        System.ScreenClear ()
+        Drawn = 0
+        ok
     }
 
     # 交回"菜单要不要继续转"(只有"退出"给 false)
@@ -459,24 +556,12 @@ Editor ::= class {
             [==.2 { PlainLoop (); }]
             [==.3 { LoadPage (); }]
             [==.4 { SavePage (); }]
-            [==.5 { About (); }]
-            [==.6 { AutoTab = !(AutoTab); Pan (); }]
-            [==.7 { ShowResult = !(ShowResult); Pan (); }]
-            [==.8 { 0; }]
+            [==.5 { 0; }]                     # 退出
+            [==.6 { About (); }]              # 作者 —— 就是把那张大图再放一遍
+            [==.7 { SwitchAutoTab (); }]
+            [==.8 { SwitchResult (); }]
         ] { 0; }
-        Drawn = 0
-        sel != 8;                      # 只有"退出"那一条交回 false,菜单就停了
-    }
-
-    # 开关拨过之后让用户看一眼拨到哪儿了
-    Pan := () => {
-        System.CursorShow true
-        System.ScreenClear ()
-        Drawn = 0
-        Terminal.Line (if { AutoTab; } { "已开启自动对齐文本"; } { "已关闭自动对齐文本"; })
-        Terminal.Line (if { ShowResult; } { "已开启显示执行结果"; } { "已关闭显示执行结果"; })
-        Hold ()
-        ();
+        sel != 5;                             # 只有"退出"那一条交回 false,菜单就停了
     }
 
     Hold := () => {
@@ -486,46 +571,55 @@ Editor ::= class {
         ();
     }
 
-    # ── 运行这一页 ──
+    # ── 两个开关 ──
 
-    RunPage := () => {
-        System.CursorShow true
-        System.ScreenClear ()
-        Drawn = 0
-        source := Text ()
-        if { !(Balanced source); } {
-            Terminal.Line "[red]括号还没合上（或者字符串没闭合），先写完再跑[/]"
-        } {
-            if { ShowResult; } { TryEval source; } { TryParse source; }
-        }
+    # 默认值是**取反当前值**(回车 = 翻过来),照 C# 那两条 `AnsiConsole.Confirm`。
+    # 这一条**不暂停**(C# 那边也没停)。
+    SwitchAutoTab := () => {
+        AutoTab = Terminal.ConfirmDefault "开关自动对齐文本吗？" (!(AutoTab))
+        Terminal.Line (if { AutoTab; } { "已开启自动对齐文本"; } { "已关闭自动对齐文本"; })
+        ();
+    }
+
+    # 这一条要停一下(C# 那边是个 `Console.ReadKey (true)`),好让人看见拨到哪儿了
+    SwitchResult := () => {
+        ShowResult = Terminal.ConfirmDefault "开关显示执行结果吗？" (!(ShowResult))
+        Terminal.Line (if { ShowResult; } { "已开启显示"; } { "已关闭显示"; })
         Hold ()
         ();
     }
 
-    # 编译 + 求值。**交回值就 `==>` 打出来**(和 `NeoInteractor` 一个规矩)
-    TryEval := (source: string) => {
-        try {
-            v := eval source
-            if { (typeof v) == void; } { 0; } {
-                Terminal.Line "[yellow]==>[/] " + (Terminal.Escape (string v))
-            }
-        } (e: Exception) => { ShowError e; }
+    # ── 运行这一页 ──
+
+    # **不做括号平衡预检** —— 照 C# 那版:写错了直接交给解析器,由它报语法错。
+    RunPage := () => {
+        System.CursorShow true
+        TryEval (Text ())
+        Hold ()
         ();
     }
 
-    # 只看语法(结果显示关着的时候走这条):把整段塞进一个**不跑**的分支里编一遍。
-    # `if` 的两个块是**先编好、按需才跑**的 —— 所以语法错照样报,而副作用一个都不会发生。
-    TryParse := (source: string) => {
-        # 包成一个**不去调用的 lambda**:体照样要过词法语法(所以语法错报得出来),
-        # 而它**一行都不会跑** —— 顶上那些 `:=` 于是只落在这个 lambda 自己那层里。
-        #
-        # 别用 `if { false; } { … }` 那种包法:块在**表达式位置**,里头一个 `x := 5`
-        # 会报「变量的定义是语句,不能当表达式用」(实测撞过)。
-        #
-        # **handler 必须和 `try { … }` 同一行**:分开写就成了"少给一个实参",
-        # `try` 得到一个半成品、整块**静默不跑**(`if` 少给一块是同一个坑,实测也撞过)。
-        wrapped := "(() => {\n" + source + "\n})"
-        try { eval wrapped; } (e: Exception) => { ShowError e; }
+    # 编译 + 求值。用户代码的打印**先收起来**,开关开着才放出去 ——
+    # C# 那边是 `Console.SetOut (sw)`,这边是 `System.CaptureStart` / `CaptureEnd`。
+    # 开关**关掉照样求值**,只是输出和 `==>` 都不显示。
+    TryEval := (source: string) => {
+        System.CaptureStart ()
+        try {
+            v := eval source
+            out := System.CaptureEnd ()
+            if { ShowResult; } {
+                captured := out.Trim ()
+                if { !(captured.IsEmpty ()); } { Terminal.Line (Terminal.Escape captured); }
+                if { (typeof v) != void; } {
+                    # `==>` 和结果**紧挨着**,和 C# 一个样
+                    Terminal.Line ("[yellow]==>[/]" + (Terminal.Escape (string v)))
+                } { 0; }
+            } { 0; }
+        } (e: Exception) => {
+            # 失败那条路也得收 —— 不然 stdout 一直被抓着,后面什么都看不见了
+            o := System.CaptureEnd ()
+            ShowError e
+        }
         ();
     }
 
@@ -536,15 +630,19 @@ Editor ::= class {
         ();
     }
 
+    # 那张大图。**两头都要清屏** —— 照 C#:`EvaluateShowRavel` 是
+    # `Clear ()` → 打图 → `Pause ()` → **再 `Clear ()`**。
+    # 少了收尾那一下,从启动进菜单时图会剩下半截:菜单那一屏只盖掉它自己那么高,
+    # 图有 15 行、方框才 10 行出头。(菜单里点「作者」时由 `Guard` 收尾,这里多清一次
+    # 只是白抹一下,不碍事。)
     About := () => {
         System.CursorShow true
         System.ScreenClear ()
         Drawn = 0
-        Terminal.Line "[purple]Ravel 7.99[/] —— 这个编辑器是[bold]用它自己写的[/]"
-        Terminal.Line ""
-        Terminal.Line "  多页缓冲 + 三维光标 + 按词上色,全在 lib/repl.rav 里"
-        Terminal.Line "  引擎只多给了五条原语:读键、清屏、定位、藏光标、报告异常"
+        Terminal.Line (Banner ())
         Hold ()
+        System.ScreenClear ()
+        Drawn = 0
         ();
     }
 
@@ -552,21 +650,23 @@ Editor ::= class {
 
     PlainLoop := () => {
         System.CursorShow true
-        System.ScreenClear ()
-        Drawn = 0
-        Terminal.Line "普通 Repl（:exit 回菜单）"
+        System.WriteLine "普通 Repl（:exit 返回菜单）"
         buffer := ""
         running := true
         while { running; } {
-            Terminal.Write (if { buffer.IsEmpty (); } { ">>> "; } { "... "; })
+            System.Write (if { buffer.IsEmpty (); } { ">>> "; } { "... "; })
             line := input ()
-            if { ((buffer.IsEmpty ()) && ((line == ":exit") || (line == ":q"))); } { running = false; } {
-                buffer += line + "
-"
+            cmd := line.Trim ()
+            if { (buffer.IsEmpty ()) && ((cmd == ":exit") || ((cmd == ":q") || (cmd == ":quit"))); } {
+                running = false
+            } {
+                buffer += line + "\n"
                 if { Balanced buffer; } {
                     try {
                         v := eval buffer
-                        if { (typeof v) == void; } { 0; } { Terminal.Line ("==> " + (string v)); }
+                        # 交回值就 `==>` 打出来。**不过标记那一层** —— 结果里带个方括号
+                        # 是常事(`[1 2]` 这种),渲染一遍就把它读坏了(C# 那边也是裸打)
+                        if { (typeof v) == void; } { 0; } { System.WriteLine ("==> " + (string v)); }
                     } (e: Exception) => { ShowError e; }
                     buffer = ""
                 } { 0; }
@@ -579,30 +679,40 @@ Editor ::= class {
 
     LoadPage := () => {
         System.CursorShow true
-        path := Terminal.Ask "选择代码文件"
+        path := Terminal.AskDefault "选择代码文件" "temp.ravel"
         f := Io.File path
         if { !(f.Exists ()); } {
-            System.ScreenClear ()
-            Drawn = 0
             Terminal.Line ("[red]错误：文件<" + (Terminal.Escape path) + ">不存在[/]")
         } {
-            Pages.Insert Z (System.SplitLines (f.Read ()))
-            System.ScreenClear ()
-            Drawn = 0
-            Terminal.Line ("已加载至[purple]第" + (string Z) + "页[/]")
+            idx := AskPage ()
+            Pages.Insert idx (System.SplitLines (f.Read ()))
+            Terminal.Line ("已加载至[purple]第" + (string idx) + "页[/]")
         }
         Hold ()
         ();
     }
 
+    # 问插到第几页。**不合规就问到你合规为止**(照 C# 那条 `while`)。
+    # (那边用的是 `AnsiConsole.Ask<int>`,转不动由 Spectre 自己重问;这儿自己收一条再判)
+    AskPage := () => {
+        idx := PageOf (Terminal.AskDefault "输入插入页码" (string Z))
+        while { (idx < 0) || (idx >= (Pages.Count ())); } {
+            Terminal.Line "[red]错误：页码不合规[/]"
+            idx = PageOf (Terminal.AskDefault "输入插入页码" (string Z))
+        }
+        idx
+    }
+
     SavePage := () => {
         System.CursorShow true
-        path := Terminal.Ask "选择代码文件"
+        path := Terminal.AskDefault "选择代码文件" "temp.ravel"
         f := Io.File path
+        if { f.Exists (); } {
+            name := System.PathBase path
+            Terminal.Line ("[yellow]警告：文件<" + (Terminal.Escape name) + ">已存在,正在覆盖...[/]")
+        } { 0; }
         f.Write (Text ())
-        System.ScreenClear ()
-        Drawn = 0
-        Terminal.Line ("已写入 " + (Terminal.Escape path))
+        Terminal.Line ("已保存[purple]第" + (string Z) + "页[/]")
         Hold ()
         ();
     }
@@ -611,8 +721,7 @@ Editor ::= class {
 
     Keep := () => {
         parts := []
-        foreach Pages (p: list) => { parts.Add ((p).Join "
-"); }
+        foreach Pages (p: list) => { parts.Add ((p).Join "\n"); }
         try { System.WriteText (SessionFile ()) (parts.Join PageMark); } (e: Exception) => { 0; }
         ();
     }
@@ -646,6 +755,7 @@ readonly Run := () => {
     if { Terminal.Tty (); } {
         e := Editor ()
         e.Restore ()
+        e.About ()                       # 启动先把那张大图放一遍(照 C# 的 `Run`)
         e.Menu ()
         e.Keep ()
         System.CursorShow true

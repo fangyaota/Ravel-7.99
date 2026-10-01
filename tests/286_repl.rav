@@ -4,7 +4,7 @@
 # 壳那一半(按键、重画、菜单)要有真键盘才跑得动,所以它在 `examples/repl.rav` 里。
 #
 # **`# warn` 开着的**:下面还顺手把壳里"不用键盘也跑得动"的那几条驱动一遍
-# (建菜单、算编辑缓冲区、翻页),让"是不是忘了调用"那个筛子照着它们也过一遍 ——
+# (算编辑缓冲区、翻页、菜单项、页码那一步),让"是不是忘了调用"那个筛子照着它们也过一遍 ——
 # 写这个库的时候正是这个筛子逮到一句两块的 `if`(菜单项一个都加不进去),而那时候
 # 我已经查了三轮。**这条用例就是那次踩坑留下的闸**。
 #
@@ -69,15 +69,31 @@ print ((e.Text ()).Length ())
 e.Edit1 "insert"                         # 清这一页
 e.Clamp ()
 print ((e.Text ()).Length ())
-print (e.Screen () @ .Count ())          # 屏幕高度定死:标题 + 16 行 + 提示
 
-# ── 壳里不用键盘的那几条:菜单怎么拼、缓冲区怎么动、翻页 ──
-# (这几条整体交回的是**标记**,不渲染,所以钉得住)
+# ── 壳里不用键盘的那几条:方框里的行数、菜单项、快捷栏、页码 ──
+# (交回的多半是**标记**,不渲染,所以钉得住;方框那一层要真终端宽度,不在这儿跑)
 m := Repl.Editor ()
-print ((m.MenuScreen 0) @ .Count ())
-foreach (m.MenuScreen 1) (l: string) => { print (Terminal.Plain l); }
+print ((m.Screen ()).Count ())           # 空页:标题 + `   | <空>`,垫够 8 行,再挂个换行 → 10
 print ((m.Tips ()).Count ())
-print ((m.Screen ()).Count ())
+# 菜单项的**顺序**就是 `Pick` 那串 `match` 的序号 —— 钉住它,漏一支 / 错一位都藏不住
+foreach (m.Items ()) (name: string) => { print name; }
+m.Pages = [["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l"]]
+m.Z = 0
+print ((m.Screen ()).Count ())           # 12 行那页:标题 + 12,不用垫,末尾挂个换行 → 14
+# 启动那张大图 —— 一个字没改地照抄 `NeoInteractor.EvaluateShowRavel`
+print ((System.SplitLines (Repl.Banner ())).Count ())
+# 「读取」问页码那一步:读得动就是那个数,读不动是 -1
+print (Repl.PageOf "13")
+print (Repl.PageOf " 7 ")
+print (Repl.PageOf "")
+print (Repl.PageOf "abc")
+# 抓 stdout —— C# 那个「显示结果」开关全靠它(`System.CaptureStart` / `CaptureEnd`)
+System.CaptureStart ()
+print "藏起来的这句不该出现在上面"
+hidden := System.CaptureEnd ()
+print ("收到:" + (hidden.Trim ()))
+
+# ── 缓冲区、翻页、光标 ──
 m.Pages = [["a" "b"] ["c"]]
 m.Z = 0
 m.Y = 1
@@ -143,23 +159,24 @@ print "end"
 # 1
 # 0
 # 0
-# 18
+# 10
+# 9
+# 编辑
+# 运行
+# 普通 Repl
+# 读取
+# 保存
+# 退出
+# 作者
+# 开关自动对齐
+# 开关结果显示
+# 14
+# 15
 # 13
-# ====== 主菜单 ======
-
-#     编辑
-#   > 运行
-#     普通 Repl
-#     读取
-#     保存
-#     关于
-#     开关自动对齐
-#     开关结果显示
-#     退出
-
-#   ↑↓ 选,回车进去,Esc 退出
-# 1
-# 18
+# 7
+# -1
+# -1
+# 收到:藏起来的这句不该出现在上面
 # 3
 # 1
 # 1

@@ -52,18 +52,27 @@ internal static class TerminalNative
     /// <summary>终端宽多少格。**看不见终端时给 80** —— 管道里问不到尺寸,
     /// 而调用方多半是想按宽度折个行,给个约定俗成的数比报错有用</summary>
     [RavelFn("TerminalWidth")]
-    public static RuntimeValue TerminalWidth(RuntimeValue _)
+    public static RuntimeValue TerminalWidth(RuntimeValue _) => new IntVal(Width());
+
+    /// <summary>把几行**已经带标记的**文本装进一个方框(就是 Spectre 的 `Panel`),交回整块。
+    /// 和 `TerminalRender` 一样是**纯函数**,只是外面多包一圈边框 ——
+    /// `Repl/NeoInteractor.cs` 那边写的是 `AnsiConsole.Write(new Panel(text))`,这两条是同一件事。
+    ///
+    /// 宽度取**当前终端**的宽(看不见终端就用 80):方框要跟屏幕一样宽,这是它唯一的意义。
+    /// (自己拿 `┌─┐` 拼也行,但每行的**纯文本**宽度得先算出来 —— 行里全是标记,
+    /// 那笔账不该由调用方算。)</summary>
+    [RavelFn("TerminalPanel")]
+    public static RuntimeValue TerminalPanel(RuntimeValue lines, RuntimeValue ansi) => Bad("画方框", () =>
     {
-        try
-        {
-            var n = Console.WindowWidth;
-            return new IntVal(n > 0 ? n : 80);
-        }
-        catch (IOException)
-        {
-            return new IntVal(80);                 // 没接终端
-        }
-    }
+        var text = string.Join("\n", Elements(lines, "TerminalPanel 的几行")
+            .Select(l => Text(l, "TerminalPanel 的一行").Value));
+
+        var w = new StringWriter();
+        var console = Screen(w, ansi is BoolVal { Value: true });
+        console.Profile.Width = Width();
+        console.Write(new Panel(text));
+        return new StringVal(w.ToString());
+    });
 
     /// <summary>问一句、读一行(空行也收 —— 卡着不让人过比读到一个空串烦人)</summary>
     [RavelFn("TerminalAsk")]
@@ -84,7 +93,60 @@ internal static class TerminalNative
             new SelectionPrompt<string>().Title(Text(question, "TerminalChoose 的问题").Value).AddChoices(options)));
     });
 
+    /// <summary>问一句、读一行,**回车收默认值**(那个默认值就摆在提示行里,可以直接改掉)。
+    /// `TerminalAsk` 是它没有默认值的那一版</summary>
+    [RavelFn("TerminalAskDefault")]
+    public static RuntimeValue TerminalAskDefault(RuntimeValue prompt, RuntimeValue dflt) => Bad("问一句", () =>
+        new StringVal(Live().Prompt(new TextPrompt<string>(Text(prompt, "TerminalAskDefault 的提示").Value)
+            .DefaultValue(Text(dflt, "TerminalAskDefault 的默认值").Value))));
+
+    /// <summary>是/否,**默认值由调用方给**。(`TerminalConfirm` 那条恒为"是",
+    /// 是给"要不要接着?"这种问法用的;开关那两处要的是"默认取反当前值",所以得传得进来)</summary>
+    [RavelFn("TerminalConfirmDefault")]
+    public static RuntimeValue TerminalConfirmDefault(RuntimeValue prompt, RuntimeValue dflt) => Bad("问一句", () =>
+        new BoolVal(Live().Confirm(Text(prompt, "TerminalConfirmDefault 的提示").Value,
+                                   defaultValue: dflt is BoolVal { Value: true })));
+
+    /// <summary>一列里挑一个,交回**选中的序号**(不是那个字符串)—— 调用方按序号分派就是了。
+    ///
+    /// 和 `TerminalChoose` 的分别:这一条是**主菜单**那种用法 —— 带搜索、每屏定死 6 条、
+    /// 每项前面挂着序号。参数是照着 `Repl/NeoInteractor.cs` 那台 `SelectionPrompt<int>`
+    /// 一条条抄的,为的是两边的菜单长得一模一样。</summary>
+    [RavelFn("TerminalMenu")]
+    public static RuntimeValue TerminalMenu(RuntimeValue title, RuntimeValue items) => Bad("菜单", () =>
+    {
+        var options = Elements(items, "TerminalMenu 的选项")
+            .Select(c => Text(c, "TerminalMenu 的选项").Value)
+            .ToList();
+
+        var prompt = new SelectionPrompt<int>()
+            .Title(Text(title, "TerminalMenu 的标题").Value)
+            .EnableSearch()
+            .PageSize(6)
+            .MoreChoicesText("[grey]（往下滑获取更多选项）[/]")
+            .SearchPlaceholderText("[grey]（输入序号快速跳转：）[/]")
+            .UseConverter(i => $"{i}: {options[i]}")
+            .AddChoices(Enumerable.Range(0, options.Count));
+
+        return new IntVal(Live().Prompt(prompt));
+    });
+
     // ── 下面是自己人 ──
+
+    /// <summary>终端宽多少格(**看不见就给 80**)。`Console.WindowWidth` 重定向时是抛的,
+    /// 而调用方多半只是想按宽度折个行</summary>
+    private static int Width()
+    {
+        try
+        {
+            var n = Console.WindowWidth;
+            return n > 0 ? n : 80;
+        }
+        catch (IOException)
+        {
+            return 80;                 // 没接终端
+        }
+    }
 
     /// <summary>往一个流里渲染的"屏" —— 不上色时 `Ansi = No`:标记照样解析、照样消失,
     /// 只是不吐转义序列出来</summary>

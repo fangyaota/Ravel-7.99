@@ -137,6 +137,14 @@ public class Lexer(string source, string? file = null)
                 continue;
             }
 
+            // 原始字符串 `"""…"""`。**要排在普通字符串前面** ——
+            // 不然开头那两下先被当成空串 `""` 吃掉,后面剩个孤零零的引号。
+            if (c == '"' && _pos + 2 < source.Length && source[_pos + 1] == '"' && source[_pos + 2] == '"')
+            {
+                tokens.Add(ReadRawString());
+                continue;
+            }
+
             // 字符串
             if (c == '"')
             {
@@ -183,11 +191,24 @@ public class Lexer(string source, string? file = null)
     {
         int depth = 0;
         bool inString = false;
+        bool inRaw = false;                          // 原始字符串:里面只有 `"""` 能收
         for (int i = 0; i < src.Length; i++)
         {
             char c = src[i];
+
             if (inString)
             {
+                if (inRaw)
+                {
+                    if (c == '"' && i + 2 < src.Length && src[i + 1] == '"' && src[i + 2] == '"')
+                    {
+                        inString = false;
+                        inRaw = false;
+                        i += 2;
+                    }
+                    continue;                        // 里面的 `\` 和 `#` 一律不算
+                }
+
                 if (c == '\\') i++;                 // 转义:下一个字符不参与判断
                 else if (c == '"') inString = false;
                 continue;
@@ -196,6 +217,14 @@ public class Lexer(string source, string? file = null)
             if (c == '#')                            // 注释到行尾
             {
                 while (i < src.Length && src[i] != '\n') i++;
+                continue;
+            }
+
+            if (c == '"' && i + 2 < src.Length && src[i + 1] == '"' && src[i + 2] == '"')
+            {
+                inString = true;                     // 原始字符串(要排在 `""` 空串前面)
+                inRaw = true;
+                i += 2;
                 continue;
             }
 
@@ -397,6 +426,109 @@ public class Lexer(string source, string? file = null)
         return new Token(TokenType.String, sb.ToString(), line, col, _pos - start) { Parts = parts };
     }
 
+    /// <summary>`""" … """` —— **原始字符串:里面一个字符都不动**。
+    ///
+    /// 反斜杠不是转义、单个引号不是收尾、`#` 不是注释,只有**连着三个引号**才收。
+    /// 代价是内容里写不了 `"""` 本身 —— 真要那三个字符就拿普通字符串拼。
+    /// **也不插值**:要 `${…}` 请用普通字符串。
+    ///
+    /// 空白按 C# 那套:**紧跟开引号的那个换行不算内容**(前提是那一行剩下的都是空白),
+    /// 再按收尾那三个引号所在行的缩进给每行剥掉同样多 —— 于是块能跟着代码正常缩进,
+    /// 内容看起来就跟画的一样。
+    ///
+    ///     readonly Banner := () => {
+    ///         """
+    ///          ____
+    ///         /\  _`\
+    ///         """
+    ///     }
+    ///     # 收尾那行缩进 4 格 → 每行剥 4 格 → 内容是 ` ____\n/\  _`\`</summary>
+    private Token ReadRawString()
+    {
+        int start = _pos, line = _line, col = _col;
+        _pos += 3;
+        _col += 3;
+
+        // ① 开引号后面一路到行尾都是空白 → 那段空白连同那个换行都不算内容。
+        //    (只有"开引号后面直接换行"那种写法会吃掉一个换行;`"""abc"""` 原封不动)
+        int probe = _pos;
+        while (probe < source.Length && source[probe] is ' ' or '\t') probe++;
+        if (probe < source.Length && source[probe] == '\n')
+        {
+            _pos = probe + 1;
+            _line++;
+            _col = 1;
+        }
+
+        int contentStart = _pos;
+
+        // ② 收尾:第一个 `"""`。**一个字符都不跳** —— `\` 和 `#` 在这中间都不是记号
+        int close = -1;
+        for (int i = _pos; i + 2 < source.Length; i++)
+        {
+            if (source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"')
+            {
+                close = i;
+                break;
+            }
+        }
+
+        // 走到源码末尾还没见着收尾 —— 和普通字符串那条"没有收尾的 \""一个口径:报错,别硬吞
+        if (close < 0)
+            throw new SyntaxException("原始字符串没有收尾的 '\"\"\"'", new SourceSpot(file, line, col));
+
+        // ③ 收尾引号**那一行**、它前面的那段空白 = 缩进量。
+        //    前面还有别的东西(单行写法)就不算独占一行,也就是没有缩进可剥。
+        int lineStart = close == 0 ? 0 : source.LastIndexOf('\n', close - 1) + 1;
+        string before = source[lineStart..close];
+        bool ownLine = before.All(ch => ch is ' ' or '\t');
+
+        string text = StripRawIndent(source[contentStart..close], ownLine ? before : "", ownLine, line, col);
+
+        // ④ 游标推到收尾引号之后 —— 从 contentStart 一格一格数过去,`_line` / `_col` 才准
+        //    (报错位置、以及后面 token 的行列都吃它)
+        _pos = contentStart;
+        while (_pos < close + 3)
+        {
+            if (source[_pos] == '\n') { _line++; _col = 1; } else _col++;
+            _pos++;
+        }
+
+        // 跨度照旧是**源码**跨度(含两边定界符) —— 行高亮靠它(见 ReplView)
+        return new Token(TokenType.String, text, line, col, _pos - start);
+    }
+
+    /// <summary>原始字符串那一步的空白处理:收尾引号自己那一行不算内容,再给每行剥掉 `indent`。
+    /// 某行剥不动、而它又不是一整个空行 → 当场报错。
+    ///
+    /// 那条报错是**护栏**,不是洁癖:漏排一行的缩进,结果是悄悄多出几个空格;
+    /// 报出来才能立刻看见。(不报的话,一段对齐的文本里混进一行歪的,肉眼极难发现。)</summary>
+    private string StripRawIndent(string raw, string indent, bool ownLine, int line, int col)
+    {
+        // 收尾引号独占一行时,它那一行(就是 `indent` 那段空白)不是内容
+        if (ownLine)
+        {
+            int cut = raw.LastIndexOf('\n');
+            raw = cut >= 0 ? raw[..cut] : "";
+        }
+
+        if (raw.Length == 0) return "";
+
+        var rows = raw.Split('\n');
+        if (indent.Length > 0)
+        {
+            for (int i = 0; i < rows.Length; i++)
+            {
+                if (rows[i].StartsWith(indent)) rows[i] = rows[i][indent.Length..];
+                else if (rows[i].Trim().Length != 0)
+                    throw new SyntaxException("原始字符串里这一行的缩进比收尾的 '\"\"\"' 浅",
+                        new SourceSpot(file, line, col));
+            }
+        }
+
+        return string.Join('\n', rows);
+    }
+
     /// <summary>`${ … }` 里那一段源码:扫到**配对的** `}`,路上跳过一个字符串字面量
     /// (不然 `"${f "x"}"` 会被里面的引号提前截断)和嵌套的括号。</summary>
     private string ReadBracedInterpolation(int strLine, int strCol)
@@ -407,6 +539,21 @@ public class Lexer(string source, string? file = null)
             char c = source[_pos];
             if (c == '"')                                // 跳过一个字符串字面量
             {
+                // 原始字符串另算:里头的 `"` 不成对也收不住,只有 `"""` 能收
+                if (_pos + 2 < source.Length && source[_pos + 1] == '"' && source[_pos + 2] == '"')
+                {
+                    _pos += 3; _col += 3;
+                    while (_pos + 2 < source.Length &&
+                           !(source[_pos] == '"' && source[_pos + 1] == '"' && source[_pos + 2] == '"'))
+                    {
+                        if (source[_pos] == '\n') { _line++; _col = 1; } else _col++;
+                        _pos++;
+                    }
+                    if (_pos + 2 >= source.Length) break;   // 没收到尾:交给词法器去报
+                    _pos += 3; _col += 3;
+                    continue;
+                }
+
                 _pos++; _col++;
                 while (_pos < source.Length && source[_pos] != '"')
                 {
