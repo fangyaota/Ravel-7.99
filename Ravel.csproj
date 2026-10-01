@@ -22,9 +22,11 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <!-- GBK / Big5 那批老编码:`Encoding.GetEncoding("gbk")` 在 .NET Core 上要它才认。
-         中文网页常见,不注册的话 `charset=gbk` 会静默退回 UTF-8、整页乱码 -->
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.12" />
+    <!-- GBK / Big5 那批老编码:`Encoding.GetEncoding("gbk")` 要 `CodePagesEncodingProvider`
+         注册过才认(注册那一下在 `SysNet` 的静态构造里)。中文网页常见,不注册的话
+         `charset=gbk` 会静默退回 UTF-8、整页乱码。
+         **不再挂 `PackageReference`** —— net10 起它进了共享框架,显式引用反而多一条
+         NU1510「自动可用,无需引用」;用例 269 那条 `charset=gbk` 是它的守门人。 -->
   </ItemGroup>
 
 
