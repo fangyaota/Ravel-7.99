@@ -105,15 +105,35 @@ public partial class Interpreter
             Math.Abs(Num(a, "minMagnitude")) <= Math.Abs(Num(b, "minMagnitude")) ? a : b));
         Fn("MaxMagnitude", FunctionVal.From((a, b) =>
             Math.Abs(Num(a, "maxMagnitude")) >= Math.Abs(Num(b, "maxMagnitude")) ? a : b));
-        Fn("Clamp", FunctionVal.From((x, lo, hi) =>
+        // 两种写法:`Clamp x 下界 上界`(两个数)和 `Clamp x [下界..上界]`(一个区间)。
+        // 收区间时读的是**两个端点本身**(开区间也一样夹到端点上 —— "夹进开区间里"没有最小值,
+        // 与其在这儿编一套规矩,不如老实说端点就是那两个界)。**保型照旧**:交回的仍是实参。
+        // 柯里化**手写**(不用 `From` 的三参版):第二个实参得当场分流 —— 收区间时那一步
+        // 就该把结果交出去,不能再等第三个实参(用三参版的话 `Clamp 5 [0..3]` 会先变成
+        // 一个"还差一个参数"的函数交出去,永远走不到这一段)。
+        Fn("Clamp", FunctionVal.From((x, lo) =>
         {
-            double l = Num(lo, "clamp"), h = Num(hi, "clamp"), v = Num(x, "clamp");
-            // Math.Clamp 在下界大于上界时抛的是 C# 的 ArgumentException
-            if (l > h) throw new RuntimeException($"Clamp 的下界 {lo} 不能大于上界 {hi}");
-            return v < l ? lo : v > h ? hi : x;
+            if (lo is RangeVal rng) return ClampToRange(x, rng);
+
+            return FunctionVal.From(hi =>
+            {
+                double l = Num(lo, "clamp"), h = Num(hi, "clamp"), v = Num(x, "clamp");
+                // Math.Clamp 在下界大于上界时抛的是 C# 的 ArgumentException
+                if (l > h) throw new RuntimeException($"Clamp 的下界 {lo} 不能大于上界 {hi}");
+                return v < l ? lo : v > h ? hi : x;
+            });
         }));
         Fn("Fma", FunctionVal.From((a, b, c) =>
             new FloatVal(Math.FusedMultiplyAdd(Num(a, "fma"), Num(b, "fma"), Num(c, "fma")))));
+    }
+
+    /// <summary>`Clamp x [下界..上界]`:拿**端点**当那两条界(不比元素,区间里的整数是另一回事)。
+    /// 交回的仍是**原始实参**(保型和三参那版一条规矩)。</summary>
+    private static RuntimeValue ClampToRange(RuntimeValue x, RangeVal rng)
+    {
+        double v = Num(x, "clamp"), l = Num(rng.Start, "clamp"), h = Num(rng.End, "clamp");
+        if (l > h) throw new RuntimeException($"Clamp 的下界 {rng.Start} 不能大于上界 {rng.End}");
+        return v < l ? rng.Start : v > h ? rng.End : x;
     }
 
     /// <summary>`hypot` = sqrt (x²+y²),但先按较大的那个归一 —— 直接 x*x 在

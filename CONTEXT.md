@@ -296,6 +296,13 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 一层套一层地放大（tests/152 压着这条）。求值见 `Interpreter.StepRange`，
 值在 `Runtime/Values/RangeVal.cs`。
 
+**端点收任何数值**（int / bigint / float / fraction，混着写也行），而**元素是"区间里的整数"**：
+`[1.5..3.5]` 里是 2、3，`[0.1..0.9]` 一个是空的（这一个读法让"任意数值端点"和"能枚举"
+同时成立）。所以 `Start ()` / `End ()`（写出来那两个数，可能是小数）和 `First ()` / `Last ()`
+（区间里真有的头一个/末一个整数）是两回事；`Contains` 按元素算（`[1..10].Contains 2.5` 是 false）。
+界一律用 bigint 算（端点可能是 bigint、个数也可能超出 int —— `Count ()` 装不下就给 bigint），
+比较走 `TryAsDouble`（和 `<` 一个口径），NaN 当空区间、±∞ 报错。
+
 它同时也是一个 `IEnumerable`（impl 在 `lib/iterator.rav`）：枚举器是**生成器的光标**，
 所以 `[1..1000000000].Take 3` 秒回、不会先铺一张表；`Count` / `Contains` / `ToList` /
 `First` / `Last` 走引擎那几条（类链先命中，前四条 O(1)）。`==` 是**按内容**比（record 的
@@ -306,8 +313,8 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `SliceBounds` 是那个折算）；库里的 `Random.Int lo hi` 直接**改成收区间**（`r.Int [1..6]`，
 它才一天大，没有兼容包袱）；序列那一族新添了 `IEnumerable.Slice range`（惰性的
 `Skip` + `Take`，从前根本没有这个 API —— 两个数字当区间写在参数里太丑）。
-**`Math.Clamp x lo hi` 不动**：它那两端是**任意数值**（保型，float / bigint 全收），
-而区间只装 int，用区间反而把能力削了。
+`Math.Clamp` 也收区间（`Clamp x [0..1]`，端点收任何数值、**保型**照旧）—— 它的柯里化是
+**手写**的：第二个实参得当场分流，不然 `Clamp 5 [0..3]` 会先变成一个"还差一个参数"的函数。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：

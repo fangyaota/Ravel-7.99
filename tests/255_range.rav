@@ -5,9 +5,14 @@
 #
 # 打印出来就是写出来那个样子(`Text ()` 同一个);它同时也是一个 `IEnumerable`
 # (impl 在 lib/iterator.rav,枚举走生成器的光标、**惰性**),所以整套方法白拿。
-# 两端都得是 int —— 别的类型当场报错。
+#
+# **端点收任何数值**(int / bigint / float / fraction,混着写也行),而**元素是"区间里的
+# 整数"**:`[1.5..3.5]` → 2 3、`[0.1..0.9]` → 空。`Start ()` / `End ()` 交回的是**写出来
+# 那个数**(1.5 就是 1.5),要元素用 `First ()` / `Last ()`。两端不是数值才当场报错。
+using "math.rav"
 
 # ---- 四种开闭 ----
+
 lo := [1..3]
 print lo
 print (lo.ToList ())
@@ -91,8 +96,57 @@ print [[1..3]]
 lst := [1 2 3]
 print ((lst.Count ()) + (lo.Count ()))
 
-# ---- 两端不是 int:当场报错 ----
-try { [1.5..3]; } (e: Exception) => { print ("1: " + string e); }
+# ---- 端点收**任何数值**,元素是"区间里的整数" ----
+# 端点带小数照样能枚举:夹在中间的那些整数就是元素。`Start ()` / `End ()` 交回的仍是
+# **写出来那个数**(所以 1.5 就是 1.5),要元素用 `First ()` / `Last ()`。
+print [1..3]
+fl := [1.5..3.5]
+print fl
+print (fl.ToList ())
+print (fl.Count ())
+print (fl.First ())
+print (fl.Last ())
+print (fl.Start ())
+print (fl.End ())
+print (fl.Contains 2)
+print (fl.Contains 2.5)          # 2.5 不是集合里的元素
+print (fl.Contains 2.0)          # 2.0 就是整数 2
+print ((0.1..0.9).ToList ())     # 一个整数都没有
+print ((0.1..0.9).Count ())
+print ([1..2.5].ToList ())
+print ([3..1.5].ToList ())
+print ([(0.0 / 0.0)..3].ToList ())   # NaN 也是空
+flSel := []
+foreach [1.5..2.5] (i: int) => { flSel.Add i; }
+print flSel
+print ((fraction 1 2..fraction 5 2).ToList ())
+print ([1..fraction 7 2].ToList ())
+try { [1..Inf].Count (); } (e: Exception) => { print ("1: " + string e); }
+
+# bigint 端点:元素也是 bigint(值有多大就多大),个数装不下也给 bigint
+bigEnd := [1..bigint 3]
+print bigEnd
+print (bigEnd.ToList ())
+print (typeof (bigEnd.First ()))
+wide := [1..bigint 5000000000]
+print (wide.Count ())
+print (typeof (wide.Count ()))
+print (wide.First ())
+print ((wide.Take 2).ToList ())
+
+# ---- 字符串那条 Slice 也算"元素"那一边 ----
+print ("Hello World!".Slice [0.5..4.5])   # 元素 1..4
+
+# ---- Clamp 也收区间(端点收任何数值,保型照旧)----
+print (Math.Clamp 5 [0..3])
+print (Math.Clamp (0 - 5) [0..3])
+print (Math.Clamp 2 [0..3])
+print (Math.Clamp 0.5 [0.0..1.0])
+print (Math.Clamp 2.5 [0.0..1.0])
+print (typeof (Math.Clamp 2.5 [0.0..1.0]))
+print (Math.Clamp 5 0 3)                 # 两个数字那版照旧
+
+# ---- 两端不是数值:当场报错 ----
 try { ["a"..3]; } (e: Exception) => { print ("2: " + string e); }
 print "end"
 # --- expected ---
@@ -151,6 +205,40 @@ print "end"
 # [1 2 3]
 # [[1..3]]
 # 6
-# 1: Range 的两端需要 int，得到 Float 与 Integer
-# 2: Range 的两端需要 int，得到 String 与 Integer
+# [1..3]
+# [1.5..3.5]
+# [2 3]
+# 2
+# 2
+# 3
+# 1.5
+# 3.5
+# true
+# false
+# true
+# []
+# 0
+# [1 2]
+# []
+# []
+# [2]
+# []
+# [1 2 3]
+# 1: 区间的端点不能是 ∞ —— 无穷长的区间给不出界
+# [1..3]
+# [1 2 3]
+# BigInt
+# 5000000000
+# BigInt
+# 1
+# [1 2]
+# ello
+# 3
+# 0
+# 2
+# 0.5
+# 1
+# Float
+# 3
+# 2: Range 的两端需要数值，得到 String 与 Integer
 # end

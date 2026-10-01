@@ -1714,7 +1714,23 @@ lo.IsEmpty ()    # false
 ```
 
 `Start > End`、或者开区间套着同样的两端，都是**空区间**（`(3..3)`、`(5..1)` 遍历一次都不走），
-不报错。两端**必须是 int** —— `[1.5..3]` 当场报错（想要小数区间就自己写一段）。
+不报错。
+
+**端点收任何数值**（int / bigint / float / fraction，混着写也行），而**元素是「区间里的整数」**：
+
+```ravel
+[1.5..3.5]        # → 2 3          夹在中间那些整数就是元素
+(0.1..0.9)        # → 空           一个整数都不在里面
+[1..2.5]          # → 1 2
+[1..bigint 5e9]   # 元素是 bigint（值有多大就多大），Count () 装不下也给 bigint
+(1/2..5/2)        # → 1 2
+```
+
+于是 `Start ()` / `End ()` 和 `First ()` / `Last ()` 是**两回事**：前者交回**写出来那个数**
+（`[1.5..3.5].Start ()` 是 1.5），后者交回区间里**真有**的第一个/最后一个整数。
+`Contains` 也按元素算：`[1..10].Contains 2.5` 是 **false**（2.5 不是集合里的元素），
+而 `Contains 2.0` 是 true（2.0 就是整数 2）。无穷端点（`[1..Inf]`）当场报错（给不出界），
+NaN 当空区间。
 
 **它也是一串**（`Range` 也是 `IEnumerable`），所以整套白拿：
 
@@ -2827,7 +2843,7 @@ Error: 未预期的字符 '$'
 | `Math.Sqrt` `cbrt` `exp` `log` `log2` `log10` | 幂与对数 |
 | `Math.Pow x y` `Math.LogBase x b` `Math.Hypot x y` | 两参数 |
 | `Math.Floor` `ceil` `trunc` `round` | 取整（`roundTo x n` 保留 n 位） |
-| `Math.Abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参 |
+| `Math.Abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参；`clamp` 也收区间：`Math.Clamp x [0..1]` |
 | `Math.MinMagnitude` `maxMagnitude` `fma` | 按绝对值比 / `a*b+c` |
 
 同一次 `using "math.rav"` 还带来 `square` `cube` `deg` `rad`。

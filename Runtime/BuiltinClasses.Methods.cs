@@ -84,19 +84,26 @@ internal static partial class BuiltinClasses
     /// 只是不必走一遍迭代)。</summary>
     private static void RegisterRangeMethods()
     {
-        Range.DefineMethod("Start", (s, _) => new IntVal(((RangeVal)s).Start));
-        Range.DefineMethod("End", (s, _) => new IntVal(((RangeVal)s).End));
-        Range.DefineMethod("Count", (s, _) => new IntVal(((RangeVal)s).CountValue()));
-        Range.DefineMethod("IsEmpty", (s, _) => new BoolVal(((RangeVal)s).CountValue() == 0));
+        // 端点:写出来那两个数(**任意数值** —— 开区间的那端不在元素里,要元素用 First / Last)
+        Range.DefineMethod("Start", (s, _) => ((RangeVal)s).Start);
+        Range.DefineMethod("End", (s, _) => ((RangeVal)s).End);
+        // 个数:装得下给 int、装不下给 bigint
+        Range.DefineMethod("Count", (s, _) =>
+        {
+            var n = ((RangeVal)s).CountValue();
+            return n >= int.MinValue && n <= int.MaxValue ? new IntVal((int)n) : new BigIntVal(n);
+        });
+        Range.DefineMethod("IsEmpty", (s, _) => new BoolVal(((RangeVal)s).IsEmpty()));
         Range.DefineMethod("Contains", (s, a) =>
-            new BoolVal(((RangeVal)s).ContainsValue(IntArg(a, "区间.Contains"))));
+            new BoolVal(((RangeVal)s).ContainsValue(a)));
 
         // 铺成表 —— 只有这一条是 O(n)。空区间给空表(不是报错)
         Range.DefineMethod("ToList", (s, _) =>
         {
-            var (lo, hi) = ((RangeVal)s).Bounds();
+            var r = (RangeVal)s;
+            var (lo, hi) = r.Bounds();
             var out_ = new List<RuntimeValue>();
-            for (var i = lo; i <= hi; i++) out_.Add(new IntVal(i));
+            for (var i = lo; i <= hi; i++) out_.Add(r.Element(i));
             return new ListVal(out_);
         });
 
@@ -108,14 +115,14 @@ internal static partial class BuiltinClasses
         Range.DefineMethod("First", (s, _) =>
         {
             var r = (RangeVal)s;
-            if (r.CountValue() == 0) throw new RuntimeException("First: 元素不够（一共 0 个）");
-            return new IntVal(r.Bounds().Lo);
+            if (r.IsEmpty()) throw new RuntimeException("First: 元素不够（一共 0 个）");
+            return r.Element(r.Bounds().Lo);
         });
         Range.DefineMethod("Last", (s, _) =>
         {
             var r = (RangeVal)s;
-            if (r.CountValue() == 0) throw new RuntimeException("Last: 元素不够（一共 0 个）");
-            return new IntVal(r.Bounds().Hi);
+            if (r.IsEmpty()) throw new RuntimeException("Last: 元素不够（一共 0 个）");
+            return r.Element(r.Bounds().Hi);
         });
     }
 
@@ -124,12 +131,14 @@ internal static partial class BuiltinClasses
     /// 越界(拿到的那个 from/to 落在字符串外面)照旧当场报错 —— 和两个数字那种写法一条规矩。</summary>
     private static (int From, int To) SliceBounds(RangeVal rng, int length, string what)
     {
-        var from = rng.StartClosed ? rng.Start : rng.Start + 1;
-        var to = rng.EndClosed ? rng.End + 1 : rng.End;
-        if (to < from) to = from;                       // 空区间 → 空的一段
-        if (from < 0 || to > length)
+        // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段
+        var (lo, hi) = rng.Bounds();
+
+        if (lo > hi) return (0, 0);                     // 空区间 → 空的一段
+        if (lo < 0 || hi + 1 > length)
             throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）");
-        return (from, to);
+
+        return ((int)lo, (int)(hi + 1));                // 半开:`hi` 那个元素也要,所以 +1
     }
 
     private static void RegisterStringMethods()

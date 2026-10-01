@@ -393,11 +393,12 @@ impl (IEnumerable Range {
     by GetEnumerator = property (() => {
         () => {
             g := Generator (y: function) => {
-                i := instance.Start ()
-                top := instance.End ()
-                while { i <= top; } {
-                    if { instance.Contains i; } { y i; } { 0; }
-                    i += 1
+                # 走**元素**那两头(`First` / `Last`)—— 端点可以是小数,元素永远是整数;
+                # 空的区间问 `First ()` 会报错,所以先挡一道
+                if { instance.IsEmpty (); } { (); } {
+                    i := instance.First ()
+                    top := instance.Last ()
+                    while { i <= top; } { y i; i += 1; }
                 }
             }
             g.GetEnumerator ();
