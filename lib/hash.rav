@@ -1,0 +1,111 @@
+# `Hash` —— 摘要、HMAC、CRC32、随机令牌。**要显式引用**:`using "hash.rav"`。
+#
+#     Hash.Sha256 "abc"                  # "ba7816bf…"（小写十六进制）
+#     Hash.Sha256Bytes (Encoding.Utf8 s) # 要字节表就自己先编码(字符串按 UTF-8 进)
+#     Hash.Md5 "abc" / Hash.Sha512 "abc" / Hash.Sha1 "abc"
+#     Hash.Hmac "sha256" "密钥" "报文"    # 带密钥的摘要
+#     Hash.File "a.zip" "sha256"          # 文件的摘要(**流式**,多大的文件都不进内存)
+#     Hash.Crc32 "abc"                    # 891568578 —— 传文件时那种校验和
+#     Hash.Token 16                       # 32 个十六进制字符的随机串(会话令牌、盐)
+#     Hash.Equal a b                      # 两个摘要一不一样(**常数时间**比)
+#
+# 字符串**一律按 UTF-8** 进(`Encoding.Utf8`),所以 `Hash.Sha256 "中文"` 和别的语言
+# 算出来是同一个值 —— 要别的编码就先自己 `Encoding.Utf8` / `Encoding.Hex` 转成字节表,
+# 用 `...Bytes` 那几条。
+#
+# 交回的是**小写十六进制字符串**(和网上贴的、`sha256sum` 打的一个样);
+# 要字节表用 `...Bytes`。
+#
+# **摘要不是加密**:MD5 / SHA-1 早就不该用来防篡改(只配做校验和),
+# 口令要用专门的算法(加盐 + 慢哈希),`Hash.Token` 只负责给随机串。
+using "encoding.rav"
+using "bits.rav"      # `Shr`(逻辑右移)—— CRC32 那台要用
+
+ravel "Hash"
+
+# ── 十六进制那两条:值类型是字节表,文本是十六进制串 ──
+# 引擎那层收字节表、交回字节表;这一层管"字符串怎么进、十六进制怎么出"。
+
+readonly HashOf := (algo: string data: object) => {
+    # 条件**整个**括起来:不括的话 `string { … }` 会被读成「拿这个块当实参调 string」
+    ((typeof data) == string) {
+        System.HashBytes algo (Encoding.Utf8 data);
+    } { System.HashBytes algo data; }        # 给字节表就原样进
+}
+
+# 小写十六进制(要字节表用 `...Bytes` 那几条 —— 它们收字节表、交回字节表)
+readonly HexOf := (bytes: list) => { Encoding.Hex bytes; }
+
+readonly Sha256Bytes := (data: object) => { HashOf "sha256" data; }
+readonly Sha512Bytes := (data: object) => { HashOf "sha512" data; }
+readonly Sha1Bytes := (data: object) => { HashOf "sha1" data; }
+readonly Md5Bytes := (data: object) => { HashOf "md5" data; }
+
+readonly Sha256 := (data: object) => { HexOf (Sha256Bytes data); }
+readonly Sha512 := (data: object) => { HexOf (Sha512Bytes data); }
+readonly Sha1 := (data: object) => { HexOf (Sha1Bytes data); }
+readonly Md5 := (data: object) => { HexOf (Md5Bytes data); }
+
+# 文件的摘要(流式):交回十六进制串;`...Bytes` 那条交回字节表
+readonly FileBytes := (path: object algo: string) => { System.HashFile algo ((PathStr path)); }
+readonly File := (path: object algo: string) => { HexOf (FileBytes path algo); }
+
+# 收路径字符串,或一个**磁盘条目**(`Io.File "a.zip"`)—— 和 `io.rav` 的 `CopyTo dest` 一个待遇
+readonly PathStr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
+
+# ── HMAC:带密钥的摘要 ──
+readonly HmacBytes := (algo: string key: object data: object) => {
+    System.HmacBytes algo ((BytesOf key)) ((BytesOf data));
+}
+
+# 字符串(按 UTF-8)或字节表都收 —— 报文两边常常一个是文本一个是二进制
+readonly BytesOf := (v: object) => { ((typeof v) == string) { Encoding.Utf8 v; } { v; } }
+
+readonly Hmac := (algo: string key: object data: object) => { HexOf (HmacBytes algo key data); }
+
+# ── CRC32(IEEE,`zlib` / `PKZIP` 用的那个)──
+#
+# 纯 Ravel 写:引擎那边 .NET 的 BCL 里没有 CRC32(它在 `System.IO.Hashing` 那个包里),
+# 而这一套位运算 `Bits` 已经够了。逐位算(每字节 8 圈),图个看得懂。
+readonly Crc32Bytes := (data: object) => {
+    ((typeof data) == string) { Crc32Of (Encoding.Utf8 data); } { Crc32Of data; }
+}
+
+readonly Crc32Of := (bytes: list) => {
+    crc := 0 - 1                                  # 0xFFFFFFFF 的 32 位位型
+    foreach bytes (b: object) => {
+        crc = crc ^ (int b)
+        i := 0
+        while { i < 8; } {
+            ((crc & 1) == 1) {
+                crc = (Bits.Shr crc 1) ^ (0 - 306674912)   # 0xEDB88320 那个多项式
+            } {
+                crc = Bits.Shr crc 1
+            }
+            i += 1
+        }
+    }
+    Bits.Unsigned (crc ^ (0 - 1))                 # 取反,再读成 0..4294967295
+}
+
+# 交回的是**非负的 bigint**(CRC32 的值域大到 int 装不下正数)
+readonly Crc32 := (data: object) => { Crc32Bytes data; }
+
+# ── 小工具 ──
+
+# 两个摘要一不一样。**常数时间**比:逐字节比、见着不一样也不早退 ——
+# 早退的那一点点时间差,足够让人把密钥一位一位试出来(时序攻击)。
+readonly Equal := (a: string b: string) => {
+    ((a.Length ()) == (b.Length ())) {
+        diff := 0
+        i := 0
+        while { i < (a.Length ()); } {
+            diff = diff | ((int (a.At i)) ^ (int (b.At i)))
+            i += 1
+        }
+        (diff == 0)
+    } { false; }
+}
+
+# 一枚随机令牌:`n` 个字节 → `2n` 个十六进制字符(会话令牌、盐、防伪码)
+readonly Token := (n: int) => { Encoding.Hex (System.RandomBytes n); }

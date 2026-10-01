@@ -1,0 +1,71 @@
+# `Hash` —— 摘要 / HMAC / CRC32 / 令牌(见 lib/hash.rav)。**要显式引用**。
+#
+# 钉的是**已知答案**:这些值在别的语言、命令行工具(`sha256sum` / `zlib.crc32`)那儿
+# 是同一个 —— 库要是哪天算歪了,这一条立刻红。
+using "hash.rav"
+using "io.rav"      # 底下要拿 `Io.File` 当条目试试
+
+# ── 摘要:字符串按 UTF-8 进,交回**小写十六进制** ──
+print (Hash.Sha256 "abc")
+print (Hash.Sha1 "abc")
+print (Hash.Md5 "abc")
+print ((Hash.Sha512 "abc").Length ())       # 128 个十六进制字符
+print (Hash.Sha256 "中文")                   # UTF-8:和别的语言算出来一样
+
+# 字节表进(要别的编码自己先 `Encoding.Utf8` / `Encoding.Hex` 转)
+print (Hash.Sha256Bytes (Encoding.Utf8 "abc"))
+print ((Hash.Sha256Bytes "abc").Count ())   # 32 个字节
+
+# 算法名不计较大写和连字符(`SHA-256` / `sha_256` / `Sha256` 是一个东西)
+print (Encoding.Hex (System.HashBytes "SHA-256" (Encoding.Utf8 "abc")))
+
+# ── HMAC:带密钥的摘要 ──
+print (Hash.Hmac "sha256" "key" "The quick brown fox jumps over the lazy dog")
+
+# ── CRC32:纯 Ravel 算的(引擎那边 BCL 没有它)──
+print (Hash.Crc32 "abc")
+print (Hash.Crc32 "中文")
+print (typeof (Hash.Crc32 "abc"))           # 值域到 2^32-1,int 装不下正数,给 bigint
+
+# ── 常数时间比较(防时序攻击) ──
+print (Hash.Equal "ab" "ab")
+print (Hash.Equal "ab" "abc")
+print (Hash.Equal (Hash.Sha256 "a") (Hash.Sha256 "a"))
+
+# ── 文件:流式,多大的文件都不会整个进内存 ──
+System.CreateDir ".io-test"
+System.WriteText ".io-test/hash.txt" "abc"
+print (Hash.File ".io-test/hash.txt" "sha256")
+print (Hash.File (Io.File ".io-test/hash.txt") "md5")   # 条目也收(和 CopyTo dest 一个待遇)
+System.DeletePath ".io-test/hash.txt"
+System.DeletePath ".io-test"
+
+# ── 令牌:2n 个十六进制字符的随机串 ──
+print ((Hash.Token 16).Length ())
+print (Hash.Equal (Hash.Token 16) (Hash.Token 16))      # 两次不会一样
+
+# ── 不认识的算法 / 不是字节表的东西:当场说人话 ──
+try { System.HashBytes "sha3" [1]; } (e: Exception) => { print ("1: " + string e); }
+try { Hash.Md5 {"a": 1}; } (e: Exception) => { print ("2: " + string e); }
+# --- expected ---
+# ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+# a9993e364706816aba3e25717850c26c9cd0d89d
+# 900150983cd24fb0d6963f7d28e17f72
+# 128
+# 72726d8818f693066ceb69afa364218b692e62ea92b385782363780f47529c21
+# [186 120 22 191 143 1 207 234 65 65 64 222 93 174 34 35 176 3 97 163 150 23 122 156 180 16 255 97 242 0 21 173]
+# 32
+# ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+# f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8
+# 891568578
+# 1510599991
+# BigInt
+# true
+# false
+# true
+# ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+# 900150983cd24fb0d6963f7d28e17f72
+# 32
+# false
+# 1: 不认识的算法 'sha3'（有 sha256 / sha512 / sha1 / md5）
+# 2: HashBytes 的数据需要一个字节表（list），得到 Dict

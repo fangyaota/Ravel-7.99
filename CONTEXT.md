@@ -203,6 +203,12 @@ lib/
                           或 list 都行,表头按键**第一次出现**的先后)/ `Quote`(单个格子怎么转义)。
                           转义就一条:含 `,` / `"` / 换行的格子整体包引号、里面的 `"` 写成 `""`
                           —— 所以引号里的逗号和换行都是**内容**。**要显式引用**
+  hash.rav                `Hash` 模块 —— 摘要与校验:`Sha256`/`Sha512`/`Sha1`/`Md5`(字符串按
+                          UTF-8 进、交回小写十六进制;要字节表用 `...Bytes`)、`Hmac algo key data`、
+                          `File path algo`(**流式**,多大的文件都不进内存)、`Crc32`(纯 Ravel 算的)、
+                          `Equal a b`(**常数时间**比,防时序攻击)、`Token n`(随机十六进制串)。
+                          底层三条原语在引擎(`HashBytes`/`HashFile`/`HmacBytes`,收字节表交字节表)。
+                          **要显式引用**
   http.rav                `Http` 模块 —— 网络那一层(HTTP 客户端):`Get`/`Post`/`Put`/`Patch`/
                           `Delete`/`Head`、`Request`(全参数:头/正文/重试/超时/跟不跟重定向)、
                           `Download`(流式落盘)/ `Upload`(multipart)、`Query`(拼查询串)、
@@ -351,6 +357,7 @@ Object (parent=自己)
         RegexEscape RegexIsMatch RegexMatch RegexFindAll RegexReplace RegexSplit
         Sleep ReadBytes WriteBytes DecodeText
         HttpReq HttpDownload HttpUpload
+        HashBytes HashFile HmacBytes
 
 上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——
 写在 `Runtime/Builtins/Sys*.cs` 里(**一个主题一个类**,扫的是整个程序集,不列名单),
