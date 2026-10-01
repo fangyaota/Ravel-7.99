@@ -1,0 +1,156 @@
+# `Csv` —— 逗号分隔的那套(RFC 4180)。**要显式引用**:`using "csv.rav"`。
+#
+#     Csv.Parse "name,age\nada,36\nbob,41"     # → [{name: ada age: "36"} {name: bob age: "41"}]
+#     Csv.Grid  "name,age\nada,36"             # → [["name" "age"] ["ada" "36"]](首行不当表头)
+#     Csv.Render [{"name": "ada" "age": 36}]   # → "name,age\nada,36"
+#     Csv.Render [["a" "b"] [1 2]]             # 交格子也行
+#     Csv.Quote "带,逗号"                        # → "\"带,逗号\""(单个格子怎么转义)
+#
+# **格子一律是字符串**:CSV 里没有类型,`36` 和 `"36"` 是同一件事。要数字自己 `int` / `float`
+# 转一下(转不动会当场报错,不会静默给个 0)。
+#
+# 转义规则就是 RFC 那一条:**含 `,` / `"` / 换行的格子整体用 `"` 包起来,里面的 `"` 写成 `""`**。
+# 于是引号里的逗号和换行都是**内容** —— 这正是"自己 `Split ","`" 撑不住的地方。
+#
+# `Parse` 拿**首行当表头**,一列一个 dict 的键。列数不齐时:
+#
+# - 某行**少**了几列 → 那几列给空串(真文件里常见,不该整份读不进来);
+# - 某行**多**了几列 → 多的丢掉(没有名字可挂,留着只会让人以为读到了什么)。
+#
+# 要原样看每行几个格子,用 `Csv.Grid`(它不认表头,纯二维)。
+ravel "Csv"
+
+# ── 一个格子怎么转义 ──
+readonly NeedsQuote := (cell: string) => {
+    (cell.Contains ",") || ((cell.Contains "\"") || ((cell.Contains "\n") || (cell.Contains "\r")));
+}
+
+readonly Quote := (cell: string) => {
+    if { (NeedsQuote cell); } { "\"" + (cell.Replace "\"" "\"\"") + "\""; } { cell; }
+}
+
+# ── 写 ──
+# 交**一行行 dict**(首行表头:表头的列 = 所有行出现过的键,按第一次出现的先后),
+# 或者交**一行行 list**(纯格子,不写表头)。
+readonly Render := (rows: list) => {
+    grid := []
+    if { (rows.IsEmpty ()); } { ""; } {
+        ((typeof (rows.At 0)) == dict) {
+            # 表头:扫一遍所有行,键按**第一次出现**的先后排 —— 同一份数据每次都写出一模一样的表头
+            cols := []
+            foreach rows (row: dict) => {
+                foreach (row.Keys ()) (k: object) => {
+                    cols.Contains k { 0; } { cols.Add k; }
+                }
+            }
+            grid.Add cols
+            foreach rows (row: dict) => {
+                line := []
+                foreach cols (k: object) => {
+                    line.Add (if { (row.Has k); } { string (row.Get k); } { ""; })
+                }
+                grid.Add line
+            }
+        } {
+            foreach rows (row: list) => {
+                out := []
+                foreach row (cell: object) => { out.Add (string cell); }
+                grid.Add out
+            }
+        }
+    }
+
+    lines := []
+    foreach grid (line: list) => {
+        cells := []
+        foreach line (cell: string) => { cells.Add (Quote cell); }
+        lines.Add (cells.Join ",")
+    }
+    lines.Join "\n"
+}
+
+# ── 读 ──
+# 一趟扫完:引号里的逗号与换行都是**内容**,`""` 是一个引号。`\r\n` 与 `\n` 都认。
+# 末尾那个空行不算一行(文件以换行收尾是常态)。
+readonly Grid := (text: string) => {
+    rows := []
+    row := []
+    cell := ""
+    inQuote := false
+    i := 0
+    n := text.Length ()
+
+    while { i < n; } {
+        c := text.At i
+        if { inQuote; } {
+            if { c == '"'; } {
+                # `""` 是一个引号本身,单个 `"` 是这一段引用的收尾
+                (((i + 1) < n) && ((text.At (i + 1)) == '"')) {
+                    cell += "\""
+                    i += 2
+                } {
+                    inQuote = false
+                    i += 1
+                }
+            } {
+                cell += (string c)
+                i += 1
+            }
+        } {
+            (c == '"') {
+                inQuote = true
+                i += 1
+            } {
+                (c == ',') {
+                    row.Add cell
+                    cell = ""
+                    i += 1
+                } {
+                    ((c == '\n') || (c == '\r')) {
+                        row.Add cell
+                        cell = ""
+                        rows.Add row
+                        row = []
+                        # `\r\n` 只算一个换行
+                        (((i + 1) < n) && (c == '\r') && ((text.At (i + 1)) == '\n')) { i += 2; } { i += 1; }
+                    } {
+                        cell += (string c)
+                        i += 1
+                    }
+                }
+            }
+        }
+    }
+
+    # 最后一段没收尾(文件没有以换行结束)才收;`a,b\n` 这种收尾不该多出一个空行。
+    # 这里写**直调**而不是 `if {…} {…}`:`if` 是三参的,少给一块它就是个**半成品**,
+    # 那一块**静默不跑**(整份文件于是读出来是空的 —— 这个坑这次真踩了)。
+    (!(cell.IsEmpty ()) || !(row.IsEmpty ())) {
+        row.Add cell
+        rows.Add row
+    } { 0; }
+    rows
+}
+
+# 首行当表头。列数不齐时:少的补空串、多的丢掉(见文件开头那两条)。
+readonly Parse := (text: string) => {
+    rows := Grid text
+    if { (rows.IsEmpty ()); } { []; } {
+        head := []
+        foreach (rows.At 0) (k: string) => { head.Add k; }
+        out := []
+        i := 1
+        while { i < (rows.Count ()); } {
+            line := rows.At i
+            d := {}
+            j := 0
+            while { j < (head.Count ()); } {
+                d.Set (head.At j) (if { j < (line.Count ()); } { line.At j; } { ""; })
+                j += 1
+            }
+            out.Add d
+            i += 1
+        }
+        out
+    }
+}

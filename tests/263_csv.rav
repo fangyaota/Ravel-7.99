@@ -1,0 +1,72 @@
+# `Csv` —— 逗号分隔(RFC 4180)。**要显式引用**。
+#
+# 转义就一条:含 `,` / `"` / 换行的格子整体用 `"` 包起来,里面的 `"` 写成 `""`。
+# 于是引号里的逗号和换行都是**内容** —— 这正是"自己 Split ','"撑不住的地方。
+using "csv.rav"
+
+# ── 读:纯格子 ──
+print (Csv.Grid "a,b")
+print (Csv.Grid "name,age\nada,36\nbob,41\n")     # 末尾那个换行不算一行
+print (Csv.Grid "a,\"b,c\",d")                    # 引号里的逗号是内容
+print (Csv.Grid "a,\"说 \"\"引号\"\" 的\",b")        # `""` 是一个引号
+print (Csv.Grid "a,b\r\nc,d")                     # `\r\n` 只算一个换行
+print (Csv.Grid "")                               # 空文本:一行都没有
+print (Csv.Grid "a")                              # 没有换行时最后一段也收
+print (Csv.Grid "a,")                             # 末尾空格子留着
+
+# 引号里的换行也是内容(所以整段不是"按行进"的)
+print (Csv.Grid "a,\"带\n换行\",b")
+print ((Csv.Grid "a,\"带\n换行\",b").Count ())       # 还是**一行**
+
+# ── 读:首行当表头 ──
+print (Csv.Parse "name,age\nada,36\nbob,41")
+print (Csv.Parse "a,b,c\n1,2")                    # 少了列 → 补空串
+print (Csv.Parse "a,b,c\n1,2,3,4")                # 多了列 → 丢掉
+print (Csv.Parse "")                              # 空文本:没有表头也就没有行
+print (Csv.Parse "只有表头")
+
+# ── 写 ──
+print (Csv.Render [{"name": "ada" "age": 36} {"name": "bob" "age": 41}])
+print (Csv.Render [["a" "b"] [1 2]])              # 交格子也行(不写表头)
+print (Csv.Render [{"x": "带,逗号" "y": "说\"引号\""}])
+print ("[" + (Csv.Render []) + "]")               # 空表:空串
+print (Csv.Render [{"b": 1 "a": 2} {"a": 3}])     # 表头按**第一次出现**的先后
+
+# 单个格子怎么转义
+print (Csv.Quote "普通")
+print (Csv.Quote "带,逗号")
+print (Csv.Quote "说\"引号\"")
+print (Csv.Quote "带\n换行")
+# --- expected ---
+# [[a b]]
+# [[name age] [ada 36] [bob 41]]
+# [[a b,c d]]
+# [[a 说 "引号" 的 b]]
+# [[a b] [c d]]
+# []
+# [[a]]
+# [[a ]]
+# [[a 带
+# 换行 b]]
+# 1
+# [{name: ada age: 36} {name: bob age: 41}]
+# [{a: 1 b: 2 c: }]
+# [{a: 1 b: 2 c: 3}]
+# []
+# []
+# name,age
+# ada,36
+# bob,41
+# a,b
+# 1,2
+# x,y
+# "带,逗号","说""引号"""
+# []
+# b,a
+# 1,2
+# ,3
+# 普通
+# "带,逗号"
+# "说""引号"""
+# "带
+# 换行"

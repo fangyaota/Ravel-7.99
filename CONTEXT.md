@@ -184,6 +184,11 @@ lib/
                           `Words`(空白折成一个分隔)/ `Wrap n`(按宽度折行,长词不硬切)/
                           `Indent` / `Dedent`(去公共缩进)/ `Truncate` / `Quote`(转义成看得见的样子)/
                           `IsBlank`。**要显式引用**
+  csv.rav                 `Csv` 模块 —— 逗号分隔(RFC 4180):`Parse`(首行当表头 → 一行行 dict;
+                          列少了补空串、多了丢掉)/ `Grid`(纯格子,不认表头)/ `Render`(交 dict
+                          或 list 都行,表头按键**第一次出现**的先后)/ `Quote`(单个格子怎么转义)。
+                          转义就一条:含 `,` / `"` / 换行的格子整体包引号、里面的 `"` 写成 `""`
+                          —— 所以引号里的逗号和换行都是**内容**。**要显式引用**
   encoding.rav            `Encoding` 模块 —— UTF-8 / Base64 / 十六进制 / URL 转义 / HTML。
                           字节表 = "一串 0..255 的 int"(`Random.Bytes` 交回的正是它)——
                           Ravel 的 `string` 是 UTF-16,装不下任意字节,所以**要文本就先
