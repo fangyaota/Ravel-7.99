@@ -114,9 +114,6 @@ d := s.Variables ()
 print (d.Has "x")
 System.Write "ab"
 print "cd"
-r := randint 1 10
-assert (1 <= r && r <= 9) "randint out of range"
-print "range ok"
 
 # ═══ 117_metaclass(并入) ═══
 ravel "117_metaclass"
@@ -441,7 +438,6 @@ ravel ""
 # Scope
 # true
 # abcd
-# range ok
 # Type
 # 42
 # MyMeta

@@ -258,7 +258,7 @@ Object (parent=自己)
         List Set Dict Object Void Function Continuation Type Interface BaseInterface
         Any Every Exception ValueType Json
 
-**函数**: WriteLine Write ReadLine Assert TypeOf Eval RandInt
+**函数**: WriteLine Write ReadLine Assert TypeOf Eval
         CallCC Exit With RavelMod Using Use unsafe Cmd
         property currentScope
         Args Env EnvOr SetEnv UnsetEnv EnvAll
@@ -283,8 +283,8 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `RandomBytes n` 交回 `list`（元素 0..255，走 `RandomNumberGenerator`）。
 **交回函数而不是新造一个值类型**：和 `Cached` 一个路子（"是个函数，不是要实例化的类型"），
 引擎面最小、也不必动类型树。三台生成器、`Int`/`Shuffle`/`Sample` 那些都在库里
-（`lib/random.rav` 的 `IRandom` 默认实现）；全局那个 `randint lo hi` 一个字没改
-（上界**不含**，等于 `(Random.Shared ()).Int lo (hi - 1)`）。
+（`lib/random.rav` 的 `IRandom` 默认实现）—— 取数的那一面**只有**这一处（从前那个全局
+`randint lo hi` 已经删掉：它的上界不含是 .NET 的老规矩，`Int lo hi` 改成含两端）。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
@@ -323,7 +323,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
    `CurrentDir` / `ChDir` / `FileExists` / `DirExists` / `PathJoin` / `PathDir` / `PathBase` /
    `PathExt` / `PathClean` / `SplitLines`。**只做 syscall、不做判断**：失败报 Ravel 错误（中文、
    带路径，路径按用户写的那串打、不转绝对路径），"要不要先问一句"交给 `FileExists` / `DirExists`
-   探针（它们不报错）；外面再套一层兜底，**不让 C# 异常漏到顶层**（和 `RandInt` 那条注释一个道理）。
+   探针（它们不报错）；外面再套一层兜底，**不让 C# 异常漏到顶层**（这批原语一条道理）。
    路径基准 = 进程当前目录；**不做沙箱** —— 和 `using` 找模块一个待遇。
 2. **接口**（`IEntry` / `IFile` / `IDir`，**全局名**，和 `IEnumerable` / `IMonad` 一个待遇）：
    `Exists` / `IsDir` / `Delete` / `Name`；`IFile` 加 `Read` / `Write` / `Append` / `Size`；

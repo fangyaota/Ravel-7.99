@@ -48,7 +48,6 @@ readonly typeof := System.TypeOf
 readonly cmd := System.Cmd        # 跑外部命令(走系统 shell),交回 {out err code}
 readonly assert := System.Assert
 readonly eval := System.Eval
-readonly randint := System.RandInt
 readonly with := System.With
 readonly ravel := System.RavelMod
 readonly using := System.Using

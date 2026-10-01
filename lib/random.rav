@@ -8,7 +8,7 @@
 #
 # 取数那一面是一套方法(接口 `IRandom` 的**默认实现**,凡实现者白拿):
 #
-#     r.Int 1 6                  # 1..6,**含两端**(和 `randint` 不同,那个上界不含)
+#     r.Int 1 6                  # 1..6,**含两端**(掷骰子就是这个)
 #     r.Below 10                 # 0..9
 #     r.Float ()                 # 0.0 .. 1.0
 #     r.Bool ()                  # true / false
@@ -16,8 +16,7 @@
 #     r.Shuffle [1 2 3 4 5]      # 洗过的**新 list**(原表不动,和容器那批一个规矩)
 #     r.Sample 2 [1 2 3 4 5]     # 取 2 个不重复的(要的比有的多就报错)
 #
-# 和全局那个 `randint lo hi` 的关系:`randint` 就是"Shared 那台"的一次取数,上界**不含**
-# (.NET 的老规矩)—— `(Random.Shared ()).Int lo (hi - 1)` 和它等价。
+# `Int lo hi` **含两端**,`Below n` 是 `0 .. n-1`;要哪一头不含就用 `Below` 自己加偏移。
 
 # ── 形状:一条槽 ──
 # `Next ()` 交回 0 .. 2^30-1 的整数(各家实现自己保证这个范围);下面那一整套是默认实现,
@@ -103,7 +102,7 @@ readonly CryptoNext := () => {
     int (big % 1073741824)
 }
 
-# 进程共享那台:`Random.Shared`,和 `randint` 同一台(不可复现)。
+# 进程共享那台:底下是 `Random.Shared`,大家共用一台(不可复现)。
 readonly Shared := () => { RandomSource "shared" (System.SharedRandom ()); }
 
 # 带种子那台:**同一个运行时里**同种子给出同一串 —— 用例要钉随机行为就用它。

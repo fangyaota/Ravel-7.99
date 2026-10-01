@@ -123,16 +123,6 @@ public partial class Interpreter
         }));
 
         // ---- 其他核心函数 ----
-        DefFn("RandInt", FunctionVal.From((lo, hi) =>
-        {
-            if (lo is not IntVal l) throw new RuntimeException($"randint 的最小值需要 int，得到 {lo.Type}");
-            if (hi is not IntVal h) throw new RuntimeException($"randint 的最大值需要 int，得到 {hi.Type}");
-            // Random.Next 在 min > max 时抛 ArgumentOutOfRangeException——那是 C# 异常,
-            // 会绕过 Ravel 层的 try 一路漏到顶层把程序打掉,所以自己先拦
-            if (l.Value > h.Value)
-                throw new RuntimeException($"randint 的最小值 {l.Value} 不能大于最大值 {h.Value}");
-            return new IntVal(Random.Shared.Next(l.Value, h.Value));
-        }));
         // ── 随机数的"源头" ──
         // 引擎只造**一枚取数的函数**(`() => int`,范围 0 .. 2^30-1);"哪几台、怎么用"是库的事
         // (lib/random.rav:三台 —— 进程共享 / 带种子可复现 / 加密级 —— 各包一枚它,
@@ -145,7 +135,7 @@ public partial class Interpreter
             var seed = As<IntVal>(a, "NewRandom 的种子").Value;
             return NumberSource(new Random(seed));
         })));
-        // 进程共享那台 —— 就是 `randint` 用的 `Random.Shared`
+        // 进程共享那台(`Random.Shared`)
         DefFn("SharedRandom", FunctionVal.From(_ => NumberSource(Random.Shared)));
         // 原始随机字节(0..255):加密那台的原料,也留给"就是要字节"(拿它自己拼整数)的人
         DefFn("RandomBytes", FunctionVal.From(a => Fs("取随机字节", () =>
@@ -182,7 +172,7 @@ public partial class Interpreter
         // 它们**不报错**。路径基准 = 进程当前目录;不做沙箱 —— 和 `using` 找模块一个待遇,用户自己负责。
         // 上面那些预检查是为了消息说人话;**Fs 那层兜底是为了不让 C# 异常漏到顶层**
         // (目录不存在、没权限、路径里有非法字符…… 漏出去会绕过 Ravel 的 try 把程序打掉,
-        //  和 RandInt 那条注释里说的一样)。
+        //  和这批原语一条道理)。
         static byte[] ReadAllBytes(Stream s)
         {
             using var ms = new MemoryStream();

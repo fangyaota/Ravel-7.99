@@ -84,7 +84,7 @@ typeof "hello"   # String
 **成员（方法/字段）一律 PascalCase**：`obj.Fields ()`、`f.Scope ()`、`Math.Sin x`、`Ex.Throw e`。
 两处例外，都是有意留的小写：
 
-- **全局别名** —— `print`、`true`、`if`、`typeof`、`randint`…… 它们是 `predefined.rav` 里的名字，
+- **全局别名** —— `print`、`true`、`if`、`typeof`、`assert`…… 它们是 `predefined.rav` 里的名字，
   更像"语言的关键词"而不是谁的成员。
 - **机制成员** —— `parent` / `block` / `name` / `init` / `this`：类对象自己那层的数据。
   `C.parent` 是原型链指针（父类），`C.name` 是类名。它们**不沿链继承**，所以实例上读不到
@@ -1682,14 +1682,9 @@ draw (Random.Make 7).Join "," == draw (Random.Make 8).Join ","    # false
 `Random.Make 42` 交回的是一个**能调方法的值**（`Kind` 是 `"seeded"`），可以传、可以存：
 `(r is IRandom)` 成立 —— 想写"要哪台都行"的函数就把参数标成 `IRandom`。
 
-**和 `randint` 的关系**：`randint lo hi` 那台就是 `Random.Shared ()`，只是**上界不含**
-（.NET 的老规矩）：
-
-```ravel
-randint 1 6                # 1..5
-(Random.Shared ()).Int 1 6 # 1..6
-randint 1 7 ≡ (Random.Shared ()).Int 1 6
-```
+**`Int lo hi` 含两端**（`r.Int 1 6` 就是掷骰子），`Below n` 是 `0 .. n-1` —— 要哪一头
+不含就用 `Below` 自己加偏移。（从前那个全局 `randint lo hi` 上界不含，已经删掉了：
+现在取数只走 `Random` 这一条路。）
 
 **用例见 tests/254。**
 

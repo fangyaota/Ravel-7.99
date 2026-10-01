@@ -19,7 +19,7 @@ namespace Ravel.Runtime;
 ///   `min 3 bigint 9999999999999` 还是 bigint),`sign` 给 int。
 /// - **C# 会抛异常的地方自己先拦**(`sign` 收到 NaN、`clamp` 的下界大于上界、`roundTo` 的
 ///   位数越界):那些异常不是 RuntimeException,Ravel 的 try 接不住,会一路把程序打掉。
-///   这也是 `randint` 的先例。
+///   （`System` 里那批原语也是这条规矩。）
 ///
 /// 没搬的 System.Math 成员(以及为什么):`DivRem` 要返回两个值,Ravel 里 `/` 和 `%` 就是;
 /// `BigMul` 是 long×long 的溢出规避,这里用 bigint;`IEEERemainder` 与 `%` 是同一类需求;

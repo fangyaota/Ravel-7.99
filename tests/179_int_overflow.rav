@@ -48,16 +48,6 @@ ravel ""
 # ═══ 160_fraction_zero_den(并入:原本钉的是"报错",改成 try+eval 把消息钉成一行) ═══
 try { eval "# 分数的分母不能为零。以前 `fraction 1 0` 会造出一个 `1/0` 的无效分数,\n# 之后 `int (fraction 1 0)` 就抛 C# 的 DivideByZeroException。\n# 字符串形式 `fraction \"1/0\"` 一直有检查,构造器这条漏了。\nprint (fraction 1 0)"; } (e: Exception) => { print ("160_fraction_zero_den: " + string e); }
 
-# ═══ 181_randint_bounds(并入) ═══
-ravel "181_randint_bounds"
-# randint 的最小值大于最大值:C# 的 Random.Next 会抛 ArgumentOutOfRangeException,
-# 那是 C# 异常,绕过 Ravel 的 try 一路漏到顶层把程序打掉
-try { randint 5 1; } (e: Exception) => { print ("1: " + string e); }
-try { randint "a" 1; } (e: Exception) => { print ("2: " + string e); }
-# 合法调用照常(两端相等时 Next 返回那个值)
-print (randint 7 7)
-ravel ""
-
 # ═══ 185_int_overflow_arith(并入) ═══
 ravel "185_int_overflow_arith"
 # int 算术溢出:报错,不要静默回绕
@@ -207,7 +197,8 @@ print (Math.Deg Math.Pi)
 print (Math.Rad 180)
 
 # ---- C# 会抛异常的地方自己先拦:那些异常不是 RuntimeException,
-#      Ravel 的 try 接不住,会一路把程序打掉(见 randint 的先例) ----
+#      Ravel 的 try 接不住,会一路把程序打掉
+#      （`Random.Int` / `Below` 那几条的边界检查也是这条规矩,见 tests/254）
 try { Math.Sin "a"; } (e: Exception) => { print ("Sin: " + string e); }
 try { Math.RoundTo 3.14 20; } (e: Exception) => { print ("RoundTo: " + string e); }
 try { Math.Clamp 5 10 0; } (e: Exception) => { print ("Clamp: " + string e); }
@@ -237,9 +228,6 @@ ravel ""
 # 3
 # 1
 # 160_fraction_zero_den: 分数的分母不能为零
-# 1: randint 的最小值 5 不能大于最大值 1
-# 2: randint 的最小值需要 int，得到 String
-# 7
 # 1: 2147483647 + 1 超出 int 范围（int 是 32 位，大数用 bigint）
 # 2: 100000 * 100000 超出 int 范围（int 是 32 位，大数用 bigint）
 # 3: 0 - -2147483648 超出 int 范围（int 是 32 位，大数用 bigint）
