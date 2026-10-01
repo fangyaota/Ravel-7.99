@@ -176,6 +176,18 @@ lib/
                           全都自动有(用户自己写了同名的就以用户的为准)。
                           字段是"自己那层里值不是函数的那些",**到用的时候才算**,
                           所以拿它当父类也认得出子类新加的字段。**要显式引用**
+  format.rav              `Format` 模块 —— 拼串与排版:`Fmt "{} 有 {} 个" [a b]`(占位/位置复用/
+                          给 dict 就按名字取)、`PadL`/`PadR`/`Pad`/`Center`(对齐与填充)、
+                          `Num x 2`(定小数位)、`Thousands`(千分位)、`Hex`/`Bin`/`Oct`、
+                          `Bytes n`(1536 → "1.5 KB")。**要显式引用**
+  text.rav                `Text` 模块 —— 按行/按词那层:`Lines`(顺带去掉 Windows 的 ``)/
+                          `Words`(空白折成一个分隔)/ `Wrap n`(按宽度折行,长词不硬切)/
+                          `Indent` / `Dedent`(去公共缩进)/ `Truncate` / `Quote`(转义成看得见的样子)/
+                          `IsBlank`。**要显式引用**
+  encoding.rav            `Encoding` 模块 —— UTF-8 / Base64 / 十六进制 / URL 转义 / HTML。
+                          字节表 = "一串 0..255 的 int"(`Random.Bytes` 交回的正是它)——
+                          Ravel 的 `string` 是 UTF-16,装不下任意字节,所以**要文本就先
+                          `Utf8Text`,要编码就先进字节表**。**要显式引用**
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;examples/type_tree.rav 打的就是它

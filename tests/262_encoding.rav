@@ -1,0 +1,62 @@
+# `Encoding` —— UTF-8 / Base64 / 十六进制 / URL 转义 / HTML(见 lib/encoding.rav)。
+# **要显式引用**。字节表 ="一串 0..255 的 int"。
+using "encoding.rav"
+
+# ── Base64 ──
+print (Encoding.Base64Text "你好")
+print (Encoding.Unbase64Text "5L2g5aW9")
+print (Encoding.Base64 [1 2 3])
+print (Encoding.Unbase64 "AQID")
+print ("[" + (Encoding.Base64 []) + "]")
+print (Encoding.Base64 [255])            # 一个字节 → 补两个 `=`
+print (Encoding.Base64 [255 255])        # 两个字节 → 补一个 `=`
+
+# ── 十六进制 ──
+print (Encoding.Hex [255 0 16])
+print ("[" + (Encoding.Hex []) + "]")
+print (Encoding.Unhex "ff0010")
+print (Encoding.Unhex "FF00")            # 大写也认
+
+# ── URL ──
+print (Encoding.UrlEncode "a b/中")
+print (Encoding.UrlDecode "a%20b%2F%E4%B8%AD")
+print (Encoding.UrlDecode "a+b")         # `+` 也是空格
+print (Encoding.UrlEncode "-_.~")        # unreserved 那几个原样留着
+
+# ── UTF-8 ──
+print (Encoding.Utf8 "A中")
+print (Encoding.Utf8Text [65 228 184 173])
+print ((Encoding.Utf8 "中文").Count ())   # 每个汉字 3 字节
+print ((Encoding.Utf8Text [65 255]).Count ())   # 坏字节 → 一个替换字符,不静默丢
+
+# ── HTML ──
+print (Encoding.HtmlEscape "<a&b> \"x\" 'y'")
+
+# 报错
+try { Encoding.Unbase64 "!!"; } (e: Exception) => { print ("1: " + string e); }
+try { Encoding.Unhex "abc"; } (e: Exception) => { print ("2: " + string e); }
+try { Encoding.UrlDecode "%2"; } (e: Exception) => { print ("3: " + string e); }
+# --- expected ---
+# 5L2g5aW9
+# 你好
+# AQID
+# [1 2 3]
+# []
+# /w==
+# //8=
+# ff0010
+# []
+# [255 0 16]
+# [255 0]
+# a%20b%2F%E4%B8%AD
+# a b/中
+# a b
+# -_.~
+# [65 228 184 173]
+# A中
+# 6
+# 2
+# &lt;a&amp;b&gt; &quot;x&quot; &#39;y&#39;
+# 1: s.IndexOf: 找不到 !
+# 2: Encoding.Unhex: 不是合法的十六进制（'abc'）
+# 3: Encoding.UrlDecode: '%' 后面要跟两位十六进制（'%2'）

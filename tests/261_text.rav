@@ -1,0 +1,55 @@
+# `Text` —— 按行/按词摆弄文本(见 lib/text.rav)。**要显式引用**。
+using "text.rav"
+
+# ── 行与词 ──
+print (Text.Lines "a\nb\r\nc")           # Windows 的 \r 顺手去掉
+print (Text.Words "a  b\tc\nd")          # 空白折成一个分隔
+print (Text.Words "")
+print (Text.IsBlank "  \n")
+print (Text.IsBlank " x ")
+
+# ── 折行 ──
+# 多行输出套方括号,再把换行换成 ` / ` 看:**golden 文件里写不出"空行"**
+# (runner 读到 `# ` 那一行会先 trim 掉尾空格、于是它变成 `#`,对不上真正的空行),
+# 所以空行只能换个看得见的写法来钉。
+show := (s: string) => { "[" + (s.Replace "\n" " / ") + "]"; }
+print (show (Text.Wrap "the quick brown fox jumps over the lazy dog" 12))
+print (show (Text.Wrap "a\n\nb" 5))              # 原有换行(含空行)保留
+print (show (Text.Wrap "超长的一个词" 3))          # 长词不硬切,自己占一行
+
+# ── 缩进 ──
+print (show (Text.Indent "a\n\nb" 2))            # 空行不补空格
+print (show (Text.Dedent "    a\n    b\n      c"))   # 去掉公共缩进
+print (show (Text.Dedent "  a\n\n  b"))
+print (show (Text.Dedent "a\nb"))
+
+# ── 截断 ──
+print (Text.Truncate "abcdef" 4)
+print (Text.Truncate "ab" 4)
+
+# ── 引号 ──
+print (Text.Quote "说不清\"的话\n第二行")
+print (Text.Quote "a\tb\c")
+
+# 报错
+try { Text.Wrap "x" 0; } (e: Exception) => { print ("1: " + string e); }
+try { Text.Truncate "x" 0; } (e: Exception) => { print ("2: " + string e); }
+# --- expected ---
+# [a b c]
+# [a b c d]
+# []
+# true
+# false
+# [the quick / brown fox / jumps over / the lazy dog]
+# [a /  / b]
+# [超长的一个词]
+# [  a /  /   b]
+# [a / b /   c]
+# [a /  / b]
+# [a / b]
+# abc…
+# ab
+# "说不清\"的话\n第二行"
+# "a\tb\\c"
+# 1: Text.Wrap: 宽度至少是 1，得到 0
+# 2: Text.Truncate: 宽度至少是 1，得到 0

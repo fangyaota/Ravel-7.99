@@ -1,0 +1,145 @@
+# `Text` —— 按**行**和**词**摆弄文本。**要显式引用**:`using "text.rav"`。
+#
+# 单串的那批(`Split` / `Slice` / `Trim` / `Replace` …)在 `String` 上就有,这里管的是
+# "一整段文字"这层:拆行、拆词、按宽度折行、缩进、截断、加引号。写文档、拼报错信息、
+# 排版终端输出,天天都用得着这几件。
+#
+#     Text.Lines "a\nb"                # ["a" "b"](顺带把 Windows 的 \r 去掉)
+#     Text.Words "a  b\tc"             # ["a" "b" "c"](空白折成一个分隔)
+#     Text.Wrap "…很长一段…" 20         # 按 20 个字符折行(词为单位)
+#     Text.Indent "a\nb" 4             # 每行前加 4 个空格(空行不动)
+#     Text.Dedent "    a\n    b"       # 去掉公共缩进 → "a\nb"
+#     Text.Truncate "abcdef" 4         # "abc…"
+#     Text.Quote "说不清\"的话"          # "\"说不清\\\"的话\""
+#     Text.IsBlank "  \n"              # true
+#
+# 一件**没做**的事:折行不硬切长词。一个比宽度还长的词自己占一行,不切开 ——
+# 切开会把一个词劈成两半(URL、代码标识符这类切了就废),宁可那一行超一点点。
+ravel "Text"
+
+# ── 行 ──
+# 按 `\n` 切,行尾的 `\r` 顺手去掉(Windows 上写的文件在别处读,不该多出一个字符)。
+readonly Lines := (s: string) => {
+    out := []
+    foreach (s.Split "\n") (line: string) => {
+        out.Add (if { line.EndsWith "\r"; } { line.Slice [0..((line.Length ()) - 1)); } { line; })
+    }
+    out
+}
+
+# ── 词 ──
+# 空白(空格 / tab / 换行)**折成一个**分隔 —— 所以 `Lines` 出来的行直接喂给它也行。
+readonly Words := (s: string) => {
+    blank := [" " "\t" "\n" "\r"]
+    out := []
+    cur := ""
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        c := string (s.At i)
+        blank.Contains c {
+            # 词结束:收一个(空的那一串不要)
+            cur.IsEmpty () { 0; } { out.Add cur; cur = ""; }
+        } {
+            cur += c
+        }
+        i += 1
+    }
+    cur.IsEmpty () { 0; } { out.Add cur; }
+    out
+}
+
+# 是不是"全是空白"(空串也算一张白纸)
+readonly IsBlank := (s: string) => { (Words s).IsEmpty (); }
+
+# ── 折行 ──
+# 词为单位贪心填:填不下就换行。**原有的换行保留**(空行也保留,段落之间才看得出空)。
+readonly Wrap := (s: string width: int) => {
+    assert (width >= 1) ("Text.Wrap: 宽度至少是 1，得到 " + (string width))
+    out := []
+    foreach (Lines s) (line: string) => {
+        words := Words line
+        words.IsEmpty () { out.Add ""; } {
+            cur := ""
+            foreach words (w: string) => {
+                # 这一行还放得下(算上一个空格)就接着放
+                cur.IsEmpty () {
+                    cur = w
+                } {
+                    (((cur.Length ()) + 1 + (w.Length ())) <= width) {
+                        cur += " " + w
+                    } {
+                        out.Add cur
+                        cur = w
+                    }
+                }
+            }
+            out.Add cur
+        }
+    }
+    out.Join "\n"
+}
+
+# ── 缩进 ──
+# 每行前面加 n 个空格。**空行不加**(不然 `Dedent (Indent s 4)` 回不到原样:空行会多出四个空格,
+# 而 Dedent 去的是非空行的公共缩进,四个空格就成了"公共缩进"的一部分)。
+readonly Indent := (s: string n: int) => {
+    pad := (" ").Repeat n
+    out := []
+    foreach (Lines s) (line: string) => {
+        line.IsEmpty () { out.Add ""; } { out.Add (pad + line); }
+    }
+    out.Join "\n"
+}
+
+# 去掉**公共**缩进:看所有非空行,谁最短就按谁去。全是空行就原样交回。
+readonly Dedent := (s: string) => {
+    lines := Lines s
+    least := 0 - 1
+    foreach lines (line: string) => {
+        (IsBlank line) { 0; } {
+            k := 0
+            while { (k < (line.Length ())) && ((string (line.At k)) == " "); } { k += 1; }
+            if { (least < 0) || (k < least); } { least = k; } { 0; }
+        }
+    }
+    (least <= 0) { s; } {
+        out := []
+        foreach lines (line: string) => {
+            if { (line.Length ()) >= least; } { out.Add (line.Skip least); } { out.Add line; }
+        }
+        out.Join "\n"
+    }
+}
+
+# ── 截断 ──
+# 太长就切掉、缀一个 `…`(`…` 只占一个字符,但看着是一个字)。够短原样。
+readonly Truncate := (s: string n: int) => {
+    assert (n >= 1) ("Text.Truncate: 宽度至少是 1，得到 " + (string n))
+    if { (s.Length ()) <= n; } { s; } { (s.Take (n - 1)) + "…"; }
+}
+
+# ── 引号 ──
+# 给一段文字套上引号,顺手把里面的**换行 / tab / 反斜杠 / 引号**转义成看得见的样子 ——
+# 拼报错信息、写测试期望、打日志时最常用这一下。
+readonly Quote := (s: string) => {
+    out := "\""
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        c := s.At i
+        # 条件里带运算符时**要加括号**:`c == '\\' { … }` 会被读成 `c == ('\\' { … })`
+        # —— `{` 粘在字符字面量上,报「值 92 不是函数」。这一层括号是给解析器看的。
+        (c == '\\') { out += "\\\\"; } {
+            (c == '"') { out += "\\\""; } {
+                (c == '\n') { out += "\\n"; } {
+                    (c == '\t') { out += "\\t"; } {
+                        out += (string c)
+                    }
+                }
+            }
+        }
+        i += 1
+    }
+    out + "\""
+}

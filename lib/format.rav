@@ -1,0 +1,190 @@
+# `Format` —— 拼字符串、对齐、进制、千分位。**要显式引用**:`using "format.rav"`。
+#
+# 光靠字符串那批(`Split` / `Replace` / `Repeat` / `+`)当然什么都拼得出来,但"每天都要拼"
+# 的那几件 —— 占位、补空格、几个小数位、千分位、十六进制 —— 每次手搓一遍不值当。
+#
+#     Format.Fmt "{} 有 {} 个" ["苹果" 3]        # 苹果 有 3 个
+#     Format.Fmt "{0} 与 {0}" ["甲"]              # 甲 与 甲(位置能复用)
+#     Format.Fmt "{n} 个" {"n": 3}                # 3 个(给 dict 就按名字取)
+#     Format.Fmt "{{}}" []                        # {}(花括号用 `{{` `}}` 转义)
+#
+#     Format.PadL "7" 3                           # "7  " —— 左对齐、空格填
+#     Format.PadR "7" 3                           # "  7" —— 右对齐(数字就用它)
+#     Format.Pad "7" 5 "0"                        # "00007" —— 自己挑填充字符
+#     Format.Center "中" 5 "."                    # "..中.."
+#
+#     Format.Num 3.14159 2                        # "3.14"(定小数位,不足补零)
+#     Format.Thousands 1234567                    # "1,234,567"
+#     Format.Hex 255 / Format.Bin 5 / Format.Oct 8
+#     Format.Bytes 1536                           # "1.5 KB"
+#
+# 判据都在 `Ravel` 这一层:**能写成库的就别进引擎**。用到的原语全是现成的
+# (`string x` 转换、`Math.RoundTo`、`s.At i` 给字符、`'c'.Code ()` 给码点)。
+using "math.rav"
+
+ravel "Format"
+
+# ── 一件小事:值 → 放进去的样子 ──
+# 字符串原样(不然 `string "a"` 多绕一圈);别的走 `string`(和 `print` 一个口径)。
+readonly Cell := (v: object) => { if { (typeof v) == string; } { v; } { string v; } }
+
+# ── 占位 ──
+# `{}` 按顺序取,`{0}` / `{n}` 按位置或名字取。花括号本身写 `{{` / `}}`。
+# 取不到就**当场报错**(位置对不上是拼串时最常见的错,静默给出空串最难查)。
+readonly Fmt := (tpl: string args: object) => {
+    out := ""
+    cur := 0                                  # `{}` 用到第几个了
+    i := 0
+    n := tpl.Length ()
+
+    take := (k: string) => {
+        if { (typeof args) == dict; } {
+            assert (args.Has k) ("Format.Fmt: 没有 '" + k + "' 这个位置（模板里有 {" + k + "}）")
+            args.Get k
+        } {
+            idx := if { k.IsEmpty (); } { mine := cur; cur += 1; mine; } { int k; }
+            assert ((idx >= 0) && (idx < (args.Count ()))) ("Format.Fmt: 第 " + (string idx) + " 个位置没有实参（一共 " + (string (args.Count ())) + " 个）")
+            args.At idx
+        }
+    }
+
+    while { i < n; } {
+        c := tpl.At i
+        if { c == '{'; } {
+            if { ((i + 1) < n) && ((tpl.At (i + 1)) == '{'); } {
+                out += "{"
+                i += 2
+            } {
+                j := i + 1
+                while { (j < n) && ((tpl.At j) != '}'); } { j += 1; }
+                assert (j < n) ("Format.Fmt: '{' 没有闭合 —— " + tpl)
+                key := tpl.Slice [(i + 1)..j)
+                out += (Cell (take key))
+                i = j + 1
+            }
+        } {
+            if { (c == '}') && (((i + 1) < n) && ((tpl.At (i + 1)) == '}')); } {
+                out += "}"
+                i += 2
+            } {
+                out += (string c)
+                i += 1
+            }
+        }
+    }
+
+    out
+}
+
+# ── 对齐与填充 ──
+# `n` 是**目标宽度**;已经够长就原样交回(不截断 —— 截断是 `Text.Truncate` 的事)。
+# `fill` 是填充串,可以多字符(`Format.Pad "7" 5 "ab"` → "abab7")。
+readonly Pad := (s: string n: int fill: string) => {
+    assert (!(fill.IsEmpty ())) "Format.Pad: 填充串不能是空的（填不满会死循环）"
+    (Filler n (s.Length ()) fill) + s
+}
+
+# 左对齐 + 空格(字符串排版用这个):填充补在**右边**
+readonly PadL := (s: string n: int) => { s + (Filler n (s.Length ()) " "); }
+
+# 右对齐 + 空格(数字用这个):填充补在**左边**
+readonly PadR := (s: string n: int) => { (Filler n (s.Length ()) " ") + s; }
+
+# 居中:左右尽量平分,多出来的那一个给**右边**(肉眼看稳)
+readonly Center := (s: string n: int fill: string) => {
+    need := n - (s.Length ())
+    if { need <= 0; } { s; } {
+        left := (Filler (need / 2) 0 fill)          # 左边要补的那一截
+        rightN := need - (left.Length ())
+        left + s + (Filler rightN 0 fill)
+    }
+}
+
+# 补够到宽度 `n`(原串长 `have`)要用的那一串填充 —— 上面的对齐共用这一份。
+# 多字符的填充串按需重复,再从左边切够。
+readonly Filler := (n: int have: int fill: string) => {
+    need := n - have
+    if { need <= 0; } { ""; } {
+        pad := fill
+        while { (pad.Length ()) < need; } { pad += fill; }
+        pad.Slice [0..need)
+    }
+}
+
+# ── 数字 ──
+# 定小数位:**不足补零**、超出四舍五入 —— 要的是"排出来齐",所以不省尾随零。
+readonly Num := (x: float digits: int) => {
+    assert ((digits >= 0) && (digits <= 15)) ("Format.Num: 小数位要在 0..15，得到 " + (string digits))
+    text := string (Math.RoundTo x digits)
+    hasDot := text.Contains "."
+    if { digits == 0; } {
+        if { hasDot; } { text.Slice [0..(text.IndexOf '.')); } { text; }   # 四舍五入到整数位
+    } {
+        if { hasDot; } {
+            frac := digits - ((text.Length ()) - (text.IndexOf '.') - 1)
+            if { frac <= 0; } { text; } { text + (("0").Repeat frac); }
+        } {
+            (text + ".") + (("0").Repeat digits)
+        }
+    }
+}
+
+# 千分位:`1234567` → `1,234,567`。小数部分原样留着,只分整数部分。
+readonly Thousands := (x: object) => {
+    text := Cell x
+    neg := text.StartsWith "-"
+    body := if { neg; } { text.Skip 1; } { text; }
+    hasDot := body.Contains "."
+    intPart := if { hasDot; } { body.Slice [0..(body.IndexOf '.')); } { body; }
+    frac := if { hasDot; } { body.Skip (body.IndexOf '.'); } { ""; }
+
+    out := ""
+    i := 0
+    n := intPart.Length ()
+    while { i < n; } {
+        # 从右往左数,每三位插一个逗号
+        if { (i > 0) && (((n - i) % 3) == 0); } { out += ","; } { 0; }
+        out += (string (intPart.At i))
+        i += 1
+    }
+
+    (if { neg; } { "-"; } { ""; }) + out + frac
+}
+
+# ── 进制 ──
+readonly Digits := "0123456789abcdef"
+
+# 收 int 也收 bigint(`-2147483648` 这种字面量自己就溢成 bigint 了):
+# 内部一律抬到 bigint 再算,bignum 的取负和整除都不溢出。
+readonly InBase := (n: object base: int) => {
+    assert ((base >= 2) && (base <= 16)) ("Format: 进制要在 2..16，得到 " + (string base))
+    left := bigint n
+    zero := bigint 0
+    if { left == zero; } { "0"; } {
+        neg := left < zero
+        if { neg; } { left = zero - left; } { 0; }
+        step := bigint base
+        out := ""
+        while { left > zero; } {
+            out = (string (Digits.At (int (left % step)))) + out
+            left = left / step;               # bigint 的 `/` 是**整除**
+        }
+        (if { neg; } { "-"; } { ""; }) + out
+    }
+}
+
+readonly Hex := (n: object) => { InBase n 16; }
+readonly Bin := (n: object) => { InBase n 2; }
+readonly Oct := (n: object) => { InBase n 8; }
+
+# ── 字节数说人话 ──
+readonly Bytes := (n: int) => {
+    units := ["B" "KB" "MB" "GB" "TB"]
+    v := float n
+    k := 0
+    while { (v >= 1024.0) && (k < ((units.Count ()) - 1)); } {
+        v = v / 1024.0
+        k += 1
+    }
+    if { k == 0; } { (string n) + " B"; } { ((Num v 1) + " ") + (units.At k); }
+}

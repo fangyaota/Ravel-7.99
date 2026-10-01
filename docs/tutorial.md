@@ -1886,7 +1886,52 @@ Regex.Escape "a.b"               # "a\.b" —— 把字面量转成模式
 
 **用例见 tests/256。**
 
-### 6.13 数据类（`dataclass`）
+### 6.13 格式化、文本、编码（`Format` / `Text` / `Encoding`）
+
+三件"每天都用、手搓不值当"的事，各自一个模块，**都要显式引用**。
+
+```ravel
+using "format.rav"
+Format.Fmt "{} 有 {} 个" ["苹果" 3]        # 苹果 有 3 个
+Format.Fmt "{0} 与 {0}" ["甲"]              # 位置能复用;给 dict 就按名字取
+Format.PadL "7" 3 / Format.PadR "7" 3      # "7  " / "  7"
+Format.Num 3.14159 2                       # "3.14"（不足补零）
+Format.Thousands 1234567                   # "1,234,567"
+Format.Hex 255 / Format.Bytes 1536         # "ff" / "1.5 KB"
+```
+
+```ravel
+using "text.rav"
+Text.Lines "a
+b"                # ["a" "b"]（顺带去掉 Windows 的 ）
+Text.Words "a  b"                # ["a" "b"]（空白折成一个分隔）
+Text.Wrap "…很长…" 20             # 按宽度折行；长词不硬切，自己占一行
+Text.Indent "a
+b" 4             # 每行前加 4 个空格（空行不动）
+Text.Dedent "    a
+    b"       # 去掉公共缩进
+Text.Truncate "abcdef" 4         # "abc…"
+Text.Quote "说不清\"的话"         # 转义成看得见的样子（拼报错/写期望时用）
+```
+
+```ravel
+using "encoding.rav"
+Encoding.Base64Text "你好"        # "5L2g5aW9"（先 UTF-8 变字节，再编码）
+Encoding.Base64 [1 2 3]           # "AQID"（也可以直接喂字节表）
+Encoding.Hex [255 0] / Encoding.Unhex "ff00"
+Encoding.UrlEncode "a b/中"       # "a%20b%2F%E4%B8%AD"
+Encoding.HtmlEscape "<a&b>"       # "&lt;a&amp;b&gt;"
+```
+
+**字节表**是"一串 `0..255` 的 int"（`Random.Bytes n` 交回的就是它）。Ravel 的 `string`
+是 UTF-16，**装不下任意字节** —— 所以这层的规矩是：要编码就先进字节表，要文本就先 `Utf8Text`。
+
+**注意**：`Format.PadL` 这类补出来的空格**在行尾**，写 golden 用例时要套一层方括号才钉得住
+（跑测试那套会把每行末尾的空白裁掉）。
+
+**用例见 tests/260、tests/261、tests/262。**
+
+### 6.14 数据类（`dataclass`）
 
 一堆字段 + 「打印、相等、构造」三件事每次都手写太啰嗦，`dataclass` 一个都不用手写。
 **要显式引用**：

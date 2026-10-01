@@ -1,0 +1,83 @@
+# `Format` —— 占位、对齐、进制、千分位(见 lib/format.rav)。**要显式引用**。
+using "format.rav"
+
+# ── 占位 ──
+print (Format.Fmt "{} 有 {} 个" ["苹果" 3])
+print (Format.Fmt "{0} 与 {1} 与 {0}" ["甲" "乙"])     # 位置能复用
+print (Format.Fmt "{n} 个，{m} 个" {"n": 1 "m": 2})      # 给 dict 就按名字取
+print (Format.Fmt "{{}} 里的 {}" ["X"])                 # `{{` `}}` 是花括号本身
+print (Format.Fmt "没有占位" [])                         # 一个都不给也行
+print (Format.Fmt "{}" [1.5])                           # 值走 `string`
+print (Format.Fmt "{}" [[1 2]])                         # 容器也照 `string` 来
+
+# 位置对不上**当场报错**(拼串时最常见的错,静默给空串最难查)
+try { Format.Fmt "{} {}" ["只有一个"]; } (e: Exception) => { print ("1: " + string e); }
+try { Format.Fmt "{nope}" {"n": 1}; } (e: Exception) => { print ("2: " + string e); }
+try { Format.Fmt "没有闭合 {" []; } (e: Exception) => { print ("3: " + string e); }
+
+# ── 对齐 ──
+# 对齐那一组**套一层方括号**:补出来的空格在行尾,直接 print 的话 golden 文件里
+# 既看不见、又会被编辑器顺手删掉 —— 括起来才是钉得住的写法
+print ("[" + (Format.Pad "7" 5 "0") + "]")
+print ("[" + (Format.PadL "中" 4) + "]")
+print ("[" + (Format.PadR "7" 3) + "]")
+print ("[" + (Format.PadL "够长了" 2) + "]")     # 够长就原样,不截断
+print ("[" + (Format.Center "中" 5 ".") + "]")
+print ("[" + (Format.Pad "" 3 "ab") + "]")       # 填充串可以多字符
+
+# ── 数字 ──
+print (Format.Num 3.14159 2)
+print (Format.Num 3.1 3)                # 不足补零
+print (Format.Num 2.5 0)                # 到整数位
+print (Format.Num (0 - 2.5) 0)
+print (Format.Thousands 1234567)
+print (Format.Thousands 1234567.891)    # 小数部分不动
+print (Format.Thousands (0 - 1000))
+print (Format.Thousands 999)
+
+# ── 进制 ──
+print (Format.Hex 255)
+print (Format.Bin 5)
+print (Format.Oct 8)
+print (Format.Hex 0)
+print (Format.Hex (0 - 2147483648))     # 字面量自己溢成 bigint,也收
+print (Format.Hex (bigint 4294967296))
+
+# ── 字节数 ──
+print (Format.Bytes 512)
+print (Format.Bytes 1536)
+print (Format.Bytes 1048576)
+# --- expected ---
+# 苹果 有 3 个
+# 甲 与 乙 与 甲
+# 1 个，2 个
+# {} 里的 X
+# 没有占位
+# 1.5
+# [1 2]
+# 1: Format.Fmt: 第 1 个位置没有实参（一共 1 个）
+# 2: Format.Fmt: 没有 'nope' 这个位置（模板里有 {nope}）
+# 3: Format.Fmt: '{' 没有闭合 —— 没有闭合 {
+# [00007]
+# [中   ]
+# [  7]
+# [够长了]
+# [..中..]
+# [aba]
+# 3.14
+# 3.100
+# 3
+# -3
+# 1,234,567
+# 1,234,567.891
+# -1,000
+# 999
+# ff
+# 101
+# 10
+# 0
+# -80000000
+# 100000000
+# 512 B
+# 1.5 KB
+# 1.0 MB
