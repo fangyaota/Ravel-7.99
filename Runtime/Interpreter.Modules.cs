@@ -39,4 +39,42 @@ public partial class Interpreter
         _loaded.Add(full);
         return Parser.ParseBlock(File.ReadAllText(full), full);
     }
+
+    /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里。
+    /// `ravel ""` 是**回全局作用域**——文档就是这么用的(`ravel "MyMath"` … `ravel ""` … 引用它)。</summary>
+    /// <summary>「成员是 C# 造的」模块:名字 → 往它的作用域里填成员的动作。
+    /// `EnterModule` 在模块**第一次被 `ravel` 到时**调用一次 —— 这就是"要显式引用才有"
+    /// 的落点(`System` 不走这条路:它启动时就建好,见 `RegisterBuiltins`)。
+    ///
+    /// 表是静态的:填成员不需要解释器状态,而模块是每个 Interpreter 各自建的
+    /// (和 `_modules` 一起生命周期)。填的动作都在 `Runtime/Builtins/` 里。</summary>
+    private static readonly Dictionary<string, Action<Scope>> CSharpModules = new()
+    {
+        ["Math"] = MathModule.Fill,
+    };
+
+    internal RuntimeValue EnterModule(string name)
+    {
+        // 空名字特判成「回全局」。不特判的话会建出一个**名字叫 "" 的模块**,
+        // 后面的定义全落在那儿;而模块作用域只挂到 _global 上,所以那些定义
+        // 从别的模块根本看不见:`ravel ""` 之后 `b := 2`,再 `ravel "A"` 就读不到 b。
+        if (name.Length == 0)
+        {
+            SetAmbientScope(_global);
+            return VoidVal.Instance;
+        }
+
+        if (!_modules.TryGetValue(name, out var mv))
+        {
+            var mt = BuiltinClasses.NewModuleClass(name, BuiltinClasses.Ravel);
+            mv = new ModuleVal(mt, new Scope(_global));
+            // 成员是 C# 造的那几个模块(Math),在这里填 —— 所以它们**要显式 ravel 才有**
+            if (CSharpModules.TryGetValue(name, out var fill)) fill(mv.Scope);
+            _modules[name] = mv;
+            _global.Define(name, mt, mv);
+        }
+
+        SetAmbientScope(mv.Scope);
+        return VoidVal.Instance;
+    }
 }

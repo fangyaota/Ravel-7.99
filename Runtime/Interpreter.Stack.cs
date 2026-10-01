@@ -147,6 +147,13 @@ public partial class Interpreter
     /// <summary>Ravel 那边注册的"错误交给谁"的钩子(库启动时注册一次,见 predefined.rav 的 `onError`)。
     /// 引擎**不认识** handler 栈:它只把这个函数调起来,由库决定有没有人接、没人接怎么办 ——
     /// 于是"异常处理"整套也住在库里,和 `while` / `try` / `callcc` 一样。</summary>
+    /// <summary>库注册的"错误交给谁"。给内置那一族开 `internal` 的口(见 `SysCore.SetErrorHook`)。</summary>
+    internal FunctionVal? ErrorHook
+    {
+        get => _errorHook;
+        set => _errorHook = value;
+    }
+
     private FunctionVal? _errorHook;
 
     /// <summary>这一次交给钩子的那个异常:库"没人接"时调 `System.Unhandled`,由这里**原样**再抛出去
@@ -165,7 +172,7 @@ public partial class Interpreter
     }
 
     /// <summary>`System.Unhandled e`:库在"没人接"时调它 —— 把引擎这次交出去的那个异常原样抛出。</summary>
-    private RuntimeValue Unhandled(RuntimeValue e)
+    internal RuntimeValue Unhandled(RuntimeValue e)
     {
         var ex = _handed;
         _handed = null;

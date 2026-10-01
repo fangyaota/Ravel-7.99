@@ -25,7 +25,7 @@ namespace Ravel.Runtime;
 /// `BigMul` 是 long×long 的溢出规避,这里用 bigint;`IEEERemainder` 与 `%` 是同一类需求;
 /// `ScaleB` / `ILogB` / `BitIncrement` / `BitDecrement` / `CopySign` 是 IEEE **位级**操作,
 /// 不是算术。</summary>
-public partial class Interpreter
+internal static class MathModule
 {
     /// <summary>「成员是 C# 造的」模块:名字 → 往它的作用域里填成员的动作。
     /// `EnterModule` 在模块**第一次被 `ravel` 到时**调用一次 —— 这就是"要显式引用才有"
@@ -33,12 +33,7 @@ public partial class Interpreter
     ///
     /// 表是静态的:填成员不需要解释器状态,而模块是每个 Interpreter 各自建的
     /// (和 `_modules` 一起生命周期)。</summary>
-    private static readonly Dictionary<string, Action<Scope>> ModuleFillers = new()
-    {
-        ["Math"] = FillMath,
-    };
-
-    private static void FillMath(Scope scope)
+    public static void Fill(Scope scope)
     {
         void Def(string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);
         void Fn(string name, FunctionVal fn) => Def(name, BuiltinClasses.Function, fn);

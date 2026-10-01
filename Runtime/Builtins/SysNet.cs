@@ -4,6 +4,9 @@ using System.Text;
 
 namespace Ravel.Runtime;
 
+using static Ravel.Runtime.Interpreter;
+using static Ravel.Runtime.SysKit;
+
 /// <summary>网络 —— 只做到 HTTP 这一层(裸 TCP 以后再说)。
 ///
 /// 和文件系统那批一个规矩:**只做 syscall,不做策略** —— URL 怎么拼、响应怎么解、
@@ -17,14 +20,14 @@ namespace Ravel.Runtime;
 /// `max`(响应正文封顶,默认 16 MB)。
 /// 交回:`status` / `reason` / `headers`(小写名→值,重复的用 `, ` 连起来)/ `body`(字节表)/
 /// `url`(跟完重定向之后那个)。下载、上传那两条把 `body` 换成 `bytes`(写出去多少字节)。</summary>
-public partial class Interpreter
+internal static class SysNet
 {
     [Sys("HttpReq")]
-    private static RuntimeValue HttpReq(RuntimeValue a)
+    public static RuntimeValue HttpReq(RuntimeValue a)
         => Http("发请求", () => Send(As<DictVal>(a, "HttpReq 的请求"), null));
 
     [Sys("HttpDownload")]
-    private static RuntimeValue HttpDownload(RuntimeValue a) => Http("下载", () =>
+    public static RuntimeValue HttpDownload(RuntimeValue a) => Http("下载", () =>
     {
         var req = As<DictVal>(a, "HttpDownload 的请求");
         var path = OptText(req, "path", "");
@@ -35,7 +38,7 @@ public partial class Interpreter
     });
 
     [Sys("HttpUpload")]
-    private static RuntimeValue HttpUpload(RuntimeValue a) => Http("上传", () =>
+    public static RuntimeValue HttpUpload(RuntimeValue a) => Http("上传", () =>
     {
         var req = As<DictVal>(a, "HttpUpload 的请求");
         var path = OptText(req, "path", "");
@@ -46,7 +49,7 @@ public partial class Interpreter
     /// <summary>字节 → 文本。**认不出来的字符集不报错**、按 UTF-8 解:网上写着 `charset=utf8`、
     /// `charset=UTF8`、甚至拼错的大把,为一个只影响显示的字段把整次请求打断不值当。</summary>
     [Sys("DecodeText")]
-    private static RuntimeValue DecodeText(RuntimeValue a, RuntimeValue b) => Fs("解码文本", () =>
+    public static RuntimeValue DecodeText(RuntimeValue a, RuntimeValue b) => Fs("解码文本", () =>
         new StringVal(Decode(BytesOf(a, "DecodeText 的字节"), As<StringVal>(b, "DecodeText 的字符集").Value)));
 
     /// <summary>进程级共享的那一台 —— **别每次请求 new 一个**:连接池挂在它身上,
@@ -55,10 +58,10 @@ public partial class Interpreter
     /// 超时**不设在这台身上**(设了就是全进程一把尺子),每个请求自己用 CancellationToken 管。
     /// 两台只差一件事:跟不跟重定向 —— 那是**处理器**(handler)级的开关,没法按请求改,
     /// 所以宁可养两台也不给用户一个"说是不跟、其实跟了"的 `follow`。</summary>
-    private static readonly HttpClient Web = MakeWeb(true);
-    private static readonly HttpClient WebNoRedirect = MakeWeb(false);
+    public static readonly HttpClient Web = MakeWeb(true);
+    public static readonly HttpClient WebNoRedirect = MakeWeb(false);
 
-    private static HttpClient MakeWeb(bool follow) => new(new SocketsHttpHandler
+    public static HttpClient MakeWeb(bool follow) => new(new SocketsHttpHandler
     {
         AllowAutoRedirect = follow,
         MaxAutomaticRedirections = 10,
@@ -68,7 +71,7 @@ public partial class Interpreter
 
     /// <summary>发出去、等回来。`bodyOut` 不是 null 时把正文**流式写进它**(下载那条路),
     /// `uploadPath` 不是 null 时把那个文件**流式发出去**(multipart,上传那条路)。</summary>
-    private static RuntimeValue Send(DictVal req, Stream? bodyOut, string? uploadPath = null, string field = "file")
+    public static RuntimeValue Send(DictVal req, Stream? bodyOut, string? uploadPath = null, string field = "file")
     {
         var url = OptText(req, "url", "");
         if (url.Length == 0) throw new RuntimeException("请求 dict 里没有 url", ErrorKind.Argument);
@@ -142,7 +145,7 @@ public partial class Interpreter
     /// <summary>网络错误的那句中文。**不能直接用 `ex.Message`**:那是 .NET 跟着系统语言给的
     /// (中文机器上是一种说法、英文机器上又一种),而报错消息是要被 golden 用例**钉住**的。
     /// 认不出来的照样把原文带上 —— 总比一句"失败了"强。</summary>
-    private static string Why(HttpRequestException ex) => ex.HttpRequestError switch
+    public static string Why(HttpRequestException ex) => ex.HttpRequestError switch
     {
         HttpRequestError.NameResolutionError => "域名解析不了",
         HttpRequestError.ConnectionError when ex.InnerException is SocketException { SocketErrorCode: SocketError.ConnectionRefused }
@@ -156,7 +159,7 @@ public partial class Interpreter
     /// <summary>请求头。名字撞上"内容头"(`content-type` 这类)时要加在 Content 那半边 ——
     /// 加错地方 .NET 会抛「不能把 content header 加到 request headers 上」,而那是个
     /// 用起来很意外的错误。</summary>
-    private static void ApplyHeaders(HttpRequestMessage msg, DictVal headers)
+    public static void ApplyHeaders(HttpRequestMessage msg, DictVal headers)
     {
         foreach (var (k, v) in headers.Entries)
         {
@@ -172,7 +175,7 @@ public partial class Interpreter
 
     /// <summary>响应头:响应那一层 + 内容那一层合成一张。名字**一律小写**(HTTP 头不区分大小写,
     /// 给两套写法只会让查的人猜);同名的多个值用 `, ` 连起来(和 HTTP 自己的规矩一致)。</summary>
-    private static DictVal HeaderDict(HttpResponseMessage resp)
+    public static DictVal HeaderDict(HttpResponseMessage resp)
     {
         var merged = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         void Take(IEnumerable<KeyValuePair<string, IEnumerable<string>>> src)
@@ -195,7 +198,7 @@ public partial class Interpreter
 
     /// <summary>读正文,超过 `cap` 就停下报错。不封顶的话一个大文件会先在堆里攒成字节表,
     /// 而堆是有上限的(测试里 256 MB)—— 那种时候该走 `Http.Download`。</summary>
-    private static byte[] ReadCapped(Stream s, long cap, string url)
+    public static byte[] ReadCapped(Stream s, long cap, string url)
     {
         var ms = new MemoryStream();
         var buffer = new byte[81920];
@@ -213,13 +216,13 @@ public partial class Interpreter
 
     /// <summary>一个字节数怎么说人话(报错里用)。默认那 16 MB 不能印成 16777216。
     /// (和 `Format.Bytes` 那个不一样:这儿是**上限**、不是给人看的文件大小,整数就够)</summary>
-    private static string Human(long n)
+    public static string Human(long n)
         => n >= 1024 * 1024 ? $"{n / (1024 * 1024)} MB"
          : n >= 1024 ? $"{n / 1024} KB"
          : $"{n} 字节";
 
     /// <summary>正文直接抄进别的流(下载),交回抄了多少字节 —— 中途不经过内存里那张字节表</summary>
-    private static long CopyTo(Stream from, Stream to, CancellationToken ct)
+    public static long CopyTo(Stream from, Stream to, CancellationToken ct)
     {
         var buffer = new byte[81920];
         long total = 0;
@@ -236,7 +239,7 @@ public partial class Interpreter
 
     /// <summary>按字符集解字节。GBK 那一批要 `CodePagesEncodingProvider` 才认得
     /// (见静态构造函数);认不出来的名字退回 UTF-8,不报错。</summary>
-    private static string Decode(byte[] bytes, string charset)
+    public static string Decode(byte[] bytes, string charset)
     {
         if (charset.Length == 0) return LenientUtf8.GetString(bytes);
         try
@@ -251,9 +254,11 @@ public partial class Interpreter
 
     /// <summary>宽松 UTF-8:坏字节变成 U+FFFD,不抛异常、也不静默丢掉 ——
     /// 网页上出现个把乱码不值得把整次请求打断。</summary>
-    private static readonly UTF8Encoding LenientUtf8 = new(false, throwOnInvalidBytes: false);
+    public static readonly UTF8Encoding LenientUtf8 = new(false, throwOnInvalidBytes: false);
 
-    static Interpreter()
+    /// <summary>第一次用到这个类时把老编码注册上 —— 就挂在要用它的这一格,
+    /// 不必再挂到解释器身上(那是「整台引擎」的事,而这是「解码文本」的事)。</summary>
+    static SysNet()
     {
         // 老编码(GBK / GB2312 / Big5…)在 .NET Core 上要显式注册才认 —— 中文网页常见,
         // 不注册的话 `charset=gbk` 会静默退回 UTF-8,整页乱码还找不到原因
@@ -263,16 +268,16 @@ public partial class Interpreter
     private const int DefaultTimeoutMs = 30_000;
     private const int DefaultMaxBytes = 16 * 1024 * 1024;
 
-    private static RuntimeValue? Opt(DictVal d, string key)
+    public static RuntimeValue? Opt(DictVal d, string key)
         => d.Entries.TryGetValue(new StringVal(key), out var v) && v is not VoidVal ? v : null;
 
-    private static string OptText(DictVal d, string key, string dflt) => Opt(d, key) is StringVal s ? s.Value : dflt;
-    private static int OptInt(DictVal d, string key, int dflt) => Opt(d, key) is IntVal i ? i.Value : dflt;
-    private static bool OptBool(DictVal d, string key, bool dflt) => Opt(d, key) is BoolVal b ? b.Value : dflt;
+    public static string OptText(DictVal d, string key, string dflt) => Opt(d, key) is StringVal s ? s.Value : dflt;
+    public static int OptInt(DictVal d, string key, int dflt) => Opt(d, key) is IntVal i ? i.Value : dflt;
+    public static bool OptBool(DictVal d, string key, bool dflt) => Opt(d, key) is BoolVal b ? b.Value : dflt;
 
     /// <summary>网络那一批的兜底:兜住的比 <see cref="Fs"/> 宽 —— 网络能出的岔子
     /// (DNS、连接被拒、TLS、坏 URL)本来就不是 `IOException` 那一族,漏出去会把程序打掉。</summary>
-    private static RuntimeValue Http(string what, Func<RuntimeValue> body)
+    public static RuntimeValue Http(string what, Func<RuntimeValue> body)
     {
         try
         {

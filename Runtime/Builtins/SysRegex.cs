@@ -1,6 +1,7 @@
 namespace Ravel.Runtime;
 
 using System.Text.RegularExpressions;
+using static Ravel.Runtime.Interpreter;
 
 /// <summary>`System` 模块里的**正则原语** —— 把 .NET 的 `System.Text.RegularExpressions` 包一层。
 ///
@@ -18,7 +19,7 @@ using System.Text.RegularExpressions;
 ///
 /// 用的都是**静态**那组重载(`Regex.IsMatch (input, pattern, options, timeout)`):
 /// 它们走 .NET 内部那张模式缓存,同一个模式不必反复编译。</summary>
-public partial class Interpreter
+internal static class SysRegex
 {
     /// <summary>一条正则最多跑多久。够日常用,又不至于让一个坏模式把程序挂死。</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
@@ -92,11 +93,11 @@ public partial class Interpreter
     // ── 六条 ──(统一形状:**模式、文本、选项**,`Replace` 再多一个替换串)
 
     [Sys("RegexEscape")]
-    private static RuntimeValue RegexEscape(RuntimeValue a)
+    public static RuntimeValue RegexEscape(RuntimeValue a)
         => new StringVal(Regex.Escape(Str(a, "RegexEscape 的文本")));
 
     [Sys("RegexIsMatch")]
-    private static RuntimeValue RegexIsMatch(RuntimeValue p, RuntimeValue t, RuntimeValue f)
+    public static RuntimeValue RegexIsMatch(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexIsMatch 的模式");
         return Guarded(pattern, () =>
@@ -105,7 +106,7 @@ public partial class Interpreter
     }
 
     [Sys("RegexMatch")]
-    private static RuntimeValue RegexMatch(RuntimeValue p, RuntimeValue t, RuntimeValue f)
+    public static RuntimeValue RegexMatch(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexMatch 的模式");
         return Guarded(pattern, () =>
@@ -117,7 +118,7 @@ public partial class Interpreter
     }
 
     [Sys("RegexFindAll")]
-    private static RuntimeValue RegexFindAll(RuntimeValue p, RuntimeValue t, RuntimeValue f)
+    public static RuntimeValue RegexFindAll(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexFindAll 的模式");
         return Guarded(pattern, () =>
@@ -133,7 +134,7 @@ public partial class Interpreter
     /// <summary>四个参数:前三个进这一层,交回的是"还等着替换串"的那枚函数
     /// (柯里化,和 `FunctionVal.From` 那套一个走法)。</summary>
     [Sys("RegexReplace")]
-    private static RuntimeValue RegexReplace(RuntimeValue p, RuntimeValue t, RuntimeValue f)
+    public static RuntimeValue RegexReplace(RuntimeValue p, RuntimeValue t, RuntimeValue f)
         => FunctionVal.From(r =>
         {
             var pattern = Str(p, "RegexReplace 的模式");
@@ -144,7 +145,7 @@ public partial class Interpreter
         });
 
     [Sys("RegexSplit")]
-    private static RuntimeValue RegexSplit(RuntimeValue p, RuntimeValue t, RuntimeValue f)
+    public static RuntimeValue RegexSplit(RuntimeValue p, RuntimeValue t, RuntimeValue f)
     {
         var pattern = Str(p, "RegexSplit 的模式");
         return Guarded(pattern, () =>

@@ -1,5 +1,8 @@
 namespace Ravel.Runtime;
 
+using static Ravel.Runtime.Interpreter;
+using static Ravel.Runtime.SysKit;
+
 /// <summary>`System` 的文件系统原语 —— **只做 syscall,不做策略**。
 ///
 /// 失败就报 Ravel 错误(中文、带路径);"要不要先问一句"交给 `FileExists` / `DirExists`
@@ -7,18 +10,18 @@ namespace Ravel.Runtime;
 /// 一个待遇,用户自己负责。那些预检查是为了消息说人话;`Fs` 那层兜底是为了不让 C# 异常
 /// 漏到顶层(目录不存在、没权限、路径里有非法字符…… 漏出去会绕过 Ravel 的 try 把程序打掉,
 /// 和这批原语一条道理)。</summary>
-public partial class Interpreter
+internal static class SysFiles
 {
     [Sys("FileExists")]
-    private static RuntimeValue FileExists(RuntimeValue a)
+    public static RuntimeValue FileExists(RuntimeValue a)
         => Fs("FileExists", () => new BoolVal(File.Exists(PathOf(a, "FileExists"))));
 
     [Sys("DirExists")]
-    private static RuntimeValue DirExists(RuntimeValue a)
+    public static RuntimeValue DirExists(RuntimeValue a)
         => Fs("DirExists", () => new BoolVal(Directory.Exists(PathOf(a, "DirExists"))));
 
     [Sys("ReadText")]
-    private static RuntimeValue ReadText(RuntimeValue a) => Fs("读文件", () =>
+    public static RuntimeValue ReadText(RuntimeValue a) => Fs("读文件", () =>
     {
         var p = PathOf(a, "ReadText");
         NeedFile(p, "读文件");
@@ -26,7 +29,7 @@ public partial class Interpreter
     });
 
     [Sys("WriteText")]
-    private static RuntimeValue WriteText(RuntimeValue a, RuntimeValue b) => Fs("写文件", () =>
+    public static RuntimeValue WriteText(RuntimeValue a, RuntimeValue b) => Fs("写文件", () =>
     {
         var p = PathOf(a, "WriteText");
         NeedParentDir(p, "写文件");
@@ -35,7 +38,7 @@ public partial class Interpreter
     });
 
     [Sys("AppendText")]
-    private static RuntimeValue AppendText(RuntimeValue a, RuntimeValue b) => Fs("追加文件", () =>
+    public static RuntimeValue AppendText(RuntimeValue a, RuntimeValue b) => Fs("追加文件", () =>
     {
         var p = PathOf(a, "AppendText");
         NeedParentDir(p, "追加文件");
@@ -46,7 +49,7 @@ public partial class Interpreter
     /// <summary>字节那两条:和文本那三条对称 —— 字节表就是 `Encoding` / `Random.Bytes` / `Bits`
     /// 用的那串 0..255。加它之前那些字节表只能在自己肚子里转,存不下来也读不回来。</summary>
     [Sys("ReadBytes")]
-    private static RuntimeValue ReadBytes(RuntimeValue a) => Fs("读字节", () =>
+    public static RuntimeValue ReadBytes(RuntimeValue a) => Fs("读字节", () =>
     {
         var p = PathOf(a, "ReadBytes");
         NeedFile(p, "读字节");
@@ -54,7 +57,7 @@ public partial class Interpreter
     });
 
     [Sys("WriteBytes")]
-    private static RuntimeValue WriteBytes(RuntimeValue a, RuntimeValue b) => Fs("写字节", () =>
+    public static RuntimeValue WriteBytes(RuntimeValue a, RuntimeValue b) => Fs("写字节", () =>
     {
         var p = PathOf(a, "WriteBytes");
         NeedParentDir(p, "写字节");
@@ -64,7 +67,7 @@ public partial class Interpreter
 
     /// <summary>删文件,或删**空**目录 —— 不提供递归删除(那是个危险默认值)</summary>
     [Sys("DeletePath")]
-    private static RuntimeValue DeletePath(RuntimeValue a) => Fs("删除", () =>
+    public static RuntimeValue DeletePath(RuntimeValue a) => Fs("删除", () =>
     {
         var p = PathOf(a, "DeletePath");
         if (Directory.Exists(p))
@@ -82,14 +85,14 @@ public partial class Interpreter
 
     /// <summary>父目录一并建;已存在不算错</summary>
     [Sys("CreateDir")]
-    private static RuntimeValue CreateDir(RuntimeValue a) => Fs("建目录", () =>
+    public static RuntimeValue CreateDir(RuntimeValue a) => Fs("建目录", () =>
     {
         Directory.CreateDirectory(PathOf(a, "CreateDir"));
         return VoidVal.Instance;
     });
 
     [Sys("ListDir")]
-    private static RuntimeValue ListDir(RuntimeValue a) => Fs("列目录", () =>
+    public static RuntimeValue ListDir(RuntimeValue a) => Fs("列目录", () =>
     {
         var p = PathOf(a, "ListDir");
         if (!Directory.Exists(p)) throw new RuntimeException($"列目录失败: 找不到目录 —— {p}", ErrorKind.Io);
@@ -103,7 +106,7 @@ public partial class Interpreter
     // ── 问一个路径的事 ──
 
     [Sys("PathSize")]
-    private static RuntimeValue PathSize(RuntimeValue a) => Fs("看文件大小", () =>
+    public static RuntimeValue PathSize(RuntimeValue a) => Fs("看文件大小", () =>
     {
         var p = PathOf(a, "PathSize");
         NeedFile(p, "看文件大小");
@@ -111,7 +114,7 @@ public partial class Interpreter
     });
 
     [Sys("PathTime")]
-    private static RuntimeValue PathTime(RuntimeValue a) => Fs("看修改时间", () =>
+    public static RuntimeValue PathTime(RuntimeValue a) => Fs("看修改时间", () =>
     {
         var p = PathOf(a, "PathTime");
         NeedFile(p, "看修改时间");
@@ -119,7 +122,7 @@ public partial class Interpreter
     });
 
     [Sys("CopyPath")]
-    private static RuntimeValue CopyPath(RuntimeValue a, RuntimeValue b) => Fs("复制", () =>
+    public static RuntimeValue CopyPath(RuntimeValue a, RuntimeValue b) => Fs("复制", () =>
     {
         var src = PathOf(a, "CopyPath");
         var dst = PathOf(b, "CopyPath");
@@ -131,7 +134,7 @@ public partial class Interpreter
     });
 
     [Sys("MovePath")]
-    private static RuntimeValue MovePath(RuntimeValue a, RuntimeValue b) => Fs("移动", () =>
+    public static RuntimeValue MovePath(RuntimeValue a, RuntimeValue b) => Fs("移动", () =>
     {
         var src = PathOf(a, "MovePath");
         var dst = PathOf(b, "MovePath");
@@ -142,11 +145,11 @@ public partial class Interpreter
     });
 
     [Sys("CurrentDir")]
-    private static RuntimeValue CurrentDir(RuntimeValue _)
+    public static RuntimeValue CurrentDir(RuntimeValue _)
         => Fs("读当前目录", () => new StringVal(Directory.GetCurrentDirectory()));
 
     [Sys("ChDir")]
-    private static RuntimeValue ChDir(RuntimeValue a) => Fs("切目录", () =>
+    public static RuntimeValue ChDir(RuntimeValue a) => Fs("切目录", () =>
     {
         var p = PathOf(a, "ChDir");
         if (!Directory.Exists(p)) throw new RuntimeException($"切目录失败: 找不到目录 —— {p}", ErrorKind.Io);
@@ -158,7 +161,7 @@ public partial class Interpreter
     /// 按换行符切,顺手去掉每行末尾那个回车(Windows 的换行是回车+换行);
     /// 末尾的空行不产出(文件最后有个换行是常态,不该多出一行空的),中间的空行保留。</summary>
     [Sys("SplitLines")]
-    private static RuntimeValue SplitLines(RuntimeValue a) => Fs("按行切", () =>
+    public static RuntimeValue SplitLines(RuntimeValue a) => Fs("按行切", () =>
     {
         var text = As<StringVal>(a, "SplitLines 的内容").Value;
         var lines = new List<RuntimeValue>();
@@ -181,22 +184,22 @@ public partial class Interpreter
     /// 组件里存的是用户给的那个,打印出来才是人看的(代价是中途 ChDir 会让早先的条目走样)。
     /// `TrimEndingDirectorySeparator` 会保住根(`/`、`C:/`)。</summary>
     [Sys("PathClean")]
-    private static RuntimeValue PathClean(RuntimeValue a) => Fs("规整路径", () =>
+    public static RuntimeValue PathClean(RuntimeValue a) => Fs("规整路径", () =>
         new StringVal(Path.TrimEndingDirectorySeparator(PathOf(a, "PathClean"))));
 
     [Sys("PathJoin")]
-    private static RuntimeValue PathJoin(RuntimeValue a, RuntimeValue b) => Fs("拼路径", () =>
+    public static RuntimeValue PathJoin(RuntimeValue a, RuntimeValue b) => Fs("拼路径", () =>
         new StringVal(Path.Combine(PathOf(a, "PathJoin"), PathOf(b, "PathJoin"))));
 
     [Sys("PathDir")]
-    private static RuntimeValue PathDir(RuntimeValue a) => Fs("取目录名", () =>
+    public static RuntimeValue PathDir(RuntimeValue a) => Fs("取目录名", () =>
         new StringVal(Path.GetDirectoryName(PathOf(a, "PathDir")) ?? ""));
 
     [Sys("PathBase")]
-    private static RuntimeValue PathBase(RuntimeValue a) => Fs("取文件名", () =>
+    public static RuntimeValue PathBase(RuntimeValue a) => Fs("取文件名", () =>
         new StringVal(Path.GetFileName(PathOf(a, "PathBase"))));
 
     [Sys("PathExt")]
-    private static RuntimeValue PathExt(RuntimeValue a) => Fs("取扩展名", () =>
+    public static RuntimeValue PathExt(RuntimeValue a) => Fs("取扩展名", () =>
         new StringVal(Path.GetExtension(PathOf(a, "PathExt"))));
 }

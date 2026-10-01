@@ -2,6 +2,9 @@ using System.Text;
 
 namespace Ravel.Runtime;
 
+using static Ravel.Runtime.Interpreter;
+using static Ravel.Runtime.SysKit;
+
 /// <summary>`System.Cmd` —— 跑外部命令。
 ///
 /// 走**系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`):管道、重定向、通配符
@@ -10,10 +13,10 @@ namespace Ravel.Runtime;
 ///
 /// 交回的是一张 dict:`out`(标准输出)/ `err`(标准错误)/ `code`(退出码)。
 /// 两路输出**同时**抽走(各自一个线程)—— 顺序读会在大输出时死锁。</summary>
-public partial class Interpreter
+internal static class SysCmd
 {
     [Sys("Cmd")]
-    private static RuntimeValue RunCmd(RuntimeValue a) => Fs("跑命令", () =>
+    public static RuntimeValue RunCmd(RuntimeValue a) => Fs("跑命令", () =>
     {
         var command = As<StringVal>(a, "cmd 的命令").Value;
         var windows = OperatingSystem.IsWindows();
@@ -42,7 +45,7 @@ public partial class Interpreter
         return new DictVal(entries);
     });
 
-    private static byte[] ReadAllBytes(Stream s)
+    public static byte[] ReadAllBytes(Stream s)
     {
         using var ms = new MemoryStream();
         s.CopyTo(ms);
@@ -52,7 +55,7 @@ public partial class Interpreter
     /// <summary>外部命令的输出按什么编码解?——**先按 UTF-8 试,不合法就退回控制台编码**。
     /// 两边都常见:git / python 那些吐 UTF-8,而 `dir` 这类走的是控制台那套(中文 Windows
     /// 上就是 GBK)。合法的 UTF-8 里出现 GBK 字节的概率极低,所以这个判据够用。</summary>
-    private static string DecodeOutput(byte[] bytes)
+    public static string DecodeOutput(byte[] bytes)
     {
         try
         {

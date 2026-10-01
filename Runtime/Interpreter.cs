@@ -4,6 +4,10 @@ using System.IO;
 
 public partial class Interpreter
 {
+    /// <summary>全局作用域。内置里 `impl` 那一条要往这儿登记(每个作用域链都到全局,
+    /// 于是处处生效),所以给内置那一族开个 `internal` 的口。</summary>
+    internal Scope GlobalScope => _global;
+
     private readonly Scope _global;
 
     /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>
@@ -29,6 +33,18 @@ public partial class Interpreter
     ///
     /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。</summary>
     public bool WarnForgotCall { get; set; }
+
+    /// <summary>注册内置:建 `System` 模块 —— 它是唯一「用 C# 写死」的模块(其余模块都来自
+    /// .rav 文件),而且**启动就有**(不像 `Math` 要显式 `ravel` 才有)。
+    /// 装进去的东西全在 `Runtime/Builtins/`:`SysModule` 摆三张数据表,`[Sys]` 那一族填函数。</summary>
+    private void RegisterBuiltins()
+    {
+        var moduleType = BuiltinClasses.NewModuleClass("System", BuiltinClasses.Ravel);
+        var module = new ModuleVal(moduleType, new Scope(_global));
+        SysModule.Fill(this, module.Scope);
+        _modules["System"] = module;
+        _global.Define("System", moduleType, module);
+    }
 
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>
     /// <param name="scriptArgs">脚本名之后那些参数;不给就是空的(REPL、测试运行器这么用)</param>
@@ -149,9 +165,12 @@ public partial class Interpreter
 
     /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
     /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>
-    private static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
+    /// <summary>参数收束:不是 T 就报 Ravel 错误。内置那一族(`Runtime/Builtins/`)也用,
+    /// 所以是 `internal` —— 它们靠 `using static Ravel.Runtime.Interpreter;` 直接叫名字。</summary>
+    internal static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
         => v as T ?? throw new RuntimeException($"{what}需要{ArgNames.Of(typeof(T))}，得到 {v.Type}", ErrorKind.Type);
 
     /// <summary>值转字符串（Ravel 语义）</summary>
-    private static string Show(RuntimeValue v) => v.ToString();
+    /// <summary>值转字符串(Ravel 语义)—— 内置那一族也用,理由同 `As`</summary>
+    internal static string Show(RuntimeValue v) => v.ToString();
 }

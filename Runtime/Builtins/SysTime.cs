@@ -2,19 +2,22 @@ using System.Globalization;
 
 namespace Ravel.Runtime;
 
+using static Ravel.Runtime.Interpreter;
+using static Ravel.Runtime.SysKit;
+
 /// <summary>`System` 的时间原语。
 ///
 /// 一个时刻就是"1970-01-01 00:00:00 UTC 起的**毫秒数**"(bigint —— 毫秒那个数量级 int 装不下)。
 /// 原语只做换算,不做判断:显示成什么样、哪天算一周开头,都是库(lib/time.rav)的事。
 /// 时区一律**本地**;格式串按 .NET 那一套(`yyyy-MM-dd HH:mm:ss`),这几条只负责转交。</summary>
-public partial class Interpreter
+internal static class SysTime
 {
     [Sys("NowMs")]
-    private static RuntimeValue NowMs(RuntimeValue _)
+    public static RuntimeValue NowMs(RuntimeValue _)
         => Fs("取当前时间", () => new BigIntVal(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
 
     [Sys("TimeParts")]
-    private static RuntimeValue TimeParts(RuntimeValue a) => Fs("拆时间", () =>
+    public static RuntimeValue TimeParts(RuntimeValue a) => Fs("拆时间", () =>
     {
         var t = LocalTime(a, "TimeParts");
         return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
@@ -32,7 +35,7 @@ public partial class Interpreter
     });
 
     [Sys("MakeTime")]
-    private static RuntimeValue MakeTime(RuntimeValue a) => Fs("拼时间", () =>
+    public static RuntimeValue MakeTime(RuntimeValue a) => Fs("拼时间", () =>
     {
         var d = As<DictVal>(a, "MakeTime 的 parts");
         int Part(string k, int dflt) =>
@@ -46,7 +49,7 @@ public partial class Interpreter
     /// <summary>睡一会儿。0 或负数就是"什么都不等"(`retries` 退避算出来是 0 很正常,别为这个报错),
     /// 拿它限速也是这个用法 —— 「别把人家服务器打疼了」。</summary>
     [Sys("Sleep")]
-    private static RuntimeValue Sleep(RuntimeValue a) => Fs("等待", () =>
+    public static RuntimeValue Sleep(RuntimeValue a) => Fs("等待", () =>
     {
         var ms = BuiltinClasses.IntArg(a, "Sleep 的毫秒数");
         if (ms > 0) Thread.Sleep(ms);
@@ -54,12 +57,12 @@ public partial class Interpreter
     });
 
     [Sys("FormatTime")]
-    private static RuntimeValue FormatTime(RuntimeValue a, RuntimeValue b) => Fs("格式化时间", () =>
+    public static RuntimeValue FormatTime(RuntimeValue a, RuntimeValue b) => Fs("格式化时间", () =>
         new StringVal(LocalTime(a, "FormatTime").ToString(
             As<StringVal>(b, "FormatTime 的格式串").Value, CultureInfo.InvariantCulture)));
 
     [Sys("ParseTime")]
-    private static RuntimeValue ParseTime(RuntimeValue a, RuntimeValue b) => Fs("解析时间", () =>
+    public static RuntimeValue ParseTime(RuntimeValue a, RuntimeValue b) => Fs("解析时间", () =>
     {
         var text = As<StringVal>(a, "ParseTime 的文本").Value;
         var fmt = As<StringVal>(b, "ParseTime 的格式串").Value;
@@ -73,7 +76,7 @@ public partial class Interpreter
 
     /// <summary>把 Ravel 那个"毫秒数"收成 <see cref="DateTime"/>(本地时区)。
     /// 收 int 也收 bigint —— 手写 `Time 0` 那种小常量不该被迫写 `bigint 0`。</summary>
-    private static DateTime LocalTime(RuntimeValue v, string what) => v switch
+    public static DateTime LocalTime(RuntimeValue v, string what) => v switch
     {
         BigIntVal b => DateTimeOffset.FromUnixTimeMilliseconds((long)b.Value).LocalDateTime,
         IntVal i => DateTimeOffset.FromUnixTimeMilliseconds(i.Value).LocalDateTime,

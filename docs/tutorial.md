@@ -1945,7 +1945,7 @@ Regex.Escape "a.b"               # "a\.b" —— 把字面量转成模式
 **选项**：第二个参数（`Regex.With pattern "i"`），或者写在模式里（`(?i)abc`）——
 `i` 不分大小写、`m` 多行（`^`/`$` 认每一行）、`s` 让 `.` 也吃换行、`x` 忽略模式里的空白。
 
-**两条兜底在引擎那层**（见 `Runtime/Interpreter.Regex.cs`）：一条正则最多跑 **2 秒** ——
+**两条兜底在引擎那层**（见 `Runtime/Builtins/SysRegex.cs`）：一条正则最多跑 **2 秒** ——
 写歪一个模式（`(a+)+$` 配一长串 a）能让进程**卡死**，而卡死不是异常、`try` 接不住；
 模式写错（括号没配对上）也报成普通的 Ravel 错误，不会绕过 `try` 把程序打掉。
 
@@ -1968,7 +1968,8 @@ Format.Hex 255 / Format.Bytes 1536         # "ff" / "1.5 KB"
 ```ravel
 using "text.rav"
 Text.Lines "a
-b"                # ["a" "b"]（顺带去掉 Windows 的 ）
+b"                # ["a" "b"]（顺带去掉 Windows 的 
+）
 Text.Words "a  b"                # ["a" "b"]（空白折成一个分隔）
 Text.Wrap "…很长…" 20             # 按宽度折行；长词不硬切，自己占一行
 Text.Indent "a

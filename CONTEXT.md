@@ -43,19 +43,24 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(References + 搜索目录、循环引用检测)
-  Builtins/SystemModule.cs   RegisterBuiltins + **System 模块** —— 建模块那几行 +
-                          三张明着的表(`Types` / `Constants` / `Controls`,它们是**数据**)
-                          + **`[Sys]` 注册机制**(特性 + 扫一遍 + 绑委托,见文件末尾)
-                          + 四种登记口(`Def` / `DefType` / `DefFn` / `DefControl`,
-                          靠 `_sysScope` 这张"当前模块表"工作)+ 共用的小工具
-                          (`Fs` / `PathOf` / `NeedFile` / `BytesOf`…)
-  Builtins/{Output,Core,Reflection,Random,Files,Cmd,Time,Env,Net}.cs
-                          **一个主题一个文件**,装那一批 `[Sys]` 方法 —— 加一个内置函数 =
-                          在对应主题里写一个方法,没有第二处要改(从前是"挑一段、找对位置、
-                          再补一行 `DefFn`" —— 那一个文件一千行就是这么散的)。
+  Builtins/SysAttribute.cs / SysRegistry.cs
+                          **`[Sys]` 那套机制**:特性本身 + 扫描(扫**整个程序集**,
+                          不列名单)+ 绑委托(每实例一次,`CreateDelegate`,热路上不留反射)
+  Builtins/SysModule.cs / MathModule.cs
+                          两个"C# 写死的模块"怎么装配:`SysModule` 摆 System 的三张**数据**表
+                          (类型别名 / 常量 / 控制内建)+ 让 `SysRegistry` 登记函数;
+                          `MathModule.Fill (scope)` 是 Math 那一份(靠 `CSharpModules` 表,
+                          要显式 `ravel` 才有)。签名都是"往这个作用域填成员"
+  Builtins/Sys{Output,Core,Reflection,Random,Files,Cmd,Time,Env,Net,Regex}.cs
+                          **一个主题一个类**,装那一批 `[Sys]` 方法 —— 加一个内置函数 =
+                          在对应主题里写一个 `static` 方法,没有第二处要改(从前是"挑一段、
+                          找对位置、再补一行 `DefFn`" —— 那一个文件一千行就是这么散的)。
+                          **它们不是 `Interpreter` 的一部分**:要用引擎的就把解释器当
+                          **第一个参数**收(`Interpreter self`),用不着的就是纯函数
+  Builtins/SysKit.cs      内置那一族共用的小工具(`Fs` / `PathOf` / `NeedFile` / `BytesOf`…)
+                          —— 各主题都 `using static`,调用点还是老样子。
                           **别和 `BuiltinClasses*.cs` 混**:那是内置**类**的树(类型那一侧),
-                          这里是内置**函数**(`System` 这个模块的成员)
-  Interpreter.Math.cs           Math 模块(常量/三角/双曲/幂对数/取整/极值)
+                          这里是内置**函数**
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
   Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;
                           Frame.cs 还有 ControlFrame.Arg<T> 和 ArgNames(控制帧参数的类型化取值)
@@ -348,11 +353,13 @@ Object (parent=自己)
         HttpReq HttpDownload HttpUpload
 
 上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——
-一个主题一个文件(`Runtime/Builtins/*.cs`),扫一遍、按名字排、绑成委托
-(见 `Runtime/Builtins/SystemModule.cs` 末尾那一段)。**加一个内置 = 写一个方法**:
+写在 `Runtime/Builtins/Sys*.cs` 里(**一个主题一个类**,扫的是整个程序集,不列名单),
+扫一遍、按名字排、绑成委托(见 `SysRegistry`)。**加一个内置 = 写一个 `static` 方法**:
 不用挑分组、不用找位置、也不用记得回来补一行登记 —— 从前那种"漏了一行,静默少个成员"
-是这类文件最容易出的错。类型别名 / 常量 / 控制内建**不走这条路**:那是数据,
-`Types` / `Constants` / `Controls` 三张表一眼看全比撒在各处好读。
+是这类文件最容易出的错(这一路真漏过一回,58 个成员没了,用例全红才发现)。
+那几族类**不持有状态**:要用引擎的把它当第一个参数收(`Interpreter self`),
+用不着的就是纯函数 —— 签名对不对在建表时就报。类型别名 / 常量 / 控制内建**不走这条路**:
+那是数据,`SysModule` 里三张表一眼看全比撒在各处好读。
 **成员表整份钉在 `tests/271_system_members.rav`** —— 加了内置就顺手更新那一行。
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
@@ -433,7 +440,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 
 ## Math 模块
 
-成员是 C# 造的（`Interpreter.Math.cs`），但**不像 System 那样启动就有** ——
+成员是 C# 造的（`Runtime/Builtins/MathModule.cs`），但**不像 System 那样启动就有** ——
 `Math` 要**显式引用**（`using "math.rav"`）之后才是一个名字。落点是一张
 `ModuleFillers` 表：`EnterModule` 在模块**第一次被 `ravel` 到时**调它填成员，
 而 `lib/math.rav` 第一行就是那句 `ravel "Math"`。
