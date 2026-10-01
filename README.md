@@ -122,7 +122,7 @@ Repl/               REPL 前端(多页缓冲、渲染、会话持久化)
 Testing/            golden 测试运行器
 Ravel.Structures/   **官方插件**之一:数据结构那一族 → `plugins/Ravel.Structures.dll`
 Ravel.Extensions/   **官方扩展**:几个库的本机半边(Hash / Crypto / Net / Regex /
-                    Sqlite / Random / Zip / Xml / Term)+ 整个 Math 模块 → `plugins/Ravel.Extensions.dll`
+                    Sqlite / Random / Zip / Xml / Terminal)+ 整个 Math 模块 → `plugins/Ravel.Extensions.dll`
 lib/                **标准库 —— 用 Ravel 自己写的**(控制流、序列、Option、IO、Random、
                     Regex、时间、格式化、文本、编码、位、网络(HTTP)、CSV、数据类、测试库、
                     摘要与加密、命令行参数、表格、日志、ZIP 归档、通配符、XML、终端、数据结构…)

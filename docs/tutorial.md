@@ -2309,24 +2309,24 @@ print (Xml.Render x)              # 打回文本（`print x` 给的是字段表�
 
 **用例见 tests/284。**
 
-### 6.23 终端（`Term`）
+### 6.23 终端（`Terminal`）
 
 ```ravel
-using "term.rav"
-Term.Line (Term.Green "好了")          # 上色写一行（管道里自动不上色）
-print (Term.Plain "[b]粗[/]")          # 只看渲染结果，一定不带颜色
-name := Term.Ask "叫什么？"
-if { Term.Confirm "删掉？"; } { … }
-pick := Term.Choose "选一个" ["a" "b"]
-print (Term.Bar 3 10 20)               # [######..............] 30%
+using "terminal.rav"
+Terminal.Line (Terminal.Green "好了")          # 上色写一行（管道里自动不上色）
+print (Terminal.Plain "[b]粗[/]")          # 只看渲染结果，一定不带颜色
+name := Terminal.Ask "叫什么？"
+if { Terminal.Confirm "删掉？"; } { … }
+pick := Terminal.Choose "选一个" ["a" "b"]
+print (Terminal.Bar 3 10 20)               # [######..............] 30%
 ```
 
 标记就是 **Spectre.Console 那套**（`[red]…[/]`、`[[` 表示一个方括号），不是新发明的一套。
-糖（`Term.Red` / `Term.Good` …）交回的是**标记串**，并且会把你给的文本**转义**掉——
+糖（`Terminal.Red` / `Terminal.Good` …）交回的是**标记串**，并且会把你给的文本**转义**掉——
 所以糖套糖不行（里层会被当字面量），要嵌套就直接写标记。
 
-上色与否看 `Term.Tty ()`（**进程**的 stdout 是不是真终端）。要确定性的输出（测试、写文件）
-用 `Term.Plain`，别用 `Term.Render`；往日志里写"同一条消息但没有颜色"用 `Term.Strip`。
+上色与否看 `Terminal.Tty ()`（**进程**的 stdout 是不是真终端）。要确定性的输出（测试、写文件）
+用 `Terminal.Plain`，别用 `Terminal.Render`；往日志里写"同一条消息但没有颜色"用 `Terminal.Strip`。
 
 **用例见 tests/285。**
 

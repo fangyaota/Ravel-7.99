@@ -1,42 +1,42 @@
-# `Term` —— 终端。**要显式引用**:`using "term.rav"`。
+# `Terminal` —— 终端。**要显式引用**:`using "terminal.rav"`。
 #
-#     Term.Line (Term.Green "好了")                 # 上色写一行(管道里自动不上色)
-#     print (Term.Plain "[b]粗[/]")                 # 只看渲染结果,不带颜色
-#     Term.Ask "叫什么？"                            # 问一句、读一行
-#     Term.Confirm "删掉？"                          # 是 / 否
-#     Term.Choose "选一个" ["a" "b" "c"]             # 上下键挑
-#     print (Term.Bar 3 10 20)                      # [######..............] 30%
-#     Term.Rule (Term.Width ())                     # 一条横线
+#     Terminal.Line (Terminal.Green "好了")            # 上色写一行(管道里自动不上色)
+#     print (Terminal.Plain "[b]粗[/]")                # 只看渲染结果,不带颜色
+#     Terminal.Ask "叫什么？"                           # 问一句、读一行
+#     Terminal.Confirm "删掉？"                         # 是 / 否
+#     Terminal.Choose "选一个" ["a" "b" "c"]            # 上下键挑
+#     print (Terminal.Bar 3 10 20)                     # [######..............] 30%
+#     Terminal.Rule (Terminal.Width ())                # 一条横线
 #
 # **标记就是 Spectre.Console 那套**(`[red]…[/]`、`[b]…[/]`、`[[` 表示一个方括号)——
-# 不是新发明的一套,想查用法去查它的文档。`Term.Strip` 把标记剥掉,
+# 不是新发明的一套,想查用法去查它的文档。`Terminal.Strip` 把标记剥掉,
 # 要往日志、文件里写"同一条消息但没有颜色"就用它。
 #
 # 三条分得清的分工:
 #
-#   * **引擎那半边**(`Native.Term*`,在官方扩展里)只做两件事:把标记**渲染成一串**、
+#   * **引擎那半边**(`Native.Terminal*`,在官方扩展里)只做两件事:把标记**渲染成一串**、
 #     问终端要**尺寸**,外加三条**交互问答**。渲染那两条是**纯函数** —— 它们不往屏幕上写。
 #   * **写出去是这一层的事**(`System.Write` / `WriteLine`)。这么分不只是好看:
 #     Spectre 那台静态的 `AnsiConsole` 是"第一次用到时把 `Console.Out` 抓住"的,
 #     从引擎那边直接写会**绕开** `Console.SetOut`(测试运行器换的就是它)。
 #   * **策略在这一层**:什么时候上色(`Tty ()`)、问候语长什么样、进度条多宽。
 #
-# 一条**该知道的事**:上色与否这一层看 `Term.Tty ()` —— 那是**进程级**的
-# "stdout 是不是真终端"。要确定性的输出(测试、往文件里写)用 `Term.Plain`,别用 `Render`。
+# 一条**该知道的事**:上色与否这一层看 `Terminal.Tty ()` —— 那是**进程级**的
+# "stdout 是不是真终端"。要确定性的输出(测试、往文件里写)用 `Terminal.Plain`,别用 `Render`。
 using "native.rav"
 
-ravel "Term"
+ravel "Terminal"
 
 # ── 渲染与写 ──
 
 # 渲染成**一串**(当前是终端就带颜色,否则只有文本)。要往屏幕上写用 `Write` / `Line`
-readonly Render := (markup: object) => { Native.TermRender (string markup) (Tty ()); }
+readonly Render := (markup: object) => { Native.TerminalRender (string markup) (Tty ()); }
 
 # **强制不上色** —— 测试、往文件/日志里写的时候用这个,结果是钉得住的
-readonly Plain := (markup: object) => { Native.TermRender (string markup) false; }
+readonly Plain := (markup: object) => { Native.TerminalRender (string markup) false; }
 
 # 把标记剥掉只留文本(和 `Plain` 的区别:那个还会渲染成终端宽度、处理折行那些)
-readonly Strip := (markup: string) => { Native.TermStrip markup; }
+readonly Strip := (markup: string) => { Native.TerminalStrip markup; }
 
 readonly Write := (markup: object) => { System.Write (Render markup); (); }
 readonly Line := (markup: object) => { System.WriteLine (Render markup); (); }
@@ -45,35 +45,35 @@ readonly ToErr := (markup: object) => { System.WriteLineErr (Render markup); ();
 # ── 问终端 ──
 
 # 输出是不是一个**真终端** —— 管道的另一头不是。决定要不要上色看它
-readonly Tty := () => { Native.TermTty (); }
+readonly Tty := () => { Native.TerminalTty (); }
 
 # 多少格宽。**看不见终端时给 80**(管道里问不到尺寸,而调用方多半是想按宽度折个行)
-readonly Width := () => { Native.TermWidth (); }
+readonly Width := () => { Native.TerminalWidth (); }
 
 # ── 交互 ──
 #
 # 这三条**要真的终端**:它们读键盘。接管道跑(`echo x | ravel a.rav`)时该走的是
 # `System.ReadLine`,不是这儿。
 
-readonly Ask := (prompt: string) => { Native.TermAsk prompt; }              # 读一行(空行也收)
-readonly Confirm := (prompt: string) => { Native.TermConfirm prompt; }      # 是 / 否(默认是)
-readonly Choose := (question: string choices: list) => { Native.TermChoose question choices; }
+readonly Ask := (prompt: string) => { Native.TerminalAsk prompt; }              # 读一行(空行也收)
+readonly Confirm := (prompt: string) => { Native.TerminalConfirm prompt; }      # 是 / 否(默认是)
+readonly Choose := (question: string choices: list) => { Native.TerminalChoose question choices; }
 
 # ── 几条糖:交回的是**标记串** ──
 #
-#     Term.Line (Term.Red "错误: " + msg)
+#     Terminal.Line (Terminal.Red "错误: " + msg)
 #
 # 传进去的文本里的 `[` `]` 会**转义掉** —— 用户输入、异常消息里带个方括号是很正常的事,
-# 不转义就被当成了标记、把整串搞坏。代价是**糖套糖不行**:`Term.Bold (Term.Red "x")`
+# 不转义就被当成了标记、把整串搞坏。代价是**糖套糖不行**:`Terminal.Bold (Terminal.Red "x")`
 # 里层那串会被当成字面量(`[red]x[/]` 原样显示出来)。
 # 要嵌套就直接写标记 —— 那本来就是 Spectre 那套,糖只是最常用的那几个捷径:
 #
-#     Term.Line "[b][red]危险[/][/] —— 已经处理了"
+#     Terminal.Line "[b][red]危险[/][/] —— 已经处理了"
 #
-# (要往标记里塞**动态**文本就自己过一遍 `Term.Escape`,和自己拼别处一个规矩。)
+# (要往标记里塞**动态**文本就自己过一遍 `Terminal.Escape`,和自己拼别处一个规矩。)
 
 readonly Wrap := (tag: string s: object) => { "[" + tag + "]" + (Escape (string s)) + "[/]"; }
-readonly Escape := (s: string) => { Native.TermEscape s; }
+readonly Escape := (s: string) => { Native.TerminalEscape s; }
 
 readonly Red := (s: object) => { Wrap "red" s; }
 readonly Green := (s: object) => { Wrap "green" s; }
@@ -94,11 +94,11 @@ readonly Hint := (s: object) => { Wrap "grey" s; }
 
 # ── 几条纯 Ravel 的画 ──
 
-# 一条横线(`n` 格宽)。`Term.Rule (Term.Width ())` 就是占满一行
+# 一条横线(`n` 格宽)。`Terminal.Rule (Terminal.Width ())` 就是占满一行
 readonly Rule := (n: int) => { ("─").Repeat n; }
 
 # 进度条的字面:`[######......] 30%`。**交回的是普通文本,不是标记** ——
-# 一条进度条本来就没什么要上色的;要颜色自己套一层(`Term.Green (Term.Bar …)`)。
+# 一条进度条本来就没什么要上色的;要颜色自己套一层(`Terminal.Green (Terminal.Bar …)`)。
 # 要**原地刷新**就自己拿 `\r` 拼 —— 引擎那边不给"刷屏"这种原语,
 # 因为它就是"写一串回车、再写一串"。
 readonly Bar := (done: int total: int width: int) => {
