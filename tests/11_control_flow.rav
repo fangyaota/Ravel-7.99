@@ -117,8 +117,8 @@ ravel ""
 # 2
 # 10
 # 20
-# 1: if 的条件必须是 bool，得到 Integer
-# 2: while 的条件必须是 bool，得到 Integer
+# 1: 类型不匹配: 无法将 Integer 赋值给 Bool — 无法将 Integer 转换为 bool
+# 2: 类型不匹配: 无法将 Integer 赋值给 Bool — 无法将 Integer 转换为 bool
 # 3: foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
 # after
 # 1: with 的第 2 个参数需要代码块，得到 Integer

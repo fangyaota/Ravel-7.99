@@ -37,7 +37,7 @@ readonly SeekIn := (xs: object p: function) => {
     found := false
     callcc (done: function) => {
         foreach xs (x: object) => {
-            if { p x; } { found = true; hit = x; done (); } { 0; }
+            (p x) { found = true; hit = x; done (); } { 0; }
         }
     }
     if { found; } { Some hit; } { None; }
@@ -49,15 +49,11 @@ readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
     got := false
     best: object = ()
     foreach xs (x: object) => {
-        if { !got; } {
+        (!got) {
             got = true
             best = x
         } {
-            if { keepLess; } {
-                if { x < best; } { best = x; } { 0; }
-            } {
-                if { best < x; } { best = x; } { 0; }
-            }
+            keepLess { (x < best) { best = x; } { 0; } } { (best < x) { best = x; } { 0; } }
         }
     }
     if { got; } { 0; } { throw (IndexError (what + ": 空集合没有" + what)); }
@@ -66,6 +62,9 @@ readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
 
 # ── 接口 ──
 # `GetEnumerator` 那一条是**要填的**;下面那一整套是实现体不填时的样子。
+# **热路径上的两路分支写成"bool 直接吃两个块"**(`(cond) { A } { B }`),不再套 `if { cond; } { A } { B }`:
+# 前者是同一个机制的白描,后者要多进一次 `if`、还多造一个块。量的数:`if` 版比直调版慢约 30%
+# ——下面凡是"每个元素判一次"的地方都用直写。
 IEnumerable ::= interface IMonad {
     by GetEnumerator : function = default
 
@@ -86,7 +85,7 @@ IEnumerable ::= interface IMonad {
         (p: function) => {
             Generator (y: function) => {
                 foreach instance (x: object) => {
-                    if { p x; } { y x; } { 0; }
+                    (p x) { y x; } { 0; }
                 }
             }
         }
@@ -111,7 +110,7 @@ IEnumerable ::= interface IMonad {
                 i := 0
                 callcc (done: function) => {
                     foreach instance (x: object) => {
-                        if { i >= n; } { done (); } { 0; }
+                        (i >= n) { done (); } { 0; }
                         y x
                         i += 1
                     }
@@ -126,7 +125,7 @@ IEnumerable ::= interface IMonad {
             Generator (y: function) => {
                 i := 0
                 foreach instance (x: object) => {
-                    if { i >= n; } { y x; } { 0; }
+                    (i >= n) { y x; } { 0; }
                     i += 1
                 }
             }
@@ -263,7 +262,7 @@ IEnumerable ::= interface IMonad {
             out := ""
             first := true
             foreach instance (x: object) => {
-                if { first; } { first = false; } { out += sep; }
+                first { first = false; } { out += sep; }
                 out += string x
             }
             out
@@ -439,7 +438,11 @@ impl (IEnumerator Enumerator {
 # `foreach` 写出来就是 C# 里那个 while 循环:拿枚举器 → MoveNext → 用 Current。
 # 每次进来都**新开一个**枚举器,所以嵌套遍历同一串值互不打扰(和 C# 一样)。
 readonly foreach := (xs: object f: function) => {
-    assert (xs is IEnumerable) ("foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 " + string (typeof xs))
+    # 那句报错串是 `assert` 的**实参**:写得再好看,`foreach` 每进一次都要先把它拼出来。
+    # 所以写成一进一出的 if —— 只在真报错时才拼(和 `Keys` 那条一个道理)。
+    if { xs is IEnumerable; } { 0; } {
+        throw (TypeError ("foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 " + string (typeof xs)))
+    }
     e := xs.GetEnumerator ()
     while { e.MoveNext (); } { f (e.Current); }
 }

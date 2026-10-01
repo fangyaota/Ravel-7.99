@@ -54,7 +54,8 @@ GeneratorCursor ::= class {
     MoveNext := () => {
         comes := callcc (kc: Continuation) => {
             FromConsumer = kc
-            if { Started; } { NextFromProducer (); } { Started = true; Body Yield; }
+            # 每要一个元素都过这儿:`Started` 是个 bool,直接吃两个块(见 iterator.rav 开头那段)
+            Started { NextFromProducer (); } { Started = true; Body Yield; }
             FromConsumer false            # 体跑完了
         }
         comes
