@@ -3207,6 +3207,15 @@ System.ReadLine ()
 
 小写别名在 `predefined.rav` 中定义。
 
+类型名在 `predefined.rav` 里都有小写别名（`int` / `string` / `object` …），
+`Ravel` 是**所有模块的类对象** —— 模块是它的实例、不是子类，所以：
+
+```ravel
+using "math.rav"
+print (Math is Ravel)      # true —— 这就是"它是不是个模块"
+print (5 is Ravel)         # false
+```
+
 `System` 里装的是**语言本身要的**(类型、控制流、`eval`、反射)和**进程边界**
 (输出、文件、环境变量、子进程、时间) —— 一句话,是"这个语言"和"这台机器",不是"某个库"。
 那六个库的本机半边(`Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random`)不在这儿,

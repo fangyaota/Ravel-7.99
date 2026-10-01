@@ -381,7 +381,7 @@ Object (parent=自己)
 ```
 
 **`Ravel` 是个光杆**:它下面不挂东西 —— 模块(`System` / `Math` / 各库的模块)是它的
-**实例**,不是子类。从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
+**实例**,不是子类(所以 `Math is Ravel` 为真,`Math <: Ravel` 不成立 —— 后者要两边都是类型)。从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
 那份类对象只为 `print` / `typeof` 打得出名字,却**不登记进 `AllTypes`** ——
 类型树底下于是挂着一堆看不见的子类,树和现实对不上。现在一个 `Ravel` 就够,
 名字改由 `ModuleVal.Label` 担(报错里说"类型 'System' 没有方法"也走它,
@@ -401,8 +401,13 @@ Object (parent=自己)
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
 **类型**: Integer String Char Bool Float BigInteger Fraction BigFraction Range
-        List Set Dict Object Void Function Continuation Type Interface BaseInterface
+        List Set Dict Object **Ravel** Void Function Continuation Type Interface BaseInterface
         Any Every Exception ValueType Json
+
+(每个类型在 `predefined.rav` 里都有一条全局别名 —— `int` / `string` / `object` /
+`Ravel` …。`Ravel` 是**所有模块的类对象**:模块是它的**实例**不是子类,
+所以"这是不是个模块"就一句 `Math is Ravel`。它和 `Scope` 是树里仅有的两个
+"光杆"(下面什么都不挂)。)
 
 **函数**(和类型一样,这就是**全部**,一个不多一个不少 —— 钉在 tests/271):
 

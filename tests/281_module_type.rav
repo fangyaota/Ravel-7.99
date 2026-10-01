@@ -14,6 +14,13 @@ print (System)
 # 模块**是对象**、不是类型 —— `<:` 那种用法得留在类对象上
 print (Math is object)
 print (Math is System.Function)
+
+# `Ravel` 是个**能叫得出的名字**:所有模块共用这一个类对象,所以"这是不是个模块"
+# 就是一句 `is Ravel`(`object` 太宽 —— 数字也是)
+print (Math is Ravel)
+print (System is Ravel)
+print (5 is Ravel)
+print ("x" is Ravel)
 print (Math.Square 6)                  # 成员照旧
 print ((Math.Fields ()).Count ())
 
@@ -32,6 +39,10 @@ print (Mine)
 # <module Math>
 # <module System>
 # true
+# false
+# true
+# true
+# false
 # false
 # 36
 # 53

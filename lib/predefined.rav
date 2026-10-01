@@ -21,6 +21,7 @@ readonly list := System.List
 readonly set := System.Set
 readonly dict := System.Dict
 readonly object := System.Object
+readonly Ravel := System.Ravel   # 模块的类对象(`Math is Ravel`)—— 所有模块共用一个
 readonly class := System.Type  # 别名:没有单独的 Class 类型
 readonly interface := System.Interface  # 接口 —— 继承于 type,造出来的也是类对象
 readonly function := System.Function
