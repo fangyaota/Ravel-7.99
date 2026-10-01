@@ -318,7 +318,7 @@ public partial class Interpreter
         // 还揣着 VoidVal 的旧帧上。
         if (cf.State is not ListVal state)
         {
-            cf = cf with { State = NewSeqState(mode, self, cf) };
+            cf = cf with { State = NewSeqState(mode, label, self, cf) };
             _top = cf;
             state = (ListVal)cf.State;
         }
@@ -331,15 +331,16 @@ public partial class Interpreter
 
         // `Any` 两种用法共用一个名字(C# 的 `Any()` / `Any(pred)` 也是这样):给个 `()` 就是
         // "有没有元素",给函数就是"有没有满足的"。别的模式没有无参形式,给别的就报错。
-        if (cf.Arg<RuntimeValue>(fnAt, label) is not FunctionVal fn)
+        var arg = cf.Arg<RuntimeValue>(fnAt, label);
+        if (arg is not FunctionVal fn)
         {
-            if (mode == SeqMode.Any && cf.Arg<RuntimeValue>(fnAt, label) is VoidVal)
+            if (mode == SeqMode.Any && arg is VoidVal)
             {
                 Return(cf, new BoolVal(elems.Count > 0));
                 return;
             }
 
-            throw new RuntimeException($"{label} 需要一个函数参数，得到 {cf.Arg<RuntimeValue>(fnAt, label).Type}", ErrorKind.Argument);
+            throw new RuntimeException($"{label} 需要一个函数参数，得到 {arg.Type}", ErrorKind.Argument);
         }
 
         var done = cf.Count;                     // 已经调过几次
@@ -420,9 +421,9 @@ public partial class Interpreter
     }
 
     /// <summary>各模式开局的累加器(Fold 的初值是它的第 4 个参数)。</summary>
-    private static ListVal NewSeqState(SeqMode mode, RuntimeValue self, ControlFrame cf)
+    private static ListVal NewSeqState(SeqMode mode, string label, RuntimeValue self, ControlFrame cf)
         => new([
-            new ListVal(BuiltinClasses.ElementsOf(self, SeqMethod.Label(mode))),
+            new ListVal(BuiltinClasses.ElementsOf(self, label)),
             mode switch
             {
                 SeqMode.Map or SeqMode.Where or SeqMode.SortBy => new ListVal([]),
