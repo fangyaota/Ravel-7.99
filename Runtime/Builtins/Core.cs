@@ -46,4 +46,30 @@ public partial class Interpreter
         WarnForgotCall = As<BoolVal>(a, "WarnForgotCall").Value;
         return VoidVal.Instance;
     }
+    // ── 引擎自己的两样状态:错误交给谁、模块正加载到哪儿 ──
+    // 它们是**库与引擎之间的桥**(见 predefined.rav 的 `callcc` 与 exceptions.rav 的 `onError`),
+    // 所以放在"语言级小件"这一主题里。
+
+    /// <summary>库注册的"错误交给谁":引擎冒泡上来一个错误时只做一件事 —— 把这个函数调起来。
+    /// 引擎**不认识** handler 栈(那是 `lib/exceptions.rav` 的状态,就在 Ravel 里那个 list 上),
+    /// 有没有人接、没人接怎么办由库决定。</summary>
+    [Sys("SetErrorHook")]
+    private RuntimeValue SetErrorHook(RuntimeValue a)
+    {
+        _errorHook = a as FunctionVal
+            ?? throw new RuntimeException($"SetErrorHook 要一个函数，得到 {a.Type}", ErrorKind.Argument);
+        return VoidVal.Instance;
+    }
+
+    /// <summary>库在"没人接"时调它 —— 把引擎这次交出去的那个异常**原样**抛出</summary>
+    [Sys("Unhandled")]
+    private RuntimeValue HandBack(RuntimeValue e) => Unhandled(e);
+
+    /// <summary>拍一份当前的模块加载状态的快照(续延要带着它一起跳)</summary>
+    [Sys("LoadingState")]
+    private RuntimeValue LoadingState(RuntimeValue _) => SnapshotLoading();
+
+    /// <summary>把模块加载状态还原成快照那一份</summary>
+    [Sys("RestoreLoading")]
+    private RuntimeValue RestoreLoadingFrom(RuntimeValue snap) => RestoreLoading(snap);
 }

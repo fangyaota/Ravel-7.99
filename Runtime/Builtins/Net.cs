@@ -234,25 +234,6 @@ public partial class Interpreter
         return total;
     }
 
-    /// <summary>字节表(list,0..255)→ byte[]。元素不是字节就当场说清楚是**第几个**不对</summary>
-    internal static byte[] BytesOf(RuntimeValue v, string what)
-    {
-        if (v is not ListVal l)
-            throw new RuntimeException($"{what}需要一个字节表（list），得到 {v.Type}", ErrorKind.Type);
-
-        var bytes = new byte[l.Elements.Count];
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (l.Elements[i] is not IntVal n || n.Value is < 0 or > 255)
-                throw new RuntimeException($"{what}的第 {i} 个不是字节（要在 0..255 里，得到 {l.Elements[i]}）", ErrorKind.Value);
-            bytes[i] = (byte)n.Value;
-        }
-
-        return bytes;
-    }
-
-    private static ListVal BytesList(byte[] bytes) => new([.. bytes.Select(b => (RuntimeValue)new IntVal(b))]);
-
     /// <summary>按字符集解字节。GBK 那一批要 `CodePagesEncodingProvider` 才认得
     /// (见静态构造函数);认不出来的名字退回 UTF-8,不报错。</summary>
     private static string Decode(byte[] bytes, string charset)

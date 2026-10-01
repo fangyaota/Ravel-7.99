@@ -147,19 +147,29 @@ public partial class Interpreter
         // **模块加载状态**的拍 / 还原:引擎只管它自己这两样(`_loading` / `_loaded`),
         // handler 栈那种库的状态不在引擎视野里(见 predefined.rav 的 `callcc`)。
         // 错误交给谁:库注册一个钩子(引擎不认识 handler 栈),没人接时库调 Unhandled 交回引擎报告
-        DefFn("SetErrorHook", FunctionVal.From(a => {
-            _errorHook = a as FunctionVal
-                ?? throw new RuntimeException($"SetErrorHook 要一个函数，得到 {a.Type}", ErrorKind.Argument);
-            return VoidVal.Instance;
-        }));
-        DefFn("Unhandled", FunctionVal.From(Unhandled));
-        DefFn("LoadingState", FunctionVal.From(_ => SnapshotLoading()));
-        DefFn("RestoreLoading", FunctionVal.From(RestoreLoading));
         DefControl("Using", ControlKind.Using, 1);
         DefControl("Eval", ControlKind.Eval, 1);
     }
 
-    /// <summary>打印与输入</summary>
+    /// <summary>字节表(list,0..255)→ byte[]。元素不是字节就当场说清楚是**第几个**不对</summary>
+    internal static byte[] BytesOf(RuntimeValue v, string what)
+    {
+        if (v is not ListVal l)
+            throw new RuntimeException($"{what}需要一个字节表（list），得到 {v.Type}", ErrorKind.Type);
+
+        var bytes = new byte[l.Elements.Count];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            if (l.Elements[i] is not IntVal n || n.Value is < 0 or > 255)
+                throw new RuntimeException($"{what}的第 {i} 个不是字节（要在 0..255 里，得到 {l.Elements[i]}）", ErrorKind.Value);
+            bytes[i] = (byte)n.Value;
+        }
+
+        return bytes;
+    }
+
+    private static ListVal BytesList(byte[] bytes) => new([.. bytes.Select(b => (RuntimeValue)new IntVal(b))]);
+
     private static RuntimeValue Fs(string what, Func<RuntimeValue> body)
     {
         try

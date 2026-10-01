@@ -43,16 +43,18 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(References + 搜索目录、循环引用检测)
-  Interpreter.System.cs   RegisterBuiltins + **System 模块** —— 建模块那几行 +
+  Builtins/SystemModule.cs   RegisterBuiltins + **System 模块** —— 建模块那几行 +
                           三张明着的表(`Types` / `Constants` / `Controls`,它们是**数据**)
                           + **`[Sys]` 注册机制**(特性 + 扫一遍 + 绑委托,见文件末尾)
                           + 四种登记口(`Def` / `DefType` / `DefFn` / `DefControl`,
-                          靠 `_sysScope` 这张"当前模块表"工作)
-                          + 几段共用的小工具(`PathOf` / `NeedFile` / `Fn`…)
-  Interpreter.System.{Output,Core,Reflection,Random,Files,Cmd,Time,Env,Net}.cs
+                          靠 `_sysScope` 这张"当前模块表"工作)+ 共用的小工具
+                          (`Fs` / `PathOf` / `NeedFile` / `BytesOf`…)
+  Builtins/{Output,Core,Reflection,Random,Files,Cmd,Time,Env,Net}.cs
                           **一个主题一个文件**,装那一批 `[Sys]` 方法 —— 加一个内置函数 =
                           在对应主题里写一个方法,没有第二处要改(从前是"挑一段、找对位置、
-                          再补一行 `DefFn`";`Interpreter.System.cs` 那一千行就是这么散的)
+                          再补一行 `DefFn`" —— 那一个文件一千行就是这么散的)。
+                          **别和 `BuiltinClasses*.cs` 混**:那是内置**类**的树(类型那一侧),
+                          这里是内置**函数**(`System` 这个模块的成员)
   Interpreter.Math.cs           Math 模块(常量/三角/双曲/幂对数/取整/极值)
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
   Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;
@@ -186,7 +188,8 @@ lib/
                           给 dict 就按名字取)、`PadL`/`PadR`/`Pad`/`Center`(对齐与填充)、
                           `Num x 2`(定小数位)、`Thousands`(千分位)、`Hex`/`Bin`/`Oct`、
                           `Bytes n`(1536 → "1.5 KB")。**要显式引用**
-  text.rav                `Text` 模块 —— 按行/按词那层:`Lines`(顺带去掉 Windows 的 ``)/
+  text.rav                `Text` 模块 —— 按行/按词那层:`Lines`(顺带去掉 Windows 的 `
+`)/
                           `Words`(空白折成一个分隔)/ `Wrap n`(按宽度折行,长词不硬切)/
                           `Indent` / `Dedent`(去公共缩进)/ `Truncate` / `Quote`(转义成看得见的样子)/
                           `IsBlank`。**要显式引用**
@@ -345,8 +348,8 @@ Object (parent=自己)
         HttpReq HttpDownload HttpUpload
 
 上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——
-一个主题一个 partial 文件(`Interpreter.System.*.cs`),扫一遍、按名字排、绑成委托
-(见 `Runtime/Interpreter.System.cs` 末尾那一段)。**加一个内置 = 写一个方法**:
+一个主题一个文件(`Runtime/Builtins/*.cs`),扫一遍、按名字排、绑成委托
+(见 `Runtime/Builtins/SystemModule.cs` 末尾那一段)。**加一个内置 = 写一个方法**:
 不用挑分组、不用找位置、也不用记得回来补一行登记 —— 从前那种"漏了一行,静默少个成员"
 是这类文件最容易出的错。类型别名 / 常量 / 控制内建**不走这条路**:那是数据,
 `Types` / `Constants` / `Controls` 三张表一眼看全比撒在各处好读。
@@ -1489,7 +1492,7 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
   `dir` 那类走控制台那套),而合法的 UTF-8 里出现 GBK 字节的概率极低,判据够用。
 - 只做 syscall,**不做沙箱**(和文件那几条一个待遇):跑什么由调用方负责。
 
-引擎里的实现是 `System.Cmd`(`Runtime/Interpreter.System.cs`),`predefined.rav` 给全局别名
+引擎里的实现是 `System.Cmd`(`Runtime/Builtins/Cmd.cs`),`predefined.rav` 给全局别名
 `cmd`。用例 `tests/229_cmd.rav`。
 
 ## 网络（`lib/http.rav`，要显式 `using "http.rav"`）
