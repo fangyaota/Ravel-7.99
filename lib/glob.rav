@@ -1,0 +1,146 @@
+# `Glob` —— 通配符。**要显式引用**:`using "glob.rav"`。
+#
+#     Glob.Match "*.txt" "a.txt"            # true
+#     Glob.Match "src/**/*.cs" "src/a/b.cs" # true(串在**要跨目录的地方)
+#     Glob.Filter "*.md" (Io.Dir "." @ .Files () @ .Keys ())   # 挑出表里相符的那些
+#     Glob.Find "src/**/*.cs"               # 从当前目录递归找,交回相符的相对路径
+#
+# 四样通配:
+#
+#     *      这一层里的任意个字符(**不跨 `/`**)
+#     ?      这一层里的一个字符(不跨 `/`)
+#     **     跨 `/` 的任意段 —— `src/**/*.cs` 里有零层或多层都算
+#     [...]  一个字符集:`[abc]` / `[a-z]` / `[!abc]`(取反);`]` 想当普通字符就写在最前面
+#
+# **按整串比**:`*.txt` 只配当前目录下的,不管 `sub/a.txt` —— 要"哪儿都算"就写 `**/*.txt`。
+# 这条和 `.gitignore` 那套"没斜杠就到处都算"不一样,是故意的:那套有它的来历,
+# 而这门语言里"整串比"只有一个说法,少一层要去记的例外。
+#
+# 实现是**翻成正则**再比(`lib/regex.rav` 那套,内部走引擎的正则原语)——
+# 通配符本来就是正则的一个真子集,自己再写一台匹配机只会多一处要维护的东西。
+# 想自己拿去用就用 `Glob.Regex`:它交回那条正则(整串锚好了)。
+using "regex.rav"
+using "io.rav"      # `Find` 要在磁盘上走一遍(`Io.EachDir`)
+
+ravel "Glob"
+
+# 正则里有特殊意思的字符 —— 通配符里它们是**字面**的,转过去要加反斜杠。
+# (不加的话 `a.txt` 那个点会变成"任意一个字符",`*.txt` 会连 `axtxt` 都吃)
+readonly Meta := ".+(){}^$|\\"
+
+readonly Esc := (c: char) => {
+    s := string c
+    if { Meta.Contains s; } { "\\" + s; } { s; }
+}
+
+# 通配符 → 正则(整串比,两头锚死)。
+# **不叫 `Regex`**:那会把这个模块里的 `Regex`(lib/regex.rav 那个)遮住,
+# 于是下面 `Regex.IsMatch` 变成调自己 —— 实测撞过这一格。
+readonly ToRegex := (pat: string) => {
+    out := "^"
+    i := 0
+    n := pat.Length ()
+    while { i < n; } {
+        c := pat.At i
+        if { c == '*'; } {
+            if { ((i + 1) < n) && ((pat.At (i + 1)) == '*'); } {
+                # `**`:跨目录。后面**紧跟着**的 `/` 一起吃进去 ——
+                # 不然 `**/*.txt` 会要求"至少一层目录",而 `a.txt` 也该配得上
+                out += ".*"
+                i += 2
+                if { (i < n) && ((pat.At i) == '/'); } { i += 1; } { 0; }
+            } {
+                out += "[^/]*"
+                i += 1
+            }
+        } {
+            if { c == '?'; } {
+                out += "[^/]"
+                i += 1
+            } {
+                if { c == '['; } {
+                    piece := CharClass pat i
+                    out += (piece.At 0)
+                    i = piece.At 1
+                } {
+                    out += (Esc c)
+                    i += 1
+                }
+            }
+        }
+    }
+    out + "$"
+}
+
+# 一个字符集。`i` 指着那个 `[`,交回 `[翻译好的正则, 下一个该看的下标]`。
+#
+# **不能"把传进来的字符串往长里拼"**:Ravel 的 string 是值,函数里 `out += …` 动的是
+# 本地那一份,外面看不见 —— 所以整段**造好再交回**,而不是边写边改。
+#
+# 认不出的(没有闭合的 `]`)当普通的一格 `[`:报错不如照字面来,括号写错一个太常见了。
+readonly CharClass := (pat: string i: int) => {
+    j := i + 1
+    n := pat.Length ()
+    neg := (j < n) && ((pat.At j) == '!')                       # `[!...]` 是取反
+    if { neg; } { j += 1; } { 0; }
+    k := j
+    if { (k < n) && ((pat.At k) == ']'); } { k += 1; } { 0; }   # 头一个 `]` 是普通字符
+    while { (k < n) && ((pat.At k) != ']'); } { k += 1; }
+    if { k >= n; } { ["\\[" (i + 1)]; } {
+        body := if { neg; } { "^"; } { ""; }
+        m := j
+        while { m < k; } {
+            c := pat.At m
+            if { c == '\\'; } { body += "\\"; } { body += (string c); }   # `-` 留着当区间的棍子
+            m += 1
+        }
+        ["[" + body + "]" (k + 1)];
+    }
+}
+
+# 一个路径**配不配**得上这个模式。整串比(见文件开头)
+readonly Match := (pat: string path: string) => { (Regex.C (ToRegex pat)).IsMatch (Slash path); }
+
+# 换成正斜杠再比 —— `Io.EachDir` 走出来的路径在 Windows 上带反斜杠,
+# 而模式里写的是 `/`(那是所有人的写法),不归一化就会**在这台机器上对、换一台不对**
+readonly Slash := (s: string) => { s.Replace "\\" "/"; }
+
+# 一张表里相符的那些(按原来顺序)
+readonly Filter := (pat: string names: list) => {
+    out := []
+    foreach names (n: object) => { if { Match pat (string n); } { out.Add n; } { 0; } }
+    out
+}
+
+# 把一串名字按模式分成"相符的"和"不相符的"两份(要两边都用时省一次遍历)
+readonly Split := (pat: string names: list) => {
+    hit := []
+    miss := []
+    foreach names (n: object) => { if { Match pat (string n); } { hit.Add n; } { miss.Add n; } }
+    {"hit": hit "miss": miss}
+}
+
+# ── 找文件 ──
+#
+# **从磁盘找**:在 `under` 底下递归走一遍,交回相符的**相对路径**(一律正斜杠),按名字排。
+#
+#     Glob.Find "src/**/*.cs"             # 从当前目录
+#     Glob.FindIn "src" "**/*.cs"         # 从 src 底下
+#
+# 惰性那一套没做:交回的是一张排好的 list。要边走边干、或者找的东西特别多,
+# 用 `Io.EachDir` 自己配 `Glob.Match` —— 那两条本来就是分开的两件事。
+readonly Find := (pat: string) => { FindIn "." pat; }
+
+readonly FindIn := (under: object pat: string) => {
+    out := []
+    Io.EachDir (Io.Dir (Io.PathOf under)) (p: string e: object) => {
+        if { Match pat p; } { out.Add (Slash p); } { 0; }
+    }
+    (out).Sort ()
+}
+
+# 把一张相对路径的表拼起来(要自己拼 `**` 那种模式时用得上):
+# `Glob.Under "src" "*.cs"` → `"src/*.cs"`
+readonly Under := (dir: string pat: string) => {
+    if { dir.IsEmpty (); } { pat; } { (Slash dir) + "/" + pat; }
+}

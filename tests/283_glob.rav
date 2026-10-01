@@ -1,0 +1,87 @@
+# `Glob` —— 通配符(见 lib/glob.rav)。**要显式引用**。
+#
+# 四样:`*`(这一层任意个,不跨 `/`)、`?`(这一层一个)、`**`(跨 `/`)、
+# `[...]`(字符集,`[!...]` 取反)。**按整串比** —— `*.txt` 不配 `sub/a.txt`,
+# 要"哪儿都算"写 `**/*.txt`。
+using "glob.rav"
+
+# ── `*` 和 `?` 不跨目录 ──
+print (Glob.Match "*.txt" "a.txt")
+print (Glob.Match "*.txt" "sub/a.txt")
+print (Glob.Match "a?.txt" "ab.txt")
+print (Glob.Match "a?.txt" "abc.txt")
+print (Glob.Match "a?.txt" "a/b.txt")
+
+# ── `**` 跨目录,而且**零层也算** ──
+print (Glob.Match "**/*.txt" "a.txt")
+print (Glob.Match "**/*.txt" "sub/deep/a.txt")
+print (Glob.Match "src/**/*.cs" "src/a/b.cs")
+print (Glob.Match "src/**/*.cs" "other/a.cs")
+
+# ── 字符集 ──
+print (Glob.Match "[abc].txt" "b.txt")
+print (Glob.Match "[abc].txt" "d.txt")
+print (Glob.Match "[!abc].txt" "d.txt")
+print (Glob.Match "[a-c]1.md" "b1.md")
+print (Glob.Match "[a-c]1.md" "d1.md")
+print (Glob.Match "[]]x" "]x")             # 头一个 `]` 是普通字符
+
+# ── 点子不能当"任意一个字符"(通配符翻正则时得转义)──
+print (Glob.Match "a.txt" "axtxt")
+print (Glob.Match "a.txt" "a.txt")
+print (Glob.Match "a+b" "a+b")
+print (Glob.Match "a+b" "aab")
+
+# ── 挑表里的、和分两堆 ──
+print (Glob.Filter "*.rav" ["a.rav" "b.md" "lib/c.rav"])
+print (Glob.Split "*.rav" ["a.rav" "b.md"])
+print (Glob.Under "src" "*.cs")
+
+# ── 翻出来的正则(要自己拿去用的时候)──
+print (Glob.ToRegex "*.txt")
+print (Glob.ToRegex "**/*.cs")
+
+# ── 在磁盘上找:先造一棵小树,不拿仓库自己的目录当期望 ──
+System.CreateDir ".io-test"
+System.CreateDir ".io-test/sub"
+System.WriteText ".io-test/a.txt" ""
+System.WriteText ".io-test/b.md" ""
+System.WriteText ".io-test/sub/c.txt" ""
+print (Glob.FindIn ".io-test" "*.txt")
+print (Glob.FindIn ".io-test" "**/*.txt")
+print (Glob.FindIn ".io-test" "**/*")
+print (Glob.FindIn ".io-test" "**/*.md")
+System.DeletePath ".io-test/a.txt"
+System.DeletePath ".io-test/b.md"
+System.DeletePath ".io-test/sub/c.txt"
+System.DeletePath ".io-test/sub"
+System.DeletePath ".io-test"
+# --- expected ---
+# true
+# false
+# true
+# false
+# false
+# true
+# true
+# true
+# false
+# true
+# false
+# true
+# true
+# false
+# true
+# false
+# true
+# true
+# false
+# [a.rav]
+# {hit: [a.rav] miss: [b.md]}
+# src/*.cs
+# ^[^/]*\.txt$
+# ^.*[^/]*\.cs$
+# [a.txt]
+# [a.txt sub/c.txt]
+# [a.txt b.md sub sub/c.txt]
+# [b.md]

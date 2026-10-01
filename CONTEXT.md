@@ -223,6 +223,12 @@ lib/
                           error**,松的一律不落笔(过滤在拼串之前)。落点:给了 `"file"` 追加到文件、
                           `"err": true` 走 stderr,否则 stdout;落盘失败**当场报错**。
                           **要显式引用**
+  glob.rav                `Glob` 模块 —— 通配符:`*`(不跨 `/`)/ `?` / `**`(跨 `/`,零层也算)/
+                          `[...]`(`[!...]` 取反)。`Match pat path`(**整串比**)/ `Filter` /
+                          `Split`(分成相符与不相符两堆)/ `Find pat`(从当前目录递归找)/
+                          `FindIn dir pat` / `Under dir pat` / `ToRegex pat`(翻成正则,自己拿去用)。
+                          翻成**正则**再比 —— 通配符本来就是正则的真子集,不必再写一台匹配机。
+                          磁盘走出来的路径 Windows 上带反斜杠,比之前先归一成 `/`。**要显式引用**
   zip.rav                 `Zip` 模块 —— **ZIP 归档**,而且它**是一个文件系统**:
                           `Zip.Open path` / `Zip.Create path` 交回一个归档(它是 `IDir`),
                           成员是**只读**的 `IFile`(`Read` / `Bytes` / `Size` / `Packed`)——
