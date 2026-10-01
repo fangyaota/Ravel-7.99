@@ -97,6 +97,19 @@ m.Jump "home"
 m.Clamp ()
 print (m.Y)
 m.Jump "没有这个键"                        # 认不出的键:什么都不做,报 false
+# `Jump` / `Edit1` 内部是一张 **`match` 表**(键 → 做什么),这几条照着表走一遍
+m.Jump "right"
+m.Clamp ()
+print (m.X)
+m.Jump "down"
+m.Clamp ()
+print (m.Y)
+m.Jump "up"
+m.Clamp ()
+print (m.Y)
+m.Edit1 "delete"
+m.Clamp ()
+print ((m.Text ()).Length ())
 print "end"
 # --- expected ---
 # [{kind: word text: x} {kind: other text:  } {kind: other text: :} {kind: other text: =} {kind: other text:  } {kind: number text: 12}]
@@ -154,4 +167,8 @@ print "end"
 # 1
 # 1
 # 0
+# 1
+# 1
+# 0
+# 2
 # end

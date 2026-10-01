@@ -307,72 +307,91 @@ Editor ::= class {
     }
 
     # 会**动光标**的那几个键。交回"这个键我管了"
+    #
+    # 用 `match`:这一坨本来就是一张**键 → 做什么**的表,而 `==."up"` 正是"等于 up"那个谓词
+    # (`lib/match.rav` 说的"运算符节就是现成的谓词")。写成嵌套 `if` 的话每往里一层多缩两格,
+    # 读到最后一个键要靠数括号,而"表"那个意思一点都看不出来。
+    # 分支**命中那一支才跑**(块是延迟的),所以这儿的改写不改语义。
     Jump := (k: string) => {
         Ensure ()                       # 空页先垫一行 —— 这两个入口单独调也要能用
-        ok := true
-        if { k == "up"; } { Y -= 1; } {
-            if { k == "down"; } { Y += 1; } {
-                if { k == "left"; } { X -= 1; } {
-                    if { k == "right"; } { X += 1; } {
-                        if { k == "home"; } { X = 0; Y = 0; } {
-                            if { k == "end"; } { Y = ((Lines ()).Count ()) - 1; X = (Current ()).Length (); } {
-                                if { k == "pgup"; } { Z -= 1; X = 0; Y = 0; } {
-                                    if { k == "pgdn"; } {
-                                        if { (Z == ((Pages.Count ()) - 1)) && (((Lines ()).Count ()) != 0); } { Pages.Add []; } { 0; }
-                                        Z += 1
-                                        X = 0
-                                        Y = 0
-                                    } { ok = false; }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        ok
+        match k [
+            [==."up"    { Y -= 1; true; }]
+            [==."down"  { Y += 1; true; }]
+            [==."left"  { X -= 1; true; }]
+            [==."right" { X += 1; true; }]
+            [==."home"  { X = 0; Y = 0; true; }]
+            [==."end"   { GoEnd (); true; }]
+            [==."pgup"  { Z -= 1; X = 0; Y = 0; true; }]
+            [==."pgdn"  { NextPage (); true; }]
+        ] { false; }
     }
 
-    # 会**改内容**的那几个键(光标由 `Clamp` 收尾)
+    GoEnd := () => { Y = (((Lines ()).Count ()) - 1); X = (Current ()).Length (); (); }
+
+    # 往后翻一页;已经在最后一页就往后再开一页(和 `NeoInteractor` 一个规矩)
+    NextPage := () => {
+        if { (Z == ((Pages.Count ()) - 1)) && (((Lines ()).Count ()) != 0); } { Pages.Add []; } { 0; }
+        Z += 1
+        X = 0
+        Y = 0
+        ();
+    }
+
+    # 会**改内容**的那几个键(光标由 `Clamp` 收尾)。**同样是一张表** —— 见 `Jump` 那段
     Edit1 := (k: string) => {
         Ensure ()                       # 同上
-        ok := true
         cur := Current ()
-        if { k == "backspace"; } {
-            if { X == 0; } {
-                if { Y >= 1; } {
-                    prev := (Lines ()).At (Y - 1)
-                    X = prev.Length ()
-                    (Lines ()).Set (Y - 1) (prev + cur)
-                    (Lines ()).RemoveAt Y
-                    Y -= 1
-                } { 0; }
-            } { (Lines ()).Set Y (CutAt cur (X - 1)); X -= 1; }
-        } {
-            if { k == "delete"; } {
-                if { X == (cur.Length ()); } {
-                    if { Y < (((Lines ()).Count ()) - 1); } {
-                        (Lines ()).Set Y (cur + ((Lines ()).At (Y + 1)))
-                        (Lines ()).RemoveAt (Y + 1)
-                    } { 0; }
-                } { (Lines ()).Set Y (CutAt cur X); }
-            } {
-                if { k == "enter"; } {
-                    indent := if { AutoTab; } { Lead cur; } { 0; }
-                    (Lines ()).Set Y (cur.Take X)
-                    (Lines ()).Insert (Y + 1) (((" ").Repeat indent) + (cur.Skip X))
-                    Y += 1
-                    X = indent
-                } {
-                    if { k == "tab"; } { (Lines ()).Set Y (InsertAt cur X "    "); X += 4; } {
-                        if { k == "insert"; } { ClearPage (); } {
-                            if { (k.Length ()) == 1; } { (Lines ()).Set Y (InsertAt cur X k); X += 1; } { ok = false; }
-                        }
-                    }
-                }
-            }
+        match k [
+            [==."backspace" { Backspace cur; true; }]
+            [==."delete"    { DeleteAt cur; true; }]
+            [==."enter"     { SplitLine cur; true; }]
+            [==."tab"       { (Lines ()).Set Y (InsertAt cur X "    "); X += 4; true; }]
+            [==."insert"    { ClearPage (); true; }]
+        ] { TypeChar k; }
+    }
+
+    # 退格。**在行首**就得和上一行接起来(`NeoInteractor` 那个规矩)
+    Backspace := (cur: string) => {
+        if { X == 0; } {
+            if { Y >= 1; } {
+                prev := (Lines ()).At (Y - 1)
+                X = prev.Length ()
+                (Lines ()).Set (Y - 1) (prev + cur)
+                (Lines ()).RemoveAt Y
+                Y -= 1
+            } { 0; }
+        } { (Lines ()).Set Y (CutAt cur (X - 1)); X -= 1; }
+        ();
+    }
+
+    # 删光标右边那一格。**在行尾**就把下一行接上来
+    DeleteAt := (cur: string) => {
+        if { X == (cur.Length ()); } {
+            if { Y < (((Lines ()).Count ()) - 1); } {
+                (Lines ()).Set Y (cur + ((Lines ()).At (Y + 1)))
+                (Lines ()).RemoveAt (Y + 1)
+            } { 0; }
+        } { (Lines ()).Set Y (CutAt cur X); }
+        ();
+    }
+
+    # 回车:断开这一行,新的一行照开头的空格对齐(`AutoTab` 关着就不对齐)
+    SplitLine := (cur: string) => {
+        indent := if { AutoTab; } { Lead cur; } { 0; }
+        (Lines ()).Set Y (cur.Take X)
+        (Lines ()).Insert (Y + 1) (((" ").Repeat indent) + (cur.Skip X))
+        Y += 1
+        X = indent
+        ();
+    }
+
+    # 打进来的**一个**字符(多字符的都是有名字的键,不归这儿)。交回"这个键我管了"
+    TypeChar := (k: string) => {
+        if { (k.Length ()) != 1; } { false; } {
+            (Lines ()).Set Y (InsertAt (Current ()) X k)
+            X += 1
+            true
         }
-        ok
     }
 
     # 这一行开头有几个空格(回车时照它对齐)
@@ -431,25 +450,22 @@ Editor ::= class {
     }
 
     # 交回"菜单要不要继续转"(只有"退出"给 false)
+    # `match` 那几支的序号和 `Items ()` **一一对应** —— 加一条菜单项就加一支。
+    # (写成嵌套 `if` 时这条对应关系看不出来,漏一支得数到最后才发现)
     Pick := (sel: int) => {
-        ok := true
-        if { sel == 0; } { Edit (); } {
-            if { sel == 1; } { RunPage (); } {
-                if { sel == 2; } { PlainLoop (); } {
-                    if { sel == 3; } { LoadPage (); } {
-                        if { sel == 4; } { SavePage (); } {
-                            if { sel == 5; } { About (); } {
-                                if { sel == 6; } { AutoTab = !(AutoTab); Pan (); } {
-                                    if { sel == 7; } { ShowResult = !(ShowResult); Pan (); } { ok = false; }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        match sel [
+            [==.0 { Edit (); }]
+            [==.1 { RunPage (); }]
+            [==.2 { PlainLoop (); }]
+            [==.3 { LoadPage (); }]
+            [==.4 { SavePage (); }]
+            [==.5 { About (); }]
+            [==.6 { AutoTab = !(AutoTab); Pan (); }]
+            [==.7 { ShowResult = !(ShowResult); Pan (); }]
+            [==.8 { 0; }]
+        ] { 0; }
         Drawn = 0
-        ok
+        sel != 8;                      # 只有"退出"那一条交回 false,菜单就停了
     }
 
     # 开关拨过之后让用户看一眼拨到哪儿了
