@@ -144,10 +144,11 @@ print (Math.Clamp 2 [0..3])
 print (Math.Clamp 0.5 [0.0..1.0])
 print (Math.Clamp 2.5 [0.0..1.0])
 print (typeof (Math.Clamp 2.5 [0.0..1.0]))
-print (Math.Clamp 5 0 3)                 # 两个数字那版照旧
+try { Math.Clamp 5 0; } (e: Exception) => { print ("3: " + string e); }   # 旧的三个数字写法没了
 
 # ---- 两端不是数值:当场报错 ----
-try { ["a"..3]; } (e: Exception) => { print ("2: " + string e); }
+try { ["a"..3]; } (e: Exception) => { print ("4: " + string e); }
+try { "abc".Slice 1; } (e: Exception) => { print ("5: " + string e); }
 print "end"
 # --- expected ---
 # [1..3]
@@ -239,6 +240,7 @@ print "end"
 # 0.5
 # 1
 # Float
-# 3
-# 2: Range 的两端需要数值，得到 String 与 Integer
+# 3: Clamp 的第二个实参要是个区间（如 `Math.Clamp x [0..1]`），得到 Integer
+# 4: Range 的两端需要数值，得到 String 与 Integer
+# 5: s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 Integer
 # end

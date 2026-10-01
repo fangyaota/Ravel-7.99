@@ -57,9 +57,8 @@ print (s.EndsWith 'd')
 print (s.IndexOf "World")
 print (s.Find "zz")                 # 明知可能没有:给 -1
 print (s.LastIndexOf "l")
-print (s.Slice 0 5)            # 两个数字:半开 [0, 5)
-print (s.Slice [0..5])         # 区间:两端都含 → 0..5 共 6 个字符
-print (s.Slice (0..5))         # 区间:两端都不含
+print (s.Slice [0..5])         # 两端都含 → 0..5 共 6 个字符
+print (s.Slice (0..5))         # 两端都不含 → 1..4
 print (s.Slice [6..11])
 print (s.Take 5)
 print (s.Skip 7)
@@ -73,7 +72,7 @@ print (s.Reverse ())
 print ("a,b,,c".Split ",")
 try { print (s.At 99); } (e: Exception) => { print ("5: " + string e); }
 try { print (s.IndexOf "zz"); } (e: Exception) => { print ("6: " + string e); }
-try { print (s.Slice 5 2); } (e: Exception) => { print ("7: " + string e); }
+try { print (s.Slice [0..99]); } (e: Exception) => { print ("7: " + string e); }
 try { print ("a".Split ""); } (e: Exception) => { print ("8: " + string e); }
 
 # ── 和库搭台:字符当键、当排序元素、进 foreach ──
@@ -187,7 +186,6 @@ ravel ""
 # 7
 # -1
 # 10
-# Hello
 # Hello,
 # ello
 #  World
@@ -203,7 +201,7 @@ ravel ""
 # [a b  c]
 # 5: s.At: 索引 99 超出范围（长度 12）
 # 6: s.IndexOf: 找不到 zz
-# 7: s.Slice: [5, 2) 越界（长度 12）
+# 7: s.Slice: [0..99] 越界（长度 12）
 # 8: s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）
 # true
 # true

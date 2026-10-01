@@ -308,9 +308,9 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `First` / `Last` 走引擎那几条（类链先命中，前四条 O(1)）。`==` 是**按内容**比（record 的
 `Equals`），`Start > End` 或者开区间套同样的两端都给**空**（不报错）。
 
-**它替换掉的"两个数字当范围"**：`String.Slice from to`（引擎那条 `Slice` 现在**两种写法都认**
-—— 收一个区间就按区间的开闭算，收一个 int 就还是原来那对数字的半开形式；
-`SliceBounds` 是那个折算）；库里的 `Random.Int lo hi` 直接**改成收区间**（`r.Int [1..6]`，
+**它替换掉的"两个数字当范围"**：`String.Slice from to`（引擎那条 `Slice` 现在**只收区间**
+—— `s.Slice [1..3)`，开闭由括号说了算；`SliceBounds` 把区间折成切片要的半开 `[from, to)`）；
+`Math.Clamp x lo hi`（现在只收区间：`Clamp x [0..1]`）；库里的 `Random.Int lo hi` 直接**改成收区间**（`r.Int [1..6]`，
 它才一天大，没有兼容包袱）；序列那一族新添了 `IEnumerable.Slice range`（惰性的
 `Skip` + `Take`，从前根本没有这个 API —— 两个数字当区间写在参数里太丑）。
 `Math.Clamp` 也收区间（`Clamp x [0..1]`，端点收任何数值、**保型**照旧）—— 它的柯里化是
@@ -1146,7 +1146,7 @@ C# 调用** —— 它们不收用户函数,所以不走 `SeqMethod` 那套控�
 | 问长度 | `Length ()`(UTF-16 码元数)· `IsEmpty ()` |
 | 取字符 | `At i`(**越界报错**)· `Chars ()`(→ 一串 `char`) |
 | 找 | `Contains x` · `StartsWith x` · `EndsWith x` · `IndexOf x`(找不到**报错**)· `Find x`(→ `-1`)· `LastIndexOf x` |
-| 切 | `Slice from to`(**半开**)· `Take n` · `Skip n` |
+| 切 | `Slice [1..3)`(**收区间**)· `Take n` · `Skip n` |
 | 变 | `Trim ()` · `ToUpper ()` · `ToLower ()` · `Replace a b` · `Repeat n` · `Reverse ()` · `Split sep`(→ 一串 string) |
 
 收 `x` 的地方**字符串和字符都收**(`"abc".Contains 'b'` 一样通)。大小写转换**不跟区域设置走**

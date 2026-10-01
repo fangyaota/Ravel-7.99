@@ -180,7 +180,7 @@ print (Math.Abs (bigint "-7"))
 print (Math.Min 3 7)
 print (Math.Max 3 (bigint "9999999999999"))
 print (typeof (Math.Max 3 (bigint "9999999999999")))
-print (Math.Clamp 15 0 10)
+print (Math.Clamp 15 [0..10])
 print (Math.MinMagnitude (-5) 3)
 print (Math.Fma 2 3 4)
 
@@ -201,7 +201,7 @@ print (Math.Rad 180)
 #      （`Random.Int` / `Below` 那几条的边界检查也是这条规矩,见 tests/254）
 try { Math.Sin "a"; } (e: Exception) => { print ("Sin: " + string e); }
 try { Math.RoundTo 3.14 20; } (e: Exception) => { print ("RoundTo: " + string e); }
-try { Math.Clamp 5 10 0; } (e: Exception) => { print ("Clamp: " + string e); }
+try { Math.Clamp 5 [10..0]; } (e: Exception) => { print ("Clamp: " + string e); }
 try { Math.Sign (0.0 / 0.0); } (e: Exception) => { print ("Sign: " + string e); }
 print "done"
 ravel ""

@@ -186,27 +186,16 @@ internal static partial class BuiltinClasses
         });
 
         // ── 切 ──
-        // 两种写法都认:
-        //   `s.Slice 1 3`    两个数字,**半开** `[1, 3)` —— 和下标那套一致(.NET 的老规矩)
-        //   `s.Slice [1..3)` **区间值**,开闭由括号说了算 —— 现在推荐这个
-        // 按**第一个实参的类型**分流:一个内置方法认两种形状,比再加一个名字干净。
+        // `s.Slice [1..3)` —— **收一个区间**,开闭由那对括号说了算(从前"两个数字 + 半开"
+        // 那个写法已经删掉,只留这一种:谁想说不含哪一端,写括号就行)。
         String.DefineMethod("Slice", (s, a) =>
         {
-            var v = ((StringVal)s).Value;
-            if (a is RangeVal rng)
-            {
-                var (from, to) = SliceBounds(rng, v.Length, "s.Slice");
-                return new StringVal(v[from..to]);
-            }
+            if (a is not RangeVal rng)
+                throw new RuntimeException($"s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {a.Type}");
 
-            var start = IntArg(a, "s.Slice");
-            return FunctionVal.From(t =>
-            {
-                var to = IntArg(t, "s.Slice");
-                if (start < 0 || to > v.Length || start > to)
-                    throw new RuntimeException($"s.Slice: [{start}, {to}) 越界（长度 {v.Length}）");
-                return new StringVal(v[start..to]);
-            });
+            var v = ((StringVal)s).Value;
+            var (from, to) = SliceBounds(rng, v.Length, "s.Slice");
+            return new StringVal(v[from..to]);
         });
         String.DefineMethod("Take", (s, a) => new StringVal(((StringVal)s).Value[..Math.Clamp(IntArg(a, "s.Take"), 0, ((StringVal)s).Value.Length)]));
         String.DefineMethod("Skip", (s, a) => new StringVal(((StringVal)s).Value[Math.Clamp(IntArg(a, "s.Skip"), 0, ((StringVal)s).Value.Length)..]));

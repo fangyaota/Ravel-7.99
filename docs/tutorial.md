@@ -1578,15 +1578,14 @@ int 'A'          # 65 —— 码位
 | 长度 | `Length ()` · `IsEmpty ()` |
 | 取 | `At i`（越界报错）· `Chars ()`（一串字符）|
 | 找 | `Contains` · `StartsWith` · `EndsWith` · `IndexOf`（找不到**报错**）· `Find`（给 `-1`）· `LastIndexOf` |
-| 切 | `Slice from to`（半开）· `Slice [1..3)`（收区间，见 6.11）· `Take n` · `Skip n` |
+| 切 | `Slice [1..3)`（**收一个区间**，见 6.11）· `Take n` · `Skip n` |
 | 变 | `Trim ()` · `ToUpper ()` · `ToLower ()` · `Replace a b` · `Repeat n` · `Reverse ()` · `Split sep` |
 
 ```ravel
 s := "Hello, World"
 s.At 0                 # H（字符）
 s.Contains 'H'         # true —— 收字符串也收字符
-s.Slice 0 5            # Hello —— 两个数字是半开 [0, 5)
-s.Slice [0..4]         # Hello —— 区间收得更直白（闭的两端）
+s.Slice [0..4]         # Hello —— 区间:两端都含；s.Slice (0..5) 则是不含两端那一段
 "a,b,,c".Split ","     # [a b  c]
 (s.Chars ()).Count ()  # 12 —— 想逐个处理就先拆成字符
 ```
@@ -1749,7 +1748,8 @@ foreach [1..4] (i: int) => { print i; }
 (1..9).First ()      # 2        (1..9).Last ()      # 8
 ```
 
-**切一段**给任何一串都用 `Slice`（收一个区间；字符串上那条 `Slice` 两个数字、区间两种写法都认）：
+**切一段**给任何一串都用 `Slice`，**收一个区间**（字符串上那条也一样 —— 从前"两个数字 + 半开"
+的写法已经删掉）：
 
 ```ravel
 xs := [10 20 30 40 50]
@@ -2649,7 +2649,7 @@ Math.Sin 0         # 0（三角函数收弧度）
 Math.Sqrt 16       # 4
 Math.Round 2.5     # 3（四舍五入，不是银行家舍入）
 Math.Abs (-5)      # 5（还是 int —— 保型的几个交回原始实参）
-Math.Clamp 15 0 10 # 10
+Math.Clamp 15 [0..10] # 10
 ```
 
 常量 `pi` / `e` / `tau`，其余见「十、内置函数速查」。`Math` 收任何数值
@@ -2843,7 +2843,7 @@ Error: 未预期的字符 '$'
 | `Math.Sqrt` `cbrt` `exp` `log` `log2` `log10` | 幂与对数 |
 | `Math.Pow x y` `Math.LogBase x b` `Math.Hypot x y` | 两参数 |
 | `Math.Floor` `ceil` `trunc` `round` | 取整（`roundTo x n` 保留 n 位） |
-| `Math.Abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参；`clamp` 也收区间：`Math.Clamp x [0..1]` |
+| `Math.Abs` `sign` `min` `max` `clamp` | `min`/`max`/`clamp` 交回原始实参；`clamp` **收一个区间**：`Math.Clamp x [0..1]` |
 | `Math.MinMagnitude` `maxMagnitude` `fma` | 按绝对值比 / `a*b+c` |
 
 同一次 `using "math.rav"` 还带来 `square` `cube` `deg` `rad`。
