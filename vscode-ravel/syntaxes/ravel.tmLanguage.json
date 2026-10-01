@@ -18,7 +18,14 @@
                     "end": "\"",
                     "name": "string.quoted.double.ravel",
                     "patterns": [
-                        { "match": "\\\\.", "name": "constant.character.escape.ravel" }
+                        { "match": "\\\\.", "name": "constant.character.escape.ravel" },
+                        {
+                            "comment": "`${表达式}` 里是**代码**(Ravel 只有这一种插值写法)—— 递归回整套语法,里面能再写字符串、再写插值。",
+                            "begin": "\\$\\{",
+                            "end": "\\}",
+                            "name": "meta.embedded.expression.ravel",
+                            "patterns": [ { "include": "$self" } ]
+                        }
                     ]
                 }
             ]
@@ -48,7 +55,11 @@
         },
         "operators": {
             "patterns": [
-                { "match": "::=|::|:=|=>|:<|:>|<:|<\\||==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=", "name": "keyword.operator.ravel" },
+                {
+                    "comment": "多字符优先(`??=` 在 `??` 前、`..` 在 `.` 前 —— 和词法器里那张表的顺序一致)",
+                    "match": "::=|::|:=|=>|:<|:>|<:|<\\||==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=|\\?\\?=|\\?\\?|\\?\\.|\\.\\.",
+                    "name": "keyword.operator.ravel"
+                },
                 { "match": "[-+*/%&|^!<>=@\\$]", "name": "keyword.operator.ravel" },
                 { "match": "[:.,]", "name": "punctuation.separator.ravel" }
             ]
@@ -56,15 +67,22 @@
         "support": {
             "patterns": [
                 {
-                    "match": "\\b(int|string|char|bool|float|bigint|fraction|bigfraction|list|set|dict|object|class|interface|function|type|void|Any|Every|Exception|ValueType|Cacher|Option|Keyed|Json|Action|IEnumerable|IEnumerator|Enumerator|IComparable|IKey|IDict|INumber|IMonad|IEntry|IFile|IDir)\\b",
+                    "comment": "类型:小写别名(`predefined.rav` 那一批)+ `System.` 侧的权威名 + 引擎报错那一族",
+                    "match": "\\b(any|bool|bigfraction|bigint|char|class|dict|float|fraction|function|int|interface|list|object|set|string|type|void|Any|BaseInterface|BigFraction|BigInteger|Bool|Char|Continuation|Dict|Every|Exception|Float|Fraction|Function|Integer|Interface|Json|List|Object|Range|Set|String|Type|ValueType|Void|TypeError|NameError|AttributeError|IndexError|KeyError|ZeroDivisionError|AssertionError|AccessError|ArgumentError|ValueError|IoError|RegexError)\\b",
                     "name": "support.type.ravel"
                 },
                 {
-                    "match": "\\b(print|while|if|foreach|do|cacher|Some|None|callcc|typeof|assert|eval|randint|with|ravel|using|use|impl|try|throw|exit|input|unsafe|currentScope|property)\\b",
+                    "comment": "语言级函数/别名(都是 `predefined.rav` 里那些全局名)",
+                    "match": "\\b(print|while|if|foreach|do|Cached|Some|None|callcc|typeof|assert|eval|with|ravel|using|use|impl|try|throw|exit|input|unsafe|currentScope|property|dataclass)\\b",
                     "name": "support.function.ravel"
                 },
                 {
-                    "match": "\\b(this|instance)\\b",
+                    "comment": "标准库模块(`using \"xxx.rav\"` 之后是个全局名)",
+                    "match": "\\b(Math|Random|Regex|Time|Seqs|Keys|Sorting|Test|Types|Io|IoMonad|Ex|Expected|Match|Generator|DataClass)\\b",
+                    "name": "support.class.ravel"
+                },
+                {
+                    "match": "\\b(this|instance|self)\\b",
                     "name": "variable.language.ravel"
                 },
                 {

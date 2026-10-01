@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const cp = require('child_process');
 const fs = require('fs');
+const { foldingRanges } = require('./folding');
 
 /** @type {vscode.OutputChannel | undefined} */
 let channel;
@@ -111,11 +112,35 @@ async function openRepl() {
     term.sendText(`dotnet "${dll}"`);
 }
 
+/**
+ * 折叠:算区间那半在 `folding.js`(纯函数,node 能直接测),这里只把它接到 VS Code 上。
+ *
+ * 为什么非要有它:VS Code 对没有 provider 的语言按**缩进**折,而 Ravel 按 `{}` 分块 ——
+ * 一个 `class {` 和它后面的缩进行对不上,折出来的边界是错的。有了 provider 才按括号来,
+ * 顺带把"连着两行以上的整行注释"也折起来(这门语言注释多)。
+ */
+const foldingProvider = {
+    provideFoldingRanges(document, context) {
+        const ranges = foldingRanges(document.getText())
+            .sort((a, b) => a.start - b.start || a.end - b.end)
+            .map((r) => new vscode.FoldingRange(
+                r.start,
+                r.end,
+                r.kind === 'comment' ? vscode.FoldingRangeKind.Comment : vscode.FoldingRangeKind.Region,
+            ));
+
+        // 客户端给了上限就照办(大文件上它只想要前 N 个)
+        const limit = context && context.rangeLimit;
+        return limit && ranges.length > limit ? ranges.slice(0, limit) : ranges;
+    },
+};
+
 function activate(context) {
     context.subscriptions.push(
         vscode.commands.registerCommand('ravel.runFile', runFile),
         vscode.commands.registerCommand('ravel.runTests', runTests),
-        vscode.commands.registerCommand('ravel.openRepl', openRepl)
+        vscode.commands.registerCommand('ravel.openRepl', openRepl),
+        vscode.languages.registerFoldingRangeProvider({ language: 'ravel' }, foldingProvider)
     );
 }
 

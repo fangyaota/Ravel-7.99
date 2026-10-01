@@ -24,6 +24,10 @@ VS Code 里：`Ctrl+Shift+B` 跑当前 `.rav`（会先编译）、`F5` 跑当前
 命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。语法高亮靠 `vscode-ravel/` 扩展
 （见下），它调用的同样是 `bin/Debug/net8.0/ravel.dll`。
 
+扩展还提供**折叠**：按 `{}` / `[]` / `()` 分块（不是按缩进 —— Ravel 按括号分块，缩进对不上）、
+外加连着两行以上的整行注释段。判据在 `vscode-ravel/folding.js`（纯函数，
+`node vscode-ravel/test/folding.test.js` 直接跑），字符串与 `${…}` 插值里的括号不算。
+
 ## 文件结构
 
 ```
