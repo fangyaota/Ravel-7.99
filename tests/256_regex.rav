@@ -1,0 +1,103 @@
+# `Regex` —— 正则表达式(见 lib/regex.rav)。**要显式引用**:`using "regex.rav"`。
+#
+# 字符串那批(`Contains` / `Find` / `Split` / `Replace` …)只认**字面量**;凡是"形状" ——
+# 一串数字、可选的结尾、几个空白折成一个 —— 就得靠它。
+#
+# 引擎那层还兜着两件(见 Runtime/Interpreter.Regex.cs):**超时**(坏模式不会把进程卡死)
+# 和 **C# 异常**(模式写错报成普通的 Ravel 错误,不会绕过 try 打掉程序)。
+using "regex.rav"
+
+re := Regex.C "(\d+)-(\d+)"
+print (re.IsMatch "a 12-34 b")
+print (re.IsMatch "nope")
+
+# 命中的那一段
+m := re.Match "a 12-34 b"
+print (m.Value ())
+print (m.At ())
+print (m.Length ())
+print (m.Groups ())
+print (m.Group 1)
+print (m.Group 2)
+
+# 找全部 / 替换(组引用) / 转义
+fa := re.FindAll "12-34 56-78 x"
+print (fa.Count ())
+print ((fa.At 1).Value ())
+print (re.Replace "12-34 56-78" "$2-$1")
+print (Regex.Escape "a.b*c")
+
+# 有没有命中:`TryMatch` 给 Option,`Match` 没有就当场报错(和 Find 一个脾气)
+o := re.TryMatch "nope"
+print (o.IsNone ())
+try { re.Match "nope"; } (e: Exception) => { print ("1: " + string e); }
+
+# 命名组;没参与匹配的组给 `()`(和"匹配到空串"分得开)
+date := Regex.C "(?<y>\d{4})-(?<m>\d{2})"
+d := date.Match "日期 2026-10"
+print (d.Group "y")
+print (d.Group "m")
+print (d.Named)
+alt := (Regex.C "(a)|(b)").Match "b"
+print (alt.Groups ())
+print (alt.Group 1)
+
+# 选项:第二个参数,或者模式里那套内联写法
+print ((Regex.With "abc" "i").IsMatch "ABC")
+print ((Regex.C "abc").IsMatch "ABC")
+print ((Regex.C "(?i)abc").IsMatch "ABC")
+print ((Regex.With "a b" "x").IsMatch "ab")
+print ((Regex.With "^b" "m").IsMatch "a\nb")
+
+# 按"形状"切与换 —— 字面量那套做不到的事
+sp := Regex.C "\s+"
+print (sp.Replace "a   b  c" "_")
+print (sp.Split "a   b  c")
+dg := Regex.C "\d+"
+print (dg.Split "a1b22c")
+
+# 报错:模式写错 / 选项不认识 / 组不存在
+bad := Regex.C "("
+try { bad.IsMatch "x"; } (e: Exception) => { print ("2: " + string e); }
+try { Regex.With "a" "q"; } (e: Exception) => { print ("3: " + string e); }
+g := (Regex.C "(a)").Match "a"
+try { g.Group 9; } (e: Exception) => { print ("4: " + string e); }
+try { g.Group "nope"; } (e: Exception) => { print ("5: " + string e); }
+
+# 超时:坏模式**不会把程序挂死**(这条会花 2 秒 —— 那正是它要证明的事)
+try { (Regex.C "(a+)+$").IsMatch "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX"; } (e: Exception) => { print ("6: " + string e); }
+print "end"
+# --- expected ---
+# true
+# false
+# 12-34
+# 2
+# 5
+# [12-34 12 34]
+# 12
+# 34
+# 2
+# 56-78
+# 34-12 78-56
+# a\.b\*c
+# true
+# 1: Match: 没有匹配 —— 模式 (\d+)-(\d+)
+# 2026
+# 10
+# {y: 2026 m: 10}
+# [b () b]
+# ()
+# true
+# false
+# true
+# true
+# true
+# a_b_c
+# [a b c]
+# [a b c]
+# 2: 正则式写错了 —— Invalid pattern '(' at offset 1. Not enough )'s.
+# 3: Regex.With: 不认识的选项 'q'（有 i / m / s / x）
+# 4: Group: 第 9 组没有（一共 2 组）
+# 5: Group: 没有叫 'nope' 的组（命名组要在模式里写成 (?<nope>…)）
+# 6: 匹配超时（2 秒）—— 这个模式可能有灾难性回溯：(a+)+$
+# end

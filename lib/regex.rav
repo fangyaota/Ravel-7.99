@@ -1,0 +1,124 @@
+# `Regex` —— 正则表达式。要显式引用:`using "regex.rav"`。
+#
+# 字符串那批(`Contains` / `Find` / `Split` / `Replace` …)只认**字面量**;凡是"形状"——
+# 一串数字、可选的结尾、几个空白折成一个 —— 就得靠它。
+#
+#     re := Regex.C "(\d+)-(\d+)"      # 编译一台(同一个模式不必反复编译:引擎走 .NET 的缓存)
+#     re := Regex.With "abc" "i"       # 带选项(i 不分大小写,见下)
+#
+#     re.IsMatch "12-34"               # true
+#     re.Match "a 12-34 b"             # → 命中的那一段(没有就当场报错)
+#     re.TryMatch "…"                  # → Option:有没有命中,用值说话
+#     re.FindAll "12-34 56-78"         # → [命中的几段]
+#     re.Replace "12-34" "$2-$1"       # → "34-12"(.NET 那套 `$1` / `${名字}`)
+#     re.Split "a1b22c"                # → [a b c]
+#     Regex.Escape "a.b"               # → "a\.b"(把字面量转成模式)
+#
+# 命中的那一段是个 `RegexMatch`:
+#
+#     m := re.Match "a 12-34 b"
+#     m.Value ()       # "12-34"
+#     m.At ()          # 2 —— 在原文里的位置
+#     m.Length ()      # 5
+#     m.Groups ()      # ["12-34" "12" "34"] —— 0 号是整体
+#     m.Group 1        # "12"
+#     m.Group "y"      # 命名组(`(?<y>…)`);没参与匹配的组给 `()`
+#
+# **选项**(第二个参数,或者模式里那套内联写法 `(?i)`):`i` 不分大小写、`m` 多行
+# (`^` / `$` 认每一行)、`s` 让 `.` 也吃换行、`x` 忽略模式里的空白与 `#` 注释。
+# 不认识的字符当场报错 —— 悄悄忽略等于让写的人以为生效了。
+#
+# **超时**:一条正则最多跑 2 秒,超了报错。这不是多余的谨慎 —— 写歪一个模式
+# (`(a+)+$` 配一长串 a)能让进程**卡死**,而卡死不是异常,Ravel 的 `try` 接不住,
+# 所以引擎那层给了时限(见 Runtime/Interpreter.Regex.cs)。模式写错(括号没配对上之类)
+# 也报成普通的 Ravel 错误,不会把程序打掉。
+
+# ── 命中的那一段 ──
+# 引擎交回的是一份普通 dict(`{value, index, length, groups, named}`),这个类把它摆成
+# 几个好读的方法。名字带 `Regex` 前缀:它是全局名,叫 `Match` 太容易和别的东西撞。
+RegexMatch ::= class {
+    Hit: string = ""
+    Index: int = 0
+    Span: int = 0
+    Captured: list = []
+    Named: dict = {}
+
+    init = (d: dict) => {
+        Hit = d.Get "value"
+        Index = d.Get "index"
+        Span = d.Get "length"
+        Captured = d.Get "groups"
+        Named = d.Get "named"
+        this;
+    }
+
+    Value := () => { Hit; }
+    At := () => { Index; }
+    Length := () => { Span; }
+    Groups := () => { Captured; }
+
+    # 按号取(`m.Group 1`)或者按名字取(`m.Group "y"`)—— 和 `Float` 那两条一样,
+    # 两种用法共用一个名字,按实参是什么分流。
+    Group := (k) => {
+        if { (typeof k) == string; } {
+            assert (Named.Has k) ("Group: 没有叫 '" + k + "' 的组（命名组要在模式里写成 (?<" + k + ">…)）")
+            Named.Get k
+        } {
+            i := int k
+            # 消息得和 `assert (…)` 写在同一行 —— 换行会把这条调用断开,断言就成了没消息的那个
+            assert ((i >= 0) && (i < (Captured.Count ()))) ("Group: 第 " + (string i) + " 组没有（一共 " + (string (Captured.Count ())) + " 组）")
+            Captured.At i
+        }
+    }
+}
+
+# ── 编译好的那一台 ──
+# 它只存"模式 + 选项"这一对;真正的编译在引擎那边(而且 .NET 自己缓存同一个模式,
+# 所以连着 `Regex.C "同一个"` 也不会反复编译)。
+RegexPattern ::= class {
+    Pattern: string = ""
+    Flags: string = ""
+
+    init = (pattern: string flags: string) => { Pattern = pattern; Flags = flags; this; }
+
+    IsMatch := (text: string) => { System.RegexIsMatch Pattern text Flags; }
+
+    # 有没有命中 —— 给的是 `Option`(没有命中不是用错,是**常事**)
+    TryMatch := (text: string) => {
+        d := System.RegexMatch Pattern text Flags
+        if { (typeof d) == dict; } { Some (RegexMatch d); } { None; }
+    }
+
+    # 头一段命中的;没有就**当场报错**(和 `Find` 一个脾气 —— 知道该有、结果没有,那是 bug)
+    Match := (text: string) => {
+        o := this.TryMatch text
+        assert (o.IsSome ()) ("Match: 没有匹配 —— 模式 " + Pattern)
+        o.Value ()
+    }
+
+    FindAll := (text: string) => {
+        out := []
+        foreach (System.RegexFindAll Pattern text Flags) (d: dict) => { out.Add (RegexMatch d); }
+        out
+    }
+
+    Replace := (text: string replacement: string) => { System.RegexReplace Pattern text Flags replacement; }
+
+    Split := (text: string) => { System.RegexSplit Pattern text Flags; }
+}
+
+ravel "Regex"
+
+# 两种构造:光给模式(常见),或者再给一串选项
+readonly C := (pattern: string) => { RegexPattern pattern ""; }
+readonly With := (pattern: string flags: string) => {
+    # 选项串**当场**查一遍:引擎那边也查,但那是用的时候;这里查是为了"构造的时候就报"
+    ok := ["i" "m" "s" "x"]
+    foreach (flags.Chars ()) (c: char) => {
+        assert (ok.Contains (string c)) ("Regex.With: 不认识的选项 '" + (string c) + "'（有 i / m / s / x）")
+    }
+    RegexPattern pattern flags;
+}
+
+# 把一串**字面量**转成能当模式用的样子(`.` 变成 `\.` 之类)
+readonly Escape := (text: string) => { System.RegexEscape text; }

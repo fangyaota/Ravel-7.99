@@ -124,6 +124,9 @@ public partial class Interpreter
         }));
 
         // ---- 其他核心函数 ----
+        // ── 正则 ──(那六条的实现在 Interpreter.Regex.cs;策略在 lib/regex.rav)
+        RegisterRegexPrimitives(DefFn);
+
         // ── 随机数的"源头" ──
         // 引擎只造**一枚取数的函数**(`() => int`,范围 0 .. 2^30-1);"哪几台、怎么用"是库的事
         // (lib/random.rav:三台 —— 进程共享 / 带种子可复现 / 加密级 —— 各包一枚它,
@@ -207,20 +210,6 @@ public partial class Interpreter
 
         static string PathOf(RuntimeValue v, string what)
             => v is StringVal s ? s.Value : throw new RuntimeException($"{what} 需要一个路径字符串，得到 {v.Type}");
-
-        static RuntimeValue Fs(string what, Func<RuntimeValue> body)
-        {
-            try
-            {
-                return body();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
-                                       or OverflowException
-                                       or NotSupportedException or System.Security.SecurityException)
-            {
-                throw new RuntimeException($"{what}失败: {ex.Message}");
-            }
-        }
 
         static void NeedFile(string p, string what)
         {
@@ -529,6 +518,26 @@ public partial class Interpreter
         }));
 
         return module;
+    }
+
+    /// <summary>把一类 C# 异常兜成 Ravel 错误 —— 文件 / 进程 / 正则那批原语共用。
+    ///
+    /// **不让 C# 异常漏到顶层**是这批原语一条老规矩:漏出去会绕过 Ravel 的 `try`
+    /// 把程序打掉(从前 `randint` 那条注释里说的也是这个)。这里是它唯一的家 ——
+    /// 从前它是 `BuildSystemModule` 里的局部静态函数,正则那批(另一个 partial 文件)
+    /// 也要用,就挪上来了。</summary>
+    private static RuntimeValue Fs(string what, Func<RuntimeValue> body)
+    {
+        try
+        {
+            return body();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                   or OverflowException
+                                   or NotSupportedException or System.Security.SecurityException)
+        {
+            throw new RuntimeException($"{what}失败: {ex.Message}");
+        }
     }
 
     /// <summary>把 Ravel 那个"毫秒数"收成 <see cref="DateTime"/>(本地时区)。

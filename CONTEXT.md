@@ -150,6 +150,9 @@ lib/
                           `Random.Make seed`(同种子同序列)/ `Random.Crypto ()`,取数那面
                           (Int/Below/Float/Choice/Shuffle/Sample)是 `IRandom` 的默认实现。
                           `using "random.rav"` 引入(引擎那三条原语见「System 模块」)
+  regex.rav               `Regex` 模块 —— 正则表达式:`Regex.C pattern` / `Regex.With pattern flags`
+                          / `Regex.Escape s`,命中的那段是 `RegexMatch`(`Value`/`At`/`Groups`/
+                          `Group 1`/`Group "名字"`)。**要显式引用**;引擎那六条原语见「System 模块」
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
@@ -263,7 +266,8 @@ Object (parent=自己)
         CallCC Exit With RavelMod Using Use unsafe Cmd
         property currentScope
         Args Env EnvOr SetEnv UnsetEnv EnvAll
-        NewRandom SharedRandom RandomBytes
+        NewRandom SharedRandom XoshiroRandom RandomBytes
+        RegexEscape RegexIsMatch RegexMatch RegexFindAll RegexReplace RegexSplit
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
 与「跑外部命令」两节:它们只做 syscall,策略在库里。）
@@ -325,6 +329,14 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Skip` + `Take`，从前根本没有这个 API —— 两个数字当区间写在参数里太丑）。
 `Math.Clamp` 也收区间（`Clamp x [0..1]`，端点收任何数值、**保型**照旧）—— 它的柯里化是
 **手写**的：第二个实参得当场分流，不然 `Clamp 5 [0..3]` 会先变成一个"还差一个参数"的函数。
+
+**正则**那六条也是原语（`lib/regex.rav` 把它们包成 `Regex` 模块）：模式、文本、选项串
+（`i` 不分大小写 / `m` 多行 / `s` 让 `.` 吃换行 / `x` 忽略模式里的空白）三样进去，数据出来
+（匹配交回普通 dict，由库拼成 `RegexMatch`）。用的是 **.NET 那组静态重载**
+（`Regex.IsMatch (input, pattern, options, timeout)`）—— 它们带 .NET 内部那张模式缓存，
+同一个模式不必反复编译。**两条兜底在引擎这层**：① 超时（默认没有，会挂死进程 ——
+所以给了 `RegexTimeout` = 2 秒，超了报普通的 Ravel 错误）；② 模式写错抛的
+`ArgumentException` 接住换成说人话的错误（和 `Fs` 那条老规矩一样，不让 C# 异常漏出去）。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
