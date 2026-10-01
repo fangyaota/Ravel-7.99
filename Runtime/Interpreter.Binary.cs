@@ -100,7 +100,7 @@ public partial class Interpreter
     ///
     /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
     /// 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。</summary>
-    private (FunctionVal Bound, bool Builtin) BindOperator(RuntimeValue left, string op)
+    private (FunctionVal Fn, bool Builtin) BindOperator(RuntimeValue left, string op)
     {
         var fn = left.MemberScope.LookupField(op)?.Value as FunctionVal;
         if (fn == null && left is ObjectVal o && HasTraitOperator(o, op))
@@ -109,13 +109,18 @@ public partial class Interpreter
         if (fn == null)
             throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'", ErrorKind.Type);
 
-        // 引擎挂的成员(self → 剩下)要先绑接收者;**用户写在类体里的那份是普通 lambda**
-        // ——它收的是右操作数,接收者靠捕获的作用域(`ClassOp` 帧里 `CallInto(cf, impl, arg)`
-        // 也是这么调的),原样交出去。`BindMethod` 会去读它的 `Body`,而 `LambdaVal.Body`
-        // 是占位(见 LambdaVal 那段:那是"求值器漏了一个 case"的哨兵)。
-        var bound = fn is ISelfBinding ? ObjectVal.BindMethod(fn, left) : fn;
-        return (bound, fn is BuiltinMethodVal);
+        // **这儿不绑接收者**:内置那台(`1 + 2`)可以直接 `Impl(left, right)` 算掉,
+        // 绑一次就得多分配一个闭包 —— 二元运算是解释器里最热的一格,不白花。
+        // 真要绑(推帧那条路)的时候再调 `BindSelf`。
+        return (fn, fn is BuiltinMethodVal);
     }
+
+    /// <summary>把运算符成员绑到接收者上 —— 引擎挂的(self → 剩下)要绑;
+    /// **用户写在类体里的那份是普通 lambda**,它收的是右操作数、接收者靠捕获的作用域
+    /// (`ClassOp` 帧里 `CallInto(cf, impl, arg)` 也是这么调的),原样交出去。
+    /// (`BindMethod` 会去读它的 `Body`,而 `LambdaVal.Body` 是占位 —— 见 LambdaVal 那段。)</summary>
+    private static FunctionVal BindSelf(FunctionVal fn, RuntimeValue self)
+        => fn is ISelfBinding ? ObjectVal.BindMethod(fn, self) : fn;
 
     /// <summary>这个对象身上有没有**槽运算符**(`by + := property g s`)。两处:自己那层
     /// (类体/实现体里写的),以及生效中的接口实现(`interface { by + := … }` 落在实现身上)。
@@ -168,7 +173,7 @@ public partial class Interpreter
             return;
         }
 
-        var (bound, builtin) = BindOperator(left, bin.Op);
+        var (fn, builtin) = BindOperator(left, bin.Op);
 
         // 判定类运算符的接口兜底:实现住在**当前作用域**里,而内置运算符的体是纯 C#(拿不到解释器),
         // 所以这一半只能挂在这儿 —— 判据本身在 BuiltinClasses.HasTrait,和实现那条查找共用一份。
@@ -191,8 +196,9 @@ public partial class Interpreter
             }
         }
 
-        if (builtin) Return(nf, bound.Body(right));
-        else CallInto(nf.Parent!, bound, right);
+        // 内置那台直接算(见 BindOperator):`Impl(left, right)` 就是绑完再调的结果
+        if (fn is BuiltinMethodVal bm) Return(nf, bm.Impl(left, right));
+        else CallInto(nf.Parent!, BindSelf(fn, left), right);
     }
 
     /// <summary>变量的复合赋值 `a += v`(字段那种见 <see cref="StepCompoundAssign"/>)。
@@ -203,14 +209,14 @@ public partial class Interpreter
     {
         if (bin.Left is not IdentifierExpr target)
             throw new RuntimeException("复合赋值目标必须是变量");
-        var (bound, builtin) = BindOperator(left, bin.Op[..1]);
-        if (!builtin)
+        var (fn, builtin) = BindOperator(left, bin.Op[..1]);
+        if (fn is not BuiltinMethodVal bm)
         {
-            PushCallAssign(nf, bound, right, target.Name);
+            PushCallAssign(nf, BindSelf(fn, left), right, target.Name);
             return;
         }
 
-        var r = bound.Body(right);
+        var r = bm.Impl(left, right);
         nf.Scope.Assign(target.Name, r, ViaTrait(r));
         Return(nf, r);
     }
@@ -242,16 +248,16 @@ public partial class Interpreter
 
         if (nf.Count == 2)
         {
-            var (bound, builtin) = BindOperator(field.Value, op);
-            if (builtin)
+            var (fn, _) = BindOperator(field.Value, op);
+            if (fn is BuiltinMethodVal bm)
             {
-                var r = bound.Body(nf.Result(1));
+                var r = bm.Impl(field.Value, nf.Result(1));
                 field.Assign(r, ViaTrait(r));
                 Return(nf, r);
                 return;
             }
 
-            CallInto(nf, bound, nf.Result(1));
+            CallInto(nf, BindSelf(fn, field.Value), nf.Result(1));
             return;
         }
 
@@ -282,8 +288,8 @@ public partial class Interpreter
 
         if (nf.Count == 3)
         {
-            var (bound, _) = BindOperator(nf.Result(2), op);
-            CallInto(nf, bound, nf.Result(1));
+            var (fn, _) = BindOperator(nf.Result(2), op);
+            CallInto(nf, BindSelf(fn, nf.Result(2)), nf.Result(1));
             return;
         }
 
