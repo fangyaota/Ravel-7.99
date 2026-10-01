@@ -1,0 +1,95 @@
+# `Zip` —— ZIP 归档(见 lib/zip.rav)。**要显式引用**。
+#
+# 它就是 `lib/io.rav` 开头许诺的那一格 ——「磁盘上的、内存里的、**zip 条目**、远程的……
+# 都只是 `IFile` 的实现」。归档是 `IDir`、成员是**只读的** `IFile`,于是
+# `Io.EachDir` / `Io.Lines` / `Io.Copy` 那些对着接口写的一律照吃。
+#
+# **归档那个文件本身不进用例**:zip 的成员头里带着"什么时候写的",同一份内容两次打出来
+# 字节不一样(所以 `Hash.File` 那条不钉)。钉的是**读回来的东西**。
+using "zip.rav"
+
+System.CreateDir ".io-test"
+System.WriteText ".io-test/disk.bin" "来自磁盘"
+
+# ── 打一个 ──
+w := Zip.Create ".io-test/t.zip"
+w.Add "top.txt" "顶层"
+w.Add "logs/a.txt" "第一行
+第二行"
+w.AddDir "empty"
+w.AddFile "disk.bin" ".io-test/disk.bin"     # 流式:内容不进 Ravel 堆
+w.Close ()
+
+# ── 读回来 ──
+z := Zip.Open ".io-test/t.zip"
+print ((z.Files ()).Keys ())          # 顶层:文件
+print ((z.Dirs ()).Keys ())           # 顶层:目录
+print ((z.Sub "empty").Name ())       # 建过的空目录也在
+print ((z.Entry "top.txt").Read ())
+print ((z.Entry "logs/a.txt").Read ())
+print ((z.Sub "logs").Entry "a.txt" @ .Read ())    # 往下走一层,名字按这一层认
+print ((z.Entry "disk.bin").Read ())
+print ((z.Entry "top.txt").Size ())                # 字节数(UTF-8 之后)
+print ((z.Child "logs").IsDir ())
+print ((z.Child "top.txt").IsDir ())
+print ((z.List ()).Keys ())
+
+# ── 对着接口写的那几件 ──
+Io.EachDir z (p: string e: object) => { print (e.Name ()); }
+foreach (Io.Lines (z.Entry "logs/a.txt")) (l: string) => { print ("行: " + l); }
+z.Extract "disk.bin" ".io-test/out.bin"            # 流式落盘,内容不进堆
+print (System.ReadText ".io-test/out.bin")
+Io.Copy (z.Entry "top.txt") (Io.File ".io-test/copy.txt")
+print (System.ReadText ".io-test/copy.txt")
+
+# ── 报错 ──
+try { Zip.Open ".io-test/disk.bin"; } (e: Exception) => { print ("1: " + string e); }
+try { z.Entry "nope"; } (e: Exception) => { print ("2: " + string e); }
+try { z.Entry "logs"; } (e: Exception) => { print ("3: " + string e); }
+try { (z.Entry "top.txt").Write "x"; } (e: Exception) => { print ("4: " + string e); }
+try { (z.Entry "top.txt").Append "x"; } (e: Exception) => { print ("5: " + string e); }
+try { (z.Entry "top.txt").Delete (); } (e: Exception) => { print ("6: " + string e); }
+try { z.Add "x" "y"; } (e: Exception) => { print ("7: " + string e); }
+try { z.AddDir "x"; } (e: Exception) => { print ("8: " + string e); }
+
+z.Close ()
+z.Close ()                                 # 关两次不报错(幂等,和 SqliteClose 一个规矩)
+try { z.Entry "top.txt"; } (e: Exception) => { print ("9: " + string e); }
+
+System.DeletePath ".io-test/disk.bin"
+System.DeletePath ".io-test/out.bin"
+System.DeletePath ".io-test/copy.txt"
+System.DeletePath ".io-test/t.zip"
+System.DeletePath ".io-test"
+# --- expected ---
+# [disk.bin top.txt]
+# [empty logs]
+# empty
+# 顶层
+# 第一行
+# 第二行
+# 第一行
+# 第二行
+# 来自磁盘
+# 6
+# true
+# false
+# [disk.bin empty logs top.txt]
+# disk.bin
+# empty
+# logs
+# a.txt
+# top.txt
+# 行: 第一行
+# 行: 第二行
+# 来自磁盘
+# 顶层
+# 1: 开归档失败: Central Directory corrupt.
+# 2: .io-test/t.zip 里没有 'nope' 这个成员
+# 3: 'logs' 是个目录（往下走用 Sub / Child）
+# 4: 归档里的成员写不回去，要改得重打一个：top.txt
+# 5: 归档里的成员追写不了：top.txt
+# 6: 归档里的成员删不掉，要删得重打一个：top.txt
+# 7: 这是只读打开的（Zip.Open）：要往里加得用 `Zip.Create`
+# 8: 这是只读打开的（Zip.Open）：要往里加得用 `Zip.Create`
+# 9: 这个归档已经关了（Close () 过,或者压根没开成）：句柄 2

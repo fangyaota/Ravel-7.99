@@ -223,9 +223,17 @@ lib/
                           error**,松的一律不落笔(过滤在拼串之前)。落点:给了 `"file"` 追加到文件、
                           `"err": true` 走 stderr,否则 stdout;落盘失败**当场报错**。
                           **要显式引用**
+  zip.rav                 `Zip` 模块 —— **ZIP 归档**,而且它**是一个文件系统**:
+                          `Zip.Open path` / `Zip.Create path` 交回一个归档(它是 `IDir`),
+                          成员是**只读**的 `IFile`(`Read` / `Bytes` / `Size` / `Packed`)——
+                          于是 `Io.EachDir` / `Io.Lines` / `Io.Copy` 那些对着接口写的一律照吃。
+                          `Add` / `AddFile`(流式)/ `AddDir` / `Extract`(流式)/ `Close ()`。
+                          归档里的**目录是推出来的**(`logs/a.txt` 意味着有个 `logs/`),
+                          名字认两头:先当完整路径、再当这一层的名字。**要显式引用**
+                          (本机六条在官方扩展里,见「官方扩展」一节)
   native.rav              **官方扩展的 Ravel 那一半** —— 就一行 `using "plugins/Ravel.Extensions.dll"`,
                           把 `Native` 模块装进来(`Hash`/`Crypto`/`Http`/`Regex`/`Sqlite`/`Random`
-                          六个库的本机半边都在那儿)。要用扩展的库都 `using "native.rav"`,
+                          那几个库的本机半边都在那儿)。要用扩展的库都 `using "native.rav"`,
                           dll 的字面路径**只有这一处**。见「官方扩展」一节
   hash.rav                `Hash` 模块 —— 摘要与校验:`Sha256`/`Sha512`/`Sha1`/`Md5`(字符串按
                           UTF-8 进、交回小写十六进制;要字节表用 `...Bytes`)、`Hmac algo key data`、
@@ -887,8 +895,8 @@ internal static class StackClass
 
 ### 官方扩展（`Ravel.Extensions` → `plugins/Ravel.Extensions.dll`）
 
-**六个库的本机半边住在里面,不在引擎里**:`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` /
-`Random`(25 条原语,对外叫 `Native.HashBytes` 那几条,同一个 `[RavelModule("Native")]`)。
+**那几个库的本机半边住在里面,不在引擎里**:`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` /
+`Random` / `Zip`(对外叫 `Native.HashBytes` 那几条,同一个 `[RavelModule("Native")]`)。
 留下来的那批照的是一条明着的尺子 —— **要么是语言本身要的,要么是进程边界**;
 这六个两样都不沾,它们说的是"这台机器能干什么",而 `Hash.Sha256` 那个库才是"这门语言里
 摘要是什么"。

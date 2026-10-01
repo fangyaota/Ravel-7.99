@@ -1,0 +1,235 @@
+# `Zip` —— ZIP 归档。**要显式引用**:`using "zip.rav"`。
+#
+#     z := Zip.Open "a.zip"                 # → 归档(它是**一个目录**)
+#     print (z.List ())                     # 名字 → 条目(和 Io.Dir 一个形状)
+#     print ((z.Entry "readme.txt").Read ())
+#     Io.Copy (z.Entry "a.txt") (Io.File "out.txt")     # 对着接口写的那几件直接吃
+#     z.Close ()
+#
+#     w := Zip.Create "new.zip"             # 新建(**同名会被整个覆盖**)
+#     w.Add "hello.txt" "你好"
+#     w.AddFile "big.bin" "某个大文件"      # 流式,内容不进堆
+#     w.AddDir "logs"
+#     w.Close ()                            # ← 写这条路上这一步不能省,不到这儿还没落盘
+#
+# **这就是 `lib/io.rav` 开头许诺的那一格**——"磁盘上的、内存里的、**zip 条目**、远程的……
+# 都只是 `IFile` 的实现"。归档是 `IDir`,成员是 `IFile`:
+#
+#   * `Io.EachDir z (p, e) => { … }` 能把它整个走一遍
+#   * `Io.Lines (z.Entry "a.txt")` 能一行行读里面的文本
+#   * `Io.Copy` / `Hash.File` 那些对着接口写的一律照吃
+#
+# 一条**只读**的取舍:归档里的成员**写不回去**(`Write` / `Append` / `Delete` 全报错)。
+# zip 要改一个成员得整档重写一遍,而"一个文件改了 3 个字节"的语义在这儿本来就不成立 ——
+# 与其做一个悄悄重写整档的 `Write`,不如当场说清楚(和 `Io.Stdout` 那几条一个待遇)。
+# 要造新档走 `Zip.Create`。
+#
+# 名字一律是**归档里的完整路径**(`logs/2026/10/02.txt` 这样),目录就是"名字以 `/` 结尾
+# 的那个成员"—— zip 格式本来就只有这一种目录。`List ()` 只给**这一层**的,
+# 子目录是个能继续往下走的归档视图。
+using "native.rav"
+using "encoding.rav"
+using "io.rav"
+
+ravel "Zip"
+
+# ── 打开 / 新建 ──
+
+# 开一个已有的档(读)
+readonly Open := (p: object) => { Archive (Native.ZipOpen (Io.PathOf p)) (Io.PathOf p) "" false; }
+
+# 新建一个(写)。**同名的会被整个覆盖** —— 要"往里加"得先解出来再重打一个
+readonly Create := (p: object) => { Archive (Native.ZipCreate (Io.PathOf p)) (Io.PathOf p) "" true; }
+
+# 去掉末尾那个 `/`(归档里目录的名字带着它,而对人讲的时候就别带了)
+readonly TrimSlash := (s: string) => {
+    if { s.EndsWith "/"; } { s.Slice [0..((s.Length ()) - 1)); } { s; }
+}
+
+# 把"这一层有哪些名字"从一列**平的**成员名里切出来。
+# 交回一张 dict:这一层的名字 → 它在归档里的完整名字(目录带 `/`)。
+#
+# zip 里没有真的目录树,只有一串带 `/` 的路径 —— 树是**看出来的**:
+# `a/b.txt` 这一条同时意味着 `a/` 是个目录。所以只看 `prefix` 之后那一段有没有 `/`。
+readonly Here := (all: list prefix: string) => {
+    out := {}
+    foreach all (e: object) => {
+        n := e.Get "name"
+        if { n.StartsWith prefix; } {
+            rest := n.Skip (prefix.Length ())
+            if { rest.IsEmpty (); } { 0; } {
+                cut := rest.Find "/"                 # `Find` 找不到给 -1(`IndexOf` 找不到会报错)
+                if { cut < 0; } { out.Set rest n; } { head := rest.Take cut; out.Set head (prefix + head + "/"); }
+            }
+        } { 0; }
+    }
+    out
+}
+
+# 有没有谁的完整名字以 `prefix + "/"` 开头 —— 也就是"`prefix` 这个名字底下有东西"。
+# **zip 里的目录大多是推出来的**:打了 `logs/a.txt` 之后,`logs/` 并不真的在成员表里,
+# 它只是"名字里带那一段"看出来的(要显式的目录成员得自己 `AddDir`)。
+readonly HasUnder := (all: dict prefix: string) => {
+    hit := false
+    foreach (all.Keys ()) (k: object) => {
+        if { k.StartsWith (prefix + "/"); } { hit = true; } { 0; }
+    }
+    hit
+}
+
+# 整档的成员 → 那一条(dict,按完整名字当键)。名字解析、大小那两个数都从这儿看。
+readonly Members := (handle: int) => {
+    out := {}
+    foreach (Native.ZipList handle) (e: object) => { out.Set (e.Get "name") e; }
+    out
+}
+
+# ── 归档:一个目录 ──
+#
+# 根、以及每一层子目录,都是**同一个类**的不同视图 —— 差别只在 `Prefix`
+# ("logs/" 这种)。这样 `Io.EachDir` 那套递归不用为"根"单开一路。
+Archive ::= class {
+    Handle: int = 0
+    Path: string = ""
+    Prefix: string = ""            # "" 是根;"logs/" 是下一层
+    Writable: bool = false
+
+    init = (handle: int path: string prefix: string writable: bool) => {
+        Handle = handle
+        Path = path
+        Prefix = prefix
+        Writable = writable
+        this;
+    }
+
+    # 根的名字就是那个档名,子目录就是自己那一段
+    Name := () => { if { Prefix.IsEmpty (); } { Io.BaseName Path; } { TrimSlash Prefix; } }
+    Exists := () => { true; }
+    IsDir := () => { true; }
+    Delete := () => { throw (Exception ("归档删不掉：把那个文件删了就行 —— " + Path)); }
+
+    # ── 看 ──
+
+    # 这一层的名字 → 条目(文件是 `ZipEntry`、子目录是这个类的另一份)
+    List := () => {
+        here := Here (Native.ZipList Handle) Prefix
+        out := {}
+        foreach ((here.Keys ()).Sort ()) (n: string) => { out.Set n (Node n (here.Get n)); }
+        out
+    }
+
+    Files := () => { Pick false; }
+    Dirs := () => { Pick true; }
+
+    Pick := (wantDir: bool) => {
+        out := {}
+        here := Here (Native.ZipList Handle) Prefix
+        foreach ((here.Keys ()).Sort ()) (n: string) => {
+            if { ((here.Get n).EndsWith "/") == wantDir; } { out.Set n (Node n (here.Get n)); } { 0; }
+        }
+        out
+    }
+
+    # `Child` 和 `Io.Dir` 一个写法:问都不问,是文件是目录由那一层说了算
+    Child := (name: string) => { Node name (EntryName name); }
+
+    # 一个名字 → 它在归档里的**完整路径**;找不着、或者那是个目录,都当场报错。
+    #
+    # 两头都认,顺序是死的:
+    #   ① 先当**完整路径**找 —— zip 本来就是平的,根视图上 `z.Entry "a/one.txt"` 该直接能用;
+    #   ② 再当**这一层**的名字找 —— 往下走过 `Sub` 之后,`Sub("a").Entry "one.txt"` 也该能用。
+    # 每一头都试**带 `/` 和不带**两种写法:目录在归档里就长成 `logs/` 那样。
+    #
+    # 从前这儿不查,于是 `z.Entry "nope"` 会静默交回一个要到 `Read ()` 才炸的东西。
+    FileOf := (name: string) => {
+        all := Members Handle
+        cand := if { (all.Has name) || ((all.Has (name + "/")) || (HasUnder all name)); } { name; } { Prefix + name; }
+        if { all.Has cand; } { cand; } {
+            assert ((all.Has (cand + "/")) || (HasUnder all cand)) (Path + " 里没有 '" + name + "' 这个成员")
+            throw (Exception ("'" + cand + "' 是个目录（往下走用 Sub / Child）"));
+        }
+    }
+
+    Entry := (name: string) => { ZipEntry Handle (FileOf name); }
+
+    # 子目录(交回同一个类的下一层视图)。**只是"看"** —— 真建目录用 `AddDir`
+    Sub := (name: string) => { Archive Handle Path (Prefix + (TrimSlash name) + "/") Writable; }
+
+    # 这一层某个名字的完整路径(找不到报 Key)
+    EntryName := (name: string) => { (Here (Native.ZipList Handle) Prefix).Get name; }
+
+    Node := (name: string full: string) => {
+        if { full.EndsWith "/"; } { Archive Handle Path full Writable; } { ZipEntry Handle full; }
+    }
+
+    # ── 写(只有 `Zip.Create` 开出来的能写) ──
+
+    Add := (name: string data: object) => {
+        assert Writable "这是只读打开的（Zip.Open）：要往里加得用 `Zip.Create`"
+        Native.ZipWrite Handle (Prefix + name) (DataOf data)
+        ();
+    }
+
+    # 加一个**磁盘文件** —— 流式,内容不进 Ravel 堆
+    AddFile := (name: string path: object) => {
+        assert Writable "这是只读打开的（Zip.Open）：要往里加得用 `Zip.Create`"
+        Native.ZipAddFile Handle (Prefix + name) (Io.PathOf path)
+        ();
+    }
+
+    # 建一个目录成员。zip 里的目录就是个名字带 `/` 的空成员 —— 有些工具靠它有这一条
+    AddDir := (name: string) => {
+        assert Writable "这是只读打开的（Zip.Open）：要往里加得用 `Zip.Create`"
+        Native.ZipWrite Handle (Prefix + (TrimSlash name) + "/") []
+        ();
+    }
+
+    # 把一个成员**流式**落到磁盘(大文件走它,内容不进 Ravel 堆)。名字认法同 `Entry`
+    Extract := (name: string path: object) => {
+        Native.ZipExtract Handle (FileOf name) (Io.PathOf path)
+        ();
+    }
+
+    # **写的那条路上不能省**:不到这儿,归档还在内存里
+    Close := () => { Native.ZipClose Handle; (); }
+}
+
+impl (IDir Archive {
+    ()
+})
+
+# ── 成员:一个文件 ──
+#
+# **只读**:`Read` 有,`Write` / `Append` / `Delete` 一律报错(见文件开头那段取舍)。
+ZipEntry ::= class {
+    Handle: int = 0
+    Full: string = ""
+
+    init = (handle: int full: string) => { Handle = handle; Full = full; this; }
+
+    Name := () => { Io.BaseName Full; }
+    Path := () => { Full; }                      # 归档里的完整路径
+    Exists := () => { true; }
+    IsDir := () => { false; }
+
+    Read := () => { Encoding.Utf8Text (Bytes ()); }
+    Bytes := () => { Native.ZipRead Handle Full; }
+
+    Size := () => { (Info ()).Get "size"; }
+    Packed := () => { (Info ()).Get "packed"; }  # 压完多少字节(看压缩率用)
+
+    Write := (t: string) => { throw (Exception ("归档里的成员写不回去，要改得重打一个：" + Full)); }
+    Append := (t: string) => { throw (Exception ("归档里的成员追写不了：" + Full)); }
+    Delete := () => { throw (Exception ("归档里的成员删不掉，要删得重打一个：" + Full)); }
+
+    # 从成员表里捞这一条 —— 大小那两个数只有那儿有
+    Info := () => { (Members Handle).Get Full; }
+}
+
+impl (IFile ZipEntry {
+    ()
+})
+
+# ── 一件小事:要写进去的东西按 UTF-8 变字节 ──
+# 字符串走 UTF-8;字节表原样(要塞二进制就自己给字节表)
+readonly DataOf := (v: object) => { ((typeof v) == string) { Encoding.Utf8 v; } { v; } }

@@ -2256,7 +2256,28 @@ print (Native.HashBytes "sha256" (Encoding.Utf8 "abc"))
 平时用不着碰这一层:`Hash.Sha256` / `Http.Get` / `Sqlite.Open` 那些库面才是给人用的。
 一层薄壳(native.rav)是为了把 `plugins/...` 这个路径收在**一处**。
 
-### 6.20 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
+### 6.20 ZIP 归档（`Zip`）
+
+归档**是一个文件系统** —— 这是 `IFile` 那条缝许诺过的那一格:
+
+```ravel
+using "zip.rav"
+z := Zip.Open "a.zip"                 # 归档是 IDir
+z.Entry "a/one.txt" @ .Read ()        # 成员是只读的 IFile
+Io.EachDir z (p: string e: object) => { print (e.Name ()); }   # 对着接口写的一律照吃
+
+w := Zip.Create "new.zip"             # 新建（同名整个覆盖）
+w.Add "hello.txt" "你好"
+w.AddFile "big.bin" "一个磁盘文件"     # 流式，内容不进堆
+w.Close ()                            # ← 写这条路上不能省
+```
+
+成员**写不回去**（`Write` / `Append` / `Delete` 一律报错）:zip 改一个成员得整档重写,
+与其做一个悄悄重写的 `Write`，不如当场说清楚。要造新档走 `Zip.Create`。
+
+**用例见 tests/282。**
+
+### 6.21 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
 
 **`Crypto`** —— 加密与口令。和 `Hash` 是两件事：那边是"防篡改"，这边是"藏起来"。
 
