@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 
 namespace Ravel.Runtime;
 
@@ -132,6 +133,33 @@ public partial class Interpreter
                 throw new RuntimeException($"randint 的最小值 {l.Value} 不能大于最大值 {h.Value}");
             return new IntVal(Random.Shared.Next(l.Value, h.Value));
         }));
+        // ── 随机数的"源头" ──
+        // 引擎只造**一枚取数的函数**(`() => int`,范围 0 .. 2^30-1);"哪几台、怎么用"是库的事
+        // (lib/random.rav:三台 —— 进程共享 / 带种子可复现 / 加密级 —— 各包一枚它,
+        //  掷骰子 / 洗牌 / 抽样那些写成 `IRandom` 的默认实现)。
+        //
+        // 交回**函数**而不是新造一个值类型:和 `Cached` 一个路子("是个函数,不是要实例化的类型"),
+        // 引擎面最小,也不必动类型树。范围由这一层保证(原生闭包自己 `Next` 出来的)。
+        DefFn("NewRandom", FunctionVal.From(a => Fs("造随机源", () =>
+        {
+            var seed = As<IntVal>(a, "NewRandom 的种子").Value;
+            return NumberSource(new Random(seed));
+        })));
+        // 进程共享那台 —— 就是 `randint` 用的 `Random.Shared`
+        DefFn("SharedRandom", FunctionVal.From(_ => NumberSource(Random.Shared)));
+        // 原始随机字节(0..255):加密那台的原料,也留给"就是要字节"(拿它自己拼整数)的人
+        DefFn("RandomBytes", FunctionVal.From(a => Fs("取随机字节", () =>
+        {
+            var n = As<IntVal>(a, "RandomBytes 的个数").Value;
+            if (n < 0) throw new RuntimeException($"RandomBytes 的个数不能是负的，得到 {n}");
+            var buf = new byte[n];
+            RandomNumberGenerator.Fill(buf);
+            return new ListVal([.. buf.Select(b => (RuntimeValue)new IntVal(b))]);
+        })));
+
+        static FunctionVal NumberSource(Random rng)
+            => new NativeClosure("_", BuiltinClasses.Any, (_, _) => new IntVal(rng.Next(1 << 30)));
+
         DefFn("Property", FunctionVal.From((g, s) =>
         {
             if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数");

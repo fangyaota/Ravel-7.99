@@ -146,6 +146,10 @@ lib/
                           `Report`),要显式 `using "test.rav"`。断言跑的是"一段东西报不报错"
                           (建在 `Expected` / `Expect` 上),`Report ()` 打汇总、有没过就抛出去
                           —— 于是脚本以非零退出码结束。仓库自己的用例仍是 golden 那一套
+  random.rav              `Random` 模块 —— **可选择的**随机数生成器:`Random.Shared ()` /
+                          `Random.Make seed`(同种子同序列)/ `Random.Crypto ()`,取数那面
+                          (Int/Below/Float/Choice/Shuffle/Sample)是 `IRandom` 的默认实现。
+                          `using "random.rav"` 引入(引擎那三条原语见「System 模块」)
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
@@ -258,6 +262,7 @@ Object (parent=自己)
         CallCC Exit With RavelMod Using Use unsafe Cmd
         property currentScope
         Args Env EnvOr SetEnv UnsetEnv EnvAll
+        NewRandom SharedRandom RandomBytes
 
 （文件与进程那几条 —— `FileExists` / `ReadText` / `ListDir` / `Cmd` … —— 见「文件系统」
 与「跑外部命令」两节:它们只做 syscall,策略在库里。）
@@ -272,6 +277,14 @@ Object (parent=自己)
 REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Env name`（没有就报错）/ `EnvOr name dflt` / `SetEnv name value` / `UnsetEnv name` / `EnvAll ()`。
 这几条只动**本进程**那份（新起的子进程看得见），写空串等于删掉（.NET 那套）。
+
+**随机数的"源头"**也在这儿，三条：`NewRandom seed` / `SharedRandom ()` 各交回**一枚函数**
+（`() => int`，0 .. 2^30-1 —— 包着 `new Random(seed)` / `Random.Shared`），
+`RandomBytes n` 交回 `list`（元素 0..255，走 `RandomNumberGenerator`）。
+**交回函数而不是新造一个值类型**：和 `Cached` 一个路子（"是个函数，不是要实例化的类型"），
+引擎面最小、也不必动类型树。三台生成器、`Int`/`Shuffle`/`Sample` 那些都在库里
+（`lib/random.rav` 的 `IRandom` 默认实现）；全局那个 `randint lo hi` 一个字没改
+（上界**不含**，等于 `(Random.Shared ()).Int lo (hi - 1)`）。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：

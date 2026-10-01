@@ -1648,6 +1648,51 @@ Seqs.Frequency ["a" "b" "a"]          # {a: 2 b: 1}        数出现几次
 
 **用例见 tests/248、tests/252、tests/253。**
 
+### 6.10 随机数（`Random`）—— 台子可以挑
+
+`using "random.rav"` 之后有三台，**换台子只换一行构造子**：
+
+```ravel
+r := Random.Shared ()      # 进程共享(.NET Random.Shared)—— 不可复现
+r := Random.Make 42        # 带种子 —— 同一个运行时里同种子给同一串
+r := Random.Crypto ()      # 加密级 —— 不可复现、也没有种子
+```
+
+取数那一面是一套方法（写成接口 `IRandom` 的**默认实现**，所以三台都白拿）：
+
+```ravel
+r.Int 1 6                  # 1..6，**含两端**
+r.Below 10                 # 0..9
+r.Float ()                 # 0.0 .. 1.0
+r.Bool ()                  # true / false
+r.Choice ["a" "b" "c"]     # 挑一个（空表当场报错）
+r.Shuffle [1 2 3 4 5]      # 洗过的**新 list**（原表不动）
+r.Sample 2 [1 2 3 4 5]     # 取 2 个不重复的
+```
+
+**要可复现就用 `Make seed`**（写测试、复现 bug 的场合）：同一个运行时里，同种子给出同一串 ——
+换种子就换一串。加密那台和共享那台都**钉不住**（本来就没有种子）。
+
+```ravel
+draw := (rng: IRandom) => { out := []; i := 0; while { i < 5; } { out.Add (rng.Below 100); i += 1; } out; }
+draw (Random.Make 7).Join "," == draw (Random.Make 7).Join ","    # true
+draw (Random.Make 7).Join "," == draw (Random.Make 8).Join ","    # false
+```
+
+`Random.Make 42` 交回的是一个**能调方法的值**（`Kind` 是 `"seeded"`），可以传、可以存：
+`(r is IRandom)` 成立 —— 想写"要哪台都行"的函数就把参数标成 `IRandom`。
+
+**和 `randint` 的关系**：`randint lo hi` 那台就是 `Random.Shared ()`，只是**上界不含**
+（.NET 的老规矩）：
+
+```ravel
+randint 1 6                # 1..5
+(Random.Shared ()).Int 1 6 # 1..6
+randint 1 7 ≡ (Random.Shared ()).Int 1 6
+```
+
+**用例见 tests/254。**
+
 ## 七、类
 
 ### 7.1 类就是一个对象

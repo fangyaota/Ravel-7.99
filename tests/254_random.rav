@@ -1,0 +1,128 @@
+# `Random` —— **可选择的**随机数生成器(见 lib/random.rav)。三台:
+#
+#     Random.Shared ()   进程共享(.NET Random.Shared)—— 不可复现
+#     Random.Make seed   带种子 —— 同一个运行时里同种子给同一串
+#     Random.Crypto ()   加密级 —— 不可复现、也没有种子
+#
+# 取数那一面是 `IRandom` 的**默认实现**(一条槽 `Next`,其余白拿),换台子只换构造子。
+#
+# **这个用例不钉具体随机数**(.NET 的算法换版本可能变):钉的是"同种子同序列"和各种范围
+# 不变量;要钉死的地方用"注定只有一个答案"的写法(`Int 5 5` / `Below 1`)。
+
+using "random.rav"
+
+# ── 三台都在,都实现 IRandom ──
+r := Random.Make 42
+print (r is IRandom)
+print (r.Kind)
+shared := Random.Shared ()
+print (shared.Kind)
+crypto := Random.Crypto ()
+print (crypto.Kind)
+print (typeof r)
+print (r is IEnumerable)          # 枚举器那一族的待遇它没有 —— 这里只是问一句
+
+# ── 可复现:同种子同序列,换种子就换一串 ──
+draw := (rng: IRandom) => {
+    out := []
+    i := 0
+    while { i < 5; } { out.Add (rng.Below 1000000); i += 1; }
+    out
+}
+a1 := draw (Random.Make 7)
+a2 := draw (Random.Make 7)
+b1 := draw (Random.Make 8)
+print ((a1.Join ",") == (a2.Join ","))       # 同种子 → 同一串
+print ((a1.Join ",") == (b1.Join ","))       # 换种子 → 另一串
+print (a1.Count ())
+# 同一台连着抽也是接着往下走(不是每次都从头)
+again := (Random.Make 7).Below 1000000
+print (again == (a1.At 0))
+
+# ── 注定只有一个答案的那几个:把两端的规矩钉死 ──
+print (r.Int 5 5)          # 5 —— 下界**含**
+print (r.Below 1)          # 0 —— `Below n` 是 0..n-1
+print (r.Int 0 0)          # 0
+
+# ── 范围不变量(抽 200 次,越界就 false —— 不钉具体值)──
+inRange := (f: function lo: object hi: object) => {
+    good := true
+    i := 0
+    while { i < 200; } {
+        v := f ()
+        if { (v < lo) || (v > hi); } { good = false; } { 0; }
+        i += 1
+    }
+    good
+}
+print (inRange (() => { r.Int 1 6; }) 1 6)          # 1..6 **含两端**
+print (inRange (() => { r.Below 10; }) 0 9)
+print (inRange (() => { r.Float (); }) 0.0 1.0)     # [0, 1)(上界取不到,这里只证不越界)
+print (typeof (r.Bool ()))
+pr := Random.Shared ()
+print (inRange (() => { pr.Int 1 100; }) 1 100)
+ck := crypto.Int 0 999
+print ((ck >= 0) && (ck <= 999))
+
+# ── 常用件:三台白拿(默认实现在 IRandom 的体里)──
+xs := [1 2 3 4 5]
+sh := (Random.Make 3).Shuffle xs
+print (sh.Count ())
+print xs                                       # 原表**没动**
+print ((Sorting.Sort sh).Join ",")             # 还是那一批,只是顺序变了
+picked := (Random.Make 11).Choice xs
+print (xs.Contains picked)
+smp := (Random.Make 5).Sample 2 xs
+print (smp.Count ())
+uniq := smp.Distinct ()
+print (uniq.Count ())                          # 不重复
+cs := (Random.Crypto ()).Sample 2 xs
+print (cs.Count ())
+try { (Random.Make 1).Choice []; } (e: Exception) => { print ("1: " + string e); }
+try { (Random.Make 1).Sample 9 [1 2]; } (e: Exception) => { print ("2: " + string e); }
+try { (Random.Make 1).Int 6 1; } (e: Exception) => { print ("3: " + string e); }
+try { (Random.Make 1).Below 0; } (e: Exception) => { print ("4: " + string e); }
+
+# ── 引擎那三条原语(库只是包了一层)──
+print (typeof (System.SharedRandom ()))
+print (typeof (System.NewRandom 1))
+rb := System.RandomBytes 4
+print (rb.Count ())
+print (((rb.At 0) >= 0) && ((rb.At 0) <= 255))
+print "end"
+# --- expected ---
+# true
+# seeded
+# shared
+# crypto
+# RandomSource
+# false
+# true
+# false
+# 5
+# true
+# 5
+# 0
+# 0
+# true
+# true
+# true
+# Bool
+# true
+# true
+# 5
+# [1 2 3 4 5]
+# 1,2,3,4,5
+# true
+# 2
+# 2
+# 2
+# 1: Random.Choice: 空的一串里挑不出东西
+# 2: Random.Sample: 要 9 个，只有 2 个可取
+# 3: Random.Int 的下界 6 比上界 1 大
+# 4: Random.Below 的上界至少是 1，得到 0
+# Function
+# Function
+# 4
+# true
+# end

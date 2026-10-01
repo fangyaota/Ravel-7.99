@@ -1,0 +1,114 @@
+# `Random` —— **可选择的**随机数生成器。要显式引用:`using "random.rav"`。
+#
+# 三台,换台子只换一行构造子:
+#
+#     r := Random.Shared ()      # 进程共享(.NET `Random.Shared`)—— 不可复现
+#     r := Random.Make 42        # 带种子 —— **同一个运行时里**同种子给同一串(可复现)
+#     r := Random.Crypto ()      # 加密级 —— 不可复现、也没有种子
+#
+# 取数那一面是一套方法(接口 `IRandom` 的**默认实现**,凡实现者白拿):
+#
+#     r.Int 1 6                  # 1..6,**含两端**(和 `randint` 不同,那个上界不含)
+#     r.Below 10                 # 0..9
+#     r.Float ()                 # 0.0 .. 1.0
+#     r.Bool ()                  # true / false
+#     r.Choice ["a" "b" "c"]     # 挑一个(空表当场报错)
+#     r.Shuffle [1 2 3 4 5]      # 洗过的**新 list**(原表不动,和容器那批一个规矩)
+#     r.Sample 2 [1 2 3 4 5]     # 取 2 个不重复的(要的比有的多就报错)
+#
+# 和全局那个 `randint lo hi` 的关系:`randint` 就是"Shared 那台"的一次取数,上界**不含**
+# (.NET 的老规矩)—— `(Random.Shared ()).Int lo (hi - 1)` 和它等价。
+
+# ── 形状:一条槽 ──
+# `Next ()` 交回 0 .. 2^30-1 的整数(各家实现自己保证这个范围);下面那一整套是默认实现,
+# 只依赖 `Next` —— 所以换台子只需要换"取数的源头"。
+IRandom ::= interface {
+    by Next : function = default
+
+    # lo..hi,**含两端**。`%` 映射在范围不整除 2^30 时有极轻微的偏差 ——
+    # 掷骰子、洗牌这种用途不必计较;要严格均匀就自己拿 `Next ()` 做拒绝采样。
+    by Int := property (() => {
+        (lo: int hi: int) => {
+            assert (lo <= hi) ("Random.Int 的下界 " + (string lo) + " 比上界 " + (string hi) + " 大")
+            lo + (instance.Below ((hi - lo) + 1))
+        }
+    }) ((v: function) => { (); })
+
+    by Below := property (() => {
+        (n: int) => {
+            assert (n >= 1) ("Random.Below 的上界至少是 1，得到 " + (string n))
+            (instance.Next ()) % n
+        }
+    }) ((v: function) => { (); })
+
+    by Float := property (() => {
+        () => { (instance.Next ()) / 1073741824.0; }
+    }) ((v: function) => { (); })
+
+    by Bool := property (() => {
+        () => { (instance.Below 2) == 1; }
+    }) ((v: function) => { (); })
+
+    by Choice := property (() => {
+        (xs: IEnumerable) => {
+            got := xs.ToList ()
+            assert ((got.Count ()) > 0) "Random.Choice: 空的一串里挑不出东西"
+            got.At (instance.Below (got.Count ()))
+        }
+    }) ((v: function) => { (); })
+
+    # Fisher–Yates:从最后一个往前,每一步和前面某个位置(含它自己)对调
+    by Shuffle := property (() => {
+        (xs: IEnumerable) => {
+            out := xs.ToList ()
+            i := (out.Count ()) - 1
+            while { i > 0; } {
+                j := instance.Below (i + 1)
+                tmp := out.At i
+                out.Set i (out.At j)
+                out.Set j tmp
+                i -= 1
+            }
+            out
+        }
+    }) ((v: function) => { (); })
+
+    by Sample := property (() => {
+        (n: int xs: IEnumerable) => {
+            out := instance.Shuffle xs
+            assert ((n >= 0) && (n <= (out.Count ()))) ("Random.Sample: 要 " + (string n) + " 个，只有 " + (string (out.Count ())) + " 个可取")
+            out.Take n
+        }
+    }) ((v: function) => { (); })
+}
+
+# ── 一台 = 一个"取数的源头" ──
+# 三台共用一个类,区别只在 `Kind`(给人看的那句话)和交进来的那枚函数。
+# `Kind` 只是标签,不参与语义 —— 断言/打印时一眼看出手里是哪台。
+RandomSource ::= class {
+    Kind: string = ""
+    NextFn: function = () => { 0; }
+    init = (kind: string f: function) => { Kind = kind; NextFn = f; this; }
+}
+impl (IRandom RandomSource {
+    by Next = property (() => { () => { instance.NextFn (); }; }) ((v: function) => { (); })
+})
+
+ravel "Random"
+
+# 从 4 个随机字节拼一个 0..2^30-1。走 bigint 中转:4 字节能到 2^32-1,int 装不下(会报溢出)。
+readonly CryptoNext := () => {
+    bs := System.RandomBytes 4
+    big := (bigint (bs.At 0)) * 16777216 + (bigint (bs.At 1)) * 65536 + (bigint (bs.At 2)) * 256 + bigint (bs.At 3)
+    int (big % 1073741824)
+}
+
+# 进程共享那台:`Random.Shared`,和 `randint` 同一台(不可复现)。
+readonly Shared := () => { RandomSource "shared" (System.SharedRandom ()); }
+
+# 带种子那台:**同一个运行时里**同种子给出同一串 —— 用例要钉随机行为就用它。
+# (种子是 int;.NET 的算法换版本可能变,跨版本不保证同一串。)
+readonly Make := (seed: int) => { RandomSource "seeded" (System.NewRandom seed); }
+
+# 加密级那台:源是操作系统的密码学随机数,不可复现、也没有种子。
+readonly Crypto := () => { RandomSource "crypto" CryptoNext; }
