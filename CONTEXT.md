@@ -209,6 +209,18 @@ lib/
                           `Equal a b`(**常数时间**比,防时序攻击)、`Token n`(随机十六进制串)。
                           底层三条原语在引擎(`HashBytes`/`HashFile`/`HmacBytes`,收字节表交字节表)。
                           **要显式引用**
+  uuid.rav                `Uuid` 模块 —— `V4 ()`(随机)/ `V7 ()`(头 6 字节是毫秒时间戳,
+                          先造的排前面,拿来当数据库主键不捅索引)/ `Nil ()` / `IsValid s` /
+                          `Version s` / `Bytes s` / `FromBytes bs` / `Time s`。**不占引擎**:
+                          随机数是 `System.RandomBytes`、时间是 `System.NowMs`,剩下的就是
+                          摆位(RFC 9562:第 7 字节高 4 位是版本、第 9 字节高 2 位是 variant)
+                          和格式化。**要显式引用**
+  sqlite.rav              `Sqlite` 模块 —— 一个文件就是一个库:`Sqlite.Open path`(不存在就建)/
+                          `Sqlite.Memory ()`。`db.Exec sql args`(建表/增删改,**参数按名字**:
+                          `@n` ← `{"n": …}`)/ `All`(一行一个 dict)/ `One` / `Value` / `Each`
+                          (逐行)/ `LastId ()`(bigint)/ `Tx { … }`(出错自己回滚)/ `Close ()`。
+                          换算:`()` 就是 **NULL**、布尔存 0/1、字节表是 BLOB、`bigint` 要装得下
+                          64 位。**要显式引用**(引擎那五条原语见「数据库」一节)
   http.rav                `Http` 模块 —— 网络那一层(HTTP 客户端):`Get`/`Post`/`Put`/`Patch`/
                           `Delete`/`Head`、`Request`(全参数:头/正文/重试/超时/跟不跟重定向)、
                           `Download`(流式落盘)/ `Upload`(multipart)、`Query`(拼查询串)、
@@ -358,6 +370,7 @@ Object (parent=自己)
         Sleep ReadBytes WriteBytes DecodeText
         HttpReq HttpDownload HttpUpload
         HashBytes HashFile HmacBytes
+        SqliteOpen SqliteClose SqliteExec SqliteQuery SqliteLastId
 
 上面那份名单**不是手抄的**:谁在 `System` 里,看的是**方法上的 `[Sys("名字")]`** ——
 写在 `Runtime/Builtins/Sys*.cs` 里(**一个主题一个类**,扫的是整个程序集,不列名单),
@@ -1561,6 +1574,20 @@ Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
 
 依赖方向是 **网络 → 文件**(`http.rav` 里 `using "io.rav"`):URL 要去登记成文件那边的接口,
 反过来不该由文件系统去认识 HTTP。
+
+### 数据库（`lib/sqlite.rav`）
+
+**连接不进 Ravel 堆**:那是个要 `Dispose` 的本机句柄,而 Ravel 值没有析构那一套 ——
+所以引擎这边存着(一张 `号 → 连接` 的表),交给 Ravel 的是个 **int 号**,库里那个 `Db`
+拿着号,`Close ()` 时还回来。五条原语都收这个号。
+
+- `SqliteClose` 里那记 **`ClearPool` 不能省**:Microsoft.Data.Sqlite 默认**连接池**着,
+  光 `Dispose` 只是还给池子 —— 库文件的句柄还开着,Windows 上接着 `DeletePath` 会报
+  「正被占用」。(用例 `tests/274` 末尾那段真删文件,就是为了钉住这条。)
+- `last_insert_rowid()` 是**问一句 SQL**,不是读属性 —— 这个版本的
+  `Microsoft.Data.Sqlite` 没把它挂成属性。
+- SQL 出错报 `ValueError`(消息是 SQLite 自己那句,英文但**稳定**),
+  开关连接失败报 `IoError`。
 
 ### 测试怎么不飘:`# net` 与回环服务器
 

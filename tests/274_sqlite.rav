@@ -1,0 +1,110 @@
+# `Sqlite`(见 lib/sqlite.rav)。**要显式引用**。
+#
+# 用**内存库**(`:memory:`)跑的:不落盘、不打扰谁,一遍跑完就没了 —— 换台机器也一样。
+# 末尾再拿一个真的库文件走一遍开头收尾(在 `.io-test/` 下,结尾删干净)。
+using "sqlite.rav"
+using "io.rav"        # 末尾拿 `Io.File` 当条目试试
+
+db := Sqlite.Memory ()
+print (db.Where ())
+print (db.Exec "create table t (id integer primary key, name text, score real, ok bool, blob blob)" {})
+
+# 参数按**名字**绑(`@n` 对键 `n`;键写不写 `@` 都行)
+print (db.Exec "insert into t (name, score, ok, blob) values (@n, @s, @o, @b)" {"n": "ada" "s": 9.5 "o": true "b": [1 2 255]})
+print (db.Exec "insert into t (name) values (@n)" {"@n": "bob"})
+print (db.LastId ())
+print (typeof (db.LastId ()))               # rowid 可以是 64 位
+
+# ── 读:一行一个 dict(列名当键) ──
+print (db.All "select * from t" {})
+print (db.All "select name from t order by name" {})
+print (db.One "select * from t where name = @n" {"n": "bob"})
+print (db.Value "select count(*) from t" {})
+print (db.One "select * from t where name = @n" {"n": "nobody"})    # 没有 → ()
+print (db.Value "select 1 where 0" {})                              # 没有 → ()
+
+# ── 类型来回 ──
+# 存:int / bigint / float / string / char / bool(存 0-1)/ `()`(就是 NULL)/ 字节表(BLOB)
+# 取:INTEGER 装得下 int 给 int、否则 bigint;NULL 给 ();BLOB 给字节表
+print (db.Value "select 99999999999999" {})
+print (typeof (db.Value "select 99999999999999" {}))
+print (db.Value "select null" {})
+print (db.One "select blob from t where id = 1" {})
+try { db.Exec "insert into t (name) values (@n)" {"n": {"a": 1}}; } (e: Exception) => { print ("1: " + string e); }
+
+# ── 逐行:结果大也不必先铺开 ──
+db.Each "select name from t order by name" {} (row: dict) => { print ("行: " + (row.Get "name")); }
+
+# ── 改 / 删:交回影响了几行 ──
+print (db.Exec "update t set score = @s where name = @n" {"s": 1.5 "n": "bob"})
+print (db.Exec "delete from t where name = @n" {"n": "nobody"})
+print (db.Value "select score from t where name = @n" {"n": "bob"})
+
+# ── 事务:全成、或者全不成 ──
+db.Tx {
+    db.Exec "insert into t (name) values (@n)" {"n": "c"}
+    db.Exec "insert into t (name) values (@n)" {"n": "d"}
+}
+print (db.Value "select count(*) from t" {})
+try {
+    db.Tx {
+        db.Exec "insert into t (name) values (@n)" {"n": "e"}
+        db.Exec "insert into nope values (1)" {}        # 这张表不存在
+    }
+} (e: Exception) => { print "2: 事务整个回滚了"; }
+print (db.Value "select count(*) from t" {})            # `e` 没进去
+
+# ── 报错的几种:说人话 ──
+try { db.All "select * from nope" {}; } (e: Exception) => { print ("3: " + string e); }
+try { db.Exec "insert into t (id) values (1) values (2)" {}; } (e: Exception) => { print ("4: " + string e); }
+# SQLite 自己那句末尾带个空格 —— 而运行器会把每行**结尾的空白裁掉**,所以这儿 `Trim ()` 一下
+try { db.Exec "insert into t (name) values (@n)" {}; } (e: Exception) => { print ("5: " + (string e).Trim ()); }
+db.Close ()
+try { db.All "select 1" {}; } (e: Exception) => { print ("6: " + string e); }
+
+# ── 也落盘:库文件就是一个普通文件 ──
+System.CreateDir ".io-test"
+f := Sqlite.Open ".io-test/app.db"
+f.Exec "create table k (v text)" {}
+f.Exec "insert into k (v) values (@v)" {"v": "落盘了"}
+print ((System.PathSize ".io-test/app.db") > 0)
+f.Close ()
+back := Sqlite.Open (Io.File ".io-test/app.db")     # 条目也收(和 CopyTo dest 一个待遇)
+print (back.Value "select v from k" {})
+print (back.Where ())
+back.Close ()
+System.DeletePath ".io-test/app.db"
+System.DeletePath ".io-test"
+# --- expected ---
+# :memory:
+# 0
+# 1
+# 1
+# 2
+# BigInt
+# [{id: 1 name: ada score: 9.5 ok: 1 blob: [1 2 255]} {id: 2 name: bob score: () ok: () blob: ()}]
+# [{name: ada} {name: bob}]
+# {id: 2 name: bob score: () ok: () blob: ()}
+# 2
+# ()
+# ()
+# 99999999999999
+# BigInt
+# ()
+# {blob: [1 2 255]}
+# 1: SQL 参数存不进 SQLite: Dict（先转成 数 / 字符串 / 布尔 / ()，二进制用字节表）
+# 行: ada
+# 行: bob
+# 1
+# 0
+# 1.5
+# 4
+# 2: 事务整个回滚了
+# 4
+# 3: 查询失败: SQLite Error 1: 'no such table: nope'.
+# 4: 执行失败: SQLite Error 1: 'near "values": syntax error'.
+# 5: 执行失败: Must add values for the following parameters:
+# 6: 这个数据库已经关了（Close () 过,或者压根没开成）：句柄 1
+# true
+# 落盘了
+# .io-test/app.db

@@ -1,0 +1,112 @@
+# `Sqlite` —— 一个进程内的 SQL 数据库(一个文件就是一个库)。**要显式引用**:`using "sqlite.rav"`。
+#
+#     db := Sqlite.Open "app.db"          # 库文件;`Sqlite.Memory ()` 是只用一次的那种
+#     db.Exec "create table if not exists t (id integer primary key, name text)"
+#     db.Exec "insert into t (name) values (@n)" {"n": "ada"}     # 参数按**名字**绑
+#     db.All  "select * from t"                                    # → [{id: 1 name: "ada"}]
+#     db.One  "select * from t where id = @id" {"id": 1}           # → 一行 dict(没有给 ())
+#     db.Value "select count(*) from t"                            # → 单个值(没有给 ())
+#     db.Each "select * from t" (row: dict) => { print (row.Get "name"); }   # 逐行,不一次铺开
+#     db.LastId ()                        # 刚插进去那行的 rowid(交回 bigint)
+#     db.Tx { … }                         # 一整个事务:出错自己回滚
+#     db.Close ()                         # 用完关掉(库文件在磁盘上,不关也留着)
+#
+# 参数一律用**名字**:SQL 里写 `@n`,给一张 dict `{"n": …}`(键写不写 `@` 都行)。
+# 不做 `?` 那种按位置替换 —— SQL 里的 `?` 也可能是字符串里的一个字面量,数问号绑参数是埋雷。
+#
+# 存得进的是什么(引擎那层的换算,和 `Json` 一个口径):
+#   int / bigint / float / string / char / bool(存 0/1)/ `()`(就是 **NULL**)/
+#   字节表(**BLOB**)。别的类型当场报错,不静默降级成字符串。
+# 读出来:INTEGER 装得下 int 就给 int、否则 bigint;NULL 给 `()`;BLOB 给字节表。
+#
+# 一次连接一条线;`Close ()` 之后再用这个 `Db` 会报"已经关了"。
+# SQL 出错是 `ValueError`(你写的 SQL 不对),库文件打不开是 `IoError`。
+ravel "Sqlite"
+
+# 一个库。拿着一张**句柄号**(连接本身在引擎那边 —— 它要 Dispose,Ravel 值没有析构那一套)。
+#
+# **每条都要给参数那格**:没有参数就写 `{}` —— Ravel 没有默认参数,而"没有参数"和
+# "有参数"分成两个名字(`All` / `AllArgs`)读起来更烦。
+Db ::= class {
+    Handle: int = 0
+    Source: string = ""
+
+    init = (handle: int source: string) => { Handle = handle; Source = source; this; }
+
+    # 库文件在哪(内存库就是 ":memory:")
+    Where := () => { Source; }
+
+    # ── 写 ──
+    # 建表、增删改、`begin`/`commit` 都走它;交回**影响了几行**
+    Exec := (sql: string args: dict) => { System.SqliteExec Handle sql args; }
+
+    # ── 读 ──
+    # 一次全拿回来:一行一个 dict(列名当键)。行多的时候用 `Each`。
+    All := (sql: string args: dict) => { Rows (System.SqliteQuery Handle sql args); }
+
+    # 只要第一行(一行都没有给 `()`)。**不是"取一行"** —— SQL 自己写 `limit 1`,
+    # 这儿只是"我知道至多一行,懒得多写一层"
+    One := (sql: string args: dict) => {
+        rows := All sql args
+        (rows.IsEmpty ()) { (); } { rows.At 0; }
+    }
+
+    # 只要一个值(第一行第一列;一行都没有给 `()`)
+    Value := (sql: string args: dict) => {
+        rows := All sql args
+        (rows.IsEmpty ()) { (); } { ((rows.At 0).Values ()).At 0; }
+    }
+
+    # 一行一行地给(结果可能很大,不必先在内存里铺开)
+    Each := (sql: string args: dict f: function) => {
+        foreach (All sql args) (row: dict) => { f row; }
+        ();
+    }
+
+    # 刚插进去那行的 rowid(交回 bigint —— 主键可以是 64 位)
+    LastId := () => { System.SqliteLastId Handle; }
+
+    # ── 事务 ──
+    # 块里全部成、或者全部不成。出错(`throw` 也算)自己回滚,再把错抛出去 ——
+    # 外面照常 `try` 得住。
+    Tx := (body: function) => {
+        Exec "begin" {}
+        try {
+            body ()
+            Exec "commit" {}
+            ();
+        } (e: Exception) => {
+            Exec "rollback" {}
+            throw e;
+        }
+    }
+
+    Close := () => { System.SqliteClose Handle; (); }
+}
+
+# 把引擎交回的那张 `{columns rows}` 摆成一行行 dict
+readonly Rows := (raw: dict) => {
+    cols := raw.Get "columns"
+    out := []
+    foreach (raw.Get "rows") (r: list) => {
+        d := {}
+        i := 0
+        while { i < (cols.Count ()); } {
+            d.Set (cols.At i) (r.At i)
+            i += 1
+        }
+        out.Add d
+    }
+    out
+}
+
+# 打开一个库文件(**不存在就建**)。目录得先有 —— 和 `System.WriteText` 一条规矩
+readonly Open := (path: object) => {
+    p := PathOf path
+    Db (System.SqliteOpen p) p;
+}
+
+# 内存库:关掉就没了。临时数据、测试用它最省事(不落盘、不打扰谁)
+readonly Memory := () => { Open ":memory:"; }
+
+readonly PathOf := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }

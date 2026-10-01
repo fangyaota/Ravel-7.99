@@ -10,6 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- SQLite:纯托管那套(不用本机编译),`System.Data` 这边的官方实现 -->
+    <!-- SQLite:官方那套(纯托管的 SQLitePCLRaw,不必本机编译) -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <!-- GBK / Big5 那批老编码:`Encoding.GetEncoding("gbk")` 在 .NET Core 上要它才认。

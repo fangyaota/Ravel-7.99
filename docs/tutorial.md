@@ -2150,6 +2150,51 @@ u.Append "…"     # 报错：HTTP 没有"追写"这回事
 **用例见 tests/268（离线）、tests/269（真发请求，靠运行器起的回环服务器）；
 想真出网看 `examples/http.rav`。**
 
+### 6.17 摘要、标识与数据库（`Hash` / `Uuid` / `Sqlite`）
+
+**`Hash`** —— 摘要、HMAC、CRC32、令牌：
+
+```ravel
+using "hash.rav"
+Hash.Sha256 "abc"      # "ba7816bf…"（小写十六进制；字符串按 UTF-8 进）
+Hash.Sha256Bytes "abc" # 要字节表
+Hash.Hmac "sha256" "密钥" "报文"
+Hash.File "a.zip" "sha256"   # 文件摘要（流式，多大的文件都不进内存）
+Hash.Crc32 "abc"       # 891568578（纯 Ravel 算的）
+Hash.Equal a b         # 常数时间比，防时序攻击
+Hash.Token 16          # 32 个十六进制字符的随机串
+```
+
+**`Uuid`** —— 标识：
+
+```ravel
+using "uuid.rav"
+Uuid.V4 ()        # 随机
+Uuid.V7 ()        # 按时间排（头 6 字节是毫秒时间戳）—— 当数据库主键不捅索引
+Uuid.IsValid s / Uuid.Version s / Uuid.Bytes s / Uuid.Time s
+```
+
+**`Sqlite`** —— 一个文件就是一个库：
+
+```ravel
+using "sqlite.rav"
+db := Sqlite.Open "app.db"        # 或 Sqlite.Memory ()
+db.Exec "create table t (id integer primary key, name text)" {}
+db.Exec "insert into t (name) values (@n)" {"n": "ada"}   # 参数按名字绑
+db.All  "select * from t" {}      # [{id: 1 name: "ada"}]（一行一个 dict）
+db.One  "select * from t where id = @id" {"id": 1}        # 一行；没有给 ()
+db.Value "select count(*) from t" {}                       # 一个值
+db.Each "select * from t" {} (row: dict) => { print (row.Get "name"); }
+db.Tx { … }                       # 事务：出错自己回滚，再把错抛出去
+db.Close ()
+```
+
+**参数那格永远要给**（没有参数就写 `{}`）—— Ravel 没有默认参数，而"有参/无参"分成两个名字
+读起来更烦。存得进的是 数 / 字符串 / 字符 / 布尔（存 0/1）/ `()`（就是 **NULL**）/ 字节表（**BLOB**）；
+读出来 INT 装得下就给 `int`、否则 `bigint`。
+
+**用例见 tests/272、tests/273、tests/274（内存库，不落盘）。**
+
 ## 七、类
 
 ### 7.1 类就是一个对象
