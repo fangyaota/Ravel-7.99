@@ -305,6 +305,32 @@ print (t.Count ())
 print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
 t.Clear ()
 print (t.Count ())
+
+# ═══ 枚举器**也是**一串(`IEnumerator <: IEnumerable`)═══
+# 它自己就是自己的枚举器,所以整套方法白拿、也能直接 foreach。
+# 两条语义(单遍的东西本来就这样):遍历的是**还没走完的那一段**;走一遍就**消耗掉**。
+e := Enumerator [1 2 3]
+print (e is IEnumerator)
+print (e is IEnumerable)
+print (e is IMonad)
+print (e.Count ())              # 3
+print (e.Count ())              # 0 —— 上一句把它走完了
+f := Enumerator [1 2 3 4 5]
+print (f.First ())              # 1
+print (f.Current)
+print (Seqs.Gather (f.Take 2))  # 接着往后两个
+print (Seqs.Gather (f.Map ((x: int) => { x + 1; })))
+print (f.ToList ())             # 只剩最后一个
+print (f.IsEmpty ())
+g := Enumerator [7 8 9]
+foreach g (x: int) => { print x; }
+print (g.Count ())              # 0 —— foreach 把它走完了
+# `Generator` 的光标也一样:能拿它当一串用(比如"先看几个,剩下的照旧")
+G := Generator (y: function) => { y 1; y 2; y 3; }
+c := G.GetEnumerator ()
+print (c is IEnumerable)
+print (Seqs.Gather (c.Take 2))
+print (c.ToList ())
 print "end"
 ravel ""
 # --- expected ---
@@ -337,7 +363,7 @@ ravel ""
 # mine 7
 # mine 8
 # mine 9
-# 1: foreach 需要 IEnumerable（list / set / dict），得到 Integer
+# 1: foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
 # 2: 参数 'c' 需要 String，得到 Char
 # true
 # true
@@ -434,4 +460,22 @@ ravel ""
 # 1
 # [乙]
 # 0
+# true
+# true
+# true
+# 3
+# 0
+# 1
+# 1
+# [2 3]
+# [6]
+# []
+# true
+# 7
+# 8
+# 9
+# 0
+# true
+# [1 2]
+# []
 # end

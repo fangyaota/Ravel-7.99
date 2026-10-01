@@ -322,9 +322,19 @@ IEnumerable ::= interface IMonad {
     }) ((v: function) => { (); })
 }
 
-IEnumerator ::= interface {
+# 枚举器**也是**一串(`IEnumerator <: IEnumerable`):它**自己就是自己的枚举器**。
+# 于是任何枚举器(`Enumerator`、`GeneratorCursor`、用户自己写的)白拿整套(`Count` /
+# `Map` / `Take` / `ToList` …),也能直接 `foreach`。
+#
+# 两条语义得记着(单遍的东西本来就这样,C# 里 `yield` 生成的那个类也是这个形状:
+# 它的 `GetEnumerator ()` 交回 `this`):
+#   * 遍历的是**还没走完的那一段**,不是从头;
+#   * 走一遍就把它**消耗掉**了 —— `e.Count ()` / `e.ToList ()` 之后,`e` 也到头了。
+IEnumerator ::= interface IEnumerable {
     by MoveNext : function = default
     by Current : object = default
+    # 覆盖父接口那条(`=` 是换槽):交回**自己**,不是"另开一个从头开始"
+    by GetEnumerator = property (() => { () => { instance; }; }) ((v: function) => { (); })
 }
 
 # 通用枚举器:拿一串值 + 记住走到哪了。任何"一次给我一串"的东西都能拿它当枚举器。
@@ -387,7 +397,7 @@ impl (IEnumerator Enumerator {
 # `foreach` 写出来就是 C# 里那个 while 循环:拿枚举器 → MoveNext → 用 Current。
 # 每次进来都**新开一个**枚举器,所以嵌套遍历同一串值互不打扰(和 C# 一样)。
 readonly foreach := (xs: object f: function) => {
-    assert (xs is IEnumerable) ("foreach 需要 IEnumerable（list / set / dict），得到 " + string (typeof xs))
+    assert (xs is IEnumerable) ("foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 " + string (typeof xs))
     e := xs.GetEnumerator ()
     while { e.MoveNext (); } { f (e.Current); }
 }

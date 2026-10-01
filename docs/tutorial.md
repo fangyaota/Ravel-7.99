@@ -481,8 +481,11 @@ foreach [1 2 3] (x: int) => { print x; }
 
 ```ravel
 IEnumerable ::= interface IMonad { by GetEnumerator : function = default; … }
-IEnumerator ::= interface { by MoveNext : function = default
-                            by Current  : object   = default }
+IEnumerator ::= interface IEnumerable {
+    by MoveNext : function = default
+    by Current  : object   = default
+    by GetEnumerator = property (() => { () => { instance; }; }) (…)   # 自己就是自己的枚举器
+}
 ```
 
 它体内还有**一整套默认实现**（`Count` / `Map` / `Where` / `Take` / `First` / `Fold` …），
@@ -503,10 +506,25 @@ while { e.MoveNext (); } { f (e.Current); }
 foreach {1 2 3}  (x: int) => { print x; }     # set 也行
 foreach {"a": 1} (v: int) => { print v; }    # 字典迭代的是**值**
 foreach 5 (x: int) => { print x; }
-# foreach 需要 IEnumerable（list / set / dict），得到 Integer
+# foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
 ```
 
 **每次进来都新开一个枚举器**，所以嵌套遍历同一串值互不打扰（和 C# 一样）。
+
+枚举器**自己也是一串**（`IEnumerator <: IEnumerable`，见下面的小节）：它交回的枚举器就是它自己
+—— 像 C# 里 `yield` 生成的那个类一样。所以 `Enumerator`、`Generator` 的光标、用户自己写的游标
+都能直接 `foreach`、也白拿整套方法。**两条语义**（单遍的东西本来就这样）：遍历的是
+**还没走完的那一段**，而且走一遍就把它**消耗掉**了：
+
+```ravel
+e := Enumerator [1 2 3]
+e.Count ()        # 3
+e.Count ()        # 0 —— 上一句把它走完了
+
+c := (Generator (y: function) => { y 1; y 2; y 3; }).GetEnumerator ()
+Seqs.Gather (c.Take 2)   # [1 2] —— 先看两个
+c.ToList ()              # [3]   —— 剩下的照旧
+```
 
 #### 实现了它，就白拿一整套
 

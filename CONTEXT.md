@@ -106,7 +106,8 @@ lib/
   numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
   iterator.rav            `IEnumerable`(继承 `IMonad`,体内一整套**默认实现**:
                           Count/Map/Where/Bind/Take/First… —— 凡实现者都有,见下)
-                          / `IEnumerator` / `Enumerator` + 几种容器的实现 + `foreach`
+                          / `IEnumerator`(继承 `IEnumerable`:枚举器**自己就是自己的枚举器**,
+                          单遍、走一遍就消耗掉)/ `Enumerator` + 几种容器的实现 + `foreach`
   seqs.rav                `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
                           (五件都对着 `IEnumerable` 写,交回当场算好的 list / dict)
   time.rav                `Time`(毫秒 + 一袋零件:Year/Month/… /WeekdayName/Text/AddDays…)
@@ -748,8 +749,15 @@ IEnumerator ::= interface { by MoveNext : function = default
 
 `GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
 `Current` 是当前那个(C# 里是属性,这边也做成属性)。库里的 `Enumerator` 就是"拿一串值"的
-通用枚举器,谁有现成的一串值谁就能拿它当枚举器。三种容器各 `impl` 一遍(只填 `GetEnumerator`,
-其余走默认实现)
+通用枚举器,谁有现成的一串值谁就能拿它当枚举器。
+
+**枚举器自己也是一串**(`IEnumerator <: IEnumerable`):`IEnumerator` 体里把 `GetEnumerator`
+覆盖成"交回**自己**"—— 和 C# 里 `yield` 生成的那个类一个形状(它的 `GetEnumerator ()` 也是
+`this`)。于是 `Enumerator` / `GeneratorCursor` / 用户写的游标都白拿整套方法,也能直接
+`foreach`。两条语义跟着来:遍历的是**还没走完的那一段**、走一遍就**消耗掉**
+(`e.Count ()` 之后再 `e.Count ()` 是 0)。
+
+三种容器各 `impl` 一遍(只填 `GetEnumerator`,其余走默认实现)
 (用 `impl` 而不是 `use`:全局登记,库加载时就生效),于是:
 
 - `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{"a": 1} is IEnumerable` 都成立;
