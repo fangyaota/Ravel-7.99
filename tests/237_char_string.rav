@@ -57,7 +57,10 @@ print (s.EndsWith 'd')
 print (s.IndexOf "World")
 print (s.Find "zz")                 # 明知可能没有:给 -1
 print (s.LastIndexOf "l")
-print (s.Slice 0 5)
+print (s.Slice 0 5)            # 两个数字:半开 [0, 5)
+print (s.Slice [0..5])         # 区间:两端都含 → 0..5 共 6 个字符
+print (s.Slice (0..5))         # 区间:两端都不含
+print (s.Slice [6..11])
 print (s.Take 5)
 print (s.Skip 7)
 print ("  pad  ".Trim ())
@@ -185,6 +188,9 @@ ravel ""
 # -1
 # 10
 # Hello
+# Hello,
+# ello
+#  World
 # Hello
 # World
 # pad

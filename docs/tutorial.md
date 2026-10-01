@@ -1578,14 +1578,15 @@ int 'A'          # 65 —— 码位
 | 长度 | `Length ()` · `IsEmpty ()` |
 | 取 | `At i`（越界报错）· `Chars ()`（一串字符）|
 | 找 | `Contains` · `StartsWith` · `EndsWith` · `IndexOf`（找不到**报错**）· `Find`（给 `-1`）· `LastIndexOf` |
-| 切 | `Slice from to`（半开）· `Take n` · `Skip n` |
+| 切 | `Slice from to`（半开）· `Slice [1..3)`（收区间，见 6.11）· `Take n` · `Skip n` |
 | 变 | `Trim ()` · `ToUpper ()` · `ToLower ()` · `Replace a b` · `Repeat n` · `Reverse ()` · `Split sep` |
 
 ```ravel
 s := "Hello, World"
 s.At 0                 # H（字符）
 s.Contains 'H'         # true —— 收字符串也收字符
-s.Slice 0 5            # Hello
+s.Slice 0 5            # Hello —— 两个数字是半开 [0, 5)
+s.Slice [0..4]         # Hello —— 区间收得更直白（闭的两端）
 "a,b,,c".Split ","     # [a b  c]
 (s.Chars ()).Count ()  # 12 —— 想逐个处理就先拆成字符
 ```
@@ -1662,7 +1663,7 @@ r := Random.Crypto ()      # 加密级 —— 不可复现、也没有种子
 取数那一面是一套方法（写成接口 `IRandom` 的**默认实现**，所以三台都白拿）：
 
 ```ravel
-r.Int 1 6                  # 1..6，**含两端**
+r.Int [1..6]               # 掷骰子（开闭由区间说了算）
 r.Below 10                 # 0..9
 r.Float ()                 # 0.0 .. 1.0
 r.Bool ()                  # true / false
@@ -1683,8 +1684,9 @@ draw (Random.Make 7).Join "," == draw (Random.Make 8).Join ","    # false
 `Random.Make 42` 交回的是一个**能调方法的值**（`Kind` 是 `"seeded"`），可以传、可以存：
 `(r is IRandom)` 成立 —— 想写"要哪台都行"的函数就把参数标成 `IRandom`。
 
-**`Int lo hi` 含两端**（`r.Int 1 6` 就是掷骰子），`Below n` 是 `0 .. n-1` —— 要哪一头
-不含就用 `Below` 自己加偏移。（从前那个全局 `randint lo hi` 上界不含，已经删掉了：
+**`Int` 收一个区间**（`r.Int [1..6]` 就是掷骰子）—— 开闭全看那对括号，不必再记
+"上界含不含"：想要 0..9 就 `[0..9]`、想要不含右端就 `[0..10)`。只要个数不要区间就用
+`Below n`（`0 .. n-1`）。（从前那个全局 `randint lo hi` 上界不含，已经删掉了：
 现在取数只走 `Random` 这一条路。）
 
 **用例见 tests/254。**
@@ -1722,6 +1724,27 @@ foreach [1..4] (i: int) => { print i; }
 ([1..10]).Where ((i: int) => { (i % 3) == 0; }).ToList ()   # [3 6 9]
 ([1..5]).Join "-"                      # 1-2-3-4-5
 ```
+
+端点和**头一个/末一个元素**分开：`Start ()` / `End ()` 是写出来那两个数，`First ()` / `Last ()`
+是区间里**真有**的第一个和最后一个（开区间那端不在里面）—— 都 O(1)：
+
+```ravel
+[1..9].First ()      # 1        [1..9].Last ()      # 9
+(1..9).First ()      # 2        (1..9).Last ()      # 8
+```
+
+**切一段**给任何一串都用 `Slice`（收一个区间；字符串上那条 `Slice` 两个数字、区间两种写法都认）：
+
+```ravel
+xs := [10 20 30 40 50]
+xs.Slice [1..3]      # [20 30 40]
+xs.Slice [1..4)      # [20 30 40] —— [1, 4) 里是 1 2 3
+xs.Slice (0..2]      # [20 30]
+([1..1000000000]).Slice [5..7].ToList ()   # [6 7 8] —— 惰性，后端无限也不怕
+```
+
+（序列上那条 `Slice` 越界**不报错**：一串到底就没了，和 `Take` / `Skip` 一个脾气；
+字符串上那条越界当场报错，和它的两个数字写法一致。）
 
 而且**是惰性的**（枚举器是生成器的光标）：`([1..1000000000]).Take 3` 秒回、
 `([1..1000000]).First ()` 拿一个就走。`Count ()` / `Contains n` / `ToList ()` 走的是引擎

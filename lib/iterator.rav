@@ -133,6 +133,19 @@ IEnumerable ::= interface IMonad {
         }
     }) ((v: function) => { (); })
 
+    # 切一段:`xs.Slice [1..3)` —— 跳过前头、再取几个,开闭看区间。**惰性**
+    # (Skip + Take 串起来的,都在惰性那半)。越界不报错:一串到底就没了,和 `Take` / `Skip`
+    # 一个脾气 —— 字符串上那条 `Slice` 是另一码事(它越界当场报错,和它的两个数字写法一致)。
+    by Slice := property (() => {
+        (rng: Range) => {
+            n := rng.Count ()
+            # 空区间(或者倒过来那种)**不去问 `First ()`** —— 它在空的区间上会报错;
+            # 跳过 0 个再取 0 个,拿到的就是空的一段(而且容器交回的仍是它自己那种)
+            start := if { n <= 0; } { 0; } { rng.First (); }
+            (instance.Skip start).Take n
+        }
+    }) ((v: function) => { (); })
+
     # 接在后面。参数**注解不成** `IEnumerable` —— 写这个接口体的时候这个名字还没定义出来
     # (和 `Concat` 要用的 `Generator` 一样,都是**调用时**才去解析,那时它们在作用域里了)
     by Concat := property (() => {

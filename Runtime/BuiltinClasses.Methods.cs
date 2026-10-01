@@ -102,6 +102,34 @@ internal static partial class BuiltinClasses
 
         // `Text ()` 就是那个记号本身(和 `print` 一致)
         Range.DefineMethod("Text", (s, _) => new StringVal(s.ToString()!));
+
+        // 头一个 / 末一个**元素**(不是那两个端点 —— 开区间的端点在区间外)。
+        // 接口默认那份要迭代一遍,这两条 O(1);空的照旧报错,措辞和默认那份一致。
+        Range.DefineMethod("First", (s, _) =>
+        {
+            var r = (RangeVal)s;
+            if (r.CountValue() == 0) throw new RuntimeException("First: 元素不够（一共 0 个）");
+            return new IntVal(r.Bounds().Lo);
+        });
+        Range.DefineMethod("Last", (s, _) =>
+        {
+            var r = (RangeVal)s;
+            if (r.CountValue() == 0) throw new RuntimeException("Last: 元素不够（一共 0 个）");
+            return new IntVal(r.Bounds().Hi);
+        });
+    }
+
+    /// <summary>把一个区间折成**半开**的 `[from, to)` —— 切片那套(字符串的 `Slice`)的通用口径:
+    /// 左端开就起点挪一格,右端闭就终点挪一格。倒过来的区间(`Start > End`)和空区间切出空串,
+    /// 越界(拿到的那个 from/to 落在字符串外面)照旧当场报错 —— 和两个数字那种写法一条规矩。</summary>
+    private static (int From, int To) SliceBounds(RangeVal rng, int length, string what)
+    {
+        var from = rng.StartClosed ? rng.Start : rng.Start + 1;
+        var to = rng.EndClosed ? rng.End + 1 : rng.End;
+        if (to < from) to = from;                       // 空区间 → 空的一段
+        if (from < 0 || to > length)
+            throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）");
+        return (from, to);
     }
 
     private static void RegisterStringMethods()
@@ -148,17 +176,27 @@ internal static partial class BuiltinClasses
             return new IntVal(i);
         });
 
-        // ── 切 ──(`Slice` 是**半开区间** `[from, to)`,和下标那套一致)
+        // ── 切 ──
+        // 两种写法都认:
+        //   `s.Slice 1 3`    两个数字,**半开** `[1, 3)` —— 和下标那套一致(.NET 的老规矩)
+        //   `s.Slice [1..3)` **区间值**,开闭由括号说了算 —— 现在推荐这个
+        // 按**第一个实参的类型**分流:一个内置方法认两种形状,比再加一个名字干净。
         String.DefineMethod("Slice", (s, a) =>
         {
             var v = ((StringVal)s).Value;
-            var from = IntArg(a, "s.Slice");
+            if (a is RangeVal rng)
+            {
+                var (from, to) = SliceBounds(rng, v.Length, "s.Slice");
+                return new StringVal(v[from..to]);
+            }
+
+            var start = IntArg(a, "s.Slice");
             return FunctionVal.From(t =>
             {
                 var to = IntArg(t, "s.Slice");
-                if (from < 0 || to > v.Length || from > to)
-                    throw new RuntimeException($"s.Slice: [{from}, {to}) 越界（长度 {v.Length}）");
-                return new StringVal(v[from..to]);
+                if (start < 0 || to > v.Length || start > to)
+                    throw new RuntimeException($"s.Slice: [{start}, {to}) 越界（长度 {v.Length}）");
+                return new StringVal(v[start..to]);
             });
         });
         String.DefineMethod("Take", (s, a) => new StringVal(((StringVal)s).Value[..Math.Clamp(IntArg(a, "s.Take"), 0, ((StringVal)s).Value.Length)]));

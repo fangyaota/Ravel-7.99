@@ -40,9 +40,9 @@ again := (Random.Make 7).Below 1000000
 print (again == (a1.At 0))
 
 # ── 注定只有一个答案的那几个:把两端的规矩钉死 ──
-print (r.Int 5 5)          # 5 —— 下界**含**
+print (r.Int [5..5])       # 5 —— 那个区间里就一个数
 print (r.Below 1)          # 0 —— `Below n` 是 0..n-1
-print (r.Int 0 0)          # 0
+print (r.Int [0..0])       # 0
 
 # ── 范围不变量(抽 200 次,越界就 false —— 不钉具体值)──
 inRange := (f: function lo: object hi: object) => {
@@ -55,13 +55,13 @@ inRange := (f: function lo: object hi: object) => {
     }
     good
 }
-print (inRange (() => { r.Int 1 6; }) 1 6)          # 1..6 **含两端**
+print (inRange (() => { r.Int [1..6]; }) 1 6)       # 掷骰子:`[1..6]` 两端都含
 print (inRange (() => { r.Below 10; }) 0 9)
 print (inRange (() => { r.Float (); }) 0.0 1.0)     # [0, 1)(上界取不到,这里只证不越界)
 print (typeof (r.Bool ()))
 pr := Random.Shared ()
-print (inRange (() => { pr.Int 1 100; }) 1 100)
-ck := crypto.Int 0 999
+print (inRange (() => { pr.Int [1..100]; }) 1 100)
+ck := crypto.Int [0..999]
 print ((ck >= 0) && (ck <= 999))
 
 # ── 常用件:三台白拿(默认实现在 IRandom 的体里)──
@@ -80,7 +80,7 @@ cs := (Random.Crypto ()).Sample 2 xs
 print (cs.Count ())
 try { (Random.Make 1).Choice []; } (e: Exception) => { print ("1: " + string e); }
 try { (Random.Make 1).Sample 9 [1 2]; } (e: Exception) => { print ("2: " + string e); }
-try { (Random.Make 1).Int 6 1; } (e: Exception) => { print ("3: " + string e); }
+try { (Random.Make 1).Int [6..1]; } (e: Exception) => { print ("3: " + string e); }
 try { (Random.Make 1).Below 0; } (e: Exception) => { print ("4: " + string e); }
 
 # ── 引擎那三条原语(库只是包了一层)──
@@ -119,7 +119,7 @@ print "end"
 # 2
 # 1: Random.Choice: 空的一串里挑不出东西
 # 2: Random.Sample: 要 9 个，只有 2 个可取
-# 3: Random.Int 的下界 6 比上界 1 大
+# 3: Random.Int: [6..1] 里没有可取的数
 # 4: Random.Below 的上界至少是 1，得到 0
 # Function
 # Function

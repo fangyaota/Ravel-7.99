@@ -297,9 +297,17 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 值在 `Runtime/Values/RangeVal.cs`。
 
 它同时也是一个 `IEnumerable`（impl 在 `lib/iterator.rav`）：枚举器是**生成器的光标**，
-所以 `[1..1000000000].Take 3` 秒回、不会先铺一张表；`Count` / `Contains` / `ToList` 走引擎
-那几条 O(1)/O(n) 的（类链先命中）。`==` 是**按内容**比（record 的 `Equals`），
-`Start > End` 或者开区间套同样的两端都给**空**（不报错）。
+所以 `[1..1000000000].Take 3` 秒回、不会先铺一张表；`Count` / `Contains` / `ToList` /
+`First` / `Last` 走引擎那几条（类链先命中，前四条 O(1)）。`==` 是**按内容**比（record 的
+`Equals`），`Start > End` 或者开区间套同样的两端都给**空**（不报错）。
+
+**它替换掉的"两个数字当范围"**：`String.Slice from to`（引擎那条 `Slice` 现在**两种写法都认**
+—— 收一个区间就按区间的开闭算，收一个 int 就还是原来那对数字的半开形式；
+`SliceBounds` 是那个折算）；库里的 `Random.Int lo hi` 直接**改成收区间**（`r.Int [1..6]`，
+它才一天大，没有兼容包袱）；序列那一族新添了 `IEnumerable.Slice range`（惰性的
+`Skip` + `Take`，从前根本没有这个 API —— 两个数字当区间写在参数里太丑）。
+**`Math.Clamp x lo hi` 不动**：它那两端是**任意数值**（保型，float / bigint 全收），
+而区间只装 int，用区间反而把能力削了。
 
 （`if`/`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
