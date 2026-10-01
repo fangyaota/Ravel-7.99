@@ -89,37 +89,7 @@ public class Lexer(string source, string? file = null)
             }
 
             // ========== 多字符运算符 ==========
-
-            // `:<` / `:>` 得排在 `:` 前面(单字符那批在下面)
-            if (TryMatch(":<", TokenType.BindArrow, tokens)) continue;
-            if (TryMatch(":>", TokenType.Supertype, tokens)) continue;
-            if (TryMatch("<:", TokenType.Subtype, tokens)) continue;
-            if (TryMatch(":=", TokenType.ColonEqual, tokens)) continue;
-            if (TryMatch("::=", TokenType.ColonColonEqual, tokens)) continue;
-            if (TryMatch("::", TokenType.ColonColon, tokens)) continue;
-            if (TryMatch("=>", TokenType.Arrow, tokens)) continue;
-            if (TryMatch("==", TokenType.EqualEqual, tokens)) continue;
-            if (TryMatch("!=", TokenType.NotEqual, tokens)) continue;
-            if (TryMatch("<=", TokenType.LessEqual, tokens)) continue;
-            if (TryMatch("<|", TokenType.PipeLeft, tokens)) continue;
-            if (TryMatch(">=", TokenType.GreaterEqual, tokens)) continue;
-            if (TryMatch("&&", TokenType.AndAnd, tokens)) continue;
-            if (TryMatch("||", TokenType.OrOr, tokens)) continue;
-            if (TryMatch("+=", TokenType.PlusEqual, tokens)) continue;
-            if (TryMatch("-=", TokenType.MinusEqual, tokens)) continue;
-            if (TryMatch("*=", TokenType.StarEqual, tokens)) continue;
-            if (TryMatch("/=", TokenType.SlashEqual, tokens)) continue;
-            if (TryMatch("%=", TokenType.PercentEqual, tokens)) continue;
-            // `?` 这一族(**空值**那三条):`??=` 排在 `??` 前面,`?.` 自成一对。
-            // 单独的 `?` 不是这套语言里的东西(没有三目),见下面单字符表后面那句。
-            if (TryMatch("??=", TokenType.CoalesceEqual, tokens)) continue;
-            if (TryMatch("??", TokenType.Coalesce, tokens)) continue;
-            if (TryMatch("?.", TokenType.QuestionDot, tokens)) continue;
-
-            // 两个点连写 = **区间**的分隔符(`[1..3]` / `(3..5)`),得排在单字符 `.` 前面。
-            // 数字那边不受影响:`ReadNumber` 只在 `.` 后面跟数字时才当小数点,
-            // 所以 `1..3` 读成 `1` + `..` + `3`,而 `1.5` 还是 float、`a.b` 还是取成员。
-            if (TryMatch("..", TokenType.DotDot, tokens)) continue;
+            if (MatchMultiChar(tokens)) continue;
 
             // ========== 单字符 ==========
 
@@ -238,6 +208,58 @@ public class Lexer(string source, string? file = null)
     }
 
     // ==================== helpers ====================
+
+    /// <summary>多字符运算符:**文本 → token**,按顺序试第一个命中的。
+    ///
+    /// **顺序有讲究**(三条注释都写在表里了):前缀相同的,长的得排在短的前面
+    /// (`??=` 先于 `??`、`::=` 先于 `::`、`:<` 先于 `:` 那张单字符表)。
+    /// 表驱动是因为这些条目本来就只是"一段文本 + 一个 token":从前它们是 25 行
+    /// `if (TryMatch(…) continue;`,加一个得记得插在对的位置上、还得顺手改注释。
+    ///
+    /// 首字符对不上就直接跳过(所以二十来次比对只在真撞上时才发生)。</summary>
+    private static readonly (string Text, TokenType Type)[] MultiCharOps =
+    [
+        // `:<` / `:>` 得排在 `:` 前面(单字符那批在另一个表里)
+        (":<", TokenType.BindArrow),
+        (":>", TokenType.Supertype),
+        ("<:", TokenType.Subtype),
+        (":=", TokenType.ColonEqual),
+        ("::=", TokenType.ColonColonEqual),
+        ("::", TokenType.ColonColon),
+        ("=>", TokenType.Arrow),
+        ("==", TokenType.EqualEqual),
+        ("!=", TokenType.NotEqual),
+        ("<=", TokenType.LessEqual),
+        ("<|", TokenType.PipeLeft),
+        (">=", TokenType.GreaterEqual),
+        ("&&", TokenType.AndAnd),
+        ("||", TokenType.OrOr),
+        ("+=", TokenType.PlusEqual),
+        ("-=", TokenType.MinusEqual),
+        ("*=", TokenType.StarEqual),
+        ("/=", TokenType.SlashEqual),
+        ("%=", TokenType.PercentEqual),
+        // `?` 这一族(空值那三条):`??=` 排在 `??` 前面,`?.` 自成一对;
+        // 单独的 `?` 不是这套语言里的东西(没有三目),见单字符表后面那句
+        ("??=", TokenType.CoalesceEqual),
+        ("??", TokenType.Coalesce),
+        ("?.", TokenType.QuestionDot),
+        // 两个点连写 = **区间**的分隔符(`[1..3]` / `(3..5)`)—— 得排在单字符 `.` 前面。
+        // 数字那边不受影响:`ReadNumber` 只在 `.` 后面跟数字时才当小数点,
+        // 所以 `1..3` 读成 `1` + `..` + `3`,而 `1.5` 还是 float、`a.b` 还是取成员
+        ("..", TokenType.DotDot),
+    ];
+
+    /// <summary>多字符运算符那一趟:吃掉了就返回 true(调用方 continue)。</summary>
+    private bool MatchMultiChar(List<Token> tokens)
+    {
+        var c = Peek();
+        foreach (var (text, type) in MultiCharOps)
+            if (text[0] == c && TryMatch(text, type, tokens))
+                return true;
+
+        return false;
+    }
 
     private bool TryMatch(string s, TokenType type, List<Token> tokens)
     {

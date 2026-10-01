@@ -176,18 +176,12 @@ public partial class Parser
     /// <summary>`.` 后面那一段:普通成员名,或运算符符号(`2.+` / `"a".==`)</summary>
     private string ParseMemberName()
     {
-        if (Check(TokenType.Identifier))
+        // 两段是一件事:**吃掉这个 token、把它的文本当成员名**
+        // (运算符符号本身就是成员名:`2.+` / `"a".==`)。
+        if (Check(TokenType.Identifier) || IsOperatorToken(Peek().Type))
         {
-            var t = Peek();
             _pos++;
-            return t.Lexeme;
-        }
-
-        if (IsOperatorToken(Peek().Type))
-        {
-            var t = Peek();
-            _pos++;
-            return t.Lexeme;
+            return Previous().Lexeme;
         }
 
         throw ParseError("'.' 后需要成员名");

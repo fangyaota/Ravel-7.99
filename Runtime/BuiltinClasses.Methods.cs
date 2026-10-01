@@ -266,6 +266,17 @@ internal static partial class BuiltinClasses
 
     private static void RegisterListMethods()
     {
+        // 「按下标摘掉一个、交出摘掉的那个」—— `Remove` 与 `RemoveAt` 是同一件事,
+        // 只差越界报错时那句名字。
+        static RuntimeValue RemoveAt(RuntimeValue s, RuntimeValue a, string what)
+        {
+            var lst = Indexed(s, a, what);
+            var idx = ((IntVal)a).Value;
+            var v = lst.Elements[idx];
+            lst.Elements.RemoveAt(idx);
+            return v;
+        }
+
         List.DefineMethod("At", (s, a) =>
         {
             var lst = Indexed(s, a, "list.At");
@@ -276,14 +287,7 @@ internal static partial class BuiltinClasses
             ((ListVal)s).Elements.Add(a);
             return VoidVal.Instance;
         });
-        List.DefineMethod("Remove", (s, a) =>
-        {
-            var lst = Indexed(s, a, "list.Remove");
-            var idx = ((IntVal)a).Value;
-            var v = lst.Elements[idx];
-            lst.Elements.RemoveAt(idx);
-            return v;
-        });
+        List.DefineMethod("Remove", (s, a) => RemoveAt(s, a, "list.Remove"));
         List.DefineMethod("Insert", (s, a) =>
         {
             var lst = Indexed(s, a, "list.Insert", allowEnd: true);
@@ -309,15 +313,8 @@ internal static partial class BuiltinClasses
         // (集合/字典没有这条 —— 所以它们只在序列方法那一批里出现,见 BuiltinClasses.Sequences.cs)
         List.DefineMethod("IndexOf", (s, a) => new IntVal(((ListVal)s).Elements.IndexOf(a)));
         // `RemoveAt i` 和 `Remove i` 是同一件事:名字对齐 C#(`List.RemoveAt` 按下标、
-        // `List.Remove` 按值),老名字留着 —— 库和好几个用例都在用
-        List.DefineMethod("RemoveAt", (s, a) =>
-        {
-            var lst = Indexed(s, a, "list.RemoveAt");
-            var idx = ((IntVal)a).Value;
-            var v = lst.Elements[idx];
-            lst.Elements.RemoveAt(idx);
-            return v;
-        });
+        // `List.Remove` 按值),老名字留着 —— 库和好几个用例都在用。体也共用一份(见下面)。
+        List.DefineMethod("RemoveAt", (s, a) => RemoveAt(s, a, "list.RemoveAt"));
         List.DefineMethod("AddRange", (s, a) =>
         {
             ((ListVal)s).Elements.AddRange(ElementsOf(a, "AddRange"));

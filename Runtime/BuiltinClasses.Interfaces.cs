@@ -306,6 +306,27 @@ internal static partial class BuiltinClasses
     /// <see cref="Activate"/> 绑上这一次的接收者。**这里不建激活格**:有一半调用点只是
     /// "问一句有没有"(`HasTraitOperator` 每次类型表落空的二元运算都会问),在那儿白建一层作用域
     /// 是纯浪费。找不到返回 null,由调用点报原来的「没有方法」。</summary>
+    /// <summary>沿**当前作用域**的词法链由内到外,逐条交出生效中的实现。
+    ///
+    /// 四个人共用同一套走法(`TraitSlot` / `Implements` / `Implementors` / `HasTrait`):
+    /// `use` 是往作用域里登记一张表(`UseRegMember`),**后 `use` 的先试**;
+    /// 作用域出去、或 `Dispose` 之后就不该再看见(判据见 `IsLiveEntry`)。
+    /// 从前这四段各自抄了一遍这层两层循环 —— 改一处得记得改三处。
+    ///
+    /// 用迭代器而不是先收成一张表:`TraitSlot` 大半时候头一两个实现就返回了,
+    /// 把整条链上所有实现都收下来是白费。</summary>
+    private static IEnumerable<ObjectVal> LiveImplementations(Interpreter interp)
+    {
+        for (var s = interp.CurrentScope; s != null; s = s.Parent)
+        {
+            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
+
+            for (var i = reg.Elements.Count - 1; i >= 0; i--)
+                if (IsLiveEntry(reg.Elements[i], out var impl))
+                    yield return impl;
+        }
+    }
+
     internal static TraitHit? TraitSlot(Interpreter interp, RuntimeValue receiver, string name)
     {
         // `instance` 是机制自己那条槽,不进"`u.x` 能读到什么"(见 InstanceMember 的说明)。
@@ -316,20 +337,14 @@ internal static partial class BuiltinClasses
         // `MemberScope` 对它们就是 `Type.InstanceMembers`)。
         if (receiver.MemberScope.LookupField(name) != null) return null;
 
-        for (var s = interp.CurrentScope; s != null; s = s.Parent)
+        foreach (var impl in LiveImplementations(interp))
         {
-            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
+            if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
+            if (!receiver.Type.IsAssignableTo(target)) continue;
 
-            for (var i = reg.Elements.Count - 1; i >= 0; i--)
-            {
-                if (!IsLiveEntry(reg.Elements[i], out var impl)) continue;
-                if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
-                if (!receiver.Type.IsAssignableTo(target)) continue;
-
-                var slot = impl.Scope.LookupField(name);
-                if (slot == null || !slot.HasAttr(Attr.By)) continue;   // 这个实现没这个名字 → 试下一个
-                return new TraitHit(impl, receiver, slot);
-            }
+            var slot = impl.Scope.LookupField(name);
+            if (slot == null || !slot.HasAttr(Attr.By)) continue;   // 这个实现没这个名字 → 试下一个
+            return new TraitHit(impl, receiver, slot);
         }
 
         return null;
@@ -418,21 +433,15 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Implements(Interpreter interp, ObjectVal cls)
     {
         var found = new List<RuntimeValue>();
-        for (var s = interp.CurrentScope; s != null; s = s.Parent)
+        foreach (var impl in LiveImplementations(interp))
         {
-            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
+            if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
+            if (!cls.IsAssignableTo(target)) continue;
 
-            for (var i = reg.Elements.Count - 1; i >= 0; i--)
-            {
-                if (!IsLiveEntry(reg.Elements[i], out var impl)) continue;
-                if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
-                if (!cls.IsAssignableTo(target)) continue;
-
-                // 实现了子接口就等于实现了它的父接口(照 C#):把闭包里的接口都列上
-                foreach (var face in InterfaceClosure(impl.Type))
-                    if (!found.Any(x => ReferenceEquals(x, face)))
-                        found.Add(face);
-            }
+            // 实现了子接口就等于实现了它的父接口(照 C#):把闭包里的接口都列上
+            foreach (var face in InterfaceClosure(impl.Type))
+                if (!found.Any(x => ReferenceEquals(x, face)))
+                    found.Add(face);
         }
 
         return new ListVal(found);
@@ -464,19 +473,13 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Implementors(Interpreter interp, ObjectVal trait)
     {
         var found = new List<RuntimeValue>();
-        for (var s = interp.CurrentScope; s != null; s = s.Parent)
+        foreach (var impl in LiveImplementations(interp))
         {
-            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
-
-            for (var i = reg.Elements.Count - 1; i >= 0; i--)
-            {
-                if (!IsLiveEntry(reg.Elements[i], out var impl)) continue;
-                // 实现子接口的也算这个接口的实现者(照 C#:`IEnumerable` 的实现者里有谁实现了子接口)
-                if (!impl.Type.IsAssignableTo(trait)) continue;
-                if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
-                if (found.Any(x => ReferenceEquals(x, target))) continue;
-                found.Add(target);
-            }
+            // 实现子接口的也算这个接口的实现者(照 C#:`IEnumerable` 的实现者里有谁实现了子接口)
+            if (!impl.Type.IsAssignableTo(trait)) continue;
+            if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
+            if (found.Any(x => ReferenceEquals(x, target))) continue;
+            found.Add(target);
         }
 
         return new ListVal(found);
@@ -484,17 +487,12 @@ internal static partial class BuiltinClasses
 
     internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
-        for (var s = interp.CurrentScope; s != null; s = s.Parent)
-        {
-            if (s.LookupField(UseRegMember)?.Value is not ListVal reg) continue;
-
-            foreach (var e in reg.Elements)
-                // `IsAssignableTo` 而不是 `==`:实现了子接口也就实现了父接口(照 C#)
-                if (IsLiveEntry(e, out var impl) && impl.Type.IsAssignableTo(trait)
-                    && impl.Scope.LookupField(TargetMember)?.Value is ObjectVal target
-                    && cls.IsAssignableTo(target))
-                    return true;
-        }
+        foreach (var impl in LiveImplementations(interp))
+            // `IsAssignableTo` 而不是 `==`:实现了子接口也就实现了父接口(照 C#)
+            if (impl.Type.IsAssignableTo(trait)
+                && impl.Scope.LookupField(TargetMember)?.Value is ObjectVal target
+                && cls.IsAssignableTo(target))
+                return true;
 
         return false;
     }
