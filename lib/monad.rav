@@ -27,8 +27,7 @@ Option ::= class {
 
     # 解包。没有值就是**用错了**,当场报错,不拿 () 糊弄
     Value := () => {
-        assert Has ("Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）")
-        Inner
+        if { Has; } { Inner; } { throw (ValueError "Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）"); }
     }
 
     # 解包,没有值就给个默认

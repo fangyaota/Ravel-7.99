@@ -121,13 +121,13 @@ internal static partial class BuiltinClasses
         Range.DefineMethod("First", (s, _) =>
         {
             var r = (RangeVal)s;
-            if (r.IsEmpty()) throw new RuntimeException("First: 元素不够（一共 0 个）");
+            if (r.IsEmpty()) throw new RuntimeException("First: 元素不够（一共 0 个）", ErrorKind.Index);
             return r.FirstElement();
         });
         Range.DefineMethod("Last", (s, _) =>
         {
             var r = (RangeVal)s;
-            if (r.IsEmpty()) throw new RuntimeException("Last: 元素不够（一共 0 个）");
+            if (r.IsEmpty()) throw new RuntimeException("Last: 元素不够（一共 0 个）", ErrorKind.Index);
             return r.LastElement();
         });
     }

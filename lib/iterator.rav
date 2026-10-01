@@ -60,7 +60,7 @@ readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
             }
         }
     }
-    assert got (what + ": 空集合没有" + what)
+    if { got; } { 0; } { throw (IndexError (what + ": 空集合没有" + what)); }
     best
 }
 
@@ -273,7 +273,7 @@ IEnumerable ::= interface IMonad {
     by First := property (() => {
         () => {
             o := SeekIn instance (x: object) => { true; }
-            assert (o.IsSome ()) "First: 元素不够（一共 0 个）"
+            if { o.IsSome (); } { 0; } { throw (IndexError "First: 元素不够（一共 0 个）"); }
             o.Value ()
         }
     }) ((v: function) => { (); })
@@ -288,7 +288,7 @@ IEnumerable ::= interface IMonad {
             got := false
             last: object = ()
             foreach instance (x: object) => { got = true; last = x; }
-            assert got "Last: 元素不够（一共 0 个）"
+            if { got; } { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
             last
         }
     }) ((v: function) => { (); })
@@ -297,9 +297,7 @@ IEnumerable ::= interface IMonad {
         (n: int) => {
             i := 0
             o := SeekIn instance (x: object) => { mine := i; i += 1; mine == n; }
-            msg := "At: 元素不够（一共 " + (string i) + " 个）"
-            assert (o.IsSome ()) msg
-            o.Value ()
+            if { o.IsSome (); } { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
         }
     }) ((v: function) => { (); })
 

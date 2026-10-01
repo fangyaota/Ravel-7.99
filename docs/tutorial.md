@@ -2950,6 +2950,10 @@ try { nope; } (e: NameError) => { print "名字找不到"; }
 handle := ((e: TypeError) => { …; }) | ((e: Exception) => { …; })
 ```
 
+库那一半也对齐了这一族：取不到第 n 个（`First` / `Last` / `At` / 空集合）是 `IndexError`，
+`Option.Value ()` 在 `None` 上是 `ValueError` —— 同一个"取不到"，不管它是容器方法还是库方法，
+接住的都是同一类。
+
 它们**都是普通类**：`try (e: Exception)` 照旧接得住全部（老的写法一个都没坏），
 可以继承（`MyErr ::= class TypeError { 0; }`）、可以自己 `throw (TypeError "…")`。
 没归类的错误落基类 `Exception`。**用例见 tests/259。**

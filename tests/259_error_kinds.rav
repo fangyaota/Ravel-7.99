@@ -30,6 +30,10 @@ handle := ((e: TypeError) => { "类型错: " + e.Message; }) | ((e: Exception) =
 print (try { 1 + "a"; } handle)
 print (try { nope; } handle)
 
+# ── 库那一半也照着这一族对齐(不然同一个"取不到"两处两个类)──
+print (probe () => { [].First (); })
+print (probe () => { (None.Value ()); })
+
 # ── 那一族都还是 Exception:老的写法一个都没坏 ──
 print (probe () => { 1 + "a"; })                    # 上面已经证明接了
 print ((try { 1 / 0; } (e: Exception) => { e is Exception; }))
@@ -52,6 +56,8 @@ print (probe () => { throw (TypeError "手工抛的"); })     # 手工抛的也�
 # RegexError / 正则式写错了 —— Invalid pattern '(' at offset 1. Not enough )'s.
 # 类型错: 运算符 '+' 不支持 String 操作数
 # 别的: 未定义的变量 'nope'
+# IndexError / First: 元素不够（一共 0 个）
+# ValueError / Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）
 # TypeError / 运算符 '+' 不支持 String 操作数
 # true
 # true

@@ -138,7 +138,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue Nth(List<RuntimeValue> xs, int i, string what)
         => i >= 0 && i < xs.Count
             ? xs[i]
-            : throw new RuntimeException($"{what}: 元素不够（一共 {xs.Count} 个）");
+            : throw new RuntimeException($"{what}: 元素不够（一共 {xs.Count} 个）", ErrorKind.Index);
 
     internal static int IntArg(RuntimeValue a, string what)
         => a is IntVal i
