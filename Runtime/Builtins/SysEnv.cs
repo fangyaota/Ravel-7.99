@@ -15,9 +15,10 @@ internal static class SysEnv
     public static RuntimeValue ScriptArgList(Interpreter self, RuntimeValue _)
         => new ListVal([.. self.ScriptArgs.Select(a => (RuntimeValue)new StringVal(a))]);
 
-    /// <summary>没有这个变量就报错(要默认值用 `EnvOr`)。**空串不算"有"** —— .NET 那边
-    /// `SetEnvironmentVariable` 收空串就是把这变量删掉,所以 `SetEnv "X" ""` 之后
-    /// `Env "X"` 照样报错(要"空着的值"这个状态,环境变量这套里本来也存不下)。</summary>
+    /// <summary>没有这个变量就报错(要默认值用 `EnvOr`)。**空串不算"有"**:`SetEnv "X" ""`
+    /// 之后 `Env "X"` 照样报错 —— 这条是**我们的约定**,不是跟着运行时走的:
+    /// .NET 8 上收空串正好就是删掉,而升到 net10 之后它**留了一个空值** ✗
+    /// (同一条用例当场红了)。所以规矩写在 `SetEnv` 里,自己动手删。</summary>
     [Sys("Env")]
     public static RuntimeValue GetEnv(RuntimeValue a) => Fs("读环境变量", () =>
     {
@@ -40,6 +41,13 @@ internal static class SysEnv
     {
         var name = EnvName(a, "SetEnv");
         var value = As<StringVal>(b, "SetEnv 的值").Value;
+        // **空串 = 删掉**(和 `UnsetEnv` 同一件事,只是写法顺手)—— 见上面那段:
+        // 这是我们的约定,不靠运行时"收空串会删"那点脾气(net8 是,net10 不是)
+        if (value.Length == 0)
+        {
+            Environment.SetEnvironmentVariable(name, null, EnvironmentVariableTarget.Process);
+            return VoidVal.Instance;
+        }
         // 只动**本进程**那份(.NET 还能写用户级/机器级的 —— 那是装环境,不该由一句赋值顺手做掉)。
         // 新起的子进程(`cmd` / `Io` 里那些)照常看得见。
         Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.Process);

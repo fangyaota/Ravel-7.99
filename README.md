@@ -107,7 +107,7 @@ DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test
 
 打开仓库就有 `.vscode/` 里的任务:`Ctrl+Shift+B` 跑当前 `.rav`(先编译)、`F5` 跑当前文件
 并可下断点;命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。它们调的都是
-`bin/Debug/net8.0/ravel.dll`。
+`bin/Debug/net10.0/ravel.dll`。
 
 ## 仓库结构
 

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>7.99</Version>
@@ -17,7 +17,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <!-- GBK / Big5 那批老编码:`Encoding.GetEncoding("gbk")` 在 .NET Core 上要它才认。
          中文网页常见,不注册的话 `charset=gbk` 会静默退回 UTF-8、整页乱码 -->
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.12" />
   </ItemGroup>
 
 </Project>
