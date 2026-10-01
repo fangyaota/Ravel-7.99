@@ -117,18 +117,24 @@ result = callcc (k: function) => {
 print result
 eval "F := (a: int) => { a * 2; }"
 print (F 5)
+# 自己建一个叫 `Math` 的模块 —— 里面两样都是自己的
 ravel "Math"
-Pi = 3.14159
+Pi := 3.14159
 MySquare := (x: int) => { x * x; }
 ravel ""
 print (Math.Pi)
 print (Math.MySquare 5)
+
+# 再装上真的 `math.rav`:它往**同一个**模块里补 C# 那半边(名字撞上就以它为准 ——
+# 装模块用的 `Define` 不带 site,走的是"覆盖"那条规矩,和 `:=` 的"不许重定义"不是一回事)。
+# 从前 `ravel "Math"` 自己就会填 C# 那半边,所以那会儿这两句得分开写。
 using "math.rav"
 print (Math.Pi)
 print (Math.Square 6)
+
 using "math.rav"
 ravel "Math"
-Tau = 6.28318
+Tau = 6.28318                 # 这一枚是扩展填进来的,`=` 能改
 ravel ""
 print (Math.Pi)
 print (Math.Tau)
@@ -182,9 +188,9 @@ try { eval "# 模块 private 变量外部不可访问\nReferences = [\"tests/\"]
 # 10
 # 3.14159
 # 25
-# 3.14159
+# 3.141592653589793
 # 36
-# 3.14159
+# 3.141592653589793
 # 6.28318
 # mod start
 # mod end

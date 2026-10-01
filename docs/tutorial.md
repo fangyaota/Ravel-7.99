@@ -2246,7 +2246,7 @@ ss.Add 4 / ss.Min () / ss.Max ()
 有六个库的本机半边**不在引擎里**,在一个官方的扩展 dll 里(`Ravel.Extensions/` →
 `plugins/Ravel.Extensions.dll`):`Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random`。
 它们是"这台机器能干什么"(算摘要、发请求、开数据库),不是"这门语言是什么"——
-所以搬出了 `System`,在 `Native` 模块下:
+所以搬出了 `System`。`Math` 也在这里(整个模块,不只是原语):
 
 ```ravel
 using "native.rav"                        # 或者直接 using "hash.rav" 那类库,它们会带进来
@@ -3214,7 +3214,8 @@ System.ReadLine ()
 
 ### 8.4 Math 模块
 
-函数体是 C# 造的（落到 `System.Math` 上），但要**显式引用**才有：
+函数体是 C# 造的（落到 `System.Math` 上），但要**显式引用**才有 ——
+和 6.19 那些一样，它住在官方扩展里（`Ravel.Extensions/MathNative.cs`）：
 
 ```ravel
 using "math.rav"

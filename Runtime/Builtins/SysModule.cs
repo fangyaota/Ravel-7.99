@@ -4,7 +4,8 @@ namespace Ravel.Runtime;
 /// 那一族(散在 `Runtime/Builtins/*.cs` 里的那些类)登记进来。
 ///
 /// 它是唯一「用 C# 写死」的模块(其余模块都来自 .rav 文件),而且**启动就有** ——
-/// 不像 `Math` 那样要显式 `ravel "Math"` 才有(那条路见 `Interpreter.ModuleFillers`)。
+/// 不像 `Math` 那样要显式 `using "math.rav"` 才有(那个走的是插件那条路,
+/// 成员由官方扩展在 `using` 时装进来)。
 ///
 /// **数据明着列、函数走特性**:类型别名和常量一眼看全比撒在各处好读,
 /// 而函数是代码,一个方法一个家(`[Sys]`,见 <see cref="SysAttribute"/>)。

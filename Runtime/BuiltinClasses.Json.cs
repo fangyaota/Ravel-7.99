@@ -100,7 +100,7 @@ internal static partial class BuiltinClasses
         catch (JsonReaderException ex)
         {
             // ⚠️ 它不在 `Fs` 的 catch 白名单里 —— 不自己接住的话会当成"解释器内部错误"
-            // 把程序打掉 Ravel 的 try 接不住(见 Builtins/MathModule.cs 那段注释)
+            // 把程序打掉 Ravel 的 try 接不住(见 Ravel.Extensions/MathNative.cs 那段注释)
             throw new RuntimeException(
                 $"Json.FromString: 第 {ex.LineNumber + 1} 行第 {ex.LinePosition + 1} 列读不动 —— {ex.Message}", ErrorKind.Value);
         }

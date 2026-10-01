@@ -155,7 +155,7 @@ ravel ""
 
 # ═══ 196_math(并入) ═══
 ravel "196_math"
-# Math **要显式引用才有**:成员是 C# 造的(System.Math 上落,见 Interpreter.Math.cs:
+# Math **要显式引用才有**:成员是 C# 造的(System.Math 上落,见 Ravel.Extensions/MathNative.cs:
 # 常量 + 三角/双曲/幂对数/取整/极值),它们挂在 `lib/math.rav` 那句 `ravel "Math"`
 # 建模块的时候填进去 —— 在那之前 `Math` 根本不是一个名字。
 # `lib/math.rav` 另外补 Ravel 说得清楚的几个(square/cube/deg/rad)。

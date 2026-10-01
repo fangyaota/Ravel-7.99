@@ -34,6 +34,19 @@ public sealed class RavelFnAttribute(string name) : Attribute
     public string Name { get; } = name;
 }
 
+/// <summary>模块里的一个**常量**(挂在 `static readonly` **字段**上,值就是那个 `RuntimeValue`)。
+///
+/// 「函数还是常量」在引擎里原来是两处(`[Sys]` 收函数、`SysModule` 那三张表摆数据),
+/// 理由是**数据一眼看全比撒在各处好读**。外置之后没有"一眼看全"的余地了,
+/// 但这条区别还在:`Math.Pi` 是个**值**、不是一枚函数 —— 拿 `[RavelFn]` 登记
+/// 就会让 `Math.Pi` 变成"要写 `Math.Pi ()` 才拿到数",那是换了个 API,不是搬了个家。
+/// 所以常量单开一条,类型槽用**值自己的类型**(和 `System.True` 那些一个写法)。</summary>
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class RavelConstAttribute(string name) : Attribute
+{
+    public string Name { get; } = name;
+}
+
 /// <summary>一个 **Ravel 类**(类型树上的节点)。里面的方法挂 <see cref="ClassMethodAttribute"/>、
 /// 构造器挂 <see cref="ClassCtorAttribute"/> —— 和引擎里那些内置类写法完全一样。
 ///
@@ -112,6 +125,15 @@ public static class PluginKit
     /// <summary>参数收束成 **int**(不是数、或者是个装不下的 bigint,都会说人话)</summary>
     public static int Int(RuntimeValue v, string what) => BuiltinClasses.IntArg(v, what);
 
+    /// <summary>数值参数收成 `double` 来算 —— **五种数值类型全吃**(int / float / bigint /
+    /// fraction / bigfraction),和 `<` 那批运算符同一个口径(都是
+    /// `BuiltinClasses.TryAsDouble`)。不这么做的话 `sin 1` 和 `1 &lt; 2` 就成了两套说法。
+    /// 非数值报 `what` 归属的错误 —— 传函数名进来(`Num (a, "Sin")`)。</summary>
+    public static double Num(RuntimeValue v, string what)
+        => BuiltinClasses.TryAsDouble(v, out var d)
+            ? d
+            : throw Fail($"{what} 需要数值参数，得到 {v.Type}", ErrorKind.Type);
+
     /// <summary>字节表(list,0..255)→ `byte[]`。元素不是字节就当场说清是**第几个**不对</summary>
     public static byte[] Bytes(RuntimeValue v, string what) => SysKit.BytesOf(v, what);
 
@@ -165,7 +187,7 @@ internal static class PluginLoader
     {
         HookDependencies(asm);
 
-        var found = new List<(string Module, string Name, MethodInfo Method)>();
+        var found = new List<(string Module, string Name, MethodInfo? Method, RuntimeValue? Value)>();
 
         foreach (var type in asm.GetTypes())
         {
@@ -177,7 +199,12 @@ internal static class PluginLoader
 
             foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
                 if (m.GetCustomAttribute<RavelFnAttribute>() is { } fn)
-                    found.Add((module, fn.Name, m));
+                    found.Add((module, fn.Name, m, null));
+
+            // 常量挂在字段上:值就是那个 `RuntimeValue`(见 RavelConstAttribute)
+            foreach (var f in type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                if (f.GetCustomAttribute<RavelConstAttribute>() is { } c)
+                    found.Add((module, c.Name, null, ReadField(f)));
         }
 
         // **按名字排**(先模块后名字)—— 和内置那趟(`SysRegistry.Scan`)同一条理由:
@@ -188,9 +215,22 @@ internal static class PluginLoader
             ? m
             : string.CompareOrdinal(a.Name, b.Name));
 
-        foreach (var (module, name, m) in found)
-            ScopeOf(module, global, modules).Define(name, BuiltinClasses.Function, ClassRegistry.Fn(self, m));
+        foreach (var (module, name, m, value) in found)
+            // **`DefineOrReplace` 不是 `Define`**:装进来的是"这个模块该有的东西",
+            // 而模块可能是**用户早就自己建过**的(`ravel "Math"` 建一个、之后才
+            // `using "math.rav"`)。`Define` 撞名就报「已经定义过」,那是 `:=` 的规矩,
+            // 不是"装库"的规矩 —— 装库这一刻该是**以库为准**。
+            // (它只挡 `readonly` 那些:用户自己标了只读的东西,照样不许悄悄换掉。)
+            ScopeOf(module, global, modules)
+                .DefineOrReplace(name, value?.Type ?? BuiltinClasses.Function, m is null ? value! : ClassRegistry.Fn(self, m));
     }
+
+    /// <summary>读一个 `[RavelConst]` 字段。**静态字段的初始化时机是它自己那边的事** ——
+    /// 读到 null 只可能是"字段不是 `static readonly RuntimeValue` 那个形状",当场说清楚。</summary>
+    private static RuntimeValue ReadField(FieldInfo f)
+        => f.GetValue(null) as RuntimeValue
+           ?? throw new InvalidOperationException(
+               $"常量 {f.DeclaringType?.Name}.{f.Name} 要是 static readonly RuntimeValue（现在 {f.FieldType.Name}）");
 
     /// <summary>建一个插件带来的类:建类对象、挂父类、登记方法/构造器、进 `AllTypes`,
     /// 挂了模块名的话再把类对象摆进那个模块。</summary>
@@ -214,7 +254,7 @@ internal static class PluginLoader
         }
 
         if (module is not null)
-            ScopeOf(module, global, modules).Define(cls.Name, BuiltinClasses.Type, klass);
+            ScopeOf(module, global, modules).DefineOrReplace(cls.Name, BuiltinClasses.Type, klass);
     }
 
     /// <summary>这个名字的类已经有了吗(内置的、或者上一个解释器装进来的)</summary>

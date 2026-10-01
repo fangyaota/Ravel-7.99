@@ -46,12 +46,11 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Builtins/SysAttribute.cs / SysRegistry.cs
                           **`[Sys]` 那套机制**:特性本身 + 扫描(扫**整个程序集**,
                           不列名单)+ 绑委托(每实例一次,`CreateDelegate`,热路上不留反射)
-  Builtins/SysModule.cs / MathModule.cs
-                          两个"C# 写死的模块"怎么装配:`SysModule` 摆 System 的三张**数据**表
-                          (类型别名 / 常量 / 控制内建)+ 让 `SysRegistry` 登记函数;
-                          `MathModule.Fill (scope)` 是 Math 那一份(靠 `CSharpModules` 表,
-                          要显式 `ravel` 才有)。签名都是"往这个作用域填成员"
-  Builtins/Sys{Output,Core,Reflection,Random,Files,Cmd,Time,Env,Net,Regex}.cs
+  Builtins/SysModule.cs   System 模块的装配:三张**数据**表(类型别名 / 常量 / 控制内建)
+                          + 让 `SysRegistry` 登记 `[Sys]` 那些函数。**就剩这一个** ——
+                          从前还有一个 `MathModule`(靠 `CSharpModules` 表,`ravel "Math"` 时
+                          填成员),那个机制和那张表都随 Math 搬进官方扩展删掉了
+  Builtins/Sys{Output,Core,Reflection,Files,Cmd,Time,Env}.cs
                           **一个主题一个类**,装那一批 `[Sys]` 方法 —— 加一个内置函数 =
                           在对应主题里写一个 `static` 方法,没有第二处要改(从前是"挑一段、
                           找对位置、再补一行 `DefFn`" —— 那一个文件一千行就是这么散的)。
@@ -272,7 +271,9 @@ lib/
                           字节表 = "一串 0..255 的 int"(`Random.Bytes` 交回的正是它)——
                           Ravel 的 `string` 是 UTF-16,装不下任意字节,所以**要文本就先
                           `Utf8Text`,要编码就先进字节表**。**要显式引用**
-  math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
+  math.rav                Math 模块 —— **本机那一整套在官方扩展里**(见「官方扩展」一节),
+                          这个文件只往上补 Ravel 说得清的那四个(square/cube/deg/rad)。
+                          `using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
   iomonad.rav             IoMonad 模块(IO Monad —— 把效果做成值的那种,不是文件/终端 IO):
@@ -505,10 +506,15 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 
 ## Math 模块
 
-成员是 C# 造的（`Runtime/Builtins/MathModule.cs`），但**不像 System 那样启动就有** ——
-`Math` 要**显式引用**（`using "math.rav"`）之后才是一个名字。落点是一张
-`ModuleFillers` 表：`EnterModule` 在模块**第一次被 `ravel` 到时**调它填成员，
-而 `lib/math.rav` 第一行就是那句 `ravel "Math"`。
+成员是 C# 造的（`Ravel.Extensions/MathNative.cs`），但**不像 System 那样启动就有** ——
+`Math` 要**显式引用**（`using "math.rav"`）之后才是一个名字。
+
+它走的是**和 `Hash` / `Http` 那批一样的路**:挂在官方扩展里(`[RavelModule("Math")]`),
+`lib/math.rav` 第一行 `using "native.rav"` 把成员摆好,第二行那句 `ravel "Math"` 只是
+**切进**那个已经建好的模块(那四个 Ravel 函数 `square` / `cube` / `deg` / `rad` 就是这时候补上去的)。
+—— 从前这儿是**另一条路**:`EnterModule` 见模块第一次被 `ravel` 到时,查一张
+`CSharpModules` 表、调 `MathModule.Fill` 往里填。Math 是那条路最后一个用户,
+搬走之后表和查表一起删了,`EnterModule` 回到"只管建模块、切作用域"。
 
 **常量**: pi e tau
 
@@ -874,13 +880,21 @@ internal static class StackClass
 摘要是什么"。
 
 - Ravel 那一半是 `lib/native.rav`(就一行 `using "plugins/Ravel.Extensions.dll"`)——
-  dll 的字面路径**只有那一处**;七个小库都 `using "native.rav"`,不自己碰 dll。
+  dll 的字面路径**只有那一处**;要用扩展的库都 `using "native.rav"`,不自己碰 dll。
+- **模块名不止 `Native` 一个**:`Math` 整份也在这儿(`[RavelModule("Math")]`)——
+  它没有"库面/本机面"之分,`lib/math.rav` 只往上补四个 Ravel 函数。
+  这就是 `[RavelModule]` 上那个名字的用处:往**哪个**模块里装,由它说。
 - `Microsoft.Data.Sqlite` 那个包也跟着搬了 —— 主项目从此不引用它。所以插件目录里除了
   本 dll,还躺着 `Microsoft.Data.Sqlite.dll` 和 `SQLitePCLRaw.*.dll`(见 `Ravel.csproj`
   的 `CopyPlugins`),本机的 `e_sqlite3.dll` 在 `plugins/runtimes/<rid>/native/`。
 - `Xoshiro256` 那个算法也一起搬了过去(只有 `Random` 用它)。
-- **合同钉在两处**:`tests/271` 是"引擎自带那张表",`tests/280` 是"扩展带来那张表",
-  两张合起来正好是搬之前的全集。
+- **常量走 `[RavelConst]`**(挂在 `static readonly` 字段上)——`Math.Pi` 是个**值**,
+  不是"要写 `Math.Pi ()` 才拿到数"的函数;类型槽用值自己的类型(和 `System.True` 一个写法)。
+- **装成员用 `DefineOrReplace` 不是 `Define`**:模块可能是用户早就自己建过的
+  (先 `ravel "Math"` 建一个、之后才 `using "math.rav"`),装库这一刻该**以库为准**;
+  `Define` 撞名就报「已经定义过」是 `:=` 的规矩,不是装库的规矩。(`readonly` 的那些照拦。)
+- **合同钉在两处**:`tests/271` 是"引擎自带那张表",`tests/280` 是"扩展带来那张表"
+  (`Native` 36 条 + `Math` 49 条),两张合起来正好是搬之前的全集。
 
 ## 数据结构（插件 `Ravel.Structures`,见「插件」一节）
 
