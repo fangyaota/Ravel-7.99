@@ -123,6 +123,21 @@ public record ObjectVal : RuntimeValue
         }
     }
 
+    /// <summary>**拼在类体后面的那些块** —— `body.Append { … }` 交给建类那一步时,主块
+    /// (<see cref="ClassBody"/>)之外的每一块都记在这儿(摊平见 `BuiltinClasses.Install`)。
+    ///
+    /// 它们和主块**同属一层**:实例化时接着主块跑、落进同一张实例表,作用域也照**主块的写法处**
+    /// 解析(见 `Interpreter.StepClassInit` 那个 `LayerScope`)。所以"往一个类体里补几条成员"
+    /// 不必动语法、也不必改类体本身 —— 元类(`class type { … }`)就是靠这个注入的:
+    ///
+    ///     dataclass ::= class type {
+    ///         private parentInit := init;
+    ///         init = (body: function) => { parentInit object (body.Append 注入); this; }
+    ///     }
+    ///
+    /// 和 <see cref="ClassBody"/> 一样是**建类时一次**的事(那时才写),之后只读着用。</summary>
+    internal IReadOnlyList<BlockVal> BodyExtras { get; set; } = [];
+
     /// <summary>类名/函数名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)。
     ///
     /// 是成员表里的一个普通成员,所以函数和类对象一视同仁地有它

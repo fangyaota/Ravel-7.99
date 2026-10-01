@@ -1,0 +1,150 @@
+# `dataclass` —— **数据类**:写几个字段,自动拿到打印、相等、按位置构造。
+#
+# 要显式引用:`using "dataclass.rav"`。它是个**元类**(父类是 `type`,造出来的东西是**类**):
+#
+#     Point ::= dataclass {
+#         x: int = 0
+#         y: int = 0
+#     }
+#
+#     p := Point 1 2                 # 按位置收,顺序照声明
+#     print (p.Text ())              # Point(x=1, y=2)
+#     print (p == (Point 1 2))       # true
+#     print (p == (Point 1 3))       # false
+#     print ((Point ()).Text ())     # Point(x=0, y=0) —— 空实参 = 全用声明时的默认值
+#     print ((Point 1 5).Text ())    # Point(x=1, y=5)
+#
+# **注入的成员**(要是用户自己写了同名的,以用户的为准 —— 一条都不盖):
+#
+#     Text ()      "Point(x=1, y=2)" —— 名字用 `::=` 那个,没名字就写 class
+#     Values ()    [1 2] —— 值,按声明顺序
+#     Eq o         同类型 && 逐字段相等(值是值语义、对象按身份 —— 和 `==` 一贯的口径)
+#     == / !=      就是 `Eq` 的两面
+#     init         按位置收;第一个实参是 `()` 就退回"声明时的默认值"那套。
+#                  **这一条没法让**:`init` 总是被它收走(要按位置落字段就得它来收),
+#                  所以数据类别自己写构造器 —— 要"先算一遍再落",就写在字段的默认值里。
+#
+# 字段是**看得出来**的:实例自己那层里"值不是函数"的那些(方法、`init`、从 Object
+# 继承来的机制成员都不算)。所以数据类里照样能写方法,不会被当字段。
+# 字段表**到用的时候才算**(Text / Values / 构造都在实例建好之后),所以拿数据类
+# 当父类也认得出子类新加的字段。
+#
+# 怎么做到的:元类在**建类**那一刻把一块**拼到类体后面**(`body.Append inject`)——
+# 拼上来的块和类体同属一层,实例化时接着类体跑(那时字段都声明好了,所以下面能
+# "看着实例"决定注入什么)。引擎侧那一小块是 `ObjectVal.BodyExtras`;
+# 帮手(字段表、按名取值、默认构造器)全关在一个**立即调用的 lambda** 里,
+# 不留成实例的数据字段。
+
+dataclass ::= class type {
+    private parentInit := init
+
+    # ── 注入的那一块 ──
+    private inject := {
+        (() => {
+            # 类体跑在这个作用域上(定义落回实例表、名字照写的地方找)。
+            # 按名取成员:`scope.Lookup name` 交回那个变量包成的 property ——
+            # `.Get ()` 读、`.Set v` 写;不认识的名字当场报错(`try` 接得住)。
+            cs := currentScope ()
+            valueOf := (n: string) => { (cs.Lookup n).Get (); }
+
+            # 用户写过这个名字吗(写过就不注入了)
+            mine := (n: string) => {
+                try { (valueOf n); true; } (e: Exception) => { false; }
+            }
+
+            # 字段 = 自己那层里"值不是函数"的那些。类链上那批方法名在这里 `Lookup`
+            # 不到(词法链里没有它们),自然被排除;用户写的方法值是个函数,也被排除。
+            fieldsNow := () => {
+                out := []
+                foreach (this.Fields ()) (n: string) => {
+                    ok := try { (valueOf n); true; } (e: Exception) => { false; }
+                    if { ok && ((typeof (valueOf n)) != function); } { out.Add n; } { 0; }
+                }
+                out
+            }
+
+            # 底下那条 init —— 用户写了就是用户的,没写就是引擎默认那条(`() => { this; }`)。
+            # **现在**就得拿住:下面那条注入的 init 会盖掉它,之后再查就查到自己了。
+            # 拿住的是个**值**,由下面的闭包带着走(所以不必把它留在实例上)。
+            base := (cs.Lookup "init").Get ()
+
+            # ── 值 / 打印 / 相等 ──
+            if { mine "Values"; } { 0; } {
+                this.Values := () => {
+                    out := []
+                    foreach (fieldsNow ()) (n: string) => { out.Add (valueOf n); }
+                    out
+                }
+            }
+
+            if { mine "Text"; } { 0; } {
+                this.Text := () => {
+                    nm := (typeof this).name
+                    if { nm.IsEmpty (); } { nm = "class"; } { 0; }
+                    out := nm + "("
+                    i := 0
+                    names := fieldsNow ()
+                    while { i < (names.Count ()); } {
+                        if { i > 0; } { out = out + ", "; } { 0; }
+                        out = out + (names.At i) + "=" + (string (valueOf (names.At i)))
+                        i += 1
+                    }
+                    out + ")"
+                }
+            }
+
+            if { mine "Eq"; } { 0; } {
+                this.Eq := (o: object) => {
+                    if { (typeof o) != (typeof this); } { false; } {
+                        mine1 := this.Values ()
+                        theirs := o.Values ()
+                        if { (mine1.Count ()) != (theirs.Count ()); } { false; } {
+                            same := true
+                            i := 0
+                            while { i < (mine1.Count ()); } {
+                                if { (mine1.At i) != (theirs.At i); } { same = false; } { 0; }
+                                i += 1
+                            }
+                            same
+                        }
+                    }
+                }
+            }
+
+            # 运算符:类体里写的那份就是这么落的(实例那层找得到,`BindOperator` 直接调它)
+            if { mine "=="; } { 0; } { this.== := (o: object) => { this.Eq o; }; }
+            if { mine "!="; } { 0; } { this.!= := (o: object) => { !(this.Eq o); }; }
+
+            # ── 按位置构造 ──
+            # 参数是**一个一个**收的(这套语言的调用就是一次收一个),收满字段个数才算完;
+            # 没满就交回"接着收"的函数,由引擎那套半成品构造器接着喂。
+            apply := (names: list vals: list) => {
+                i := 0
+                while { (i < (vals.Count ())) && (i < (names.Count ())); } {
+                    v := vals.At i
+                    # `()` 当"这一位没给":声明时的默认值留着
+                    if { (typeof v) != void; } { (cs.Lookup (names.At i)).Set v; } { 0; }
+                    i += 1
+                }
+                this
+            }
+
+            take := (names: list i: int vals: list) => {
+                (v) => {
+                    vals.Add v          # 就地加(`Add` 交回的是 `()`)
+                    if { (i + 1) >= (names.Count ()); } { apply names vals; } { take names (i + 1) vals; }
+                }
+            }
+
+            # `init` 不让:按位置落字段这件事得由它来收(见文件头那条规矩)
+            this.init := (first) => {
+                names := fieldsNow ()
+                if { (typeof first) == void; } { base (); } { take names 0 [] first; }
+            }
+        }) ()
+    }
+
+    # ── init:建类 ──
+    # 两个分支和 `type` 那层一样(带父类 / 不带),差别只有一处:把 `inject` 拼到类体后面。
+    init = (parent: type body: function) => { parentInit parent (body.Append inject); this; } | (body: function) => { parentInit object (body.Append inject); this; }
+}

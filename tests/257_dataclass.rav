@@ -1,0 +1,91 @@
+# `dataclass` —— 数据类(见 lib/dataclass.rav)。**要显式引用**:`using "dataclass.rav"`。
+#
+# 它是个元类(父类是 `type`,造出来的是**类**):写几个字段,自动拿到
+# `Text ()` / `Values ()` / `Eq` / `==` / `!=` / 按位置收的 `init`。
+#
+# 底下那套机制:元类在建类那一刻把一块**拼到类体后面**(`body.Append …`)——
+# 拼上来的块和类体同属一层,实例化时接着类体跑,于是"注入"和"自己写"没有区别。
+using "dataclass.rav"
+
+Point ::= dataclass {
+    x: int = 0
+    y: int = 0
+}
+
+# 按位置收(顺序照声明)
+p := Point 1 2
+print (p.Text ())
+print (p.Values ())
+print (p.x)
+print (p.y)
+
+# 空实参 = 全用默认值;某一位给 `()` = 那一位用默认值
+print ((Point ()).Text ())
+print ((Point 1 ()).Text ())
+print ((Point 7 8).Text ())
+
+# 字段之外还能写方法(方法不算字段)
+Named ::= dataclass {
+    first: string = ""
+    last: string = ""
+    Full := () => { first + " " + last; }
+}
+n := Named "Ada" "Lovelace"
+print (n.Full ())
+print (n.Text ())
+print (string n)          # 引擎自己那套照样能用(成员全平铺在一张表上)
+
+# 相等:同类型 && 逐字段(值是值语义、对象按身份)
+print (p == (Point 1 2))
+print (p == (Point 1 3))
+print (p != (Point 1 2))
+print (p.Eq (Point 1 2))
+print (p.Eq "不是同类型")
+
+# 自己写了同名的就以自己的为准(一条都不盖)
+Loud ::= dataclass {
+    v: int = 0
+    Text := () => { "!!!"; }
+}
+l := Loud 9
+print (l.Text ())
+print (l.Values ())
+
+# 拿数据类当父类:字段表到用的时候才算,所以子类新加的字段也认得出
+Point3 ::= class Point {
+    z: int = 0
+}
+q := Point3 1 2 3
+print (q.Text ())
+print (q.x)
+print (q.z)
+
+# 一个字段都没有也能用(注意 `{ }` 是**空字典**,类体得写点东西)
+Empty ::= dataclass { 0; }
+print ((Empty ()).Text ())
+print ((Empty ()) == (Empty ()))
+print ((Empty ()).Fields ())
+# --- expected ---
+# Point(x=1, y=2)
+# [1 2]
+# 1
+# 2
+# Point(x=0, y=0)
+# Point(x=1, y=0)
+# Point(x=7, y=8)
+# Ada Lovelace
+# Named(first=Ada, last=Lovelace)
+# Named { first = Ada, last = Lovelace }
+# true
+# false
+# false
+# true
+# false
+# !!!
+# [9]
+# Point3(x=1, y=2, z=3)
+# 1
+# 3
+# Empty()
+# true
+# [init Values Text Eq == != is isnot <: :> ToString Copy Fields CompareTo Key]

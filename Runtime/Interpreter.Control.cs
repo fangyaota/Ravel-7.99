@@ -144,10 +144,10 @@ public partial class Interpreter
     /// 实例表;而**接口**那半照旧直接跑在实例表上 —— 接口体是和实现块共环境的(实现写在哪,
     /// 接口体就在哪解析,`use` 出去的那些实现才对它可见),由 `StepImplMake` 那次
     /// `Reparent` 负责把它接到实现处。</summary>
-    private static Scope LayerScope(ClassVal type, BlockVal body, Scope instanceScope)
+    private static Scope LayerScope(ClassVal type, Scope lexical, Scope instanceScope)
         => type.IsAssignableTo(BuiltinClasses.BaseInterface)
             ? instanceScope
-            : new BodyScope(body.CaptureScope, instanceScope);
+            : new BodyScope(lexical, instanceScope);
 
     /// <summary>类实例化:沿祖先链(顶祖先→自身)依次跑每层类体,**全平铺在同一个 instanceScope**
     /// (所以同名成员是"后写盖先写",没有分层的成员表)。跑完之后只做一件事:在**那一个** scope 里
@@ -168,7 +168,9 @@ public partial class Interpreter
     {
         var type = cf.Arg<ClassVal>(0, "class");
         var arg = cf.Arg<RuntimeValue>(1, "class");
-        var bodies = BuiltinClasses.CollectBodies(type); // 顶祖先 → 自身,≥ 1 层
+        // 顶祖先 → 自身,≥ 1 步。一步 = 一块;`body.Append { … }` 拼上来的块各自算一步,
+        // 排在同一层主块的后面(见 `BuiltinClasses.CollectBodies`)。
+        var bodies = BuiltinClasses.CollectBodies(type);
 
         if (cf.Count == 0)
         {
@@ -184,10 +186,10 @@ public partial class Interpreter
                 ? new ClassVal(type, instanceScope)
                 : new ObjectVal(type, instanceScope);
             instanceScope.Define(ObjectVal.ThisMember, type, obj);
-            _top = new BlockExecFrame(bodies[0].Block)
+            _top = new BlockExecFrame(bodies[0].Block.Block)
             {
                 Parent = cf with { State = obj },
-                Scope = LayerScope(type, bodies[0], instanceScope)
+                Scope = LayerScope(type, bodies[0].Lexical, instanceScope)
             };
             return;
         }
@@ -197,10 +199,10 @@ public partial class Interpreter
         // 第 Count 层刚跑完 → 推下一层(定义照旧落回同一个实例表,名字走这一层自己的写法处)
         if (cf.Count < bodies.Count)
         {
-            _top = new BlockExecFrame(bodies[cf.Count].Block)
+            _top = new BlockExecFrame(bodies[cf.Count].Block.Block)
             {
                 Parent = cf,
-                Scope = LayerScope(type, bodies[cf.Count], inst.Scope)
+                Scope = LayerScope(type, bodies[cf.Count].Lexical, inst.Scope)
             };
             return;
         }

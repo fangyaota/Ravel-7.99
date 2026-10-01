@@ -266,10 +266,14 @@ internal static partial class BuiltinClasses
     /// <summary>把 (parent, body) 装到 self 上,self 于是是一个类。返回 self ——
     /// 构造交出 init 的返回值,所以这就是"建出来的那个类"。
     ///
-    /// 装完顺手登记进 AllTypes(`Subtypes ()` 反射要用)并扫类体里用符号定义的运算符。</summary>
+    /// 装完顺手登记进 AllTypes(`Subtypes ()` 反射要用)并扫类体里用符号定义的运算符。
+    ///
+    /// `body` 可以是**块拼出来的**(`body.Append { … }`,见 <see cref="BodyPieces"/>):
+    /// 第一块是主类体,其余记进 <see cref="ObjectVal.BodyExtras"/>,实例化时接着主块跑。</summary>
     private static ClassVal Install(Scope scope, ObjectVal parent, RuntimeValue body)
     {
-        if (body is not BlockVal blk) throw new RuntimeException("class 需要代码块参数");
+        var pieces = BodyPieces(body);
+        var blk = pieces[0];
         // 正在被装成的这个对象**一般是 ClassVal**:这段在实例化 `type` 或它的子类时跑,
         // 而 StepClassInit 正是按"被实例化的类 <: type"来决定造 ClassVal 的。
         // 但**接口**是个例外:接口对象的 parent 是 `BaseInterface`(普通对象),
@@ -284,9 +288,13 @@ internal static partial class BuiltinClasses
         self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
         self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk).SetAttr(Attr.Readonly);
         self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
+        self.BodyExtras = pieces.Count > 1 ? pieces[1..] : [];
         AllTypes.Add(self);
 
-        foreach (var stmt in blk.Block.Statements)
+        // 运算符是**扫体里的语句**装进实例表的(见 `DefineClassOperator`),所以拼上来的块
+        // 也要扫 —— 它们和主块同属一层,`body.Append { == := … }` 那个 `==` 得算数。
+        foreach (var piece in pieces)
+        foreach (var stmt in piece.Block.Statements)
         {
             var op = stmt switch
             {
@@ -298,6 +306,39 @@ internal static partial class BuiltinClasses
         }
 
         return self;
+    }
+
+    /// <summary>把"体"摊平成**一串块**(执行顺序)。`Append` / `Prepend` 交出来的是
+    /// <see cref="ComposeVal"/>(原值 + 那一块),这里把它拆开:prepend 的块排在原值前面、
+    /// append 的排在后面 —— 和调用时那套顺序一致(见 `Interpreter.StepCompose`),
+    /// 只是类体要的是"一串块",不是"一个能调的函数"。
+    ///
+    /// 别的形状照旧报「class 需要代码块参数」:类体造不出来,只能写出来或拼出来。</summary>
+    private static List<BlockVal> BodyPieces(RuntimeValue body)
+    {
+        var pieces = new List<BlockVal>();
+        Walk(body);
+        return pieces;
+
+        void Walk(RuntimeValue v)
+        {
+            switch (v)
+            {
+                case BlockVal b:
+                    pieces.Add(b);
+                    break;
+                case ComposeVal c when c.IsPrepend:
+                    pieces.Add(c.Block);
+                    Walk(c.Original);
+                    break;
+                case ComposeVal c:
+                    Walk(c.Original);
+                    pieces.Add(c.Block);
+                    break;
+                default:
+                    throw new RuntimeException("class 需要代码块参数");
+            }
+        }
     }
 
     private static ClassVal New(string name)
@@ -337,20 +378,30 @@ internal static partial class BuiltinClasses
         => AllTypes.RemoveRange(_builtinCount, AllTypes.Count - _builtinCount);
 
     /// <summary>沿 parent 链收集各层类体，返回「顶祖先 → 自身」。没有类体的层（内建）不入列且到此为止。
-    /// 类体创建后不可变，所以这是纯函数，可随帧推进反复调用。</summary>
-    internal static List<BlockVal> CollectBodies(ObjectVal type)
+    /// 类体创建后不可变，所以这是纯函数，可随帧推进反复调用。
+    ///
+    /// **一层可能不止一块**：`body.Append { … }` 拼上来的块跟在主块后面，同属这一层 ——
+    /// 于是 `Lexical` 给的是**主块**的写法处（拼上来的块自由名字也照这一处解析，
+    /// 和"每层各按各的写法处"那条是一个道理，见 <see cref="BodyScope"/>）。</summary>
+    internal static List<BodyStep> CollectBodies(ObjectVal type)
     {
-        var layers = new List<BlockVal>();
+        var layers = new List<List<BodyStep>>();
         for (var t = type; ; t = t.Parent)
         {
             if (t == null) break;
             var body = t.ClassBody;
             if (body == null) break;
-            layers.Add(body);
+            var steps = new List<BodyStep> { new(body, body.CaptureScope) };
+            foreach (var extra in t.BodyExtras) steps.Add(new(extra, body.CaptureScope));
+            layers.Add(steps);
             if (t.Parent == t) break;
         }
 
         layers.Reverse();
-        return layers;
+        return [.. layers.SelectMany(s => s)];
     }
 }
+
+/// <summary>实例化要跑的一步：跑哪一块、那一层的自由名字按哪儿解析（见 <see cref="BodyScope"/>）。
+/// 一层通常只有一步；`body.Append { … }` 拼上来的块各算一步，`Lexical` 都指着主块那一处。</summary>
+internal readonly record struct BodyStep(BlockVal Block, Scope Lexical);

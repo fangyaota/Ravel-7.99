@@ -153,6 +153,12 @@ lib/
   regex.rav               `Regex` 模块 —— 正则表达式:`Regex.C pattern` / `Regex.With pattern flags`
                           / `Regex.Escape s`,命中的那段是 `RegexMatch`(`Value`/`At`/`Groups`/
                           `Group 1`/`Group "名字"`)。**要显式引用**;引擎那六条原语见「System 模块」
+  dataclass.rav           `dataclass` —— **数据类**的元类(父类是 `type`,造出来的是类):
+                          `Point ::= dataclass { x: int = 0; y: int = 0 }` 之后
+                          `Text ()` / `Values ()` / `Eq` / `==` / `!=` / 按位置收的 `init`
+                          全都自动有(用户自己写了同名的就以用户的为准)。
+                          字段是"自己那层里值不是函数的那些",**到用的时候才算**,
+                          所以拿它当父类也认得出子类新加的字段。**要显式引用**
   math.rav                Math 模块(pi/e/square/cube),`using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
                           `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
@@ -563,6 +569,14 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   `Define` / `DefineOrReplace` 转发回实例表，`LookupHere` 先问实例表本层）—— 所以各层的自由名字
   **各按各的写法处**解析，定义仍旧平铺在同一个实例表里。从前只有一个父（最具体那个类的写法处），
   父类写在别的作用域时它的类体就看不见自己那儿的名字（`tests/242`）。
+- **类体可以**拼**出来**：`type` 那层收的"代码块"允许是 `body.Append { … }`
+  (`Prepend` 也行)——`Install` 把它摊平成一串块(`BuiltinClasses.BodyPieces`)，第一块是主类体、
+  其余记进 `ObjectVal.BodyExtras`。实例化时**同属一层**的块按顺序接着跑：各自一步(`CollectBodies`
+  的 `BodyStep`)，`Lexical` 都指着**主块**的写法处(拼上来的块自由名字也照那一处解析，
+  和"每层各按各的写法处"一个道理)，定义照旧平铺进同一个实例表。类体里那句运算符定义
+  (`== := …`)是**扫语句**装进实例表的(`Install`)，所以拼上来的块也一起扫。
+  元类靠这个注入：`dataclass` 就是 `parentInit parent (body.Append inject)`——
+  拼上来的块跑在类体之后，于是"注入"和"自己写几条成员"没有任何区别。
 - **`:=` 是定义不是覆盖**：平铺之后「同名」就是同一个变量，所以在同一个作用域里再 `:=` 一次
   会当场报错（`Scope.Define` 那句）—— 包括**子类重声明父类已声明的字段**。要改值、要换掉
   继承来的那条，写 `=`。唯一的放行是「**同一条定义语句重跑**」：续延重入、同一个块被反复执行
