@@ -8,6 +8,8 @@ plugins/
 *.bak
 .claude/
 repl_session.json
+# `lib/repl.rav` 退出时存的会话(几页代码),和上面那个一样是**你自己的**东西
+.ravel-session
 temp.ravel
 temp*.rav
 .io-test/

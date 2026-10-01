@@ -1,0 +1,652 @@
+# `Repl` —— **用 Ravel 写的 REPL 编辑器**。要显式引用:`using "repl.rav"`。
+#
+#     using "repl.rav"
+#     Repl.Run ()
+#
+# (`examples/repl.rav` 就是这么两行;跑 `dotnet out/ravel.dll examples/repl.rav`)
+#
+# 它是 `Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**对照物**:多页缓冲、三维光标、
+# 按词上色的行渲染、按键编辑、主菜单、运行整页、读写文件、会话存盘。
+# 照它写一遍是想看看**这门语言自己够不够用** —— 结论是够:**五条新原语**,
+# 而且全落在"进程边界"那一类(读单个键、清屏、定位光标、藏光标、把异常渲染成那份报告)。
+# 其余的一样都不缺:字符串增删改、`eval`(连语法错误都接得住)、`try`、文件读写、
+# `Terminal` 那套标记渲染。**连高亮的扫描器都是在这儿写的**(见下面 ①)——
+# 它本来就该是库的事,不必向引擎要。
+#
+# 两半的分法就是"测不测得动"那条线:
+#
+#   ① **纯的**:一行源码进、一串标记出。`Segments` / `Row` / `Balanced` / `Window`
+#      —— 不碰键盘也不碰屏幕,`tests/286_repl.rav` 全钉得住。
+#   ② **壳的**:`Editor` 那个类 —— 按键、重画、菜单、运行。这一半要有真键盘才跑得动,
+#      所以它只在 `examples/` 里手动试。
+#
+# 和 C# 那版**故意不一样**的三处:
+#
+#   * **不抓输出**。它用 `Console.SetOut` 把用户代码的打印收进一个字符串,再按开关决定
+#     打不打。Ravel 这边抓不了(那是引擎那侧的事),所以"显示结果"那个开关的意思是
+#     **求不值**:关掉时只把这段送去编译一遍,报语法错,不跑。
+#   * **看不见终端就不当编辑器**。管道里画什么都是白画 —— 那时候把喂进来的整段
+#     当一段程序跑完就走(`RunPipe`)。
+#   * **提示行画在屏幕里**(不是打到 stderr 上):打到 stderr 会跟着往上滚,
+#     把这台"自己管屏幕"的编辑器搅乱。
+using "native.rav"
+using "terminal.rav"
+using "io.rav"
+
+ravel "Repl"
+
+# ============================================================
+#  ① 纯的那半:一行源码 → 一串标记
+# ============================================================
+
+# 一段的四种"粗细" —— 和引擎那个真词法器的分法对齐(`ReplView` 也是这四类)。
+# **高亮只要编辑器的粗细,不必是完整的词法**:所以这儿只认字符串、数字、词、别的,
+# 不去分辨运算符那些 —— 那是解析器的事,而这一层的产出只有颜色。
+readonly ColorOf := (kind: string) => {
+    if { kind == "string"; } { "yellow"; } {
+        if { kind == "number"; } { "lime"; } { if { kind == "word"; } { "cyan"; } { "bold"; } }
+    }
+}
+
+# 一个字符算不算"词"的一部分:字母、下划线,以及**所有非 ASCII**
+# (Ravel 的标识符可以是中文,`名字 := 1` 是合法的)
+readonly WordChar := (c: char) => {
+    code := c.Code ()
+    if { code >= 128; } { true; } {
+        ((code >= 65) && (code <= 90)) || (((code >= 97) && (code <= 122)) || (code == 95));
+    }
+}
+
+# 数字那一截:连着吃数字和 `.`,末尾再吃一个后缀(`n` / `i` / `f`)。
+# `2.0` 是一段、`123n` 是一段;`1 abc` 中间那个空格不在内。
+readonly NumChar := (c: char) => {
+    if { c.IsDigit (); } { true; } { if { c == '.'; } { true; } { "nif".Contains (string c); } }
+}
+
+# 把一行切成若干段,**盖满整行**(词与词之间的空白也算一段,"other")。
+# 盖满是有讲究的:画光标那一步要问"光标落在哪一段里",满了才有答案 ——
+# 引擎那个 C# 版只在词**内部**找光标,落在空白处就不画了,是个小毛病。
+readonly Segments := (text: string) => {
+    out := []
+    i := 0
+    n := text.Length ()
+    while { i < n; } {
+        c := text.At i
+        j := i + 1
+        kind := "other"
+        if { c == '#'; } {
+            j = n                                          # 注释到行尾
+        } {
+            if { c == '"'; } {
+                closed := false
+                while { (j < n) && (!(closed)); } {
+                    ch := text.At j
+                    if { ch == '\\'; } { j += 2; } {       # 转义:下一个不参与
+                        if { ch == '"'; } { closed = true; } { 0; }
+                        j += 1
+                    }
+                }
+                if { j > n; } { j = n; } { 0; }            # 末尾一个光秃秃的反斜杠
+                kind = "string"
+            } {
+                if { c.IsDigit (); } {
+                    while { (j < n) && (NumChar (text.At j)); } { j += 1; }
+                    kind = "number"
+                } {
+                    if { WordChar c; } {
+                        while { (j < n) && (WordChar (text.At j)); } { j += 1; }
+                        kind = "word"
+                    } { 0; }
+                }
+            }
+        }
+        piece := text.Slice [i..j)                 # 先落成变量:字典值里直接写区间字面量,
+        out.Add {"kind": kind "text": piece}       # 解析器会把 `[i..j]` 后面那个 `}` 当成新的键
+        i = j
+    }
+    out
+}
+
+# 一段 → 带标记的文本。`at` 给了就是这个段里的第几格画成**光标块**(给 `()` 表示不画)——
+# 它是个 object 而不是 int,因为"这里没有光标"得说得出来。
+readonly Tint := (kind: string text: string at: object) => {
+    head := "[" + (ColorOf kind) + "]"
+    if { (typeof at) != int; } { head + (Terminal.Escape text) + "[/]"; } {
+        k := at
+        # 光标那一格单独裹成下划线红块。**`[/]` 要把外层的颜色收掉再重新打开**:
+        # 标记是成对的,套在里头写会把闭合顺序搅乱。
+        # (三段各自落成变量 —— 表达式**不跨行**,`+` 写到行首要另起一句才行)
+        before := head + (Terminal.Escape (text.Take k)) + "[/]"
+        cursorBlock := "[underline red]" + (Terminal.Escape (text.Slice [k..(k + 1)))) + "[/]"
+        after := head + (Terminal.Escape (text.Skip (k + 1))) + "[/]"
+        before + cursorBlock + after;
+    }
+}
+
+# 只上色,不加行号
+readonly Colored := (text: string) => {
+    out := ""
+    foreach (Segments text) (s: object) => { out += (Tint (s.Get "kind") (s.Get "text") ()); }
+    out
+}
+
+# 一行的渲染:行号(蓝)+ 上色的源码;`cursorX` 给了就在这一行画光标块
+# (给 `()` 表示"光标不在这儿")
+readonly Row := (n: int text: string cursorX: object) => {
+    out := "[blue]" + (Pad (string n) 3) + "|[/] "
+    pos := 0
+    foreach (Segments text) (s: object) => {
+        t := s.Get "text"
+        # "这一格有没有光标"得用**装东西的盒子**兜着:`at := ()` 会把类型钉成 Void,
+        # 后面再赋整数就报「无法将 Integer 赋值给 'at'」
+        box := []
+        if { (typeof cursorX) == int; } {
+            if { (cursorX >= pos) && (cursorX < (pos + (t.Length ()))); } { box.Add (cursorX - pos); } { 0; }
+        } { 0; }
+        out += (Tint (s.Get "kind") t (if { (box.Count ()) == 0; } { (); } { box.At 0; }))
+        pos += (t.Length ())
+    }
+    if { (typeof cursorX) == int; } {
+        if { cursorX >= pos; } { out += "[underline red] [/]"; } { 0; }   # 行尾那个位置
+    } { 0; }
+    out
+}
+
+# 左边补空格到 `n` 格
+readonly Pad := (s: string n: int) => {
+    need := n - (s.Length ())
+    if { need <= 0; } { s; } { ((" ").Repeat need) + s; }
+}
+
+# 在 `s` 的第 `i` 格插进 `t` / 挖掉第 `i` 格。
+# **`string` 没有 `Insert` / `Remove`**(那是 `list` 才有的),自己拿 Take/Skip 接一下 ——
+# 就两句,不必为它给引擎加方法。
+readonly InsertAt := (s: string i: int t: string) => { (s.Take i) + t + (s.Skip i); }
+readonly CutAt := (s: string i: int) => { (s.Take i) + (s.Skip (i + 1)); }
+
+readonly ClampTo := (v: int lo: int hi: int) => {
+    if { v < lo; } { lo; } { if { v > hi; } { hi; } { v; } }
+}
+
+# 这一行写完了吗 —— 括号合上、而且不在字符串中间。
+# **规则照抄引擎的 `Lexer.ScanState`**(那边写着为什么:`NeoInteractor` 从前自己抄了一份、
+# 不认 `\` 转义,`"a\"b"` 就把字符串状态判反、后面整行的括号都跟着数错)。
+# 深度只做加减**不做校验** —— 多一个右括号该让解析器去报,不是卡在"还没写完"上。
+# 和那边一样,`'a'` 这种字符字面量里的括号**也会被数进去**(引擎那份就这脾气)。
+readonly Balanced := (src: string) => {
+    depth := 0
+    inStr := false
+    i := 0
+    n := src.Length ()
+    while { i < n; } {
+        c := src.At i
+        if { inStr; } {
+            if { c == '\\'; } { i += 2; } {
+                if { c == '"'; } { inStr = false; } { 0; }
+                i += 1
+            }
+        } {
+            if { c == '#'; } { i = n; } {
+                if { c == '"'; } { inStr = true; i += 1; } {
+                    if { "([{".Contains (string c); } { depth += 1; } {
+                        if { ")]}".Contains (string c); } { depth -= 1; } { 0; }
+                    }
+                    i += 1
+                }
+            }
+        }
+    }
+    (depth <= 0) && (!(inStr));
+}
+
+# 屏幕上取哪一段:光标那行**尽量**居中,不够就贴边(两边都不越界)。交回 `[左 右)`。
+# 照 `NeoInteractor.GetRenderText` 那三步夹法。
+readonly Window := (total: int y: int) => {
+    left := ClampTo (y - 8) 0 total
+    right := ClampTo (left + 16) 0 total
+    left = ClampTo (right - 16) 0 total
+    [left right]
+}
+
+# ============================================================
+#  ② 壳:那个编辑器
+# ============================================================
+
+readonly PageMark := string (char 12)        # 存盘时的分页符(源码里几乎见不到)
+
+# 重画的公共那一手:**先把上一屏整个盖掉再画**。
+# (只盖"多出来的那几行"不够:某一行变短了,尾巴上的旧字符会留在那儿)
+# 交回这一屏画了几行,调用方存回去当下次的"上一屏"。
+readonly Paint := (drawn: int lines: list) => {
+    blank := (" ").Repeat ((Terminal.Width ()) - 1)
+    System.CursorTo 0 0
+    i := 0
+    while { i < drawn; } { Terminal.Line blank; i += 1; }
+    System.CursorTo 0 0
+    n := 0
+    foreach lines (l: string) => { Terminal.Line l; n += 1; }
+    n
+}
+
+Editor ::= class {
+    Pages: list = [[]]
+    Z: int = 0                                # 第几页
+    Y: int = 0                                # 第几行
+    X: int = 0                                # 第几列
+    AutoTab: bool = true
+    ShowResult: bool = true
+    Drawn: int = 0                            # 上一屏画了几行
+
+    init = () => { Pages = [[]]; Z = 0; Y = 0; X = 0; this; }
+
+    # ── 缓冲 ──
+
+    Lines := () => { Pages.At Z; }
+    Current := () => { if { ((Lines ()).Count ()) == 0; } { ""; } { (Lines ()).At Y; } }
+    Text := () => { (Lines ()).Join "
+"; }
+
+    # 空页先垫一行 —— 没有它 `Lines.At Y` 直接越界(`NeoInteractor.EnsureLine` 那条)
+    Ensure := () => { if { ((Lines ()).Count ()) == 0; } { (Lines ()).Add ""; } { 0; }; }
+
+    Clamp := () => {
+        Z = ClampTo Z 0 ((Pages.Count ()) - 1)
+        if { ((Lines ()).Count ()) == 0; } { Y = 0; X = 0; } {
+            Y = ClampTo Y 0 (((Lines ()).Count ()) - 1)
+            X = ClampTo X 0 ((Current ()).Length ())
+        }
+        ();
+    }
+
+    # ── 画 ──
+
+    Tips := () => {
+        ["  [grey]Ins[/] 清页   [grey]PgUp/PgDn[/] 翻页   [grey]Home/End[/] 首尾   [grey]Esc[/] 回菜单"]
+    }
+
+    # 这一屏该长什么样(一串标记,一个元素一行)。高度**定死** ——
+    # 定死才好盖:上一屏和这一屏一样高,盖一遍就干净了。
+    Screen := () => {
+        out := ["[purple]------第" + (string Z) + "页------[/]"]
+        lines := Lines ()
+        if { (lines.Count ()) == 0; } { out.Add "   | <空>"; } {
+            w := Window (lines.Count ()) Y
+            i := w.At 0
+            while { i < (w.At 1); } {
+                out.Add (Row (i + 1) (lines.At i) (if { i == Y; } { X; } { (); }))
+                i += 1
+            }
+        }
+        while { (out.Count ()) < 17; } { out.Add "   |"; }
+        foreach (Tips ()) (t: string) => { out.Add t; }
+        out
+    }
+
+    Draw := () => { Drawn = Paint Drawn (Screen ()); }
+
+    # ── 编辑 ──
+
+    Edit := () => {
+        System.CursorShow false
+        System.ScreenClear ()
+        Drawn = 0
+        running := true
+        while { running; } {
+            Draw ()
+            k := System.ReadKey ()
+            if { (typeof k) != string; } { running = false; } {      # 没有输入了(管道)
+                if { k == "esc"; } { running = false; } {
+                    if { Jump k; } { Clamp (); } {
+                        if { Edit1 k; } { Clamp (); } { 0; }
+                    }
+                }
+            }
+        }
+        System.CursorShow true
+        ();
+    }
+
+    # 会**动光标**的那几个键。交回"这个键我管了"
+    Jump := (k: string) => {
+        Ensure ()                       # 空页先垫一行 —— 这两个入口单独调也要能用
+        ok := true
+        if { k == "up"; } { Y -= 1; } {
+            if { k == "down"; } { Y += 1; } {
+                if { k == "left"; } { X -= 1; } {
+                    if { k == "right"; } { X += 1; } {
+                        if { k == "home"; } { X = 0; Y = 0; } {
+                            if { k == "end"; } { Y = ((Lines ()).Count ()) - 1; X = (Current ()).Length (); } {
+                                if { k == "pgup"; } { Z -= 1; X = 0; Y = 0; } {
+                                    if { k == "pgdn"; } {
+                                        if { (Z == ((Pages.Count ()) - 1)) && (((Lines ()).Count ()) != 0); } { Pages.Add []; } { 0; }
+                                        Z += 1
+                                        X = 0
+                                        Y = 0
+                                    } { ok = false; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ok
+    }
+
+    # 会**改内容**的那几个键(光标由 `Clamp` 收尾)
+    Edit1 := (k: string) => {
+        Ensure ()                       # 同上
+        ok := true
+        cur := Current ()
+        if { k == "backspace"; } {
+            if { X == 0; } {
+                if { Y >= 1; } {
+                    prev := (Lines ()).At (Y - 1)
+                    X = prev.Length ()
+                    (Lines ()).Set (Y - 1) (prev + cur)
+                    (Lines ()).RemoveAt Y
+                    Y -= 1
+                } { 0; }
+            } { (Lines ()).Set Y (CutAt cur (X - 1)); X -= 1; }
+        } {
+            if { k == "delete"; } {
+                if { X == (cur.Length ()); } {
+                    if { Y < (((Lines ()).Count ()) - 1); } {
+                        (Lines ()).Set Y (cur + ((Lines ()).At (Y + 1)))
+                        (Lines ()).RemoveAt (Y + 1)
+                    } { 0; }
+                } { (Lines ()).Set Y (CutAt cur X); }
+            } {
+                if { k == "enter"; } {
+                    indent := if { AutoTab; } { Lead cur; } { 0; }
+                    (Lines ()).Set Y (cur.Take X)
+                    (Lines ()).Insert (Y + 1) (((" ").Repeat indent) + (cur.Skip X))
+                    Y += 1
+                    X = indent
+                } {
+                    if { k == "tab"; } { (Lines ()).Set Y (InsertAt cur X "    "); X += 4; } {
+                        if { k == "insert"; } { ClearPage (); } {
+                            if { (k.Length ()) == 1; } { (Lines ()).Set Y (InsertAt cur X k); X += 1; } { ok = false; }
+                        }
+                    }
+                }
+            }
+        }
+        ok
+    }
+
+    # 这一行开头有几个空格(回车时照它对齐)
+    Lead := (s: string) => {
+        i := 0
+        while { (i < (s.Length ())) && ((s.At i) == ' '); } { i += 1; }
+        i
+    }
+
+    # `Ins`:清掉这一页;只剩一页、而它又是空的时候,就**删掉这一页**(和 `NeoInteractor` 一个规矩)
+    ClearPage := () => {
+        if { (((Lines ()).Count ()) == 0) && ((Pages.Count ()) >= 2); } {
+            Pages.RemoveAt Z
+            Z -= 1
+        } { (Lines ()).Clear (); }
+        Clamp ()
+    }
+
+    # ── 主菜单 ──
+
+    Items := () => {
+        ["编辑" "运行" "普通 Repl" "读取" "保存" "关于" "开关自动对齐" "开关结果显示" "退出"]
+    }
+
+    Menu := () => {
+        sel := 0
+        running := true
+        while { running; } {
+            Drawn = Paint Drawn (MenuScreen sel)
+            k := System.ReadKey ()
+            if { (typeof k) != string; } { running = false; } {
+                if { k == "up"; } { sel = ClampTo (sel - 1) 0 (((Items ()).Count ()) - 1); } {
+                    if { k == "down"; } { sel = ClampTo (sel + 1) 0 (((Items ()).Count ()) - 1); } {
+                        if { k == "esc"; } { running = false; } {
+                            if { k == "enter"; } { running = (Pick sel); } { 0; }
+                        }
+                    }
+                }
+            }
+        }
+        ();
+    }
+
+    MenuScreen := (sel: int) => {
+        out := ["[purple]====== 主菜单 ======[/]" ""]
+        i := 0
+        foreach (Items ()) (name: string) => {
+            if { i == sel; } { out.Add ("  [yellow]> [/][bold]" + name + "[/]"); }
+            { out.Add ("    " + name); }
+            i += 1
+        }
+        out.Add ""
+        out.Add "  [grey]↑↓ 选,回车进去,Esc 退出[/]"
+        out
+    }
+
+    # 交回"菜单要不要继续转"(只有"退出"给 false)
+    Pick := (sel: int) => {
+        ok := true
+        if { sel == 0; } { Edit (); } {
+            if { sel == 1; } { RunPage (); } {
+                if { sel == 2; } { PlainLoop (); } {
+                    if { sel == 3; } { LoadPage (); } {
+                        if { sel == 4; } { SavePage (); } {
+                            if { sel == 5; } { About (); } {
+                                if { sel == 6; } { AutoTab = !(AutoTab); Pan (); } {
+                                    if { sel == 7; } { ShowResult = !(ShowResult); Pan (); } { ok = false; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Drawn = 0
+        ok
+    }
+
+    # 开关拨过之后让用户看一眼拨到哪儿了
+    Pan := () => {
+        System.CursorShow true
+        System.ScreenClear ()
+        Drawn = 0
+        Terminal.Line (if { AutoTab; } { "已开启自动对齐文本"; } { "已关闭自动对齐文本"; })
+        Terminal.Line (if { ShowResult; } { "已开启显示执行结果"; } { "已关闭显示执行结果"; })
+        Hold ()
+        ();
+    }
+
+    Hold := () => {
+        Terminal.Line ""
+        Terminal.Line "[green]按任意键继续[/]"
+        System.ReadKey ()
+        ();
+    }
+
+    # ── 运行这一页 ──
+
+    RunPage := () => {
+        System.CursorShow true
+        System.ScreenClear ()
+        Drawn = 0
+        source := Text ()
+        if { !(Balanced source); } {
+            Terminal.Line "[red]括号还没合上（或者字符串没闭合），先写完再跑[/]"
+        } {
+            if { ShowResult; } { TryEval source; } { TryParse source; }
+        }
+        Hold ()
+        ();
+    }
+
+    # 编译 + 求值。**交回值就 `==>` 打出来**(和 `NeoInteractor` 一个规矩)
+    TryEval := (source: string) => {
+        try {
+            v := eval source
+            if { (typeof v) == void; } { 0; } {
+                Terminal.Line "[yellow]==>[/] " + (Terminal.Escape (string v))
+            }
+        } (e: Exception) => { ShowError e; }
+        ();
+    }
+
+    # 只看语法(结果显示关着的时候走这条):把整段塞进一个**不跑**的分支里编一遍。
+    # `if` 的两个块是**先编好、按需才跑**的 —— 所以语法错照样报,而副作用一个都不会发生。
+    TryParse := (source: string) => {
+        # 包成一个**不去调用的 lambda**:体照样要过词法语法(所以语法错报得出来),
+        # 而它**一行都不会跑** —— 顶上那些 `:=` 于是只落在这个 lambda 自己那层里。
+        #
+        # 别用 `if { false; } { … }` 那种包法:块在**表达式位置**,里头一个 `x := 5`
+        # 会报「变量的定义是语句,不能当表达式用」(实测撞过)。
+        #
+        # **handler 必须和 `try { … }` 同一行**:分开写就成了"少给一个实参",
+        # `try` 得到一个半成品、整块**静默不跑**(`if` 少给一块是同一个坑,实测也撞过)。
+        wrapped := "(() => {\n" + source + "\n})"
+        try { eval wrapped; } (e: Exception) => { ShowError e; }
+        ();
+    }
+
+    ShowError := (e: Exception) => {
+        foreach (System.SplitLines (System.FormatError e)) (l: string) => {
+            Terminal.Line ("[red]" + (Terminal.Escape l) + "[/]")
+        }
+        ();
+    }
+
+    About := () => {
+        System.CursorShow true
+        System.ScreenClear ()
+        Drawn = 0
+        Terminal.Line "[purple]Ravel 7.99[/] —— 这个编辑器是[bold]用它自己写的[/]"
+        Terminal.Line ""
+        Terminal.Line "  多页缓冲 + 三维光标 + 按词上色,全在 lib/repl.rav 里"
+        Terminal.Line "  引擎只多给了五条原语:读键、清屏、定位、藏光标、报告异常"
+        Hold ()
+        ();
+    }
+
+    # ── 普通 Repl:一行一行收,写完整了才求值 ──
+
+    PlainLoop := () => {
+        System.CursorShow true
+        System.ScreenClear ()
+        Drawn = 0
+        Terminal.Line "普通 Repl（:exit 回菜单）"
+        buffer := ""
+        running := true
+        while { running; } {
+            Terminal.Write (if { buffer.IsEmpty (); } { ">>> "; } { "... "; })
+            line := input ()
+            if { ((buffer.IsEmpty ()) && ((line == ":exit") || (line == ":q"))); } { running = false; } {
+                buffer += line + "
+"
+                if { Balanced buffer; } {
+                    try {
+                        v := eval buffer
+                        if { (typeof v) == void; } { 0; } { Terminal.Line ("==> " + (string v)); }
+                    } (e: Exception) => { ShowError e; }
+                    buffer = ""
+                } { 0; }
+            }
+        }
+        ();
+    }
+
+    # ── 读写 ──
+
+    LoadPage := () => {
+        System.CursorShow true
+        path := Terminal.Ask "选择代码文件"
+        f := Io.File path
+        if { !(f.Exists ()); } {
+            System.ScreenClear ()
+            Drawn = 0
+            Terminal.Line ("[red]错误：文件<" + (Terminal.Escape path) + ">不存在[/]")
+        } {
+            Pages.Insert Z (System.SplitLines (f.Read ()))
+            System.ScreenClear ()
+            Drawn = 0
+            Terminal.Line ("已加载至[purple]第" + (string Z) + "页[/]")
+        }
+        Hold ()
+        ();
+    }
+
+    SavePage := () => {
+        System.CursorShow true
+        path := Terminal.Ask "选择代码文件"
+        f := Io.File path
+        f.Write (Text ())
+        System.ScreenClear ()
+        Drawn = 0
+        Terminal.Line ("已写入 " + (Terminal.Escape path))
+        Hold ()
+        ();
+    }
+
+    # ── 会话:退出时把几页存下来,下次接着写 ──
+
+    Keep := () => {
+        parts := []
+        foreach Pages (p: list) => { parts.Add ((p).Join "
+"); }
+        try { System.WriteText (SessionFile ()) (parts.Join PageMark); } (e: Exception) => { 0; }
+        ();
+    }
+
+    Restore := () => {
+        f := Io.File (SessionFile ())
+        if { f.Exists (); } {
+            raw := f.Read ()
+            if { raw.IsEmpty (); } { 0; } {
+                Pages = []
+                foreach (raw.Split PageMark) (p: string) => { Pages.Add (System.SplitLines p); }
+                Z = 0
+                Y = 0
+                X = 0
+            }
+        } { 0; }
+        Clamp ()
+        ();
+    }
+}
+
+readonly SessionFile := () => { ".ravel-session"; }
+
+# ============================================================
+#  ③ 入口
+# ============================================================
+
+# 开一个。**看不见终端就不当编辑器** —— 管道里画什么都是白画,那时候把喂进来的
+# 整段当一段程序跑完就走(退得出来,而且有用:`echo 'print 1' | ravel examples/repl.rav`)
+readonly Run := () => {
+    if { Terminal.Tty (); } {
+        e := Editor ()
+        e.Restore ()
+        e.Menu ()
+        e.Keep ()
+        System.CursorShow true
+        System.ScreenClear ()
+    } {
+        RunSource (System.ReadAllInput ())
+    }
+    ();
+}
+
+# 把一段源码跑一遍,交回值就打到 stdout,报错就打那份报告到 stderr
+readonly RunSource := (src: string) => {
+    body := src.Trim ()                       # 先落成变量:链式调用得这么写(见教程那条坑)
+    if { body.IsEmpty (); } { (); } {
+        try {
+            v := eval src
+            if { (typeof v) == void; } { 0; } { System.WriteLine (string v); }
+        } (e: Exception) => { System.WriteErr (System.FormatError e); }
+    }
+    ();
+}

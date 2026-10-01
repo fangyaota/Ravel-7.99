@@ -171,6 +171,11 @@ public partial class Interpreter
         return true;
     }
 
+    /// <summary>引擎刚交给 Ravel handler 的那个 C# 异常。`Unhandled` 和 `System.FormatError`
+    /// 都要它 —— **位置和调用栈只在这个 C# 异常身上**:交给 Ravel 的那份是个普通对象,
+    /// 只装了一句 message(`BuiltinClasses.NewException`)。</summary>
+    internal RuntimeException? Handed => _handed;
+
     /// <summary>`System.Unhandled e`:库在"没人接"时调它 —— 把引擎这次交出去的那个异常原样抛出。</summary>
     internal RuntimeValue Unhandled(RuntimeValue e)
     {

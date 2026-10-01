@@ -1,0 +1,98 @@
+# `Repl` —— **用 Ravel 写的 REPL 编辑器**(见 lib/repl.rav)。**要显式引用**。
+#
+# 这一条钉的是它**纯的那一半**:一行源码进、一串标记出 —— 不碰键盘也不碰屏幕。
+# 壳那一半(按键、重画、菜单)要有真键盘才跑得动,所以它在 `examples/repl.rav` 里。
+using "repl.rav"
+
+# ── 切词:字符串 / 数字 / 词 / 别的 ──
+print (Repl.Segments "x := 12")
+print (Repl.Segments "print \"你好\"")
+print (Repl.Segments "a # 注释")
+print (Repl.Segments "1.5n + _标")
+
+# ── 上色(交回的是**标记**,所以颜色也钉得住)──
+print (Repl.Colored "x := 1")
+print (Repl.Row 1 "x := 1" ())            # `()` = 光标不在这一行
+print (Repl.Row 2 "ab" 1)                 # 光标在第 1 格(词里)
+print (Repl.Row 3 "ab" 2)                 # 光标在行尾
+print (Repl.Row 12 "x" 0)                 # 行号右对齐三格
+
+# ── 渲染出来的样子(不走颜色,管道里也稳定)──
+print (Terminal.Plain (Repl.Row 1 "x := 1" 5))
+# 行尾那个位置画的是**一个空格**的光标块 —— 外面套一层方括号,免得尾空格被比对吃掉
+print ("[" + (Terminal.Plain (Repl.Row 1 "ab" 2)) + "]")
+print (Terminal.Plain (Repl.Colored "a # 注释"))
+
+# ── 写完了吗 ──
+print (Repl.Balanced "(1 + 2")
+print (Repl.Balanced "1 + 2)")
+print (Repl.Balanced "x := 1")
+print (Repl.Balanced "\"没闭合")
+print (Repl.Balanced "\"a\\\"b\"")          # 转义:那个引号不算收尾
+print (Repl.Balanced "# ( 注释里的括号不算")
+
+# ── 屏幕取哪一段 ──
+print (Repl.Window 3 1)
+print (Repl.Window 100 50)
+print (Repl.Window 100 0)
+print (Repl.Window 100 99)
+
+# ── 编辑器:插字 / 回车 / 退格 / 删 / 翻页 ──
+e := Repl.Editor ()
+e.Edit1 "a"
+e.Edit1 "b"
+e.Clamp ()
+print ((e.Text ()).Length ())
+print (e.Lines () @ .Count ())
+e.Edit1 "enter"
+e.Edit1 "c"
+e.Clamp ()
+print ((e.Text ()).Length ())            # ab + 换行 + c = 4
+print (e.Lines () @ .Count ())
+e.Edit1 "backspace"
+e.Clamp ()
+print ((e.Text ()).Length ())
+e.Edit1 "tab"
+e.Clamp ()
+print ((e.Text ()).Length ())
+e.Jump "pgdn"                            # 翻到新的一页
+e.Clamp ()
+print (e.Z)
+print ((e.Text ()).Length ())
+e.Edit1 "insert"                         # 清这一页
+e.Clamp ()
+print ((e.Text ()).Length ())
+print (e.Screen () @ .Count ())          # 屏幕高度定死:标题 + 16 行 + 提示
+# --- expected ---
+# [{kind: word text: x} {kind: other text:  } {kind: other text: :} {kind: other text: =} {kind: other text:  } {kind: number text: 12}]
+# [{kind: word text: print} {kind: other text:  } {kind: string text: "你好"}]
+# [{kind: word text: a} {kind: other text:  } {kind: other text: # 注释}]
+# [{kind: number text: 1.5n} {kind: other text:  } {kind: other text: +} {kind: other text:  } {kind: word text: _标}]
+# [cyan]x[/][bold] [/][bold]:[/][bold]=[/][bold] [/][lime]1[/]
+# [blue]  1|[/] [cyan]x[/][bold] [/][bold]:[/][bold]=[/][bold] [/][lime]1[/]
+# [blue]  2|[/] [cyan]a[/][underline red]b[/][cyan][/]
+# [blue]  3|[/] [cyan]ab[/][underline red] [/]
+# [blue] 12|[/] [cyan][/][underline red]x[/][cyan][/]
+#   1| x := 1
+# [  1| ab ]
+# a # 注释
+# false
+# true
+# true
+# false
+# true
+# true
+# [0 3]
+# [42 58]
+# [0 16]
+# [84 100]
+# 2
+# 1
+# 4
+# 2
+# 3
+# 7
+# 1
+# 0
+# 0
+# 18

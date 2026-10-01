@@ -2330,7 +2330,27 @@ print (Terminal.Bar 3 10 20)               # [######..............] 30%
 
 **用例见 tests/285。**
 
-### 6.24 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
+### 6.24 用 Ravel 写一个 REPL（`Repl`）
+
+`examples/repl.rav` —— 多页缓冲、三维光标、按词上色、按键编辑、主菜单、会话存盘，
+**全用 Ravel 写**，在 [lib/repl.rav](lib/repl.rav) 里：
+
+```ravel
+using "repl.rav"
+Repl.Run ()
+```
+
+它是对着 C# 那版 `Repl/NeoInteractor.cs` 写的，为的是看看这门语言自己够不够用 ——
+结论是够：**引擎只多了五条原语**（读单个键、清屏、定位光标、藏光标、把异常渲染成那份报告），
+其余全在库里（连高亮用的扫描器都是）。接管道时它不当编辑器，把喂进来的整段跑完就走：
+
+```bash
+echo 'print 1 + 1' | dotnet out/ravel.dll examples/repl.rav
+```
+
+**用例见 tests/286。**
+
+### 6.25 小工具四件（`Crypto` / `Args` / `Table` / `Log`）
 
 **`Crypto`** —— 加密与口令。和 `Hash` 是两件事：那边是"防篡改"，这边是"藏起来"。
 

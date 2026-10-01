@@ -76,4 +76,21 @@ internal static class SysCore
     /// <summary>把模块加载状态还原成快照那一份</summary>
     [Sys("RestoreLoading")]
     public static RuntimeValue RestoreLoadingFrom(Interpreter self, RuntimeValue snap) => self.RestoreLoading(snap);
+
+    /// <summary>把一个异常渲染成 **CLI 那份报告** —— 位置、源码那一行、插入符、调用栈
+    /// (见 `Runtime/ErrorReport.cs`)。Ravel 层自己 `string e` 只拿得到**消息那一句**,
+    /// 而"错在第几行第几列"那些是**引擎内部状态**,库够不着。
+    ///
+    /// 位置从哪儿来:引擎交给 handler 的那个 C# 异常(见 `Interpreter.Handed`,
+    /// handler 跑的时候它就摆在那儿)。所以这条是**在 handler 体里**用的 ——
+    /// 写 REPL / 测试框架那种"自己接住错误再展示"的东西(`lib/repl.rav` 就是)。
+    /// 拿得到就渲染整份报告;拿不到(在 handler 外面调、或者嵌套的第二次)
+    /// 就退回那句消息,不报错 —— 少给点信息总比什么都不给好。
+    ///
+    /// 平时不必碰它:没人接的异常,顶层自己会这么渲染。</summary>
+    [Sys("FormatError")]
+    public static RuntimeValue FormatError(Interpreter self, RuntimeValue e)
+        => new StringVal(self.Handed is { } ex
+            ? ErrorReport.Format(ex)
+            : BuiltinClasses.ExceptionMessage(e) ?? Show(e));
 }
