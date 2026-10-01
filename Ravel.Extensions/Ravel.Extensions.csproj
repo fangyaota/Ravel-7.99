@@ -32,8 +32,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 就这一条包引用。SQLitePCLRaw 那几件是它的传递依赖,不在这儿明着写。 -->
+    <!-- SQLitePCLRaw 那几件是它的传递依赖,不在这儿明着写。 -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <!-- 终端那一格(`Native.Term*`)用它。**这个 dll 不往 `plugins/` 拷** ——
+         主项目自己在用它做 REPL,`out/` 里本来就有一份,运行时按名字就解析得到;
+         拷第二份只会多一个几乎一样的程序集。要是哪天主项目不用它了,记得补上。 -->
+    <PackageReference Include="Spectre.Console" Version="0.57.2" />
   </ItemGroup>
 
 </Project>

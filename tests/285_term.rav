@@ -1,0 +1,57 @@
+# `Term` —— 终端(见 lib/term.rav)。**要显式引用**。
+#
+# 标记就是 Spectre.Console 那套(`[red]…[/]`、`[b]…[/]`、`[[` = 一个方括号),
+# 不是新发明的一套。这里一律走 `Term.Plain`(**强制不上色**)——
+# `Term.Render` 看的是"进程的 stdout 是不是真终端",同一条用例在终端里跑和进了管道跑
+# 会给出两种结果,钉不住。
+using "term.rav"
+
+# ── 标记 ──
+print (Term.Plain "[red]红[/] 普通 [b]粗[/]")
+print (Term.Plain "[b][red]嵌套[/][/]")
+print (Term.Strip "[red]红[/] 普通")
+
+# ── 糖:交回**标记串**(不是渲染结果)──
+print (Term.Red "x")
+print (Term.Plain (Term.Green "好了"))
+print (Term.Plain (Term.Bad "错误: " + "出了点事"))
+print (Term.Plain (Term.Good "好") + " / " + (Term.Plain (Term.Warn "注意")))
+
+# 糖会把你给的文本**转义**掉 —— 方括号是记号,字面量里的得躲开
+print (Term.Plain (Term.Red "a[b]c"))
+print (Term.Escape "a[b]c")
+
+# ── 终端那两问(值本身不钉:一个看进程、一个看窗口)──
+print (typeof (Term.Tty ()))
+print ((Term.Width ()) > 0)
+# (`Width ()` 给的是**真**宽度:终端里是那个窗口的宽,管道里退回 80 —— 所以只钉"有个正数")
+
+# ── 进度条:交回的是**普通文本**,不是标记 ──
+print (Term.Bar 3 10 20)
+print (Term.Bar 0 0 10)
+print (Term.Bar 99 10 10)          # 超额也算满
+print (Term.Bar 1 3 4)             # 宽度下限 4
+print (Term.Rule 5)
+
+# ── 报错 ──
+try { Term.Plain "[red]没闭合"; } (e: Exception) => { print ("1: " + string e); }
+try { Term.Plain "[/]"; } (e: Exception) => { print ("2: " + string e); }
+# --- expected ---
+# 红 普通 粗
+# 嵌套
+# 红 普通
+# [red]x[/]
+# 好了
+# 错误: 出了点事
+# 好 / 注意
+# a[b]c
+# a[[b]]c
+# Bool
+# true
+# [######..............] 30%
+# [..........] 0%
+# [##########] 100%
+# [#...] 33%
+# ─────
+# 1: 渲染标记失败: Unbalanced markup stack. Did you forget to close a tag?
+# 2: 渲染标记失败: Encountered closing tag when none was expected near position 0.
