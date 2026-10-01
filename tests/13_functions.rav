@@ -315,6 +315,33 @@ fib = Cached 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { (fib (n - 1)
 print (fib 25)
 print ("斐波那契算了几次: " + string FibCalls)
 ravel ""
+# ═══ 省略注解:按 `object` 收 ═══
+# `(x)` 和 `(x: object)` 是一回事 —— 只知道"有东西来了"的地方不必硬写注解。
+# 要更细就在体里自己过一手(`n: int = x`),或者给参数写上注解。
+show := (x) => { print ("收到 " + string x); x; }
+print (show 5)
+print (show "abc")
+
+# 多参数、柯里化那套照旧(注解可以混着写)
+plus := (a b) => { a + b; }
+print (plus 1 2)
+pair := (a b: int) => { [a b]; }
+print (pair "s" 2)
+
+# 注解写了的照旧挑类型:省略的那种**不会**在调用时挑
+doubled := (n: int) => { n * 2; }
+print (doubled 4)
+try { doubled "x"; } (e: Exception) => { print ("1: " + string e); }
+
+# `.Map ((p) => …)` 这种回调写法现在短了
+print ([[1 2] [3 4]].Map ((p) => { (p.At 0) + (p.At 1); }))
+
+# 参数表里也能跨行(括号里换行不算数,见 tests/01)
+twoArgs := (a: int
+        b) => { (string a) + string b; }
+print (twoArgs 1 "x")
+print "end"
+
 # --- expected ---
 # 42
 # 120
@@ -395,3 +422,14 @@ ravel ""
 # 算了几次: 1
 # 75025
 # 斐波那契算了几次: 26
+# 收到 5
+# 5
+# 收到 abc
+# abc
+# 3
+# [s 2]
+# 8
+# 1: 参数 'n' 需要 Integer，得到 String
+# [3 7]
+# 1x
+# end

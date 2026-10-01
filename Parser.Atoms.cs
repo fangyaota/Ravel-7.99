@@ -107,8 +107,8 @@ public partial class Parser
     /// 于是链在解析期就地长出来,运行时不必为这个语法添任何东西。最后一条语句
     /// (不许是 `=&lt;`)的值就是整块的值 —— 也就是最内层那个 lambda 体的值。
     ///
-    /// 绑定出来的变量只能标 `object`:lambda 的参数必须有注解,而这里对拿到什么一无所知。
-    /// 想要具体类型就在块里自己过一手(`n: int = x`)。</summary>
+    /// 绑定出来的变量标 `object`(最宽的那个)—— 这里对拿到什么一无所知,而 lambda 的参数
+    /// 也只知道"有东西来了"。想要具体类型就在块里自己过一手(`n: int = x`)。</summary>
     private Expression ParseDo()
     {
         var at = Peek();
@@ -155,8 +155,56 @@ public partial class Parser
         return rest;
     }
 
-    /// <summary>合成一个 `object` 注解节点 —— do 的绑定参数只能给最宽的那个类型。</summary>
+    /// <summary>合成一个 `object` 注解节点 —— 省了注解的参数、`do` 的绑定、占位符消糖
+    /// 都用它:那些地方只知道"有东西来了",标不出更细的类型。</summary>
     private static IdentifierExpr ObjectType(Token at) => new("object") { Line = at.Line, Column = at.Column };
+
+    /// <summary>刚吃掉 '(' 之后这一段,是不是「参数表 `) =>`」。
+    ///
+    /// 参数 = `名字`,或 `名字: 类型`(**注解可省**)。所以不能像从前那样只看
+    /// `名字 :` 两格 —— `(x) =>` 也得认。**必须一路确认到 `) =>` 才认**:`(a + b)`
+    /// 那种普通的括号分组里也有名字,看到个名字就当参数会把分组吃成参数表。
+    ///
+    /// 只看 token、不动 `_pos`;不是 lambda 就还是走"括号分组"那条路,一个字符都没动过。</summary>
+    private bool LooksLikeLambdaParams()
+    {
+        var off = 0;
+        while (true)
+        {
+            if (TypeAt(off) != TokenType.Identifier) return false;
+            off++;
+            if (TypeAt(off) == TokenType.Colon)
+            {
+                off = SkipTypeAnnotation(off + 1);
+                if (off < 0) return false;               // 类型读不动(括号没闭上之类)
+            }
+
+            if (TypeAt(off) == TokenType.RightParen) return TypeAt(off + 1) == TokenType.Arrow;
+            // 还没到 ')' —— 后面只可能是**下一个参数的名字**(不是就当场判否)
+        }
+    }
+
+    /// <summary>从 off 跳过一段类型注解,返回它后面那格的偏移;读不动给 -1。
+    /// 两种写法:`名字(.名字)*`,或者括号里的任意表达式(`(pick ())` —— 见 ParseTypeAnnotation)。</summary>
+    private int SkipTypeAnnotation(int off)
+    {
+        if (TypeAt(off) == TokenType.LeftParen)
+        {
+            var depth = 0;
+            while (true)
+            {
+                if (TypeAt(off) == TokenType.EndOfFile) return -1;      // 括号没闭上
+                if (TypeAt(off) == TokenType.LeftParen) depth++;
+                else if (TypeAt(off) == TokenType.RightParen && --depth == 0) return off + 1;
+                off++;
+            }
+        }
+
+        if (TypeAt(off) != TokenType.Identifier) return -1;
+        off++;
+        while (TypeAt(off) == TokenType.Dot && TypeAt(off + 1) == TokenType.Identifier) off += 2;
+        return off;
+    }
 
     private BlockExpr Block(List<Statement> stmts, Token at)
         => new(stmts) { Line = at.Line, Column = at.Column, Source = source };
@@ -211,17 +259,20 @@ public partial class Parser
             return new VoidLiteral { Line = line, Column = col };
         }
 
-        // 尝试 lambda:  (IDENT : IDENT [IDENT : IDENT]*) =>
-        if (Check(TokenType.Identifier) && CheckNext(TokenType.Colon))
+        // 尝试 lambda:  (IDENT [: 类型] [IDENT [: 类型]]*) =>
+        if (LooksLikeLambdaParams())
         {
             var @params = new List<Parameter>();
-            while (Check(TokenType.Identifier) && CheckNext(TokenType.Colon))
+            while (true)
             {
-                var pName = tokens[_pos].Lexeme;
-                _pos++; // IDENT
-                _pos++; // :
-                @params.Add(new Parameter(pName, ParseTypeAnnotation()));
+                var pName = Consume(TokenType.Identifier, "lambda 参数需要一个名字（`(x: int) => …`）");
+                // **注解可省**:省了就按 `object` 收(谁都收得下)。和 `do` 的绑定、占位符消糖
+                // 一个待遇 —— 那些地方也只知道"有东西来了",标不出更细的类型。
+                // 要更细就在体里自己过一手:`n: int = x`。
+                var pType = Match(TokenType.Colon) ? ParseTypeAnnotation() : ObjectType(pName);
+                @params.Add(new Parameter(pName.Lexeme, pType));
                 SkipNewlines();
+                if (!Check(TokenType.Identifier)) break;      // 到 ')' 了
             }
 
             Consume(TokenType.RightParen, "lambda 参数后需要 ')'");
