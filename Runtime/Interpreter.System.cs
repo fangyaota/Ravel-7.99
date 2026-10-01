@@ -141,7 +141,6 @@ public partial class Interpreter
         DefType("IoError", BuiltinClasses.IoError);
         DefType("RegexError", BuiltinClasses.RegexError);
         DefType("Json", BuiltinClasses.Json);
-
     }
 
     /// <summary>常量,以及几个"顺手"的建库钩子(错误钩子、模块加载状态、`use`/`impl`/`eval` 那几个控制内建)</summary>
@@ -154,7 +153,6 @@ public partial class Interpreter
         Def("NaN", BuiltinClasses.Float, new FloatVal(double.NaN));
         Def("Inf", BuiltinClasses.Float, new FloatVal(double.PositiveInfinity));
         Def("Default", BuiltinClasses.Every, DefaultVal.Instance);
-
     }
 
     /// <summary>控制内建 —— 收满参数后由求值器推控制帧</summary>
@@ -176,7 +174,6 @@ public partial class Interpreter
         DefFn("RestoreLoading", FunctionVal.From(RestoreLoading));
         DefControl("Using", ControlKind.Using, 1);
         DefControl("Eval", ControlKind.Eval, 1);
-
     }
 
     /// <summary>打印与输入</summary>
@@ -210,7 +207,6 @@ public partial class Interpreter
         // 把标准输入读到 EOF(终端上要 Ctrl+Z / Ctrl+D 收)。`stdin` 那个文件的 `Read ()` 靠它 ——
         // 想读一行用 ReadLine(它是 `input`)。
         DefFn("ReadAllInput", FunctionVal.From(_ => new StringVal(Console.In.ReadToEnd())));
-
     }
 
     /// <summary>反射与作用域</summary>
@@ -228,14 +224,12 @@ public partial class Interpreter
             UnsafeScopes.Add(CurrentScope);
             return VoidVal.Instance;
         }));
-
     }
 
     /// <summary>正则 —— 那六条的实现在 `Interpreter.Regex.cs`,策略在 `lib/regex.rav`</summary>
     private void RegexPrimitives()
     {
         RegisterRegexPrimitives(DefFn);
-
     }
 
     /// <summary>随机数的**源头** —— 引擎只造"一枚取数的函数",哪几台、怎么用是 `lib/random.rav` 的事</summary>
@@ -294,7 +288,6 @@ public partial class Interpreter
         // `exit 0` 看起来像解释器坏了。要结束程序就写一条消息(`exit "bye"`)。
         DefFn("Exit", FunctionVal.From(a => throw new ExitException(As<StringVal>(a, "exit 的消息").Value)));
         DefFn("RavelMod", FunctionVal.From(a => EnterModule(As<StringVal>(a, "ravel 的模块名").Value)));
-
     }
 
     /// <summary>文件系统 —— **只做 syscall,不做策略**</summary>
@@ -369,7 +362,6 @@ public partial class Interpreter
             foreach (var f in Directory.EnumerateFiles(p)) entries[new StringVal(Path.GetFileName(f))] = new BoolVal(false);
             return new DictVal(entries);
         })));
-
     }
 
     /// <summary>跑外部命令</summary>
@@ -489,7 +481,6 @@ public partial class Interpreter
             new StringVal(Path.GetFileName(PathOf(a, "PathBase"))))));
         DefFn("PathExt", FunctionVal.From(a => Fs("取扩展名", () =>
             new StringVal(Path.GetExtension(PathOf(a, "PathExt"))))));
-
     }
 
     /// <summary>时间</summary>
@@ -544,7 +535,6 @@ public partial class Interpreter
                 throw new RuntimeException($"ParseTime: 读不动 —— '{text}' 对不上格式 '{fmt}'", ErrorKind.Value);
             return new BigIntVal(new DateTimeOffset(t).ToUnixTimeMilliseconds());
         })));
-
     }
 
     /// <summary>命令行参数与环境变量</summary>
@@ -603,7 +593,6 @@ public partial class Interpreter
                 entries[new StringVal(n)] = new StringVal(Environment.GetEnvironmentVariable(n) ?? "");
             return new DictVal(entries);
         }));
-
     }
 
     /// <summary>把一类 C# 异常兜成 Ravel 错误 —— 文件 / 进程 / 正则那批原语共用。
