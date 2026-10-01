@@ -42,6 +42,21 @@ print ((5..1).IsEmpty ())
 print (lo.IsEmpty ())
 print (lo.Text ())
 
+# ---- `Contains` 问"是不是元素",`Covers` 问"落不落在这段里" ----
+q := [1..10]
+print (q.Contains 2)
+print (q.Contains 2.5)          # 2.5 不是集合里的元素(元素是那些整数)
+print (q.Covers 2.5)            # 但它确实落在 1 和 10 之间
+print (q.Covers 0)
+print (q.Covers 10)
+print ([1..10).Covers 10)       # 不含右端
+print ((1..10).Covers 1)        # 不含左端
+print ((1..10).Covers 1.2)
+print ([1.5..3.5].Covers 1.7)   # 端点带小数也一样按端点比
+print ([1.5..3.5].Contains 1.7)
+print ([10..1].Covers 5)        # 方向对这个问法没意义:盖住的还是那一段
+print ([1..10].Covers (0.0 / 0.0))
+
 # ---- 起点在后 = **倒着数**(方向由两端自己说了算)----
 print ([5..1].ToList ())
 print ((5..1).ToList ())          # 两头都不含 → 4 3 2
@@ -192,6 +207,18 @@ print "end"
 # false
 # false
 # [1..3]
+# true
+# false
+# true
+# false
+# true
+# false
+# false
+# true
+# true
+# false
+# true
+# false
 # [5 4 3 2 1]
 # [4 3 2]
 # [5 4 3 2]

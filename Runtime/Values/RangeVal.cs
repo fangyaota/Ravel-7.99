@@ -84,9 +84,27 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     /// <summary>界上的那个整数,按 `Wide ()` 的规矩交 int 或 bigint。</summary>
     public RuntimeValue Element(BigInteger v) => Wide() ? new BigIntVal(v) : new IntVal((int)v);
 
-    /// <summary>这个值算不算区间里的元素 —— 得是**某个整数**且落在两头之间:
-    /// `[1..10].Contains 2` ✓、`Contains 2.0` ✓(2.0 就是整数 2)、`Contains 2.5` ✗。
-    /// **和方向无关**:同一个区间倒着数,元素还是那些。</summary>
+    /// <summary>**落在这一段里吗** —— 按**端点**比,什么数值都行,不要求它是整数:
+    /// `[1..10].Covers 2.5` ✓(2.5 确实在 1 和 10 之间)、`[1.5..3.5].Covers 1.7` ✓。
+    /// 开闭照旧:`[1..10).Covers 10` ✗。**和方向无关**(倒过来写,盖住的还是那一段)。</summary>
+    public bool CoversValue(RuntimeValue v)
+    {
+        if (!BuiltinClasses.TryAsDouble(v, out var x) || double.IsNaN(x)) return false;
+        if (!BuiltinClasses.TryAsDouble(Start, out var a) || !BuiltinClasses.TryAsDouble(End, out var b))
+            return false;
+        if (double.IsNaN(a) || double.IsNaN(b)) return false;
+
+        // 方向对这个问法没意义:谁大谁小归一成 lo/hi,开闭跟着各自那一端走
+        var (lo, loClosed, hi, hiClosed) = a <= b
+            ? (a, StartClosed, b, EndClosed)
+            : (b, EndClosed, a, StartClosed);
+
+        return (loClosed ? x >= lo : x > lo) && (hiClosed ? x <= hi : x < hi);
+    }
+
+    /// <summary>这个值算不算区间里的**元素** —— 得是**某个整数**且落在两头之间:
+    /// `[1..10].Contains 2` ✓、`Contains 2.0` ✓(2.0 就是整数 2)、`Contains 2.5` ✗
+    /// (要问"落不落在这段里"用 `Covers`)。**和方向无关**:同一个区间倒着数,元素还是那些。</summary>
     public bool ContainsValue(RuntimeValue v)
     {
         if (!AsInteger(v, out var n)) return false;

@@ -97,6 +97,12 @@ internal static partial class BuiltinClasses
         Range.DefineMethod("Contains", (s, a) =>
             new BoolVal(((RangeVal)s).ContainsValue(a)));
 
+        // 和 `Contains` 分开的两个问法:`Contains` 是"里头有没有这个**元素**"(和别的容器
+        // 一个意思,元素是那些整数),`Covers` 是"这个值**落不落在这段里**"(按端点比,
+        // 小数也算数)。Ruby 也是这么分的(`include?` / `cover?`)。
+        Range.DefineMethod("Covers", (s, a) =>
+            new BoolVal(((RangeVal)s).CoversValue(a)));
+
         // 铺成表 —— 只有这一条是 O(n)。空区间给空表(不是报错)
         Range.DefineMethod("ToList", (s, _) =>
         {
