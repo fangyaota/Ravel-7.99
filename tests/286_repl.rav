@@ -2,6 +2,13 @@
 #
 # 这一条钉的是它**纯的那一半**:一行源码进、一串标记出 —— 不碰键盘也不碰屏幕。
 # 壳那一半(按键、重画、菜单)要有真键盘才跑得动,所以它在 `examples/repl.rav` 里。
+#
+# **`# warn` 开着的**:下面还顺手把壳里"不用键盘也跑得动"的那几条驱动一遍
+# (建菜单、算编辑缓冲区、翻页),让"是不是忘了调用"那个筛子照着它们也过一遍 ——
+# 写这个库的时候正是这个筛子逮到一句两块的 `if`(菜单项一个都加不进去),而那时候
+# 我已经查了三轮。**这条用例就是那次踩坑留下的闸**。
+#
+# warn
 using "repl.rav"
 
 # ── 切词:字符串 / 数字 / 词 / 别的 ──
@@ -63,6 +70,34 @@ e.Edit1 "insert"                         # 清这一页
 e.Clamp ()
 print ((e.Text ()).Length ())
 print (e.Screen () @ .Count ())          # 屏幕高度定死:标题 + 16 行 + 提示
+
+# ── 壳里不用键盘的那几条:菜单怎么拼、缓冲区怎么动、翻页 ──
+# (这几条整体交回的是**标记**,不渲染,所以钉得住)
+m := Repl.Editor ()
+print ((m.MenuScreen 0) @ .Count ())
+foreach (m.MenuScreen 1) (l: string) => { print (Terminal.Plain l); }
+print ((m.Tips ()).Count ())
+print ((m.Screen ()).Count ())
+m.Pages = [["a" "b"] ["c"]]
+m.Z = 0
+m.Y = 1
+print ((m.Text ()).Length ())
+m.Jump "pgdn"
+m.Clamp ()
+print (m.Z)
+print ((m.Text ()).Length ())
+m.Jump "pgup"
+m.Clamp ()
+print (m.Z)
+m.Jump "end"
+m.Clamp ()
+print (m.Y)
+print (m.X)
+m.Jump "home"
+m.Clamp ()
+print (m.Y)
+m.Jump "没有这个键"                        # 认不出的键:什么都不做,报 false
+print "end"
 # --- expected ---
 # [{kind: word text: x} {kind: other text:  } {kind: other text: :} {kind: other text: =} {kind: other text:  } {kind: number text: 12}]
 # [{kind: word text: print} {kind: other text:  } {kind: string text: "你好"}]
@@ -96,3 +131,27 @@ print (e.Screen () @ .Count ())          # 屏幕高度定死:标题 + 16 行 + 
 # 0
 # 0
 # 18
+# 13
+# ====== 主菜单 ======
+
+#     编辑
+#   > 运行
+#     普通 Repl
+#     读取
+#     保存
+#     关于
+#     开关自动对齐
+#     开关结果显示
+#     退出
+
+#   ↑↓ 选,回车进去,Esc 退出
+# 1
+# 18
+# 3
+# 1
+# 1
+# 0
+# 1
+# 1
+# 0
+# end

@@ -420,8 +420,9 @@ Editor ::= class {
         out := ["[purple]====== 主菜单 ======[/]" ""]
         i := 0
         foreach (Items ()) (name: string) => {
-            if { i == sel; } { out.Add ("  [yellow]> [/][bold]" + name + "[/]"); }
-            { out.Add ("    " + name); }
+            # 三块**必须写在同一句里**:`if { c } { t }` 少给最后一块会**静默变成半成品**,
+            # 那一整块不跑(菜单项会一个都不出现)。`--warn` 一眼看得出来。
+            if { i == sel; } { out.Add ("  [yellow]> [/][bold]" + name + "[/]"); } { out.Add ("    " + name); }
             i += 1
         }
         out.Add ""

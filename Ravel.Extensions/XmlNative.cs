@@ -35,7 +35,10 @@ internal static class XmlNative
     public static RuntimeValue XmlParse(RuntimeValue text) => Bad("解析 XML", () =>
     {
         var doc = XDocument.Parse(Text(text, "XmlParse 的文本").Value);
-        return Node(doc.Root ?? throw Fail("这段 XML 没有根元素"));
+        var root = doc.Root ?? throw Fail("这段 XML 没有根元素");
+        // `Node` 对认不出的节点(注释、处理指令)给 null —— 根位置不可能不是元素,
+        // 但这儿还是照实接住:让编译器闭嘴的那个 `!` 会在真出岔子时变成空引用
+        return Node(root) ?? throw Fail("这段 XML 的根不是元素");
     });
 
     /// <summary>一棵树 → 文本。**缩进过的**(BCL 的默认):空白文本节点进来时就丢了,
