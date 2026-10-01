@@ -34,7 +34,12 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(References + 搜索目录、循环引用检测)
-  Interpreter.System.cs   RegisterBuiltins + System 模块
+  Interpreter.System.cs   RegisterBuiltins + **System 模块** —— 建模块那十来行 + 十一段
+                          (`Types` / `Constants` / `Controls` / `Output` / `Reflection` /
+                          `RegexPrimitives` / `RandomSources` / `Files` / `Commands` /
+                          `Time` / `Env`,一段一个方法)+ 四种登记口
+                          (`Def` / `DefType` / `DefFn` / `DefControl`,靠 `_sysScope` 这张
+                          "当前模块表"工作)+ 几段共用的小工具(`PathOf` / `NeedFile` / …)
   Interpreter.Math.cs           Math 模块(常量/三角/双曲/幂对数/取整/极值)
   ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
   Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;

@@ -1,8 +1,11 @@
 ﻿namespace Ravel.Runtime;
 
 /// <summary>成员访问包装器:把「取成员」的门禁(unreadable / outdated / core / private-protected)
-/// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。</summary>
-public class BoxedValue(RuntimeValue value, Interpreter interp)
+/// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。
+///
+/// 是**结构体**:它的用法一律是"造一个、调一次、扔掉"(`new BoxedValue(obj, this).GetMember(name)`),
+/// 没人拿它当身份、也没人存它 —— 取成员是最热的一条路,每走一次多分配一个对象不值当。</summary>
+public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
 {
     public RuntimeValue Value { get; } = value;
 
