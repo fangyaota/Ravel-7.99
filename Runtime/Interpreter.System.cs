@@ -266,11 +266,14 @@ public partial class Interpreter
         FunctionVal Bind(MethodInfo m)
         {
             var target = m.IsStatic ? null : this;
+            // `Direct` 而不是 `From`:**少包一层**。`CreateDelegate` 出来的委托没法像
+            // 编译器生成的闭包那样被 JIT 去虚化,再叠一层 lambda 就是白多一跳
+            // (实测每次调用差 80ns —— 见 `FunctionVal.Direct` 上那段)。
             return m.GetParameters().Length switch
             {
-                1 => FunctionVal.From(m.CreateDelegate<Func<RuntimeValue, RuntimeValue>>(target)),
-                2 => FunctionVal.From(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue>>(target)),
-                _ => FunctionVal.From(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue>>(target)),
+                1 => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue>>(target)),
+                2 => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue>>(target)),
+                _ => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue>>(target)),
             };
         }
     }

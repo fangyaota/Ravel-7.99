@@ -73,6 +73,24 @@ public record FunctionVal : ObjectVal
     public static FunctionVal From(Func<RuntimeValue, RuntimeValue> f)
         => new(null!, (_, a) => f(a));
 
+    /// <summary>和 <see cref="From(Func{RuntimeValue, RuntimeValue})"/> 一样,只是**不多包那一层** ——
+    /// `Body` 直接就是 `f`(基类 ctor 那句 `a => rawBody(CaptureScope, a)` 被盖掉;对这批内置来说
+    /// 捕获作用域本来就用不上)。
+    ///
+    /// 给 `[Sys]` 那套用:`CreateDelegate` 出来的委托**没法像编译器生成的闭包那样被 JIT 去虚化**,
+    /// 再叠一层 lambda 就是白白多一跳。实测(40 万次 `PathClean`)每次调用差 80ns 左右 ——
+    /// 换掉这一层就又平了。</summary>
+    public static FunctionVal Direct(Func<RuntimeValue, RuntimeValue> f)
+        => new(null!, (_, a) => f(a)) { Body = f };
+
+    /// <summary>二元版(柯里化、半成品标记同 <see cref="From(Func{RuntimeValue, RuntimeValue, RuntimeValue})"/>)</summary>
+    public static FunctionVal Direct(Func<RuntimeValue, RuntimeValue, RuntimeValue> f)
+        => Direct(a1 => Partial(a2 => f(a1, a2)));
+
+    /// <summary>三元版</summary>
+    public static FunctionVal Direct(Func<RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue> f)
+        => Direct(a1 => Partial(a2 => Partial(a3 => f(a1, a2, a3))));
+
     /// <summary>二元内置函数,柯里化:f a b ≡ (f a) b。**只给了第一个实参时交回的那个标成半成品**
     /// (它确实还等着第二个);给全了的那个不标 —— 它是完整的。</summary>
     public static FunctionVal From(Func<RuntimeValue, RuntimeValue, RuntimeValue> f)
