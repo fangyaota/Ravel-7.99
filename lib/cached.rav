@@ -17,11 +17,11 @@ readonly Cached ::= (count: int f: function) => {
     # **先比类型**:数值运算符碰到字符串会当场报「运算符 '!=' 不支持 String 操作数」,
     # 不同类型的两项连比都不能比 —— 而它们本来也就是两个不同的键。
     same := (a: list b: list) => {
-        if { (a.Count ()) != (b.Count ()); } { false; } {
+        ((a.Count ()) != (b.Count ())) { false; } {
             ok := true
             i := 0
             while { i < a.Count (); } {
-                if { (typeof (a.At i)) != (typeof (b.At i)) || (a.At i) != (b.At i); } { ok = false; } { 0; }
+                ((typeof (a.At i)) != (typeof (b.At i)) || (a.At i) != (b.At i)) { ok = false; } { 0; }
                 i += 1
             }
             ok
@@ -44,7 +44,7 @@ readonly Cached ::= (count: int f: function) => {
         (x: object) => {
             more := got.Copy ()
             more.Add x
-            if { (more.Count ()) == count; } {
+            ((more.Count ()) == count) {
                 found := -1
                 i := 0
                 while { i < keys.Count (); } {
@@ -52,10 +52,10 @@ readonly Cached ::= (count: int f: function) => {
                     # `(keys.At i)` 的括号不能省:实参位置上 `keys.At i more` 会被读成
                     # `((same keys.At) i) more` —— 实参位置只收"主表达式 + 取成员",
                     # 不会再往右吞并列的实参(那正是 `f a b` ≡ `((f a) b)` 的实现方式)。
-                    if { found < 0 && same (keys.At i) more; } { found = i; } { 0; }
+                    (found < 0 && same (keys.At i) more) { found = i; } { 0; }
                     i += 1
                 }
-                if { found >= 0; } { vals.At found; } { compute more; }
+                (found >= 0) { vals.At found; } { compute more; }
             } {
                 step more;
             }
