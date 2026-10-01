@@ -61,41 +61,6 @@ internal static class SysRegistry
         return true;
     }
 
-    private static FunctionVal Bind(Interpreter self, MethodInfo m)
-    {
-        var ps = m.GetParameters();
-        var takesSelf = ps.Length > 0 && ps[0].ParameterType == typeof(Interpreter);
-        var arity = ps.Length - (takesSelf ? 1 : 0);
-
-        // `Direct` 而不是 `From`:**少包一层** —— `CreateDelegate` 出来的委托没法像
-        // 编译器生成的闭包那样被 JIT 去虚化,再叠一层 lambda 就是白多一跳
-        // (实测每次调用差 80ns —— 见 `FunctionVal.Direct` 上那段)。
-        if (takesSelf)
-        {
-            return arity switch
-            {
-                1 => Call(m.CreateDelegate<Func<Interpreter, RuntimeValue, RuntimeValue>>()),
-                2 => Call(m.CreateDelegate<Func<Interpreter, RuntimeValue, RuntimeValue, RuntimeValue>>()),
-                _ => Call(m.CreateDelegate<Func<Interpreter, RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue>>()),
-            };
-
-            FunctionVal Call(Delegate f)
-            {
-                return arity switch
-                {
-                    1 => FunctionVal.Direct(a => ((Func<Interpreter, RuntimeValue, RuntimeValue>)f)(self, a)),
-                    2 => FunctionVal.Direct((a, b) => ((Func<Interpreter, RuntimeValue, RuntimeValue, RuntimeValue>)f)(self, a, b)),
-                    _ => FunctionVal.Direct((a, b, c) =>
-                        ((Func<Interpreter, RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue>)f)(self, a, b, c)),
-                };
-            }
-        }
-
-        return arity switch
-        {
-            1 => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue>>()),
-            2 => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue>>()),
-            _ => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue>>()),
-        };
-    }
+    /// <summary>绑成函数值 —— 规矩只有一处(见 `ClassRegistry.Fn`,插件那趟走的是同一条)。</summary>
+    private static FunctionVal Bind(Interpreter self, MethodInfo m) => ClassRegistry.Fn(self, m);
 }

@@ -6,10 +6,7 @@
 #
 # **这是例子,不是用例**:放在 `examples/` 里,不进 `tests/` 那套(从前是 tests/125,
 # 每加一个类型都要重钉一遍,而它钉的只是"树长什么样"这一件事)。
-# 下面的 `# --- expected ---` 是**当下的快照**,给改类型树的人对照用 —— 加了类型就顺手更新它。
-using "types.rav"
-Types.PrintTree object
-# --- expected ---
+# 下面的 `# --- expected ---
 # Object [Type]
 # ├── ValueType [Type]
 # │   ├── Integer [Type]
@@ -55,12 +52,6 @@ Types.PrintTree object
 # ├── Json [Type]
 # ├── Scope [Type]
 # ├── Property [Type]
-# ├── Deque [Type]
-# ├── Heap [Type]
-# ├── Queue [Type]
-# ├── SortedDict [Type]
-# ├── SortedSet [Type]
-# ├── Stack [Type]
 # ├── Option [Type]
 # ├── Enumerator [Type]
 # ├── Generator [Type]

@@ -3,33 +3,12 @@ namespace Ravel.Runtime;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
-/// <summary>把一个 C# 类登记成 Ravel 里的一个**内置类**(类型树上的一个节点)。
-///
-/// 用法和内置函数那套 `[Sys]` 一个路子:类上挂 `[BuiltinClass("Stack")]`,
-/// 方法上挂 `[ClassMethod("Push")]`,构造器挂 `[ClassCtor]` —— 扫一遍自己捡。
-/// **加一个结构 = 新写一个类文件**,不用回去改 `BuiltinClasses` 里那几张大表。
-///
-/// 那一族类都是 `static`,而且**不持有 `ClassVal`**:建出来的类对象统一在
-/// `BuiltinClasses.ClassOf ("Stack")` 那张名字表里(`List` / `Set` / `Dict` 那些老兄弟也一样,
-/// 见 `New`)。值那边就写 `StackVal.Type => ClassOf ("Stack")` —— 一次字典查,
-/// 犯不着为每个结构再挂一个静态字段(挂了就又多一处"加新结构要记得改"的地方)。</summary>
-[AttributeUsage(AttributeTargets.Class)]
-internal sealed class BuiltinClassAttribute(string name) : Attribute
-{
-    /// <summary>Ravel 里那个类名(`Stack` / `Queue`…)</summary>
-    public string Name { get; } = name;
-
-    /// <summary>父类叫什么。默认 `object`;名字在**已经建出来的那些**里找
-    /// (所以父类得早点扫到 —— 见 `Scan` 里那句按名字排)。</summary>
-    public string Parent { get; init; } = "Object";
-}
-
 /// <summary>内置类的一个实例方法,名字就是 Ravel 里那个成员名。
 ///
 /// 签名:**第一个参数是接收者**(`RuntimeValue self`),后面 0~2 个 `RuntimeValue` ——
 /// 多参自动柯里化(和 `[Sys]` 那边一样,交给 `FunctionVal`)。</summary>
 [AttributeUsage(AttributeTargets.Method)]
-internal sealed class ClassMethodAttribute(string name) : Attribute
+public sealed class ClassMethodAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 }
@@ -37,57 +16,47 @@ internal sealed class ClassMethodAttribute(string name) : Attribute
 /// <summary>这个类的构造器 —— `Stack ()` / `Heap [3 1 2]` 走的就是它。
 /// 签名 `static RuntimeValue New(RuntimeValue arg)`(不给实参时收到的是 `()`)。</summary>
 [AttributeUsage(AttributeTargets.Method)]
-internal sealed class ClassCtorAttribute : Attribute;
+public sealed class ClassCtorAttribute : Attribute;
 
-/// <summary>`[BuiltinClass]` 那一族的**扫描与装配**:建类对象、登记方法、接进类型树。
+/// <summary>类的**绑定**那一格:把 `[ClassMethod]` / `[ClassCtor]` 的方法变成 Ravel 认的东西
+/// (实例成员 / 预设类体),外加两件反射的杂活。
 ///
-/// 扫的是**整个程序集**(和 `[Sys]` 那趟一样,不列名单),扫完**按名字排** ——
-/// 反射给的先后没有保证,而 `Subtypes ()` / 类型树打印都按登记先后列,
-/// 不排的话同一份源码在不同运行时上打出来的顺序都可能不一样。</summary>
+/// 从前这里还有"扫整个程序集建内置类"那一趟(`[BuiltinClass]`)—— 数据结构搬进插件之后,
+/// 主项目里已经没有用那条路声明出来的类了,那一趟就删了。**装配现在只有一条路**:
+/// `PluginLoader` 在 `using "x.dll"` 时跑(见 `PluginApi.cs`)。</summary>
 internal static class ClassRegistry
 {
-    /// <summary>扫出来建好的那些类(**按名字排**,和登记进 `AllTypes` 一个顺序)。
-    /// `SysModule.Fill` 拿它把 `System.Stack` 这些名字摆进模块。</summary>
-    private static readonly List<ClassVal> Built = [];
-
-    public static IReadOnlyList<ClassVal> Classes => Built;
-
-    /// <summary>按名字建出所有内置类(挂父类、登记方法、进 `AllTypes`)。
-    /// 建树那一步(见 `BuiltinClasses` 的静态构造器)在最后调它一次。</summary>
-    public static void Install(List<ClassVal> allTypes)
+    /// <summary>把一个"模块里的函数"方法(`[Sys]` / `[RavelFn]` 那些)绑成函数值:
+    /// 1~3 个 `RuntimeValue`,**开头可以是 `Interpreter`**(要用引擎的那种)。
+    /// 内置那趟和插件那趟共用这一条 —— 规矩只有一处。</summary>
+    internal static FunctionVal Fn(Interpreter? self, MethodInfo m)
     {
-        foreach (var (attr, host) in Scan())
+        var ps = m.GetParameters();
+        var takesSelf = ps.Length > 0 && ps[0].ParameterType == typeof(Interpreter);
+        var arity = ps.Length - (takesSelf ? 1 : 0);
+        if (arity is < 1 or > 3 || ps.Skip(takesSelf ? 1 : 0).Any(p => p.ParameterType != typeof(RuntimeValue)))
+            throw new InvalidOperationException($"函数 {m.Name} 的签名不对:要收 1~3 个 RuntimeValue（开头可以是 Interpreter）");
+
+        if (takesSelf && self is null)
+            throw new InvalidOperationException($"函数 {m.Name} 要一个 Interpreter,但这一趟没有");
+
+        if (takesSelf)
         {
-            var cls = BuiltinClasses.New(attr.Name);
-            BuiltinClasses.Link(cls, Parent(attr.Parent), BuiltinClasses.Type);
-
-            foreach (var m in host.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+            var me = self!;
+            return arity switch
             {
-                if (m.GetCustomAttribute<ClassMethodAttribute>() is { } method)
-                    BuiltinClasses.EngineMember(cls, method.Name, Bind(cls, m, method.Name));
-                else if (m.GetCustomAttribute<ClassCtorAttribute>() is not null)
-                    BuiltinClasses.SetCtor(cls, m);
-            }
-
-            allTypes.Add(cls);
-            Built.Add(cls);
+                1 => FunctionVal.Direct(a => Call(m, [me, a])),
+                2 => FunctionVal.Direct((a, b) => Call(m, [me, a, b])),
+                _ => FunctionVal.Direct((a, b, c) => Call(m, [me, a, b, c])),
+            };
         }
-    }
 
-    /// <summary>父类:名字在**已有的类**里找(`ClassOf` 那张表;扫在前面的也在里面)。
-    /// 找不到当场报 —— 拼错一个名字不该静默挂到 `object` 上。</summary>
-    private static ClassVal Parent(string name)
-        => BuiltinClasses.ClassOf(name, "内置类的父类");
-
-    private static List<(BuiltinClassAttribute Attr, Type Host)> Scan()
-    {
-        var found = new List<(BuiltinClassAttribute, Type)>();
-        foreach (var t in typeof(Interpreter).Assembly.GetTypes())
-            if (t.GetCustomAttribute<BuiltinClassAttribute>() is { } attr)
-                found.Add((attr, t));
-
-        found.Sort((a, b) => string.CompareOrdinal(a.Item1.Name, b.Item1.Name));
-        return found;
+        return arity switch
+        {
+            1 => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue>>()),
+            2 => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue>>()),
+            _ => FunctionVal.Direct(m.CreateDelegate<Func<RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue>>()),
+        };
     }
 
     /// <summary>调那个方法。**要把反射那层壳剥掉**:`MethodInfo.Invoke` 会把方法里抛的
@@ -109,11 +78,11 @@ internal static class ClassRegistry
 
     /// <summary>把一个 `[ClassMethod]` 方法包成实例成员:第一个参数是接收者,
     /// 后面 0~2 个实参(多参柯里化,和 `[Sys]` 那套一个走法)。</summary>
-    private static BuiltinMethodVal Bind(ClassVal cls, MethodInfo m, string name)
+    internal static BuiltinMethodVal Bind(ClassVal cls, MethodInfo m, string name)
     {
         var ps = m.GetParameters();
         if (ps.Length == 0 || ps[0].ParameterType != typeof(RuntimeValue) || ps.Length > 3)
-            throw new InvalidOperationException($"内置类方法 {cls.DisplayName}.{name} 的签名不对:要收 (self, 0~2 个实参)");
+            throw new InvalidOperationException($"类方法 {cls.DisplayName}.{name} 的签名不对:要收 (self, 0~2 个实参)");
 
         return new BuiltinMethodVal(ps.Length switch
         {

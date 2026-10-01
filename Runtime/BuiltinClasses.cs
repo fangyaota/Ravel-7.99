@@ -222,11 +222,7 @@ internal static partial class BuiltinClasses
                  })
             AllTypes.Add(t);
 
-        // 数据结构那一族(栈/队列/双端队列/堆/有序表)不在上面那张表里:它们各自一个 C# 类,
-        // 挂 `[BuiltinClass("名字")]`,扫一遍自己捡(见 Builtins/ClassRegistry.cs)。
-        // **必须在 `_builtinCount` 之前**:那个数用来切"哪些是内置"(`ResetUserTypes`),
-        // 早记一步的话,新建一个解释器时这几族会被当成用户类型清掉。
-        ClassRegistry.Install(AllTypes);
+        // 数据类型和插件`using "x.dll"`带来的类都由 `BuiltinClasses.AddType` 自己往前推这个数
         _builtinCount = AllTypes.Count;
     }
 
@@ -416,6 +412,15 @@ internal static partial class BuiltinClasses
     /// 从前每个结构要自己留一个 `internal static ClassVal` 字段 —— 那是"加一个结构就得
     /// 记得改几处"的老毛病,一张表就够了。</summary>
     private static readonly Dictionary<string, ClassVal> ByName = [];
+
+    /// <summary>把一个**外来**的类登记进 `AllTypes`(`using "x.dll"` 插件带来的那些)。
+    /// 顺手把 `_builtinCount` 往前推 —— 那个数切的是"哪些是**装进来的**(Reset 时留着)"、
+    /// 哪些是用户 `class { … }` 现写的(Reset 时清掉);插件带来的属于前者。</summary>
+    internal static void AddType(ClassVal cls)
+    {
+        if (!AllTypes.Contains(cls)) AllTypes.Add(cls);
+        if (AllTypes.Count > _builtinCount) _builtinCount = AllTypes.Count;
+    }
 
     internal static ClassVal ClassOf(string name, string what = "类型")
         => ByName.TryGetValue(name, out var t)

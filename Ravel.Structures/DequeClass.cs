@@ -7,7 +7,8 @@ namespace Ravel.Runtime;
 ///
 /// `Push` / `Pop` 是 `PushBack` / `PopBack` 的简写(当栈使的时候顺手)。
 /// 枚举顺序是**从前到后**。</summary>
-[BuiltinClass("Deque")]
+[RavelModule("Structures")]
+[RavelClass("Deque")]
 internal static class DequeClass
 {
     [ClassCtor]
@@ -34,7 +35,7 @@ internal static class DequeClass
     public static RuntimeValue PopFront(RuntimeValue self)
     {
         var items = Val(self).Items;
-        if (items.Count == 0) throw new RuntimeException("Deque.PopFront: 空的双端队列没有可弹的", ErrorKind.Index);
+        if (items.Count == 0) throw PluginKit.Fail("Deque.PopFront: 空的双端队列没有可弹的", ErrorKind.Index);
         var v = items.First!.Value;
         items.RemoveFirst();
         return v;
@@ -44,7 +45,7 @@ internal static class DequeClass
     public static RuntimeValue PopBack(RuntimeValue self)
     {
         var items = Val(self).Items;
-        if (items.Count == 0) throw new RuntimeException("Deque.PopBack: 空的双端队列没有可弹的", ErrorKind.Index);
+        if (items.Count == 0) throw PluginKit.Fail("Deque.PopBack: 空的双端队列没有可弹的", ErrorKind.Index);
         var v = items.Last!.Value;
         items.RemoveLast();
         return v;
@@ -57,13 +58,13 @@ internal static class DequeClass
     public static RuntimeValue PeekFront(RuntimeValue self)
         => Val(self).Items.First is { } f
             ? f.Value
-            : throw new RuntimeException("Deque.PeekFront: 空的双端队列没有头可看", ErrorKind.Index);
+            : throw PluginKit.Fail("Deque.PeekFront: 空的双端队列没有头可看", ErrorKind.Index);
 
     [ClassMethod("PeekBack")]
     public static RuntimeValue PeekBack(RuntimeValue self)
         => Val(self).Items.Last is { } l
             ? l.Value
-            : throw new RuntimeException("Deque.PeekBack: 空的双端队列没有尾可看", ErrorKind.Index);
+            : throw PluginKit.Fail("Deque.PeekBack: 空的双端队列没有尾可看", ErrorKind.Index);
 
     [ClassMethod("IsEmpty")]
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Items.Count == 0);

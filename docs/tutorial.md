@@ -2197,26 +2197,32 @@ db.Close ()
 
 ### 6.18 数据结构（`Stack` / `Queue` / `Deque` / `Heap` / `SortedDict` / `SortedSet`）
 
-六个**引擎里就有的**类型（不用 `using`）—— 都是类型树上的节点，有构造器、有方法，
-而且实现了 `IEnumerable`，所以 `foreach` / `Map` / `Fold` 那一整套白拿：
+这六个是**插件**：类和函数在一个独立项目里（`Ravel.Structures/`），编成
+`plugins/Ravel.Structures.dll`；`using "structures.rav"` 把它装进来，顺手登记
+`IEnumerable`（于是 `foreach` / `Map` / `Fold` 那一整套白拿）。名字在 `Structures` 模块下：
 
 ```ravel
-s := Stack ()            # 也可以 Stack [1 2 3]（从底往上垒）
+using "structures.rav"
+s := Structures.Stack ()     # 也可以 Structures.Stack [1 2 3]
+```
+
+```ravel
+s := Structures.Stack ()            # 也可以 Structures.Stack [1 2 3]（从底往上垒）
 s.Push 1 / s.PushRange [2 3] / s.Pop () / s.Peek () / s.ToList ()
 
-q := Queue [1 2 3]       # 先进先出
+q := Structures.Queue [1 2 3]       # 先进先出
 q.Enqueue 4 / q.Dequeue () / q.Peek ()
 
-d := Deque [2 3]         # 两头都能进能出（Push / Pop 是后端的简写）
+d := Structures.Deque [2 3]         # 两头都能进能出（Push / Pop 是后端的简写）
 d.PushFront 1 / d.PopFront () / d.PopBack ()
 
-h := Heap [3 1 4]        # 每次弹出**最小**的那个；Heap true 是大顶堆
+h := Structures.Heap [3 1 4]        # 每次弹出**最小**的那个；Heap true 是大顶堆
 h.Push 0 / h.Pop () / h.ToList ()      # ToList 是弹出来的顺序 = 排好序
 
-sd := SortedDict ()      # 键永远有序
+sd := Structures.SortedDict ()      # 键永远有序
 sd.Set "b" 2 / sd.Keys () / sd.Get "b" / sd.Remove "b"
 
-ss := SortedSet [3 1 2, ]  # 升序、去重
+ss := Structures.SortedSet [3 1 2]  # 升序、去重
 ss.Add 4 / ss.Min () / ss.Max ()
 ```
 
@@ -2230,6 +2236,10 @@ ss.Add 4 / ss.Min () / ss.Max ()
 - 打印出来带前缀（`Stack [3 2 1]` / `SortedSet {1 2 3}`），枚举顺序就是那个顺序。
 
 **用例见 tests/275。**
+
+想自己写一族?照 `Ravel.Structures/` 的样子开一个项目:类上挂
+`[RavelModule("模块名")]` + `[RavelClass("类名")]`,方法挂 `[ClassMethod]` / `[ClassCtor]`,
+模块里的函数挂 `[RavelFn]` —— `using "你的.dll"` 之后就能用(见 `Runtime/Builtins/PluginApi.cs`)。
 
 ## 七、类
 

@@ -6,7 +6,8 @@ namespace Ravel.Runtime;
 ///     q.Enqueue 1 / q.Dequeue () / q.Peek ()
 ///
 /// 枚举顺序 = 出队顺序(先进先出)。空队列的 `Dequeue` / `Peek` 报错。</summary>
-[BuiltinClass("Queue")]
+[RavelModule("Structures")]
+[RavelClass("Queue")]
 internal static class QueueClass
 {
     [ClassCtor]
@@ -23,7 +24,7 @@ internal static class QueueClass
     public static RuntimeValue EnqueueRange(RuntimeValue self, RuntimeValue xs)
     {
         var items = Val(self).Items;
-        foreach (var x in Structure.Elements(xs, "Queue.EnqueueRange")) items.Enqueue(x);
+        foreach (var x in PluginKit.Elements(xs, "Queue.EnqueueRange")) items.Enqueue(x);
         return VoidVal.Instance;
     }
 
@@ -31,13 +32,13 @@ internal static class QueueClass
     public static RuntimeValue Dequeue(RuntimeValue self)
         => Val(self).Items.Count > 0
             ? Val(self).Items.Dequeue()
-            : throw new RuntimeException("Queue.Dequeue: 空队列没有可出的", ErrorKind.Index);
+            : throw PluginKit.Fail("Queue.Dequeue: 空队列没有可出的", ErrorKind.Index);
 
     [ClassMethod("Peek")]
     public static RuntimeValue Peek(RuntimeValue self)
         => Val(self).Items.Count > 0
             ? Val(self).Items.Peek()
-            : throw new RuntimeException("Queue.Peek: 空队列没有头可看", ErrorKind.Index);
+            : throw PluginKit.Fail("Queue.Peek: 空队列没有头可看", ErrorKind.Index);
 
     [ClassMethod("IsEmpty")]
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Items.Count == 0);

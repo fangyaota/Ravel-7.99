@@ -10,7 +10,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- SQLite:纯托管那套(不用本机编译),`System.Data` 这边的官方实现 -->
+    <!-- 插件那一族**不在主项目里编译**:它们是 `Ravel.Structures/` 那个项目编出来的 dll,
+         运行时由 `using "plugins/Ravel.Structures.dll"` 装进来(见 Runtime/Builtins/PluginApi.cs)。
+         不排掉的话 SDK 默认的 `**/*.cs` 会把它们也编进来 —— 同一批类定义两遍。 -->
+    <Compile Remove="Ravel.Structures/**" />
+    <Compile Remove="plugins/**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- SQLite:官方那套(纯托管的 SQLitePCLRaw,不必本机编译) -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
@@ -19,5 +26,20 @@
          中文网页常见,不注册的话 `charset=gbk` 会静默退回 UTF-8、整页乱码 -->
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.12" />
   </ItemGroup>
+
+
+  <!-- 插件 dll:先编 Ravel.Structures(它反过来引用本项目的输出),再把 dll 拷到
+       `plugins/` —— `using "plugins/Ravel.Structures.dll"` 就找得到。
+       用 MSBuild 任务而不是 ProjectReference:那样会成环(插件依赖主项目,
+       主项目再依赖插件就没法还原了)。 -->
+  <Target Name="CopyPlugins" AfterTargets="Build;Publish" Condition="Exists('Ravel.Structures\Ravel.Structures.csproj')">
+    <MSBuild Projects="Ravel.Structures\Ravel.Structures.csproj" Targets="Restore;Build"
+             Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <PluginDll Include="Ravel.Structures/bin/$(Configuration)/net10.0/Ravel.Structures.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PluginDll)" DestinationFolder="$(MSBuildThisFileDirectory)plugins"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

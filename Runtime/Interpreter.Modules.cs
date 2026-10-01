@@ -25,6 +25,10 @@ public partial class Interpreter
 
     /// <summary>加载模块文件,解析为 BlockExpr;找不到抛异常,循环引用抛异常,已加载返回 null(视为空块)。
     ///
+    /// **`.dll` 那一条是插件**:不是 Ravel 源码,而是一个编译好的扩展程序集 ——
+    /// 扫里面带 `[RavelModule]` / `[RavelFn]` / `[RavelClass]` 的类与函数,按特性上那个名字
+    /// 填进模块(见 `Runtime/Builtins/PluginApi.cs`)。它没有代码要跑,所以也交回 null。
+    ///
     /// `_loading` 记的是「**模块体正在执行**」的集合,由调用方(StepUsing)在推块帧前进、块帧跑完后退。
     /// 从前 push/pop 都圈在 ParseBlock 外面——而解析一个文件时不会去解析另一个文件
     /// (`using` 是运行时构造),于是这个集合最多只有一个元素,`Contains` 永远为假:
@@ -37,6 +41,15 @@ public partial class Interpreter
         if (_loading.Contains(full)) throw new RuntimeException("检测到循环引用: " + path);
         if (_loaded.Contains(full)) return null;
         _loaded.Add(full);
+
+        // **插件 dll**:`using "plugins/x.dll"` —— 读进来、扫一遍(见 PluginLoader),
+        // 然后交回 null(它没有 Ravel 代码要跑,和"已经加载过"一个待遇)。
+        if (full.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            PluginLoader.Load(this, System.Reflection.Assembly.LoadFrom(full), _global, _modules);
+            return null;
+        }
+
         return Parser.ParseBlock(File.ReadAllText(full), full);
     }
 

@@ -8,7 +8,8 @@ namespace Ravel.Runtime;
 ///
 /// 里面的东西得能互相比大小(按 Ravel 的 `<`);比不了当场报错。
 /// 相等也按 `<` 算 —— `1` 与 `1.0` 在集合里是同一个(和 `set` 那边按类型分不一样)。</summary>
-[BuiltinClass("SortedSet")]
+[RavelModule("Structures")]
+[RavelClass("SortedSet")]
 internal static class SortedSetClass
 {
     /// <summary>空集合;给一个容器就照它播种(`SortedSet [3 1 2]`,重复的进不去)</summary>
@@ -37,13 +38,13 @@ internal static class SortedSetClass
     public static RuntimeValue Min(RuntimeValue self)
         => Val(self).Elements.Count > 0
             ? Val(self).Elements.Min!
-            : throw new RuntimeException("SortedSet.Min: 空集合没有最小", ErrorKind.Index);
+            : throw PluginKit.Fail("SortedSet.Min: 空集合没有最小", ErrorKind.Index);
 
     [ClassMethod("Max")]
     public static RuntimeValue Max(RuntimeValue self)
         => Val(self).Elements.Count > 0
             ? Val(self).Elements.Max!
-            : throw new RuntimeException("SortedSet.Max: 空集合没有最大", ErrorKind.Index);
+            : throw PluginKit.Fail("SortedSet.Max: 空集合没有最大", ErrorKind.Index);
 
     [ClassMethod("Count")]
     public static RuntimeValue Count(RuntimeValue self) => new IntVal(Val(self).Elements.Count);

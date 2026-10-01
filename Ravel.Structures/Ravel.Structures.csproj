@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 一个**插件 dll**:Ravel 用 `using "plugins/Ravel.Structures.dll"` 在运行时把它装进来。
+       它反过来引用主项目(要 `RuntimeValue` 和那几个标记特性)—— 主项目**不**引用它,
+       所以两边不成环:编译时它依赖主项目,运行时主项目才把它读进来。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Ravel.Structures</AssemblyName>
+    <!-- 产物照常落在自己 bin/ 下;"拷到 plugins/" 那一步在主项目的 Target 里做
+         (见 Ravel.csproj 的 CopyPlugins)—— `OutDir` 改到共享目录会把**中间产物**也带偏,
+         上一次就是这么撞出"AssemblyInfo 特性重复"的。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ravel.csproj" />
+  </ItemGroup>
+
+</Project>

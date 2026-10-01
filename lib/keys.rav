@@ -150,9 +150,3 @@ ravel ""
 
 # 全局名(和 predefined.rav 里 `readonly try := Ex.Try` 一个路子)
 readonly Keyed := Keys.Keyed
-
-# 排序字典也**是个字典**:`Get` / `Set` / `Has` / `Remove` / `GetOr` 那几条它自己就有
-# (引擎给的,键按值类型收),所以登记一下就能吃库里对着 `IDict` 写的东西。
-impl (IDict SortedDict {
-    ()
-})

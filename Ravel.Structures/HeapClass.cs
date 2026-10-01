@@ -8,7 +8,8 @@ namespace Ravel.Runtime;
 /// 「谁在上」按 Ravel 自己的 `<` 算(见 `Less`)—— 里面装的得能互相比大小,
 /// 比不了当场报「比不了 X 与 Y」。空的 `Pop` / `Peek` 报错。
 /// `ToList ()` 是**一个个弹出来的顺序**(排好序的),不是表里的存放顺序。</summary>
-[BuiltinClass("Heap")]
+[RavelModule("Structures")]
+[RavelClass("Heap")]
 internal static class HeapClass
 {
     /// <summary>`Heap ()` 是小顶堆;`Heap true` 是大顶堆(库里的 `MaxHeap ()` 就是这么写的);
@@ -18,7 +19,7 @@ internal static class HeapClass
     {
         var h = new HeapVal(arg is BoolVal b && b.Value);
         if (arg is BoolVal or VoidVal or DefaultVal) return h;
-        foreach (var x in Structure.Elements(arg, "Heap 的构造参数")) h.Push(x);
+        foreach (var x in PluginKit.Elements(arg, "Heap 的构造参数")) h.Push(x);
         return h;
     }
 
@@ -33,7 +34,7 @@ internal static class HeapClass
     public static RuntimeValue PushRange(RuntimeValue self, RuntimeValue xs)
     {
         var h = Val(self);
-        foreach (var x in Structure.Elements(xs, "Heap.PushRange")) h.Push(x);
+        foreach (var x in PluginKit.Elements(xs, "Heap.PushRange")) h.Push(x);
         return VoidVal.Instance;
     }
 

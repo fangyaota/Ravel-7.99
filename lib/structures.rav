@@ -1,0 +1,43 @@
+# `Structures` —— 数据结构那一族的**外壳**(插件 dll 的 Ravel 那一半)。
+#
+# 类和函数在 `plugins/Ravel.Structures.dll` 里(一个独立的项目编译出来的,见
+# `Ravel.Structures/`),`using` 这个文件会把它一起带进来:
+#
+#     using "structures.rav"
+#     s := Structures.Stack [1 2 3]
+#     Structures.Heap [3 1 2] @ .ToList ()
+#
+# **为什么要这一层**:dll 只能给"类和函数" —— 而 `foreach` / `Map` / `Fold` 那一整套
+# 是 Ravel 里的 `IEnumerable` 接口给的,得有人把它们**登记**上去。登记就是下面那六条
+# `impl`(每个结构一个 `GetEnumerator`,交回它的 `ToList ()`)。
+#
+# (这六条从前写在 `iterator.rav` 里 —— 那时它们还是内置类。搬进插件之后,
+#  `iterator.rav` 比插件先加载,里面写不出 `Stack` 这个名字了。)
+using "plugins/Ravel.Structures.dll"
+
+# 名字都带 `Structures.` 前缀(它们在那个模块里,不是全局名)。
+# 枚举顺序就是各自的 `ToList ()`:栈是"顶在前"、堆是"一个个弹出来的顺序"、有序表是排好的。
+# (`SortedDict` 枚举的是**值**,和 `dict` 枚举值一个口径。)
+impl (IEnumerable Structures.Stack {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.Queue {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.Deque {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.Heap {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.SortedSet {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.SortedDict {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Values ()); }; }) ((v: function) => { (); })
+})
+
+# 排序字典也**是个字典**:`Get` / `Set` / `Has` / `Remove` / `GetOr` 它自己就有。
+impl (IDict Structures.SortedDict {
+    ()
+})

@@ -334,9 +334,6 @@ Object (parent=自己)
 │                       `typeof 某接口` 就是它。它自己**不是**接口 —— 接口对象挂在
 │                       `BaseInterface` 下面那一支
 ├── List / Set / Dict   ← 直接挂在 Object 下,不经过 Function
-├── Stack / Queue / Deque / Heap / SortedDict / SortedSet
-│                      ← **数据结构那一族**:各自一个 C# 类,挂 `[BuiltinClass("名字")]`,
-│                        扫一遍自己捡(见「数据结构」一节)。也直接挂在 Object 下
 ├── BaseInterface [Interface]  ← **所有接口的基类**,它自己**也是**一个接口;`interface { … }`
 │                              造出来的接口都挂在这下面(它类体里那份 `init` 就这么继承下去)
 ├── Void / Exception / Ravel(模块) / Scope / Property
@@ -777,36 +774,56 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，
   但绑完是 `BoundClassOp`（推帧的标记），不能直接算 —— 合并会让 `a + 5` 交出标记而不是数。
 
-## 数据结构（`Runtime/Builtins/*Class.cs` + `Runtime/Values/*Val.cs`）
+## 插件（`using "x.dll"`）
 
-栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合 —— 和 `List` / `Set` / `Dict` 一样是
-**类型树上的节点**,只是它们**不在那几张大表里**:
+`using` 除了 `.rav` 还能吃 **`.dll`**:一个编译好的扩展程序集,扫里面带特性的类和函数,
+按特性上那个名字填进模块(见 `Runtime/Builtins/PluginApi.cs`)。
 
 ```csharp
-[BuiltinClass("Stack")]                       // 名字;parent 默认 object
+[RavelModule("Structures")]                       // ← 模块名就在特性上
+[RavelClass("Stack")]                             // 一个 Ravel 类(类型树上的节点)
 internal static class StackClass
 {
     [ClassCtor] public static RuntimeValue New(RuntimeValue arg) => …;
     [ClassMethod("Push")] public static RuntimeValue Push(RuntimeValue self, RuntimeValue v) => …;
+    [RavelFn("Make")] public static RuntimeValue Make(RuntimeValue arg) => …;   // 模块里的函数
 }
 ```
 
-- **加一个结构 = 新写一个类文件**:`ClassRegistry` 扫**整个程序集**(和 `[Sys]` 那趟一样,
-  不列名单)、按名字排、建类对象、登记方法、进 `AllTypes`。`BuiltinClasses.InstallClasses`
-  (`BuiltinClasses` 静态构造器最后一步)调它一次。
-- **`ClassVal` 不进那些类**:建出来的类对象统一在 `BuiltinClasses.ClassOf ("Stack")` 那张
-  名字表里(`New` 建的时候顺手登记);值那边就写 `StackVal.Type => ClassOf ("Stack")` ——
-  一次字典查,不必为每个结构再留一个静态字段(留了就又多一处"加新结构要记得改")。
-  **顺序要紧**:`Install` 必须在 `_builtinCount = AllTypes.Count` **之前** ——
-  那个数用来切"哪些是内置"(`ResetUserTypes`),早记一步,新建解释器时这几族会被当用户类型清掉。
-- **反射那层壳要剥掉**:`MethodInfo.Invoke` 会把方法里抛的 `RuntimeException` 包成
-  `TargetInvocationException`,那玩意儿求值器接不住、一路打成「解释器内部错误」——
-  `ClassRegistry.Call` 用 `ExceptionDispatchInfo` 剥开(成员那几条和构造器那条都要)。
-- 数据在**值**身上(`Values/StackVal.cs` 那些),类只放"有哪些成员";共用的小工具在
-  `Builtins/Structure.cs`(播种走 `ElementsOf`、键走 `KeyArg`、比大小走 `Less`)——
-  于是这一族和语言里别的东西**同一套脾气**。
-- 实现了 `IEnumerable`(`lib/iterator.rav` 里六条 `impl`):`foreach` / `Map` / `Fold` 那一整套白拿。
-  `SortedDict` 还登记成 `IDict`(成员名本来就齐)。
+于是 `using "x.dll"` 之后:`Structures.Stack ()` / `Structures.Make 1`。
+
+- **`[RavelModule("")]` 是特例**:进**全局作用域**(不建模块,直接叫名字)。
+- 函数那几条的签名规矩和 `[Sys]` **同一套**(1~3 个 `RuntimeValue`,开头可以是
+  `Interpreter`)—— 绑定只有一处(`ClassRegistry.Fn`)。
+- 插件类也进 `AllTypes`(`BuiltinClasses.AddType` 顺手把 `_builtinCount` 往前推:
+  那个数切的是"装进来的"和"用户现写的",插件属于前者,新建解释器时不该被清掉)。
+- **幂等**:类对象是进程级的(和内置类一个待遇),同一个 dll 被不同的解释器各 `using`
+  一次不会重复建类。
+
+**为什么外置的那一套特性是 `public` 的**:引擎自己用的 `[Sys]` / `BuiltinClasses` 全是
+`internal` —— 同一个程序集里随便用,外部 dll **看不见**。所以 `PluginApi.cs` 把
+"写扩展需要的东西"重新公开一遍:三个特性 + `PluginKit`(比大小 / 取元素 / 键规范 /
+拿类对象 / 说人话的错误)—— 都不新造,背后就是引擎里那几处,只是换个 `public` 的门。
+
+**`Runtime/Values` 里那些类型引擎不认识**:插件的值类型(如 `StackVal`)不在主项目里,
+`ElementsOf` 于是多了一条**按名字**的路 —— 谁有 `ToList ()` 谁就是容器,`Impl` 直接调
+(插件登记的方法就是那个)。
+
+一个提醒:**插件的 Ravel 那一半得另写**(`lib/structures.rav`)—— dll 只能给"类和函数",
+而 `foreach` / `Map` 那套是 Ravel 的 `IEnumerable` 接口给的,得有人在 Ravel 里 `impl` 一次。
+
+## 数据结构（插件 `Ravel.Structures`,见「插件」一节）
+
+栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合 —— **一个独立的项目**,
+编成 `plugins/Ravel.Structures.dll`,`using "structures.rav"` 装进来(那个文件顺手登记
+`IEnumerable` / `IDict`)。用的时候名字在 `Structures` 模块下:`Structures.Stack ()`。
+
+- 数据在**值**身上(`Ravel.Structures/*Val.cs`),类只放"有哪些成员"
+  (`*Class.cs`,挂 `[RavelModule("Structures")]` + `[RavelClass("…")]`)。
+- 共用小工具 `Structure.cs` 转发到 `PluginKit` —— 播种走 `foreach` 那个口径、
+  键走 `dict` 那个规矩、比大小走 Ravel 的 `<`(于是这一族和语言里别的东西同一套脾气)。
+- 它是**样板**:再加一族库,照它的样子开一个项目就行(构建那两步见 `Ravel.csproj`
+  的 `CopyPlugins` 目标)。
 
 ## 控制流
 

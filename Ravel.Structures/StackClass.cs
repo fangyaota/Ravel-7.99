@@ -7,7 +7,8 @@ namespace Ravel.Runtime;
 ///
 /// 枚举顺序是**栈顶在前**(= 弹出来的顺序);`ToList ()` 也是那个顺序。
 /// 空的 `Pop` / `Peek` **报错**(不是给 `()` ——「没有顶」和「顶上是个空值」不该长得一样)。</summary>
-[BuiltinClass("Stack")]
+[RavelModule("Structures")]
+[RavelClass("Stack")]
 internal static class StackClass
 {
     [ClassCtor]
@@ -24,7 +25,7 @@ internal static class StackClass
     public static RuntimeValue PushRange(RuntimeValue self, RuntimeValue xs)
     {
         var items = Val(self).Items;
-        foreach (var x in Structure.Elements(xs, "Stack.PushRange")) items.Push(x);
+        foreach (var x in PluginKit.Elements(xs, "Stack.PushRange")) items.Push(x);
         return VoidVal.Instance;
     }
 
@@ -32,13 +33,13 @@ internal static class StackClass
     public static RuntimeValue Pop(RuntimeValue self)
         => Val(self).Items.Count > 0
             ? Val(self).Items.Pop()
-            : throw new RuntimeException("Stack.Pop: 空栈没有可弹的", ErrorKind.Index);
+            : throw PluginKit.Fail("Stack.Pop: 空栈没有可弹的", ErrorKind.Index);
 
     [ClassMethod("Peek")]
     public static RuntimeValue Peek(RuntimeValue self)
         => Val(self).Items.Count > 0
             ? Val(self).Items.Peek()
-            : throw new RuntimeException("Stack.Peek: 空栈没有顶可看", ErrorKind.Index);
+            : throw PluginKit.Fail("Stack.Peek: 空栈没有顶可看", ErrorKind.Index);
 
     [ClassMethod("IsEmpty")]
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Items.Count == 0);

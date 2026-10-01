@@ -17,11 +17,11 @@ public record HeapVal : ObjectVal
     public bool Max { get; init; }
 
     public HeapVal(bool max = false, Scope? members = null)
-        : base(BuiltinClasses.ClassOf("Heap"), members ?? new Scope())
+        : base(PluginKit.ClassOf("Heap"), members ?? new Scope())
         => Max = max;
 
     /// <summary>a 比 b "更该在上面"吗 —— 小顶堆就是更小,大顶堆就是更大</summary>
-    private bool Above(RuntimeValue a, RuntimeValue b) => Max ? BuiltinClasses.Less(b, a) : BuiltinClasses.Less(a, b);
+    private bool Above(RuntimeValue a, RuntimeValue b) => Max ? PluginKit.Compare(b, a) < 0 : PluginKit.Compare(a, b) < 0;
 
     public void Push(RuntimeValue v)
     {
@@ -38,7 +38,7 @@ public record HeapVal : ObjectVal
 
     public RuntimeValue Pop()
     {
-        if (Items.Count == 0) throw new RuntimeException("Heap.Pop: 空的，没有可弹的", ErrorKind.Index);
+        if (Items.Count == 0) throw PluginKit.Fail("Heap.Pop: 空的，没有可弹的", ErrorKind.Index);
         var top = Items[0];
         var last = Items[^1];
         Items.RemoveAt(Items.Count - 1);
@@ -59,8 +59,8 @@ public record HeapVal : ObjectVal
     }
 
     public RuntimeValue Peek()
-        => Items.Count > 0 ? Items[0] : throw new RuntimeException("Heap.Peek: 空的，没有顶可看", ErrorKind.Index);
+        => Items.Count > 0 ? Items[0] : throw PluginKit.Fail("Heap.Peek: 空的，没有顶可看", ErrorKind.Index);
 
     public override string ToString()
-        => ShowDepth.Guard(() => (Max ? "MaxHeap [" : "Heap [") + string.Join(" ", Items) + "]");
+        => PluginKit.Guard(() => (Max ? "MaxHeap [" : "Heap [") + string.Join(" ", Items) + "]");
 }

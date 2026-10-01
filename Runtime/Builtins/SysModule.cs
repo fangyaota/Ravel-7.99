@@ -21,10 +21,6 @@ internal static class SysModule
         Constants(scope);
         Controls(scope);
         SysRegistry.Register(self, (name, fn) => Def(scope, name, BuiltinClasses.Function, fn));
-
-        // 内置**类**那一族(`[BuiltinClass]`,见 ClassRegistry)自己带名字来 ——
-        // 上面 `Types` 那张表管的是老那一批;加一个新结构不必回来补在这里。
-        foreach (var t in ClassRegistry.Classes) DefType(scope, t.DisplayName, t);
     }
 
     private static void Def(Scope scope, string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);

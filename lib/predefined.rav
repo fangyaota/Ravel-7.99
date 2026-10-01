@@ -20,15 +20,6 @@ readonly char := System.Char
 readonly list := System.List
 readonly set := System.Set
 readonly dict := System.Dict
-# 数据结构那一族(引擎里各自一个类,见 Runtime/Builtins/*Class.cs)。
-# 名字是**大写开头**的 —— 和 `Json` / `Range` / `Continuation` 一个待遇:
-# 它们是有方法的类,不是 `list` / `set` / `dict` 那种"primitive 味"的别名。
-readonly Stack := System.Stack
-readonly Queue := System.Queue
-readonly Deque := System.Deque
-readonly Heap := System.Heap
-readonly SortedDict := System.SortedDict
-readonly SortedSet := System.SortedSet
 readonly object := System.Object
 readonly class := System.Type  # 别名:没有单独的 Class 类型
 readonly interface := System.Interface  # 接口 —— 继承于 type,造出来的也是类对象

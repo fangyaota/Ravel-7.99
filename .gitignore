@@ -1,6 +1,7 @@
 bin/
 obj/
 out/
+plugins/
 *.bak
 .claude/
 repl_session.json
