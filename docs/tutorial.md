@@ -1291,6 +1291,11 @@ Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一�
 `Io.Lines f` 是个**生成器**（见 4.3 那节）：边要边给，`foreach (Io.Lines f) (l: string) => { … }`。
 （zip 条目那种只读的实现，让 `Write` / `Delete` 抛一句"这份文件是只读的"就行。）
 
+**一个 URL 也是文件**（要 `using "http.rav"`，见 6.16）：`Http.Url "https://…/a.txt"`
+交回的东西就有那一套成员，所以上面这三段对它照样能用 ——
+`Io.Copy (Http.Url "…") (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url "…")` 一行行读远程日志。
+这就是"对着接口写"的意思：加一种实现，用它的代码不用改。
+
 #### 控制台也是文件
 
 `Io.Stdout` / `Io.Stderr` / `Io.Stdin` 三个值都实现了 `IFile` —— 抽象那一层现成的用例：
@@ -2093,6 +2098,25 @@ Http.UploadTo "https://…/put" "a.zip" "upload"   # 换个字段名
 - **连不上 / 超时 / 域名解析不了**才是错误，是 `IoError`，消息里带 URL 和原因。
 - **同步**：一个请求等一个，回来了才往下走。（以后加并发时这一层不变 —— 见 CONTEXT。）
 - 老编码认：响应头写着 `charset=gbk` 的老网页照样解得对。
+
+**一个 URL 就是一个文件** —— 这条是 `io.rav` 开头那句"磁盘上的、内存里的、zip 条目、
+**远程的**……都只是 `IFile` 的实现"的落地。`Http.Url "…"` 交回的东西有那一套成员，
+所以**对着接口写的东西直接能用**：
+
+```ravel
+Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
+Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志（惰性）
+Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
+Http.Download "https://…/a.zip" (Io.File "a.zip")         # 落点也能给条目，不只路径字符串
+
+u := Http.Url "https://…/a.txt"
+u.Read ()        # 每次都是**一次请求**（和 Io.File.Read () 每次都读盘一样，不藏缓存）
+u.Exists ()      # 走 HEAD，不下载正文；404 就是"没有"
+u.Size ()        # HEAD 的 content-length
+u.Write "…"      # 发的是 PUT（HTTP 的"写一个资源"）
+u.Delete ()      # 发的是 DELETE
+u.Append "…"     # 报错：HTTP 没有"追写"这回事
+```
 
 **用例见 tests/268（离线）、tests/269（真发请求，靠运行器起的回环服务器）；
 想真出网看 `examples/http.rav`。**

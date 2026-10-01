@@ -19,21 +19,33 @@ found := (Regex.C "<title>(.*?)</title>").TryMatch html
 if { (found.IsSome ()); } { print ("标题: " + ((found.Value ()).Group 1)); } { print "标题: （没找到）"; }
 
 # ── 2. 调一个 JSON 接口(`Json ()` 交回的就是现成那个 `Json`)──
-j := (Http.Get "https://httpbin.org/json").Json ()
-show := j.Get "slideshow"
-print ("slideshow: " + ((show.Get "title").Extract ()))
+todo := (Http.Get "https://jsonplaceholder.typicode.com/todos/1").Json ()
+print ("todo#1: " + ((todo.Get "title").Extract ()))
+print ("做完了吗: " + (string ((todo.Get "completed").Extract ())))
 
-# ── 3. 下载:边收边写,正文不进内存(几百 MB 也不怕)──
+# ── 3. 一个 URL 就是一个文件(对着 `IFile` 写的东西直接能用)──
+u := Http.Url "https://jsonplaceholder.typicode.com/todos/2"
+print ("名字: " + (u.Name ()) + "，在不在: " + (string (u.Exists ())) + "，多大: " + (string (u.Size ())))
+System.CreateDir ".io-test"
+Io.Copy u (Io.File ".io-test/todo2.json")          # 抓下来存着 —— 这段不认识"网络"
+print ("存下来了: " + (string (System.PathSize ".io-test/todo2.json")) + " 字节")
+System.DeletePath ".io-test/todo2.json"
+System.DeletePath ".io-test"
+
+# ── 4. 下载:边收边写,正文不进内存(几百 MB 也不怕)──
 System.CreateDir ".io-test"
 d := Http.Download "https://example.com" ".io-test/http-example.html"
 print ("下载 " + (string (d.size)) + " 字节，盘上 " + (string (System.PathSize ".io-test/http-example.html")))
 System.DeletePath ".io-test/http-example.html"
+System.DeletePath ".io-test"
 
-# ── 4. 发 JSON(dict / list 自动当 JSON;4xx 不是错误,是响应)──
-echoed := (Http.Post "https://httpbin.org/post" {"name": "Ravel" "n": 42}).Json ()
-print ("发出去的: " + ((echoed.Get "json").Text ()))
+# ── 5. 发 JSON(dict / list 自动当 JSON;4xx 不是错误,是响应)──
+# **网络对面说不准**:公共接口偶尔慢、偶尔抽风,真要拿去用就包一层 try(这里也是给你看这个写法)
+try {
+    echoed := (Http.Post "https://httpbin.org/post" {"name": "Ravel" "n": 42}).Json ()
+    print ("发出去的: " + ((echoed.Get "json").Text ()))
+} (e: Exception) => { print ("httpbin 这次没搭理我们: " + string e); }
 
-# ── 5. 上传(multipart)—— 要真发就对着自己的服务试:
+# ── 6. 上传(multipart)—— 要真发就对着自己的服务试:
 #     Http.Upload "http://…/put" "本机文件.bin"
 #     Http.UploadTo "http://…/put" "本机文件.bin" "upload"      # 换个字段名
-System.DeletePath ".io-test"

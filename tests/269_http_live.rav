@@ -59,12 +59,31 @@ print (d.size)
 print (System.PathSize ".io-test/http.bin")
 
 System.WriteText ".io-test/up.txt" "上传的内容"
-u := Http.Upload (base + "/upload") ".io-test/up.txt"
-print (u.status)
-print (u.Text ())
+up := Http.Upload (base + "/upload") (Io.File ".io-test/up.txt")   # 落点收条目也收路径
+print (up.status)
+print (up.Text ())
+
+# ── 一个 URL 就是一个文件:对着 `IFile` 写的那几件直接能用 ──
+u := Http.Url (base + "/hello")
+print (u.Name ())
+print (u.IsDir ())
+print (u.Exists ())
+print ((Http.Url (base + "/notfound")).Exists ())     # 404 → 就是"没有"
+print (u.Size ())                                     # 走 HEAD,不下载正文
+print ((Http.Request {"url": base + "/echo" "method": "DELETE"}).Text ())   # DELETE 发得出去
+u.Write "PUT 上来的"                                   # `IFile.Write` 交回 () ,发的是 PUT
+u.Delete ()                                           # 同上,发的是 DELETE
+print "写和删都过了（不报错就是成）"
+try { u.Append "x"; } (e: Exception) => { print ("2: " + ((string e).Split "：").At 0); }
+
+Io.Copy u (Io.File ".io-test/from-url.txt")            # 对着接口写的 Copy,不认它是网络还是磁盘
+copied := Io.File ".io-test/from-url.txt"
+print ((copied.Read ()).Trim ())
+foreach (Io.Lines u) (line: string) => { print ("行: " + line); }
 
 System.DeletePath ".io-test/http.bin"
 System.DeletePath ".io-test/up.txt"
+System.DeletePath ".io-test/from-url.txt"
 System.DeletePath ".io-test"
 # --- expected ---
 # 200
@@ -94,3 +113,13 @@ System.DeletePath ".io-test"
 # 300000
 # 200
 # name=up.txt bytes=186
+# hello
+# false
+# true
+# false
+# 12
+# DELETE||-
+# 写和删都过了（不报错就是成）
+# 2: 网络文件没得追写（HTTP 里没有这回事）
+# hello 你好
+# 行: hello 你好

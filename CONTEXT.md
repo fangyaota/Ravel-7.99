@@ -468,6 +468,14 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Stdin.Read ()` 是**读到 EOF**（终端上 Ctrl+Z/D 收），读一行用 `ReadLine ()`（就是 `input`）；
 `print` / `input` 照旧是日常那两个，这里是"抽象的视角"。
 
+**一个 URL 也是文件**：`Http.Url "https://…"`（见「网络」一节）照同一条缝插进来 ——
+它自己就有 `IFile` 那几条成员，再 `impl (IFile Url { () })` 登记一下。于是
+`Io.Copy (Http.Url …) (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url …)` 一行行读远程日志、
+`Io.Copy (Http.Url …) Io.Stdout` 直接倒进终端 —— **对着接口写的那几件一个都不用改**。
+`Write` / `Delete` 发的是 PUT / DELETE，`Append` 报错（HTTP 没有追写这回事），
+`Exists` / `Size` 走 HEAD（不下载正文）。
+（`http.rav` 因此 `using "io.rav"`；依赖方向是 网络 → 文件，不是反过来。）
+
 **和 `IoMonad` 搭台**：`Io.ReadAction` / `WriteAction` / `AppendAction` / `WriteLineAction` /
 `EachLineAction` 把文件操作包成 `Action`（"先拼好、之后 `Perform ()`"）。所以 `io.rav` 开头
 `using "iomonad.rav"` —— 反过来不行（`iomonad.rav` 由 predefined 加载,那时 `IFile` 还不存在,
@@ -1477,6 +1485,27 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 **用例**:`tests/268_http.rav`(离线:查询串、响应对象、报错文案)、
 `tests/269_http_live.rav`(真发请求 —— 运行器按 `# net` 标记起一台**回环服务器**,
 见下)。例子 `examples/http.rav` 打的是真网络。
+
+### 一个 URL 就是一个文件
+
+`Http.Url "https://…"` 交回的东西有 `IFile` 那一套成员(而且 `impl (IFile Url { () })` 登记过),
+于是**对着接口写的那几件直接能用** —— `Io.Copy` / `Io.Lines` / `Io.EachDir` 那些一个都不用改:
+
+```ravel
+Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
+Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志(惰性)
+Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
+```
+
+- 每次 `Read ()` 都是**一次请求**(和 `Io.File.Read ()` 每次都去读盘一样,不藏缓存 ——
+  藏了就会拿到旧内容还以为是最新的);
+- `Write` / `Delete` 发 **PUT / DELETE**;`Append` 报错(HTTP 没有追写这回事,
+  和 `Io.Stdout` 删不掉一个待遇);`Exists` / `Size` 走 **HEAD**(不下载正文,
+  服务器不认 HEAD 就退回 GET);
+- 落点那两条(`Download` / `Upload`)也收**磁盘条目**(`Io.File "a.zip"`),和 `Io.CopyTo dest` 一样两种都收。
+
+依赖方向是 **网络 → 文件**(`http.rav` 里 `using "io.rav"`):URL 要去登记成文件那边的接口,
+反过来不该由文件系统去认识 HTTP。
 
 ### 测试怎么不飘:`# net` 与回环服务器
 

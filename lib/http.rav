@@ -7,6 +7,7 @@
 #     Http.Post "https://…/api" {"a": 1}       # dict / list 自动当 JSON 发
 #     Http.Download "https://…/a.png" "a.png"  # 边收边写,正文不进内存
 #     Http.Upload "https://…/put" "a.png"      # multipart 上传
+#     Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 一个 URL 就是一个文件(见文件末尾)
 #
 # **同步**:一个请求等一个,回来了才往下走。(以后加并发时这一层不改 —— 引擎那条原语
 # 会变成"挂起当前任务",`Http.Get` 还是这么写。)
@@ -16,7 +17,12 @@
 #
 # 连不上 / 超时 / 域名解析不了 / 证书不对 一律是 `IoError`;**4xx 和 5xx 不是错误**,
 # 那是响应,自己看 `status`(`Http.Expect` 是"非 2xx 就抛"那条糖)。
+#
+# **一个 URL 就是一个文件**(文件末尾的 `Url`):`io.rav` 开头那句"磁盘上的、内存里的、
+# zip 条目、远程的……都只是 `IFile` 的实现"在这儿落地 —— 所以 `using "http.rav"` 顺手
+# 把 `io.rav` 也带进来(URL 要登记成 `IFile`,那套成员是 `Io` 那边的接口)。
 using "encoding.rav"
+using "io.rav"
 
 # 响应。**全局名**(和 io.rav 的 `IFile` 一个待遇),这样注解写得出来:`r: Response`。
 #
@@ -146,19 +152,23 @@ readonly Request := (spec: dict) => {
 
 # ── 下载 / 上传 ──
 
+# 落点收**路径字符串**或一个**磁盘条目**(`Io.File "a.zip"`)—— 和 `io.rav` 的
+# `CopyTo dest` 一个待遇,那个也是两种都收。抽象条目(内存文件、URL)没有路径,给不了。
+readonly PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
+
 # 下载到文件:正文**边收边写**,不进内存(几百 MB 也不怕)。交回的 Response 里
 # `size` 是写了多少字节,`body` 是空的。
-readonly Download := (url: string path: string) => {
-    Response (System.HttpDownload {"url": url "path": path});
+readonly Download := (url: string path: object) => {
+    Response (System.HttpDownload {"url": url "path": (PathOr path)});
 }
 
 # multipart 上传(表单里一个文件,字段名默认 `file`)。要改字段名用 `UploadTo`。
-readonly Upload := (url: string path: string) => {
-    Response (System.HttpUpload {"url": url "path": path});
+readonly Upload := (url: string path: object) => {
+    Response (System.HttpUpload {"url": url "path": (PathOr path)});
 }
 
-readonly UploadTo := (url: string path: string field: string) => {
-    Response (System.HttpUpload {"url": url "path": path "field": field});
+readonly UploadTo := (url: string path: object field: string) => {
+    Response (System.HttpUpload {"url": url "path": (PathOr path) "field": field});
 }
 
 # ── 小工具 ──
@@ -182,3 +192,66 @@ readonly Expect := (r: Response) => {
         throw (Exception ("Http " + (string (r.status)) + " " + (r.reason) + "：" + (text.Take 200)))
     }
 }
+
+# ── 一个 URL 就是一个文件 ──
+#
+# `io.rav` 开头那句「磁盘上的、内存里的、zip 条目、**远程的**……都只是 `IFile` 的实现」
+# 在这儿落地:`Http.Url "…"` 交回的东西有那一套成员(而且登记成了 `IFile`),
+# 于是**对着接口写的那几件直接能用** ——
+#
+#     Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
+#     Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志(惰性)
+#     Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
+#
+# 几条规矩:
+#   * 每次 `Read ()` 都是**一次请求** —— 和 `Io.File.Read ()` 每次都去读盘一样,不藏缓存
+#     (藏了就会拿到旧内容还以为是最新的);
+#   * `Write` / `Delete` 发的是 **PUT / DELETE**(HTTP 里"写一个资源"和"删一个资源");
+#   * `Append` 报错 —— HTTP 没有"追写"这回事(和 `Io.Stdout` 删不掉、`stdin` 写不了一个待遇);
+#   * `Exists ()` / `Size ()` 走 **HEAD**(服务器不认 HEAD 就退回 GET),
+#     所以它们**不下载正文**,除非对面连 `content-length` 都没给。
+Url ::= class {
+    Link: string = ""
+
+    init = (link: string) => { Link = link; this; }
+
+    # 最后一段路径当名字;`https://example.com` 这种没路径的拿主机名,末尾是 `/` 也不给空
+    Name := () => {
+        parts := Link.Split "/"
+        last := parts.At ((parts.Count ()) - 1)
+        (last.IsEmpty ()) { parts.At ((parts.Count ()) - 2); } { last; }
+    }
+
+    IsDir := () => { false; }
+
+    Exists := () => {
+        r := Probe ()
+        ((r.status >= 400) && (r.status < 500)) { false; } { true; }
+    }
+
+    # 对面说多大就多大;没说(unlikely)只能**下下来数** —— 那一下是要花时间的
+    Size := () => {
+        cl := (Probe ()).HeaderOr "content-length" ""
+        (cl.IsEmpty ()) { (Http.Get Link).Size (); } { int cl; }
+    }
+
+    Read := () => { (Http.Get Link).Text (); }
+    Write := (text: string) => { Send Link "PUT" {"body": text}; (); }
+    Delete := () => { Send Link "DELETE" {}; (); }
+    Append := (text: string) => { throw (Exception ("网络文件没得追写（HTTP 里没有这回事）：" + Link)); }
+
+    # 先用 HEAD 探一下(不下载正文)。服务器不认这个方法(405/501)、或者干脆连不上,
+    # 就退回 GET —— 有的服务就是不实现 HEAD。
+    Probe := () => {
+        h := try { Some (Http.Head Link); } (e: Exception) => { None; }
+        ((h.IsNone ()) || ((h.Value ()).status == 405) || ((h.Value ()).status == 501)) {
+            Http.Get Link;
+        } { h.Value (); }
+    }
+}
+
+# 登记成 `IFile` —— `Io.Copy` / `Io.Lines` 那些是按接口收参数的,
+# 不登记的话传进来会被类型检查挡下(光有那几个成员还不够)。
+impl (IFile Url {
+    ()
+})
