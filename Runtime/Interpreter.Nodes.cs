@@ -389,6 +389,11 @@ public partial class Interpreter
 
             var val = nf.Result(0);
             var v = nf.Scope.LookupVar(id.Name);
+            // `by X := …` 是**定义**:名字只在外层有(比如全局那个 `Any` / `list` 别名)时,
+            // 要在这层建一个新槽把外层遮住 —— 不是去"换"外层那个变量里的 property
+            // (`=` 那种没 `:=`,才必须已有槽可换 —— 那正是"赋值要求字段已存在"要挡的)。
+            // 本层有的(父类平铺进来的槽、接口体上一趟建的槽)照旧走换槽那条。
+            if (sa.Define && v != null && !nf.Scope.Contains(id.Name)) v = null;
             if (v == null)
             {
                 if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'");

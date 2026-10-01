@@ -56,7 +56,8 @@ Runtime/                         求值器按职责拆成多个 partial class �
   BuiltinClasses.{Methods,Operators,Initializers}.cs   内置方法/运算符/转换器的注册
                                  (成员直接进各自类对象的 Scope,没有单独的"方法表")
   BuiltinClasses.Interfaces.cs   接口与实现(interface / use / impl / Dispose)
-  BuiltinClasses.Sequences.cs    三种容器共用的序列方法 —— 将来 `IEnumerable` 那一层
+  BuiltinClasses.Sequences.cs    三种容器共用的序列方法(引擎按类型挂的那份;接口那层
+                              另有一份给别的实现者,见「接口」里的 `IEnumerable`)
                                  (收函数的那批是控制帧,见 Interpreter.Control 的 StepSeqOp)
   Scope.cs / Variable.cs         作用域
   BoxedValue.cs                  成员访问
@@ -103,7 +104,9 @@ lib/
                           和从前全写在一个文件里一样,用户看得见的名字一个没变。
                           `callcc` 也在这儿(库函数:包装 System.CallCC,拍/还原两份控制状态)。
   numbers.rav             `INumber`(空槽接口:谁是数)+ 五种数值类型各实现一条
-  iterator.rav            `IEnumerable` / `IEnumerator` / `Enumerator` + 三种容器的实现 + `foreach`
+  iterator.rav            `IEnumerable`(继承 `IMonad`,体内一整套**默认实现**:
+                          Count/Map/Where/Bind/Take/First… —— 凡实现者都有,见下)
+                          / `IEnumerator` / `Enumerator` + 几种容器的实现 + `foreach`
   seqs.rav                `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
                           (五件都对着 `IEnumerable` 写,交回当场算好的 list / dict)
   time.rav                `Time`(毫秒 + 一袋零件:Year/Month/… /WeekdayName/Text/AddDays…)
@@ -661,6 +664,8 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 | 写法 | 干什么 |
 |---|---|
 | `by a := property g s` / `by a: int = …` | **定义槽**：`a` 从此是个属性（注解管写进来的值）|
+| 同上，但外层已经有同名变量 | `:=` 是**定义**：在这层建新槽把外层遮住。从前会去找外层那个名字当"要换的槽"，
+于是 `by Any := …`（`Any` 是全局的类型别名）会报「标了 by 但值不是 property」`=` 那种（没 `:=`）才是"必须已有槽可换" |
 | `a = v` / `obj.a = v` | 给属性赋值：过 setter |
 | `by a = X` / `by a.x = X`（`SlotAssign`，语句）| **换掉槽里的那份 property**：`Variable.ReplaceSlot`，不过旧 setter、不查约束 |
 | `by a.x := X`（同上，`Define`）| **在那个对象上建槽**：`DefineOrReplace` + `SetAttr(By)`，成员不存在也行（`:=` 定义 / `=` 换，和别处一个规矩）|
@@ -708,17 +713,38 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 底层那条协议**每个值都有**:引擎在 `Object` 上放了一条 `CompareTo`(内建那把尺子,数值/字符串),
 要换比法就在类里自己写一条盖掉它(和 `ToString` 一个规矩)。详见「比较与排序」一节。
 
-**`IEnumerable` / `IEnumerator`**(`lib/predefined.rav` 末尾一段)。形状照 C#:
+**`IEnumerable` / `IEnumerator`**(`lib/iterator.rav`)。形状照 C#:
 
 ```ravel
-IEnumerable ::= interface { by GetEnumerator : function = default }
+IEnumerable ::= interface IMonad { by GetEnumerator : function = default; …一整套默认实现… }
 IEnumerator ::= interface { by MoveNext : function = default
                             by Current  : object   = default }
 ```
 
+**接口体里那一整套 `by X := property …` 是默认实现**(接口的类体会在**每个实现对象上
+跑一遍**,所以实现体不填就用它):Count / Map / Where / Bind / Fold / Take / First / …。
+名字与口径照容器上那批(Linq 的译法),分界线是"交回**一串**的惰性(交回 `Generator`)、
+要**一个值 / 容器**的当场算"。于是凡是实现了 `IEnumerable` 的东西(`Generator`、字符串、
+用户自己写的类)都有整套方法 —— 从前只有三种容器有(引擎按类型挂的,见
+`BuiltinClasses.Sequences.cs`)。**两层同名是有意的**:容器类链上那几个先命中,
+接口这份只补"本来要报没有方法"的(`TraitSlot` 见到类链上有名字就退回去)。
+
+写默认实现有一条死规矩:**函数体要写在 getter 里面** —— `Activate` 只把那条 getter
+自己的捕获作用域换成"这一次服务谁"的激活格,所以只有 getter 体内创建的闭包才认得出
+`instance`;外面造好的函数塞进来会捕错作用域。
+
+序列这一族**也是 `IMonad`**(`IEnumerable ::= interface IMonad`):`Map` 逐个映射、
+`Bind` = "每个元素交回一串、接起来"(flatMap)→ `do { … }` 在序列上就是列表推导。
+`HasTrait` 判的是 `impl.Type.IsAssignableTo(trait)`,而实现对象的类型**就是那个接口**
+—— 所以接口的 parent 一挂上,list / set / dict / string / Generator / 用户类全都
+`is IMonad`。(`lib/predefined.rav` 里 `monad.rav` 因此排在 `iterator.rav` **前面**。)
+
+和 `Option` 那半的桥:`Option.ToList ()`(→ `[x]` / `[]`)、`xs.TryFirst ()` / `xs.TryFind p`(→ `Option`)。
+
 `GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
 `Current` 是当前那个(C# 里是属性,这边也做成属性)。库里的 `Enumerator` 就是"拿一串值"的
-通用枚举器,谁有现成的一串值谁就能拿它当枚举器。三种容器各 `impl` 一遍
+通用枚举器,谁有现成的一串值谁就能拿它当枚举器。三种容器各 `impl` 一遍(只填 `GetEnumerator`,
+其余走默认实现)
 (用 `impl` 而不是 `use`:全局登记,库加载时就生效),于是:
 
 - `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{"a": 1} is IEnumerable` 都成立;
@@ -778,8 +804,9 @@ IEnumerator ::= interface { by MoveNext : function = default
   而「谁在被实例化」就是造出来的实现的类型 —— 推 `ImplMake` 帧跑那两段类体。
   接口的子接口都继承这一份(它们自己的类体里没有 `init`)。
 
-**接口对象的 parent 是 `BaseInterface`,类型是 `interface`** —— `IEnumerable.parent` 是
-`BaseInterface`,而 `typeof IEnumerable` 是 `Interface`(`is interface` 成立)。
+**接口对象的 parent 是它继承的那个接口**(没写父则是 `BaseInterface`),类型是 `interface`
+—— `IEnumerable.parent` 是 `IMonad`、`IMonad.parent` 是 `BaseInterface`,
+而 `typeof IEnumerable` 是 `Interface`(`is interface` 成立)。
 `BaseInterface` 下面挂的就是所有接口(`Subtypes ()` / 类型树上看得见),它类体里那份
 **默认 `init`** 是所有接口共用的 —— `myTrait myClass { … }` 是实例化 `myTrait`,而
 `StepClassInit` 沿类体链从具体往上一找就到它(`CollectBodies`)。
@@ -1025,9 +1052,11 @@ add.name   # "add"
 (`Runtime/BuiltinClasses.Sequences.cs`),每种容器只回答一件事:**怎么按枚举顺序把元素取出来**
 (`items` —— 字典给的是值)。
 
-这就是将来 `IEnumerable` 那一层:接口出来了就把注册点从三处并到一处、`items` 改成问接口要,
-**方法体一个字不用改**。`Concat` / `Union` 这些收"别的容器"的地方已经先按这个形状写了 ——
-`ElementsOf` 就是今天版的"接受任何可枚举"。
+这一层是**引擎按类型**挂的,C# 侧当场算(所以快);接口那一层(`lib/iterator.rav` 里
+`IEnumerable` 体内的默认实现)是**另一份**,给"类链上没有这些方法"的实现者用
+(`Generator`、字符串、用户自己的类)—— 两份同名不是重复犯错,而是快路径 + 兜底:
+`TraitSlot` 见到类链上有就退回去,所以容器永远走引擎那份。
+两者口径一致(名字、急切/惰性分界、报错措辞),`ElementsOf` 是引擎侧的"接受任何可枚举"。
 
 两批的分界是**要不要调用户函数**:
 

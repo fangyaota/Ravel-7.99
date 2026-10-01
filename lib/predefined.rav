@@ -82,10 +82,12 @@ readonly while := (c: function body: function) => {
 }
 # ── 标准库:各自一个文件 ──
 using "numbers.rav"
+# monad 排在 iterator **前面**:`IEnumerable ::= interface IMonad { … }`(序列这一族也是 monad)
+# 要在接口那一句上读到 IMonad,而它自己谁也不依赖。
+using "monad.rav"
 using "iterator.rav"
 using "cached.rav"
 using "generator.rav"   # `Generator f` —— 把"往外送值"的那段变成 IEnumerable
-using "monad.rav"
 using "sorting.rav"
 using "time.rav"      # `Time` / `Now` / `TimeFrom` —— 毫秒 + IComparable 那一套
 using "keys.rav"

@@ -45,6 +45,11 @@ Option ::= class {
     # 有值且满足条件 -> true
     Exists := (p: function) => { Has && p Inner; }
 
+    # 交给"一串"那一族(`IEnumerable` 也是 monad,见 lib/iterator.rav):
+    # 有值就是只含它的一串,没值就是空的一串 —— `None` 于是成了"空序列"而不是"报错"。
+    # 反过来那一头是 `xs.TryFirst ()` / `xs.TryFind p`(给你一个 Option)。
+    ToList := () => { if { Has; } { [Inner]; } { []; } }
+
     init = (has: bool v: object) => {
         Has = has
         Inner = v

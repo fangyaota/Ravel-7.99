@@ -1,0 +1,129 @@
+# `IEnumerable` 也是 `IMonad` —— 序列这一族进了 monad 那一族(见 lib/iterator.rav)。
+#
+# `IEnumerable ::= interface IMonad`,那两条槽:Map 逐个映射、Bind 是"每个元素交回一串、
+# 接起来"(flatMap)。于是 `do { … }` 在序列上就是**列表推导**,`IMonad` 的注解也收得下序列。
+#
+# 和 `Option` 是同一族的两个实例:`Some`/`None` 那半"要么一个值要么没有",序列这半
+# "一串值"。桥有两座 —— `Option.ToList ()`(往序列走)与 `xs.TryFirst ()` / `TryFind p`(往 Option 走)。
+
+# ---- 凡是实现了 IEnumerable 的,都在这族里 ----
+print ([1 2] is IMonad)
+print ({1 2} is IMonad)
+print ({"a": 1} is IMonad)
+print ("ab" is IMonad)
+G := Generator (y: function) => { y 1; y 2; }
+print (G is IMonad)
+print ((Some 5) is IMonad)
+print ([1 2] is IEnumerable)
+
+# ---- do 块 = 列表推导 ----
+xs := [1 2]
+ys := [10 20]
+pairs := do {
+    x :< xs
+    y :< ys
+    [x y];
+}
+print (typeof pairs)                       # 惰性的一串(Bind 交回 Generator)
+print (Seqs.Gather pairs)
+# 最后一条得交回**一串**(Bind 要的是"每个元素变一串")—— 单层时就是 Map
+print (Seqs.Gather (do { x :< [1 2 3]; [x * x]; }))
+
+# 两边都可以是无限的:只要下游 Take 得住
+Nats := Generator (y: function) => {
+    n := 0
+    while { true; } { y n; n += 1 }
+}
+sums := do {
+    a :< Nats
+    b :< Nats
+    [a + b];
+}
+print (Seqs.Gather (sums.Take 5))
+
+# ---- monad 三律:序列 ----
+# 左单位:`[x].Bind f` ≡ `f x`
+f := (n: int) => { [n (n + 1)]; }
+left := [5].Bind f
+print (Seqs.Gather left)
+print (Seqs.Gather (f 5))
+# 右单位:`m.Bind ((x) => { [x]; })` ≡ `m`
+m := [1 2 3]
+print (Seqs.Gather (m.Bind ((x: int) => { [x]; })))
+# 结合律:`(m.Bind f).Bind g` ≡ `m.Bind ((x) => { (f x).Bind g; })`
+g := (n: int) => { [n (0 - n)]; }
+lhs := (m.Bind f).Bind g
+print (Seqs.Gather lhs)
+rhs := m.Bind ((x: int) => { (f x).Bind g; })
+print (Seqs.Gather rhs)
+
+# ---- monad 三律:Option(同一个形状,另一族)----
+half := (x: int) => { if { (x % 2) == 0; } { Some (x / 2); } { None; } }
+print (((Some 8).Bind half).Value ())
+l2 := (Some 8).Bind half
+print (Seqs.Gather (l2.ToList ()))
+print (Seqs.Gather ((half 8).ToList ()))
+rightId := (Some 5).Bind Some
+print (rightId.Value ())
+print ((((Some 16).Bind half).Bind half).Value ())
+r2 := (Some 16).Bind ((x: int) => { (half x).Bind half; })
+print (r2.Value ())
+print (((None).Bind half).IsNone ())
+
+# ---- 两座桥 ----
+# Option → 序列:有值就一串一个,没值就空的一串(于是 `None` 在 do 块里就是"这条没有了")
+print ((Some 5).ToList ())
+print ((None).ToList ())
+lifted := do {
+    n :< (Some 5).ToList ()
+    [n * 2];
+}
+print (Seqs.Gather lifted)
+empty := do {
+    n :< (None).ToList ()
+    [n * 2];
+}
+print (Seqs.Gather empty)
+# 序列 → Option:要"可能没有"就用这两条,别去 try 里接 First / Find 那句错
+t1 := [1 2 3].TryFirst ()
+print (t1.Value ())
+t2 := [].TryFirst ()
+print (t2.IsNone ())
+t3 := [1 2 3].TryFind ((x: int) => { x > 2; })
+print (t3.IsSome ())
+t4 := [].TryFind ((x: int) => { x > 2; })
+print (t4.IsNone ())
+print "end"
+# --- expected ---
+# true
+# true
+# true
+# true
+# true
+# true
+# true
+# Generator
+# [1 10 1 20 2 10 2 20]
+# [1 4 9]
+# [0 1 2 3 4]
+# [5 6]
+# [5 6]
+# [1 2 3]
+# [1 -1 2 -2 2 -2 3 -3 3 -3 4 -4]
+# [1 -1 2 -2 2 -2 3 -3 3 -3 4 -4]
+# 4
+# [4]
+# [4]
+# 5
+# 4
+# 4
+# true
+# [5]
+# []
+# [10]
+# []
+# 1
+# true
+# true
+# true
+# end

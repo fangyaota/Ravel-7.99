@@ -480,10 +480,14 @@ foreach [1 2 3] (x: int) => { print x; }
 这是个用 `interface` 写出来的库级接口，形状**照 C#**：
 
 ```ravel
-IEnumerable ::= interface { by GetEnumerator : function = default }
+IEnumerable ::= interface IMonad { by GetEnumerator : function = default; … }
 IEnumerator ::= interface { by MoveNext : function = default
                             by Current  : object   = default }
 ```
+
+它体内还有**一整套默认实现**（`Count` / `Map` / `Where` / `Take` / `First` / `Fold` …），
+所以凡是实现了它的东西都白拿整套方法（见本节末尾），而且它**也是 monad**（见 5.9）
+—— 父接口写的是 `IMonad`。
 
 `GetEnumerator ()` 交回一个枚举器，枚举器 `MoveNext ()` 往前走一步（返回还有没有）、
 `Current` 是当前那个。`foreach` 展开就是这个循环：
@@ -503,7 +507,41 @@ foreach 5 (x: int) => { print x; }
 ```
 
 **每次进来都新开一个枚举器**，所以嵌套遍历同一串值互不打扰（和 C# 一样）。
-自己的类只要交回一个枚举器（库里的 `Enumerator` 拿来就能用）也能进 `foreach`：
+
+#### 实现了它，就白拿一整套
+
+`IEnumerable` 的**类体**里写着那套方法的默认实现（接口的类体会在每个实现对象上跑一遍，
+所以"实现体不填就用它"）：
+
+```ravel
+G := Generator (y: function) => { y 1; y 2; y 3; }
+G.Count ()      # 3
+G.Sum ()        # 6
+G.Join "-"      # 1-2-3
+G.Max ()        # 3
+G.Fold 0 (acc: int x: int) => { acc + x; }   # 6
+```
+
+**分界线**：交回**一串**的**惰性**（交回 `Generator`），要**一个值 / 容器**的当场算：
+
+| 惰性（一串进、一串出） | 急切（要值 / 容器） |
+|---|---|
+| `Map` `Where` `Bind` `Take` `Skip` `Concat` `Distinct` `Reverse` `SortBy` | `Count` `IsEmpty` `First` `Last` `At` `Contains` `Sum` `Min` `Max` `Join` `ToList` `ToSet` `ToGenerator` `Each` `All` `Any` `Find` `Fold` `TryFind` `TryFirst` |
+
+无限流上只有惰性那批用得起来：
+
+```ravel
+Nats := Generator (y: function) => { n := 0; while { true; } { y n; n += 1 } }
+Seqs.Gather (Nats.Take 4)                       # [0 1 2 3]
+doubled := Nats.Map ((n: int) => { n * 2; })
+Seqs.Gather (doubled.Take 3)                    # [0 2 4]
+```
+
+容器上那几个**同名方法**是引擎给的（也在类链上、先命中），行为一样、只是**急切**：
+`[1 2 3].Map f` 交回 `list`，而 `G.Map f` 交回 `Generator`。要转就 `ToList ()` /
+`ToGenerator ()`。
+
+自己的类只要交回一个枚举器（库里的 `Enumerator` 拿来就能用）也能进 `foreach`，顺带白拿整套：
 
 ```ravel
 use (IEnumerable MyThing {
@@ -873,6 +911,7 @@ print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())   # false �
 | `Bind f` | 有值就把 `f` 的结果**摊平**接上（`f` 自己得回一个 `Option`），链起来不套娃 |
 | `Where p` | 不满足 `p` 就变成 `None` |
 | `Exists p` | 有值且满足 `p` |
+| `ToList ()` | 往**序列**那半走：有值就是 `[x]`，没值就是 `[]`（见 5.9 末尾）|
 
 `None` 是**一个值**（单例，大家共用它），不用写 `None ()`；`(Some 5).Where (…)` 落空拿到的
 就是它，所以 `== None` 成立（对象按身份比）。
@@ -952,6 +991,40 @@ do {
 ```ravel
 print (do { v :< Some 10; Some (v * 2); }.Value ())    # 20
 ```
+
+#### 序列也是 monad：`do` 块就是列表推导
+
+`IEnumerable` 也是 `IMonad` 这一族的（`IEnumerable ::= interface IMonad`，见 4.3）：`Map` 是
+逐个映射、`Bind` 是「每个元素交回一串、接起来」（flatMap）。于是 `do { … }` 在序列上
+就是**列表推导**：
+
+```ravel
+pairs := do {
+    x :< [1 2]
+    y :< [10 20]
+    [x y];
+}
+Seqs.Gather pairs        # [1 10 1 20 2 10 2 20] —— 笛卡尔积
+```
+
+`[1 2] is IMonad` / `"ab" is IMonad` / `G is IMonad` 都成立（凡是实现了 `IEnumerable` 的都算）。
+最后一条语句得交回**一串**（`Bind` 要的就是"每个元素变一串"），单层时那正是 `Map`：
+
+```ravel
+Seqs.Gather (do { x :< [1 2 3]; [x * x]; })   # [1 4 9]
+```
+
+**两边都可以是无限的**（`Bind` 交回的是惰性的一串），只要下游 `Take` 得住：
+
+```ravel
+Nats := Generator (y: function) => { n := 0; while { true; } { y n; n += 1 } }
+sums := do { a :< Nats; b :< Nats; [a + b]; }
+Seqs.Gather (sums.Take 5)     # [0 1 2 3 4]
+```
+
+和 `Option` 那半有两座桥：`Option.ToList ()`（`Some x` → `[x]`，`None` → `[]`，
+于是"没有"在序列里就是"空的一串"）、`xs.TryFirst ()` / `xs.TryFind p`（给你一个 `Option`，
+不用去 `try` 里接 `First` / `Find` 那句错）。
 
 ### 5.10 IO Monad（把效果做成值）
 
@@ -1535,7 +1608,11 @@ Seqs.Frequency ["a" "b" "a"]          # {a: 2 b: 1}        数出现几次
 - `Chunk` 的每一摞是**各自独立**的 list（往里加东西不会串到别摞）；`n` 至少是 1。
 - 要**惰性**就用 `Generator`（见 4.3）；这五件都是"一次算完"的。
 
-**用例见 tests/248。**
+分工：这五件是**模块函数**（`Seqs.Xxx xs …`，对着 `IEnumerable` 写的通用件）；
+`IEnumerable` 自己那套（`xs.Map f` / `xs.Where p` / …，见 4.3）是**方法**，凡实现者都有；
+容器上那几个是引擎给的急切版本。要连成一串就用方法那套，要"一次算完的通用件"就用 `Seqs`。
+
+**用例见 tests/248、tests/252、tests/253。**
 
 ## 七、类
 
@@ -2250,9 +2327,40 @@ print (take (myClass ()))      # 0 —— 接口是"视图"：实现生效期间
 
 库里已经有两个:`INumber`（最简单的——**一个槽都没有**,只是"这个类型是数"的标记:
 五种数值类型各 `impl` 一条,于是 `(x: INumber)` 收得下 `int 5` 也收得下 `float 5.0`,
-`lib/math.rav` 那四个函数就标的它）、以及 `IEnumerable` / `IEnumerator`（见 4.3 与 6.4）：`IEnumerable` 只声明
-`by GetEnumerator`，`IEnumerator` 只声明 `by MoveNext` / `by Current`，
-三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、`(xs: IEnumerable) => …` 收得下它们。
+`lib/math.rav` 那四个函数就标的它）、以及 `IEnumerable` / `IEnumerator`（见 4.3 与 6.4）：
+`IEnumerable` 声明 `by GetEnumerator`（外加一整套**默认实现**，见下）、`IEnumerator` 只声明
+`by MoveNext` / `by Current`，三种容器各 `impl` 一条，于是 `foreach` 能遍历它们、
+`(xs: IEnumerable) => …` 收得下它们。
+
+#### 接口体里也能写实现（默认实现）
+
+接口的**类体**会在**每个实现对象上跑一遍**（造实现就是实例化那个接口），所以写在接口体里的
+`by X := property …` 就是"实现体不填就用它" —— 实现块里写 `by X = …` 能盖掉它
+（`=` 是换槽、`:=` 是定义）：
+
+```ravel
+IThing ::= interface {
+    by Name : string = default                              # 要填的
+    by Loud := property (() => {                            # 默认实现
+        () => { (instance.Name).ToUpper (); }
+    }) ((v: function) => { (); })
+}
+
+C ::= class { n: string = "hi" }
+impl (IThing C {
+    by Name = property (() => { instance.n; }) ((v: string) => { (); })
+})
+print ((C ()).Loud ())        # HI
+```
+
+于是"一个接口管一类形状、顺手把那类形状上的通用操作也带来"这件事就落地了 ——
+`IEnumerable` 就是这么给 `Generator`、字符串、用户类带上整套 `Map` / `Where` / `Count` 的
+（见 4.3）。两条要注意：
+
+- **实现体要写在 getter 里面**（`property (() => { <这里> }) (…)`）：接收者 `instance` 是
+  每次分发才绑的，闭包得在那时候创建才认得出它。
+- 类链上已经有同名成员时**它先命中**（接口那份只补"本来要报没有方法"的），所以容器上
+  那几个同名方法是引擎那份。
 
 #### 接口也能继承接口（外加一串要求）
 

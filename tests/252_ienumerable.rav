@@ -1,0 +1,160 @@
+# `IEnumerable` 自带的那一整套默认实现(见 lib/iterator.rav)。
+#
+# 从前那几个方法(Count / Map / Where / Fold / Take…)是**引擎按类型**挂给
+# list / set / dict 三家的:别的实现者只有 `foreach` 能用。现在它们写在**接口体**里,
+# 接口的类体会在每个实现对象上跑一遍 —— 于是凡是实现了 `IEnumerable` 的
+# (Generator、字符串、用户自己写的类)整套都有。
+#
+# 两层同名是有意的:**容器类链上那几个先命中**(引擎给的、急切、交回 list),
+# 接口这份只补"本来要报没有方法"的那些。
+
+# ---- Generator:从前一个方法都没有 ----
+G := Generator (y: function) => { y 1; y 2; y 3; }
+print (G is IEnumerable)
+print (G.Count ())
+print (G.IsEmpty ())
+print (G.First ())
+print (G.Last ())
+print (G.At 1)
+print (G.Sum ())
+print (G.Min ())
+print (G.Max ())
+print (G.Contains 2)
+print (G.Contains 9)
+print (G.Join "-")
+print (G.Fold 0 (acc: int x: int) => { acc + x; })
+print (G.All ((x: int) => { x > 0; }))
+print (G.Any ())
+print (G.Any ((x: int) => { x > 2; }))
+print (G.Find ((x: int) => { x > 1; }))
+print (G.ToList ())
+print (G.ToSet ())
+seen := []
+G.Each ((x: int) => { seen.Add (x * 100); })
+print seen
+
+# 要"可能没有"的那两条:交给 Option,别去 try 里接 First/Find 那句错
+tf := G.TryFirst ()
+print (tf.Value ())
+tn := G.TryFind ((x: int) => { x > 9; })
+print (tn.IsNone ())
+print (tn.ToList ())
+
+# ---- 惰性那半:交回一串的走 Generator,无限流上停得住 ----
+print (typeof (G.Map ((x: int) => { x * 2; })))
+print (Seqs.Gather (G.Map ((x: int) => { x * 2; })))
+print (Seqs.Gather (G.Where ((x: int) => { x > 1; })))
+print (Seqs.Gather (G.Take 2))
+print (Seqs.Gather (G.Skip 1))
+print (Seqs.Gather (G.Concat [8 9]))
+print (Seqs.Gather (G.Reverse ()))
+print (Seqs.Gather (G.Distinct ()))
+print (Seqs.Gather (G.SortBy ((x: int) => { 0 - x; })))
+print (typeof (G.ToGenerator ()))
+
+Nats := Generator (y: function) => {
+    n := 0
+    while { true; } { y n; n += 1 }
+}
+print (Seqs.Gather (Nats.Take 4))
+doubled := Nats.Map ((n: int) => { n * 2; })
+print (Seqs.Gather (doubled.Take 3))
+big := Nats.Where ((n: int) => { n > 2; })
+print (Seqs.Gather (big.Take 3))
+# 急切那批要**算完**,无限流上会挂(所以上面那些都先 Take 再 Gather)
+
+# ---- 字符串也是它:元素是字符 ----
+print ("abc".Count ())
+print ("abc".Join "-")
+print (Seqs.Gather ("abc".Map ((c: char) => { (string c) + "!"; })))
+print ("abc".First ())          # 引擎那份 String 上没有 First,走的是接口默认实现
+print ("abc".Contains 'b')
+
+# ---- 用户自己写的类:填一条 GetEnumerator,整套白拿 ----
+# 这是这套机制最要紧的一条 —— 接口体在每个实现对象上跑一遍,所以"实现体不填就用它"。
+Bag ::= class {
+    Items: list = []
+    init = (xs: list) => { Items = xs; this; }
+}
+impl (IEnumerable Bag {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Items); }; }) ((v: function) => { (); })
+})
+b := Bag [1 2 3]
+c := Bag [10 20]
+print (b is IEnumerable)
+print (b.Count ())
+print (b.Sum ())
+print (c.Count ())
+print (c.Sum ())
+# 两个实例各绑各的 `instance`(槽体是"每一次分发"才绑的,不是绑在实现对象上)
+print (Seqs.Gather (b.Map ((x: int) => { x + 1; })))
+print (Seqs.Gather (c.Map ((x: int) => { x + 1; })))
+print (b.Join "/")
+print (c.Join "/")
+
+# ---- 容器那套一个字没变(引擎那份先命中)----
+print ([1 2 3].Count ())
+print (typeof ([1 2 3].Map ((x: int) => { x * 2; })))
+print ([1 2 3].Map ((x: int) => { x * 2; }))
+print ({1 2 3}.Sum ())
+print ({1 2 3}.Any ())
+print ({"a": 1 "b": 2}.Count ())
+print "end"
+# --- expected ---
+# true
+# 3
+# false
+# 1
+# 3
+# 2
+# 6
+# 1
+# 3
+# true
+# false
+# 1-2-3
+# 6
+# true
+# true
+# true
+# 2
+# [1 2 3]
+# {1 2 3}
+# [100 200 300]
+# 1
+# true
+# []
+# Generator
+# [2 4 6]
+# [2 3]
+# [1 2]
+# [2 3]
+# [1 2 3 8 9]
+# [3 2 1]
+# [1 2 3]
+# [3 2 1]
+# Generator
+# [0 1 2 3]
+# [0 2 4]
+# [3 4 5]
+# 3
+# a-b-c
+# [a! b! c!]
+# a
+# true
+# true
+# 3
+# 6
+# 2
+# 30
+# [2 3 4]
+# [11 21]
+# 1/2/3
+# 10/20
+# 3
+# List
+# [2 4 6]
+# 6
+# true
+# 2
+# end

@@ -13,8 +13,8 @@
 # 三种容器各 `impl` 一条,于是 `is` / 注解 / `foreach` 都认它们。
 
 # ---- 它是什么 ----
-print (IEnumerable.parent)
-print ((IEnumerable.parent).parent)   # 基类自己挂在 object 下
+print (IEnumerable.parent)            # 序列这一族也是 monad,父接口是 IMonad(见 lib/monad.rav)
+print ((IEnumerable.parent).parent)   # IMonad 的父是 BaseInterface(所有接口的根)
 print ((IEnumerable.parent) is type)
 print (typeof IEnumerable)
 print (IEnumerable is interface)
@@ -308,8 +308,8 @@ print (t.Count ())
 print "end"
 ravel ""
 # --- expected ---
+# IMonad
 # BaseInterface
-# Object
 # true
 # Interface
 # true

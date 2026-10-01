@@ -279,6 +279,17 @@ print (e.nick)
 # 默认属性没有状态 —— 复制出来的副本和原件共享同一个,谁都不会被写坏
 print ((with t { 0; }).a)
 print (t.a)
+
+# `by X := …` 是**定义**:这个名字只在外层有(比如全局那个 `Any` / `list` 别名)时,
+# 该在**这层**建一个新槽把外层遮住 —— 不是去"换"外层那个变量里的 property
+# (从前那条路会去找 `Any`,撞上全局的类型别名,报「标了 by 但值不是 property」)
+Named ::= class {
+    by Any := property (() => { "本层的 Any"; }) ((v: string) => { (); })
+}
+n2 := Named ()
+print n2.Any
+by n2.Any = property (() => { "后面换的"; }) ((v: string) => { (); })
+print n2.Any
 ravel ""
 # --- expected ---
 # 99
@@ -361,3 +372,5 @@ ravel ""
 # someone
 # 100
 # 100
+# 本层的 Any
+# 后面换的
