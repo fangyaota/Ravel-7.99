@@ -72,12 +72,36 @@ Own ::= class {
 }
 try { print (Json (Own ())); } (e: Exception) => { print ("5: " + string e); }
 try { print (Json (fraction 1 2)); } (e: Exception) => { print ("6: " + string e); }
+# ── 改:Set / SetAt / Add / Remove ──
+# 这层原本只有"看"的成员(改是 `Extract ()` 那一步的事);后来补了改的几条 ——
+# 改一个字段不该让整棵树往返一趟,而底下那棵树本来就是可变的。
+m := Json.FromString "{\"a\": 1, \"b\": [1,2,3]}"
+m.Set "c" "新加的"                  # 加一个键
+print (m.Text ())
+m.Set "a" {"x": true}               # 换一个值(原生值行,另一个 Json 也行)
+print (m.Text ())
+print (m.Remove "c")                # 交回"有没有删掉"(和 dict.Remove 一个口径)
+print (m.Remove "nope")
+arr := m.Get "b"                    # Get / At 交回的是**那棵树的窗口**,不是副本:
+arr.SetAt 0 99                      # 改它,父的那份也跟着变
+arr.Add 4
+print (m.Text ())
+arr.RemoveAt 0
+print (m.Text ())
+
+# 改不动的几种:当场说人话,不静默
+try { m.Add 1; } (e: Exception) => { print ("8: " + string e); }
+try { m.SetAt 0 1; } (e: Exception) => { print ("9: " + string e); }
+try { (m.Get "b").Remove "x"; } (e: Exception) => { print ("10: " + string e); }
+try { arr.SetAt 9 1; } (e: Exception) => { print ("11: " + string e); }
+try { m.Set "d" (fraction 1 2); } (e: Exception) => { print ("12: " + string e); }
+
 # 实例方法挂在**类**上,靠 forInstance + private 分两侧:实例读得到,类对象那一侧读不到
 # (该报「没有方法」,而不是解析成"类上的方法"再把 self 强转炸掉)
 try { print (Json.Kind); } (e: Exception) => { print ("7: " + string e); }
 print ((Json 5).Kind ())
 print (Json.Fields ())                 # 类对象身上:这一侧读得到的那些 + 元类链
-                                       # (九个实例方法带 private → 类这一侧读不到,也就不列)
+                                       # (实例方法带 private → 类这一侧读不到,也就不列)
 j2 := Json 2
 j2.tag := 99                           # 值自己的那层留给用户挂的东西:只影响这一个
 print (j2.tag)
@@ -137,6 +161,17 @@ print "end"
 # 4: Json.At: 索引 5 超出范围（长度 1）
 # 5: Json: Own 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 6: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
+# {"a":1,"b":[1,2,3],"c":"新加的"}
+# {"a":{"x":true},"b":[1,2,3],"c":"新加的"}
+# true
+# false
+# {"a":{"x":true},"b":[99,2,3,4]}
+# {"a":{"x":true},"b":[2,3,4]}
+# 8: Json.Add: 这是 Object，不是数组
+# 9: Json.SetAt: 这是 Object，不是数组
+# 10: Json.Remove: 这是 Array，不是对象
+# 11: Json.SetAt: 索引 9 超出范围（长度 3）
+# 12: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 7: 类型 'Type' 没有方法 'Kind'
 # number
 # [name parent FromString block Default GetImplements GetImplementors Subtypes | Name Scope Body SetScope Prepend Append is isnot == != <: :> ToString Copy Fields CompareTo Key]

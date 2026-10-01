@@ -1389,6 +1389,18 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
 **两个方向**：`Json v`（原生 → Json）与 `Json.FromString s`（字符串 → Json）进来，
 `Extract ()` 出去。
 
+**改**：`Set key v` / `SetAt i v` / `Add v` / `Remove key` / `RemoveAt i` —— 直接改那棵树。
+加这几条是因为"改配置里一个字段"从前得 `Extract ()` 整棵出去、改完再 `Json` 包回来：
+底下那棵树（`JObject` / `JArray`）本来就是可变的，不给一条路只是白白绕远。
+
+- 写进去的值走**同一张换算表**（`ToJson`，和 `Json v` 一样），也可以直接给一个 Json 值；
+  表外的类型（自有类、分数……）当场报错那套照旧。
+- `Remove` 交回"有没有删掉"（和 `dict.Remove` 一个口径）；`SetAt` / `RemoveAt` 越界当场报错。
+- 改的是**这一个 Json 值自己**（和 dict / list 一样按身份看）：`Json v` 建的时候就把树拷出来了，
+  动不到那份原始 dict。
+- `Get` / `At` 交回的是**那棵树的窗口，不是副本** —— 改子节点，父的那份跟着变
+  （要一份独立的就 `Extract ()` 出来再 `Json` 包回去）。
+
 | 原生 | JSON |
 |---|---|
 | `dict` | object（键本来就是字符串，保插入序）|

@@ -201,9 +201,74 @@ internal static partial class BuiltinClasses
             : WriteJson(((JsonVal)s).Token, null)));
 
         Json.DefineMethod("Extract", (s, _) => FromJson(((JsonVal)s).Token));
+
+        // ── 改 ──
+        // 这层原本只有"看"的成员 —— 「先看再转」,改是 `Extract ()` 那一步的事。加这几条是因为
+        // **改一个字段别让整棵树往返一趟**(Extract → 改 → `Json` 再包回去);
+        // 而且底下那棵树(`JObject` / `JArray`)本来就是可变的,不给它一条路只是白白绕远。
+        //
+        // 交出去的**值**是原生值(走 `ToJson`,和 `Json v` 同一张换算表),也可以直接给一个
+        // Json 值。改的是**这一个 Json 值自己**(和 dict / list 一样按身份看),不是那份原始 dict ——
+        // `Json v` 建的时候就把树拷出来了。
+        Json.DefineMethod("Set", (s, a) =>
+        {
+            var key = TextArg(a, "Json.Set 的键");
+            return FunctionVal.From(v =>
+            {
+                ObjOf(s, "Set")[key] = ToToken(v);
+                return VoidVal.Instance;
+            });
+        });
+
+        Json.DefineMethod("SetAt", (s, a) =>
+        {
+            var i = IntArg(a, "Json.SetAt");
+            return FunctionVal.From(v =>
+            {
+                ArrOf(s, "SetAt")[InRange(s, i, "Json.SetAt")] = ToToken(v);
+                return VoidVal.Instance;
+            });
+        });
+
+        // 数组尾巴上接一个(`Add` 只对数组说得通;对象那边是 `Set`)
+        Json.DefineMethod("Add", (s, a) =>
+        {
+            ArrOf(s, "Add").Add(ToToken(a));
+            return VoidVal.Instance;
+        });
+
+        // 删一个键 / 删一个下标 —— 交回"有没有删掉"(和 `dict.Remove` 一个口径)
+        Json.DefineMethod("Remove", (s, a) =>
+            new BoolVal(ObjOf(s, "Remove").Remove(TextArg(a, "Json.Remove 的键"))));
+
+        Json.DefineMethod("RemoveAt", (s, a) =>
+        {
+            var i = IntArg(a, "Json.RemoveAt");
+            ArrOf(s, "RemoveAt").RemoveAt(InRange(s, i, "Json.RemoveAt"));
+            return VoidVal.Instance;
+        });
     }
 
     private static List<string> KeysOf(JsonVal j) => j.Token is JObject o
         ? [.. o.Properties().Select(p => p.Name)]
         : throw new RuntimeException($"Json.Keys: 这是 {j.Token.Type}，不是对象", ErrorKind.Type);
+
+    private static JObject ObjOf(RuntimeValue s, string what) => ((JsonVal)s).Token as JObject
+        ?? throw new RuntimeException($"Json.{what}: 这是 {((JsonVal)s).Token.Type}，不是对象", ErrorKind.Type);
+
+    private static JArray ArrOf(RuntimeValue s, string what) => ((JsonVal)s).Token as JArray
+        ?? throw new RuntimeException($"Json.{what}: 这是 {((JsonVal)s).Token.Type}，不是数组", ErrorKind.Type);
+
+    /// <summary>下标越界当场报错(读的那条 `At` 就是这么办的),交回那个下标本身好接着用</summary>
+    private static int InRange(RuntimeValue s, int i, string what)
+    {
+        var n = ((JArray)((JsonVal)s).Token).Count;
+        if (i < 0 || i >= n)
+            throw new RuntimeException($"{what}: 索引 {i} 超出范围（长度 {n}）", ErrorKind.Index);
+        return i;
+    }
+
+    /// <summary>要写进去的那个值:Json 值原样用它的树,别的走 `ToJson`(和 `Json v` 一张表)。
+    /// 给不出来的(自有类、函数……)在那儿当场报错,不悄悄降级。</summary>
+    private static JToken ToToken(RuntimeValue v) => v is JsonVal j ? j.Token : ToJson(v);
 }

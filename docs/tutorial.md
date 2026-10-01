@@ -1488,6 +1488,19 @@ print ((k.Get "x") @ .Extract ())                # 1
   `string` / `bool` / **`()`**（JSON 的 null）。
 - **写**：`Json v`（`dict` / `list` / 数 / 字符串 / 布尔 / `()` 都行）→ `j.Text ()`（紧凑）
   或者 `j.Text 2`（缩进两格）。JSON 里没有的类型（自有类、分数……）**当场报错**，不悄悄降级。
+- **改**：`Set k v` / `SetAt i v` / `Add v`（数组尾巴上接一个）/ `Remove k`（交回有没有删掉）/
+  `RemoveAt i` —— 直接改那棵树，不用为了改一个字段把整棵 `Extract ()` 出去再包回来：
+
+```ravel
+j := Json.FromString "{\"a\": 1, \"b\": [1,2,3]}"
+j.Set "c" "新加的"              # 加一个键（也可以换掉已有的）
+(j.Get "b").SetAt 0 99          # Get / At 交回的是**那棵树的窗口**，改它父的那份也跟着变
+(j.Get "b").Add 4
+print (j)                       # {"a":1,"b":[99,2,3,4],"c":"新加的"}
+```
+
+  写进去的值走**同一张换算表**（也可以直接给一个 Json 值）。想留一份独立的就用
+  `Extract ()` 拿原生值 —— 那份和 Json 里那棵树是两回事。
 
 注意两点：**`null` 转出来是 `()`**（要问"是不是 null"就在 Json 那层问 `IsNull ()`，
 转完就分不清"值是 null"和"函数没返回值"了）；`At i` 后面接 `.Extract` 要加括号
