@@ -323,10 +323,9 @@ internal static class PluginLoader
         if (name.Length == 0) return global;
         if (modules.TryGetValue(name, out var mv)) return mv.Scope;
 
-        var mt = BuiltinClasses.NewModuleClass(name, BuiltinClasses.Ravel);
-        mv = new ModuleVal(mt, new Scope(global));
+        mv = new ModuleVal(name, new Scope(global));
         modules[name] = mv;
-        global.Define(name, mt, mv);
+        global.Define(name, BuiltinClasses.Ravel, mv);
         return mv.Scope;
     }
 }

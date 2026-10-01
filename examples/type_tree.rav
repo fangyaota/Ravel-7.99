@@ -1,6 +1,7 @@
 # 递归类型树。`[...]` 里是这个值的 typeof(即它的创建者),
 # 所以类的实例显类型名、类本身显 Type —— 没有单独的 Class 类型了,class 只是 type 的别名。
-# 注意 Ravel 下挂着 System / Ex —— 模块也是类型(由 BuiltinClasses.NewModuleClass 建)。
+# 注意 `Ravel` 是个**光杆**:它下面不挂东西。模块(System / Math / 各库的模块)是它的
+# **实例**,不是子类 —— 所有模块共用一个 `Ravel`,名字在自己身上(见 ModuleVal)。
 #
 # 打印这件事本身进了库:`Types.PrintTree`(lib/types.rav)。
 #

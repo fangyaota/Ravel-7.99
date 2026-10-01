@@ -56,11 +56,10 @@ public partial class Interpreter
     /// 由 `lib/native.rav` 在用到时装进来,成员落在 `Native` 模块。)</summary>
     private void RegisterBuiltins()
     {
-        var moduleType = BuiltinClasses.NewModuleClass("System", BuiltinClasses.Ravel);
-        var module = new ModuleVal(moduleType, new Scope(_global));
+        var module = new ModuleVal("System", new Scope(_global));
         SysModule.Fill(this, module.Scope);
         _modules["System"] = module;
-        _global.Define("System", moduleType, module);
+        _global.Define("System", BuiltinClasses.Ravel, module);
     }
 
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>

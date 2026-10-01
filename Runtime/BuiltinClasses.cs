@@ -439,17 +439,6 @@ internal static partial class BuiltinClasses
     //  用户自定义类
     // ============================================================
 
-    /// <summary>建一个模块的类对象（`ravel "M"` / System 模块用）。模块也是类型，
-    /// 但它的成员住在**模块作用域**(`ModuleVal.Scope`,同时也是它的成员表)里 ——
-    /// 所以不登记进 AllTypes（每个 Interpreter 都重建一份，登记只会累积）。</summary>
-    internal static ClassVal NewModuleClass(string name, ObjectVal parent)
-    {
-        var t = new ClassVal(Type, new Scope());
-        t.Scope.Define(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
-        t.Scope.Define(ObjectVal.NameMember, String, new StringVal(name));
-        return t;
-    }
-
     /// <summary>清掉已登记的用户类（内置的留着，见 `_builtinCount`）。
     /// `Subtypes` 依赖这张表，而一个进程里可能跑好几个 Interpreter（测试每个文件一个、
     /// REPL 反复 new），不清的话上一个建过的类会出现在下一个的 `Subtypes ()` 里。</summary>

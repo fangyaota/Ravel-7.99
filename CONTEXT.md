@@ -380,6 +380,13 @@ Object (parent=自己)
 └── Every (底类型, parent=自己)
 ```
 
+**`Ravel` 是个光杆**:它下面不挂东西 —— 模块(`System` / `Math` / 各库的模块)是它的
+**实例**,不是子类。从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
+那份类对象只为 `print` / `typeof` 打得出名字,却**不登记进 `AllTypes`** ——
+类型树底下于是挂着一堆看不见的子类,树和现实对不上。现在一个 `Ravel` 就够,
+名字改由 `ModuleVal.Label` 担(报错里说"类型 'System' 没有方法"也走它,
+见 `RuntimeValue.TypeLabel`)。
+
 `parent` 是类对象 Scope 里的一个普通成员(不是 C# 字段),所以链到头的方式是**自引用**
 (`object`/`Every`/`Any` 的 parent 是自己)—— 遍历这些链的地方都要在 `t.Parent == t` 处停。
 
@@ -771,8 +778,8 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
     变成返回 `ValueType`。
   - **`Fields ()`** 不按名字挡 —— 它列的就是"这个 Scope 里的成员",`init` / `parent` / `block`
     都在里面。唯一排掉的是 `this`：它不是成员，是**这个值自己**的别名。
-  - **`parent` / `block` 是 `readonly`**（装它们的四个地方 —— `Install` / `Link` /
-    `NewModuleClass` / `ObjectVal.ClassBody` —— 挂上去的）：它们是"这个类是什么"的定义，
+  - **`parent` / `block` 是 `readonly`**（装它们的三个地方 —— `Install` / `Link` /
+    `ObjectVal.ClassBody` —— 挂上去的）：它们是"这个类是什么"的定义，
     改它等于把类换一个（`C.parent = int` 之后 `C ()` 就去跑 `Integer` 的构造器了）。
     装类因此都是**写一次**（一个类的 `block` 就是**它那一层**用户写的类体，各层各存各的）；
     接口从前"先装上、再 `trait.ClassBody = …` 换一份（把父的声明抄进来）"是往同一格写第二次——

@@ -1,0 +1,41 @@
+# 模块**不是类**,也不是"某种类":它的类对象就是 `Ravel` 本身。
+#
+# 从前每建一个模块就**新造一个 `Ravel` 的子类**(`BuiltinClasses.NewModuleClass`)——
+# 那份类对象只为两件事活着:让 `print` 打出 `<module Math>`、让 `typeof` 打出 `Math`。
+# 而它**不登记进 `AllTypes`**(每个 Interpreter 都要重建一份,登记只会累积),
+# 于是类型树底下挂着一堆看不见的子类,树和现实对不上。现在一个 `Ravel` 就够,
+# 名字改由 `ModuleVal` 自己那个字段担。
+using "math.rav"
+
+print (typeof (Math))                  # 所有模块都指向同一个 Ravel
+print ((typeof (Math)) == (typeof (System)))
+print (Math)                           # 名字还在(`print` 走 ModuleVal 自己那个字段)
+print (System)
+# 模块**是对象**、不是类型 —— `<:` 那种用法得留在类对象上
+print (Math is object)
+print (Math is System.Function)
+print (Math.Square 6)                  # 成员照旧
+print ((Math.Fields ()).Count ())
+
+# 报错说的是**用户写的那个名字** —— `System.Class` 打错一个字该报「类型 'System'」,
+# 不是「类型 'Ravel'」(用户从头到尾没提过 Ravel)
+try { System.Class; } (e: Exception) => { print ("1: " + string e); }
+try { Math.Nope; } (e: Exception) => { print ("2: " + string e); }
+
+# 自己建的模块也一样
+ravel "Mine"
+print (typeof (Mine))
+print (Mine)
+# --- expected ---
+# Ravel
+# true
+# <module Math>
+# <module System>
+# true
+# false
+# 36
+# 53
+# 1: 类型 'System' 没有方法 'Class'
+# 2: 类型 'Math' 没有方法 'Nope'
+# Ravel
+# <module Mine>

@@ -152,7 +152,10 @@ public record ObjectVal : RuntimeValue
     }
 
     /// <summary>显示用的名字。空名字会让报错变成「类型 '' 不支持运算符」,所以退化成 "class"</summary>
-    internal string DisplayName => Name is { Length: > 0 } n ? n : "class";
+    /// <summary>**虚的**:模块要盖掉它(见 <see cref="ModuleVal"/>)—— 模块的类对象统一是
+    /// `Ravel`,照这条走的话 `System.Class` 打错一个字会报「类型 'Ravel' 没有方法 'Class'」,
+    /// 而用户写的是 `System`,从头到尾没提过 Ravel。</summary>
+    internal virtual string DisplayName => Name is { Length: > 0 } n ? n : "class";
 
     // ============================================================
     //  成员查找 / 类型判定

@@ -73,10 +73,9 @@ public partial class Interpreter
 
         if (!_modules.TryGetValue(name, out var mv))
         {
-            var mt = BuiltinClasses.NewModuleClass(name, BuiltinClasses.Ravel);
-            mv = new ModuleVal(mt, new Scope(_global));
+            mv = new ModuleVal(name, new Scope(_global));
             _modules[name] = mv;
-            _global.Define(name, mt, mv);
+            _global.Define(name, BuiltinClasses.Ravel, mv);
         }
 
         SetAmbientScope(mv.Scope);
