@@ -80,7 +80,7 @@ cs := (Random.Crypto ()).Sample 2 xs
 print (cs.Count ())
 try { (Random.Make 1).Choice []; } (e: Exception) => { print ("1: " + string e); }
 try { (Random.Make 1).Sample 9 [1 2]; } (e: Exception) => { print ("2: " + string e); }
-try { (Random.Make 1).Int [6..1]; } (e: Exception) => { print ("3: " + string e); }
+try { (Random.Make 1).Int (5..5); } (e: Exception) => { print ("3: " + string e); }   # 空区间里没得挑
 try { (Random.Make 1).Below 0; } (e: Exception) => { print ("4: " + string e); }
 
 # ── 引擎那三条原语(库只是包了一层)──
@@ -119,7 +119,7 @@ print "end"
 # 2
 # 1: Random.Choice: 空的一串里挑不出东西
 # 2: Random.Sample: 要 9 个，只有 2 个可取
-# 3: Random.Int: [6..1] 里没有可取的数
+# 3: Random.Int: (5..5) 里没有可取的数
 # 4: Random.Below 的上界至少是 1，得到 0
 # Function
 # Function

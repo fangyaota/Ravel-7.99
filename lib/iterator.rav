@@ -139,10 +139,17 @@ IEnumerable ::= interface IMonad {
     by Slice := property (() => {
         (rng: Range) => {
             n := rng.Count ()
-            # 空区间(或者倒过来那种)**不去问 `First ()`** —— 它在空的区间上会报错;
-            # 跳过 0 个再取 0 个,拿到的就是空的一段(而且容器交回的仍是它自己那种)
-            start := if { n <= 0; } { 0; } { rng.First (); }
-            (instance.Skip start).Take n
+            # 空区间**不去问 `First ()`** —— 它在空的区间上会报错;跳过 0 个再取 0 个,
+            # 拿到的就是空的一段(而且容器交回的仍是它自己那种)
+            if { n <= 0; } { (instance.Skip 0).Take 0; } {
+                a := rng.First ()
+                b := rng.Last ()
+                # 起点永远取**小的那个下标**(切片是按位置数下去的),个数是 n;
+                # 区间反过来写(`[4..0]`)时,交出去之前翻个个儿 —— 那才是"倒着切"
+                lo := if { a <= b; } { a; } { b; }
+                kept := (instance.Skip lo).Take n
+                if { a > b; } { kept.Reverse (); } { kept; }
+            }
         }
     }) ((v: function) => { (); })
 
@@ -394,11 +401,16 @@ impl (IEnumerable Range {
         () => {
             g := Generator (y: function) => {
                 # 走**元素**那两头(`First` / `Last`)—— 端点可以是小数,元素永远是整数;
-                # 空的区间问 `First ()` 会报错,所以先挡一道
+                # 空的区间问 `First ()` 会报错,所以先挡一道。
+                # 两头谁大谁小就是**方向**:`[5..1]` 是倒着数的,那就往回走。
                 if { instance.IsEmpty (); } { (); } {
                     i := instance.First ()
                     top := instance.Last ()
-                    while { i <= top; } { y i; i += 1; }
+                    if { i <= top; } {
+                        while { i <= top; } { y i; i += 1; }
+                    } {
+                        while { i >= top; } { y i; i -= 1; }
+                    }
                 }
             }
             g.GetEnumerator ();

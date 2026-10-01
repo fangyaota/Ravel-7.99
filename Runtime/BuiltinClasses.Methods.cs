@@ -101,9 +101,9 @@ internal static partial class BuiltinClasses
         Range.DefineMethod("ToList", (s, _) =>
         {
             var r = (RangeVal)s;
-            var (lo, hi) = r.Bounds();
+            var (first, last, up) = r.Walk();
             var out_ = new List<RuntimeValue>();
-            for (var i = lo; i <= hi; i++) out_.Add(r.Element(i));
+            for (var i = first; up ? i <= last : i >= last; i += up ? 1 : -1) out_.Add(r.Element(i));
             return new ListVal(out_);
         });
 
@@ -116,29 +116,32 @@ internal static partial class BuiltinClasses
         {
             var r = (RangeVal)s;
             if (r.IsEmpty()) throw new RuntimeException("First: 元素不够（一共 0 个）");
-            return r.Element(r.Bounds().Lo);
+            return r.FirstElement();
         });
         Range.DefineMethod("Last", (s, _) =>
         {
             var r = (RangeVal)s;
             if (r.IsEmpty()) throw new RuntimeException("Last: 元素不够（一共 0 个）");
-            return r.Element(r.Bounds().Hi);
+            return r.LastElement();
         });
     }
 
     /// <summary>把一个区间折成**半开**的 `[from, to)` —— 切片那套(字符串的 `Slice`)的通用口径:
     /// 左端开就起点挪一格,右端闭就终点挪一格。倒过来的区间(`Start > End`)和空区间切出空串,
     /// 越界(拿到的那个 from/to 落在字符串外面)照旧当场报错 —— 和两个数字那种写法一条规矩。</summary>
-    private static (int From, int To) SliceBounds(RangeVal rng, int length, string what)
+    private static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what)
     {
-        // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段
-        var (lo, hi) = rng.Bounds();
+        // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段。
+        // 区间是**降序**的话(`[4..0]`)拿到的是同一段、但**倒着**切 —— 方向也照区间的意思走。
+        var (first, last, up) = rng.Walk();
+        if (up ? first > last : first < last) return (0, 0, false);      // 空区间 → 空的一段
 
-        if (lo > hi) return (0, 0);                     // 空区间 → 空的一段
+        var lo = System.Numerics.BigInteger.Min(first, last);
+        var hi = System.Numerics.BigInteger.Max(first, last);
         if (lo < 0 || hi + 1 > length)
             throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）");
 
-        return ((int)lo, (int)(hi + 1));                // 半开:`hi` 那个元素也要,所以 +1
+        return ((int)lo, (int)(hi + 1), !up);           // 半开:`hi` 那个元素也要,所以 +1
     }
 
     private static void RegisterStringMethods()
@@ -194,8 +197,10 @@ internal static partial class BuiltinClasses
                 throw new RuntimeException($"s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {a.Type}");
 
             var v = ((StringVal)s).Value;
-            var (from, to) = SliceBounds(rng, v.Length, "s.Slice");
-            return new StringVal(v[from..to]);
+            var (from, to, reverse) = SliceBounds(rng, v.Length, "s.Slice");
+            var part = v[from..to];
+            if (reverse) part = string.Concat(part.Reverse());
+            return new StringVal(part);
         });
         String.DefineMethod("Take", (s, a) => new StringVal(((StringVal)s).Value[..Math.Clamp(IntArg(a, "s.Take"), 0, ((StringVal)s).Value.Length)]));
         String.DefineMethod("Skip", (s, a) => new StringVal(((StringVal)s).Value[Math.Clamp(IntArg(a, "s.Skip"), 0, ((StringVal)s).Value.Length)..]));

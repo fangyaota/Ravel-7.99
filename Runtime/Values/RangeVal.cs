@@ -9,11 +9,15 @@ using System.Numerics;
 ///
 ///     1..3   → 1 2 3          [1.5..3.5] → 2 3          [0.1..0.9] → 一个都没有
 ///
-/// 所以端点带小数照样能 `foreach` / `Count` / `First`;而 `Clamp` 那种"把值夹进区间"
-/// 读的是**端点本身**(`Start` / `End`),两回事互不冲突。
+/// **方向由两端自己说了算**:起点在终点**后面**就是**倒着数**(`[5..1]` → 5 4 3 2 1),
+/// 起点在前就是正着数。于是"空"只剩一种情形 —— 区间里**一个整数都没有**
+/// (`(3..3)`、`[0.1..0.9]`、NaN 那几种),不再有"倒过来所以空"这回事。
+///
+/// 那一对括号各带**一半**的意思(`[` `]` 含那一端、`(` `)` 不含),而且**跟着方向走**:
+/// 降序时"开"同样是"把那一端排掉",只不过被排掉的是往下数时紧挨着它的那个整数。
 ///
 /// 形状和 <see cref="IntVal"/> 那一族一样:一个**不可变的值**(C# record),自己不挂成员表 ——
-/// 那几条方法住在 `BuiltinClasses.Range.InstanceTable` 里,这个值借 <c>Type</c> 那条链去读
+/// 那几条方法住在 `BuiltinClasses.Range.InstanceTable` 里,这个值借 `Type` 那条链去读
 /// (基类的伪 Scope,见 <see cref="RuntimeValue.MemberScope"/>)。
 ///
 /// 值语义是白拿的:`Object` 上那条 `==` 对**两个非 `ObjectVal` 的值**比 `Equals`
@@ -30,49 +34,66 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
 {
     public override ObjectVal Type => BuiltinClasses.Range;
 
-    /// <summary>元素那一边的**闭**界 `[Lo, Hi]`;空区间给 `Lo &gt; Hi`
-    /// (端点里有 NaN 的也算空)。</summary>
-    public (BigInteger Lo, BigInteger Hi) Bounds()
+    /// <summary>遍历的两头(整数)**加方向**:`Up` 时第一站在下(`[1..3]` → 1,3),
+    /// 否则第一站在上、往下走(`[5..1]` → 5,1)。端点里有 NaN 就给"到不了"的那组(见 `IsEmpty`)。</summary>
+    public (BigInteger First, BigInteger Last, bool Up) Walk()
     {
-        if (!Whole(Start, StartClosed, lower: true, out var lo) ||
-            !Whole(End, EndClosed, lower: false, out var hi))
-            return (1, 0);                                  // NaN:当成空
+        if (!Ascending(out var up)) return (1, 0, true);   // NaN:空
 
-        return (lo, hi);
+        // 起点那一头:升序取"不小于它的最小整数",降序取"不大于它的最大整数"
+        // (降序是**往下**数的,第一站是它下面紧挨着的那个整数);终点那一头反过来。
+        // 开的那端由 `Bound` 顺着方向往里挪一格。
+        var first = Bound(Start, StartClosed, goingUp: up);
+        var last = Bound(End, EndClosed, goingUp: !up);
+        return (first, last, up);
     }
 
-    /// <summary>这个区间里有多少个整数(空的给 0)。`Count ()` 用它 ——
-    /// 装得下就是 int、装不下给 bigint。</summary>
-    public BigInteger CountValue()
-    {
-        var (lo, hi) = Bounds();
-        return lo > hi ? BigInteger.Zero : hi - lo + 1;
-    }
-
+    /// <summary>空:端点里有 NaN,或者按着那个方向数**一个整数都没有**。</summary>
     public bool IsEmpty()
     {
-        var (lo, hi) = Bounds();
-        return lo > hi;
+        var (first, last, up) = Walk();
+        return up ? first > last : first < last;
     }
 
-    /// <summary>元素交 int 还是 bigint:端点里有 bigint,或者界超出 int 范围,就给 bigint
+    /// <summary>区间里有多少个整数。空的给 0 —— `Count ()` 用它,装不下就给 bigint。</summary>
+    public BigInteger CountValue()
+    {
+        var (first, last, up) = Walk();
+        if (up ? first > last : first < last) return BigInteger.Zero;
+        return BigInteger.Abs(last - first) + 1;
+    }
+
+    /// <summary>第一个 / 最后一个**元素**(不是端点 —— 端点可能在区间外)。空的时候调用方先拦。</summary>
+    public RuntimeValue FirstElement() => Element(Walk().First);
+
+    public RuntimeValue LastElement() => Element(Walk().Last);
+
+    /// <summary>遍历的步长:`+1` 正着数、`-1` 倒着数(空区间没意义,调用方先拦)。</summary>
+    public int Step() => Walk().Up ? 1 : -1;
+
+    /// <summary>元素交 int 还是 bigint:端点里有 bigint,或者两头超出 int 范围,就给 bigint
     /// (值有多大就多大,不静默绕圈)。</summary>
     public bool Wide()
     {
-        var (lo, hi) = Bounds();
+        var (first, last, _) = Walk();
         return Start is BigIntVal || End is BigIntVal
-            || lo < int.MinValue || hi > int.MaxValue;
+            || first < int.MinValue || first > int.MaxValue
+            || last < int.MinValue || last > int.MaxValue;
     }
 
     /// <summary>界上的那个整数,按 `Wide ()` 的规矩交 int 或 bigint。</summary>
     public RuntimeValue Element(BigInteger v) => Wide() ? new BigIntVal(v) : new IntVal((int)v);
 
-    /// <summary>这个值算不算区间里的元素 —— 得是**某个整数**且在界里:
-    /// `[1..10].Contains 2` ✓、`Contains 2.0` ✓(2.0 就是整数 2)、`Contains 2.5` ✗。</summary>
+    /// <summary>这个值算不算区间里的元素 —— 得是**某个整数**且落在两头之间:
+    /// `[1..10].Contains 2` ✓、`Contains 2.0` ✓(2.0 就是整数 2)、`Contains 2.5` ✗。
+    /// **和方向无关**:同一个区间倒着数,元素还是那些。</summary>
     public bool ContainsValue(RuntimeValue v)
     {
         if (!AsInteger(v, out var n)) return false;
-        var (lo, hi) = Bounds();
+        var (first, last, up) = Walk();
+        if (up ? first > last : first < last) return false;
+        var lo = BigInteger.Min(first, last);
+        var hi = BigInteger.Max(first, last);
         return lo <= n && n <= hi;
     }
 
@@ -83,19 +104,46 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     //  端点 → 界
     // ============================================================
 
-    /// <summary>端点折成**元素那一边**的界:起点取"不小于它的最小整数"、终点取"不大于它的最大整数"
-    /// (端点本来就是整数就用它自己);开的那端再各挪一格。
-    /// NaN 给 false(那就是空区间),无穷直接报错 —— 给不出界。</summary>
-    private static bool Whole(RuntimeValue v, bool closed, bool lower, out BigInteger bound)
+    /// <summary>起点是不是在终点前面(升序)。NaN 掺和进来给 false,调用方当成空。</summary>
+    private bool Ascending(out bool up)
+    {
+        up = true;
+        if (!BuiltinClasses.TryAsDouble(Start, out var a) || !BuiltinClasses.TryAsDouble(End, out var b))
+            return false;
+        if (double.IsNaN(a) || double.IsNaN(b)) return false;
+
+        up = a <= b;
+        return true;
+    }
+
+    /// <summary>端点折成一个整数界:`goingUp` 取"不小于它的最小整数",否则取"不大于它的最大整数"
+    /// (端点本来就是整数就用它自己);开的那端再往里挪一格 —— **往里**是哪个方向由 `goingUp` 说了算。
+    /// NaN 给 false,无穷直接报错(给不出界)。</summary>
+    private static bool Whole(RuntimeValue v, bool closed, bool goingUp, out BigInteger bound)
+    {
+        if (!Point(v, goingUp, out bound)) return false;
+        if (!closed) bound += goingUp ? 1 : -1;
+        return true;
+    }
+
+    private static BigInteger Bound(RuntimeValue v, bool closed, bool goingUp)
+    {
+        if (!Whole(v, closed, goingUp, out var b))
+            throw new RuntimeException($"区间的端点不能是 {v} —— 它给不出界");
+        return b;
+    }
+
+    /// <summary>端点往 `goingUp` 那边折成一个整数(不管开闭)。**不**处理开的那端。</summary>
+    private static bool Point(RuntimeValue v, bool goingUp, out BigInteger bound)
     {
         switch (v)
         {
             case IntVal i:
                 bound = i.Value;
-                break;
+                return true;
             case BigIntVal b:
                 bound = b.Value;
-                break;
+                return true;
             case FloatVal f:
                 if (double.IsNaN(f.Value))
                 {
@@ -106,32 +154,29 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 if (double.IsInfinity(f.Value))
                     throw new RuntimeException($"区间的端点不能是 {f.Value} —— 无穷长的区间给不出界");
 
-                bound = new BigInteger(lower ? Math.Ceiling(f.Value) : Math.Floor(f.Value));
-                break;
+                bound = new BigInteger(goingUp ? Math.Ceiling(f.Value) : Math.Floor(f.Value));
+                return true;
             case FractionVal fr:
-                bound = Div(fr.Num, fr.Den, lower);
-                break;
+                bound = Div(fr.Num, fr.Den, goingUp);
+                return true;
             case BigFractionVal bf:
-                bound = Div(bf.Num, bf.Den, lower);
-                break;
+                bound = Div(bf.Num, bf.Den, goingUp);
+                return true;
             default:
                 throw new RuntimeException($"区间的端点需要数值，得到 {v.Type}");
         }
-
-        if (!closed) bound += lower ? 1 : -1;               // 开的那端往里挪一格
-        return true;
     }
 
-    /// <summary>`num/den` 的上取整(`lower` = false 时是下取整)。分母恒正 —— 分数构造时就
-    /// 归一了(见 `FractionVal` 的说明)。C# 的整数除法往零截断(负数那边不对),所以按余数符号分一分。</summary>
-    private static BigInteger Div(BigInteger num, BigInteger den, bool lower)
+    /// <summary>`num/den` 往上取整(`goingUp`)或往下取整。分母恒正 —— 分数构造时就归一了
+    /// (见 `FractionVal` 的说明)。C# 的整数除法往零截断(负数那边不对),所以按余数符号分一分。</summary>
+    private static BigInteger Div(BigInteger num, BigInteger den, bool goingUp)
     {
         if (den.IsZero) throw new RuntimeException("区间的端点是分数，分母不能为零");
 
         var q = BigInteger.DivRem(num, den, out var r);
         if (r.IsZero) return q;                             // 本来就整
-        if (r.Sign > 0) return lower ? q + 1 : q;           // 正余数:上取整要进一
-        return lower ? q : q - 1;                           // 负余数(刚才往零截断过):下取整要退一
+        if (r.Sign > 0) return goingUp ? q + 1 : q;         // 正余数:往上取整要进一
+        return goingUp ? q : q - 1;                         // 负余数(刚才往零截断过):往下取整要退一
     }
 
     /// <summary>这个值算不算"某个整数"(`2.0` 算 2、`2.5` 不算、`6/3` 算 2、`5/2` 不算)。</summary>
