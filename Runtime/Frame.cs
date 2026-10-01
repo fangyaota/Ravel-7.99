@@ -20,7 +20,12 @@ public abstract record Frame
 public record NodeFrame(AstNode Node) : Frame;
 
 /// <summary>执行一个代码块:逐语句求值,Results.Count=已完成的语句数,Results 存最近一条语句的值</summary>
-public record BlockExecFrame(BlockExpr Block) : Frame;
+public record BlockExecFrame(BlockExpr Block) : Frame
+{
+    /// <summary>这个块是**柯里化函数**的体(见 `BlockExpr.Curried`)—— 它交出去的那个函数
+    /// 是个半成品,收尾时顺手打上标(见 `FunctionVal.IsPartial`)。调用方只有 `CallInto`。</summary>
+    public bool Curried { get; init; }
+}
 
 /// <summary>控制帧:while/if/with/foreach/callcc/using/eval 的状态机。Args=收集的块/参数,State=循环累积值</summary>
 public record ControlFrame(ControlKind Kind, RList<RuntimeValue> Args, RuntimeValue State) : Frame

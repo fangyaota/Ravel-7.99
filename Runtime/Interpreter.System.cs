@@ -26,6 +26,7 @@ public partial class Interpreter
         Controls();
         Output();
         Reflection();
+        Diagnostics();
         RegexPrimitives();
         RandomSources();
         Files();
@@ -207,6 +208,23 @@ public partial class Interpreter
         // 把标准输入读到 EOF(终端上要 Ctrl+Z / Ctrl+D 收)。`stdin` 那个文件的 `Read ()` 靠它 ——
         // 想读一行用 ReadLine(它是 `input`)。
         DefFn("ReadAllInput", FunctionVal.From(_ => new StringVal(Console.In.ReadToEnd())));
+    }
+
+    /// <summary>诊断开关 —— 引擎自己那几条"提醒一声但不拦你"的东西</summary>
+    private void Diagnostics()
+    {
+        // 「是不是忘了调用?」:块里**不是最后一条**的语句,值求出来是个函数就在 stderr 上提醒一句
+        // (为什么只管非最后一条、为什么默认关,见 Interpreter.WarnForgotCall)。
+        // CLI 的 `--warn` 在第一条语句之前就把它打开;脚本里也能随时开/关 —— 比如只想盯住某一段:
+        //
+        //     System.WarnForgotCall true
+        //     … 可疑的那几行 …
+        //     System.WarnForgotCall false
+        DefFn("WarnForgotCall", FunctionVal.From(a =>
+        {
+            WarnForgotCall = As<BoolVal>(a, "WarnForgotCall").Value;
+            return VoidVal.Instance;
+        }));
     }
 
     /// <summary>反射与作用域</summary>

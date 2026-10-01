@@ -25,6 +25,11 @@ public static class ErrorReport
         _ => ex.Message,
     };
 
+    /// <summary>**警告**的呈现:位置、源码行、插入符和错误一模一样,只是**没有调用栈** ——
+    /// 警告不打断执行,栈是给"出错在哪一步"用的,这儿没那层意思。
+    /// `警告:` 这个前缀在这儿加,调用点只管给消息。</summary>
+    public static string Warning(string message, SourceSpot spot) => "警告: " + Render(message, spot, []);
+
     /// <summary>位置 + 源码行 + 插入符 + 调用栈。两个 Format 都收到这里,免得画两遍。</summary>
     private static string Render(string message, SourceSpot spot, IReadOnlyList<string> trace)
     {

@@ -1,0 +1,80 @@
+# 「是不是忘了调用?」—— 块里**不是最后一条**的语句,值求出来是个函数就在 stderr 上提醒一句。
+#
+# 开的方式:命令行 `ravel --warn 脚本.rav`,或脚本里 `System.WarnForgotCall true`。
+# 顶上的 `# warn` 是给**测试运行器**看的标记:警告写的是 stderr,而用例比的是 stdout,
+# 不收进来一条也钉不住(见 GoldenTestRunner)。
+# warn
+System.WarnForgotCall true
+
+# ── 响的两大类 ──
+
+# ① 半成品:调了,实参没给够。`if` 是三参的,这里只给两块 —— 不报错,
+#    只交回一个"还等着第三个块"的函数,然后被当普通语句丢掉(那一整块静默不跑)。
+f := () => {
+    print "before"
+    if { true; } { print "这一段静默不跑"; }
+    print "after"
+    0;
+}
+f ()
+
+# ② 光写了个函数名,压根没调用
+g := () => {
+    print "g"
+    f
+    0;
+}
+g ()
+
+# 同一句在循环里跑很多遍 —— 只提醒一次(刷屏的警告等于没有警告)
+h := () => {
+    i := 0
+    while { i < 3; } {
+        if { true; } { print "循环里也不跑"; }
+        i += 1
+    }
+    0;
+}
+h ()
+
+# 别的半成品:内置的柯里化函数(assert 还缺那句消息)、构造器(还缺一个参数)
+Point ::= class { init = (x: int y: int) => { this; } }
+Point 1
+
+# ── 不响的几种:它们是这门语言的常态,不是错 ──
+
+Holder ::= class { f := (x: int) => { x; } }
+
+n := () => {
+    print (1 < 2)                   # bool 也是函数(可调用),但这不是"忘了调用"
+    v := (x: int) => { x; }         # 定义语句的值是 (),不是函数
+    v = (y: int) => { y; }           # 赋值语句交回赋进去的那个值 —— 事已经做了
+    b := Holder ()                  # 成员赋值同理(它在语法上是个 BinaryExpr)
+    b.f = (z: int) => { z; }
+    print (v 1)
+    assert (1 == 1) "这条是完整调用"
+    0;
+}
+n ()
+# --- expected ---
+# before
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool := c (); cond t e; } applied c=<block> t…
+#   --> tests/264_warn_forgot_call.rav:15:5
+#   15 |     if { true; } { print "这一段静默不跑"; }
+#      |     ^
+# after
+# g
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (_: void) => { print "before"; if ({ true; }) ({ print "这一段静默不跑"; }); p…
+#   --> tests/264_warn_forgot_call.rav:24:5
+#   24 |     f
+#      |     ^
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool := c (); cond t e; } applied c=<block> t…
+#   --> tests/264_warn_forgot_call.rav:33:9
+#   33 |         if { true; } { print "循环里也不跑"; }
+#      |         ^
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function Point (y: int) => { this; } applied x=1>
+#   --> tests/264_warn_forgot_call.rav:42:1
+#   42 | Point 1
+#      | ^
+# true
+# 1

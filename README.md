@@ -74,6 +74,8 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 
 - **REPL**:`dotnet out/ravel.dll` 不带参数就进,多页缓冲 + 高亮 + 光标(靠 Spectre.Console)。
 - **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test` 比对。
+- **`--warn`**:少给一块的 `if`、`assert 条件` 忘了写消息 —— 这类"半成品函数被静默丢掉"的坑,
+  开着它就当场提醒一句(见 `CONTEXT.md` 的「诊断」一节)。
 - **VS Code 扩展**(`vscode-ravel/`):语法高亮 + 折叠(按 `{}` 分块、注释段)+ 跑当前文件 / 全量测试 / 开 REPL;括号匹配认区间的交叉括号(`[1..5)` / `(1..5]`)。
 - **全中文**:注释、文档、报错、提交信息。
 
@@ -88,6 +90,9 @@ dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav       # 单文件
 dotnet out/ravel.dll path/file.rav a b   # 脚本名之后那些进 System.Args ()
 dotnet out/ravel.dll                     # REPL(不带参数)
+
+dotnet out/ravel.dll --warn file.rav     # 开「是不是忘了调用?」的提醒(stderr)
+dotnet out/ravel.dll --warn test         # 整个用例库过一遍那个筛子(不影响比对结果)
 
 # 用例里有个长循环压着 callcc,显式给 256MB 堆上限它才跑得稳(CI/VS Code 任务里都带着)
 DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test

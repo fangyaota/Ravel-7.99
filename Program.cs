@@ -3,21 +3,44 @@ using Ravel.Repl;
 using Ravel.Runtime;
 using Ravel.Testing;
 
-if (args.Length == 0)
+// 脚本名**之前**那些 `--` 开关由 CLI 自己吃;脚本名和它之后的一律是脚本的
+// (`System.Args ()` 交回的就是后者)。所以 `ravel --warn x.rav --warn` 里后面那个
+// `--warn` 是给脚本的,和前面那个不是一回事。
+var warn = false;
+var first = 0;
+for (; first < args.Length && args[first].StartsWith('-'); first++)
 {
-    new NeoInteractor(new Interpreter()).Run();
+    switch (args[first])
+    {
+        case "--warn" or "-w": warn = true; break;
+        default:
+            Console.WriteLine($"不认识的开关 '{args[first]}'。用法: ravel [--warn] [脚本.rav [参数…]]");
+            Environment.ExitCode = 1;
+            return;
+    }
 }
-else if (args[0] == "test")
+
+var rest = args[first..];
+
+if (rest.Length == 0)
 {
-    if (!GoldenTestRunner.RunAll()) Environment.ExitCode = 1;
+    new NeoInteractor(new Interpreter { WarnForgotCall = warn }).Run();
+}
+else if (rest[0] == "test")
+{
+    // `--warn` 传下去:每条用例都带上开关跑一遍。**比对的是 stdout**,警告走 stderr ——
+    // 所以这一趟不会让谁红掉,它就是个"整个用例库过一遍筛子"的用法:
+    //     ravel --warn test 2>&1 | grep 警告
+    // (单独一条用例要**钉住**警告长什么样,在它开头写 `# warn`,见 GoldenTestRunner)
+    if (!GoldenTestRunner.RunAll(warn)) Environment.ExitCode = 1;
 }
 else
 {
     // 脚本名之后那些交给 `System.Args ()`(REPL / `ravel test` 没有,它们是空的)
-    RunFile(args[0], args[1..]);
+    RunFile(rest[0], rest[1..], warn);
 }
 
-static void RunFile(string path, string[] scriptArgs)
+static void RunFile(string path, string[] scriptArgs, bool warn)
 {
     string source;
     try
@@ -38,7 +61,9 @@ static void RunFile(string path, string[] scriptArgs)
     Console.WriteLine("── Output ──");
     try
     {
-        new Interpreter(scriptArgs).Interpret(Parser.ParseSource(source, path));
+        // 开关在**建完之后**才拨:构造时就把 predefined 跑了,而那是库、不是用户代码 ——
+        // 提醒要说的是"你这几行",不该被库里的写法刷屏(`lib/` 里自己开另说)。
+        new Interpreter(scriptArgs) { WarnForgotCall = warn }.Interpret(Parser.ParseSource(source, path));
     }
     // 运行时错误和语法错误渲染同一份报告(位置 + 源码行 + 插入符 + 调用栈),
     // 所以用一条 when 收下来,不必写两遍一模一样的 catch

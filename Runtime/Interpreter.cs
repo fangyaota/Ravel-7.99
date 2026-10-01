@@ -15,6 +15,21 @@ public partial class Interpreter
     /// 的 RunFile)。所以 REPL 和 `ravel test` 里这份就是空的 —— 它们没有"脚本的参数"可言。</summary>
     public IReadOnlyList<string> ScriptArgs { get; }
 
+    /// <summary>「是不是忘了调用?」—— 块里**不是最后一条**的语句,值求出来是个函数就在 stderr 上提醒一句。
+    ///
+    /// 为什么专挑这个:实参收满才成一次调用,少给一块(最典型的就是 `if { … } { … }` 只给两块)
+    /// **不报错**,只交回一个半成品函数,然后被当成一条普通语句静默丢掉 —— 程序照跑,结果不对。
+    ///
+    /// 为什么不管**最后一条**:块的值就是它,`() => { … }` 那种"交回一个函数"是正常写法。
+    /// 管了的话每个高阶函数的返回处都要响一声。
+    ///
+    /// 为什么默认关:它是**诊断开关**,不是语法规则。CLI 用 `--warn` 打开(REPL 同理),
+    /// 脚本里随时能开 —— `System.WarnForgotCall true`(见 predefined 之外的 System 模块)。
+    /// **报过一次的位置不再报**:循环体里那一句一跑就是几千遍,刷屏反而看不见。
+    ///
+    /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。</summary>
+    public bool WarnForgotCall { get; set; }
+
     /// <summary>创建解释器：注册内置、加载预定义模块</summary>
     /// <param name="scriptArgs">脚本名之后那些参数;不给就是空的(REPL、测试运行器这么用)</param>
     public Interpreter(IEnumerable<string>? scriptArgs = null)

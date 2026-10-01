@@ -247,10 +247,83 @@ public partial class Interpreter
     {
         if (bf.Count < bf.Block.Statements.Count)
         {
+            // 走到这儿 = **上一条语句刚跑完**(Results[Count-1]),而且后面还有别的语句 ——
+            // 也就是说它那一份值是被**丢掉**的。丢的是不是个函数,在这儿看一眼。
+            if (bf.Count > 0) WarnIfForgotCall(bf);
             _top = new NodeFrame(bf.Block.Statements[bf.Count]) { Parent = bf, Scope = bf.Scope };
             return;
         }
 
-        Return(bf, bf.Count == 0 ? VoidVal.Instance : bf.Last);
+        var v = bf.Count == 0 ? VoidVal.Instance : bf.Last;
+        // 柯里化函数的体:交出去的那个就是**半成品**(还等着下一批实参)
+        if (bf.Curried && v is FunctionVal f) f.IsPartial = true;
+        Return(bf, v);
+    }
+
+    /// <summary>警报过账:同一个位置只报一次。循环体里那一句一跑就是几千遍,
+    /// 刷屏的警告等于没有警告。(位置 = 文件 + 行列,和报告里印的是同一份。)</summary>
+    private readonly HashSet<(string?, int, int)> _warnedForgotCall = [];
+
+    /// <summary>「是不是忘了调用?」—— 上一条语句(下标 `Count-1`)的值被丢掉了,而它是个函数。
+    ///
+    /// 为什么值得响一声:实参收满才成一次调用,少给一块(`if { c } { t }` 这种,少最后那个 `e`)
+    /// 不会报错,只交回一个**半成品函数**;它被丢掉之后程序照跑,只是该做的事没做。
+    /// 消息里带上那个函数本身(`<function (e: function) => { … }>`)—— 一眼就看出还缺哪个参数。
+    ///
+    /// **只认两种形状**,别的都是这门语言的常态、不算错:
+    ///
+    /// * **半成品**(`FunctionVal.IsPartial`):调了,实参没给够。`if { c } { t }`、
+    ///   `assert 条件`(消息没给)、`true { A }`(第二个块没给)、`Point 3`(还差一个)都是这一种。
+    /// * **光写了个名字,压根没调用**:`foo` / `obj.method` 这么一句。
+    ///
+    /// 两处**不响**,都是为了不误报:
+    ///
+    /// * 只认**光秃秃的一句表达式**。`x = f` 的值是那个赋值动作的副产物 —— 事情已经做了,
+    ///   丢掉的只是回显(赋值交回赋进去的那个值,见 `WriteVariable`),和"忘了调用"不是一回事。
+    ///   (`a.b := f` 是同一个东西:它在语法上是个 `BinaryExpr`,见 `OperatorSymbols.AssignOps`。)
+    /// * **完整的函数流转不算**。块的最后一个值就是块的值 —— 于是函数可以一路从里层飘出来
+    ///   (`body ()` 交回循环体的值、`HandlerStack.Remove 0` 交回被摘掉的那个 handler),
+    ///   落在哪一句上纯属碰巧。`IsPartial` 正是把这层噪音滤掉的那道闸。
+    ///
+    /// 这儿排掉的 `bool` / 续延和 <see cref="RuntimeValue.IsClosure"/> 排掉的那两样**不是一回事**:
+    /// 那边排的是"数据值"(bool、类对象),这边排的是"可调用,但不是等着实参的东西" ——
+    /// **类对象要留着**(`Point` 光写个名字正是"忘了调用"),而续延是 `callcc` 交出来的
+    /// 控制状态本身,调它不是喂参数(见 `Interpreter.Control.cs` 里那段同样的说明)。</summary>
+    private void WarnIfForgotCall(BlockExecFrame bf)
+    {
+        if (!WarnForgotCall) return;
+
+        var stmt = bf.Block.Statements[bf.Count - 1];
+        if (stmt is not ExpressionStatement es) return;
+        // 赋值那一类跳过:`a.b = v` / `a.b := v` 在语法上也是 ExpressionStatement(BinaryExpr),
+        // 但值是"赋进去的那个"这个副产物 —— 事已经做了(见 OperatorSymbols.AssignOps)
+        if (es.Expr is BinaryExpr bin && OperatorSymbols.AssignOps.Contains(bin.Op)) return;
+        if (bf.Last is not FunctionVal fn || fn is BoolVal or ContinuationVal) return;
+        // 半成品(少给了实参),或"光写了个名字"—— 就这两种
+        if (!fn.IsPartial && es.Expr is not (IdentifierExpr or MemberAccess)) return;
+
+        var spot = new SourceSpot(bf.Block.Source, stmt.Line, stmt.Column);
+        if (!_warnedForgotCall.Add((spot.File, spot.Line, spot.Column))) return;
+
+        Console.Error.WriteLine(ErrorReport.Warning(
+            $"这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 {Brief(fn)}", spot));
+    }
+
+    /// <summary>警告是**一行一句**的:函数印出来可能很长(签名 + 已收的实参),
+    /// 而且 lambda 的 `ToString` 里可能带换行 —— 先把空白折成一个空格,再截到 80 个字符。
+    /// 就是给人扫一眼"还缺哪个参数",不必展开。</summary>
+    private static string Brief(FunctionVal fn)
+    {
+        var sb = new System.Text.StringBuilder(80);
+        var gap = false;
+        foreach (var c in fn.ToString())
+        {
+            if (char.IsWhiteSpace(c)) { gap = sb.Length > 0; continue; }
+            if (sb.Length >= 80) { sb.Append('…'); break; }
+            if (gap) { sb.Append(' '); gap = false; }
+            sb.Append(c);
+        }
+
+        return sb.ToString();
     }
 }

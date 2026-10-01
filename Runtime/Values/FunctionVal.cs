@@ -34,6 +34,20 @@ public record FunctionVal : ObjectVal
 
     public override string ToString() => Name != null ? "<function " + Name + ">" : "<function>";
 
+    /// <summary>**半成品**:实参还没收满,再喂它才接着收(柯里化)。
+    ///
+    /// 打标的地方就那么几处,因为"还等着实参"这件事只有**分派那一步**知道:
+    /// 柯里化的 lambda 交回内层时(`CallInto` 的 LambdaVal 那一格 + `BlockExecFrame.Curried`)、
+    /// 内置的柯里化函数交回内层时(<see cref="From(Func{RuntimeValue, RuntimeValue, RuntimeValue})"/>)、
+    /// 以及本身就是半成品的 <see cref="PartialCtor"/> / <see cref="PartialBool"/>。
+    ///
+    /// **别拿 `LambdaVal.Applied ()` 当这个用**:那一条走的是"闭包捕获了定义处的实参",
+    /// 在一个被调用过的函数里定义的 lambda 一律非空(`Try` 里的 `mine` 就是),分不出半成品。
+    ///
+    /// 只有一处用处:`WarnForgotCall` 判"这一句丢掉的函数是不是**忘了给实参**"
+    /// (见 `Interpreter.WarnIfForgotCall`)。</summary>
+    public bool IsPartial { get; set; }
+
     /// <summary>需要捕获作用域时用(captureScope 参与签名,Body 里可读 CaptureScope)。
     /// `members` 只有 <see cref="ClassVal"/> 用得上 —— 类对象的成员表由调用方备好(实例作用域)。</summary>
     public FunctionVal(Scope captureScope, Func<Scope, RuntimeValue, RuntimeValue> rawBody, Scope? members = null)
@@ -59,13 +73,19 @@ public record FunctionVal : ObjectVal
     public static FunctionVal From(Func<RuntimeValue, RuntimeValue> f)
         => new(null!, (_, a) => f(a));
 
-    /// <summary>二元内置函数,柯里化:f a b ≡ (f a) b</summary>
+    /// <summary>二元内置函数,柯里化:f a b ≡ (f a) b。**只给了第一个实参时交回的那个标成半成品**
+    /// (它确实还等着第二个);给全了的那个不标 —— 它是完整的。</summary>
     public static FunctionVal From(Func<RuntimeValue, RuntimeValue, RuntimeValue> f)
-        => From(a1 => From(a2 => f(a1, a2)));
+        => From(a1 => Partial(a2 => f(a1, a2)));
 
-    /// <summary>三元版（if 用：if {c} {t} {e} ≡ ((if c) t) e）</summary>
+    /// <summary>三元版（if 用：if {c} {t} {e} ≡ ((if c) t) e）——
+    /// 前两次交回的都还等着实参,照标。</summary>
     public static FunctionVal From(Func<RuntimeValue, RuntimeValue, RuntimeValue, RuntimeValue> f)
-        => From(a1 => From(a2 => From(a3 => f(a1, a2, a3))));
+        => From(a1 => Partial(a2 => Partial(a3 => f(a1, a2, a3))));
+
+    /// <summary>一个**半成品**内置函数(见 <see cref="IsPartial"/>)</summary>
+    private static FunctionVal Partial(Func<RuntimeValue, RuntimeValue> f)
+        => new(null!, (_, a) => f(a)) { IsPartial = true };
 
     /// <summary>前置执行一个块，再执行本函数（参数原样转发）→ Compose 控制帧</summary>
     public FunctionVal Prepend(BlockVal prefix) => new ComposeVal(this, prefix, true);

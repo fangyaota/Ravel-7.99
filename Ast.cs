@@ -17,6 +17,18 @@ public static class OperatorSymbols
         ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^", "is", "isnot", "<:", ":>"];
 
     public static bool IsSymbol(string name) => All.Contains(name);
+
+    /// <summary>**赋值那一类**(`a.b = v` / `a.b := v` / `+=` / …)。
+    ///
+    /// 它们在语法上就是 `BinaryExpr`(见 `Parser.Expressions.ParseAssignment`),所以
+    /// **认的形状和别的二元运算一模一样**;区别在求值:`WriteVariable` 那条把赋进去的值
+    /// 交回来(`x := 0` 给 `()`、`x = 0` 给 `0`、`by` 属性给新值 —— 三个答案已经统一成一个)。
+    ///
+    /// 表摆在这儿是要**只有一个出处**:`Interpreter.WarnIfForgotCall` 判"这一句的值被丢掉了"
+    /// 时要跳过它们 —— 赋值的事已经做了,丢的只是回显,不是"忘了调用"。
+    /// (改 `ParseAssignment` 里那串 `Match` 的话,这儿也得跟着改。)</summary>
+    public static readonly HashSet<string> AssignOps =
+        ["=", ":=", "+=", "-=", "*=", "/=", "%="];
 }
 
 // ============================================================
@@ -145,6 +157,15 @@ public record BlockExpr(List<Statement> Statements) : Expression
     /// <summary>这个块来自哪个源文件(主文件 / using 的模块 / eval 的片段)。
     /// 节点本身只有行列,文件名记在块上——求值器报错和拼调用栈时沿帧链取最近的一个。</summary>
     public string? Source { get; init; }
+
+    /// <summary>这是个**柯里化函数**的体 —— 体就是"再交一个 lambda"那一句。</summary>
+    /// <remarks>多参 lambda(`(a b c) => { … }`)在语法层就是这么消的糖(见 Parser.Atoms 的
+    /// 多参数消糖),所以用户写的多参函数**一律**是柯里化的:给一个实参,它交回内层那个。
+    /// 手写的 `(x) => { (y) => { … } }` 形状一样,一视同仁。
+    ///
+    /// 谁在用:`CallInto` 拿它给这次调用交回的那个函数打上 `FunctionVal.IsPartial`
+    /// (半成品 —— 还等着下一批实参),那又喂给 `Interpreter.WarnIfForgotCall`。</remarks>
+    public bool Curried => Statements is [ExpressionStatement { Expr: LambdaExpr }];
 }
 
 // --- 辅助 ---

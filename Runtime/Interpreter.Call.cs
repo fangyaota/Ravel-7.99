@@ -21,7 +21,9 @@ public partial class Interpreter
                 var lamScope = lam.CaptureScope.Push();
                 lamScope.Define("self", BuiltinClasses.Function, lam);
                 lamScope.Define(lam.ParamName, lam.ParamType, arg);
-                _top = new BlockExecFrame(lam.Block) { Parent = sink, Scope = lamScope };
+                // 柯里化的体跑完交回的是**内层那个 lambda** —— 那是个半成品(还等着实参),
+                // 收尾时打个标(见 BlockExecFrame.Curried / FunctionVal.IsPartial)
+                _top = new BlockExecFrame(lam.Block) { Parent = sink, Scope = lamScope, Curried = lam.Block.Curried };
                 break;
             case NativeClosure nc:
             {

@@ -1559,6 +1559,38 @@ Error: 未定义的变量 'missing'
   eval 一段用户输入就能撂倒整个程序。没人接时仍抛原异常，CLI 按语法错误渲染。
   `eval` 的块带合成名 `<eval>`（`ErrorReport.ShortPath` 认这种虚拟名，不当路径解析）。
 
+## 诊断:是不是忘了调用?（`--warn` / `System.WarnForgotCall`）
+
+`lib/predefined.rav` 里 `if` 是**三参**库函数，`if { c } { t }` 少给最后一块**不报错** ——
+只交回一个**半成品函数**，然后被当普通语句丢掉，那一整块静默不跑。这类坑靠读代码很难看见，
+所以有一个开关专门盯它：语句的值求出来是个函数、而且这份值**没被用掉**，就在 stderr 上提醒一句
+（位置 + 源码行 + 插入符，和错误报告同一套渲染 —— `ErrorReport.Warning`）。
+
+- **开**：CLI 的 `--warn`（`ravel --warn 脚本.rav`，REPL 也一样）；脚本里随时开关：
+  `System.WarnForgotCall true`。`ravel --warn test` 则把整个用例库当样本过一遍筛子
+  （只开开关、**不动比对** —— 警告走 stderr，比的是 stdout）。
+- **只管两种形状**（其余都是这门语言的常态，不是错）：
+  1. **半成品** —— `FunctionVal.IsPartial`：调了，实参没给够。`if { c } { t }`、
+     `assert 条件`（消息没给）、`true { A }`（第二个块没给）、`Point 3`（还差一个）。
+  2. **光写了个名字，压根没调用**：`foo` / `obj.method` 这么一句。
+- **只认不是最后一条的语句**：块的值就是最后一条，`() => { … }` 那种"交回一个函数"是正常写法。
+- **同一个位置只报一次**（`_warnedForgotCall`）：循环体里那一句跑几千遍也只说一句。
+- **`IsPartial` 是专门为这件事加的一枚标**，打在三处：柯里化的 lambda 交回内层时
+  （`BlockExpr.Curried` → `BlockExecFrame.Curried` → `CallInto`）、内置的柯里化函数交回内层时
+  （`FunctionVal.From` 的 `Partial`）、以及本身就是半成品的 `PartialCtor` / `PartialBool`。
+  **别拿 `LambdaVal.Applied ()` 当这个标**：那一条走的是"闭包捕获了定义处的实参"，
+  在一个被调用过的函数里定义的 lambda 一律非空（`Try` 里的 `mine` 就是），分不出半成品。
+- **不响的两处**（都是为了不误报）：赋值语句（`x = f` / `a.b := f` 的值是"赋进去的那个"
+  这个副产物，事已经做了 —— 见 `OperatorSymbols.AssignOps`）；完整的函数流转
+  （`body ()` 交回循环体的值、`HandlerStack.Remove 0` 交回被摘掉的那个 handler ——
+  块的值一路飘出来落在哪一句上纯属碰巧）。
+- 排掉的 `bool` / 续延和 `RuntimeValue.IsClosure` 排掉的那两样**不是一回事**：那边排的是
+  "数据值"（bool、类对象），这边排的是"可调用但不是等着实参的东西"；类对象要留着
+  （`Point` 光写个名字正是"忘了调用"）。
+
+用例见 `tests/264_warn_forgot_call.rav`（顶上的 `# warn` 是给运行器的标记：把 stderr
+一起收进比对里，否则警告一条也钉不住）。
+
 ## 两个「类型说有、值却没有」的坑
 
 这两处都栽过，加新类型/新内建时留意：
