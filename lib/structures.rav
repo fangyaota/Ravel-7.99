@@ -37,6 +37,18 @@ impl (IEnumerable Structures.SortedDict {
     by GetEnumerator = property (() => { () => { Enumerator (instance.Values ()); }; }) ((v: function) => { (); })
 })
 
+# 图那一族(`Graph` / `Digraph` / `Weighted`):`foreach` 一个图就是**枚举它的顶点**。
+# (顶点之间的路要"走一遍"用 `Bfs` / `Dfs`;`foreach` 只按加进来的先后点名。)
+impl (IEnumerable Structures.Graph {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Vertices ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.Digraph {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Vertices ()); }; }) ((v: function) => { (); })
+})
+impl (IEnumerable Structures.Weighted {
+    by GetEnumerator = property (() => { () => { Enumerator (instance.Vertices ()); }; }) ((v: function) => { (); })
+})
+
 # 排序字典也**是个字典**:`Get` / `Set` / `Has` / `Remove` / `GetOr` 它自己就有。
 impl (IDict Structures.SortedDict {
     ()

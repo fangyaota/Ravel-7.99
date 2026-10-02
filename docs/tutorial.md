@@ -2020,6 +2020,21 @@ Text.Truncate "abcdef" 4         # "abc…"
 Text.Quote "说不清\"的话"         # 转义成看得见的样子（拼报错/写期望时用）
 ```
 
+**任意结构都能画成一棵树** —— 给它"子节点是谁""这一行写什么"两枚函数：
+
+```ravel
+Kids := (x: string) => { if { x == "a"; } { ["b" "c"]; } { []; } }
+print (Text.Tree "a" Kids ((x: string) => { x; }))
+# a
+# ├── b
+# └── c
+```
+
+`Types.PrintTree`（类型树）画的就是这个 —— 它只补了"直接子类是谁"和那行的文字。
+交回的是**字符串**（`├── ` / `└── `，子层缩进 4 格），要打印就 `print`。
+有环的结构**得自己在 `children` 里挡**（`Text.Tree` 只照着画，不做环检测；
+`examples/refgraph.rav` 就是这么画模块引用图的）。
+
 ```ravel
 using "encoding.rav"
 Encoding.Base64Text "你好"        # "5L2g5aW9"（先 UTF-8 变字节，再编码）
@@ -2283,9 +2298,9 @@ db.Close ()
 
 **用例见 tests/272、tests/273、tests/274（内存库，不落盘）。**
 
-### 6.18 数据结构（`Stack` / `Queue` / `Deque` / `Heap` / `SortedDict` / `SortedSet`）
+### 6.18 数据结构（`Stack` / `Queue` / `Deque` / `Heap` / `SortedDict` / `SortedSet` / `Graph`）
 
-这六个是**插件**：类和函数在一个独立项目里（`Ravel.Structures/`），编成
+这几个都是**插件**：类和函数在一个独立项目里（`Ravel.Structures/`），编成
 `plugins/Ravel.Structures.dll`；`using "structures.rav"` 把它装进来，顺手登记
 `IEnumerable`（于是 `foreach` / `Map` / `Fold` 那一整套白拿）。名字在 `Structures` 模块下：
 
@@ -2323,11 +2338,46 @@ ss.Add 4 / ss.Min () / ss.Max ()
 - 空结构上 `Pop` / `Peek` / `Min` 这类**报错**（不是给 `()` ——「没有」和「是空值」不该长得一样）。
 - 打印出来带前缀（`Stack [3 2 1]` / `SortedSet {1 2 3}`），枚举顺序就是那个顺序。
 
-**用例见 tests/275。**
+**图**那一族是三个类，各管一种：
+
+```ravel
+g := Structures.Graph ["a" "b" "c"]   # 无向无权；构造参数就是播种顶点
+g.AddEdge "a" "b"
+g.AddEdge "b" "c"
+print (g.Neighbors "a")               # [b]
+print (g.Bfs "a")                     # 访问序 [a b c]
+print g                               # Graph [a b c] {a-b b-c}
+print (g.Path "a" "c")                # 最短路 [a b c]；Distance 是它的长度
+
+d := Structures.Digraph ()            # 有向：Neighbors 是出边、InNeighbors 是入边
+d.AddEdge "a" "b"
+print (d.TopoSort ())                 # 有环、或者根本是无向图 → 当场报错
+
+w := Structures.Weighted ()           # 带权；Weighted {"directed": true} 是有向带权
+w.AddEdge "a" "b" 2.5                 # 权重是第三个参数
+print (w.Distance "a" "b")            # 最短路走 Dijkstra
+```
+
+图那几条规矩：
+
+- 顶点是**值类型**（数 / 字符串），和 `dict` 的键一个规矩。权重收数值，
+  **负数在 `AddEdge` 就挡下**（最短路走 Dijkstra，负权它不管）。
+- `Edges ()` 交回 `[{from: … to: … weight: …}]`；无向图**每条只出一次**。
+- 算法：`Bfs` / `Dfs`（访问序）、`TopoSort` / `Components`、
+  `Path` / `Distance` / `Distances` / `HasPath`。**不连通当场报错** ——
+  要问"通不通"用 `HasPath`。
+- `foreach` 一个图 = 枚举**顶点**（`Vertices ()` 那个序）。
+
+**用例见 tests/275 / tests/295。**
 
 想自己写一族?照 `Ravel.Structures/` 的样子开一个项目:类上挂
 `[RavelModule("模块名")]` + `[RavelClass("类名")]`,方法挂 `[ClassMethod]` / `[ClassCtor]`,
 模块里的函数挂 `[RavelFn]` —— `using "你的.dll"` 之后就能用(见 `Runtime/Builtins/PluginApi.cs`)。
+
+**几个类要共用一套方法**就写在共同的**基类**上、几个壳各自只声明 `[ClassCtor]`
+(`Ravel.Structures/GraphClass.cs` 就是:`Graph` / `Digraph` / `Weighted` 共用 `GraphMethods`
+那一套)。扫描那一步走的是 `GetMethods` **带 `FlattenHierarchy`**,继承来的 `[ClassMethod]`
+才算这个类的 —— 外壳也就不能写成 `static class`(它不能被继承),用 `sealed class` 就行。
 
 ### 6.19 官方扩展（`Native`）
 

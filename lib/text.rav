@@ -13,6 +13,13 @@
 #     Text.Quote "说不清\"的话"          # "\"说不清\\\"的话\""
 #     Text.IsBlank "  \n"              # true
 #
+# 还有一棵**树**(任意结构,只要你说得出"它的子节点是谁""这一行写什么"):
+#
+#     print (Text.Tree "a" ((x: string) => { ["b" "c"]; }) ((x: string) => { x; }))
+#     a
+#     ├── b
+#     └── c
+#
 # 一件**没做**的事:折行不硬切长词。一个比宽度还长的词自己占一行,不切开 ——
 # 切开会把一个词劈成两半(URL、代码标识符这类切了就废),宁可那一行超一点点。
 ravel "Text"
@@ -142,4 +149,38 @@ readonly Quote := (s: string) => {
         i += 1
     }
     out + "\""
+}
+
+# ── 树 ──
+# 把一棵树画成**一串行**(交回字符串 —— 要打印就 `print (Text.Tree …)`)。三样:
+# 根、`children`(一个节点 → 它**直接**子节点那一串)、`label`(一个节点 → 这一行写什么)。
+#
+# 行首是 `├── ` / `└── `,子层缩进 4 格(最后一个子节点那支不画竖线),和
+# `Types.PrintTree` 画的是同一种树 —— 那条路径就是**这个函数加两枚 lambda**(见 lib/types.rav)。
+#
+# `children` 交回什么顺序就照什么顺序画,不重排(输出才稳)。它只照着画,**不做环检测**:
+# 有环的结构得自己在 `children` 里管"这个展开过没有"(见 `examples/refgraph.rav`)。
+readonly Tree := (root: object children: function label: function) => {
+    # **括号不能省**:`[label root]` 是"两个元素的 list"(list 字面量里空格是分隔符),
+    # 要的是"根那一行",所以得写成 `[(label root)]`。
+    out := [(label root)]
+
+    # 递归自己:lambda 体里读 `sub`,调用时才解析 —— 那时它已经在作用域里了
+    sub := (nodes: object prefix: string) => {
+        i := 0
+        while { i < (nodes.Count ()); } {
+            n := nodes.At i
+            if { i == ((nodes.Count ()) - 1); } {
+                out.Add (prefix + "└── " + (label n))
+                sub (children n) (prefix + "    ")
+            } {
+                out.Add (prefix + "├── " + (label n))
+                sub (children n) (prefix + "│   ")
+            }
+            i += 1
+        }
+    }
+
+    sub (children root) ""
+    out.Join "\n"
 }

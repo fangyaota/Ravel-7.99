@@ -17,6 +17,10 @@
 #
 # 只认**直接**子类:`Subtypes ()` 给的是所有后代,所以还要求 `parent` 就是当前这个 ——
 # 另外排掉名字相同的那个(自引用的 `type`,它的 Parent 是自己)。
+#
+# **画树那件事不在这儿**:`├── / └──` 那套缩进是 `Text.Tree`(`lib/text.rav`),这一条
+# 只是把"类型树"翻成它认的两枚 lambda(子类是谁、这一行写什么)。
+using "text.rav"
 
 ravel "Types"
 
@@ -35,25 +39,8 @@ readonly PrintTree := (root: object) => {
         kids
     }
 
-    # 递归自己:lambda 体里读 `walk`,调用时才解析 —— 那时它已经在作用域里了
-    walk := (t: object prefix: string) => {
-        kids := children t
-        i := 0
-        while { i < kids.Count (); } {
-            s := kids.At i
-            is_last := i == ((kids.Count ()) - 1)
-            label := s.name + " [" + (typeof s).name + "]"
-            if { is_last; } {
-                print (prefix + "└── " + label)
-                walk s (prefix + "    ")
-            } {
-                print (prefix + "├── " + label)
-                walk s (prefix + "│   ")
-            }
-            i += 1
-        }
-    }
+    # 每一行:`类型名 [它的 typeof]` —— 方括号里是**创建者**(类对象显 `Type`…)
+    label := (t: object) => { t.name + " [" + (typeof t).name + "]"; }
 
-    print (root.name + " [" + (typeof root).name + "]")
-    walk root ""
+    print (Text.Tree root children label)
 }

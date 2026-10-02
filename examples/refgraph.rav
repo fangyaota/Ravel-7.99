@@ -1,0 +1,52 @@
+# 模块的引用图:`MyMod.References ()` 是"我**直接**引了谁"(交回的是模块,不是路径),
+# 沿它走一遍就得到整张图。
+#
+#     dotnet out/ravel.dll examples/refgraph.rav
+#
+# 三件事凑在一起才画得出来:`References ()`(语言那条)、`Structures.Digraph`(数据结构那一族)、
+# `Text.Tree`(画树那件事 —— `Types.PrintTree` 用的也是它,`├── / └──` 那套只有一份)。
+#
+# **`<global>` 是混的**:没写模块名的那些文件(`native.rav` / `enum.rav` 这种外壳)都算它,
+# 于是 predefined.rav 引的那一批、各无名文件自己写的 `using`、还有**本脚本自己**顶层的
+# `using` 全在它身上 —— 表里所以看得见 `Table`,树里所以看得见 `Repl`。
+# 自环 `<global> → <global>` 也是这么来的(`numbers.rav` 这类文件不建模块)。
+using "structures.rav"
+using "table.rav"
+using "text.rav"
+using "repl.rav"
+
+# 模块印出来是 `<module Repl>` —— 剥成 `Repl`
+Name := (m: object) => { s := string m; s.Slice [8..((s.Length ()) - 1)); }
+
+# 走一遍。`References ()` 是"直接引的",不是传递闭包,所以要自己往下问
+g := Structures.Digraph ()
+seen := set default
+Walk := (m: object) => {
+    me := Name m
+    seen.Add me
+    foreach (m.References ()) (r: object) => {
+        other := Name r
+        g.AddEdge me other
+        if { (seen.Contains other); } { 0; } { Walk r; }
+    }
+}
+Walk Repl
+
+print "── 每个模块直接引了谁 ──"
+rows := []
+foreach (g.Vertices ()) (v: object) => {
+    rows.Add {"模块": v "引了": ((g.Neighbors v).Join " ")}
+}
+print (Table.Render rows)
+
+print ""
+print "── 从 Repl 往下走(引过的标 ←) ──"
+# 画树那件事归 `Text.Tree`,**环得自己挡**:`walked` 就是这个。
+# 两枚 lambda 各读一次它 —— `Text.Tree` 先问 `label` 再问 `children`,
+# 所以第一次展开时标不上、第二次指回来才标得上。
+walked := set default
+Kids := (v: string) => {
+    if { (walked.Contains v); } { []; } { walked.Add v; g.Neighbors v; }
+}
+Show := (v: string) => { if { (walked.Contains v); } { v + "  ←"; } { v; } }
+print (Text.Tree "Repl" Kids Show)

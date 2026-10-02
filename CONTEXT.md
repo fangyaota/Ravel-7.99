@@ -220,7 +220,9 @@ lib/
 `)/
                           `Words`(空白折成一个分隔)/ `Wrap n`(按宽度折行,长词不硬切)/
                           `Indent` / `Dedent`(去公共缩进)/ `Truncate` / `Quote`(转义成看得见的样子)/
-                          `IsBlank`。**要显式引用**
+                          `IsBlank` / `Tree root children label`(任意结构画成 `├── / └──` 那棵树 ——
+                          `Types.PrintTree` 与 `examples/refgraph.rav` 用的都是它,画树只有这一份)。
+                          **要显式引用**
   csv.rav                 `Csv` 模块 —— 逗号分隔(RFC 4180):`Parse`(首行当表头 → 一行行 dict;
                           列少了补空串、多了丢掉)/ `Grid`(纯格子,不认表头)/ `Render`(交 dict
                           或 list 都行,表头按键**第一次出现**的先后)/ `Quote`(单个格子怎么转义)。
@@ -331,8 +333,10 @@ lib/
   math.rav                Math 模块 —— **本机那一整套在官方扩展里**(见「官方扩展」一节),
                           这个文件只往上补 Ravel 说得清的那四个(square/cube/deg/rad)。
                           `using "math.rav"` 引入
-  types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes (),带 ├──/└──),
-                          `using "types.rav"` 引入;examples/type_tree.rav 打的就是它
+  types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes () 取直接子类,
+                          `├──/└──` 那套缩进是 `Text.Tree` 画的 —— 这一条只是"子类是谁 /
+                          这一行写什么"两枚 lambda),`using "types.rav"` 引入(它会带上 text.rav);
+                          examples/type_tree.rav 打的就是它
   iomonad.rav             IoMonad 模块(IO Monad —— 把效果做成值的那种,不是文件/终端 IO):
                           `Action`(Effect/Perform/Map/Bind/Then/Discard/Attempt/Catch)、
                           `Return` / `PutStrLn` / `PutStr` / `PutStrLnErr` / `PutStrErr` / `GetLine` /
@@ -1039,9 +1043,10 @@ internal static class StackClass
 
 ## 数据结构（插件 `Ravel.Structures`,见「插件」一节）
 
-栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合 —— **一个独立的项目**,
-编成 `plugins/Ravel.Structures.dll`,`using "structures.rav"` 装进来(那个文件顺手登记
-`IEnumerable` / `IDict`)。用的时候名字在 `Structures` 模块下:`Structures.Stack ()`。
+栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合 **+ 图那一族**(`Graph` / `Digraph` / `Weighted`)
+—— **一个独立的项目**,编成 `plugins/Ravel.Structures.dll`,`using "structures.rav"` 装进来
+(那个文件顺手登记 `IEnumerable` / `IDict`)。用的时候名字在 `Structures` 模块下:
+`Structures.Stack ()`。
 
 - 数据在**值**身上(`Ravel.Structures/*Val.cs`),类只放"有哪些成员"
   (`*Class.cs`,挂 `[RavelModule("Structures")]` + `[RavelClass("…")]`)。
@@ -1049,6 +1054,14 @@ internal static class StackClass
   键走 `dict` 那个规矩、比大小走 Ravel 的 `<`(于是这一族和语言里别的东西同一套脾气)。
 - 它是**样板**:再加一族库,照它的样子开一个项目就行(构建那两步见 `Ravel.csproj`
   的 `CopyPlugins` 目标)。
+
+**图**:`Graph`(无向无权)/ `Digraph`(有向无权)/ `Weighted`(带权,`{"directed": true}`
+定方向)三个类只差**构造那一下**,方法只写一遍 —— 挂在基类 `GraphMethods` 上、三个壳继承它
+(`InstallClass` 扫方法时带着 `FlattenHierarchy`,不然反射不返回基类的 static,继承来的
+`[ClassMethod]` 一个都装不上)。顶点是**值类型**(数 / 字符串,和 `dict` 一个规矩),
+权重收数值、**负数在 `AddEdge` 就挡下**(最短路走 Dijkstra,负权它不管)。
+算法:BFS / DFS / 拓扑排序(Kahn)/ 连通分量(有向按**弱**连通)/ 最短路(无权 BFS、带权 Dijkstra)。
+用例见 `tests/295`。
 
 ## 控制流
 

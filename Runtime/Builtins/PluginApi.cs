@@ -239,22 +239,35 @@ internal static class PluginLoader
     {
         // **幂等**:同一个 dll 被不同的解释器各 `using` 一次(每个用例一个解释器),
         // 类对象是**进程级**的(和内置类一个待遇),不能再建一个 —— 那会往 AllTypes 里灌一堆重复的。
-        if (Known(cls.Name)) return;
-
-        var klass = BuiltinClasses.New(cls.Name);
-        BuiltinClasses.Link(klass, BuiltinClasses.ClassOf(cls.Parent, $"类 {cls.Name} 的父类"), BuiltinClasses.Type);
-        BuiltinClasses.AddType(klass);
-
-        foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+        //
+        // **"类建过没有"和"要不要把它放进这个解释器的模块"是两件事**,所以下面那一步在
+        // 早退**之外**也得走:类对象是进程级的,而模块(`Structures` / `Native`)是**每个
+        // 解释器各一份**。从前模块那一步在早退之后,于是**第二个**解释器里
+        // `using "structures.rav"` 当场报「未定义的变量 'Structures'」—— 那个插件的成员
+        // 全挂在类上(没有 `[RavelFn]`,那条路才不管早不早退),模块就再没人建了。
+        if (!Known(cls.Name))
         {
-            if (m.GetCustomAttribute<ClassMethodAttribute>() is { } method)
-                BuiltinClasses.EngineMember(klass, method.Name, ClassRegistry.Bind(klass, m, method.Name));
-            else if (m.GetCustomAttribute<ClassCtorAttribute>() is not null)
-                BuiltinClasses.SetCtor(klass, m);
+            var klass = BuiltinClasses.New(cls.Name);
+            BuiltinClasses.Link(klass, BuiltinClasses.ClassOf(cls.Parent, $"类 {cls.Name} 的父类"), BuiltinClasses.Type);
+            BuiltinClasses.AddType(klass);
+
+            // **`FlattenHierarchy` 不能省**:没有它反射**不返回基类上的 static** —— 于是
+            // "几个类共用一套方法、方法写在基类上、壳只各自声明 `[ClassCtor]`"就落空了
+            // (实测:壳的实例表里一个方法都没有)。它只摊平 **public / protected** 的 static,
+            // 所以基类上那些没有标记的方法照样会被下面两个 `GetCustomAttribute` 滤掉。
+            foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public
+                                            | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy))
+            {
+                if (m.GetCustomAttribute<ClassMethodAttribute>() is { } method)
+                    BuiltinClasses.EngineMember(klass, method.Name, ClassRegistry.Bind(klass, m, method.Name));
+                else if (m.GetCustomAttribute<ClassCtorAttribute>() is not null)
+                    BuiltinClasses.SetCtor(klass, m);
+            }
         }
 
         if (module is not null)
-            ScopeOf(self, module, global, modules).DefineOrReplace(cls.Name, BuiltinClasses.Type, klass);
+            ScopeOf(self, module, global, modules)
+                .DefineOrReplace(cls.Name, BuiltinClasses.Type, BuiltinClasses.ClassOf(cls.Name));
     }
 
     /// <summary>这个名字的类已经有了吗(内置的、或者上一个解释器装进来的)</summary>

@@ -1,0 +1,172 @@
+﻿# 图那一族:`Graph`(无向无权)/ `Digraph`(有向无权)/ `Weighted`(带权,方向看选项)。
+#
+# 和 `Stack` / `Heap` 一族同一个 dll、同一个模块(`Structures`),`using "structures.rav"` 装进来
+# (`foreach` 一个图 = **枚举顶点**,那三条 `impl` 就在那个文件里登记)。
+#
+# 顶点是**值类型**(数 / 字符串)—— 和 `dict` 的键一个规矩。权重收数值(五种数值类型全吃),
+# **负数在 `AddEdge` 就挡下**(最短路走 Dijkstra,负权它不管)。
+using "structures.rav"
+
+# ── 无向无权:两个类各管一种 ──
+g := Structures.Graph ["a" "b" "c"]        # 容器就是播种顶点(和 `Structures.Stack [1 2 3]` 一个读法)
+g.AddEdge "a" "b"
+g.AddEdge "b" "c"
+g.AddEdge "a" "c"
+print g
+print (g.Vertices ())                      # 按加进来的先后
+print (g.Edges ())                         # 无向图**每条只出一次**
+print (g.Neighbors "a")
+print (g.Degree "b")
+print (g.Count ())
+print (g is Structures.Graph)
+print (g is Structures.Digraph)            # 三个类**是兄弟**,不是父子
+print (typeof g)
+
+# ── 走一遍:访问序 ──
+print (g.Bfs "a")                          # 一层一层往外
+print (g.Dfs "a")                          # 这张图上两者恰好一样
+
+# 有分叉才看得出两者的分别:DFS 一头扎到底,BFS 先把一层点完
+fork := Structures.Graph ["a" "b" "c" "d"]
+fork.AddEdge "a" "b"
+fork.AddEdge "a" "c"
+fork.AddEdge "b" "d"
+print (fork.Bfs "a")
+print (fork.Dfs "a")
+
+# ── 最短路(无权 = 跳数) ──
+print (g.Path "a" "c")
+print (g.Distance "a" "c")
+print (g.HasPath "a" "b")
+print (g.Distances "a")
+
+# ── 连通分量 ──
+g.AddVertex "孤岛"
+print (g.Components ())
+print (g.HasPath "a" "孤岛")
+try { print (g.Path "a" "孤岛"); } (e: Exception) => { print ("1: " + string e); }
+
+# ── 有向:出边 / 入边分开 ──
+d := Structures.Digraph ()
+d.AddEdge "x" "y"
+d.AddEdge "y" "z"
+print d
+print (d.Neighbors "y")                    # 出边
+print (d.InNeighbors "y")                  # 入边
+print (d.Degree "y")
+print (d.InDegree "y")
+print (d.TopoSort ())
+print (d.Path "x" "z")
+
+# 有环 → 排不出来;无向图**根本没有**拓扑序
+d.AddEdge "z" "x"
+try { print (d.TopoSort ()); } (e: Exception) => { print ("2: " + string e); }
+try { print (g.TopoSort ()); } (e: Exception) => { print ("3: " + string e); }
+print (d.Components ())
+
+# ── 带权:权重走 `AddEdge a b w` ──
+# (`AddEdge` 只收两个实参 —— 带权图上那两个参数上先收工、再交回一枚"等着权重"的函数)
+w := Structures.Weighted ()
+print (typeof (w.AddEdge "a" "b"))
+w.AddEdge "a" "b" 2.5
+w.AddEdge "b" "c" 1
+w.AddEdge "a" "c" 10
+print w
+print (w.Weight "a" "b")
+print (w.Path "a" "c")                     # 2.5 + 1 < 10 —— 不是那条直边
+print (w.Distance "a" "c")
+print (w.Distances "a")
+
+# 有向带权:方向在构造参数里
+wd := Structures.Weighted {"directed": true}
+wd.AddEdge "a" "b" 3
+print wd
+print (wd.Distance "a" "b")
+print (wd.HasPath "b" "a")                 # 方向反着走不通
+
+# ── 删 / 清 / 问 ──
+print (g.HasVertex "孤岛")
+print (g.RemoveEdge "a" "c")
+print (g.RemoveEdge "a" "c")               # 已经没了 —— 交回 false,不报错
+print (g.HasEdge "a" "c")
+print (g.RemoveVertex "孤岛")
+print (g.Neighbors "a")
+
+# 自环:存一条、两头都是自己
+s := Structures.Graph ["z"]
+s.AddEdge "z" "z"
+print s
+print (s.Degree "z")
+
+# ── 报错那几条(空图 / 不在场的顶点 / 权重) ──
+try { print (g.Neighbors "没这个"); } (e: Exception) => { print ("4: " + string e); }
+try { print (g.Weight "a" "b"); } (e: Exception) => { print ("5: " + string e); }
+try { nw := Structures.Weighted (); nw.AddEdge [1] "b" 1; } (e: Exception) => { print ("6: " + string e); }
+try { nw := Structures.Weighted (); nw.AddEdge "a" "b" (0 - 1); } (e: Exception) => { print ("7: " + string e); }
+e := Structures.Graph ()
+print (e.Vertices ())
+print (e.Count ())
+try { print (e.Bfs "空"); } (e: Exception) => { print ("8: " + string e); }
+e.Clear ()
+print (e.Count ())
+
+# ── `foreach` 一个图 = 枚举顶点(和 `Vertices ()` 一个序) ──
+foreach (Structures.Graph ["p" "q"]) (v: object) => { print ("顶点 " + (string v)); }
+# --- expected ---
+# Graph [a b c] {a-b a-c b-c}
+# [a b c]
+# [{from: a to: b weight: 1} {from: a to: c weight: 1} {from: b to: c weight: 1}]
+# [b c]
+# 2
+# 3
+# true
+# false
+# Graph
+# [a b c]
+# [a b c]
+# [a b c d]
+# [a b d c]
+# [a c]
+# 1
+# true
+# {a: 0 b: 1 c: 1}
+# [[a b c] [孤岛]]
+# false
+# 1: Path: a 到 孤岛 不连通
+# Digraph [x y z] {x->y y->z}
+# [z]
+# [x]
+# 1
+# 1
+# [x y z]
+# [x y z]
+# 2: TopoSort: 图里有环，拓扑排序不存在
+# 3: TopoSort 要有向图 —— 这是 Graph
+# [[x y z]]
+# Function
+# Weighted [a b c] {a-b(2.5) a-c(10) b-c(1)}
+# 2.5
+# [a b c]
+# 3.5
+# {a: 0 b: 2.5 c: 3.5}
+# Weighted [a b] {a->b(3)}
+# 3
+# false
+# true
+# true
+# false
+# false
+# true
+# [b]
+# Graph [z] {z-z}
+# 1
+# 4: Neighbors: 图里没有顶点 没这个
+# 5: Graph 没有权重 —— 要权重用 Weighted
+# 6: Weighted.AddEdge 的起点得是值类型（数 / 字符串），得到 List
+# 7: Weighted.AddEdge: 权重不能是负数（最短路走 Dijkstra，负权它不管）
+# []
+# 0
+# 8: Bfs: 图里没有顶点 空
+# 0
+# 顶点 p
+# 顶点 q
