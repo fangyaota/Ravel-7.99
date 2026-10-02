@@ -123,7 +123,10 @@ echo
 echo "== 冒烟:换个工作目录跑 out/ =="
 DLL=$(win_path "$ROOT/out/ravel.dll")
 tmp=$(mktemp -d)
-printf 'print (1 + 1)\n' > "$tmp/smoke.rav"
+# `using "repl.rav"` 那一句是故意加的:publish 之后 **`out/lib` 是剥过注释的**
+# (见 Ravel.csproj 的 `StripLibComments`),而 `repl.rav` 里那张 ASCII 大图是**原始字符串**
+# —— 剥注释最容易在那儿翻车。带上它,冒烟就顺带钉住了"剥完的库还跑得起来"。
+printf 'using "repl.rav"\nprint (1 + 1)\n' > "$tmp/smoke.rav"
 # 取**最后一行非空**的:输出末尾本来就跟一个空行(`tail -1` 会捞到它)。
 # 末尾 `|| true` 同理不能省 —— **恰恰是跑不起来的时候**这条管道自身是失败的,少了它
 # `set -e` 会让脚本当场退出,底下那句"多半是 out/ 里少了 lib/ 或 plugins/"就永远打不出来,

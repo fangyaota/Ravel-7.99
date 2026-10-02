@@ -104,6 +104,8 @@ rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c D
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
      # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/、例子在 out/examples/
      # (见 Ravel.csproj 的 CopyPlugins / CopyLib / CopyExamples),所以 out/ 那一份换到哪个工作目录都跑得起来
+     # 发布出去的标准库**不带注释**(发布时过一遍 `ravel strip`,见 Ravel.csproj 的 StripLibComments
+     # 与 Syntax/CommentStripper.cs):那些注释是写给改这门语言的人看的。仓库里那份当然留着。
 
 dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav       # 单文件

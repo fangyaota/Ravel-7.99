@@ -114,6 +114,17 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- **发布出去的 `lib/` 不带注释**:那些注释是写给改这门语言的人看的,不是写给跑它的人看的。
+       (仓库里那份当然留着 —— 它是唯一能读的那份;`build` 拷进 `$(OutDir)` 的那份也留着,调试时要读。)
+       用的是刚发布出来的那个 dll:`strip` 那条路**不进解释器**(只做源码加工),
+       而"哪儿是注释"由引擎的词法器说了算 —— 所以这一步不能交给脚本或正则。
+       剥之前每个文件都自验过(token 与原文逐个相等),对不上就不写(见 `Syntax/CommentStripper.cs`)。
+       `DependsOnTargets` 不能省:两个目标都挂在 `AfterTargets="Publish"` 上,得先拷完再剥。 -->
+  <Target Name="StripLibComments" AfterTargets="Publish" DependsOnTargets="CopyLibToPublish"
+          Condition="'$(IsPluginBuild)' != 'true'">
+    <Exec Command="dotnet &quot;$(PublishDir)ravel.dll&quot; strip &quot;$(PublishDir)lib&quot;" />
+  </Target>
+
   <!-- 例子(`examples/*.rav`)**也跟着走**,和标准库一个道理:它们同样不是编译产物,
        而"拿到 out/ 那一步就能照着跑一段"正是这个目录存在的意义(教程里到处在指它们)。
        落点也照 `lib/` 分两份:平时的 `$(OutDir)`、发布的 `$(PublishDir)`。

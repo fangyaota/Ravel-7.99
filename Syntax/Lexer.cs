@@ -38,6 +38,14 @@ public class Lexer(string source, string? file = null)
             _groups.RemoveAt(_groups.Count - 1);   // 对不上的闭合(本来就是语法错)就当没这层
     }
 
+    /// <summary>扫过的**注释区间**(起始下标, 长度)—— 只有 `CommentStripper` 看它。
+    ///
+    /// 放这儿是因为"哪儿是注释"只有这台词法器说了算:字符串(`"a # b"`)、原始字符串
+    /// (`"""…"""`,一个字符都不动)、字符字面量(`'#'`)里的 `#` 都不是注释。
+    /// 外面再拿正则扫一遍,必然和这套分法分岔(从前 REPL 自己抄一遍括号扫描,
+    /// 踩过同一个坑 —— 见 `lib/repl.rav` 里 `Balanced` 那段)。</summary>
+    public List<(int Start, int Length)> Comments { get; } = [];
+
     public List<Token> Tokenize()
     {
         var tokens = new List<Token>();
@@ -82,8 +90,10 @@ public class Lexer(string source, string? file = null)
             // 注释 # 到行尾
             if (c == '#')
             {
+                int start = _pos;
                 while (_pos < source.Length && source[_pos] != '\n')
                     _pos++;
+                Comments.Add((start, _pos - start));
                 _col++;
                 continue;
             }

@@ -33,6 +33,13 @@ else if (rest[0] == "test")
     // (单独一条用例要**钉住**警告长什么样,在它开头写 `# warn`,见 GoldenTestRunner)
     if (!GoldenTestRunner.RunAll(warn)) Environment.ExitCode = 1;
 }
+else if (rest[0] == "strip")
+{
+    // `ravel strip <文件或目录>`:把 `.rav` 里的注释剥掉(就地)。**不进解释器** ——
+    // 这是源码加工,不跑代码;发布产物里的标准库就是这么来的(Ravel.csproj 的
+    // `StripLibComments`),`--warn` 对它没有意义。
+    if (!Strip.Run(rest[1..])) Environment.ExitCode = 1;
+}
 else
 {
     // 脚本名之后那些交给 `System.Args ()`(REPL / `ravel test` 没有,它们是空的)
