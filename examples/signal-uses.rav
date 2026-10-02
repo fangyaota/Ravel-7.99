@@ -1,0 +1,135 @@
+# **有了 `Tasks.Signal` 之后能搭什么** —— 三件小东西,每件十来行,都不碰调度器。
+#
+#     ravel examples/signal-uses.rav
+#
+# `Signal` 是什么、为什么要有它,在 `examples/signal.rav` 里(那儿拿两版能等的队列对着看)。
+# 这一份只说**它铺开了哪些路**。
+#
+# 三件都长同一个样子:**兜着一只闸,等的人 `g.Await 它`,该开的人 `Open`**。
+using "tasks.rav"
+
+# ═══ 1. `Latch` —— 数到 0 才放人 ═══
+#
+# "等这几件事都做完" —— 每做完一件 `Arrive ()`,数到 0 时闸自己开,等的人一起醒。
+#
+# 对着一串 `Tasks.Task` 一个个 `g.Await` 也能做,但那样**得先有那一串的引用**;
+# 闩是"谁做完了谁报到",做的人不需要知道谁在等。
+print "── 1. Latch:等三件事都做完 ──"
+
+Latch ::= class {
+    Left: int = 0
+    Gate: Tasks.Signal = default
+
+    init = (n: int) => {
+        Left = n
+        Gate = Tasks.Signal ()
+        if { n == 0; } { Gate.Open (); } { 0; }     # 一个不用等的闩:当场就是开的
+        this;
+    }
+
+    # 报到一件:数到 0 就把闸开了(开过再开没关系 —— 闸一次性的)
+    Arrive := () => {
+        Left -= 1
+        if { Left <= 0; } { Gate.Open (); } { 0; }
+        ();
+    }
+
+    Wait := (g: Tasks.TaskGroup) => { g.Await Gate; }
+}
+
+latch := Latch 3
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 5);  print "  甲做完了"; latch.Arrive (); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 15); print "  乙做完了"; latch.Arrive (); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 10); print "  丙做完了"; latch.Arrive (); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { latch.Wait g;              print "  闩开了 —— 三件都完"; })
+]
+
+# ═══ 2. `Once` —— 只做一次,别人等着 ═══
+#
+# 惰性初始化:第一个来的人负责做,做的时候**可能挂起**(读配置、连网络),后来的人
+# 不能傻等在那儿又做一遍 —— 得看见"有人在做了",然后**等那只闸**。
+print "── 2. Once:只做一次,三个人都拿到 ──"
+
+Once ::= class {
+    Gate: Tasks.Signal = default
+    Value: object = ()
+    Doing: bool = false
+
+    init = () => { Gate = Tasks.Signal (); Value = (); Doing = false; this; }
+
+    Get := (g: Tasks.TaskGroup f: function) => {
+        if { Gate.IsDone; } { Value; } {                      # 现成的
+            if { Doing; } {
+                g.Await Gate                                   # 有人在做了 —— 等他
+                Value;
+            } {
+                Doing = true
+                Value = f ()                                   # ← 这儿可以挂起
+                Gate.Open ()
+                Value;
+            }
+        }
+    }
+}
+
+once := Once ()
+Loads := [0]                                       # 数它跑了几遍 —— 让输出自己证明"只跑一遍"
+Load := () => {                                    # 假装这是"读配置":要等一下
+    Loads.Set 0 ((Loads.At 0) + 1)
+    Tasks.Cycle [
+        (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 10); })
+    ]
+    "配置";
+}
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  甲:" + (string (once.Get g Load))); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  乙:" + (string (once.Get g Load))); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  丙:" + (string (once.Get g Load))); })
+]
+print ("  (三个人都拿到,而 `Load` 跑了 " + (string (Loads.At 0)) + " 遍 —— 乙丙等的是甲那只闸)")
+
+# ═══ 3. `Race` —— 谁先到用谁 ═══
+#
+# 同时问三个镜像,谁先答用谁。这里靠的是 `IsDone` 的一次**检查后动手**:
+# 单线程协作式,这两步之间不会有人插进来,所以"第一个到的赢"是准的。
+#
+# (**这个形状库里已经收好了:`Tasks.Any [t1 t2 …]`** —— 它等最先完成的那个,交回
+#  那个任务本身。下面这一版留着,是要你看"它建在闸上长什么样"。)
+print "── 3. Race:谁先答用谁 ──"
+
+Race ::= class {
+    Gate: Tasks.Signal = default
+    init = () => { Gate = Tasks.Signal (); this; }
+
+    # 交回"我是不是第一个到的"
+    Enter := (v: object) => {
+        if { Gate.IsDone; } { false; } { Gate.Open v; true; }
+    }
+
+    Winner := (g: Tasks.TaskGroup) => { g.Await Gate; }
+}
+
+race := Race ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 30); print ("  慢的到了(" + (string (race.Enter "慢的")) + ")"); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 5);  print ("  快的到了(" + (string (race.Enter "快的")) + ")"); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 20); print ("  中的到了(" + (string (race.Enter "中的")) + ")"); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  赢家:" + (string (race.Winner g))); })
+]
+print "  (慢的、中的照样跑完 —— 这门语言**打不断**已经出发的活儿,见下面)"
+
+# ═══ 三件之外,和一件做不到的 ═══
+#
+# 这三件都是同一招:**兜一只闸,等的人 `g.Await`,该开的人 `Open`**。还能照着搭:
+# 有界队列(满了就等)、连接池(借不到就等)、"等到某个状态"、读者-写者那一套。
+#
+# **做不到的那一件是"打断"**。`Race` 里输的那两个照样跑完 —— 这门语言的挂起点只有
+# `group.Await`,没有 select / race 那种"等好几个,哪个先来用哪个,别的取消掉"。
+# 所以"取消"在这儿只能是**协作式检查点**:每个任务自己在循环里 `if { 旗子.IsDone; } { … }`,
+# 而不是把正在等的人拽出来。硬要拽是能做到的(续延在手),但那要另一套设计 ——
+# 现在这样"打不断"是**有意的**:没想清楚就别让它变成能打断的。
+print "── 三件之外 ──"
+print "  库里已经收好的:Tasks.All(等全部)/ Tasks.Any(等最先)/ Tasks.Chan(能等的队列)"
+print "  照着搭:有界队列 / 连接池 / 等某个状态 / 读者-写者"
+print "  做不到:打断 —— 取消只能是协作式检查点(没有 select / race)"

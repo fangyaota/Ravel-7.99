@@ -106,3 +106,40 @@ print "── 8. 一个任务只能跑一遍 ──"
 once := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 1); (); }
 Tasks.Cycle [ once ]
 try { Tasks.Cycle [ once ]; } (e: Exception) => { print ("  " + e.Message); }
+
+# ── 9. 三件常见活儿:`All` / `Any` / `Chan` ──
+print "── 9. All / Any / Chan ──"
+
+# `All`:一起跑,**按交进去的顺序**交回结果表(顺序是输入顺序,不是完成顺序)
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 30); "甲"; }
+        b := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 5); "乙"; }
+        print ("  All:" + (string (g.Await (Tasks.All [a b]))));   # [甲 乙] —— 乙先完,但乙排在后面
+    })
+]
+
+# `Any`:等最先完成的那个,交回**它本身**(`.Value` 拿结果,也看得出是谁)
+#
+# 间隔要拉开:底下是 OS 计时器,Windows 上粒度约 15ms —— `5` 和 `10` 谁先醒说不准。
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 400); "慢"; }
+        b := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 50); "快"; }
+        print ("  Any 赢家:" + (string (g.Await (Tasks.Any [a b])).Value));
+    })
+]
+
+# `Chan`:能等的队列 —— 空了就睡,来货了叫醒,`Close` 把等着的人全放走
+ch := Tasks.Chan ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; g.Await (Tasks.After 10); ch.Put ("货" + (string i)); }
+        ch.Close ();
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        while { !(ch.IsShut ()); } { print ("  取 " + (string (ch.Take g))); }
+        try { ch.Take g; } (e: Exception) => { print ("  " + e.Message); }
+    })
+]

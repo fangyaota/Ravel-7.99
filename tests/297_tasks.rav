@@ -148,6 +148,42 @@ Tasks.Cycle [
 ]
 print ("  三个人一次全醒:" + (string got))
 
+# ⑭ `Tasks.All` / `Tasks.Any` / `Tasks.Chan` —— 三件常见活儿
+#
+# `All`:一起跑,**按交进去的顺序**交回结果表。
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "甲"; }
+        b := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "乙"; }
+        print ("  All:" + (string (g.Await (Tasks.All [a b]))));
+    })
+]
+# `Any`:等最先完成的那个,**交回它本身**(所以 `.Value` 拿结果、也看得出是谁)。
+# (这里三个都是 `After 0` —— 立刻完成,谁先到由"谁排在前面"定,钉得住。
+#  真要"谁快谁赢"得用几十上百毫秒的间隔,那是计时器的事,见例子。)
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "甲"; }
+        b := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "乙"; }
+        w := g.Await (Tasks.Any [a b])
+        print ("  Any 赢家:" + (string w.Value));
+    })
+]
+# `Chan`:能等的队列 —— 空了就睡,来货了叫醒,`Close` 把等着的人全放走。
+ch := Tasks.Chan ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; g.Await (Tasks.After 0); ch.Put ("货" + (string i)); }
+        ch.Close ();
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        while { !(ch.IsShut ()); } { print ("  取 " + (string (ch.Take g))); }
+        # 关了再取是个错 —— 不是"取到空的"
+        try { ch.Take g; } (e: Exception) => { print ("  " + e.Message); }
+    })
+]
+
 # --- expected ---
 A1
 B1
@@ -187,3 +223,9 @@ false
   甲:等到了 甲的东西
   丙(开过才来):甲的东西
   三个人一次全醒:[A B C]
+  All:[甲 乙]
+  Any 赢家:甲
+  取 货1
+  取 货2
+  取 货3
+  队列已经关了,没货可取

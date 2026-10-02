@@ -256,6 +256,101 @@ Signal ::= class TaskBase {
     }
 }
 
+# **一个能等的队列**:空了就睡,来货了叫醒。
+#
+# "能等的"是关键 —— 不是"查一下有没有":取不到的时候**真的挂起**,不空转。
+# 底下就是 `Signal`:等的人各攥一只闸,放货的人开其中一只。
+#
+#     ch := Tasks.Chan ()
+#     …一个任务:ch.Put "货"
+#     …另一个:  g.Await (ch.Take g)
+Chan ::= class {
+    Items: list = []
+    Waiting: list = []          # 等货的人各攥一只闸(每项一个 `Signal`)
+    Shut: bool = false
+
+    init = () => { Items = []; Waiting = []; Shut = false; this; }
+
+    # 放一件。有等着的人就叫醒一个 —— **叫醒谁不管**,他醒了自己再看一眼有没有货
+    # (可能被别的消费者抢先拿了,那就接着睡)。
+    Put := (v: object) => {
+        if { Shut; } {
+            throw (Exception ("这个队列已经关了 —— 放不进去了"))
+        } { 0; }
+        Items.Add v
+        if { (Waiting.Count ()) > 0; } { (Waiting.Remove 0).Open (); } { 0; }
+        ();
+    }
+
+    # 取一件。**空了就挂起**,直到有人放或者队列关了。
+    #
+    # 用 `while` 不用 `if`:醒过来那一刻货可能已经被别的消费者拿走了(大家排在
+    # 同一个就绪队列里),所以得**再检查一遍** —— 这是"能等的队列"最容易写错的地方。
+    Take := (g: TaskGroup) => {
+        while { (Items.IsEmpty ()) && !(Shut); } {
+            sig := Signal ()
+            Waiting.Add sig
+            g.Await sig
+        }
+        if { Items.IsEmpty (); } {
+            throw (Exception ("队列已经关了,没货可取"))
+        } { 0; }
+        Items.Remove 0;
+    }
+
+    # "没有更多了":等着的人**全醒**(让他们各自去发现队列空了且关了),之后不许再放。
+    #
+    # 不收值是有意的:关掉之后取不到东西**是个错误**,不是"取到一个空"(那要 `Option`,
+    # 是另一种设计)。想优雅收工的,循环条件上写 `!(ch.Shut ())`。
+    Close := () => {
+        Shut = true
+        foreach Waiting (s: object) => { s.Open (); }
+        Waiting = []
+        ();
+    }
+
+    Count := () => { Items.Count (); }
+    IsShut := () => { Shut; }
+}
+
+# `Tasks.All [t1 t2 …]` —— 一起跑,按**交进去的顺序**交回结果表。
+#
+# 交回的是**一个任务**(不是结果表本身)—— 于是 `rs := g.Await (Tasks.All [a b c])`
+# 一步到位。谁炸了就在这一头现形,和别的任务一个规矩。
+All := (ts: list) => {
+    Task (g: TaskGroup) => {
+        out := []
+        foreach ts (t: ITask) => { out.Add (g.Await t); }
+        out;
+    }
+}
+
+# `Tasks.Any [t1 t2 …]` —— 等**最先完成的那个**,交回**它本身**。
+#
+# 交回任务而不是结果,是为了让你知道**是谁赢了**(拿结果再 `.Value` 一下)。
+# 和 `All` 不对称是有意的:`All` 的顺序就是交进去的顺序,不需要身份;`Any` 不问就永远
+# 不知道是谁。等价于别的语言的 `Task.WhenAny`。
+#
+# **输的那些照样跑完** —— 这门语言打不断已经出发的活儿(没有 select / race)。
+# `Any` 提前给你的是"结果",不是"停掉其余的"。
+#
+# 陪跑的那些任务**把错吞掉**了:它们只是"看谁先完"。被等的任务真炸了,错记在它自己身上,
+# 谁最后 `Await` 那个赢家、谁 `.Value` 它,就在那一头现形 —— 还是那个规矩。
+Any := (ts: list) => {
+    Task (g: TaskGroup) => {
+        gate := Signal ()
+        win := [()]                                  # 一格"谁赢了"(拿单元素表当格子用)
+        foreach ts (t: ITask) => {
+            g.Add (Task (gg: TaskGroup) => {
+                try { gg.Await t; } (e: Exception) => { (); }
+                if { gate.IsDone; } { 0; } { win.Set 0 t; gate.Open (); }
+            });
+        }
+        g.Await gate
+        win.At 0;
+    }
+}
+
 # `Task` / `SysTask` / `Signal` 三个子类跟着认 `ITask` —— 基类登记一次就够
 # (实测子类继承那句 `impl`)。
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
@@ -428,6 +523,13 @@ TaskGroup ::= class {
 # 名字说的是它是**什么**(一个将来的 Task),不是它做**什么**:`System.Sleep` 才是"睡",
 # 这一条压根不睡,它只是**交回一个将来会醒的东西**。所以 `After 1000` 单独一句什么都不会
 # 发生 —— 得像别的任务一样 `group.Await` 它。(这个坑和"光写个函数名没调用"是一类。)
+#
+# **精度是计时器的精度,不是毫秒**:底下是 OS 的计时器,Windows 上粒度约 **15 毫秒** ——
+# 于是 `After 5` 和 `After 10` 谁先醒**说不准**(常常同一拍),`After 5` 实际也要等到
+# 十几毫秒。所以:
+#   * 想"让一轮"就用 **`After 0`** —— 它是**当场就完成**的(底下不是计时器),不碰粒度;
+#   * 别拿几毫秒的差去比谁快 —— 要分先后,间隔拉到几十上百毫秒。
+# (实测踩过:三个 `After 5/10/20` 抢 `Tasks.Any`,赢家来回变;换成 `50/200/400` 就稳了。)
 After := (ms: int) => {
     t := SysTask ()
     t.Job = System.Sleepable ms
