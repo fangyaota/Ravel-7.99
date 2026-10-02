@@ -148,7 +148,13 @@ internal static class GoldenTestRunner
 
             if (trimmed == ExpectedSeparator) { inExpected = true; continue; }
 
-            // 期望区里 `# ` 是注释前缀,要剥掉;源区保持原样
+            // 期望区里 `# ` 是注释前缀,要剥掉;源区保持原样。
+            //
+            // **写用例时请一律加上 `# `**(空行除外 —— 空行留空,`#` 后面那个空格会被
+            // `TrimEnd` 削掉、反而变成一句 `"#"`)。理由是那份文件还得**能直接跑**:
+            // `ravel tests/xxx.rav` 不走这儿,期望区就那么原样喂给解析器 —— 不注释的话
+            // 会当成代码执行,一句 `--> file:line` 就够它报「未预期的字符」。
+            // (这里两种都收,是为了不把历史用例判死。)
             if (inExpected)
             {
                 expectedLines.Add(trimmed.StartsWith("# ") ? trimmed[2..] : line);
