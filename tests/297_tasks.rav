@@ -102,6 +102,16 @@ try { Tasks.Cycle [ once ]; } (e: Exception) => { print ("再跑一次:" + e.Mes
 twice := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 0); }
 try { Tasks.Cycle [ twice twice ]; } (e: Exception) => { print ("一间组里加两遍:" + e.Message); }
 
+# ⑪ 任务里出**运行时错误**、没人接 —— 报错要带上**出错位置**
+#
+# 位置和调用栈是引擎的内部状态,只在 handler 体里活着(`System.FormatError` 那条注释),
+# 所以 `TaskGroup.Start` 是**趁那一刻**把整份报告渲染下来挂在任务上的 —— 见 lib/tasks.rav。
+# 这里只钉"有没有位置":整份报告里带着库的**绝对路径**(bin/Debug/… 那种),钉不住。
+try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { x := 1 / 0; print x; })]; } (e: Exception) => {
+    print ((e.Message).Contains "297_tasks.rav:");
+    print ((e.Message).Contains "除数为零");
+}
+
 # --- expected ---
 A1
 B1
@@ -125,10 +135,14 @@ L2
 M2
 接住:任务里炸了
 死锁:还有 2 个任务没完,但已经没有谁能推进它们了 —— 多半是在互相等,或者在等一件没人会去做的事
-有 1 个任务失败了,而没人接它的错:没人理我 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)
+有 1 个任务失败了,而没人接它的错 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)
+
+没人理我
 外:起
   内:完
 外:完
 只跑一遍
 再跑一次:这个任务已经跑完了 —— 一个任务只能跑一遍(要再来一次就再造一个)
 一间组里加两遍:这个任务已经在组里了 —— 别加第二遍
+true
+true

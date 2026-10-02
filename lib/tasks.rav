@@ -141,6 +141,11 @@ Task ::= class TaskBase {
     # 谁在等我。自动推进的那一类用不上 —— 它等着的是组的等待集合(`Waiting`)。
     Waiters: list = []
 
+    # 出错位置。**只在这个任务是以失败告终时才有内容** —— 那份报告(位置 + 源码那一行 +
+    # 插入符 + 调用栈)是 `TaskGroup.Start` 那边趁 handler 体里还在的时候渲染下来的,
+    # 见那儿那段。给收尾那句"没人接的失败"用:那是唯一一条通道,不存下来就永远看不到。
+    Where: string = ""
+
     # 进过组没有。**一个任务只能跑一遍**:它的续延是多发的,再跑一遍等于跳回上一次
     # 留下的那条帧链 —— 实测是**死循环**(第二遍把第一遍整段重放,一遍又一遍)。
     # 这条闸在 `Add` 上,传进来的那一刻就拦住。
@@ -151,6 +156,7 @@ Task ::= class TaskBase {
         Step = default
         Started = false
         Queued = false
+        Where = ""
         this;
     }
 
@@ -298,7 +304,21 @@ TaskGroup ::= class {
     Start := (t: Task) => {
         if { t.Started; } { t.Step (); } {
             t.Started = true
-            try { t.Val = (t.Body this); } (e: Exception) => { t.Ok = false; t.Err = e; (); }
+            try { t.Val = (t.Body this); } (e: Exception) => {
+                t.Ok = false
+                t.Err = e
+                # **趁现场还在,把报告渲染下来。**
+                #
+                # 错在第几行第几列、调用栈,是**引擎的内部状态** —— 只在"handler 体里"
+                # 活着(`System.FormatError` 自己那条注释写着),而这个 `(e) => {…}` 就是
+                # handler 体。一出去就只剩 `e.Message` 那句干话了。
+                #
+                # 非渲染不可的理由:任务失败了而**没人接**的话,这个错是由**组**在收尾时
+                # 替它报出来的 —— 那是唯一一条通道,报告不存下来,用户就永远看不到出错位置
+                # (别人自己 `try` 接住的错,起码当场还带着位置)。
+                t.Where = System.FormatError e
+                ();
+            }
             Finish t
         }
     }
@@ -336,9 +356,13 @@ TaskGroup ::= class {
         # 所以照同一个口径:当场报出来。
         dropped := All.Where ((t: Task) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
         if { (dropped.Count ()) == 0; } { (); } {
-            throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错:"
-                              + (dropped.First ()).Err.Message
-                              + " —— 谁起的任务谁负责等它(`group.Await` / `.Value`)"))
+            d := dropped.First ()
+            # 那句报告是**多行**的(位置 + 源码那一行 + 插入符 + 调用栈),所以它自己占一段。
+            # 万一它空着(理论上不会 —— `Ok = false` 只有一处,那一处必写 `Where`),
+            # 退回那句干话,别报出个空段落。
+            throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错"
+                              + " —— 谁起的任务谁负责等它(`group.Await` / `.Value`)\n\n"
+                              + (if { (d.Where) == ""; } { d.Err.Message; } { d.Where; })))
         }
     }
 }
