@@ -1,11 +1,11 @@
-# `Structures` —— 数据结构那一族的**外壳**(插件 dll 的 Ravel 那一半)。
+﻿# `Structures` —— 数据结构那一族的**外壳**(插件 dll 的 Ravel 那一半)。
 #
 # 类和函数在 `plugins/Ravel.Structures.dll` 里(一个独立的项目编译出来的,见
 # `Ravel.Structures/`),`using` 这个文件会把它一起带进来:
 #
 #     using "structures.rav"
 #     s := Structures.Stack [1 2 3]
-#     Structures.Heap [3 1 2] @ .ToList ()
+#     Structures.Heap [3 1 2] |> .ToList ()
 #
 # **为什么要这一层**:dll 只能给"类和函数" —— 而 `foreach` / `Map` / `Fold` 那一整套
 # 是 Ravel 里的 `IEnumerable` 接口给的,得有人把它们**登记**上去。登记就是下面那六条

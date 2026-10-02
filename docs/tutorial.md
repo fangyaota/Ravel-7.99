@@ -204,8 +204,8 @@ x ??= 算一次 ()      # 空才写（缓存那种写法）
 - **`x ??= v`**：空才写，**不空一个字符都不碰**（成员那条连 setter 都不调）；
   交回写完之后的值。`0` / `""` / `[]` / `()` 都是**值**，不算空 —— 想"没设过才写"就用
   `Cache: Option = None` 打底。
-- `?.` 和 `.` 一个位置：**只能在 `.` 能出现的地方写**（primary 之后、或 `@` 之后）——
-  `.成员` 比并列的调用绑得紧，`f ().g ()` 本来就要写 `f () @ .g ()`（见「调用比运算符松」
+- `?.` 和 `.` 一个位置：**只能在 `.` 能出现的地方写**（primary 之后、或 `|>` 之后）——
+  `.成员` 比并列的调用绑得紧，`f ().g ()` 本来就要写 `f () |> .g ()`（见「调用比运算符松」
   那一节），`f ()?.g ()` 同理。
 
 **用例见 tests/258。**
@@ -534,8 +534,8 @@ print ("共 " + string (n) + " 个")     # 不括的话 string 会把 `+ " 个"`
 print ((typeof x) == int)
 ```
 
-`<|` 与 `@`（5.5）是把这件事写明白的语法糖：`f <| a + b` 和 `f a + b` 是一回事；
-`x.f () @ .g ()` 是"先算调用，再取成员"。**用例见 tests/01。**
+`<|` 与 `|>`（5.5）是把这件事写明白的语法糖：`f <| a + b` 和 `f a + b` 是一回事；
+`x.f () |> .g ()` 是"先算调用，再取成员"。**用例见 tests/01。**
 
 ## 四、控制流
 
@@ -898,7 +898,7 @@ double <| 5    # 10 —— 等价于 double 5
 它**最低优先级**（在 `ParsePipe` 那一层），所以右边整条算式都算它的实参 ——
 `f <| a + b` 不用写成 `f (a + b)`。
 
-它和 `@` 是一对：**`<|` 封右边、`@` 封左边**。并列调用是「左嵌套」（`f a b` ≡ `(f a) b`），
+它和 `|>` 是一对：**`<|` 封右边、`|>` 封左边**。并列调用是「左嵌套」（`f a b` ≡ `(f a) b`），
 这两个各封一头：
 
 ```ravel
@@ -908,7 +908,7 @@ inc 1 * 5              # inc (1 * 5) —— 实参吃到运算符为止（3.7）
 inc <| 1 * 5           # inc (1 * 5) —— <| 把**右边**整个封成一个实参
 wrap <| inc <| 1 + 2   # wrap (inc (1 + 2))
 
-xs.Count () @ .ToString ()   # (xs.Count ()).ToString () —— @ 把**左边**封口
+xs.Count () |> .ToString ()   # (xs.Count ()).ToString () —— |> 把**左边**封口
 ```
 
 **`<|` 还能喂给一个"柯里化了一半"的调用** —— 实参吃到运算符为止，但**吃不掉 `<|`**
@@ -924,9 +924,9 @@ add 1 <| 7             # (add 1) 7 —— 拿整串调用的**结果**当函数
 
 **`$` 不是运算符** —— 它只出现在字符串里（插值 `${…}`）。想在代码里封右边，写 `<|`。
 
-`@` 非有不可的理由：`.成员` 比并列的调用绑得紧，所以 `xs.Count ().ToString ()` 会被读成
-`xs.Count ((().ToString ()))`（见「常见陷阱」）。`a @ b`（后面不是 `.成员` 时）就是显式的
-「到这儿为止」——`add 1 @ 2` 和 `add 1 2` 是一回事。
+`|>` 非有不可的理由：`.成员` 比并列的调用绑得紧，所以 `xs.Count ().ToString ()` 会被读成
+`xs.Count ((().ToString ()))`（见「常见陷阱」）。`a |> b`（后面不是 `.成员` 时）就是显式的
+「到这儿为止」——`add 1 |> 2` 和 `add 1 2` 是一回事。
 
 ### 5.6 函数名与打印
 
@@ -1071,7 +1071,7 @@ Seqs.Flatten [(Some 1) (None) (Some 3)]     # [1 3]
 
 ```ravel
 (Some 5).Map f              # 这对括号不能省：Some 5.Map f 是 Some (5.Map f)
-xs.Count () @ .ToString ()  # 链式调用也是：`.成员` 比并列的调用绑得紧，
+xs.Count () |> .ToString ()  # 链式调用也是：`.成员` 比并列的调用绑得紧，
                             # `xs.Count ().ToString ()` 会被读成 `xs.Count ((().ToString ()))`
 ((Some 5).Map f).Value ()   # Map 的结果也要套括号，否则 .Value 会贴到 f 上
 ```
@@ -1235,10 +1235,10 @@ Main.Perform ()
 | `IoMonad.PutStrLnErr s` / `PutStrErr s` | 写到**标准错误** |
 
 IO 里**没有「落空」这回事**：每一步都跑，值一路往下传（和 `Option` 的短路正好相反）。
-`.Perform` 要贴给调用的**结果**时，用 `@`（5.5）或者括号：
+`.Perform` 要贴给调用的**结果**时，用 `|>`（5.5）或者括号：
 
 ```ravel
-IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); }) @ .Perform ()
+IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); }) |> .Perform ()
 (IoMonad.Foreach [1 2 3] ((x: int) => { IoMonad.PutStrLn (string x); })).Perform ()   # 一样
 r := (IoMonad.Return 20).Map ((x: int) => { x + 1; })    # 或者先绑个名字
 print (r.Perform ())                                     # 21
@@ -1247,10 +1247,10 @@ print (r.Perform ())                                     # 21
 拼和接错：
 
 ```ravel
-(IoMonad.PutStrLn "一").Then (IoMonad.PutStrLn "二") @ .Perform ()   # 先一后二
+(IoMonad.PutStrLn "一").Then (IoMonad.PutStrLn "二") |> .Perform ()   # 先一后二
 
 risky := IoMonad.Action (() => { 1 / 0; })
-print (risky.Attempt () @ .Perform () @ .IsSome ())                  # false
+print (risky.Attempt () |> .Perform () |> .IsSome ())                  # false
 (risky.Catch ((e: Exception) => { IoMonad.PutStrLn ("接住 " + string e); })).Perform ()
 ```
 
@@ -1379,11 +1379,11 @@ try { Io.Stdout.Read (); } (e: Exception) => { print (string e); }
 
 ```ravel
 f := Io.File "notes/a.txt"
-job := Io.ReadAction f @ .Map ((t: string) => { t.Length (); })      # 到这儿什么都没读
+job := Io.ReadAction f |> .Map ((t: string) => { t.Length (); })      # 到这儿什么都没读
 print (job.Perform ())
 
-(Io.WriteAction f "hi").Then (Io.ReadAction f) @ .Perform ()         # 先写后读
-Io.EachLineAction f ((l: string) => { print ("行 " + l); }) @ .Perform ()
+(Io.WriteAction f "hi").Then (Io.ReadAction f) |> .Perform ()         # 先写后读
+Io.EachLineAction f ((l: string) => { print ("行 " + l); }) |> .Perform ()
 ```
 
 （`using "io.rav"` 会顺手把 `iomonad.rav` 拉进来 —— 这几条要用它。反过来不行：
@@ -1530,7 +1530,7 @@ print (((j.Get "a").At 1).Extract ())            # 2.5
 print ((j.Text 2))                               # 缩进两格写回文本
 
 k := Json.FromString "{\"x\": 1}"                # 字符串 → Json（唯一的解析入口）
-print ((k.Get "x") @ .Extract ())                # 1
+print ((k.Get "x") |> .Extract ())                # 1
 ```
 
 `Json` 里包着的是一棵**还没转成原生值**的树，所以可以先看再转：
@@ -1559,7 +1559,7 @@ print (j)                       # {"a":1,"b":[99,2,3,4],"c":"新加的"}
 注意两点：**`null` 转出来是 `()`**（要问"是不是 null"就在 Json 那层问 `IsNull ()`，
 转完就分不清"值是 null"和"函数没返回值"了）；`At i` 后面接 `.Extract` 要加括号
 （`.成员` 绑得比并列调用紧），`((j.Get "a").At 1).Extract ()` 或者
-`(j.Get "a").At 1 @ .Extract ()` 都行。
+`(j.Get "a").At 1 |> .Extract ()` 都行。
 
 **用例见 tests/241。**
 
@@ -1817,7 +1817,7 @@ r := Random.Crypto ()      # 加密级 —— 不可复现、也没有种子
 当伪随机表用）就用它：
 
 ```ravel
-Random.Xoshiro 42 @ .Below 1000000     # 47179（定死的，换台机器也是它）
+Random.Xoshiro 42 |> .Below 1000000     # 47179（定死的，换台机器也是它）
 ```
 
 取数那一面是一套方法（写成接口 `IRandom` 的**默认实现**，所以三台都白拿）：
@@ -2303,7 +2303,7 @@ print (Native.HashBytes "sha256" (Encoding.Utf8 "abc"))
 ```ravel
 using "zip.rav"
 z := Zip.Open "a.zip"                 # 归档是 IDir
-z.Entry "a/one.txt" @ .Read ()        # 成员是只读的 IFile
+z.Entry "a/one.txt" |> .Read ()        # 成员是只读的 IFile
 Io.EachDir z (p: string e: object) => { print (e.Name ()); }   # 对着接口写的一律照吃
 
 w := Zip.Create "new.zip"             # 新建（同名整个覆盖）
@@ -3581,7 +3581,7 @@ Error: '$' 只用在字符串里的插值 `${…}`（要把右边封成一个实
 | `System.Args ()` | 脚本名之后的命令行参数（list，见 8.5） |
 | `System.WarnForgotCall b` | 开关：「是不是忘了调用?」的提醒（见 11 章那条坑） |
 | `System.Env n` / `EnvOr n d` | 环境变量（`SetEnv` / `UnsetEnv` / `EnvAll` 见 8.5） |
-| `f <| a b` / `x @ .g ()` | 一个封右、一个封左：`<|` 把右边整个当一个实参，`@` 把左边封口让成员接着挂 |
+| `f <| a b` / `x |> .g ()` | 一个封右、一个封左：`<|` 把右边整个当一个实参，`|>` 把左边封口让成员接着挂 |
 | `callcc fn` | 续延（拿到的类型是 `Continuation`，见 4.5） |
 | `with obj { }` | 进到 obj 的成员表里跑一段（**不拷**；要副本用 `Copy ()`）|
 | `assert cond msg` | 断言（**两个实参一次写完、别跨行**，见 11.x 那条）|
@@ -3640,7 +3640,7 @@ print (xs.At (0) + 1)                # ❌ —— 现在是 `xs.At ((0) + 1)`：
 print ((xs.Count ()) == 0)           # ✅ —— 拿调用结果去运算/比较，就把它括起来
 ```
 
-同一条也解释了为什么 `(Some 5).Map f` 那对括号不能省 —— 或者写 `Some 5 @ .Map f`。
+同一条也解释了为什么 `(Some 5).Map f` 那对括号不能省 —— 或者写 `Some 5 |> .Map f`。
 
 ### `xs.Sort ()` 不是排自己
 
@@ -3731,8 +3731,8 @@ o ??= 1              # 也不写
 
 想"没设过才写"就用 `Cache: Option = None` 打底 —— `None` 是**唯一**的"空"。
 
-还有一条：**`?.` 和 `.` 一个位置**（primary 之后、或 `@` 之后）——
-`.成员` 比并列的调用绑得紧，`f ().g ()` 要写 `f () @ .g ()`，`f ()?.g ()` 同理。
+还有一条：**`?.` 和 `.` 一个位置**（primary 之后、或 `|>` 之后）——
+`.成员` 比并列的调用绑得紧，`f ().g ()` 要写 `f () |> .g ()`，`f ()?.g ()` 同理。
 
 ### `:=` 是定义不是覆盖（同一个作用域里同名会报错）
 

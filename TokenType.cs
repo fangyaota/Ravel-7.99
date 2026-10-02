@@ -30,7 +30,7 @@ public enum TokenType
     Arrow,         // =>
     Equal,         // =
     PipeLeft,      // <|
-    At,            // @  括号的语法糖:把左边封口(`x.f () @ .g ()` ≡ `(x.f ()).g ()`)
+    PipeInto,      // |> 括号的语法糖:把左边封口(`x.f () |> .g ()` ≡ `(x.f ()).g ()`)
     BindArrow,     // :<  do 块里的取值绑定(`x :< m`;只在 do 里认)
 
     // 比较

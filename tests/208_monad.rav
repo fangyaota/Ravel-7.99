@@ -1,4 +1,4 @@
-# Option:要么包着一个值(Some v),要么什么都没有(None)。
+﻿# Option:要么包着一个值(Some v),要么什么都没有(None)。
 # 链式操作用 Map / Bind / Where,它们对 None 一律原样放过 —— 中间有一环没值,
 # 后面全不用算。`Value ()` 在 None 上当场报错,不拿 () 糊弄。
 #
@@ -219,7 +219,7 @@ print ((A.Discard ()).Perform ())      # 只跑，结果丢掉
 print (Log)
 print ((A.Attempt ()).Perform ())      # 成功 → Some 结果
 Bad := IoMonad.Action (() => { throw (Exception "boom"); })
-print ((Bad.Attempt ()).Perform () @ .IsSome ())     # 失败 → None
+print ((Bad.Attempt ()).Perform () |> .IsSome ())     # 失败 → None
 print ((Bad.Catch ((e: Exception) => { IoMonad.PutStrLn ("接住 " + string e); })).Perform ())
 print ((IoMonad.Sequence [A B A]).Perform ())          # 结果的表
 print ((IoMonad.When (() => { true; }) A).Perform ())

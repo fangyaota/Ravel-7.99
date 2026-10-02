@@ -1,4 +1,4 @@
-# `Uuid` —— 那种 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` 的标识。**要显式引用**:`using "uuid.rav"`。
+﻿# `Uuid` —— 那种 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` 的标识。**要显式引用**:`using "uuid.rav"`。
 #
 #     Uuid.V4 ()        # 随机(最常用)—— 每一枚都不重样
 #     Uuid.V7 ()        # **按时间排**:同一毫秒内也大致有序(数据库主键喜欢它)
@@ -18,7 +18,7 @@ using "encoding.rav"     # `Encoding.Hex` / `Unhex`
 
 ravel "Uuid"
 
-# 32 个十六进制字符 → 8-4-4-4-12(`Skip` 一段段断开 —— 调用后面直接接 `.成员` 要 `@`,
+# 32 个十六进制字符 → 8-4-4-4-12(`Skip` 一段段断开 —— 调用后面直接接 `.成员` 要 `|>`,
 # 这里用不着为它绕)
 readonly Format := (h: string) => {
     rest := h

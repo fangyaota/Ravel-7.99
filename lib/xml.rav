@@ -1,4 +1,4 @@
-# `Xml` —— XML。**要显式引用**:`using "xml.rav"`。
+﻿# `Xml` —— XML。**要显式引用**:`using "xml.rav"`。
 #
 #     x := Xml.Parse "<config><port>8080</port></config>"
 #     print (x.Name ())                 # config
@@ -226,7 +226,7 @@ XmlNode ::= class {
         out
     }
 
-    ChildNamed := (name: string) => { List () @ .Get name; }
+    ChildNamed := (name: string) => { List () |> .Get name; }
 }
 
 impl (IFile XmlNode {

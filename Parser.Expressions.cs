@@ -278,7 +278,7 @@ public partial class Parser
         return ParsePostfixRest(expr, allowCall);
     }
 
-    /// <summary>主表达式后面那一串**并列的调用/实参**(`f a b` / `@` / `$`)。
+    /// <summary>主表达式后面那一串**并列的调用/实参**(`f a b` / `|>`)。
     ///
     /// 单拎出来是因为 `?.`:`a?.b c` 里**整条链**(成员访问 + 后面的调用)都归那枚守卫
     /// 闭包管 —— 它在自己的 lambda 体内得再走一趟这段(见 <see cref="GuardedChain"/>)。
@@ -292,17 +292,17 @@ public partial class Parser
         // (节形式的 `f is.int` 除外,那是参数)。
         while (true)
         {
-            // `@` —— **括号,把左边封口**:后面的成员链挂到左边那一串的**结果**上。
-            //     x.f () @ .g ()   ≡   (x.f ()).g ()
+            // `|>` —— **括号,把左边封口**:后面的成员链挂到左边那一串的**结果**上。
+            //     x.f () |> .g ()   ≡   (x.f ()).g ()
             // 没有它就只能自己写括号:`.成员` 比并列的调用绑得紧,`x.f ().g ()` 会被读成
             // `x.f ((().g ()))`。后面跟的不是 `.成员` 时,它就是个"到这儿为止"的记号
-            // (`a @ b c` ≡ `(a) b c`,和 `a b c` 本来就一样)。
-            if (Match(TokenType.At))
+            // (`a |> b c` ≡ `(a) b c`,和 `a b c` 本来就一样)。
+            if (Match(TokenType.PipeInto))
             {
-                // 封口之后总得接点什么:`.成员` 或者下一段实参。`1 @` 那种尾巴上多出来的 `@`
+                // 封口之后总得接点什么:`.成员` 或者下一段实参。`1 |>` 那种尾巴上多出来的 `|>`
                 // 不该被静默吃掉。
                 if (!Check(TokenType.Dot) && !Check(TokenType.QuestionDot) && !StartsPrimary())
-                    throw ParseError("'@' 后面得跟点什么（它的意思是「把左边封口，接着往下写」）");
+                    throw ParseError("'|>' 后面得跟点什么（它的意思是「把左边封口，接着往下写」）");
                 expr = ParseMemberChain(expr, allowCall, guarded);
                 continue;
             }

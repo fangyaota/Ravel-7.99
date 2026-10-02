@@ -34,8 +34,8 @@ print (p == (Point 3 4))             # false
 # 序列是接口给的:`Where` / `Map` / `Fold` … 全是 IEnumerable 的**默认实现**,
 # 实现者只要交得出一个枚举器,整套白拿(列表、区间、生成器、Option、自己的类都算)
 Users := ["ada" "bob" "cyd"]
-print (Users.Where ((s: string) => { s == "bob"; }) @ .ToList ())    # [bob]
-print (Users.Map ((s: string) => { s + "!"; }) @ .ToList ())        # [ada! bob! cyd!]
+print (Users.Where ((s: string) => { s == "bob"; }) |> .ToList ())    # [bob]
+print (Users.Map ((s: string) => { s + "!"; }) |> .ToList ())        # [ada! bob! cyd!]
 ```
 
 ```ravel
@@ -58,7 +58,7 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **没有关键字**:`class` / `interface` / `if` / `while` / `foreach` 都是普通名字(库函数或别名),
   被覆盖掉语言就变样 —— 这是有意的。
 - **柯里化**:`f a b` ≡ `(f a) b`,多参函数就是"一层层收一个";`_` 占位符、`+.1` 运算符节、
-  `<|` 喂参、`@` 括号糖,都是围绕这一条长出来的(`$` 只在字符串的插值里)。
+  `<|` 喂参、`|>` 括号糖,都是围绕这一条长出来的(`$` 只在字符串的插值里)。
 - **原始字符串**:`"""…"""` 里一个字符都不动 —— 正则、Windows 路径那种满是反斜杠的文本
   画什么样写什么样;块按收尾引号的缩进对齐(照 C# 那套),所以能跟着代码正常缩进。
 - **接口 + 默认实现**:`IEnumerable ::= interface IMonad { …一整套默认实现… }` ——

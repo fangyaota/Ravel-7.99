@@ -1,4 +1,4 @@
-# 文件系统：磁盘实现（lib/io.rav）。真写磁盘 —— 写在仓库里的 .io-test/ 下，结尾删干净。
+﻿# 文件系统：磁盘实现（lib/io.rav）。真写磁盘 —— 写在仓库里的 .io-test/ 下，结尾删干净。
 
 # 两条自律：**路径手写 `/`**（平台无关；`Io.Join` / `Child` 拼出来的在 Windows 上是 `\`，
 # 所以只对它们做行为断言、不打印）；**只打稳定量**（名字、内容、大小、Exists、报错消息），
@@ -273,7 +273,7 @@ print ((act.Map ((t: string) => { t.Length (); })).Perform ())
 job := Io.WriteAction disk ("从 Action 写进来\n")
 print ((job.Then (Io.ReadAction disk)).Perform ())       # 先写后读,交回后一份的结果
 print ((Io.EachLineAction m ((l: string) => { print ("行 " + l); })).Perform ())
-print ((Io.AppendAction disk ("又一行\n")).Then (Io.ReadAction disk) @ .Perform ())
+print ((Io.AppendAction disk ("又一行\n")).Then (Io.ReadAction disk) |> .Perform ())
 
 disk.Delete ()
 root.Delete ()

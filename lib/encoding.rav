@@ -1,4 +1,4 @@
-# `Encoding` —— 把文字/字节来回换:**UTF-8**、**Base64**、**十六进制**、**URL 转义**。
+﻿# `Encoding` —— 把文字/字节来回换:**UTF-8**、**Base64**、**十六进制**、**URL 转义**。
 # **要显式引用**:`using "encoding.rav"`。
 #
 #     Encoding.Base64Text "你好"        # "5L2g5aW9" —— 先按 UTF-8 变字节,再编码
@@ -163,7 +163,7 @@ readonly HexDigits := "0123456789abcdef"
 readonly HexUpper := "0123456789ABCDEF"
 
 # 一个十六进制字符是几(大小写都认);不认识的给 -1。
-# **不写 `.ToUpper ().IndexOf c`** —— 调用后面接 `.成员` 要 `@` 才接得上
+# **不写 `.ToUpper ().IndexOf c`** —— 调用后面接 `.成员` 要 `|>` 才接得上
 # (`.成员` 比并列的调用绑得紧),写出来是 `ToUpper (().IndexOf c)` 那种读法。
 readonly DigitOf := (c: char) => {
     t := string c

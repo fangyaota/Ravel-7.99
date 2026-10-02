@@ -1,4 +1,4 @@
-# `Repl` —— **用 Ravel 写的 REPL 编辑器**(见 lib/repl.rav)。**要显式引用**。
+﻿# `Repl` —— **用 Ravel 写的 REPL 编辑器**(见 lib/repl.rav)。**要显式引用**。
 #
 # 这一条钉的是它**纯的那一半**:一行源码进、一串标记出 —— 不碰键盘也不碰屏幕。
 # 壳那一半(按键、重画、菜单)要有真键盘才跑得动,所以它在 `examples/repl.rav` 里。
@@ -50,12 +50,12 @@ e.Edit1 "a"
 e.Edit1 "b"
 e.Clamp ()
 print ((e.Text ()).Length ())
-print (e.Lines () @ .Count ())
+print (e.Lines () |> .Count ())
 e.Edit1 "enter"
 e.Edit1 "c"
 e.Clamp ()
 print ((e.Text ()).Length ())            # ab + 换行 + c = 4
-print (e.Lines () @ .Count ())
+print (e.Lines () |> .Count ())
 e.Edit1 "backspace"
 e.Clamp ()
 print ((e.Text ()).Length ())

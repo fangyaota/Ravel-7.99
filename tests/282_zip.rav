@@ -1,4 +1,4 @@
-# `Zip` —— ZIP 归档(见 lib/zip.rav)。**要显式引用**。
+﻿# `Zip` —— ZIP 归档(见 lib/zip.rav)。**要显式引用**。
 #
 # 它就是 `lib/io.rav` 开头许诺的那一格 ——「磁盘上的、内存里的、**zip 条目**、远程的……
 # 都只是 `IFile` 的实现」。归档是 `IDir`、成员是**只读的** `IFile`,于是
@@ -27,7 +27,7 @@ print ((z.Dirs ()).Keys ())           # 顶层:目录
 print ((z.Sub "empty").Name ())       # 建过的空目录也在
 print ((z.Entry "top.txt").Read ())
 print ((z.Entry "logs/a.txt").Read ())
-print ((z.Sub "logs").Entry "a.txt" @ .Read ())    # 往下走一层,名字按这一层认
+print ((z.Sub "logs").Entry "a.txt" |> .Read ())    # 往下走一层,名字按这一层认
 print ((z.Entry "disk.bin").Read ())
 print ((z.Entry "top.txt").Size ())                # 字节数(UTF-8 之后)
 print ((z.Child "logs").IsDir ())

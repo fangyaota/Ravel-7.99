@@ -1,8 +1,8 @@
-# `Glob` —— 通配符。**要显式引用**:`using "glob.rav"`。
+﻿# `Glob` —— 通配符。**要显式引用**:`using "glob.rav"`。
 #
 #     Glob.Match "*.txt" "a.txt"            # true
 #     Glob.Match "src/**/*.cs" "src/a/b.cs" # true(串在**要跨目录的地方)
-#     Glob.Filter "*.md" (Io.Dir "." @ .Files () @ .Keys ())   # 挑出表里相符的那些
+#     Glob.Filter "*.md" (Io.Dir "." |> .Files () |> .Keys ())   # 挑出表里相符的那些
 #     Glob.Find "src/**/*.cs"               # 从当前目录递归找,交回相符的相对路径
 #
 # 四样通配:

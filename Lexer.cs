@@ -116,7 +116,6 @@ public class Lexer(string source, string? file = null)
                 ',' => TokenType.Comma,
                 '.' => TokenType.Dot,
                 '|' => TokenType.Pipe,
-                '@' => TokenType.At,
                 _ => null,
             };
 
@@ -164,6 +163,11 @@ public class Lexer(string source, string? file = null)
                 tokens.Add(ReadIdentifier());
                 continue;
             }
+
+            // `@` 落到这儿 = 用**从前的写法**了(`@` 已经改成 `|>`)。
+            if (c == '@')
+                throw new SyntaxException("'@' 不作运算符了（把左边封口请写 '|>'）",
+                    new SourceSpot(file, _line, _col));
 
             // `$` 落到这儿 = 写到**字符串外面**来了。它的地盘只剩插值那一处,
             // 所以直说清楚,顺带把"想封右边该写什么"一并告诉他 —— 比"未预期的字符"有用。
@@ -270,6 +274,7 @@ public class Lexer(string source, string? file = null)
         (">>", TokenType.ShiftRight),
         ("<=", TokenType.LessEqual),
         ("<|", TokenType.PipeLeft),
+        ("|>", TokenType.PipeInto),      // 和 `<|` 是一对:那个封右,这个封左
         (">=", TokenType.GreaterEqual),
         ("&&", TokenType.AndAnd),
         ("||", TokenType.OrOr),

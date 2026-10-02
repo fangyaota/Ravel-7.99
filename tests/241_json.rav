@@ -1,4 +1,4 @@
-# 内置 `Json` 类(Newtonsoft.Json):**先看再转**。
+﻿# 内置 `Json` 类(Newtonsoft.Json):**先看再转**。
 #
 #   `Json v`            原生值(dict / list / 值类型 / ())→ Json
 #   `Json.FromString s` 字符串 → Json(唯一的解析入口)
@@ -43,7 +43,7 @@ print ((Json {"a": 1 "b": [2 3]}).Text 2)
 
 # 解析:空白无所谓,数字按"装得下 int 就 int、太大退 bigint、带小数/指数是 float"
 print (Json.FromString "{\"x\": 1}")
-print ((Json.FromString "[1,2,3]").At 2 @ .Extract ())
+print ((Json.FromString "[1,2,3]").At 2 |> .Extract ())
 print ((Json.FromString "1e3").Extract ())
 print ((Json.FromString "12345678901234567890").Extract ())
 print (typeof ((Json.FromString "12345678901234567890").Extract ()))

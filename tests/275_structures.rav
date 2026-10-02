@@ -1,4 +1,4 @@
-# 数据结构那一族:栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合。
+﻿# 数据结构那一族:栈 / 队列 / 双端队列 / 堆 / 有序字典 / 有序集合。
 #
 # 它们是**插件**:类和函数在一个独立的项目里(`Ravel.Structures/`,编成
 # `plugins/Ravel.Structures.dll`),`using "structures.rav"` 把 dll 装进来、顺手登记
@@ -64,7 +64,7 @@ print (ss.Max ())
 print (ss.Count ())
 
 # ── 实现了 `IEnumerable`:整套序列方法白拿 ──
-print ((Structures.Stack [1 2 3]).Map ((x: object) => { x * 10; }) @ .ToList ())
+print ((Structures.Stack [1 2 3]).Map ((x: object) => { x * 10; }) |> .ToList ())
 print ((Structures.Queue [1 2 3]).Fold 0 ((a: object b: object) => { a + b; }))
 print ((Structures.SortedSet [3 1 2]).Sum ())
 foreach (Structures.Heap [3 1 2]) (x: object) => { print ("堆: " + (string x)); }

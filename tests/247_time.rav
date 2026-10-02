@@ -1,4 +1,4 @@
-# `Time`:一个时刻 = 毫秒数(bigint)+ 一袋零件。`TimeFrom` 从文本读,`Now ()` 拿现在。
+﻿# `Time`:一个时刻 = 毫秒数(bigint)+ 一袋零件。`TimeFrom` 从文本读,`Now ()` 拿现在。
 # 格式串按 .NET 那套(`yyyy-MM-dd HH:mm:ss`);时区本地。比大小比**毫秒数**,
 # `IComparable` 登记过,所以 `Sorting` 直接吃它。
 # (只打稳定量:`Now ()` 只问类型和"比 2020 年晚",不打具体值。)
@@ -35,8 +35,8 @@ print (t.CompareTo (TimeFrom "2026-10-01 12:34:56" IsoFormat))
 print (t is IComparable)
 
 # Sorting 直接吃它
-print (Sorting.Sort [u t (t.AddDays (0 - 2))] @ .At 0 @ .Text ())
-print ((Sorting.Max [t u]) @ .Text ())
+print (Sorting.Sort [u t (t.AddDays (0 - 2))] |> .At 0 |> .Text ())
+print ((Sorting.Max [t u]) |> .Text ())
 
 # 毫秒那半也在:Ms 是 bigint,`Time 0` 收 int
 print ((Time 0).Text ())
