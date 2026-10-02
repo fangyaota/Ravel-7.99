@@ -1,4 +1,4 @@
-namespace Ravel;
+﻿namespace Ravel;
 
 using System.Linq;
 using Ravel.Runtime;
@@ -300,22 +300,10 @@ public partial class Parser
             if (Match(TokenType.At))
             {
                 // 封口之后总得接点什么:`.成员` 或者下一段实参。`1 @` 那种尾巴上多出来的 `@`
-                // 不该被静默吃掉(`$` 那边是交给 ParseExpression 报「需要表达式」的)。
+                // 不该被静默吃掉。
                 if (!Check(TokenType.Dot) && !Check(TokenType.QuestionDot) && !StartsPrimary())
                     throw ParseError("'@' 后面得跟点什么（它的意思是「把左边封口，接着往下写」）");
                 expr = ParseMemberChain(expr, allowCall, guarded);
-                continue;
-            }
-
-            // `$` —— **括号,把右边封口**:从这儿到表达式结束全算**一个**实参。
-            //     f $ a b   ≡   f (a b)        f $ g $ x   ≡   f (g (x))   (右结合)
-            if (Match(TokenType.Dollar))
-            {
-                expr = new CallExpr(expr, ParseExpression())
-                {
-                    Line = expr.Line,
-                    Column = expr.Column,
-                };
                 continue;
             }
 
@@ -326,10 +314,16 @@ public partial class Parser
             // (`allowCall: false` 那一档正好是"运算符链、但不吃并列的实参":所以 `f a b` 还是两个参数,
             //  柯里化不受影响;`f 1 + 2 * 3` 是 `f (1 + 2*3)`。)
             //
-            // **没有例外** —— 括号开头的实参也一样:`f (1) + 2` 是 `f ((1) + 2)`。
-            // 运算符作用在调用**结果**上时,是**调用**那一层的事,自己加括号:
-            //   `xs.Count () == 0` 要写成 `(xs.Count ()) == 0`(库和用例里的写法都按这条改过)。
-            var arg = ParseExpression(allowCall: false);
+            // **唯一的例外是 `<|`** —— 它由 `ParsePipe` 那一层管,而实参只走到 `ParseAssignment`。
+            // 所以实参**吃到运算符为止,但吃不掉 `<|`**:
+            //     add 1 <| 7     ≡  (add 1) 7      —— 拿**整串调用**的结果当函数
+            //     f <| a + b     ≡  f (a + b)      —— 右边整条算式当一个实参
+            // 这条不可少:`<|` 的用处之一就是"喂给一个柯里化了一半的调用",
+            // 而实参若把它吞进去,`add 1 <| 7` 就成了 `add (1 <| 7)` —— 报的还是
+            // 「'<|' 左边必须是函数」,指着一个根本不该当函数用的 `1`,查半天都找不到北。
+            // (括号开头的实参照旧:`f (1) + 2` 是 `f ((1) + 2)`。运算符作用在调用**结果**上时
+            //  是**调用**那一层的事,自己加括号:`xs.Count () == 0` 要写 `(xs.Count ()) == 0`。)
+            var arg = ParseAssignment(allowCall: false);
             expr = new CallExpr(expr, arg)
             {
                 Line = expr.Line,

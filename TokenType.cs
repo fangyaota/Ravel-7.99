@@ -1,4 +1,4 @@
-namespace Ravel;
+﻿namespace Ravel;
 
 public enum TokenType
 {
@@ -31,7 +31,6 @@ public enum TokenType
     Equal,         // =
     PipeLeft,      // <|
     At,            // @  括号的语法糖:把左边封口(`x.f () @ .g ()` ≡ `(x.f ()).g ()`)
-    Dollar,        // $  括号的语法糖:把右边封口(`f $ a b` ≡ `f (a b)`)
     BindArrow,     // :<  do 块里的取值绑定(`x :< m`;只在 do 里认)
 
     // 比较

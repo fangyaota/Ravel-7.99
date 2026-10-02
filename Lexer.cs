@@ -1,4 +1,4 @@
-namespace Ravel;
+﻿namespace Ravel;
 
 using Ravel.Runtime;
 
@@ -117,7 +117,6 @@ public class Lexer(string source, string? file = null)
                 '.' => TokenType.Dot,
                 '|' => TokenType.Pipe,
                 '@' => TokenType.At,
-                '$' => TokenType.Dollar,
                 _ => null,
             };
 
@@ -166,8 +165,14 @@ public class Lexer(string source, string? file = null)
                 continue;
             }
 
+            // `$` 落到这儿 = 写到**字符串外面**来了。它的地盘只剩插值那一处,
+            // 所以直说清楚,顺带把"想封右边该写什么"一并告诉他 —— 比"未预期的字符"有用。
+            if (c == '$')
+                throw new SyntaxException("'$' 只用在字符串里的插值 `${…}`（要把右边封成一个实参,用 '<|'）",
+                    new SourceSpot(file, _line, _col));
+
             // 单个 `?` 落到这儿说明后面没跟 `.` / `?`。这套语言没有三目,
-            // 直说它只在这三条里出现,比"未预期的字符"有用。
+            // 直说它只在三条里出现,比"未预期的字符"有用。
             if (c == '?')
                 throw new SyntaxException("'?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）",
                     new SourceSpot(file, _line, _col));
