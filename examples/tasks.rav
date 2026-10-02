@@ -110,7 +110,11 @@ try { Tasks.Cycle [ once ]; } (e: Exception) => { print ("  " + e.Message); }
 # ── 9. 三件常见活儿:`All` / `Any` / `Chan` ──
 print "── 9. All / Any / Chan ──"
 
-# `All`:一起跑,**按交进去的顺序**交回结果表(顺序是输入顺序,不是完成顺序)
+# `All`:**一起跑**,按交进去的顺序交回结果表(顺序是输入顺序,不是完成顺序)。
+#
+# "一起跑"是字面意思 —— 它先把几个都排进队再等,所以它们**真的并着**:
+# 两个 60ms 的一起等 ≈ 75ms,而不是 120ms。(自创任务的体到**第一次被等**才跑,
+# 所以"一个个等"天然是串行 —— `All` 里那句 `Schedule` 就是为这个。)
 Tasks.Cycle [
     (Tasks.Task (g: Tasks.TaskGroup) => {
         a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 30); "甲"; }
@@ -150,6 +154,12 @@ Tasks.Cycle [
 # —— 于是几件活儿能串成一段读得通的代码。
 #
 # **最后一句要 `Tasks.Return`**:`do` 的最后一句必须交回一个"包着的值",不能是裸值。
+#
+# **`do` 是串行的** —— monad 的 `Bind` 本来就是一环扣一环(后一环拿前一环的值)。
+# 想并发用 `Tasks.All`。两者不是替代关系:
+#
+#     do { … }              第二件事**依赖**第一件的结果时用它
+#     Tasks.All [t1 t2 …]    互不依赖、只想一起跑完时用它
 print "── 10. 任务进 do 块 ──"
 Tasks.Cycle [
     (Tasks.Task (g: Tasks.TaskGroup) => {

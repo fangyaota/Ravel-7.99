@@ -88,6 +88,17 @@ ITask ::= interface {
     # **怎么被等**:值是一个 `(group) => …`。这是"两种任务不一样"的唯一一处,
     # 子类各写各的,组只管调它(`t.WaitOn this`)。
     by WaitOn : function = default
+
+    # **怎么先起跑**:`(group) => …`。和 `WaitOn` 是配对的另一半。
+    #
+    # 为什么要有它 —— 自创任务的 `Body` 在**第一次被 `Await` 的时候**才跑起来,
+    # 于是"几个任务一起跑"这件事就出了问题:`foreach ts (t) => { g.Await t; }`
+    # 是一个个等的,**后一个要等前一个完才起跑** —— 串行。
+    # 想并发就得先把它们**都排进队**(`Tasks.All` 干的就是这个)。
+    #
+    # 自动推进的那一类(句柄/计时器)**不用排**:它们的 Job 在**造出来的时候**就已经
+    # 在操作系统那边跑了 —— 所以 `TaskBase` 这儿的默认是"什么都不做"。
+    by Schedule : function = default
 }
 
 # 共用那一半。**它自己不该被实例化** —— `WaitOn` 那份只会报错的默认体就是拦这个的。
@@ -143,6 +154,11 @@ TaskBase ::= class {
         Task (g: TaskGroup) => { g.Await (f (g.Await inner)); }
     }
 
+    # **先起跑**:默认什么都不用做 —— 自动推进的那一类(`SysTask` / `Signal`)
+    # 本来就不该被"排进队去跑":一个计时器造出来就在走了,一只闸不开就不该跑。
+    # 只有自创任务要覆写它(见 `Task`)。
+    Schedule := (group: TaskGroup) => { (); }
+
     # **怎么被等** —— "两种任务不一样"只在这一个地方,子类各写各的。
     # 基类这一份是兜底:走到这儿说明有人造了个没实现的 Task 家族类型,别装死。
     WaitOn := (group: TaskGroup) => {
@@ -181,16 +197,22 @@ Task ::= class TaskBase {
         this;
     }
 
-    # 挂到它的 `Waiters` 上 —— 它收工(`Finish`)时会把我放回就绪队列。
-    #
-    # **顺手把自己挂进这个组**(没进过的话)。"等到它完"就蕴含"得有人推它",而此刻
-    # 只有这一个组在跑 —— 少了这一步,`g.Await (Http.GetTask url)` 这种最自然的写法
-    # 就永远等不到(报得清楚,但明明不用报)。
+    # 自创任务**要**排进队才跑得起来(自动推进的那一类不用,见 `TaskBase.Schedule`)。
     #
     # 已经进过组的不动(`Queued`):那意味着有**别的**组在推它,再塞一份会让它被挑到
     # 两次 —— `Add` 那边会当场拦下来。
-    WaitOn = (group: TaskGroup) => {
+    Schedule = (group: TaskGroup) => {
         if { Queued; } { 0; } { group.Add this; }
+        ();
+    }
+
+    # 挂到它的 `Waiters` 上 —— 它收工(`Finish`)时会把我放回就绪队列。
+    #
+    # **顺手把自己挂进这个组**。"等到它完"就蕴含"得有人推它",而此刻只有这一个组在跑
+    # —— 少了这一步,`g.Await (Http.GetTask url)` 这种最自然的写法就永远等不到
+    # (报得清楚,但明明不用报)。
+    WaitOn = (group: TaskGroup) => {
+        Schedule group
         callcc (kp: Continuation) => {
             group.Current.Step = kp
             Waiters.Add group.Current
@@ -334,14 +356,19 @@ Chan ::= class {
     IsShut := () => { Shut; }
 }
 
-# `Tasks.All [t1 t2 …]` —— 一起跑,按**交进去的顺序**交回结果表。
+# `Tasks.All [t1 t2 …]` —— **一起跑**,按**交进去的顺序**交回结果表。
 #
 # 交回的是**一个任务**(不是结果表本身)—— 于是 `rs := g.Await (Tasks.All [a b c])`
 # 一步到位。谁炸了就在这一头现形,和别的任务一个规矩。
+#
+# **那个"先都 `Schedule` 一遍"不是多余的**:自创任务的 `Body` 到**第一次被 `Await`**
+# 才跑,直接一个个等就是**串行**的(实测:两个 60ms 的任务,153ms 而不是 74ms)。
+# 先排进队,它们才会在彼此等的时候跑起来。
 All := (ts: list) => {
     Task (g: TaskGroup) => {
+        foreach ts (t: ITask) => { t.Schedule g; }      # 先都起跑
         out := []
-        foreach ts (t: ITask) => { out.Add (g.Await t); }
+        foreach ts (t: ITask) => { out.Add (g.Await t); }   # 再按顺序收
         out;
     }
 }

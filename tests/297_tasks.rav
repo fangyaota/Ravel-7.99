@@ -202,6 +202,29 @@ print ("  任务 is IMonad:" + (string ((Tasks.After 0) is IMonad)))
 print ("  闸 is IMonad:  " + (string ((Tasks.Signal ()) is IMonad)))
 print ("  序列 is IMonad:" + (string ([1 2] is IMonad)))
 
+# ⑯ `All` 是**并发**的,`do { }` 是**串行**的 —— 两件事的痕迹
+#
+# 自创任务的 `Body` 到**第一次被 `Await`** 才跑,所以"一个个等"天然是串行 ——
+# `All` 得先把它们都排进队(`Schedule`),`do` 不用(monad 的 `Bind` 本来就是一环扣一环)。
+#
+# 下面看的**不是时间,是痕迹**:并发是 `[起1 起2 完1 完2]`,串行是 `[起1 完1 起2 完2]`。
+# (两个间隔故意拉开成 20 / 60 —— 挨太近的话"谁先完"由计时器粒度定,钉不住。)
+mAll := []
+a1 := Tasks.Task (gg: Tasks.TaskGroup) => { mAll.Add "起1"; gg.Await (Tasks.After 20); mAll.Add "完1"; }
+a2 := Tasks.Task (gg: Tasks.TaskGroup) => { mAll.Add "起2"; gg.Await (Tasks.After 60); mAll.Add "完2"; }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.All [a1 a2]); })
+]
+print ("  All:  " + (string mAll))
+
+mDo := []
+d1 := Tasks.Task (gg: Tasks.TaskGroup) => { mDo.Add "起1"; gg.Await (Tasks.After 0); mDo.Add "完1"; "x"; }
+d2 := Tasks.Task (gg: Tasks.TaskGroup) => { mDo.Add "起2"; gg.Await (Tasks.After 0); mDo.Add "完2"; "y"; }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (do { p :< d1; q :< d2; Tasks.Return (); }); })
+]
+print ("  do:   " + (string mDo))
+
 # --- expected ---
 # A1
 # B1
@@ -251,3 +274,5 @@ print ("  序列 is IMonad:" + (string ([1 2] is IMonad)))
 #   任务 is IMonad:true
 #   闸 is IMonad:  true
 #   序列 is IMonad:true
+#   All:  [起1 起2 完1 完2]
+#   do:   [起1 完1 起2 完2]
