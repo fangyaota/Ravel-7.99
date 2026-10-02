@@ -257,11 +257,11 @@ public partial class Interpreter
 
     private void StepBlockExec(BlockExecFrame bf)
     {
-        if (bf.Count < bf.Block.Statements.Count)
+        if (bf.Index < bf.Block.Statements.Count)
         {
-            // 走到这儿 = **上一条语句刚跑完**(Results[Count-1]),而且后面还有别的语句 ——
+            // 走到这儿 = **上一条语句刚跑完**(Results[Index-1]),而且后面还有别的语句 ——
             // 也就是说它那一份值是被**丢掉**的。丢的是不是个函数,在这儿看一眼。
-            if (bf.Count > 0) WarnIfForgotCall(bf);
+            if (bf.Index > 0) WarnIfForgotCall(bf);
 
             // `ExpressionStatement` 只是个**壳** —— `StepNode` 那一臂做的就是"推给里层、
             // 再**原样**交回来",一次 push 加一次 return 拷贝,什么也没干。**别为它推那一帧**:
@@ -269,12 +269,18 @@ public partial class Interpreter
             //
             // 位置没丢:解析器建这个壳时写的就是里层那个表达式的行列(`Parser.Atoms.cs` 三处、
             // `Parser.Holes.cs` 一处),报错指的仍是同一处。
-            var stmt = bf.Block.Statements[bf.Count];
-            _top = new NodeFrame(stmt is ExpressionStatement es ? es.Expr : stmt) { Parent = bf, Scope = bf.Scope };
+            var stmt = bf.Block.Statements[bf.Index];
+            _top = new NodeFrame(stmt is ExpressionStatement es ? es.Expr : stmt)
+            {
+                // **游标在这一步推进**(而不是"结果表又长了一格"):推出去的父帧已经是"下一条"了,
+                // 这句跑完 `Return` 把值追加到它身上,回到这儿时 `Index` 就是下一条。
+                Parent = bf with { Index = bf.Index + 1 },
+                Scope = bf.Scope
+            };
             return;
         }
 
-        var v = bf.Count == 0 ? VoidVal.Instance : bf.Last;
+        var v = bf.Index == 0 ? VoidVal.Instance : bf.Last;
         // 柯里化函数的体:交出去的那个就是**半成品**(还等着下一批实参)
         if (bf.Curried && v is FunctionVal f) f.IsPartial = true;
         Return(bf, v);
@@ -313,7 +319,7 @@ public partial class Interpreter
     {
         if (!WarnForgotCall) return;
 
-        var stmt = bf.Block.Statements[bf.Count - 1];
+        var stmt = bf.Block.Statements[bf.Index - 1];
         if (stmt is not ExpressionStatement es) return;
         // 赋值那一类跳过:`a.b = v` / `a.b := v` 在语法上也是 ExpressionStatement(BinaryExpr),
         // 但值是"赋进去的那个"这个副产物 —— 事已经做了(见 OperatorSymbols.AssignOps)

@@ -19,9 +19,28 @@ public abstract record Frame
 /// <summary>求值一个 AST 节点(语句/表达式)</summary>
 public record NodeFrame(AstNode Node) : Frame;
 
-/// <summary>执行一个代码块:逐语句求值,Results.Count=已完成的语句数,Results 存最近一条语句的值</summary>
+/// <summary>执行一个代码块:逐语句求值,**`Index` = 下一条要跑的那句**(0 基);`Results` 只存
+/// 跑完的那些值(最后一条就是块的值)。
+///
+/// **位置是存在帧里的,不是从 `Results.Count` 推出来的** —— 从前是后者,而那样一来
+/// "往这个帧上追加一个结果"就等于"块往前走一句",两件事被绑死在一起;**续延恢复**干的
+/// 正是前者(`_top = k.Captured.WithResult(arg)`,见 `Interpreter.Call.cs`),
+/// 于是"恢复"和"推语句"共用同一个动作。分开之后谁也不会顺手把游标带跑。
+/// (别的语言里位置本来就是显式的:C# `async` 编译出来的状态机、Go/Lua 的协程栈都是。)
+///
+/// **这一条本身不改可观察行为** —— 2026-10-02 拿 11 个用例对过(含当时那版调度器的并发
+/// 场景),改前改后**逐字相同**;别把这条当成某个 bug 的修复。
+///
+/// 那一天那版调度器(`Task.Yield ()` 那种"任务主动让出")确实挂着一处「值 0 不是函数」,
+/// 原因在别处(任务与调度器共用同一条帧链),这个游标救不了它。现在的 `lib/tasks.rav`
+/// **没有"主动让出"这个挂起点** —— 任务只在 `group.Await` 上停,而那一条路实测没出过事。
+/// 这不是这个游标的功劳,是挂起点的形状变了;哪天要加回"主动让出",先回来看这一条。</summary>
 public record BlockExecFrame(BlockExpr Block) : Frame
 {
+    /// <summary>下一条要跑的语句在 `Block.Statements` 里的下标。**只由 `StepBlockExec` 推进** ——
+    /// 推语句的时候顺手把父帧写成 `bf with { Index = bf.Index + 1 }`,别的路一概不动它。</summary>
+    public int Index { get; init; }
+
     /// <summary>这个块是**柯里化函数**的体(见 `BlockExpr.Curried`)—— 它交出去的那个函数
     /// 是个半成品,收尾时顺手打上标(见 `FunctionVal.IsPartial`)。调用方只有 `CallInto`。</summary>
     public bool Curried { get; init; }

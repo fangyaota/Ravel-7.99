@@ -48,6 +48,7 @@ internal static class SysModule
         DefType(scope, "List", BuiltinClasses.List);
         DefType(scope, "Set", BuiltinClasses.Set);
         DefType(scope, "Dict", BuiltinClasses.Dict);
+        DefType(scope, "Waitable", BuiltinClasses.Waitable);   // 等待句柄(见 SysTask)
         DefType(scope, "Object", BuiltinClasses.Object);
         // 模块的类对象 —— **所有模块共用这一个**(`Math` / `System` / 各库的模块都是它的
         // 实例,不再是各建一个子类,见 ModuleVal)。所以要问"这是不是个模块"就一句

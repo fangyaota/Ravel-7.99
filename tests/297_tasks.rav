@@ -1,0 +1,108 @@
+# `Tasks` —— 协作式任务:一个 OS 线程,任务只在 `group.Await` 上换人。
+#
+# 顺序是**钉死的**(协作式的好处:谁来跑由代码决定,不是碰运气),所以这儿只钉顺序,
+# 不钉墙钟。`Tasks.After 0` 是"让一轮"—— 句柄当场就算完成,不掺进真实计时。
+using "tasks.rav"
+
+# ① 交替:两个任务各挂两次
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "A1"
+        g.Await (Tasks.After 0)
+        print "A2"
+        g.Await (Tasks.After 0)
+        print "A3"
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "B1"
+        g.Await (Tasks.After 0)
+        print "B2"
+        g.Await (Tasks.After 0)
+        print "B3"
+    })
+]
+
+# ② 结果在任务自己身上:IsDone 不阻塞,Value 会等
+t := Tasks.After 0
+print t.IsDone
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await t; print t.IsDone; })
+]
+
+# ③ 跑着再加一个(group.Add)
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "主:开帮手"
+        h := g.Add (Tasks.Task (gg: Tasks.TaskGroup) => {
+            gg.Await (Tasks.After 0)
+            print "帮手:完"
+        })
+        g.Await h
+        print "主:帮手回来了"
+    })
+]
+
+# ④ 自创任务之间互等(它在组里,所以等得到)
+b := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 0); print "b 完"; }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print "a 等 b"; g.Await b; print "a 到了"; })
+    b
+]
+
+# ⑤ 库 `while` 的循环体里挂起 —— 这一条是老引擎那个形状,在这儿是过的
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 2; } { i += 1; print ("L" + (string i)); g.Await (Tasks.After 0); }
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 2; } { i += 1; print ("M" + (string i)); g.Await (Tasks.After 0); }
+    })
+]
+
+# ⑥ 任务里抛的错:在**等它那一头**现形,不把组带走
+bad := Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "任务里炸了"); }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        try { g.Await bad; print "不该到这儿"; } (e: Exception) => { print ("接住:" + e.Message); }
+    })
+    bad
+]
+
+# ⑦ 死锁:等一个没进组、也不会有人完成的自创任务 —— 当场报,不干等
+orphan := Tasks.Task (g: Tasks.TaskGroup) => { (); }
+# (`} (e: …) =>` 必须**同一行** —— `try` 是柯里化的,换行这一句就断了:体根本不跑,
+#  handler 也成了另一句被丢掉的 lambda。这坑安静得很,写在 `docs/tutorial.md` 里。)
+try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { g.Await orphan; })]; } (e: Exception) => { print e.Message; }
+
+# ⑧ 任务失败了**而没人接** —— 和"没人接的错误"一个口径,也当场报
+try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "没人理我"); })]; } (e: Exception) => { print e.Message; }
+
+# ⑨ 组不能套着跑:`Back` 只有一格
+try { Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { Tasks.Cycle []; })
+]; } (e: Exception) => { print e.Message; }
+# --- expected ---
+A1
+B1
+A2
+B2
+A3
+B3
+false
+true
+主:开帮手
+帮手:完
+主:帮手回来了
+a 等 b
+b 完
+a 到了
+L1
+M1
+L2
+M2
+接住:任务里炸了
+死锁:还有 1 个任务没完,但已经没有谁能推进它们了 —— 多半是在等一个没进组、也不会有人完成的东西
+有 1 个任务失败了,而没人接它的错:没人理我 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)
+有 1 个任务失败了,而没人接它的错:组不能套着跑:里面那个一开始,外面那个就找不着回来的路了 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)

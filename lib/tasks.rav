@@ -1,0 +1,295 @@
+# `Tasks` —— **协作式任务**。要显式引用:`using "tasks.rav"`。
+#
+#     using "tasks.rav"
+#
+#     Tasks.Cycle [
+#         Tasks.Task (group: Tasks.TaskGroup) => {
+#             print "a"
+#             group.Await (Tasks.After 1000)
+#             print "a 完了"
+#         }
+#         Tasks.Task (group: Tasks.TaskGroup) => {
+#             print "b"
+#             group.Await (Tasks.After 300)
+#             print "b 完了"
+#         }
+#     ]
+#
+# 一个 OS 线程,任务只在**挂起点**换人(`group.Await`)。于是等待能重叠(两个 400ms 的等待
+# 叠起来 ≈ 0.6s,串起来 0.8s 起),而交替顺序是钉得住的 —— 协作式的好处:顺序由代码决定。
+#
+# ## Task 分两种
+#
+# **自动推进的**:`Tasks.After ms` 这种 —— 底下是 OS 的计时器 / IO 句柄,它在**操作系统
+# 那边**自己往前走。组管不了它、也不用管它,只需要**看**它完没完(`System.WaitAny`),
+# 完了把等着的人放回就绪队列。
+#
+# **自创的**:`Tasks.Task (group) => { … }` 这种 —— 只有组**跑**它才前进。它停在哪儿由一枚
+# 续延记着(`Step`),组下次挑到它就接着跑。
+#
+# 两种共用一个类型 `Task`、一套 `IsDone` / `Value` / `group.Await`。名字共用一个是有道理的:
+# 都是"一件还没完的活儿",差别只在**谁让它往前走**。
+#
+# ## 只有"等"这一个挂起点,**没有**"主动让出"
+#
+# 一个任务只在 `group.Await` 上停住。要别人跑,你总得先等点什么 —— `Tasks.After 0`
+# 就是"让一轮"。这一条是有意的:另一条路(任务主动 `Yield`)在这门语言的调度器上
+# 实测会踩到帧链的坑(任务与调度器共用一条链),而"只在等句柄时停"这条路
+# 在实测里一次都没出过事。等引擎那条修好再谈公平轮转。
+#
+# ## 续延那套写法照抄 `lib/generator.rav` 的 `GeneratorCursor`
+#
+# 挂起/恢复库里已经有一份跑得好的(`Generator (y) => { while { true; } { y n; n += 1 } }`
+# 那种"在循环体里挂起再接着跑"就是它撑着)。三条规矩照抄,一条都别自作聪明:
+#
+#   ① **一律用库里的 `callcc`**(不是引擎的 `System.CallCC`)—— 它交出来的续延被调用时
+#      会先还原**控制状态**(`Ex.HandlerStack` / 模块加载状态,见 `predefined.rav`),
+#      于是"每个任务自己一套 handler 栈"是白拿的,这儿一个字都不用管。
+#   ② **状态收进对象的字段**,别散在模块作用域上:任务换来换去,谁读谁写说不清。
+#   ③ **两侧都是"在 lambda 里抓、抓完立刻跳到对面"**。
+#
+# 模块作用域上只剩**一格**真实的运行时事实:`Running`(此刻在跑的是哪个组)。
+# 它必须存在,因为 `t.Value` 那个 by-property 手里没有组 —— 而"同一时刻只有一个组在跑"
+# 对单线程协作式来说是真的,所以这一格不是将就,是事实的转述。
+ravel "Tasks"
+
+# 一个任务。自动推进的那一半只用 `Job`,自创的那一半只用 `Body` / `Step` / `Started`。
+#
+# `Step` 是"我停在哪儿"那一枚续延,起手是 `default`(还没到手的哨兵:一调就报错,
+# 不会静默什么都不做 —— 见 `predefined.rav` 的 callcc)。
+Task ::= class {
+    Body: function = () => { (); }
+    Step: Continuation = default
+    Started: bool = false
+
+    # 结果那一格,**两种来路共用**:Done 之后 Ok / Val / Err 才有意义
+    Done: bool = false
+    Ok: bool = true
+    Val: object = ()
+    Err: object = ()
+
+    # 自动推进的那一半:OS 句柄(`After` 挂上去的)。`HasJob` 是"我是不是那一类"的凭据
+    # (`== ()` 在这门语言里不吃 Void 操作数,所以拿个 bool 明说)
+    Job: object = ()
+    HasJob: bool = false
+
+    # 谁在等我(自创任务走这一格;自动的走组的等待集合)
+    Waiters: list = []
+
+    # 有没有人来接过我的结果(`Await` 过 / 读过 `Value`)。
+    # 它是"任务失败了但没人知道"那道闸的凭据:没人接的错到 `Run` 收尾时会当场报出来,
+    # 不会像"没人接的错误"那样烂在这儿。
+    Claimed: bool = false
+
+    # 两个 init 要用 `|` 连成**一条语句**(写两条 `init =` 是后一条覆盖前一条,按实参类型
+    # 分流的那套就没了 —— 症状是"参数 '_' 需要 Void,得到 Function")。
+    # `|` 必须跟在**上一个 lambda 的 `}` 那一行**上,另起一行它就断了。
+    init = (body: function) => {
+        Body = body
+        Step = default
+        Started = false
+        HasJob = false
+        this;
+    } | () => {
+        Body = () => { (); }
+        Step = default
+        Started = false
+        HasJob = false
+        this;
+    }
+
+    # 完没完 —— **不阻塞**,随手就能探
+    by IsDone := property (() => { Done; }) ((v: bool) => { (); })
+
+    # 取值 —— **会等**。还没完就把当前任务挂起来等它完(`Running` = "我正在哪个组里跑")。
+    # 那边抛了就在这儿重抛:错在**取结果的那一头**现形,不会把组带走。
+    by Value := property (() => {
+        Claimed = true
+        if { Done; } { 0; } {
+            # 没有组在跑 = 没人能推进它,别装死,当场说清
+            if { Driving; } { 0; } {
+                throw (Exception ("这个任务还没完,而当前没有组在跑 —— 没有谁能让它往前走"))
+            }
+            CurrentGroup.Await instance
+        }
+        if { Ok; } { Val; } { throw Err; }
+    }) ((v: object) => { (); })
+}
+
+# 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
+Pending ::= class {
+    Who: object = ()
+    Job: object = ()
+    init = (who: object job: object) => { Who = who; Job = job; this; }
+}
+
+# **组** —— 调度器。就绪队列 + 等待集合,外加一格"此刻在跑谁"。
+#
+# 组**不自己起任务**:它只跑你交给它的(`TaskGroup [ … ]`)、以及跑着跑着自己加进来的
+# (`group.Add`)。于是"这组活儿什么时候算完"是个能被看出来的问题(见 `Run` 末尾那道死锁检查)。
+TaskGroup ::= class {
+    All: list = []                 # 组里所有任务(含跑着加进来的),给死锁检查用
+    Ready: list = []               # 就绪队列:挑到谁就跑谁
+    Waiting: list = []             # 等着 OS 句柄的:每项一个 `Pending`
+    Current: object = ()           # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
+    Back: Continuation = default   # 任务让出时跳回来的那一枚(见 `Run`)
+
+    init = (tasks: list) => {
+        All = []
+        Ready = []
+        Waiting = []
+        Current = ()
+        Back = default
+        foreach tasks (t: object) => { All.Add t; Ready.Add t; }
+        this;
+    }
+
+    # 往组里加一个任务。**不立刻跑** —— 排到队尾,到下一个切换点才轮到它
+    # (协作式的规矩:发起的人接着跑自己的,等它自己走到挂起点)。
+    #
+    # 跑着的时候也能调(`group.Add anotherTask`):有些活儿本来就是"等我这儿有数了,
+    # 才知道要开几个"。交回任务本身,于是 `t := group.Add (Tasks.Task …)  # 之后 t.Value` 读得通。
+    Add := (t: object) => {
+        All.Add t
+        Ready.Add t
+        t
+    }
+
+    # **唯一的挂起点**:等一个任务完。
+    #
+    # 两条路分开走:
+    #   * 自创的:挂到它的 `Waiters` 上,它跑完时把我放回就绪队列(`Finish`);
+    #   * 自动推进的:挂到组的等待集合上,`Poll` 在 OS 那边等着,谁先完成谁先回来。
+    #
+    # **规矩**:只能等"会被别人完成"的东西。等一个没进组、也不会有人完成的自创任务就是死锁
+    # —— `Run` 末尾那道检查会当场报出来,不会让你干等。
+    Await := (t: object) => {
+        t.Claimed = true
+        if { t.Done; } { 0; } {
+            if { t.HasJob; } {
+                # 自动推进的:挂到组的等待集合上,等 OS 那边
+                callcc (kp: Continuation) => {
+                    Current.Step = kp
+                    Waiting.Add (Pending Current t.Job)
+                    Back ()
+                }
+                # 回到这儿 = 这个句柄完成了。**结果在这一头取** —— 于是 IO 失败(超时、连不上)
+                # 是在**这个任务里**抛出来的,不会把组带走;同时也把结果记到任务身上,
+                # 之后谁读它的 `Value` 都是白拿。
+                # (`HandleValue` 可以重复调,读的就是那个已完成任务的结果。)
+                t.Val = System.HandleValue t.Job
+                t.Ok = true
+                t.Done = true
+            } {
+                # 自创的:挂到它的 `Waiters` 上,它收工时会把我放回就绪队列
+                callcc (kp: Continuation) => {
+                    Current.Step = kp
+                    t.Waiters.Add Current
+                    Back ()
+                }
+            }
+        }
+        # 到这儿它一定完了。那边抛了就在**这一头**重抛 —— 谁等它,谁接到那个错。
+        if { t.Ok; } { (); } { throw t.Err; }
+    }
+
+    # 就绪的都挑完了,剩下的在等 OS:阻塞着等**最先完成**的那一个,把它的任务放回就绪队列。
+    # 占住 OS 线程是**故意**的 —— 没活干的时候本来就该把线程交给操作系统去等,
+    # 这既是"空转不烧 CPU"的那条闸,也是真等待能重叠的原因。
+    Poll := () => {
+        done := System.WaitAny (Waiting.Map ((w: object) => { w.Job; }) |> .ToList ())
+        w := Waiting.Where ((x: object) => { x.Job == done; }) |> .First ()
+        Waiting.Remove (Waiting.IndexOf w)
+        Ready.Add w.Who
+    }
+
+    # 跑一个任务:按 `Started` 分叉(新的跑 `Body`,老的从 `Step` 接着跑)。
+    #
+    # 体的错**在这儿收住**(记进任务、不往外冒):一个任务把自己搞砸了,不该把整组带走。
+    # 谁 `group.Await` 它 / 谁读它的 `Value`,谁在**那一头**接到这个错。
+    Start := (t: object) => {
+        if { t.Started; } { t.Step (); } {
+            t.Started = true
+            try { t.Val = (t.Body this); } (e: Exception) => { t.Ok = false; t.Err = e; (); }
+            Finish t
+        }
+    }
+
+    # 一个任务收工:记上"完了",把等着它的都放回就绪队列。
+    Finish := (t: object) => {
+        t.Done = true
+        foreach t.Waiters (w: object) => { Ready.Add w; }
+        t.Waiters = []
+        ()
+    }
+
+    # **驱动整个组**:一轮一轮挑任务跑,直到没活儿了。
+    #
+    # 任务让出时跳的都是 `Back` 这一枚 —— 于是回来的落点永远是同一条链上的同一个地方,
+    # 而当前那条链整个丢掉(帧链不随切换增长)。
+    Run := () => {
+        # 嵌套开不了:`Back` 只有一格,内层组一跑,外层的就找不着回来的路了。
+        # 当场报错,别让它悄悄地烂。
+        if { Driving; } {
+            throw (Exception ("组不能套着跑:里面那个一开始,外面那个就找不着回来的路了"))
+        } { 0; }
+        Driving = true
+        CurrentGroup = this
+        callcc (kc: Continuation) => { Back = kc; }
+        while { !((Ready.IsEmpty ()) && (Waiting.IsEmpty ())); } {
+            if { Ready.IsEmpty (); } { Poll (); } {
+                Current = Ready.Remove 0
+                Start Current
+            }
+        }
+        Driving = false
+        CurrentGroup = default
+        # 走到这儿 = 没活儿可干了。**但如果还有任务没完**,那不是跑完了,是卡住了:
+        # 它停在某个 `Await` 上,而没有任何东西能把它叫醒(典型:在等一个没进组、
+        # 也不会有人去完成的自创任务)。当场报出来 —— 干等比报错难查得多。
+        stuck := All.Where ((t: object) => { !(t.Done); }) |> .ToList ()
+        if { (stuck.Count ()) == 0; } { (); } {
+            throw (Exception ("死锁:还有 " + (string (stuck.Count ())) + " 个任务没完,"
+                              + "但已经没有谁能推进它们了 —— 多半是在等一个没进组、也不会有人完成的东西"))
+        }
+        # 还有个更难堪的情形:**任务失败了,但没人接**。没人 `Await` 它、也没人读它的 `Value`
+        # —— 那个错就烂在它身上,程序照常往下跑。和"没人接的错误"是同一个毛病,
+        # 所以照同一个口径:当场报出来。
+        dropped := All.Where ((t: object) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
+        if { (dropped.Count ()) == 0; } { (); } {
+            throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错:"
+                              + (dropped.First ()).Err.Message
+                              + " —— 谁起的任务谁负责等它(`group.Await` / `.Value`)"))
+        }
+    }
+}
+
+# 此刻在跑的是哪个组 —— 只有一格,因为同一时刻真的只有一个在跑(单线程协作式)。
+# 它存在只为 `t.Value`:那个 by-property 手上没有组,而"我在哪个组"这件事得有人记着。
+CurrentGroup: TaskGroup = default
+
+# 此刻有没有组在跑。`CurrentGroup` 是"哪个",这个是"有没有" —— 分开是因为
+# `== ()` 在这门语言里不吃 Void 操作数,而"还没跑过"这件事得能问得出来。
+Driving: bool = false
+
+# `Tasks.After ms` —— 一个**毫秒后自动完成**的任务。
+#
+# 名字说的是它是**什么**(一个将来的 Task),不是它做**什么**:`System.Sleep` 才是"睡",
+# 这一条压根不睡,它只是**交回一个将来会醒的东西**。所以 `After 1000` 单独一句什么都不会
+# 发生 —— 得像别的任务一样 `group.Await` 它。(这个坑和"光写个函数名没调用"是一类。)
+After := (ms: int) => {
+    t := Task ()
+    t.Job = System.Sleepable ms
+    t.HasJob = true
+    t
+}
+
+# 开一个组,把这批任务跑到底,交回 `()`。
+#
+# **`Run` 只交回 `()` 是有意的**:结果在**任务自己身上**(`t.Value`),不在组身上 ——
+# 组管调度,不管收成。要收成就把任务先兜在变量里:`t := Tasks.Task (…)`、之后 `t.Value`。
+#
+# `Tasks.Cycle [ … ]` —— "建一个组,跑完"的糖。元素和 `TaskGroup` 一样是任务。
+Cycle := (tasks: list) => {
+    (TaskGroup tasks).Run ()
+}

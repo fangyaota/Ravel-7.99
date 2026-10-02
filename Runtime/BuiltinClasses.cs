@@ -42,6 +42,11 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Set;
     public static readonly ClassVal Dict;
 
+    /// <summary>**等待句柄**(`WaitableVal`)—— "那边做完了会给一个值",`System.WaitAny` /
+    /// `HandleValue` 两条原语围着它转,调度器在 `lib/tasks.rav`。
+    /// 它是**引用类型**(句柄没有"相等"这回事,比的是最后拿到的值)。</summary>
+    public static readonly ClassVal Waitable;
+
     // void — 唯一值 ()
     public static readonly ClassVal Void;
 
@@ -120,6 +125,7 @@ internal static partial class BuiltinClasses
         List = New("List");
         Set = New("Set");
         Dict = New("Dict");
+        Waitable = New("Waitable");
         Void = New("Void");
         Type = New("Type");
         Ravel = New("Ravel");
@@ -167,6 +173,7 @@ internal static partial class BuiltinClasses
         Link(List, Object, Type);
         Link(Set, Object, Type);
         Link(Dict, Object, Type);
+        Link(Waitable, Object, Type);
 
         Link(Void, Object, Type);
 
@@ -214,7 +221,7 @@ internal static partial class BuiltinClasses
                  {
                      Object, ValueType, Int, Float, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
-                     List, Set, Dict, Void, Type, Interface, BaseInterface,
+                     List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, Json, ScopeType, Property,
                      TypeError, NameError, AttributeError, IndexError, KeyError,
                      ZeroDivisionError, AssertionError, AccessError, ArgumentError, ValueError,

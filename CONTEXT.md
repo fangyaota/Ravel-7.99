@@ -180,6 +180,14 @@ lib/
   generator.rav           `Generator f` —— 把"往外送值"的一段代码包成 `IEnumerable`
                           (体的参数 `y` 是投喂口:`y v` 送出并挂起;惰性,可无限流)。
                           实现是 227 那个"两枚续延"原型,状态收进 `GeneratorCursor` 的字段
+  tasks.rav               `Tasks` 模块 —— **协作式任务**(要显式 `using "tasks.rav"`)。
+                          一个 OS 线程,任务只在**挂起点**换人:`TaskGroup`(Run / Await / Add)
+                          跑一列 `Task`,`Task` 给 `IsDone`(不阻塞)/ `Value`(会等)两个 by-property。
+                          **`Task` 分两种**:自动推进的(`After ms`,底下是 `System.Waitable`
+                          句柄,在操作系统那边自己走)和自创的(只有组跑它才动,停在哪由一枚
+                          续延记着)。两种共用一个类型、一套等待接口 —— 这就是它们共用一个名字的
+                          理由。挂起/恢复照抄 `generator.rav` 的 `GeneratorCursor`(三条规矩见文件头)。
+                          用例:`tests/297_tasks.rav`
   cached.rav              `Cached count f` —— 记忆化:按实参把 f 的结果记下来。**是个函数**
                           (不是类型),直接交出包装函数;缓存本身是它捕获的两个 list
                           (所以每调一次是独立的一份,也不进 AllTypes)
@@ -388,6 +396,12 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 
 - 整个程序一个块根帧,`StepOnce()` 扁平循环逐帧推进,C# 栈恒平。
 - 每节点状态机按 `Results.Count` 推进;`Return` 把结果交给父帧。
+  **块那一格是例外**:`BlockExecFrame.Index` 是**显式**的"下一条语句",不在 `Results` 上做文章 ——
+  `Results` 只存跑完的那些值。为什么单拎出来:位置一旦从"结果表有多长"推,"往帧上追加一个结果"
+  就等于"块往前走一句",两件事被绑死在一起,而**续延恢复**干的正是前者
+  (`_top = k.Captured.WithResult(arg)`)—— 于是"恢复"和"推语句"共用同一个动作。
+  **这一条本身不改可观察行为**(2026-10-02 拿 11 个用例对过,改前改后逐字相同);
+  别的语言里位置本来就显式(C# 的 async 状态机、Go/Lua 的协程栈)。
 - 调用分派(`Interpreter.Call.cs` 的 `CallInto`):`ControlFunction`(控制帧)/`LambdaVal`(推 body 帧)/`NativeClosure`(同上,但体是 C#)/`BlockVal`/`ClassVal`(**类对象,调它 = 实例化**)/`ComposeVal`(prepend/append)/`BoundClassOp`(类运算符)/`PartialCtor`(半成品构造器→CtorApply 帧)/`ContinuationVal`(还原帧链);其余 `FunctionVal` 走默认分支,同步调 `Body(arg)` 把值塞回 sink
 (被分派掉的那些值,`Body` 是 `FunctionVal.PlaceholderBody` —— **真被调到就报错**,
 不再静默交出 `()`,也不让硬转抛 C# 异常:漏一个 `case` 要当场出声)。同步函数一律是「参数→结果」,没有 Step 包装(旧 CPS 的 `Done` 壳已删除)。
@@ -486,8 +500,11 @@ Object (parent=自己)
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
 **类型**: Integer String Char Bool Float BigInteger Fraction BigFraction Scope Range
-        List Set Dict Object **Ravel** Void Function Continuation Type Interface BaseInterface
-        Any Every Exception ValueType Json
+        List Set Dict **Waitable** Object **Ravel** Void Function Continuation Type Interface
+        BaseInterface Any Every Exception ValueType Json
+
+(`Waitable` 是"一个还在做的本机活儿"那个句柄类型 —— `System.Sleepable` 交回它,
+`WaitAny` 收它。它自己不带调度策略:怎么排队全在 `lib/tasks.rav`。)
 
 (每个类型在 `predefined.rav` 里都有一条全局别名 —— `int` / `string` / `object` /
 `Ravel` …。**`MyMod.References ()`** —— 这个模块**自己写着的那些 `using`**,交回的是**模块本身**
@@ -526,6 +543,10 @@ Object (parent=自己)
               FileExists DirExists ReadText WriteText AppendText DeletePath CreateDir ListDir
               PathSize PathTime CopyPath MovePath CurrentDir ChDir SplitLines
               PathClean PathJoin PathDir PathBase PathExt          ← 文件那 22 条(syscall 层)
+    任务       WaitAny HandleValue Sleepable             ← "等一个本机任务"那三条:等着谁先完成、
+                                                        取结果、交回一个"多久之后会好的"句柄。
+                                                        调度策略(`Tasks` 那一整套)在
+                                                        `lib/tasks.rav`,引擎这半边只认句柄
 
 **`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` / `Random` 那六族原语不在这张表里** ——
 它们是那几个库的本机半边,住在**官方扩展**里,`using "native.rav"` 之后在 `Native`
@@ -1944,10 +1965,15 @@ Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒�
 单独跑那条用例(不经运行器)会因为没接上服务器而不同 —— 和别的 golden 用例一样,只在
 `ravel test` 下比对。
 
-### 以后加并发时
+### 并发:调度器已经有了,HTTP 那条还没接
 
-现在是**同步**的:一个请求等一个。要加并发(任务 / 多线程)时,`Http.Get` 的形状不变 ——
-引擎那条原语从"阻塞"变成"挂起当前任务"、调度器换人跑,`lib/http.rav` 和用户代码都不用动。
+`lib/tasks.rav`(`Tasks` 模块)就是那个调度器 —— 协作式任务,见上面文件地图那一格和
+`tests/297_tasks.rav`。引擎这一侧只多了三样原语(`System.WaitAny` / `HandleValue` /
+`Sleepable`,`Runtime/Builtins/SysTask.cs` + `Waitable` 值类型),**调度策略整个在库里**。
+
+**还没做的是把 `Http` 那四条接上去**:它们现在仍然是"阻塞到返回"。接法就是文件开头那句
+"以后加并发时"说的那件事 —— `HttpReq` 那四条从"交回 dict"改成"交回句柄",
+`lib/http.rav` 里 `Http.Get` 那一层内部包一次 `group.Await`,**形状一个字不动**。
 这也是"发请求"整个收进**一条原语**里的原因。
 
 ## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
