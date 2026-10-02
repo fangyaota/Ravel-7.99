@@ -191,6 +191,11 @@ lib/
                           `Tasks.After ms`,底下是 `System.Waitable` 句柄)。
                           子类自己只写一件事:**怎么被等**(`WaitOn`),于是调度器那一句
                           `t.WaitOn this` 就是全部的分派 —— 没有"是哪种"这种真假标记。
+                          **也在 `IMonad` 那一族里**(`lib/monad.rav`)—— `Map` / `Bind` 挂在
+                          `TaskBase` 上,外加构造子 `Tasks.Return`,于是任务能进 `do { … }`:
+                          `g.Await (do { a :< t1; b :< t2; Tasks.Return (a + b); })`。
+                          (这是全套库里**唯一一处两个库自动接起来**的地方 —— `do` 是解析期
+                          就地长成 `.Bind` 链的。注意最后一句要 `Tasks.Return`:裸值不行。)
                           **`Signal` / `All` / `Any` / `Chan`** 是上面那套的常用件:
                           闸(有人等、有人开)、`All`(一起跑,按交进去的顺序收结果)、
                           `Any`(等最先完成的,交回那个任务)、`Chan`(能等的队列,

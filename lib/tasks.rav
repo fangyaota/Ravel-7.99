@@ -122,6 +122,27 @@ TaskBase ::= class {
         if { Ok; } { Val; } { throw Err; }
     }) ((v: object) => { (); })
 
+    # ── `IMonad` 那一族的形状:能进 `do { … }` ──
+    #
+    # `do { x :< t1; y :< t2; x + y; }` 脱糖成一串 `.Bind` —— 有这两条,任务就也能进
+    # 那个语法糖。**这是这些库里唯一一处能把两个库自动接起来的东西**,所以值得在。
+    #
+    # 两条都**交回一个新任务**,不在这儿等:真正等是 `g.Await` 那一次的事。所以它们
+    # 各自得起一个 `Tasks.Task (g) => {…}` —— **那个体的参数 `g` 就是它们能工作的全部
+    # 原因**(`IMonad` 的槽签名只有 `(f)`,拿不到组;新任务的 body 里有)。
+    #
+    # **注意:交回来的新任务没人 `Await` 就没人跑它** —— 和别的任务一个规矩。
+    # `do { … }` 交回的也是那个任务,别忘了 `g.Await` 它(`--warn` 逮不着这个:
+    # 任务是个对象,不是"没被调用的函数")。
+    Map := (f: function) => {
+        inner := this
+        Task (g: TaskGroup) => { f (g.Await inner); }
+    }
+    Bind := (f: function) => {
+        inner := this
+        Task (g: TaskGroup) => { g.Await (f (g.Await inner)); }
+    }
+
     # **怎么被等** —— "两种任务不一样"只在这一个地方,子类各写各的。
     # 基类这一份是兜底:走到这儿说明有人造了个没实现的 Task 家族类型,别装死。
     WaitOn := (group: TaskGroup) => {
@@ -351,10 +372,19 @@ Any := (ts: list) => {
     }
 }
 
-# `Task` / `SysTask` / `Signal` 三个子类跟着认 `ITask` —— 基类登记一次就够
+# `Task` / `SysTask` / `Signal` 三个子类跟着认这两个接口 —— 基类登记一次就够
 # (实测子类继承那句 `impl`)。
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
 impl (ITask TaskBase {
+    ()
+})
+
+# 也在 monad 那一族里(`IMonad` 见 `lib/monad.rav`,predefined 加载,所以是全局名)。
+# 用 `impl` 不是 `use`:这一族是**类型层面**的事实,不随作用域来去 —— 和 `IoMonad` 那边
+# 一条规矩。`Map` / `Bind` 在 `TaskBase` 上,三个子类都作数。
+#
+# (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
+impl (IMonad TaskBase {
     ()
 })
 
@@ -534,6 +564,21 @@ After := (ms: int) => {
     t := SysTask ()
     t.Job = System.Sleepable ms
     t
+}
+
+# `Tasks.Return v` —— 一个**立刻就有值**的任务。就是 monad 那一族里各家的"构造子"
+# (`Option` 那边叫 `Some`,`IoMonad` 那边叫 `IoMonad.Return`)。
+#
+# 任务这一家原来缺的就是它,而 **`do { … }` 的最后一句必须交回一个"包着的值"**
+# (见 `lib/monad.rav`:`do` 是**解析期**就地长成 `.Bind` 链的,没有运行时支持):
+#
+#     g.Await (do { a :< t1; b :< t2; Tasks.Return (a + b); })
+#
+# 不写这一层的话,最后那句交回的是个**裸值**,`Bind` 拿它去 `Await` —— 报
+# 「参数 't' 需要 ITask,得到 Integer」。别的 monad 同一个道理,只是那个 `Some (…)`
+# / `Ok (…)` 你写惯了、不觉得它是个构造子。
+Return := (v: object) => {
+    Task (g: TaskGroup) => { v; }
 }
 
 # `Tasks.Of h` —— 把一个**本机句柄**(`Waitable`)包成任务。`After` 是它的一个特例

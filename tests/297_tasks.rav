@@ -184,6 +184,24 @@ Tasks.Cycle [
     })
 ]
 
+# ⑮ 任务也在 `IMonad` 那一族里 —— 于是能进 `do { … }`
+#
+# `do { x :< m; … }` 是**解析期**就地长成 `.Bind` 链的(没有运行时支持)。任务这一家
+# 原来缺两样:那两条槽(`Map` / `Bind`),和**交回一个裸值的构造子** `Tasks.Return`
+# —— 因为 `do` 的**最后一句**必须自己交回一个"包着的值"(别的 monad 就是 `Some (…)`
+# / `Ok (…)`,只是你写惯了、不觉得它是个构造子)。
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        t1 := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); 20; }
+        t2 := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); 22; }
+        print ("  do 块:" + (string (g.Await (do { a :< t1; b :< t2; Tasks.Return (a + b); }))));
+    })
+]
+# 三个子类跟着认(那条 `impl` 挂在 `TaskBase` 上),序列那一族本来就认
+print ("  任务 is IMonad:" + (string ((Tasks.After 0) is IMonad)))
+print ("  闸 is IMonad:  " + (string ((Tasks.Signal ()) is IMonad)))
+print ("  序列 is IMonad:" + (string ([1 2] is IMonad)))
+
 # --- expected ---
 # A1
 # B1
@@ -229,3 +247,7 @@ Tasks.Cycle [
 #   取 货2
 #   取 货3
 #   队列已经关了,没货可取
+#   do 块:42
+#   任务 is IMonad:true
+#   闸 is IMonad:  true
+#   序列 is IMonad:true

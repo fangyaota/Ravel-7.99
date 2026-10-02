@@ -143,3 +143,23 @@ Tasks.Cycle [
         try { ch.Take g; } (e: Exception) => { print ("  " + e.Message); }
     })
 ]
+
+# ── 10. 任务也是 monad:能进 `do { … }` ──
+#
+# `do { x :< m; … }` 是**解析期**就地长成 `.Bind` 链的,而任务这一族现在也在 `IMonad` 里
+# —— 于是几件活儿能串成一段读得通的代码。
+#
+# **最后一句要 `Tasks.Return`**:`do` 的最后一句必须交回一个"包着的值",不能是裸值。
+print "── 10. 任务进 do 块 ──"
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        u1 := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 10); "甲"; }
+        u2 := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 5);  "乙"; }
+        r := g.Await (do {
+            a :< u1
+            b :< u2
+            Tasks.Return ((string a) + " 和 " + (string b) + " 都回来了")
+        })
+        print ("  " + (string r));
+    })
+]
