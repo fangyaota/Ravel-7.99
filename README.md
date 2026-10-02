@@ -142,12 +142,10 @@ cmd //c mklink /J "ravel.ravel-language-0.4.0" "D:\Codes\Ravel 7.99\vscode-ravel
 ## 仓库结构
 
 ```
+Syntax/             前端(词法 / 递归下降 / AST)—— `Lexer.cs` / `Parser*.cs` / `Ast.cs` / `Token*.cs`
 Runtime/            求值器(按职责拆成多个 partial class 文件)+ 值类型 + 内置类
 Runtime/Values/     每种值一个文件(IntVal / StringVal / ClassVal / RangeVal / …)
-Lexer.cs  Parser*.cs  Ast.cs  Token*.cs        前端(词法 / 递归下降 / AST)
-Program.cs          CLI 入口(REPL / test / 单文件)
-Repl/               REPL 前端(多页缓冲、渲染、会话持久化)
-Testing/            golden 测试运行器
+Cli/                引擎**外面**那个程序:`Program.cs`(CLI 入口)+ `Repl/` + `Testing/`
 Ravel.Structures/   **官方插件**之一:数据结构那一族 → `plugins/Ravel.Structures.dll`
 Ravel.Extensions/   **官方扩展**:几个库的本机半边(Hash / Crypto / Net / Regex /
                     Sqlite / Random / Zip / Xml / Terminal)+ 整个 Math 模块 → `plugins/Ravel.Extensions.dll`

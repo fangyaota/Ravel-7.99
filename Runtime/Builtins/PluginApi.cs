@@ -281,7 +281,7 @@ internal static class PluginLoader
     /// `LoadFrom` 会从插件所在的目录解出来。本机的走另一条路 —— 默认探测看的是**主程序**的
     /// `deps.json`,而插件带的包不在那里面。解不出来就是一句 `TypeInitializationException`
     /// 套着 `DllNotFoundException`,连"少的是哪个文件"都不说(所以报错那条也顺手改了,
-    /// 见 Program.cs 的 `Inner`)。
+    /// 见 `Cli/Program.cs` 的 `Inner`)。
     ///
     /// 试过的另一条路:`AssemblyDependencyResolver`(读插件那份 `.deps.json`)。**它对
     /// 不带 RID 的库 deps.json 认不出 `runtimeTargets`** —— 挂上之后 `e_sqlite3` 还是

@@ -15,7 +15,7 @@ public partial class Interpreter
 
     /// <summary>脚本名**之后**那些命令行参数(`System.Args ()` 交回的就是它,复制成一份 list)。
     ///
-    /// 解释器自己**不读命令行**:是谁把它跑起来的、命令行长什么样,那是 CLI 的事(见 Program.cs
+    /// 解释器自己**不读命令行**:是谁把它跑起来的、命令行长什么样,那是 CLI 的事(见 `Cli/Program.cs`
     /// 的 RunFile)。所以 REPL 和 `ravel test` 里这份就是空的 —— 它们没有"脚本的参数"可言。</summary>
     public IReadOnlyList<string> ScriptArgs { get; }
 

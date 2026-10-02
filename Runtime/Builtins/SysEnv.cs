@@ -8,7 +8,7 @@ using static Ravel.Runtime.SysKit;
 /// 变量名空着那种没用的情况当场拦下,免得 `System.SetEnv "" "x"` 静默变成一次什么都没做的调用。</summary>
 internal static class SysEnv
 {
-    /// <summary>`Args ()` 给的是**脚本名之后**那些参数,由 CLI 填进来(见 Program.cs 的 RunFile)。
+    /// <summary>`Args ()` 给的是**脚本名之后**那些参数,由 CLI 填进来(见 `Cli/Program.cs` 的 RunFile)。
     /// 解释器自己不读命令行 —— 不这么切的话,`dotnet out/ravel.dll a.rav` 里第一个参数
     /// 就变成了解释器自己的路径,脚本作者还得自己去认那几个。</summary>
     [Sys("Args")]

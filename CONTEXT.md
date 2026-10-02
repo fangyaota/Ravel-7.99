@@ -118,7 +118,10 @@ Runtime/                         求值器按职责拆成多个 partial class �
     ControlFunction/ComposeVal/PartialCtor/ContinuationVal/...   各基础值
                                  BoolVal 也继承 FunctionVal(类型表里 Bool <: Function,见「两个坑」)
                                  FractionVal/BigFractionVal 构造即约分
-Lexer.cs / Ast.cs / Token.cs / TokenType.cs
+Syntax/                         前端:词法 / 递归下降 / AST。**文件夹只是归类** ——
+                                命名空间仍然是 `Ravel`(和 `Runtime/` 那些各层共用),
+                                C# 不看文件夹,所以这一趟搬家一个字符的代码都没动
+  Lexer.cs / Ast.cs / Token.cs / TokenType.cs
                                 Lexer 还对外给一个 `ScanState(源码) -> (深度, 在不在字符串里)`,
                                 REPL 判断"这行写完没有"用它(规则和词法共用一份,别各写一遍);
                                 **`(` / `[` 里的换行不当语句结束**(`_groups` 那个括号栈盯着):
@@ -132,19 +135,21 @@ Lexer.cs / Ast.cs / Token.cs / TokenType.cs
                                 不插值、`#` 不是注释),只有连着三个引号才收;空白按 C# 那套
                                 (去开头换行 + 剥收尾引号那一行的缩进,对不齐就报错)。
                                 `ScanState` 也得跟着认它,不然多行原始字符串会被判成"没写完"
-Parser.cs                       入口 + token 辅助(Peek/Consume/ParseError)
-  Parser.Statements.cs          语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
-  Parser.Expressions.cs         优先级链(管道→逻辑→比较→加减→乘除)
-  Parser.Atoms.cs               基本单元 + 括号/块/集合/字典 + `do { … }` 折成 Bind 链
-  Parser.Holes.cs               `_` 占位符消糖那趟 AST 改写
+  Parser.cs                     入口 + token 辅助(Peek/Consume/ParseError)
+    Parser.Statements.cs        语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
+    Parser.Expressions.cs       优先级链(管道→逻辑→比较→加减→乘除)
+    Parser.Atoms.cs             基本单元 + 括号/块/集合/字典 + `do { … }` 折成 Bind 链
+    Parser.Holes.cs             `_` 占位符消糖那趟 AST 改写
                                 `do` 是**纯语法糖**:解析期就地折成 `m.Bind (…)`,
                                 运行时不为它添任何东西(`BindStatement` 活不到求值期)
-Testing/GoldenTestRunner.cs     golden test 运行器(解析/执行/比对/汇报)
-Repl/                           REPL 前端
-  NeoInteractor.cs        外壳:多页缓冲 + 光标 + 主菜单(编辑/运行/读写/普通 REPL)
-  ReplView.cs             单行渲染(按 token 高亮 + 光标块),纯函数
-  ReplSession.cs          编辑缓冲持久化(repl_session.json),读写失败静默
-Program.cs                      CLI 入口(REPL / test / 单文件)
+Cli/                            **引擎外面那个程序**:三种跑法 + REPL 界面 + 测试运行器
+  Program.cs                    CLI 入口(REPL / test / 单文件)
+  Repl/                         REPL 前端
+    NeoInteractor.cs      外壳:多页缓冲 + 光标 + 主菜单(编辑/运行/读写/普通 REPL)
+    ReplView.cs           单行渲染(按 token 高亮 + 光标块),纯函数
+    ReplSession.cs        编辑缓冲持久化(repl_session.json),读写失败静默
+  Testing/GoldenTestRunner.cs   golden test 运行器(解析/执行/比对/汇报)
+  Testing/LoopbackServer.cs     自己拿 `TcpListener` 说 HTTP,给的是**定死的字节**
 
 lib/
   predefined.rav          **启动时第一个加载的文件**:别名 + 控制流(`if` / `while` / `callcc`),
@@ -1035,7 +1040,7 @@ using "structures.rav"       # 库里那半边,照旧
 
 ## REPL 也是用 Ravel 写的（`lib/repl.rav`）
 
-`Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**一比一复刻**:同样的多页缓冲、三维光标、
+`Cli/Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**一比一复刻**:同样的多页缓冲、三维光标、
 按词上色的行渲染、按键编辑、主菜单(**连菜单项的顺序都一样**)、启动那张 ASCII 大图、
 运行整页、读写文件、会话存盘。写它是为了回答一个问题 ——
 **这门语言自己够不够用**。答案:够,而且只多要了**六样原语**,全落在"进程边界"那一类
@@ -1152,7 +1157,7 @@ Vec := class {
 ```
 
 - `+ := f` **定义**；`+ = f` **覆盖**从父类层继承来的那个（父类自己不受影响）。旧写法 `operator+ add := ...` 已废弃，会报语法错误。
-- 可用符号见 `Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^ << >> <<< >>>`，**词形运算符** `is` / `isnot`，以及类型之间的 `<:` / `:>`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- 可用符号见 `Syntax/Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % == != < > <= >= & | ^ << >> <<< >>>`，**词形运算符** `is` / `isnot`，以及类型之间的 `<:` / `:>`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
 
 ### 移位与循环移位
 
@@ -1588,7 +1593,7 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
 
 > `$` 曾经是这个角色，后来**撤了**：它长得像 Haskell 的 `$`、行为却不一样（Haskell 的 `$` 是最低
 > 优先级，而这里的 `$` 住在应用那一层），`1 + f $ 2` 会被读成 `1 + (f 2)` —— 和那个直觉正好拧着。
-> 现在 `$` 只剩字符串里的插值；代码里写到它就是一句**指得着路**的词法错（见 `Lexer.cs` 里那条）。
+> 现在 `$` 只剩字符串里的插值；代码里写到它就是一句**指得着路**的词法错（见 `Syntax/Lexer.cs` 里那条）。
 
 `|>` 的动机：`.成员` 比并列的调用绑得紧，`x.f ().g ()` 会被读成 `x.f ((().g ()))`（零参调用后面接链
 全废）。测试 231。
@@ -1919,7 +1924,7 @@ Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒�
 ### 测试怎么不飘:`# net` 与回环服务器
 
 网络那几条用例**不碰真网络**(会断、会限流、对面内容会变),而是让运行器起一台
-`Testing/LoopbackServer.cs` —— 自己拿 `TcpListener` 说 HTTP,给的是**定死的字节**
+`Cli/Testing/LoopbackServer.cs` —— 自己拿 `TcpListener` 说 HTTP,给的是**定死的字节**
 (`/hello` `/json` `/gbk` `/redirect` `/notfound` `/slow` `/big` `/flaky` `/echo` `/upload`)。
 端口自己挑,基址塞进环境变量 `RAVEL_TEST_HTTP`;用例里**不打印 URL**,所以期望输出钉得住。
 单独跑那条用例(不经运行器)会因为没接上服务器而不同 —— 和别的 golden 用例一样,只在
