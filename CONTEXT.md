@@ -143,12 +143,14 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
     Parser.Holes.cs             `_` 占位符消糖那趟 AST 改写
                                 `do` 是**纯语法糖**:解析期就地折成 `m.Bind (…)`,
                                 运行时不为它添任何东西(`BindStatement` 活不到求值期)
-  CommentStripper.cs            剥注释 —— **发布产物里的标准库用它**(见 `Cli/Strip.cs` 与
-                                Ravel.csproj 的 `StripLibComments`)。**问词法器要区间**
+  CommentStripper.cs            剥注释**再收空行** —— **发布产物里的标准库用它**(见 `Cli/Strip.cs`
+                                与 Ravel.csproj 的 `StripLibComments`)。**问词法器要区间**
                                 (`Lexer.Comments`),不拿正则扫:字符串、原始字符串、字符
                                 字面量里的 `#` 都不是注释(`lib/repl.rav` 那张 ASCII 大图就是
-                                原始字符串)。换行留着 —— 行号和原文一一对应。剥完自验:
-                                再词一遍,和原文的 token 逐个比(见那个文件里 `Fold` 那段)
+                                原始字符串)。空行也收(连着两行以上只留一行),**但多行字符串
+                                里面一个字不碰** —— 按 token 跨度把那些行标出来。剥完自验:
+                                再词一遍,和原文的 token 逐个比(种类/文本/**列**/跨度;
+                                行不比 —— 空行收掉了,行号本来就往前挪,列才是不动的那个)
 Cli/                            **引擎外面那个程序**:三种跑法 + 测试运行器
   Program.cs                    CLI 入口(REPL / test / 单文件 / strip);`RunRepl` 就两行 ——
                                 `using "repl.rav"` + `Repl.Run ()`,REPL 本体在库里
