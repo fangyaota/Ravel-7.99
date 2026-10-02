@@ -34,7 +34,8 @@
 # ## 只有"等"这一个挂起点,**没有**"主动让出"
 #
 # 一个任务只在 `group.Await` 上停住。要别人跑,你总得先等点什么 —— `Tasks.After 0`
-# 就是"让一轮"。这一条是有意的:另一条路(任务主动 `Yield`)在这门语言的调度器上
+# 就是"让一轮"。等一个**自创任务**时,组会顺手把它挂进来跑(所以 `Await` 从不需要
+# 先 `Add`)。这一条是有意的:另一条路(任务主动 `Yield`)在这门语言的调度器上
 # 实测会踩到帧链的坑(任务与调度器共用一条链),而"只在等句柄时停"这条路
 # 在实测里一次都没出过事。等引擎那条修好再谈公平轮转。
 #
@@ -153,8 +154,16 @@ Task ::= class TaskBase {
         this;
     }
 
-    # 挂到它的 `Waiters` 上 —— 它收工(`Finish`)时会把我放回就绪队列
+    # 挂到它的 `Waiters` 上 —— 它收工(`Finish`)时会把我放回就绪队列。
+    #
+    # **顺手把自己挂进这个组**(没进过的话)。"等到它完"就蕴含"得有人推它",而此刻
+    # 只有这一个组在跑 —— 少了这一步,`g.Await (Http.GetTask url)` 这种最自然的写法
+    # 就永远等不到(报得清楚,但明明不用报)。
+    #
+    # 已经进过组的不动(`Queued`):那意味着有**别的**组在推它,再塞一份会让它被挑到
+    # 两次 —— `Add` 那边会当场拦下来。
     WaitOn = (group: TaskGroup) => {
+        if { Queued; } { 0; } { group.Add this; }
         callcc (kp: Continuation) => {
             group.Current.Step = kp
             Waiters.Add group.Current
@@ -256,15 +265,20 @@ TaskGroup ::= class {
     # 自创的挂到自己的 `Waiters` 上(跑完时 `Finish` 把等着的人放回就绪队列),
     # 自动推进的挂到组的等待集合上(`Poll` 在 OS 那边等着,谁先完成谁先回来)。
     #
-    # **规矩**:只能等"会被别人完成"的东西。等一个没进组、也不会有人完成的自创任务就是死锁
-    # —— `Run` 末尾那道检查会当场报出来,不会让你干等。
+    # **自创任务不用先 `Add`**:`Await` 会替你把它挂进这个组(见 `Task.WaitOn`)——
+    # "等到它完"就蕴含"得有人推它",而此刻只有这一个组在跑。
+    #
+    # 真会卡住的是**互相等**(A 等 B、B 等 A)那种 —— `Run` 末尾那道检查当场报出来,
+    # 不会让你干等。
     Await := (t: ITask) => {
         t.Claimed = true
         # **挂起怎么挂,问那个任务自己**(`WaitOn`)—— "两种任务不一样"只在它那里,
         # 这一句里没有"是哪种"这个概念。
         if { t.Done; } { 0; } { t.WaitOn this; }
-        # 到这儿它一定完了。那边抛了就在**这一头**重抛 —— 谁等它,谁接到那个错。
-        if { t.Ok; } { (); } { throw t.Err; }
+        # 到这儿它一定完了。**交回它的结果** —— 就是 `Value` 那个"检查过的读":
+        # 那边抛了的话,在这一头重抛(谁等它,谁接到那个错)。
+        # 于是 `r := g.Await (Http.GetTask url)` 一步到位,不用再 `t.Value` 一下。
+        t.Value;
     }
 
     # 就绪的都挑完了,剩下的在等 OS:阻塞着等**最先完成**的那一个,把它的任务放回就绪队列。
@@ -315,7 +329,7 @@ TaskGroup ::= class {
         stuck := All.Where ((t: Task) => { !(t.Done); }) |> .ToList ()
         if { (stuck.Count ()) == 0; } { (); } {
             throw (Exception ("死锁:还有 " + (string (stuck.Count ())) + " 个任务没完,"
-                              + "但已经没有谁能推进它们了 —— 多半是在等一个没进组、也不会有人完成的东西"))
+                              + "但已经没有谁能推进它们了 —— 多半是在互相等,或者在等一件没人会去做的事"))
         }
         # 还有个更难堪的情形:**任务失败了,但没人接**。没人 `Await` 它、也没人读它的 `Value`
         # —— 那个错就烂在它身上,程序照常往下跑。和"没人接的错误"是同一个毛病,
@@ -340,6 +354,22 @@ After := (ms: int) => {
     t
 }
 
+# `Tasks.Of h` —— 把一个**本机句柄**(`Waitable`)包成任务。`After` 是它的一个特例
+# (`Of (System.Sleepable ms)` 就是它),而库那一层拿到的句柄都走这儿:
+#
+#     group.Await (Tasks.Of (Native.HttpReqTask spec))
+#
+# —— 不过平时不用这么写:`Http` / `Io` / `cmd` 各自都有交回任务的现成入口
+# (`Http.GetTask` 那种),它们是薄薄一层,底下就是这个。
+#
+# 句柄要**是句柄**:给了别的东西(数、字符串)`WaitAny` 那一头才报 —— 这里不先查一遍,
+# 是因为 `Waitable` 是个类型,注解上写得出来,传错在**调用点**就拦住了。
+Of := (h: System.Waitable) => {
+    t := SysTask ()
+    t.Job = h
+    t
+}
+
 # 开一个组,把这批任务跑到底,交回 `()`。
 #
 # **`Run` 只交回 `()` 是有意的**:结果在**任务自己身上**(`t.Value`),不在组身上 ——
@@ -349,3 +379,16 @@ After := (ms: int) => {
 Cycle := (tasks: list) => {
     (TaskGroup tasks).Run ()
 }
+
+# ── 摆到全局的那个名字(和 `keys.rav` 的 `Keyed` / `exceptions.rav` 的 `try` 一个路子)──
+#
+# 一条命令变成一个任务。**要摆成全局是因为这儿没别的家**:`cmd` 是 `predefined.rav` 里
+# 一个光杆的全局别名(没有 `Cmd` 模块),而 `predefined.rav` 又够不着这个模块 ——
+# 那是核心,不该为了一个便捷名去 `using` 一个库。
+#
+# 它交回的是**任务**(和 `Http.GetTask` / `Io.ReadTask` 一样),不是句柄 ——
+# `System.CmdTask` 那个原语交回来的才是句柄:
+#
+#     g.Await (cmdTask "ls -l")
+ravel ""
+readonly cmdTask := (c: string) => { Tasks.Of (System.CmdTask c); }

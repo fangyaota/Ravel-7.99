@@ -361,7 +361,10 @@ lib/
                           `Download`(流式落盘)/ `Upload`(multipart)、`Query`(拼查询串)、
                           `Expect`(非 2xx 就抛);交回 `Response`(status / reason / headers /
                           body,`Text ()` 按 charset 解、`Json ()` 直接当 Json 用)。
-                          **同步**:一个请求等一个。**要显式引用**
+                          **同步**:一个请求等一个(要显式 `using "http.rav"`)。想**重叠**用同名 + `Task` 后缀那一族
+                          (`GetTask` / `RequestTask` / `DownloadTask` …):交回一个任务,
+                          `group.Await` 它的时候别的任务接着跑;底下和同步那条是**同一份实现**,
+                          所以报错文案一字不差(见「并发」那节)
   bits.rav                `Bits` 模块 —— 位那一套:`Test`/`Set`/`Clear`/`Toggle`/`Not`(单个位)、
                           `Count`(popcount)/`Width`/`High`/`Low`/`ZerosHigh`/`ZerosLow`(数位)、
                           `Mask`/`Field`/`PutField`(一段位)、`Bytes`/`FromBytes` 与 `...LE`
@@ -560,6 +563,9 @@ Object (parent=自己)
                                                         取结果、交回一个"多久之后会好的"句柄。
                                                         调度策略(`Tasks` 那一整套)在
                                                         `lib/tasks.rav`,引擎这半边只认句柄
+              ReadTextTask WriteTextTask AppendTextTask  ← 文件那三条的"交回句柄"版(同名 + `Task`)
+              ReadBytesTask WriteBytesTask CmdTask       ← 字节那两条 + 跑命令那条,同上。
+                                                        和同步那条共用一句报错,见「并发」那节
 
 **`Hash` / `Crypto` / `Net` / `Regex` / `Sqlite` / `Random` 那六族原语不在这张表里** ——
 它们是那几个库的本机半边,住在**官方扩展**里,`using "native.rav"` 之后在 `Native`
@@ -1904,8 +1910,10 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 **官方扩展只给"发一个请求"四条原语**,URL 拼装、响应对象、重试、上传体全是 `Http` 模块的事 ——
 和正则、随机数一个分工。(这四条住在 `plugins/Ravel.Extensions.dll` 里,成员名叫 `Native.HttpReq`
 那几条 —— 它们是这个库的本机半边,不是语言的一部分,所以和 `Hash` / `Regex` / `Sqlite` / `Random`
-一起搬出了 `System`。见下面「插件」那节。C# 那一侧:`Ravel.Extensions/NetNative.cs`。)四条都**收一个 dict、交回一个 dict**:加字段不用改签名,
-而且以后加并发时"发请求"整个变成一次**挂起点**,调用点一个字都不用改。
+一起搬出了 `System`。见下面「插件」那节。C# 那一侧:`Ravel.Extensions/NetNative.cs`。)都**收一个 dict、交回一个 dict**:加字段不用改签名。
+(`…Task` 那几条交回的是句柄,不是 dict —— 那是给任务用的。)
+`lib/http.rav` 里同步那几条**一根毫毛没动**,想重叠就用同名 + `Task` 后缀的那一族
+(`Http.GetTask` 那种),验收在 `tests/298_task_http.rav`。
 
 | 原语 | 收 | 交回 |
 |---|---|---|
@@ -1913,6 +1921,11 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 | `Native.HttpDownload` | 上面的 + `path` | 同上,但把 `body` 换成 `bytes`(写了多少) |
 | `Native.HttpUpload` | 上面的 + `path` / `field` | 同上(multipart,文件**流式**发出去) |
 | `Native.DecodeText` | 字节表 + 字符集名 | 字符串 |
+
+**每条各有一副"交回句柄"的面孔**:`HttpReqTask` / `HttpDownloadTask` / `HttpUploadTask` 交回一个
+`Waitable`,任务里 `group.Await` 它,网络在那边跑、别的任务接着跑。**两条路压的是同一个实现**
+(底下全是 `await`,`HttpReq` 只是 `GetAwaiter().GetResult()` 一下),所以超时、封顶、连不上
+那些话两条路**一个字不差** —— 判据那份也共用(`IsNetFault` / `HttpAsync`)。
 
 - **正文一律是字节表**(0..255,和 `Encoding` / `Random.Bytes` / `Bits` 那套一个形状),
   解码是 Ravel 的事:响应对象 `Text ()` 按 `content-type` 里的 charset 解。
@@ -1978,16 +1991,29 @@ Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒�
 单独跑那条用例(不经运行器)会因为没接上服务器而不同 —— 和别的 golden 用例一样,只在
 `ravel test` 下比对。
 
-### 并发:调度器已经有了,HTTP 那条还没接
+### 并发:调度器 + IO 都接上了
 
-`lib/tasks.rav`(`Tasks` 模块)就是那个调度器 —— 协作式任务,见上面文件地图那一格和
+`lib/tasks.rav`(`Tasks` 模块)是那个调度器 —— 协作式任务,见上面文件地图那一格和
 `tests/297_tasks.rav`。引擎这一侧只多了三样原语(`System.WaitAny` / `HandleValue` /
 `Sleepable`,`Runtime/Builtins/SysTask.cs` + `Waitable` 值类型),**调度策略整个在库里**。
 
-**还没做的是把 `Http` 那四条接上去**:它们现在仍然是"阻塞到返回"。接法就是文件开头那句
-"以后加并发时"说的那件事 —— `HttpReq` 那四条从"交回 dict"改成"交回句柄",
-`lib/http.rav` 里 `Http.Get` 那一层内部包一次 `group.Await`,**形状一个字不动**。
-这也是"发请求"整个收进**一条原语**里的原因。
+**会等的那些操作各有一副"交回任务"的面孔**,命名统一是**同步名 + `Task` 后缀**:
+
+| 同步 | 交回任务 | 在哪儿 |
+|---|---|---|
+| `Http.Get` / `Request` / `Download` … | `Http.GetTask` / `RequestTask` / `DownloadTask` … | `lib/http.rav` |
+| `cmd` | `cmdTask` | `lib/tasks.rav` 末尾(摆成全局,见那儿那段) |
+| `Io.File.Read` / `Write` / `Append` | `f.ReadTask ()` / `WriteTask` / `AppendTask` | `lib/io.rav` |
+| `System.ReadText` / `WriteText` … | `System.ReadTextTask` / … | `Runtime/Builtins/SysFiles.cs` |
+| `System.Sleep` | `System.Sleepable` → `Tasks.After` | `Runtime/Builtins/SysTask.cs` |
+
+**同步那几条一根毫毛没动**,而且和交回任务那条**压的是同一份实现** —— 所以失败文案
+两条路一字不差(`Fs` / `FsAsync` 判的是同一份 `IsFsFault`;`Http` / `HttpAsync` 判的是
+`IsNetFault`;`System.HandleValue` 对自己人抛的 `RuntimeException` 直接放行,不再裹一层
+"那个活儿没干成")。
+
+验收:`tests/298_task_http.rav`(**钉服务端并发计数,不钉墙钟** —— 三个 `/hold` 并发跑,
+服务端报的峰值 ≥ 2 就是真重叠)、`tests/299_task_io.rav`(cmd 与文件读写)。
 
 ## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
 

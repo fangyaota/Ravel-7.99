@@ -50,13 +50,31 @@ internal static class SysKit
         {
             return body();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
-                                   or OverflowException
-                                   or NotSupportedException or System.Security.SecurityException)
+        catch (Exception ex) when (IsFsFault(ex))
         {
             throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
         }
     }
+
+    /// <summary>`Fs` 的异步那一半 —— 判据是**同一个** <see cref="IsFsFault"/>,兜的是同一句话。
+    /// 于是同一条操作走同步还是走句柄(交回任务那条),失败文案**一个字不差**。</summary>
+    public static async Task<RuntimeValue> FsAsync(string what, Func<Task<RuntimeValue>> body)
+    {
+        try
+        {
+            return await body();
+        }
+        catch (Exception ex) when (IsFsFault(ex))
+        {
+            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
+        }
+    }
+
+    /// <summary>什么算"文件/进程出的岔子" —— 两条路共用这一份,别各抄一份。</summary>
+    private static bool IsFsFault(Exception ex)
+        => ex is IOException or UnauthorizedAccessException or ArgumentException
+           or OverflowException
+           or NotSupportedException or System.Security.SecurityException;
 
     /// <summary>从一个**参数表**(dict)里取一个键,没给(或者给的是 `()`)就是 null。
     /// 「收一个 dict、缺的走默认」那几批原语(网络 / 加密)共用这一条 —— 加字段不用改签名。</summary>

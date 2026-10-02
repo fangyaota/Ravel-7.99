@@ -15,8 +15,18 @@ using static Ravel.Runtime.SysKit;
 /// 两路输出**同时**抽走(各自一个线程)—— 顺序读会在大输出时死锁。</summary>
 internal static class SysCmd
 {
+    // 两条路,同一个实现 —— 和 HTTP 那边一个规矩:
+    //   * `Cmd`     阻塞到命令跑完(顶层脚本那种);
+    //   * `CmdTask` 交回一个句柄,任务里 `group.Await` 它,别的任务接着跑。
+    // 几个任务各自 fork 一个进程时,这条路才真的重叠得起来。
     [Sys("Cmd")]
-    public static RuntimeValue RunCmd(RuntimeValue a) => Fs("跑命令", () =>
+    public static RuntimeValue RunCmd(RuntimeValue a)
+        => Fs("跑命令", () => RunCmdCore(a).GetAwaiter().GetResult());
+
+    [Sys("CmdTask")]
+    public static RuntimeValue CmdTask(RuntimeValue a) => new WaitableVal(FsAsync("跑命令", () => RunCmdCore(a)));
+
+    private static async Task<RuntimeValue> RunCmdCore(RuntimeValue a)
     {
         var command = As<StringVal>(a, "cmd 的命令").Value;
         var windows = OperatingSystem.IsWindows();
@@ -32,23 +42,24 @@ internal static class SysCmd
 
         using var proc = System.Diagnostics.Process.Start(psi)
             ?? throw new RuntimeException("跑命令失败: 进程起不来", ErrorKind.Io);
-        var outTask = System.Threading.Tasks.Task.Run(() => ReadAllBytes(proc.StandardOutput.BaseStream));
-        var errTask = System.Threading.Tasks.Task.Run(() => ReadAllBytes(proc.StandardError.BaseStream));
-        proc.WaitForExit();
+        // 两路输出**同时**抽走(各自一个任务)—— 顺序读会在大输出时死锁。
+        var outTask = ReadAllBytes(proc.StandardOutput.BaseStream);
+        var errTask = ReadAllBytes(proc.StandardError.BaseStream);
+        await proc.WaitForExitAsync();
 
         var entries = new Dictionary<RuntimeValue, RuntimeValue>
         {
-            [new StringVal("out")] = new StringVal(DecodeOutput(outTask.Result)),
-            [new StringVal("err")] = new StringVal(DecodeOutput(errTask.Result)),
+            [new StringVal("out")] = new StringVal(DecodeOutput(await outTask)),
+            [new StringVal("err")] = new StringVal(DecodeOutput(await errTask)),
             [new StringVal("code")] = IntVal.Of(proc.ExitCode),
         };
         return new DictVal(entries);
-    });
+    }
 
-    public static byte[] ReadAllBytes(Stream s)
+    public static async Task<byte[]> ReadAllBytes(Stream s)
     {
         using var ms = new MemoryStream();
-        s.CopyTo(ms);
+        await s.CopyToAsync(ms);
         return ms.ToArray();
     }
 

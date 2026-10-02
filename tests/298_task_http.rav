@@ -1,0 +1,58 @@
+# `Http` 那几条的**任务版**(同名 + `Task` 后缀):交回一个任务,`group.Await` 它的时候
+# 别的任务接着跑 —— 这是"网络和调度器接上"那件事的验收。
+#
+# **钉的是服务端的并发数,不是墙钟**:"此刻同时握着几个连接"是个整数,串行发就是 1、
+# 并发发就是 ≥2,慢机器上也钉得住。时间会飘,整数不飘。
+#
+# 要靠 `ravel test`:运行器会起那台回环服务器,基址在 `RAVEL_TEST_HTTP` 里。
+using "http.rav"
+
+base := System.Env "RAVEL_TEST_HTTP"
+
+# 先清掉前面那些用例在服务端留下的并发峰值
+print ((Http.Get (base + "/reset")).status)
+
+# ── 三个 `/hold` 一起发:每个各是一个任务,各自 await ──
+# 三个都先"把请求发出去、再挂起",所以服务端那边是**同时**握着三个连接
+rs := []
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { rs.Add ((g.Await (Http.GetTask (base + "/hold"))).status); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { rs.Add ((g.Await (Http.GetTask (base + "/hold"))).status); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { rs.Add ((g.Await (Http.GetTask (base + "/hold"))).status); })
+]
+print rs
+
+# 服务端见过的最大并发 ≥ 2 —— 要是串着发,它是 1
+# (括号要写全:`int x >= 2` 会被读成 `int (x >= 2)` —— 调用比运算符**松**,见教程 3.7)
+print ((int ((Http.Get (base + "/stats")).Text ())) >= 2)
+
+# ── 报错文案:同步那条和交回任务那条**必须一字不差** ──
+# 两条路底下压的是同一个 `Send`,所以连不上、超时、封顶那些话只有一份。
+# (这条同时钉住了 `System.HandleValue` 不给自己人抛的错再裹一层"那个活儿没干成"。)
+sync := try { Http.Get "http://127.0.0.1:1/"; } (e: Exception) => { e.Message; }
+task := ""
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        task = try { g.Await (Http.GetTask "http://127.0.0.1:1/"); } (e: Exception) => { e.Message; }
+    })
+]
+print (sync == task)
+print sync
+
+# ── 交回任务的下载:正文边收边写那条也一样 ──
+f := Io.File "298_dl.bin"
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print ((g.Await (Http.DownloadTask (base + "/big") f)).status);
+    })
+]
+print (f.Size ())
+f.Delete ()
+# --- expected ---
+200
+[200 200 200]
+true
+true
+GET http://127.0.0.1:1/ 失败: 连接被拒绝（对面那个端口没人听）
+200
+300000

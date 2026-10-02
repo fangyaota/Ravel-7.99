@@ -21,6 +21,19 @@ internal sealed class LoopbackServer : IDisposable
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _stop = new();
     private int _flaky;          // `/flaky` 被敲过几次(前两次故意 500)
+    private int _live;           // 此刻握着几个 `/hold`
+    private int _peak;           // `/hold` 上见过的最大并发(`/stats` 报它,`/reset` 清零)
+
+    /// <summary>把一个数往上抬到至少 `value`(并发计数用 —— 只增不减的那种收尾)
+    /// </summary>
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int seen;
+        while ((seen = Volatile.Read(ref target)) < value
+               && Interlocked.CompareExchange(ref target, value, seen) != seen)
+        {
+        }
+    }
 
     /// <summary>基址,形如 `http://127.0.0.1:51234`(没有结尾的 `/`)</summary>
     public string BaseUrl { get; }
@@ -101,6 +114,26 @@ internal sealed class LoopbackServer : IDisposable
             case "/slow":
                 Thread.Sleep(1500);               // 比用例里给的 timeout 长
                 Text(s, 200, "OK", "总算回来了", "text/plain; charset=utf-8");
+                break;
+            // 「同时有几个请求在这儿」—— 任务那条用例钉的就是它。
+            //
+            // **钉并发数、不钉墙钟**:墙上那点毫秒在慢机器上会飘,而"服务端同时握着几个
+            // 连接"是个整数,串行发就是 1、并发发就是 ≥2,钉得住。
+            case "/hold":
+            {
+                var now = Interlocked.Increment(ref _live);
+                InterlockedMax(ref _peak, now);
+                Thread.Sleep(400);
+                Interlocked.Decrement(ref _live);
+                Text(s, 200, "OK", "握完了", "text/plain; charset=utf-8");
+                break;
+            }
+            case "/stats":
+                Text(s, 200, "OK", $"{Volatile.Read(ref _peak)}", "text/plain; charset=utf-8");
+                break;
+            case "/reset":
+                Volatile.Write(ref _peak, 0);
+                Text(s, 200, "OK", "清了", "text/plain; charset=utf-8");
                 break;
             case "/big":
                 // 几百 KB:下载那条要它,`max` 封顶那条也要它

@@ -53,11 +53,25 @@ internal static class SysTask
         return h.Job.Status switch
         {
             TaskStatus.RanToCompletion => h.Job.Result,
-            TaskStatus.Faulted => throw new RuntimeException(
-                "那个活儿没干成:" + Innermost(h.Job.Exception!), ErrorKind.Io),
+            TaskStatus.Faulted => throw Unwrap(h.Job.Exception!),
             _ => throw new RuntimeException(
                 $"那个活儿被取消了({h.Job.Status})", ErrorKind.Io),
         };
+    }
+
+    /// <summary>任务里抛出来的那个东西,交回 Ravel 时要不要裹一层。
+    ///
+    /// **我们自己抛的 `RuntimeException` 直接放行** —— 那是库 / 原生那半边已经组织好的
+    /// 一句报错(连 `ErrorKind` 都带着,比如"下载失败: 连接被拒"),再包一层
+    /// "那个活儿没干成:"只会把话说糊,而且**同一个请求走同步那条和走句柄那条会报出
+    /// 两种话** —— 那才是真的糟。别的(.NET 自己的异常)才裹:那种原文是给开发者看的,
+    /// 前面那句人话得有人补上。</summary>
+    private static Exception Unwrap(AggregateException agg)
+    {
+        foreach (var e in agg.Flatten().InnerExceptions)
+            if (e is RuntimeException) return e;
+
+        return new RuntimeException("那个活儿没干成:" + Innermost(agg), ErrorKind.Io);
     }
 
     /// <summary>最内层那句消息 —— 包了几层就接几层(和 `Cli/Program.cs` 的 `Inner` 一个道理:

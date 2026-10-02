@@ -11,7 +11,8 @@
 # 路径基准 = 进程当前目录（`Io.Current ()` 看，`Io.ChDir p` 改）；**没有沙箱** ——
 # 和 `using` 找模块一个待遇：能跑这段代码的人，本来就能读写那些文件。
 #
-# **依赖**:下面「和 IoMonad 搭台」那几条要用 `IoMonad`,所以这个文件开头会 `using "iomonad.rav"`
+# **依赖**:下面「和 IoMonad 搭台」那几条要用 `IoMonad`,所以这个文件开头会 `using "iomonad.rav"
+using "tasks.rav"   # `…Task` 那几条要用(`Tasks.Of`)`
 # —— `using "io.rav"` 就把它一起带来了(反过来不行:iomonad.rav 由 predefined 加载,不认识 `IFile`)。
 using "iomonad.rav"
 
@@ -71,6 +72,13 @@ File ::= class {
     Lines := () => { System.SplitLines (System.ReadText Path); }
     Write := (text: string) => { System.WriteText Path text; (); }
     Append := (text: string) => { System.AppendText Path text; (); }
+
+    # 交回任务的那几条(同名 + `Task`):任务里 `group.Await (f.ReadTask ())`,别的任务接着跑。
+    # 本地文件通常快,重叠看不出来 —— 有感觉的是几百 MB 那种读写。加它们是因为"每个会等的
+    # 操作都该有个可等的入口"这条规矩,别在这儿破例。
+    ReadTask := () => { Tasks.Of (System.ReadTextTask Path); }
+    WriteTask := (text: string) => { Tasks.Of (System.WriteTextTask Path text); }
+    AppendTask := (text: string) => { Tasks.Of (System.AppendTextTask Path text); }
     Delete := () => { System.DeletePath Path; (); }
 
     # 复制 / 移动 / 改名。目标收**路径字符串**或另一个磁盘条目（`Io.File` / `Io.Dir`）——

@@ -25,29 +25,58 @@ using static Ravel.Runtime.PluginKit;
 [RavelModule("Native")]
 internal static class NetNative
 {
+    // ── 每条两副面孔 ──
+    //
+    // **同步那条**给"我就是要等它回来"的脚本用(顶层、`tests/268` 那种)。
+    // **`…Task` 那条交回一个 `Waitable` 句柄** —— 给任务用:`group.Await` 它,别的任务接着跑。
+    //
+    // 两条压的是**同一个 `Send`**(底下全是 await),所以超时、封顶、报错文案只有一份。
+    // 别拿 .NET 那个同步 `client.Send` 去实现同步那条 —— 那就成了两套码,迟早就分叉。
+
     [RavelFn("HttpReq")]
     public static RuntimeValue HttpReq(RuntimeValue a)
-        => Http("发请求", () => Send(Dict(a, "HttpReq 的请求"), null));
+        => Http("发请求", () => Send(Dict(a, "HttpReq 的请求"), null).GetAwaiter().GetResult());
+
+    [RavelFn("HttpReqTask")]
+    public static RuntimeValue HttpReqTask(RuntimeValue a)
+        => new WaitableVal(HttpAsync("发请求", () => Send(Dict(a, "HttpReq 的请求"), null)));
 
     [RavelFn("HttpDownload")]
-    public static RuntimeValue HttpDownload(RuntimeValue a) => Http("下载", () =>
+    public static RuntimeValue HttpDownload(RuntimeValue a)
+        => Http("下载", () => Download(a).GetAwaiter().GetResult());
+
+    [RavelFn("HttpDownloadTask")]
+    public static RuntimeValue HttpDownloadTask(RuntimeValue a)
+        => new WaitableVal(HttpAsync("下载", () => Download(a)));
+
+    [RavelFn("HttpUpload")]
+    public static RuntimeValue HttpUpload(RuntimeValue a)
+        => Http("上传", () => Upload(a).GetAwaiter().GetResult());
+
+    [RavelFn("HttpUploadTask")]
+    public static RuntimeValue HttpUploadTask(RuntimeValue a)
+        => new WaitableVal(HttpAsync("上传", () => Upload(a)));
+
+    /// <summary>下载:正文边收边落盘,**不进 Ravel 堆** —— 一个 500 MB 的东西,堆里不该
+    /// 多一个字节表。文件要开到这次传输**整个结束**,所以它在这个 async 方法里 ——
+    /// 摆在外层 `Http(...)` 的 lambda 里的话,句柄在返回的那一刻就关了。</summary>
+    private static async Task<RuntimeValue> Download(RuntimeValue a)
     {
         var req = Dict(a, "HttpDownload 的请求");
         var path = OptText(req, "path", "");
         NeedParentDir(path, "下载");
-        // 边收边落盘:正文**不进 Ravel 堆** —— 下载一个 500 MB 的东西,堆里不该多一个字节表
-        using var file = new FileStream(path, FileMode.Create, FileAccess.Write);
-        return Send(req, file);
-    });
+        await using var file = new FileStream(path, FileMode.Create, FileAccess.Write,
+                                              FileShare.Read, bufferSize: 81920, useAsync: true);
+        return await Send(req, file);
+    }
 
-    [RavelFn("HttpUpload")]
-    public static RuntimeValue HttpUpload(RuntimeValue a) => Http("上传", () =>
+    private static Task<RuntimeValue> Upload(RuntimeValue a)
     {
         var req = Dict(a, "HttpUpload 的请求");
         var path = OptText(req, "path", "");
         NeedFile(path, "上传的文件");
         return Send(req, null, path, OptText(req, "field", "file"));
-    });
+    }
 
     /// <summary>字节 → 文本。**认不出来的字符集不报错**、按 UTF-8 解:网上写着 `charset=utf8`、
     /// `charset=UTF8`、甚至拼错的大把,为一个只影响显示的字段把整次请求打断不值当。</summary>
@@ -74,7 +103,7 @@ internal static class NetNative
 
     /// <summary>发出去、等回来。`bodyOut` 不是 null 时把正文**流式写进它**(下载那条路),
     /// `uploadPath` 不是 null 时把那个文件**流式发出去**(multipart,上传那条路)。</summary>
-    public static RuntimeValue Send(DictVal req, Stream? bodyOut, string? uploadPath = null, string field = "file")
+    public static async Task<RuntimeValue> Send(DictVal req, Stream? bodyOut, string? uploadPath = null, string field = "file")
     {
         var url = OptText(req, "url", "");
         if (url.Length == 0) throw Fail("请求 dict 里没有 url", ErrorKind.Argument);
@@ -112,7 +141,7 @@ internal static class NetNative
         try
         {
             // ResponseHeadersRead:正文**边到边收**,不先在内存里攒成一大坨
-            using var resp = client.Send(msg, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            using var resp = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             var entries = new Dictionary<RuntimeValue, RuntimeValue>
             {
                 [new StringVal("status")] = IntVal.Of((int)resp.StatusCode),
@@ -123,13 +152,13 @@ internal static class NetNative
             };
             if (bodyOut is null)
             {
-                using var stream = resp.Content.ReadAsStream(cts.Token);
-                entries[new StringVal("body")] = BytesList(ReadCapped(stream, max, url));
+                using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
+                entries[new StringVal("body")] = BytesList(await ReadCapped(stream, max, url, cts.Token));
             }
             else
             {
-                using var stream = resp.Content.ReadAsStream(cts.Token);
-                entries[new StringVal("bytes")] = Narrow(CopyTo(stream, bodyOut, cts.Token), "下载的字节数");
+                using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
+                entries[new StringVal("bytes")] = Narrow(await CopyTo(stream, bodyOut, cts.Token), "下载的字节数");
             }
 
             return new DictVal(entries);
@@ -201,12 +230,12 @@ internal static class NetNative
 
     /// <summary>读正文,超过 `cap` 就停下报错。不封顶的话一个大文件会先在堆里攒成字节表,
     /// 而堆是有上限的(测试里 256 MB)—— 那种时候该走 `Http.Download`。</summary>
-    public static byte[] ReadCapped(Stream s, long cap, string url)
+    public static async Task<byte[]> ReadCapped(Stream s, long cap, string url, CancellationToken ct)
     {
         var ms = new MemoryStream();
         var buffer = new byte[81920];
         int n;
-        while ((n = s.Read(buffer, 0, buffer.Length)) > 0)
+        while ((n = await s.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
         {
             if (ms.Length + n > cap)
                 throw Fail(
@@ -225,15 +254,14 @@ internal static class NetNative
          : $"{n} 字节";
 
     /// <summary>正文直接抄进别的流(下载),交回抄了多少字节 —— 中途不经过内存里那张字节表</summary>
-    public static long CopyTo(Stream from, Stream to, CancellationToken ct)
+    public static async Task<long> CopyTo(Stream from, Stream to, CancellationToken ct)
     {
         var buffer = new byte[81920];
         long total = 0;
         int n;
-        while ((n = from.Read(buffer, 0, buffer.Length)) > 0)
+        while ((n = await from.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
         {
-            ct.ThrowIfCancellationRequested();
-            to.Write(buffer, 0, n);
+            await to.WriteAsync(buffer, 0, n, ct);
             total += n;
         }
 
@@ -270,11 +298,33 @@ internal static class NetNative
         {
             return body();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
-                                   or NotSupportedException or InvalidOperationException
-                                   or System.Security.SecurityException or System.Net.Sockets.SocketException)
+        catch (Exception ex) when (IsNetFault(ex))
         {
             throw Fail($"{what}失败: {ex.Message}", ErrorKind.Io);
         }
     }
+
+    /// <summary>异步那一半的兜底 —— 和 <see cref="Http"/> **同一条口径**(判据是同一个
+    /// <see cref="IsNetFault"/>),所以同一个请求走同步还是走句柄,失败那句话**一个字不差**。
+    ///
+    /// 抛出来的 `Fail` 会以**出错的任务**的形式躺在句柄里,`System.HandleValue` 那一头
+    /// 原样抛回给 Ravel(`RuntimeException` 它不包装),于是任务里 `try` 接到的就是这句。</summary>
+    public static async Task<RuntimeValue> HttpAsync(string what, Func<Task<RuntimeValue>> body)
+    {
+        try
+        {
+            return await body();
+        }
+        catch (Exception ex) when (IsNetFault(ex))
+        {
+            throw Fail($"{what}失败: {ex.Message}", ErrorKind.Io);
+        }
+    }
+
+    /// <summary>什么算"网络出的岔子"。**不能窄成 `IOException`**:DNS、连接被拒、TLS、
+    /// 坏 URL 本来就不在那一族里,漏出去会把程序打掉。</summary>
+    private static bool IsNetFault(Exception ex)
+        => ex is IOException or UnauthorizedAccessException or ArgumentException
+           or NotSupportedException or InvalidOperationException
+           or System.Security.SecurityException or System.Net.Sockets.SocketException;
 }

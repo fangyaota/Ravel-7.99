@@ -65,6 +65,70 @@ internal static class SysFiles
         return VoidVal.Instance;
     });
 
+    // ── 交回句柄的孪生:同名 + `Task` 后缀 ──
+    //
+    // 同步那五条**一根毫毛没动**。这一族不阻塞,只交回一个 `Waitable` ——
+    // 任务里 `group.Await` 它,别的任务接着跑。底下和同步那条共用一句报错
+    // (`FsAsync` 和 `Fs` 判的是同一份 `IsFsFault`),所以失败文案一模一样。
+    //
+    // 收益说实话**比网络那条小**:本地文件通常快,重叠看不出来;真正有感觉的是
+    // 几百 MB 那种读写。加它是因为"每个会等的操作都该有个可等的入口"这条规矩。
+
+    [Sys("ReadTextTask")]
+    public static RuntimeValue ReadTextTask(RuntimeValue a) => new WaitableVal(FsAsync("读文件", async () =>
+    {
+        var p = PathOf(a, "ReadTextTask");
+        NeedFile(p, "读文件");
+        return new StringVal(await File.ReadAllTextAsync(p));
+    }));
+
+    [Sys("WriteTextTask")]
+    public static RuntimeValue WriteTextTask(RuntimeValue a, RuntimeValue b)
+    {
+        var text = As<StringVal>(b, "WriteTextTask 的内容").Value;
+        return new WaitableVal(FsAsync("写文件", async () =>
+        {
+            var p = PathOf(a, "WriteTextTask");
+            NeedParentDir(p, "写文件");
+            await File.WriteAllTextAsync(p, text);
+            return VoidVal.Instance;
+        }));
+    }
+
+    [Sys("AppendTextTask")]
+    public static RuntimeValue AppendTextTask(RuntimeValue a, RuntimeValue b)
+    {
+        var text = As<StringVal>(b, "AppendTextTask 的内容").Value;
+        return new WaitableVal(FsAsync("追加文件", async () =>
+        {
+            var p = PathOf(a, "AppendTextTask");
+            NeedParentDir(p, "追加文件");
+            await File.AppendAllTextAsync(p, text);
+            return VoidVal.Instance;
+        }));
+    }
+
+    [Sys("ReadBytesTask")]
+    public static RuntimeValue ReadBytesTask(RuntimeValue a) => new WaitableVal(FsAsync("读字节", async () =>
+    {
+        var p = PathOf(a, "ReadBytesTask");
+        NeedFile(p, "读字节");
+        return BytesList(await File.ReadAllBytesAsync(p));
+    }));
+
+    [Sys("WriteBytesTask")]
+    public static RuntimeValue WriteBytesTask(RuntimeValue a, RuntimeValue b)
+    {
+        var bytes = BytesOf(b, "WriteBytesTask 的内容");
+        return new WaitableVal(FsAsync("写字节", async () =>
+        {
+            var p = PathOf(a, "WriteBytesTask");
+            NeedParentDir(p, "写字节");
+            await File.WriteAllBytesAsync(p, bytes);
+            return VoidVal.Instance;
+        }));
+    }
+
     /// <summary>删文件,或删**空**目录 —— 不提供递归删除(那是个危险默认值)</summary>
     [Sys("DeletePath")]
     public static RuntimeValue DeletePath(RuntimeValue a) => Fs("删除", () =>

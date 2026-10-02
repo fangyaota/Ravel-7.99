@@ -71,11 +71,13 @@ Tasks.Cycle [
     bad
 ]
 
-# ⑦ 死锁:等一个没进组、也不会有人完成的自创任务 —— 当场报,不干等
-orphan := Tasks.Task (g: Tasks.TaskGroup) => { (); }
-# (`} (e: …) =>` 必须**同一行** —— `try` 是柯里化的,换行这一句就断了:体根本不跑,
-#  handler 也成了另一句被丢掉的 lambda。这坑安静得很,写在 `docs/tutorial.md` 里。)
-try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { g.Await orphan; })]; } (e: Exception) => { print e.Message; }
+# ⑦ 死锁:两个任务**互相等** —— 当场报,不干等
+# (注意 ③ 那个 `group.Add` 交回的任务、以及 `Http.GetTask` 那种,**不用先 Add** ——
+#  `Await` 会顺手把它挂进组里跑。真卡住的只有这种"谁也等不来谁"的。)
+cycl := []
+cycl.Add (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (cycl.At 1); })
+cycl.Add (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (cycl.At 0); })
+try { Tasks.Cycle cycl; } (e: Exception) => { print e.Message; }
 
 # ⑧ 任务失败了**而没人接** —— 和"没人接的错误"一个口径,也当场报
 try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "没人理我"); })]; } (e: Exception) => { print e.Message; }
@@ -122,7 +124,7 @@ M1
 L2
 M2
 接住:任务里炸了
-死锁:还有 1 个任务没完,但已经没有谁能推进它们了 —— 多半是在等一个没进组、也不会有人完成的东西
+死锁:还有 2 个任务没完,但已经没有谁能推进它们了 —— 多半是在互相等,或者在等一件没人会去做的事
 有 1 个任务失败了,而没人接它的错:没人理我 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)
 外:起
   内:完

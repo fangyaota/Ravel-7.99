@@ -1,0 +1,60 @@
+# `cmd` 和文件读写接上调度器那条路的验收。
+#
+# 和 `298` 一个规矩:**钉顺序,不钉墙钟**。协作式调度下"谁先跑"是代码定的:
+# 前一个任务把活交给操作系统、挂起,后一个才轮到 —— 所以输出顺序是钉得住的。
+#
+# (真重叠这件事本身在 `298` 钉着 —— 那边服务端报的并发计数是个整数。Cmd 这边
+#  量过:一条 `ping` 约 1.1s,三条并着跑 **1.07s**,串着会是三倍。)
+using "tasks.rav"
+using "io.rav"
+
+# ── ① cmdTask:两个任务各跑一条命令 ──
+outs := []
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        d := g.Await (cmdTask "echo 甲")
+        outs.Add ((System.SplitLines (d.Get "out")).At 0);
+        outs.Add (d.Get "code");
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        d := g.Await (cmdTask "echo 乙")
+        outs.Add ((System.SplitLines (d.Get "out")).At 0);
+        outs.Add (d.Get "code");
+    })
+]
+print outs
+
+# ── ② 文件读写走任务那条路 ──
+f := Io.File "299_task_io.txt"
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (f.WriteTask "任务里写的"); })
+]
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print (g.Await (f.ReadTask ())); })
+]
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (f.AppendTask "，又追加一句"); })
+]
+print (f.Read ())
+print (f.Size ())
+f.Delete ()
+
+# ── ③ 报错文案:同步那条和交回任务那条**一字不差** ──
+# (两条路底下压的是同一个 `Fs` / `FsAsync`,判的是同一份 `IsFsFault`。)
+sync := try { System.ReadText "299_没有这个文件.txt"; } (e: Exception) => { e.Message; }
+task := ""
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        # `} (e: …) =>` 必须**同一行** —— try 是柯里化的,换行这一句就断了(见 297 那条注释)
+        task = try { g.Await (Tasks.Of (System.ReadTextTask "299_没有这个文件.txt")); } (e: Exception) => { e.Message; }
+    })
+]
+print (sync == task)
+print sync
+# --- expected ---
+[甲 0 乙 0]
+任务里写的
+任务里写的，又追加一句
+33
+true
+读文件: 找不到文件 —— 299_没有这个文件.txt
