@@ -2018,6 +2018,8 @@ Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒�
 
 验收:`tests/298_task_http.rav`(**钉服务端并发计数,不钉墙钟** —— 三个 `/hold` 并发跑,
 服务端报的峰值 ≥ 2 就是真重叠)、`tests/299_task_io.rav`(cmd 与文件读写)。
+用法(`examples/tasks.rav`,八节:交替、收成、跑着再加、文件、错在哪现形、没人接的失败、
+互相等、一个任务只能跑一遍)。
 
 ## 键与查找（`lib/keys.rav`；predefined 加载，所以 `IKey` 是全局名、`Keys` 直接可用）
 

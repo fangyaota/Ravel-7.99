@@ -1,0 +1,108 @@
+# `Tasks` 怎么用 —— 协作式任务,见 `lib/tasks.rav`。
+#
+#     ravel examples/tasks.rav
+#
+# 一个 OS 线程,任务只在**挂起点**(`group.Await`)换人。所以谁先跑是**钉死的** ——
+# 这是协作式的好处(顺序由代码定,不是碰运气),不是巧合。
+#
+# **这是例子,不是用例**:金子用例(297 / 298 / 299)那边钉的是"输出必须一模一样",
+# 这里只管把用法摆出来给你看。
+using "tasks.rav"
+using "io.rav"
+
+# ── 1. 最简:两件事交替跑 ──
+# `Tasks.Cycle [...]` = 建一个组、把这批任务跑到底。元素要**加括号**(不加的话列表
+# 会把它读成"两件":任务类的名字 + 一个 lambda)。
+#
+# `Tasks.After 0` 是"**让一轮**"—— 句柄当场就算完成,不掺进真实计时。所以下面这个
+# 交替是**钉死的**。改成 `After 10` 也跑得对,但顺序就由计时器谁先醒决定,不再是
+# A B A B(那是协作式唯一一处"看运气"的地方:等的是**真**时间)。
+print "── 1. 两个任务交替 ──"
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; print ("  A" + (string i)); g.Await (Tasks.After 0); }
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; print ("  B" + (string i)); g.Await (Tasks.After 0); }
+    })
+]
+
+# ── 2. 收成:任务兜在变量里,`g.Await` 一步拿到结果 ──
+# 结果在**任务自己身上**,不在组身上(组管调度,不管收成)。
+print "── 2. 收成 ──"
+a := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 20); "甲"; }
+b := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 5); "乙"; }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  先等到 b:" + (string (g.Await b))); })
+    a
+    b
+]
+# `IsDone` 不阻塞(随手探);`Value` 是"检查过的读" —— 没完会报错,不会偷偷挂起你
+print ("  a.IsDone = " + (string a.IsDone) + ",  a.Value = " + (string a.Value))
+
+# ── 3. 跑着再加:`group.Add` ──
+# 有些活儿是"等我这儿有数了,才知道要开几个"。加进去**不立刻跑**,排到队尾。
+print "── 3. 跑着再加一个 ──"
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "  主:开个帮手"
+        h := g.Add (Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 5); "帮手干完了"; })
+        print ("  主:帮手回来了 —— " + (string (g.Await h)))
+    })
+]
+
+# ── 4. 网络 / 命令 / 文件:都在"同步那个名字"后面加 `Task` ──
+# 同步那条一根毫毛没动;加了 `Task` 的那条不阻塞,交回一个任务。
+# 两条路底下是**同一份实现**,所以报错文案一个字不差。
+print "── 4. 文件:同名 + Task ──"
+f := Io.File "tasks_example.txt"
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (f.WriteTask "任务里写的"); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (f.AppendTask "，又追加一句"); })
+]
+print ("  " + (f.Read ()))
+f.Delete ()
+
+# (网络那条也一样:`g.Await (Http.GetTask url)` —— 三个 `Http.GetTask` 一起发,
+#  服务端的并发计数就会 >1,真重叠。要出网,`examples/http.rav` 那边有现成的。)
+
+# ── 5. 出错:谁等它,谁接到 ──
+# 一个任务把自己搞砸了**不该把整组带走** —— 错记在任务身上,在"等它"或"读它的
+# `Value`"那一头现形。
+print "── 5. 错在等它那一头现形 ──"
+bad := Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "这活儿砸了"); }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        try { g.Await bad; } (e: Exception) => { print ("  接住:" + e.Message); }
+        print "  接住之后这一支还在跑";
+    })
+    bad
+]
+
+# ── 6. 没人接的失败:**组**替它报,而且带出错位置 ──
+# 任务失败了、没人 `Await` 也没人读 `Value` —— 那个错会烂在它身上、程序照常往下跑。
+# 和"没人接的错误"是同一个毛病,所以同一个口径:收尾时当场报。
+# 位置那份报告是**趁 handler 体里还在**的时候渲染下来挂在任务上的(位置只在那一刻活着)。
+print "── 6. 没人接的失败(带位置)──"
+try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { x := 1 / 0; })]; } (e: Exception) => {
+    ls := System.SplitLines e.Message
+    print ("  " + (ls.At 0));
+    print ("  · " + (ls.At 2));
+    print ("  · " + (ls.At 3));
+}
+
+# ── 7. 僵住:互相等 —— 当场报,不干等 ──
+print "── 7. 互相等 ──"
+cyc := []
+cyc.Add (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (cyc.At 1); })
+cyc.Add (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (cyc.At 0); })
+try { Tasks.Cycle cyc; } (e: Exception) => { print ("  " + e.Message); }
+
+# ── 8. 一个任务只能跑一遍 ──
+# 它的续延是多发的,再跑一遍就是跳回上一次留下的那条帧链(实测死循环)—— 所以有闸。
+print "── 8. 一个任务只能跑一遍 ──"
+once := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 1); (); }
+Tasks.Cycle [ once ]
+try { Tasks.Cycle [ once ]; } (e: Exception) => { print ("  " + e.Message); }
