@@ -87,10 +87,24 @@ internal static class SysCore
     /// 拿得到就渲染整份报告;拿不到(在 handler 外面调、或者嵌套的第二次)
     /// 就退回那句消息,不报错 —— 少给点信息总比什么都不给好。
     ///
+    /// **但得核对一下手上那份是不是"这一份"。** `Handed` 是**引擎刚交出去的那个错**,
+    /// 问题在于它**没有一个可靠的地方可以清**:handler 可能用续延跳走(库里的 `try` 就是),
+    /// 收不到"调用返回"那一刻,所以它一直挂着,直到下一次引擎错误把它顶掉。
+    ///
+    /// 于是**用户自己 `throw`** 的错进来时,上面挂的还是**上一次**引擎错误 —— 照渲染就会
+    /// 报出别人的位置和调用栈来(实测:`1/0` 之后紧跟一个 `throw`,报告里是除法那道栈,
+    /// 自己那句话反而不见了)。那种错压根没走引擎这条报错路,`Handed` 本来就不该认它。
+    ///
+    /// 判据现成:引擎交给 Ravel 的那一份是 `<see cref="BuiltinClasses.NewException"/>`
+    /// 照着 `ex.Message` 造的,所以**消息逐字相同**;对不上一律退回那句消息。
+    ///
     /// 平时不必碰它:没人接的异常,顶层自己会这么渲染。</summary>
     [Sys("FormatError")]
     public static RuntimeValue FormatError(Interpreter self, RuntimeValue e)
-        => new StringVal(self.Handed is { } ex
+    {
+        var msg = BuiltinClasses.ExceptionMessage(e);
+        return new StringVal(self.Handed is { } ex && ex.Message == msg
             ? ErrorReport.Format(ex)
-            : BuiltinClasses.ExceptionMessage(e) ?? Show(e));
+            : msg ?? Show(e));
+    }
 }

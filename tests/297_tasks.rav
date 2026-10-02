@@ -112,6 +112,18 @@ try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { x := 1 / 0; print x; })
     print ((e.Message).Contains "除数为零");
 }
 
+# ⑫ **用户自己 `throw` 的错,不能被上一份报告串了**
+#
+# `Handed`(引擎刚交出去的那个错)没有可靠的地方可以清:handler 可能用续延跳走(库里的
+# `try` 就是),收不到"调用返回"那一刻。于是用户 `throw` 进来时,它上面挂的可能是**上一次**
+# 引擎错误的报告 —— 照渲染就会报出别人的位置和栈,自己那句话反而不见(实测过)。
+# `System.FormatError` 现在核对"消息逐字相同",对不上就退回那句消息。
+# 这两条**必须挨着**:前一节刚留下一个引擎错误,这一节正好验它没被串上。
+try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "我自己扔的"); })]; } (e: Exception) => {
+    print ((e.Message).Contains "我自己扔的");
+    print ((e.Message).Contains "除数为零");
+}
+
 # --- expected ---
 A1
 B1
@@ -146,3 +158,5 @@ M2
 一间组里加两遍:这个任务已经在组里了 —— 别加第二遍
 true
 true
+true
+false
