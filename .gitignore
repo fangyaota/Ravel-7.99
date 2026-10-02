@@ -13,4 +13,6 @@ repl_session.json
 temp.ravel
 temp*.rav
 .io-test/
+# `tests/296` 造的那几个 `using` 搜索目录(它自己会删干净 —— 中途失败才会留在盘上)
+.using-test/
 myMetaClass.rav

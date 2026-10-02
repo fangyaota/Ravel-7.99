@@ -3450,6 +3450,25 @@ ReferencesPath = ["/path/to/libs/"]
 using "other.rav"
 ```
 
+**后缀可以省**——不歧义的时候（`.rav` 和 `.dll` 是两种不同的东西，见下）：
+
+```ravel
+using "seqs"              # ≡ using "seqs.rav"
+using "Ravel.Extensions"  # ≡ using "plugins/Ravel.Extensions.dll"
+```
+
+搜索目录是「当前目录 → `lib/` → `plugins/` → …解释器自己那一份的旁边」，
+`ReferencesPath` 里加的目录排在最前面。找的时候三种写法（原样 / 补 `.rav` / 补 `.dll`）
+各找一遍，**每种写法只认第一个搜到的目录**（同名文件在两个目录里都有 = 先到先得，
+和 `PATH` 一个意思），但**两种写法同时命中就报错**，不替你挑：
+
+```ravel
+using "amb"    # ✗ `using "amb"` 有歧义：`amb.rav` `amb.dll` 都对得上 —— 把后缀写全再试
+```
+
+写全了照旧，而且**省不省认的是同一个文件**——`using "seqs"` 之后再来一句
+`using "seqs.rav"` 不会加载两遍。
+
 `using` 只加载一次，循环引用报错。
 
 ### 8.3 System 模块

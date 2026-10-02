@@ -13,8 +13,8 @@ bash build.sh --rebuild --warn           # 再顺带 C# 警告检查(-t:Rebuild)
 rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c Debug -o out
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
-     # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/
-     # (见 Ravel.csproj 的 CopyPlugins / CopyLib),搜索路径里有"程序集目录"那两格
+     # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/、例子在 out/examples/
+     # (见 Ravel.csproj 的 CopyPlugins / CopyLib / CopyExamples),搜索路径里有"程序集目录"那两格
      # (Runtime/ModuleSearchPath.cs),所以 out/ 那一份换到哪个工作目录都跑得起来
 dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav      # 单文件
@@ -60,6 +60,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
   Interpreter.Modules.cs  模块路径解析与加载(ReferencesPath + 搜索目录、循环引用检测);
+                          **名字可以省后缀**(`seqs` / `Ravel.Extensions`,两种写法都命中就报错);
                           每个模块还记着**自己写着的那些 `using`**(见 `EnterModule`)
   Builtins/SysAttribute.cs / SysRegistry.cs
                           **`[Sys]` 那套机制**:特性本身 + 扫描(扫**整个程序集**,
@@ -78,7 +79,8 @@ Runtime/                         求值器按职责拆成多个 partial class �
                           —— 各主题都 `using static`,调用点还是老样子。
                           **别和 `BuiltinClasses*.cs` 混**:那是内置**类**的树(类型那一侧),
                           这里是内置**函数**
-  ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用)
+  ModuleSearchPath.cs     模块搜索目录(单一定义,predefined.rav 与 using 共用):
+                          `./` → `lib/` → `plugins/` → … → 程序集目录那两份(`lib/` 与 `plugins/`)
   Frame.cs / RList.cs     帧链(不可变持久) / 持久化单链表;
                           Frame.cs 还有 ControlFrame.Arg<T> 和 ArgNames(控制帧参数的类型化取值)
   RuntimeValue.cs         值基类(含 IsClosure) + 全部 Ravel 层异常:
@@ -288,10 +290,10 @@ lib/
                           归档里的**目录是推出来的**(`logs/a.txt` 意味着有个 `logs/`),
                           名字认两头:先当完整路径、再当这一层的名字。**要显式引用**
                           (本机六条在官方扩展里,见「官方扩展」一节)
-  native.rav              **官方扩展的 Ravel 那一半** —— 就一行 `using "plugins/Ravel.Extensions.dll"`,
+  native.rav              **官方扩展的 Ravel 那一半** —— 就一行 `using "Ravel.Extensions"`,
                           把 `Native` 模块装进来(`Hash`/`Crypto`/`Http`/`Regex`/`Sqlite`/`Random`
                           那几个库的本机半边都在那儿)。要用扩展的库都 `using "native.rav"`,
-                          dll 的字面路径**只有这一处**。见「官方扩展」一节
+                          dll 的名字**只有这一处**(后缀和 `plugins/` 都省了,见「插件」一节)。
   hash.rav                `Hash` 模块 —— 摘要与校验:`Sha256`/`Sha512`/`Sha1`/`Md5`(字符串按
                           UTF-8 进、交回小写十六进制;要字节表用 `...Bytes`)、`Hmac algo key data`、
                           `File path algo`(**流式**,多大的文件都不进内存)、`Crc32`(纯 Ravel 算的)、
@@ -970,6 +972,14 @@ internal static class StackClass
 
 于是 `using "x.dll"` 之后:`Structures.Stack ()` / `Structures.Make 1`。
 
+**目录和后缀都可以省**(`plugins/` 也在搜索目录里,见 `Runtime/ModuleSearchPath.cs`;
+补后缀的规矩见 `Interpreter.FindModuleFiles`):
+
+```ravel
+using "Ravel.Structures"     # ≡ using "plugins/Ravel.Structures.dll"
+using "structures.rav"       # 库里那半边,照旧
+```
+
 - **`[RavelModule("")]` 是特例**:进**全局作用域**(不建模块,直接叫名字)。
 - 函数那几条的签名规矩和 `[Sys]` **同一套**(1~3 个 `RuntimeValue`,开头可以是
   `Interpreter`)—— 绑定只有一处(`ClassRegistry.Fn`)。
@@ -1006,8 +1016,8 @@ internal static class StackClass
 这六个两样都不沾,它们说的是"这台机器能干什么",而 `Hash.Sha256` 那个库才是"这门语言里
 摘要是什么"。
 
-- Ravel 那一半是 `lib/native.rav`(就一行 `using "plugins/Ravel.Extensions.dll"`)——
-  dll 的字面路径**只有那一处**;要用扩展的库都 `using "native.rav"`,不自己碰 dll。
+- Ravel 那一半是 `lib/native.rav`(就一行 `using "Ravel.Extensions"`)——
+  dll 的名字**只有那一处**;要用扩展的库都 `using "native.rav"`,不自己碰 dll。
 - **模块名不止 `Native` 一个**:`Math` 整份也在这儿(`[RavelModule("Math")]`)——
   它没有"库面/本机面"之分,`lib/math.rav` 只往上补四个 Ravel 函数。
   这就是 `[RavelModule]` 上那个名字的用处:往**哪个**模块里装,由它说。

@@ -13,7 +13,13 @@ namespace Ravel.Runtime;
 /// **`<程序集目录>/lib/` 是同一个毛病的另一半**:标准库不是编译产物,解释器是**读源码**跑的
 /// (`predefined.rav` 就在里头),所以发布时整个 `lib/` 也拷到 dll 旁边(见 `CopyLib`)。
 /// 没有这一格的话,`out/` 那一份只在**工作目录正好有 `lib/`** 时跑得起来 —— 换个目录就
-/// 「找不到 lib/predefined.rav」。</summary>
+/// 「找不到 lib/predefined.rav」。
+///
+/// **`plugins/` 是照 `lib/` 的样子配的一份**:那儿的 dll 从前只能连着目录一起写
+/// (`using "plugins/Ravel.Extensions.dll"`)。加进来之后它就和标准库一个用法 ——
+/// `using "Ravel.Extensions"`(后缀省了、目录也省了,见 <see cref="Interpreter"/>
+/// 的 `ResolveModulePath`)。放**本地 `lib/` 后面、程序集目录那两格旁边**,和 `lib/` 对称:
+/// 名字先当源码找,再当程序集找。</summary>
 internal static class ModuleSearchPath
 {
     /// <summary>按优先级排列</summary>
@@ -21,9 +27,11 @@ internal static class ModuleSearchPath
     [
         "./",
         "lib/",
+        "plugins/",
         "/workspace/ravel/lib/",
         "/workspace/ravel/",
         AppContext.BaseDirectory,
         Path.Combine(AppContext.BaseDirectory, "lib"),
+        Path.Combine(AppContext.BaseDirectory, "plugins"),
     ];
 }

@@ -14,10 +14,10 @@
 # 找不到 dotnet?脚本自己翻(`$DOTNET` → PATH → 几个常见装法),翻不到就把怎么修说全;
 # 换个终端(WSL、没继承系统 PATH 的 git-bash)时值在这 —— 别指望 `dotnet` 一定在 PATH 上。
 #
-# 发布产物是**自洽**的:插件 dll(`plugins/`)和标准库(`lib/`)都拷到 dll 旁边
-# (见 Ravel.csproj 的 `CopyPlugins` / `CopyLib`),搜索路径里有"程序集目录"那两格
-# (见 Runtime/ModuleSearchPath.cs)—— 所以 `out/` 那一份**换哪个工作目录都跑得起来**。
-# 最后一步的冒烟就是从别处跑它。
+# 发布产物是**自洽**的:插件 dll(`plugins/`)、标准库(`lib/`)和例子(`examples/`)
+# 都拷到 dll 旁边(见 Ravel.csproj 的 `CopyPlugins` / `CopyLib` / `CopyExamples`),
+# 搜索路径里有"程序集目录"那两格(见 Runtime/ModuleSearchPath.cs)——
+# 所以 `out/` 那一份**换哪个工作目录都跑得起来**。最后一步的冒烟就是从别处跑它。
 set -euo pipefail
 
 # `pwd -W` 是 git-bash 的:给的是 `D:/...` 这种 **Windows 认的**绝对路径。

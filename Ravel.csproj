@@ -114,4 +114,27 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- 例子(`examples/*.rav`)**也跟着走**,和标准库一个道理:它们同样不是编译产物,
+       而"拿到 out/ 那一步就能照着跑一段"正是这个目录存在的意义(教程里到处在指它们)。
+       落点也照 `lib/` 分两份:平时的 `$(OutDir)`、发布的 `$(PublishDir)`。
+       **例子不进搜索路径** —— 它们是拿来跑的文件(`dotnet ravel.dll examples/http.rav`),
+       不是拿来 `using` 的:那几个例子自己引的是 `lib/` 里的模块,按模块名找得到。 -->
+  <Target Name="CopyExamples" AfterTargets="Build" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <ExampleFile Include="examples/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ExampleFile)"
+          DestinationFiles="@(ExampleFile->'$(OutDir)examples/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyExamplesToPublish" AfterTargets="Publish" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <ExampleFileP Include="examples/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ExampleFileP)"
+          DestinationFiles="@(ExampleFileP->'$(PublishDir)examples/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

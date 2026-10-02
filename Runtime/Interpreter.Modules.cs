@@ -26,11 +26,23 @@ public partial class Interpreter
     /// <summary>把一个模块那串 `using` **解析成模块** —— 查"文件 → 它装出来的那个模块"。
     /// 那个文件要是没写模块名(`native.rav` / `enum.rav` 这种只往全局落东西的),
     /// 一律算到 <see cref="GlobalModule"/> 那一枚上:它们落的就是同一个地方。
-    /// 文件找不到(改过名、删了)也照此办理,不给空位。</summary>
+    /// 文件找不到(改过名、删了)也照此办理,不给空位。
+    ///
+    /// **这里不能抛** —— 这一条路是"回看这个模块引了谁"(`References ()`),是**读**不是加载。
+    /// 所以有歧义时也当"没解析出来"(见 <see cref="FindModuleFiles"/>):由 `using` 那边报错,
+    /// 在这儿炸等于 `MyMod.References ()` 也会炸。</summary>
     internal IReadOnlyList<ModuleVal> ResolveReferences(ModuleVal mv)
-        => [.. mv.ReferencePaths.Select(p =>
-               ResolveModulePath(p) is { } full && _moduleByPath.TryGetValue(full, out var m)
-                   ? m : GlobalModule())];
+    {
+        var found = new List<ModuleVal>();
+        foreach (var p in mv.ReferencePaths)
+        {
+            var hits = FindModuleFiles(p);
+            found.Add(hits.Count == 1 && _moduleByPath.TryGetValue(hits[0].Full, out var m)
+                ? m : GlobalModule());
+        }
+
+        return found;
+    }
 
     /// <summary>**没写模块名的那些文件**共用的那一枚模块,包的是全局作用域。
     /// 主脚本顶层那些 `using` 也记在它身上 —— 那也是全局这一层引的。
@@ -38,23 +50,56 @@ public partial class Interpreter
     private ModuleVal GlobalModule()
         => _globalModule ??= new ModuleVal("<global>", _global) { Owner = this };
 
-    /// <summary>把模块名解析为绝对路径;找不到返回 null</summary>
-    private string? ResolveModulePath(string path)
+    /// <summary>`using` 后面那一串能对上哪些文件。**每种写法挑第一个搜到的目录** ——
+    /// 同名文件在两个搜索目录里都有不算歧义,先到先得,那是搜索路径本来该有的意思
+    /// (和 `PATH` 一样)。
+    ///
+    /// 写法有三种:**写全的**、补 `.rav` 的、补 `.dll` 的 —— 于是后缀可以省:
+    ///
+    ///     using "seqs"              # → lib/seqs.rav
+    ///     using "Ravel.Extensions"  # → plugins/Ravel.Extensions.dll
+    ///
+    /// 交回**所有命中的**(写的那一串 + 绝对路径),而不是挑一个 —— "两种写法都对上"
+    /// 该怎么办得由调用方定:`using` 那边当场报错,`References ()` 那边当没解析出来。
+    /// (dll 能只写名字,是因为 `plugins/` 也在搜索目录里,见 `ModuleSearchPath`。)</summary>
+    private List<(string Written, string Full)> FindModuleFiles(string path)
     {
         var refs = new List<string>();
         var rv = _global.TryLookup("ReferencesPath");
         if (rv?.Value is ListVal lv) refs.AddRange(lv.Elements.Select(e => As<StringVal>(e, "references 的元素").Value));
         refs.AddRange(ModuleSearchPath.Defaults);
 
-        // 两轮:先在整个搜索路径里找原样文件名,再找补了 .rav 的(精确名优先于补后缀)
-        foreach (var candidate in new[] { path, path + ".rav" })
+        var hits = new List<(string Written, string Full)>();
+        foreach (var candidate in new[] { path, path + ".rav", path + ".dll" })
             foreach (var d in refs)
             {
                 var p = Path.Combine(d, candidate);
-                if (File.Exists(p)) return Path.GetFullPath(p);
+                if (!File.Exists(p)) continue;
+                hits.Add((candidate, Path.GetFullPath(p)));
+                break;   // 这一种写法在第一个搜到的目录上收工,接着看下一种
             }
 
-        return null;
+        return hits;
+    }
+
+    /// <summary>把模块名解析为绝对路径;找不到返回 null,**两种写法都对上就报错**。
+    ///
+    /// 报错而不是挑一个:`x.rav` 和 `x.dll` 是完全不同的两样东西(一份源码、一个程序集),
+    /// 挑谁都是瞎猜 —— 所以"不歧义"是能省后缀的前提。反过来,能省后缀也正是为了
+    /// **不用记住自己在写 `.rav` 还是 `.dll`**(那本来就是个实现细节:`Ravel.Extensions.dll`
+    /// 底下装的是 `Math` / `Native`,和 `lib/` 里的模块一样是个模块)。
+    ///
+    /// 报错信息里写的是**两种写法的样子**(`x.rav` / `x.dll`),不是绝对路径:要办的事是
+    /// "把后缀写全",摆两个长路径反而看不清;顺带让它钉得住(用例里没有机器相关的串)。</summary>
+    private string? ResolveModulePath(string path)
+    {
+        var hits = FindModuleFiles(path);
+        if (hits.Count == 0) return null;
+        if (hits.Count == 1) return hits[0].Full;
+
+        throw new RuntimeException(
+            $"`using \"{path}\"` 有歧义:{string.Join(" ", hits.Select(h => "`" + h.Written + "`"))} 都对得上"
+            + " —— 把后缀写全再试", ErrorKind.Io);
     }
 
     /// <summary>加载模块文件,解析为 BlockExpr;找不到抛异常,循环引用抛异常,已加载返回 null(视为空块)。

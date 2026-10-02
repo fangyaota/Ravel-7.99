@@ -1,0 +1,66 @@
+# `using` 的后缀可以省 —— **不歧义的时候**:
+#
+#     using "seqs"              ≡ using "seqs.rav"
+#     using "Ravel.Extensions"  ≡ using "plugins/Ravel.Extensions.dll"
+#
+# 库里那两种写法都有现成的可问(`seqs` 在 `lib/`、`Ravel.Extensions` 在 `plugins/`,
+# 后者整套测试都在用 —— `lib/native.rav` 就那一行),这个用例专门钉**边角**:
+# "同一个写法落在两个搜索目录里"和"两种后缀撞车"这两种局面 lib/ 里造不出来,
+# 所以自己写几个文件、指 `ReferencesPath`(那个全局就是给这个用的)。
+# 写在仓库里的 .using-test/ 下,结尾删干净(和 tests/229 一个规矩)。
+using "io.rav"
+
+# ── 造局面 ──
+#   a/pick.rav 与 b/pick.rav  —— 同一个写法在两个搜索目录里 → **先到先得**,不算歧义
+#   amb/amb.rav 与 amb/amb.dll —— 两种后缀都撞上 → **歧义**,该报错
+root := Io.Dir ".using-test"
+root.Create ()
+a := root.Mkdir "a"
+b := root.Mkdir "b"
+amb := root.Mkdir "amb"
+(a.Child "pick.rav").Write "PickFrom := \"A\"\n"
+(b.Child "pick.rav").Write "PickFrom := \"B\"\n"
+(amb.Child "amb.rav").Write "X := 1\n"
+(amb.Child "amb.dll").Write "这不是真的 dll\n"    # 永远不该被读到:撞车那一步就该报错了
+
+ReferencesPath = [".using-test/a" ".using-test/b" ".using-test/amb"]
+
+# ── ① 省后缀:补 `.rav` ──
+using "pick"
+print PickFrom                 # A —— 两个目录里都有,先到先得(a 排在前面)
+
+# ── ② 写全了照旧,而且**认的是同一个文件** —— 再 `using` 一遍不会重跑
+#      (真重跑的话 `PickFrom := "A"` 会撞上"已经定义过") ──
+using "pick.rav"
+print PickFrom                 # A
+
+# ── ③ 两种后缀都撞上 → 当场报错,不挑一个 ──
+#      (`x.rav` 和 `x.dll` 是完全不同的两样东西:一份源码、一个程序集)
+try { eval "using \"amb\""; } (e: IoError) => { print e.Message; }
+
+# ── ④ 写全后缀就不歧义了 ──
+using "amb.rav"
+print X                        # 1
+
+# ── ⑤ dll:目录和后缀都省(`plugins/` 也在搜索目录里) ──
+using "Ravel.Structures"
+s := Structures.Stack ()
+s.Push 7
+print (s.Peek ())              # 7
+
+# 收摊:目录非空删不掉(`Dir.Delete` 不递归),得先删文件、再删子目录、最后删根
+foreach ((root.Dirs ()).Keys ()) (d: string) => {
+    sub := root.Child d
+    foreach ((sub.Files ()).Keys ()) (f: string) => { (sub.Child f).Delete (); }
+    sub.Delete ()
+}
+root.Delete ()
+print (root.Exists ())         # false
+
+# --- expected ---
+# A
+# A
+# `using "amb"` 有歧义:`amb.rav` `amb.dll` 都对得上 —— 把后缀写全再试
+# 1
+# 7
+# false

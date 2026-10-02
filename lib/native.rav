@@ -18,7 +18,10 @@
 # `Ravel.Extensions/` 编出 `plugins/Ravel.Extensions.dll`,`using` 这个文件把它装进来。
 #
 # **这一层为什么存在**:`using` 一个 `.dll` 要在别处写死那个路径,而这个文件是那**唯一一处**
-# —— 上面那个 `plugins/...` 就是全部。要用扩展的库都是 `using "native.rav"`,不自己碰 dll。
+# —— 底下那句就是全部。要用扩展的库都是 `using "native.rav"`,不自己碰 dll。
 # (对照着看 `lib/structures.rav`:那个也是"dll 的 Ravel 那半边",只是它还有活儿要干 ——
 # 得登记 `IEnumerable` 那几条 `impl`;这边没有任何 Ravel 代码,就一行装进来。)
-using "plugins/Ravel.Extensions.dll"
+#
+# **后缀和目录都省了**:模块名照 `lib/` 里的写法写就行,`plugins/` 也在搜索目录里 ——
+# 底下那句对着的就是 `plugins/Ravel.Extensions.dll`。
+using "Ravel.Extensions"
