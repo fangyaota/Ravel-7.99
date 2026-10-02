@@ -45,7 +45,7 @@ internal static class StackClass
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Items.Count == 0);
 
     [ClassMethod("Count")]
-    public static RuntimeValue Count(RuntimeValue self) => new IntVal(Val(self).Items.Count);
+    public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Items.Count);
 
     /// <summary>栈顶在前(和枚举、和一个个 `Pop` 一个顺序)</summary>
     [ClassMethod("ToList")]

@@ -82,7 +82,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     }
 
     /// <summary>界上的那个整数,按 `Wide ()` 的规矩交 int 或 bigint。</summary>
-    public RuntimeValue Element(BigInteger v) => Wide() ? new BigIntVal(v) : new IntVal((int)v);
+    public RuntimeValue Element(BigInteger v) => Wide() ? new BigIntVal(v) : IntVal.Of((int)v);
 
     /// <summary>**落在这一段里吗** —— 按**端点**比,什么数值都行,不要求它是整数:
     /// `[1..10].Covers 2.5` ✓(2.5 确实在 1 和 10 之间)、`[1.5..3.5].Covers 1.7` ✓。

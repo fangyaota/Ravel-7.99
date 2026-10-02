@@ -16,7 +16,7 @@ public enum SeqMode { Each, Map, Where, Fold, All, Any, Find, SortBy }
 /// `Fold` 收两个(初值 + 函数)是 4 —— 柯里化喂满才推帧,和普通函数一样。</summary>
 public sealed record SeqMethod(SeqMode Mode, int Arity)
     : FunctionVal(null!, (_, self) => new ControlFunction(ControlKind.SeqOp, Arity,
-        RList<RuntimeValue>.Empty.Add(self).Add(new IntVal((int)Mode)))), ISelfBinding
+        RList<RuntimeValue>.Empty.Add(self).Add(IntVal.Of((int)Mode)))), ISelfBinding
 {
     /// <summary>报错文案里用的名字(和别的成员一样,名字挂在 `Name` 成员上)。</summary>
     public static string Label(SeqMode m) => m switch

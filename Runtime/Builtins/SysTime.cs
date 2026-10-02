@@ -22,15 +22,15 @@ internal static class SysTime
         var t = LocalTime(a, "TimeParts");
         return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
         {
-            [new StringVal("year")] = new IntVal(t.Year),
-            [new StringVal("month")] = new IntVal(t.Month),
-            [new StringVal("day")] = new IntVal(t.Day),
-            [new StringVal("hour")] = new IntVal(t.Hour),
-            [new StringVal("minute")] = new IntVal(t.Minute),
-            [new StringVal("second")] = new IntVal(t.Second),
-            [new StringVal("millisecond")] = new IntVal(t.Millisecond),
+            [new StringVal("year")] = IntVal.Of(t.Year),
+            [new StringVal("month")] = IntVal.Of(t.Month),
+            [new StringVal("day")] = IntVal.Of(t.Day),
+            [new StringVal("hour")] = IntVal.Of(t.Hour),
+            [new StringVal("minute")] = IntVal.Of(t.Minute),
+            [new StringVal("second")] = IntVal.Of(t.Second),
+            [new StringVal("millisecond")] = IntVal.Of(t.Millisecond),
             // 0 = 周日(和 .NET 的 DayOfWeek 一个口径;翻成中文名是库那边的事)
-            [new StringVal("weekday")] = new IntVal((int)t.DayOfWeek),
+            [new StringVal("weekday")] = IntVal.Of((int)t.DayOfWeek),
         });
     });
 

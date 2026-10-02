@@ -53,5 +53,5 @@ internal static class RandomNative
     });
 
     /// <summary>一枚"取数的函数" —— 库那边三台台子各包一枚它。</summary>
-    public static FunctionVal NumberSource(Func<int> next) => Closure("_", _ => new IntVal(next()));
+    public static FunctionVal NumberSource(Func<int> next) => Closure("_", _ => IntVal.Of(next()));
 }

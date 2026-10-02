@@ -106,7 +106,7 @@ internal static partial class BuiltinClasses
 
     internal static IntVal Narrow(long r, string what)
         => r >= int.MinValue && r <= int.MaxValue
-            ? new IntVal((int)r)
+            ? IntVal.Of((int)r)
             : throw new RuntimeException($"{what} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
 
     private static void RegisterOperators()
@@ -128,10 +128,10 @@ internal static partial class BuiltinClasses
 
         // 移位 / 循环移位(四条,`int` 上;语义见上面那一段)。
         // **不走 IntOp**:右边是"移多少位",不是参与运算的另一个值 —— 不该按宽度升级。
-        DefineOp(Int, "<<", (a, b) => new IntVal(ShiftUp(((IntVal)a).Value, ShiftCount(b, "<<"))));
-        DefineOp(Int, ">>", (a, b) => new IntVal(ShiftDown(((IntVal)a).Value, ShiftCount(b, ">>"))));
-        DefineOp(Int, "<<<", (a, b) => new IntVal(RotateUp(((IntVal)a).Value, ShiftCount(b, "<<<"))));
-        DefineOp(Int, ">>>", (a, b) => new IntVal(RotateDown(((IntVal)a).Value, ShiftCount(b, ">>>"))));
+        DefineOp(Int, "<<", (a, b) => IntVal.Of(ShiftUp(((IntVal)a).Value, ShiftCount(b, "<<"))));
+        DefineOp(Int, ">>", (a, b) => IntVal.Of(ShiftDown(((IntVal)a).Value, ShiftCount(b, ">>"))));
+        DefineOp(Int, "<<<", (a, b) => IntVal.Of(RotateUp(((IntVal)a).Value, ShiftCount(b, "<<<"))));
+        DefineOp(Int, ">>>", (a, b) => IntVal.Of(RotateDown(((IntVal)a).Value, ShiftCount(b, ">>>"))));
 
         // float 运算符 —— **全程 double**。
         // 曾经这里走 `AsFloat`(转成 32 位 float 再算),于是 `Math.pi * 180` 得
@@ -280,9 +280,9 @@ internal static partial class BuiltinClasses
         DefineOp(Bool, "|", (a, b) => new BoolVal(((BoolVal)a).Value || Operand<BoolVal>(b, "|").Value));
         DefineOp(Bool, "^", (a, b) => new BoolVal(((BoolVal)a).Value ^ Operand<BoolVal>(b, "^").Value));
         // int 位运算符
-        DefineOp(Int, "&", (a, b) => new IntVal(((IntVal)a).Value & Operand<IntVal>(b, "&").Value));
-        DefineOp(Int, "|", (a, b) => new IntVal(((IntVal)a).Value | Operand<IntVal>(b, "|").Value));
-        DefineOp(Int, "^", (a, b) => new IntVal(((IntVal)a).Value ^ Operand<IntVal>(b, "^").Value));
+        DefineOp(Int, "&", (a, b) => IntVal.Of(((IntVal)a).Value & Operand<IntVal>(b, "&").Value));
+        DefineOp(Int, "|", (a, b) => IntVal.Of(((IntVal)a).Value | Operand<IntVal>(b, "|").Value));
+        DefineOp(Int, "^", (a, b) => IntVal.Of(((IntVal)a).Value ^ Operand<IntVal>(b, "^").Value));
 
         // 函数交替 |（前一个不收这个参数就试下一个）→ Alternate 控制帧。
         // 左边已经是交替时**摊平**成一个分支列表:`x | y | z` 解析成 `(x | y) | z`,

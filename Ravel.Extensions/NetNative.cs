@@ -115,7 +115,7 @@ internal static class NetNative
             using var resp = client.Send(msg, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             var entries = new Dictionary<RuntimeValue, RuntimeValue>
             {
-                [new StringVal("status")] = new IntVal((int)resp.StatusCode),
+                [new StringVal("status")] = IntVal.Of((int)resp.StatusCode),
                 [new StringVal("reason")] = new StringVal(resp.ReasonPhrase ?? ""),
                 [new StringVal("headers")] = HeaderDict(resp),
                 // 跟完重定向之后真正停在哪儿 —— 短链、跳登录页这些一眼看得出来

@@ -72,11 +72,11 @@ internal static partial class BuiltinClasses
     /// (和数字字面量一个口径)。</summary>
     private static RuntimeValue AsInt(object? o) => o switch
     {
-        int i => new IntVal(i),
-        long l => l is >= int.MinValue and <= int.MaxValue ? new IntVal((int)l) : new BigIntVal(l),
-        ulong u => u <= int.MaxValue ? new IntVal((int)u) : new BigIntVal(u),
+        int i => IntVal.Of(i),
+        long l => l is >= int.MinValue and <= int.MaxValue ? IntVal.Of((int)l) : new BigIntVal(l),
+        ulong u => u <= int.MaxValue ? IntVal.Of((int)u) : new BigIntVal(u),
         System.Numerics.BigInteger bi => bi >= int.MinValue && bi <= int.MaxValue
-            ? new IntVal((int)bi) : new BigIntVal(bi),
+            ? IntVal.Of((int)bi) : new BigIntVal(bi),
         _ => throw new RuntimeException($"Json.Extract: 认不出的整数 {o}", ErrorKind.Value),
     };
 
@@ -185,7 +185,7 @@ internal static partial class BuiltinClasses
             return new JsonVal(arr[i]);
         });
 
-        Json.DefineMethod("Count", (s, _) => new IntVal(((JsonVal)s).Token switch
+        Json.DefineMethod("Count", (s, _) => IntVal.Of(((JsonVal)s).Token switch
         {
             JObject o => o.Count,
             JArray a => a.Count,

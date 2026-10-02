@@ -110,7 +110,7 @@ internal static class SysFiles
     {
         var p = PathOf(a, "PathSize");
         NeedFile(p, "看文件大小");
-        return new IntVal((int)new FileInfo(p).Length);
+        return IntVal.Of((int)new FileInfo(p).Length);
     });
 
     [Sys("PathTime")]

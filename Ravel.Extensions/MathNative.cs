@@ -173,13 +173,13 @@ internal static class MathNative
     /// (C# 的 `Math.Sign(double.NaN)` 抛的是 ArithmeticException)。</summary>
     private static RuntimeValue Sign(RuntimeValue v) => v switch
     {
-        IntVal i => new IntVal(Math.Sign(i.Value)),
+        IntVal i => IntVal.Of(Math.Sign(i.Value)),
         FloatVal f => double.IsNaN(f.Value)
             ? throw Fail("Sign 的 NaN 没有符号")
-            : new IntVal(Math.Sign(f.Value)),
-        BigIntVal bi => new IntVal(bi.Value.Sign),
-        FractionVal fr => new IntVal(Math.Sign(fr.Num)),
-        BigFractionVal bf => new IntVal(bf.Num.Sign),
+            : IntVal.Of(Math.Sign(f.Value)),
+        BigIntVal bi => IntVal.Of(bi.Value.Sign),
+        FractionVal fr => IntVal.Of(Math.Sign(fr.Num)),
+        BigFractionVal bf => IntVal.Of(bf.Num.Sign),
         _ => throw Fail($"Sign 需要数值参数，得到 {v.Type}", ErrorKind.Type),
     };
 }

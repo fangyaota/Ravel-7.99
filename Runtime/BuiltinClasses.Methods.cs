@@ -46,7 +46,7 @@ internal static partial class BuiltinClasses
         // 由引擎那把尺子(`Less`,也就是 `<` 的口径)说话,用户类在自己类体里写一条 `CompareTo`
         // 就把它盖掉 —— 和 `ToString` 一个规矩。交回 -1 / 0 / 1,和 C# 的 IComparable 同约定,
         // 比不了照样当场说人话(`Less` 那句「比不了 X 与 Y」)。
-        Object.DefineMethod("CompareTo", (s, a) => new IntVal(
+        Object.DefineMethod("CompareTo", (s, a) => IntVal.Of(
             Less(s, a) ? -1 : Less(a, s) ? 1 : 0));
         // `Key` —— "**我当键时等于什么**"。默认这把尺子只对值类型有话说:数、字符串交回**它自己**
         // (于是 `1`/`"1"`/`1.0` 是三个键,相等的两个字符串是同一个键);别的类型当场报错 ——
@@ -91,7 +91,7 @@ internal static partial class BuiltinClasses
         Range.DefineMethod("Count", (s, _) =>
         {
             var n = ((RangeVal)s).CountValue();
-            return n >= int.MinValue && n <= int.MaxValue ? new IntVal((int)n) : new BigIntVal(n);
+            return n >= int.MinValue && n <= int.MaxValue ? IntVal.Of((int)n) : new BigIntVal(n);
         });
         Range.DefineMethod("IsEmpty", (s, _) => new BoolVal(((RangeVal)s).IsEmpty()));
         Range.DefineMethod("Contains", (s, a) =>
@@ -152,7 +152,7 @@ internal static partial class BuiltinClasses
 
     private static void RegisterStringMethods()
     {
-        String.DefineMethod("Length", (s, _) => new IntVal(((StringVal)s).Value.Length));
+        String.DefineMethod("Length", (s, _) => IntVal.Of(((StringVal)s).Value.Length));
         String.DefineMethod("IsEmpty", (s, _) => new BoolVal(((StringVal)s).Value.Length == 0));
 
         // ── 取字符 ──
@@ -182,16 +182,16 @@ internal static partial class BuiltinClasses
             var v = ((StringVal)s).Value;
             var i = v.IndexOf(TextArg(a, "s.IndexOf"), StringComparison.Ordinal);
             if (i < 0) throw new RuntimeException($"s.IndexOf: 找不到 {TextArg(a, "s.IndexOf")}", ErrorKind.Value);
-            return new IntVal(i);
+            return IntVal.Of(i);
         });
         String.DefineMethod("Find", (s, a) =>
-            new IntVal(((StringVal)s).Value.IndexOf(TextArg(a, "s.Find"), StringComparison.Ordinal)));   // 没有给 -1
+            IntVal.Of(((StringVal)s).Value.IndexOf(TextArg(a, "s.Find"), StringComparison.Ordinal)));   // 没有给 -1
         String.DefineMethod("LastIndexOf", (s, a) =>
         {
             var v = ((StringVal)s).Value;
             var i = v.LastIndexOf(TextArg(a, "s.LastIndexOf"), StringComparison.Ordinal);
             if (i < 0) throw new RuntimeException($"s.LastIndexOf: 找不到 {TextArg(a, "s.LastIndexOf")}", ErrorKind.Value);
-            return new IntVal(i);
+            return IntVal.Of(i);
         });
 
         // ── 切 ──
@@ -247,7 +247,7 @@ internal static partial class BuiltinClasses
         CharMethod("IsUpper", char.IsUpper);
         CharMethod("IsLower", char.IsLower);
         CharMethod("IsSpace", char.IsWhiteSpace);
-        Char.DefineMethod("Code", (s, _) => new IntVal(((CharVal)s).Value));          // `int c` 的显式版
+        Char.DefineMethod("Code", (s, _) => IntVal.Of(((CharVal)s).Value));          // `int c` 的显式版
         Char.DefineMethod("ToString", (s, _) => new StringVal(((CharVal)s).Value.ToString()));
     }
 
@@ -311,7 +311,7 @@ internal static partial class BuiltinClasses
 
         // 下面这些是**列表才有**的:要么带下标,要么依赖"顺序是有意义的"
         // (集合/字典没有这条 —— 所以它们只在序列方法那一批里出现,见 BuiltinClasses.Sequences.cs)
-        List.DefineMethod("IndexOf", (s, a) => new IntVal(((ListVal)s).Elements.IndexOf(a)));
+        List.DefineMethod("IndexOf", (s, a) => IntVal.Of(((ListVal)s).Elements.IndexOf(a)));
         // `RemoveAt i` 和 `Remove i` 是同一件事:名字对齐 C#(`List.RemoveAt` 按下标、
         // `List.Remove` 按值),老名字留着 —— 库和好几个用例都在用。体也共用一份(见下面)。
         List.DefineMethod("RemoveAt", (s, a) => RemoveAt(s, a, "list.RemoveAt"));

@@ -31,7 +31,7 @@ internal static class SqliteNative
         conn.Open();
         var id = ++_next;
         Opened[id] = conn;
-        return new IntVal(id);
+        return IntVal.Of(id);
     });
 
     [RavelFn("SqliteClose")]
@@ -54,7 +54,7 @@ internal static class SqliteNative
     public static RuntimeValue Exec(RuntimeValue handle, RuntimeValue sql, RuntimeValue args) => Sql("执行", () =>
     {
         using var cmd = Command(handle, sql, args);
-        return new IntVal(cmd.ExecuteNonQuery());
+        return IntVal.Of(cmd.ExecuteNonQuery());
     });
 
     /// <summary>取结果:`{columns: [列名…] rows: [[值…]…]}` —— 列名跟着来,库那边才拼得出一行行 dict</summary>
@@ -141,7 +141,7 @@ internal static class SqliteNative
     private static RuntimeValue FromSql(object? o) => o switch
     {
         null or DBNull => Void,
-        long l => l is >= int.MinValue and <= int.MaxValue ? new IntVal((int)l) : new BigIntVal(l),
+        long l => l is >= int.MinValue and <= int.MaxValue ? IntVal.Of((int)l) : new BigIntVal(l),
         double d => new FloatVal(d),
         string s => new StringVal(s),
         byte[] b => BytesList(b),

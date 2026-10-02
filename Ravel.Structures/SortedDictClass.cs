@@ -66,7 +66,7 @@ internal static class SortedDictClass
     public static RuntimeValue Values(RuntimeValue self) => new ListVal([.. Val(self).Entries.Values]);
 
     [ClassMethod("Count")]
-    public static RuntimeValue Count(RuntimeValue self) => new IntVal(Val(self).Entries.Count);
+    public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Entries.Count);
 
     [ClassMethod("IsEmpty")]
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Entries.Count == 0);

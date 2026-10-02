@@ -47,7 +47,7 @@ internal static class SortedSetClass
             : throw PluginKit.Fail("SortedSet.Max: 空集合没有最大", ErrorKind.Index);
 
     [ClassMethod("Count")]
-    public static RuntimeValue Count(RuntimeValue self) => new IntVal(Val(self).Elements.Count);
+    public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Elements.Count);
 
     [ClassMethod("IsEmpty")]
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Elements.Count == 0);

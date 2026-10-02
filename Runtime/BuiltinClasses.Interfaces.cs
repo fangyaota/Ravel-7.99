@@ -192,7 +192,7 @@ internal static partial class BuiltinClasses
     internal static void FinishImplementation(Interpreter interp, ObjectVal impl, ObjectVal target)
     {
         impl.Scope.Define(TargetMember, Type, target);
-        impl.Scope.Define(GenerationMember, Int, new IntVal(0)).SetAttr(Attr.Unreadable);
+        impl.Scope.Define(GenerationMember, Int, IntVal.Of(0)).SetAttr(Attr.Unreadable);
         // `this` 用 OrReplace:这个对象是**实例化那趟**造的(`StepClassInit` 已经绑过 `this`),
         // 实现帧只是在它身上继续装填。
         impl.Scope.DefineOrReplace(ObjectVal.ThisMember, impl.Type, impl);
@@ -243,7 +243,7 @@ internal static partial class BuiltinClasses
     {
         if (impl.Scope.LookupField(ImplIdMember)?.Value is IntVal had) return had;
 
-        var id = new IntVal(++_implCount);
+        var id = IntVal.Of(++_implCount);
         impl.Scope.Define(ImplIdMember, Int, id).SetAttr(Attr.Unreadable);
         return id;
     }
@@ -271,7 +271,7 @@ internal static partial class BuiltinClasses
         }
 
         reg.Elements.RemoveAll(x => x is ListVal e && e.Elements.Count > 0 && ReferenceEquals(e.Elements[0], impl));
-        reg.Elements.Add(new ListVal([impl, new IntVal(Generation(impl))]));
+        reg.Elements.Add(new ListVal([impl, IntVal.Of(Generation(impl))]));
     }
 
     /// <summary>`Dispose ()`:把实现加一岁,已经登记过的那些条目统统作废。O(1)、幂等、
@@ -279,7 +279,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue DisposeImplementation(ObjectVal impl)
     {
         if (impl.Scope.LookupField(GenerationMember) is { } gen)
-            gen.Assign(new IntVal(((IntVal)gen.Value).Value + 1));
+            gen.Assign(IntVal.Of(((IntVal)gen.Value).Value + 1));
         return VoidVal.Instance;
     }
 

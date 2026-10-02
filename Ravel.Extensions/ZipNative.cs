@@ -33,7 +33,7 @@ internal static class ZipNative
         NeedFile(p, "开归档");
         var id = ++_next;
         Opened[id] = ZipFile.Open(p, ZipArchiveMode.Read);
-        return new IntVal(id);
+        return IntVal.Of(id);
     });
 
     /// <summary>新建一个档(写)。**同名的会被整个覆盖** —— 追加要走的不是这条路。
@@ -49,7 +49,7 @@ internal static class ZipNative
         NeedParentDir(p, "建归档");
         var id = ++_next;
         Opened[id] = new ZipArchive(File.Create(p), ZipArchiveMode.Create);
-        return new IntVal(id);
+        return IntVal.Of(id);
     });
 
     /// <summary>档里有哪些成员 —— 一列 dict:`{name size packed isDir}`,**按名字排好**。

@@ -84,5 +84,5 @@ internal static class SysKit
         return bytes;
     }
 
-    public static ListVal BytesList(byte[] bytes) => new([.. bytes.Select(b => (RuntimeValue)new IntVal(b))]);
+    public static ListVal BytesList(byte[] bytes) => new([.. bytes.Select(b => (RuntimeValue)IntVal.Of(b))]);
 }

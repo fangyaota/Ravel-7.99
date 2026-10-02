@@ -93,7 +93,7 @@ internal static partial class BuiltinClasses
     /// int 是 32 位的类型，装不下就该报，别让调用者以为算出来了。</summary>
     private static IntVal FromBig(System.Numerics.BigInteger v)
         => v >= int.MinValue && v <= int.MaxValue
-            ? new IntVal((int)v)
+            ? IntVal.Of((int)v)
             : throw new RuntimeException($"数值 {v} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
 
     private static IntVal FromDouble(double v)
@@ -102,22 +102,22 @@ internal static partial class BuiltinClasses
         if (v < int.MinValue || v > int.MaxValue)
             // 插值用 FloatVal 而不是裸 double:后者的无穷是"∞",值的形式该是 ASCII
             throw new RuntimeException($"数值 {new FloatVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
-        return new IntVal((int)v);
+        return IntVal.Of((int)v);
     }
 
     private static RuntimeValue CastToInt(RuntimeValue val)
     {
-        if (val is DefaultVal) return new IntVal(0);
+        if (val is DefaultVal) return IntVal.Of(0);
         if (val is IntVal i) return i;
         // 字符就是它的码位(`int 'A'` → 65),反过来的 `char 65` 在 CastToChar 那边
-        if (val is CharVal ch) return new IntVal(ch.Value);
+        if (val is CharVal ch) return IntVal.Of(ch.Value);
         if (val is StringVal s)
         {
-            if (int.TryParse(s.Value, out var n)) return new IntVal(n);
+            if (int.TryParse(s.Value, out var n)) return IntVal.Of(n);
             throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）", ErrorKind.Value);
         }
 
-        if (val is BoolVal b) return new IntVal(b.Value ? 1 : 0);
+        if (val is BoolVal b) return IntVal.Of(b.Value ? 1 : 0);
         if (val is FloatVal f) return FromDouble(f.Value);
         if (val is BigIntVal bi) return FromBig(bi.Value);
         // 分数先在 BigInteger 里除，免得 int 除法自己先溢出（MinValue / -1）

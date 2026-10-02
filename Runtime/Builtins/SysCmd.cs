@@ -40,7 +40,7 @@ internal static class SysCmd
         {
             [new StringVal("out")] = new StringVal(DecodeOutput(outTask.Result)),
             [new StringVal("err")] = new StringVal(DecodeOutput(errTask.Result)),
-            [new StringVal("code")] = new IntVal(proc.ExitCode),
+            [new StringVal("code")] = IntVal.Of(proc.ExitCode),
         };
         return new DictVal(entries);
     });

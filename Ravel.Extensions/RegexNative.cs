@@ -49,8 +49,8 @@ internal static class RegexNative
         return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
         {
             [new StringVal("value")] = new StringVal(m.Value),
-            [new StringVal("index")] = new IntVal(m.Index),
-            [new StringVal("length")] = new IntVal(m.Length),
+            [new StringVal("index")] = IntVal.Of(m.Index),
+            [new StringVal("length")] = IntVal.Of(m.Length),
             [new StringVal("groups")] = new ListVal(groups),
             [new StringVal("named")] = new DictVal(named),
         });

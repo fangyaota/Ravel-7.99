@@ -52,7 +52,7 @@ internal static class TerminalNative
     /// <summary>终端宽多少格。**看不见终端时给 80** —— 管道里问不到尺寸,
     /// 而调用方多半是想按宽度折个行,给个约定俗成的数比报错有用</summary>
     [RavelFn("TerminalWidth")]
-    public static RuntimeValue TerminalWidth(RuntimeValue _) => new IntVal(Width());
+    public static RuntimeValue TerminalWidth(RuntimeValue _) => IntVal.Of(Width());
 
     /// <summary>把几行**已经带标记的**文本装进一个方框(就是 Spectre 的 `Panel`),交回整块。
     /// 和 `TerminalRender` 一样是**纯函数**,只是外面多包一圈边框 ——
@@ -128,7 +128,7 @@ internal static class TerminalNative
             .UseConverter(i => $"{i}: {options[i]}")
             .AddChoices(Enumerable.Range(0, options.Count));
 
-        return new IntVal(Live().Prompt(prompt));
+        return IntVal.Of(Live().Prompt(prompt));
     });
 
     // ── 下面是自己人 ──

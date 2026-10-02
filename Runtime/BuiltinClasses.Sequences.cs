@@ -30,7 +30,7 @@ internal static partial class BuiltinClasses
     private static void RegisterSequenceMethods(ObjectVal type, Func<RuntimeValue, List<RuntimeValue>> items)
     {
         // `Count` / `IsEmpty` / `Any` —— 三种容器本来各有一份 `Count`,现在并到这儿
-        type.DefineMethod("Count", (s, _) => new IntVal(items(s).Count));
+        type.DefineMethod("Count", (s, _) => IntVal.Of(items(s).Count));
         type.DefineMethod("IsEmpty", (s, _) => new BoolVal(items(s).Count == 0));
         type.DefineMethod("First", (s, _) => Nth(items(s), 0, "First"));
         type.DefineMethod("Last", (s, _) => Nth(items(s), items(s).Count - 1, "Last"));
@@ -66,7 +66,7 @@ internal static partial class BuiltinClasses
         });
         type.DefineMethod("Sum", (s, _) =>
         {
-            RuntimeValue acc = new IntVal(0);          // 空集合求和给 0(C# 的 Sum() 也是这样)
+            RuntimeValue acc = IntVal.Of(0);          // 空集合求和给 0(C# 的 Sum() 也是这样)
             foreach (var x in items(s)) acc = ApplyOp("+", acc, x);
             return acc;
         });

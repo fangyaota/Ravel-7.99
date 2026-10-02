@@ -70,7 +70,7 @@ internal static class DequeClass
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Items.Count == 0);
 
     [ClassMethod("Count")]
-    public static RuntimeValue Count(RuntimeValue self) => new IntVal(Val(self).Items.Count);
+    public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Items.Count);
 
     [ClassMethod("ToList")]
     public static RuntimeValue ToList(RuntimeValue self) => new ListVal([.. Val(self).Items]);

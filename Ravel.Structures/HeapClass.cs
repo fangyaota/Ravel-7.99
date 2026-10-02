@@ -48,7 +48,7 @@ internal static class HeapClass
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Items.Count == 0);
 
     [ClassMethod("Count")]
-    public static RuntimeValue Count(RuntimeValue self) => new IntVal(Val(self).Items.Count);
+    public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Items.Count);
 
     /// <summary>一个个弹出来的顺序 = 排好序的那一串(弹的是**一份拷贝**,原堆不动)</summary>
     [ClassMethod("ToList")]

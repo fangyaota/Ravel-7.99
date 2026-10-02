@@ -41,12 +41,12 @@ public partial class Interpreter
             'f' => new FloatVal(double.Parse(text, ci)),
             'n' when !nn.IsFloat => new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
             'i' when !nn.IsFloat => int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var i)
-                ? new IntVal(i)
+                ? IntVal.Of(i)
                 : throw new RuntimeException($"'{text}i' 超出 int 范围（int 是 32 位，要这么大就写 {text}n）", ErrorKind.Value),
             '\0' => nn.IsFloat
                 ? new FloatVal(double.Parse(text, ci))
                 : int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var d)
-                    ? new IntVal(d)
+                    ? IntVal.Of(d)
                     : new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
             _ => throw new RuntimeException($"后缀 '{nn.Suffix}' 只能贴在整数上：{text} 是小数，而小数天生就是 float", ErrorKind.Value),
         };
