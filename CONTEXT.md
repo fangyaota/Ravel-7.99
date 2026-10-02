@@ -182,14 +182,18 @@ lib/
                           实现是 227 那个"两枚续延"原型,状态收进 `GeneratorCursor` 的字段
   tasks.rav               `Tasks` 模块 —— **协作式任务**(要显式 `using "tasks.rav"`)。
                           一个 OS 线程,任务只在**挂起点**换人:`TaskGroup`(Run / Await / Add)
-                          跑一列 `Task`,`Task` 给 `IsDone` / `Value` 两个 by-property ——
-                          **都不阻塞**:`IsDone` 探一下,`Value` 是"检查过的读"(没算完就报错,
-                          让调用方去 `group.Await`)。**"等"只有 `group.Await` 一个入口** ——
-                          藏在 by-property 里的让出,读代码的人看不见。
-                          **`Task` 分两种**:自动推进的(`After ms`,底下是 `System.Waitable`
-                          句柄,在操作系统那边自己走)和自创的(只有组跑它才动,停在哪由一枚
-                          续延记着)。两种共用一个类型、一套等待接口 —— 这就是它们共用一个名字的
-                          理由。挂起/恢复照抄 `generator.rav` 的 `GeneratorCursor`(三条规矩见文件头)。
+                          跑一列任务。**任务那一族分三层**:
+                          `ITask`(共用的脸:`IsDone` / `Value` 两个 by-property,存句柄的变量
+                          注解成它)、`TaskBase`(共用的状态 + 那两个 by 的体,顺带一句
+                          `impl (ITask TaskBase …)` —— 子类跟着认)、
+                          `Task`(自创,`Tasks.Task (group) => {…}`)/ `SysTask`(自动推进,
+                          `Tasks.After ms`,底下是 `System.Waitable` 句柄)。
+                          子类自己只写一件事:**怎么被等**(`WaitOn`),于是调度器那一句
+                          `t.WaitOn this` 就是全部的分派 —— 没有"是哪种"这种真假标记。
+                          `IsDone` / `Value` **都不阻塞**:`Value` 是"检查过的读",没算完就报错,
+                          让调用方去 `group.Await` —— **"等"只有 `group.Await` 一个入口**
+                          (藏在 by-property 里的让出,读代码的人看不见)。
+                          挂起/恢复照抄 `generator.rav` 的 `GeneratorCursor`(三条规矩见文件头)。
                           用例:`tests/297_tasks.rav`
   cached.rav              `Cached count f` —— 记忆化:按实参把 f 的结果记下来。**是个函数**
                           (不是类型),直接交出包装函数;缓存本身是它捕获的两个 list

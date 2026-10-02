@@ -27,8 +27,9 @@
 # **自创的**:`Tasks.Task (group) => { … }` 这种 —— 只有组**跑**它才前进。它停在哪儿由一枚
 # 续延记着(`Step`),组下次挑到它就接着跑。
 #
-# 两种共用一个类型 `Task`、一套 `IsDone` / `Value` / `group.Await`。名字共用一个是有道理的:
-# 都是"一件还没完的活儿",差别只在**谁让它往前走**。
+# 两种共用**一张脸**(`ITask`:`IsDone` / `Value`)、一套 `group.Await`。脸共用一个是有道理的:
+# 都是"一件还没完的活儿",差别只在**谁让它往前走** —— 而那句话落在两个**类**上
+# (`Task` / `SysTask`),不是一个真假标记。
 #
 # ## 只有"等"这一个挂起点,**没有**"主动让出"
 #
@@ -53,25 +54,31 @@
 # 藏在 by-property 里的让出,读代码的人看不见。
 ravel "Tasks"
 
-# 一个任务。自动推进的那一半只用 `Job`,自创的那一半只用 `Body` / `Step` / `Started`。
+# ── 一个任务:一件"还没完的活儿" ──
 #
-# `Step` 是"我停在哪儿"那一枚续延,起手是 `default`(还没到手的哨兵:一调就报错,
-# 不会静默什么都不做 —— 见 `predefined.rav` 的 callcc)。
-Task ::= class {
-    Body: function = () => { (); }
-    Step: Continuation = default
-    Started: bool = false
+# 分三层。不是为了好看,是为了**同一件事不写两遍**:
+#
+#   `ITask`     共用的**那张脸**:完没完(`IsDone`)、结果是什么(`Value`)。
+#               存句柄的变量注解成它(`t : Tasks.ITask = …`)。
+#   `TaskBase`  共用的**那一半实现**:那几格状态 + 两个 by-property 的体。
+#               它把 `ITask` 实现了(一句 `impl`,两个子类跟着认)。
+#   `Task` / `SysTask`  各自的**机制**:自创的带 `Body` / `Step` / `Started`,
+#               自动推进的带 `Job`。脸和状态全是继承来的,自己只写一件事:`WaitOn`。
+#
+# 于是"两种任务"落在**类**上,而不是一个 `HasJob: bool` 真假标记 ——
+# 调度器那一句 `t.WaitOn this` 就是全部的分派。
+ITask ::= interface {
+    by IsDone : function = default
+    by Value : function = default
+}
 
-    # 结果那一格,**两种来路共用**:Done 之后 Ok / Val / Err 才有意义
+# 共用那一半。**它自己不该被实例化** —— `WaitOn` 那份只会报错的默认体就是拦这个的。
+TaskBase ::= class {
+    # 结果那一格:Done 之后 Ok / Val / Err 才有意义
     Done: bool = false
     Ok: bool = true
     Val: object = ()
     Err: object = ()
-
-    # 自动推进的那一半:OS 句柄(`After` 挂上去的)。`HasJob` 是"我是不是那一类"的凭据
-    # (`== ()` 在这门语言里不吃 Void 操作数,所以拿个 bool 明说)
-    Job: object = ()
-    HasJob: bool = false
 
     # 谁在等我(自创任务走这一格;自动的走组的等待集合)
     Waiters: list = []
@@ -80,23 +87,6 @@ Task ::= class {
     # 它是"任务失败了但没人知道"那道闸的凭据:没人接的错到 `Run` 收尾时会当场报出来,
     # 不会像"没人接的错误"那样烂在这儿。
     Claimed: bool = false
-
-    # 两个 init 要用 `|` 连成**一条语句**(写两条 `init =` 是后一条覆盖前一条,按实参类型
-    # 分流的那套就没了 —— 症状是"参数 '_' 需要 Void,得到 Function")。
-    # `|` 必须跟在**上一个 lambda 的 `}` 那一行**上,另起一行它就断了。
-    init = (body: function) => {
-        Body = body
-        Step = default
-        Started = false
-        HasJob = false
-        this;
-    } | () => {
-        Body = () => { (); }
-        Step = default
-        Started = false
-        HasJob = false
-        this;
-    }
 
     # 完没完 —— **不阻塞**,随手就能探
     by IsDone := property (() => { Done; }) ((v: bool) => { (); })
@@ -116,7 +106,68 @@ Task ::= class {
         Claimed = true
         if { Ok; } { Val; } { throw Err; }
     }) ((v: object) => { (); })
+
+    # **怎么被等** —— "两种任务不一样"只在这一个地方,子类各写各的。
+    # 基类这一份是兜底:走到这儿说明有人造了个没实现的 Task 家族类型,别装死。
+    WaitOn := (group: TaskGroup) => {
+        throw (Exception ("这个类型没法被等 —— `WaitOn` 没实现"))
+    }
 }
+
+# 自创的:`Tasks.Task (group) => { … }`。只有组**跑**它才前进。
+#
+# `Step` 是"我停在哪儿"那一枚续延,起手是 `default`(还没到手的哨兵:一调就报错,
+# 不会静默什么都不做 —— 见 `predefined.rav` 的 callcc)。
+Task ::= class TaskBase {
+    Body: function = () => { (); }
+    Step: Continuation = default
+    Started: bool = false
+
+    init = (body: function) => {
+        Body = body
+        Step = default
+        Started = false
+        this;
+    }
+
+    # 挂到它的 `Waiters` 上 —— 它收工(`Finish`)时会把我放回就绪队列
+    WaitOn = (group: TaskGroup) => {
+        callcc (kp: Continuation) => {
+            group.Current.Step = kp
+            Waiters.Add group.Current
+            group.Back ()
+        }
+    }
+}
+
+# 自动推进的:`Tasks.After ms` 这种。底下是 OS 的计时器 / IO 句柄,它在**操作系统那边**
+# 自己往前走;组管不了它、也不用管它,只需要**看**它完没完(`System.WaitAny`)。
+SysTask ::= class TaskBase {
+    Job: object = ()
+
+    init = () => { Job = (); this; }
+
+    # 挂到**组的等待集合**上,等 OS 那边。回到这儿 = 句柄完成了。
+    # **结果在这一头取** —— 于是 IO 失败(超时、连不上)是在**这个任务里**抛出来的,
+    # 不会把组带走;同时也把结果记到自己身上,之后谁读 `Value` 都是白拿。
+    # (`HandleValue` 可以重复调,读的就是那个已完成任务的结果。)
+    WaitOn = (group: TaskGroup) => {
+        callcc (kp: Continuation) => {
+            group.Current.Step = kp
+            group.Waiting.Add (Pending group.Current Job)
+            group.Back ()
+        }
+        Val = System.HandleValue Job
+        Ok = true
+        Done = true
+    }
+}
+
+# 两个子类跟着认 `ITask` —— 基类登记一次就够(实测子类继承那句 `impl`)。
+# (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
+impl (ITask TaskBase {
+    ()
+})
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
 Pending ::= class {
@@ -159,38 +210,17 @@ TaskGroup ::= class {
 
     # **唯一的挂起点**:等一个任务完。
     #
-    # 两条路分开走:
-    #   * 自创的:挂到它的 `Waiters` 上,它跑完时把我放回就绪队列(`Finish`);
-    #   * 自动推进的:挂到组的等待集合上,`Poll` 在 OS 那边等着,谁先完成谁先回来。
+    # 怎么挂由**那个任务自己说了算**(`t.WaitOn this`,见 `Task` / `SysTask`):
+    # 自创的挂到自己的 `Waiters` 上(跑完时 `Finish` 把等着的人放回就绪队列),
+    # 自动推进的挂到组的等待集合上(`Poll` 在 OS 那边等着,谁先完成谁先回来)。
     #
     # **规矩**:只能等"会被别人完成"的东西。等一个没进组、也不会有人完成的自创任务就是死锁
     # —— `Run` 末尾那道检查会当场报出来,不会让你干等。
     Await := (t: object) => {
         t.Claimed = true
-        if { t.Done; } { 0; } {
-            if { t.HasJob; } {
-                # 自动推进的:挂到组的等待集合上,等 OS 那边
-                callcc (kp: Continuation) => {
-                    Current.Step = kp
-                    Waiting.Add (Pending Current t.Job)
-                    Back ()
-                }
-                # 回到这儿 = 这个句柄完成了。**结果在这一头取** —— 于是 IO 失败(超时、连不上)
-                # 是在**这个任务里**抛出来的,不会把组带走;同时也把结果记到任务身上,
-                # 之后谁读它的 `Value` 都是白拿。
-                # (`HandleValue` 可以重复调,读的就是那个已完成任务的结果。)
-                t.Val = System.HandleValue t.Job
-                t.Ok = true
-                t.Done = true
-            } {
-                # 自创的:挂到它的 `Waiters` 上,它收工时会把我放回就绪队列
-                callcc (kp: Continuation) => {
-                    Current.Step = kp
-                    t.Waiters.Add Current
-                    Back ()
-                }
-            }
-        }
+        # **挂起怎么挂,问那个任务自己**(`WaitOn`)—— "两种任务不一样"只在它那里,
+        # 这一句里没有"是哪种"这个概念。
+        if { t.Done; } { 0; } { t.WaitOn this; }
         # 到这儿它一定完了。那边抛了就在**这一头**重抛 —— 谁等它,谁接到那个错。
         if { t.Ok; } { (); } { throw t.Err; }
     }
@@ -263,9 +293,8 @@ TaskGroup ::= class {
 # 这一条压根不睡,它只是**交回一个将来会醒的东西**。所以 `After 1000` 单独一句什么都不会
 # 发生 —— 得像别的任务一样 `group.Await` 它。(这个坑和"光写个函数名没调用"是一类。)
 After := (ms: int) => {
-    t := Task ()
+    t := SysTask ()
     t.Job = System.Sleepable ms
-    t.HasJob = true
     t
 }
 
