@@ -82,9 +82,10 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test` 比对。
 - **`--warn`**:少给一块的 `if`、`assert 条件` 忘了写消息 —— 这类"半成品函数被静默丢掉"的坑,
   开着它就当场提醒一句(见 `CONTEXT.md` 的「诊断」一节)。
-- **VS Code 扩展**(`vscode-ravel/`):语法高亮 + 折叠(按 `{}` 分块、注释段)+ 跑当前文件 /
-  全量测试 / 开 REPL;文件上右键还有**在命令行中运行**(弹一个独立的系统命令行窗口,跑完留着,交互的脚本用它);
-  括号匹配认区间的交叉括号(`[1..5)` / `(1..5]`)。
+- **VS Code 扩展**(`vscode-ravel/`):语法高亮(含 `"""` 原始字符串与 `'c'` 字符字面量)+
+  折叠(按 `{}` 分块、注释段)+ **跳转定义 / 悬停**(`Ctrl+点击` 一个名字,跳到它定义的那一行)+
+  跑当前文件 / 全量测试 / 开 REPL;文件上右键还有**在命令行中运行**(弹一个独立的系统命令行窗口,
+  跑完留着,交互的脚本用它);括号匹配认区间的交叉括号(`[1..5)` / `(1..5]`)。
 - **全中文**:注释、文档、报错、提交信息。
 
 ## 编译运行
@@ -121,7 +122,7 @@ DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test
 
 ```bash
 cd "%USERPROFILE%\.vscode\extensions"
-cmd //c mklink /J "ravel.ravel-language-0.3.0" "D:\Codes\Ravel 7.99\vscode-ravel"
+cmd //c mklink /J "ravel.ravel-language-0.4.0" "D:\Codes\Ravel 7.99\vscode-ravel"
 ```
 
 版本号在文件夹名里,`package.json` 里升了就顺手改这个名。装完

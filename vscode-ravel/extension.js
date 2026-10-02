@@ -3,6 +3,7 @@ const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { foldingRanges } = require('./folding');
+const { wordAt, findDefinition, lineOf } = require('./definitions');
 
 /** @type {vscode.OutputChannel | undefined} */
 let channel;
@@ -184,13 +185,79 @@ const foldingProvider = {
     },
 };
 
+/**
+ * 跳转定义 / 悬停:算"定义在哪"那半在 `definitions.js`(纯函数,node 能直接测),
+ * 这里只负责**找文件、读文件**,再把它接到 VS Code 上。
+ *
+ * 为什么这件事在这门语言上特别好做:标准库全在 `lib/*.rav`,而且是**可读的 Ravel
+ * 源码** —— 名字怎么写、定义在哪一行,翻开就有。不用类型推断、不用符号表。
+ */
+let libDocs;                  // `lib/*.rav` 的源码缓存:`[{ key, source }]`
+
+async function collectDocs(document) {
+    const here = { key: document.uri.toString(), source: document.getText() };
+    if (!libDocs) {
+        libDocs = [];
+        const uris = await vscode.workspace.findFiles('**/lib/*.rav', '**/{obj,bin,node_modules}/**');
+        for (const uri of uris) {
+            try {
+                const bytes = await vscode.workspace.fs.readFile(uri);
+                libDocs.push({ key: uri.toString(), source: Buffer.from(bytes).toString('utf8') });
+            } catch {
+                // 读不动就跳过这一个 —— 为一份读不了的文件把整个跳转定义废掉不值当
+            }
+        }
+    }
+    return [here, ...libDocs];
+}
+
+/** 库改了就把缓存丢掉 —— 只在保存 `.rav` 时判一下,不必盯每一次按键 */
+function invalidateLibDocs(document) {
+    if (libDocs && document.uri.fsPath.includes(`${path.sep}lib${path.sep}`)) libDocs = undefined;
+}
+
+async function locate(document, position) {
+    const ref = wordAt(document.getText(), document.offsetAt(position));
+    if (!ref) return null;
+    const docs = await collectDocs(document);
+    const hit = findDefinition(ref, docs, document.uri.toString(), position.line);
+    if (!hit) return null;
+    return { hit, docs };
+}
+
+const definitionProvider = {
+    async provideDefinition(document, position) {
+        const found = await locate(document, position);
+        if (!found) return undefined;
+        const { hit } = found;
+        return new vscode.Location(vscode.Uri.parse(hit.key), new vscode.Position(hit.line, hit.character));
+    },
+};
+
+/** 悬停就显示**定义那一行原文** —— 跳过去之前先看一眼,省一次来回 */
+const hoverProvider = {
+    async provideHover(document, position) {
+        const found = await locate(document, position);
+        if (!found) return undefined;
+        const { hit, docs } = found;
+        const doc = docs.find((d) => d.key === hit.key);
+        if (!doc) return undefined;
+        const md = new vscode.MarkdownString();
+        md.appendCodeblock(lineOf(doc.source, hit.line).trim(), 'ravel');
+        return new vscode.Hover(md);
+    },
+};
+
 function activate(context) {
     context.subscriptions.push(
         vscode.commands.registerCommand('ravel.runFile', runFile),
         vscode.commands.registerCommand('ravel.runFileInTerminal', runFileInTerminal),
         vscode.commands.registerCommand('ravel.runTests', runTests),
         vscode.commands.registerCommand('ravel.openRepl', openRepl),
-        vscode.languages.registerFoldingRangeProvider({ language: 'ravel' }, foldingProvider)
+        vscode.languages.registerFoldingRangeProvider({ language: 'ravel' }, foldingProvider),
+        vscode.languages.registerDefinitionProvider({ language: 'ravel' }, definitionProvider),
+        vscode.languages.registerHoverProvider({ language: 'ravel' }, hoverProvider),
+        vscode.workspace.onDidSaveTextDocument(invalidateLibDocs)
     );
 }
 
