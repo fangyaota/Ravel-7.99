@@ -3421,7 +3421,14 @@ MyIface.GetImplementors ()         # [MyThing]
 所以 `GetImplements ()` 打头的是**当下生效**的那个。出了那个作用域、或者 `Dispose ()`
 之后再问就没了 —— 接口是"在这个作用域里生效"的东西，不是一个烙在类型上的标记。
 `GetImplements` 里子类也算数（`实例 is 接口` 的判据本来就把子类收进来了）；
-`GetImplementors` 里普通类永远是空的（没人拿它当接口）。
+`GetImplementors` 里普通类是空的（没人拿它当接口）—— **只有 `object` 例外**：
+
+```ravel
+object.GetImplementors ()          # 一大串 —— 谁都收得下 object,于是所有实现者都算它的
+object is interface                # false —— 所以先问这一句,再决定要不要打这一行
+```
+
+要列"谁实现了这个接口"，自己先问一句 `x is interface`（`Types.PrintTree` 里那道闸就是这个）。
 
 ---
 

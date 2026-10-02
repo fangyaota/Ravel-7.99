@@ -1319,8 +1319,11 @@ IEnumerator ::= interface { by MoveNext : function = default
   - `I.GetImplementors ()` —— **现在**哪些类型实现了这个接口(目标类组成的 list);
   - 都是"当下"的快照:沿当前作用域找生效中的实现,判据同 `u is I`(目标收得下 `T` /
     trait 就是 `I`),所以出了作用域 / `Dispose` 之后就列不出来。`GetImplements` 里子类算
-    (实例收得下目标);`GetImplementors` 里普通类永远是空的(接口槽是"实现"挂上去的,
-    而实现的 trait 只能是接口)。同一项只列一次;顺序照查找来(由内到外、后 `use` 的先),
+    (实例收得下目标);`GetImplementors` 里普通类是空的(接口槽是"实现"挂上去的,
+    而实现的 trait 只能是接口)—— **只有 `object` 例外**:判据是"`impl.Type` 收得下 trait 吗",
+    而谁都收得下 `object`,于是它会把**所有**实现者倒出来(实测 19 条,`type` 是 0 条)。
+    真要问"谁实现了这个接口"得先自己问一句 `x is interface`(`Types.PrintTree` 里那道闸
+    就是干这个的)。同一项只列一次;顺序照查找来(由内到外、后 `use` 的先),
     所以 `GetImplements` 打头的是**当下生效**的那个。
   - 入口在 `CallInto` 的 `BoundTraitQuery` 一格 —— 这活儿要当前作用域,而内置方法的体
     拿不到解释器(和 `is` / 注解那两处同一个理由)。成员值本身是 `TraitQuery`(带方向):

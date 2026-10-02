@@ -91,7 +91,14 @@ DOTNET_GCHeapHardLimit=$GC "$DOTNET" publish Ravel.csproj -c "$CONF" -o out
 if [ "$run_rebuild" = 1 ]; then
     echo
     echo "== C# 编译(-t:Rebuild) =="
-    log=$(DOTNET_GCHeapHardLimit=$GC "$DOTNET" build Ravel.csproj -c "$CONF" -t:Rebuild -v q --nologo 2>&1)
+    # 末尾那个 `|| { … }` **不能省**:`set -e` 之下 `log=$(失败的命令)` 会让脚本**当场退出**,
+    # 而日志是进了变量的 —— 于是**编译报错时屏幕上什么都没有**(不是"没输出",是这一段压根
+    # 没走到)。截住它、把编译器原话倒出来再退。
+    log=$(DOTNET_GCHeapHardLimit=$GC "$DOTNET" build Ravel.csproj -c "$CONF" -t:Rebuild -v q --nologo 2>&1) || {
+        printf '%s\n' "$log" >&2
+        echo "^^^ C# 编译没过 —— 上面是编译器原话" >&2
+        exit 1
+    }
     if printf '%s\n' "$log" | grep -E ": (warning|error) "; then
         echo "^^^ 上面这些得清掉(记忆里那条:C# 警告要清 obj 重编才算数)" >&2
         exit 1
@@ -117,8 +124,16 @@ echo "== 冒烟:换个工作目录跑 out/ =="
 DLL=$(win_path "$ROOT/out/ravel.dll")
 tmp=$(mktemp -d)
 printf 'print (1 + 1)\n' > "$tmp/smoke.rav"
-# 取**最后一行非空**的:输出末尾本来就跟一个空行(`tail -1` 会捞到它)
-got=$(cd "$tmp" && DOTNET_GCHeapHardLimit=$GC "$DOTNET" "$DLL" smoke.rav | grep -v '^$' | tail -1)
+# 取**最后一行非空**的:输出末尾本来就跟一个空行(`tail -1` 会捞到它)。
+# 末尾 `|| true` 同理不能省 —— **恰恰是跑不起来的时候**这条管道自身是失败的,少了它
+# `set -e` 会让脚本当场退出,底下那句"多半是 out/ 里少了 lib/ 或 plugins/"就永远打不出来,
+# 而那正是这一格存在的理由。
+#
+# 一处**挡不住的小瑕疵**:解释器那份报错是写在 **stdout** 上的(不是 stderr),于是会被
+# 这一抓顺走;而 stdout 一旦是管道,.NET 就按 OEM 码页(CP936)写字节 —— 那串中文再吐回
+# UTF-8 终端就是乱码。要留下"最后一行"就得抓,所以躲不开;好在底下那句提示是 ASCII 的,
+# 该说清的事它说了。(stderr 就别再并进来了:它不抓,直接落终端,反而一切正常。)
+got=$(cd "$tmp" && DOTNET_GCHeapHardLimit=$GC "$DOTNET" "$DLL" smoke.rav | grep -v '^$' | tail -1) || true
 rm -rf "$tmp"
 if [ "$got" = "2" ]; then
     echo "ok"
