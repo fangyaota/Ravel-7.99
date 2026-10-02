@@ -201,7 +201,63 @@ SysTask ::= class TaskBase {
     }
 }
 
-# 两个子类跟着认 `ITask` —— 基类登记一次就够(实测子类继承那句 `impl`)。
+# `Tasks.Signal ()` —— 一只**闸**:它自己不起任何作用,谁攥着它谁说了算。`Open` 一声,
+# 等在它上面的人全醒。一次性的 —— 开过就一直开着了。
+#
+# ## 它是第三种"会完"的东西
+#
+# `Tasks.Task (g) => {…}` 等的是「**那段代码跑完**」,`Tasks.After ms` 等的是
+# 「**那个计时器走完**」。这只闸等的是「**别人跟我说一声**」—— 而那句话不在任何一段
+# "会跑完的代码"里。别的语言里这个角色叫 `Promise(resolve)` / `TaskCompletionSource` /
+# `asyncio.Future`。
+#
+# 拿来干什么:**同一件事要通知好几回**(队列 —— 每次放货都要叫醒一个等着的人,而一个
+# `Task` 只能完一次)、或者**叫醒的人手上没有这个组**(跨组、或者根本不在任务里)。
+#
+# ## 它也是外面写"新挂起点"时该用的东西
+#
+# 要挂起一个任务,那套动作(把续延存进组里此刻在跑的那个任务 → 跳回调度器)是
+# `TaskGroup` 的**调度内脏**。**这只闸是唯一一处给外面用的封装** —— 有它,写"能等的队列"
+# / 事件 / 信号量的人只摆一只闸,不碰 `Current.Step` / `Back` / `Ready`。
+# `examples/signal.rav` 里拿两版能等的队列对着看:手搓的那版两处伸手进调度器,
+# 用闸的那版一个字段都不碰 —— 而跑出来一模一样。
+Signal ::= class TaskBase {
+    # 谁在等我 —— 有人来等的时候记下来。**所以 `Open` 的人不需要组。**
+    Holder: TaskGroup = default
+    Waiting: list = []
+
+    init = () => { Holder = default; Waiting = []; this; }
+
+    # 和自创任务的 `WaitOn` 一样挂上去,但**不 `group.Add this`** ——
+    # 一个闸不是"要跑的活儿",它不该轮到就绪队列里去。
+    #
+    # 这儿必须是 `=` 不是 `:=`:基类 `TaskBase` 已经有一个 `WaitOn` 了,
+    # `:=` 是"定义",撞上就是「'WaitOn' 在这个作用域里已经定义过」。
+    WaitOn = (group: TaskGroup) => {
+        Holder = group
+        callcc (kp: Continuation) => {
+            group.Current.Step = kp
+            Waiting.Add group.Current
+            group.Back ()
+        }
+    }
+
+    # 开闸:记上"完了",把等着的人全叫回去。
+    #
+    # **没人在等的时候开也成立** —— 之后才来 `Await` 它的人,一看 `Done` 直接就拿到了。
+    # 所以"事件发生在等待之前"这件事不用另想办法。
+    Open := (v: object) => {
+        Val = v
+        Ok = true
+        Done = true
+        foreach Waiting (w: object) => { Holder.Ready.Add w; }
+        Waiting = []
+        ();
+    }
+}
+
+# `Task` / `SysTask` / `Signal` 三个子类跟着认 `ITask` —— 基类登记一次就够
+# (实测子类继承那句 `impl`)。
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
 impl (ITask TaskBase {
     ()

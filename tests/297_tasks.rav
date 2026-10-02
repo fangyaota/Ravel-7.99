@@ -124,6 +124,30 @@ try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "我�
     print ((e.Message).Contains "除数为零");
 }
 
+# ⑬ `Tasks.Signal` —— 一只闸:有人等、有人开、**开过之后还能再等**
+#
+# 它管的是第三种"会完":`Tasks.Task` 等"那段代码跑完",`Tasks.After` 等"那个计时器走完",
+# 这只闸等"别人跟我说一声"。
+sig := Tasks.Signal ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  甲:等到了 " + (string (g.Await sig))); })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 0); sig.Open "甲的东西"; })
+]
+# 开过之后再来的:直接拿到 —— "事件发生在等待之前"不用另想办法
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  丙(开过才来):" + (string (g.Await sig))); })
+]
+# 三个人等一只没开的闸:开一次,一次全醒
+sig2 := Tasks.Signal ()
+got := []
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await sig2; got.Add "A"; })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await sig2; got.Add "B"; })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await sig2; got.Add "C"; })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 0); sig2.Open 0; })
+]
+print ("  三个人一次全醒:" + (string got))
+
 # --- expected ---
 A1
 B1
@@ -160,3 +184,6 @@ true
 true
 true
 false
+  甲:等到了 甲的东西
+  丙(开过才来):甲的东西
+  三个人一次全醒:[A B C]

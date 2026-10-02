@@ -1,14 +1,15 @@
-# **一个"能等的队列",两版写法对着看**:手搓的,和用 `Signal` 写的。
+# **一个"能等的队列",两版写法对着看**:手搓的,和用 `Tasks.Signal` 写的。
 #
 #     ravel examples/signal.rav
 #
 # 要看的就一件事:**同一个队列,两版跑出来一模一样,但一版伸手进了调度器,另一版没有。**
 #
-# 这是**例子,不是用例**:`Signal` 现在**不在 `lib/` 里**,它就是下面第 2 节那 15 行,
-# 写在例子文件里给你看。真要收进库,是把它挪过去、再加一条用例。
+# `Signal` 在 `lib/tasks.rav` 里(不是这个例子造的)—— 这个例子的用处是让你看见
+# **它凭什么值得收进库**:下面第 1 节那两处 `↓↓↓`,是每个"等别人说一声"的东西都要
+# 自己抄一遍的东西。
 using "tasks.rav"
 
-# ═══ 1. 今天的写法:手搓一个"能等的队列" ═══
+# ═══ 1. 手搓版:一个"能等的队列" ═══
 #
 # 情形:一个任务在爬网页、往队列里放;另一个在解析、从队列里拿。**解析比爬快**,
 # 所以它迟早会**拿空** —— 那时候它不该空转,该挂在那儿等下一次放货。
@@ -58,49 +59,34 @@ Tasks.Cycle [
     })
 ]
 
-# ═══ 2. 把那段握手收成一个名字 ═══
+# ═══ 2. `Tasks.Signal` —— 库里的那只闸 ═══
 #
-# `Signal` 是一只**闸**:它自己不起任何作用,谁攥着它谁说了算 —— 叫一声"开",
-# 等在它上面的人全醒。别的语言里这个角色叫 `Promise(resolve)` / `TaskCompletionSource` /
-# `asyncio.Future`。
+# 一只**闸**:它自己不起任何作用,谁攥着它谁说了算 —— `Open` 一声,等在它上面的人全醒。
 #
-# 三件事:继承 `Tasks.TaskBase`(白拿 `Done` / `Ok` / `Val` / `Err` / `IsDone` /
-# `Value` / `Claimed`),写一个**不进就绪队列**的 `WaitOn`,再给一个 `Open`。
+# 它管的是第三种"会完":
 #
-# 注意 `Holder`:有人在等的时候把**那个组**记下来 —— 所以**开的人不需要组**。
-print "── 2. Signal:15 行 ──"
+#     `Tasks.Task (g) => {…}`   等的是「那段代码跑完」
+#     `Tasks.After ms`          等的是「那个计时器走完」
+#     `Tasks.Signal ()`         等的是「**别人跟我说一声**」
+#
+# 用法三行 —— 有人等、有人开、开过之后还能再等(开过就一直开着了)。
+print "── 2. Tasks.Signal:等 · 开 · 开完再来等 ──"
 
-Signal ::= class Tasks.TaskBase {
-    Holder: Tasks.TaskGroup = default
-    Waiting: list = []
-
-    init = () => { Holder = default; Waiting = []; this; }
-
-    # 和自创任务的 `WaitOn` 一样挂上去,但**不 `group.Add this`** ——
-    # 一个闸不是"要跑的活儿",它不该轮到就绪队列里去。
-    #
-    # 这儿必须是 `=` 不是 `:=`:基类 `TaskBase` 已经有一个 `WaitOn` 了,
-    # `:=` 是"定义",撞上就是「'WaitOn' 在这个作用域里已经定义过 —— 要改值/覆盖
-    # 继承来的成员,用 `=`」。(`Open` 是新的,所以它用 `:=`。)
-    WaitOn = (g: Tasks.TaskGroup) => {
-        Holder = g
-        callcc (kp: Continuation) => {
-            g.Current.Step = kp
-            Waiting.Add g.Current
-            g.Back ()
-        }
-    }
-
-    # 开闸:记上"完了",把等着的人全叫回去。
-    Open := (v: object) => {
-        Val = v
-        Ok = true
-        Done = true
-        foreach Waiting (w: object) => { Holder.Ready.Add w; }
-        Waiting = []
-        ();
-    }
-}
+sig := Tasks.Signal ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "  甲:等这闸";
+        print ("  甲:拿到了 " + (string (g.Await sig)));
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        g.Await (Tasks.After 10);
+        print "  乙:开闸";
+        sig.Open "给甲的东西";
+    })
+]
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  丙(开过之后才来):" + (string (g.Await sig))); })
+]
 
 # ═══ 3. 同一个队列,用 Signal 重写 ═══
 #
@@ -121,12 +107,12 @@ Chan2 ::= class {
     }
 
     Take := (g: Tasks.TaskGroup) => {
-        # 注意第三个块:少给一块(`if { c; } { t; }`)交回的是**半成品函数**,什么都不跑 ——
-        # 静默空转,正是 `--warn` 要逮的那种"少给一块"。
+        # 第三个块不能省:`if { c; } { t; }` 只给两块,交回的是**半成品函数**,
+        # 什么都不跑 —— 静默空转。(`--warn` 逮的就是这种"少给一块"。)
         if { Items.IsEmpty (); } {
-            sig := Signal ()
+            sig := Tasks.Signal ()
             Waiting.Add sig
-            g.Await sig              # ← 等一个"闸",不碰内脏
+            g.Await sig              # ← 等一只闸,不碰内脏
         } { 0; }
         Items.Remove 0;
     }
@@ -154,13 +140,13 @@ Tasks.Cycle [
 # 但那正是 `Signal.Holder` 干的事:**你得再抄一份**。
 #
 # 而这一份抄错了不会报"你传错组了",它会**死锁** —— 叫醒了别的组里的任务,该醒的那个
-# 一直睡着,而它那个组手里没活可干了,于是 `Run` 收尾报"还有任务没完"。查起来要去翻
+# 一直睡着,而它那个组手里没活可干了,于是 `Run` 收尾报"还有任务没完"。查起来要翻
 # 两个组的就绪队列。
 #
 # 所以 `Signal` 不是省了几行 —— 是把"**这只闸归哪个组管**"这件事**从每个调用点
-# 收进闸自己身上**,让它只有一处写法、只抄一遍。全库今天只有两处写着那段握手
-# (`Task.WaitOn` / `SysTask.WaitOn`,都在 `lib/tasks.rav` 里);`Signal` 会是第三处,
-# 而且是**唯一一处给外面用的**。
+# 收进闸自己身上**,让它只有一处写法、只抄一遍。全库写着那段握手的现在有三处
+# (`Task.WaitOn` / `SysTask.WaitOn` / `Signal.WaitOn`,都在 `lib/tasks.rav` 里),
+# 而 `Signal` 是**唯一一处给外面用的**。
 print "── 4. 差别在参数表上:`Put (g …)` 对 `Put (…)` ──"
 print "  Chan1.Put 要 g —— 叫醒的动作得有个组指着(或者你自己再记一份等待者的组)"
 print "  Chan2.Put 不要 g —— 闸自己记着谁在等"
