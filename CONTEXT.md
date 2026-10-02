@@ -183,13 +183,16 @@ lib/
   tasks.rav               `Tasks` 模块 —— **协作式任务**(要显式 `using "tasks.rav"`)。
                           一个 OS 线程,任务只在**挂起点**换人:`TaskGroup`(Run / Await / Add)
                           跑一列任务。**任务那一族分三层**:
-                          `ITask`(共用的脸:`IsDone` / `Value` 两个 by-property,存句柄的变量
-                          注解成它)、`TaskBase`(共用的状态 + 那两个 by 的体,顺带一句
-                          `impl (ITask TaskBase …)` —— 子类跟着认)、
+                          `ITask`(组认的那张脸:`Done`/`Ok`/`Err`/`Claimed`/`IsDone`/`Value`/
+                          `WaitOn` —— 存句柄也注解成它,组的参数也收它,于是"传了个不是任务的
+                          东西"在**调用点**就报)、`TaskBase`(共用的状态 + `IsDone`/`Value` 的体,
+                          顺带一句 `impl (ITask TaskBase …)` —— 子类跟着认)、
                           `Task`(自创,`Tasks.Task (group) => {…}`)/ `SysTask`(自动推进,
                           `Tasks.After ms`,底下是 `System.Waitable` 句柄)。
                           子类自己只写一件事:**怎么被等**(`WaitOn`),于是调度器那一句
                           `t.WaitOn this` 就是全部的分派 —— 没有"是哪种"这种真假标记。
+                          组的 `Add` 只收自创的那种(`Task`):自动推进的加进就绪队列没意义
+                          (它的完成不靠谁跑它),要等它 `Await` 就够 —— 这一条现在写在签名上。
                           `IsDone` / `Value` **都不阻塞**:`Value` 是"检查过的读",没算完就报错,
                           让调用方去 `group.Await` —— **"等"只有 `group.Await` 一个入口**
                           (藏在 by-property 里的让出,读代码的人看不见)。

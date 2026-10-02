@@ -27,9 +27,9 @@
 # **自创的**:`Tasks.Task (group) => { … }` 这种 —— 只有组**跑**它才前进。它停在哪儿由一枚
 # 续延记着(`Step`),组下次挑到它就接着跑。
 #
-# 两种共用**一张脸**(`ITask`:`IsDone` / `Value`)、一套 `group.Await`。脸共用一个是有道理的:
-# 都是"一件还没完的活儿",差别只在**谁让它往前走** —— 而那句话落在两个**类**上
-# (`Task` / `SysTask`),不是一个真假标记。
+# 两种共用**一张脸**(`ITask`)、一套 `group.Await`。脸共用一个是有道理的:都是"一件还没完的
+# 活儿",差别只在**谁让它往前走** —— 而那句话落在两个**类**上(`Task` / `SysTask`),
+# 不是一个真假标记。`ITask` 上写的就是组要的全部东西(见下面"分三层"那段)。
 #
 # ## 只有"等"这一个挂起点,**没有**"主动让出"
 #
@@ -58,18 +58,35 @@ ravel "Tasks"
 #
 # 分三层。不是为了好看,是为了**同一件事不写两遍**:
 #
-#   `ITask`     共用的**那张脸**:完没完(`IsDone`)、结果是什么(`Value`)。
-#               存句柄的变量注解成它(`t : Tasks.ITask = …`)。
-#   `TaskBase`  共用的**那一半实现**:那几格状态 + 两个 by-property 的体。
-#               它把 `ITask` 实现了(一句 `impl`,两个子类跟着认)。
+#   `ITask`     组认的那张脸 —— 它上面**只写组要求的**(完没完、结果是什么、
+#               收尾那几格、"怎么被等"),于是 `TaskGroup` 的每个参数都注解成它,
+#               传错东西在**调用点**就报。存句柄的变量也注解成它(`t : Tasks.ITask = …`)。
+#   `TaskBase`  共用的**那一半实现**:那几格状态 + `IsDone` / `Value` 的体。
+#               它把 `ITask` 实现了(一句 `impl`,两个子类跟着认)——
+#               **实现类是普通字段 / 普通方法就能满足那些槽**,不必写成 property(实测)。
 #   `Task` / `SysTask`  各自的**机制**:自创的带 `Body` / `Step` / `Started`,
 #               自动推进的带 `Job`。脸和状态全是继承来的,自己只写一件事:`WaitOn`。
 #
 # 于是"两种任务"落在**类**上,而不是一个 `HasJob: bool` 真假标记 ——
 # 调度器那一句 `t.WaitOn this` 就是全部的分派。
+#
+# 它上面写的就是"**能被组调度的东西**"的全部要求 —— 组里每个参数都注解成它,
+# 于是"传了个不是任务的东西"当场在**调用点**报,而不是跑到里面某一行才炸。
+# (实现类是普通字段 / 普通方法就能满足这些槽,不必写成 property —— 实测。)
 ITask ::= interface {
+    # 收尾那几格:组要读(`Run` 末尾那两道检查)、也要写(`Await` 认领)
+    by Done : function = default
+    by Ok : function = default
+    by Err : function = default
+    by Claimed : function = default
+
+    # 用户读的那两个 —— 都不阻塞
     by IsDone : function = default
     by Value : function = default
+
+    # **怎么被等**:值是一个 `(group) => …`。这是"两种任务不一样"的唯一一处,
+    # 子类各写各的,组只管调它(`t.WaitOn this`)。
+    by WaitOn : function = default
 }
 
 # 共用那一半。**它自己不该被实例化** —— `WaitOn` 那份只会报错的默认体就是拦这个的。
@@ -79,9 +96,6 @@ TaskBase ::= class {
     Ok: bool = true
     Val: object = ()
     Err: object = ()
-
-    # 谁在等我(自创任务走这一格;自动的走组的等待集合)
-    Waiters: list = []
 
     # 有没有人来接过我的结果(`Await` 过 / 读过 `Value`)。
     # 它是"任务失败了但没人知道"那道闸的凭据:没人接的错到 `Run` 收尾时会当场报出来,
@@ -122,6 +136,9 @@ Task ::= class TaskBase {
     Body: function = () => { (); }
     Step: Continuation = default
     Started: bool = false
+
+    # 谁在等我。自动推进的那一类用不上 —— 它等着的是组的等待集合(`Waiting`)。
+    Waiters: list = []
 
     init = (body: function) => {
         Body = body
@@ -171,9 +188,9 @@ impl (ITask TaskBase {
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
 Pending ::= class {
-    Who: object = ()
+    Who: Task = default
     Job: object = ()
-    init = (who: object job: object) => { Who = who; Job = job; this; }
+    init = (who: Task job: object) => { Who = who; Job = job; this; }
 }
 
 # **组** —— 调度器。就绪队列 + 等待集合,外加一格"此刻在跑谁"。
@@ -184,16 +201,17 @@ TaskGroup ::= class {
     All: list = []                 # 组里所有任务(含跑着加进来的),给死锁检查用
     Ready: list = []               # 就绪队列:挑到谁就跑谁
     Waiting: list = []             # 等着 OS 句柄的:每项一个 `Pending`
-    Current: object = ()           # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
+    Current: Task = default        # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
     Back: Continuation = default   # 任务让出时跳回来的那一枚(见 `Run`)
 
     init = (tasks: list) => {
         All = []
         Ready = []
         Waiting = []
-        Current = ()
+        Current = default
         Back = default
-        foreach tasks (t: object) => { All.Add t; Ready.Add t; }
+        # 元素是 `Task`(自创的那种)—— 见 `Add` 上那段"为什么只收这一种"
+        foreach tasks (t: Task) => { All.Add t; Ready.Add t; }
         this;
     }
 
@@ -202,7 +220,13 @@ TaskGroup ::= class {
     #
     # 跑着的时候也能调(`group.Add anotherTask`):有些活儿本来就是"等我这儿有数了,
     # 才知道要开几个"。交回任务本身,于是 `t := group.Add (Tasks.Task …)  # 之后 t.Value` 读得通。
-    Add := (t: object) => {
+    #
+    # **只收自创的那种**(参数写着 `Task`)。自动推进的加进就绪队列没有意义 ——
+    # 它的完成不靠谁去跑它,而是操作系统那边的事;真想等它,`group.Await` 就够了
+    # (`Await` 收的是两种都认的 `ITask`)。从前这儿是 `object`,于是
+    # `group.Add (Tasks.After 100)` 要到组挑到它、跑 `t.Started` 的时候才炸,
+    # 报的是「类型 'SysTask' 没有方法 'Started'」—— 现在传错在**这一行**就报。
+    Add := (t: Task) => {
         All.Add t
         Ready.Add t
         t
@@ -216,7 +240,7 @@ TaskGroup ::= class {
     #
     # **规矩**:只能等"会被别人完成"的东西。等一个没进组、也不会有人完成的自创任务就是死锁
     # —— `Run` 末尾那道检查会当场报出来,不会让你干等。
-    Await := (t: object) => {
+    Await := (t: ITask) => {
         t.Claimed = true
         # **挂起怎么挂,问那个任务自己**(`WaitOn`)—— "两种任务不一样"只在它那里,
         # 这一句里没有"是哪种"这个概念。
@@ -239,7 +263,7 @@ TaskGroup ::= class {
     #
     # 体的错**在这儿收住**(记进任务、不往外冒):一个任务把自己搞砸了,不该把整组带走。
     # 谁 `group.Await` 它 / 谁读它的 `Value`,谁在**那一头**接到这个错。
-    Start := (t: object) => {
+    Start := (t: Task) => {
         if { t.Started; } { t.Step (); } {
             t.Started = true
             try { t.Val = (t.Body this); } (e: Exception) => { t.Ok = false; t.Err = e; (); }
@@ -248,7 +272,7 @@ TaskGroup ::= class {
     }
 
     # 一个任务收工:记上"完了",把等着它的都放回就绪队列。
-    Finish := (t: object) => {
+    Finish := (t: Task) => {
         t.Done = true
         foreach t.Waiters (w: object) => { Ready.Add w; }
         t.Waiters = []
@@ -270,7 +294,7 @@ TaskGroup ::= class {
         # 走到这儿 = 没活儿可干了。**但如果还有任务没完**,那不是跑完了,是卡住了:
         # 它停在某个 `Await` 上,而没有任何东西能把它叫醒(典型:在等一个没进组、
         # 也不会有人去完成的自创任务)。当场报出来 —— 干等比报错难查得多。
-        stuck := All.Where ((t: object) => { !(t.Done); }) |> .ToList ()
+        stuck := All.Where ((t: Task) => { !(t.Done); }) |> .ToList ()
         if { (stuck.Count ()) == 0; } { (); } {
             throw (Exception ("死锁:还有 " + (string (stuck.Count ())) + " 个任务没完,"
                               + "但已经没有谁能推进它们了 —— 多半是在等一个没进组、也不会有人完成的东西"))
@@ -278,7 +302,7 @@ TaskGroup ::= class {
         # 还有个更难堪的情形:**任务失败了,但没人接**。没人 `Await` 它、也没人读它的 `Value`
         # —— 那个错就烂在它身上,程序照常往下跑。和"没人接的错误"是同一个毛病,
         # 所以照同一个口径:当场报出来。
-        dropped := All.Where ((t: object) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
+        dropped := All.Where ((t: Task) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
         if { (dropped.Count ()) == 0; } { (); } {
             throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错:"
                               + (dropped.First ()).Err.Message
