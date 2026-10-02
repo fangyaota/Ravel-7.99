@@ -140,10 +140,16 @@ Task ::= class TaskBase {
     # 谁在等我。自动推进的那一类用不上 —— 它等着的是组的等待集合(`Waiting`)。
     Waiters: list = []
 
+    # 进过组没有。**一个任务只能跑一遍**:它的续延是多发的,再跑一遍等于跳回上一次
+    # 留下的那条帧链 —— 实测是**死循环**(第二遍把第一遍整段重放,一遍又一遍)。
+    # 这条闸在 `Add` 上,传进来的那一刻就拦住。
+    Queued: bool = false
+
     init = (body: function) => {
         Body = body
         Step = default
         Started = false
+        Queued = false
         this;
     }
 
@@ -210,8 +216,8 @@ TaskGroup ::= class {
         Waiting = []
         Current = default
         Back = default
-        # 元素是 `Task`(自创的那种)—— 见 `Add` 上那段"为什么只收这一种"
-        foreach tasks (t: Task) => { All.Add t; Ready.Add t; }
+        # 走 `Add` 而不是直接往队列里塞 —— 那道"一个任务只能跑一遍"的闸在那儿
+        foreach tasks (t: Task) => { Add t; }
         this;
     }
 
@@ -227,6 +233,18 @@ TaskGroup ::= class {
     # `group.Add (Tasks.After 100)` 要到组挑到它、跑 `t.Started` 的时候才炸,
     # 报的是「类型 'SysTask' 没有方法 'Started'」—— 现在传错在**这一行**就报。
     Add := (t: Task) => {
+        # **一个任务只能跑一遍**,两个方向都拦:
+        #   * 已经跑完了:再跑就是跳回上一次留下的帧链(续延是多发的)—— 实测死循环;
+        #   * 已经在组里(还挂着):再加一份会让它被挑到两次,`Step` 也跟着乱。
+        # 要同样的活儿再来一遍,就再造一个 `Tasks.Task (…)` —— 任务是**一次性的**,
+        # 和 `Generator`(体是配方,每次遍历从头)不是一个东西。
+        if { t.Done; } {
+            throw (Exception ("这个任务已经跑完了 —— 一个任务只能跑一遍(要再来一次就再造一个)"))
+        } { 0; }
+        if { t.Queued; } {
+            throw (Exception ("这个任务已经在组里了 —— 别加第二遍"))
+        } { 0; }
+        t.Queued = true
         All.Add t
         Ready.Add t
         t

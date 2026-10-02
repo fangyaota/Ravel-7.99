@@ -92,6 +92,14 @@ Tasks.Cycle [
     })
 ]
 
+# ⑩ 一个任务只能跑一遍 —— 它的续延是多发的,再跑一遍会跳回上一次留下的那条帧链
+# (实测:**死循环**,第二遍把第一遍整段重放)。加两遍也一样乱,所以两个方向都在 `Add` 上拦住。
+once := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 0); print "只跑一遍"; }
+Tasks.Cycle [ once ]
+try { Tasks.Cycle [ once ]; } (e: Exception) => { print ("再跑一次:" + e.Message); }
+twice := Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.After 0); }
+try { Tasks.Cycle [ twice twice ]; } (e: Exception) => { print ("一间组里加两遍:" + e.Message); }
+
 # --- expected ---
 A1
 B1
@@ -119,3 +127,6 @@ M2
 外:起
   内:完
 外:完
+只跑一遍
+再跑一次:这个任务已经跑完了 —— 一个任务只能跑一遍(要再来一次就再造一个)
+一间组里加两遍:这个任务已经在组里了 —— 别加第二遍
