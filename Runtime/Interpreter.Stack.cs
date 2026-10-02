@@ -262,7 +262,15 @@ public partial class Interpreter
             // 走到这儿 = **上一条语句刚跑完**(Results[Count-1]),而且后面还有别的语句 ——
             // 也就是说它那一份值是被**丢掉**的。丢的是不是个函数,在这儿看一眼。
             if (bf.Count > 0) WarnIfForgotCall(bf);
-            _top = new NodeFrame(bf.Block.Statements[bf.Count]) { Parent = bf, Scope = bf.Scope };
+
+            // `ExpressionStatement` 只是个**壳** —— `StepNode` 那一臂做的就是"推给里层、
+            // 再**原样**交回来",一次 push 加一次 return 拷贝,什么也没干。**别为它推那一帧**:
+            // 一个循环体一万次,那就是一万次白白的分配。
+            //
+            // 位置没丢:解析器建这个壳时写的就是里层那个表达式的行列(`Parser.Atoms.cs` 三处、
+            // `Parser.Holes.cs` 一处),报错指的仍是同一处。
+            var stmt = bf.Block.Statements[bf.Count];
+            _top = new NodeFrame(stmt is ExpressionStatement es ? es.Expr : stmt) { Parent = bf, Scope = bf.Scope };
             return;
         }
 
