@@ -7,7 +7,7 @@
 #     Http.Post "https://…/api" {"a": 1}       # dict / list 自动当 JSON 发
 #     Http.Download "https://…/a.png" "a.png"  # 边收边写,正文不进内存
 #     Http.Upload "https://…/put" "a.png"      # multipart 上传
-#     Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 一个 URL 就是一个文件(见文件末尾)
+#     Io.CopyTo (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 一个 URL 就是一个文件(见文件末尾)
 #
 # **同步**:一个请求等一个,回来了才往下走。(以后加并发时这一层不改 —— 引擎那条原语
 # 会变成"挂起当前任务",`Http.Get` 还是这么写。)
@@ -200,9 +200,9 @@ readonly Expect := (r: Response) => {
 # 在这儿落地:`Http.Url "…"` 交回的东西有那一套成员(而且登记成了 `IFile`),
 # 于是**对着接口写的那几件直接能用** ——
 #
-#     Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
+#     Io.CopyTo (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
 #     Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志(惰性)
-#     Io.Copy (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
+#     Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
 #
 # 几条规矩:
 #   * 每次 `Read ()` 都是**一次请求** —— 和 `Io.File.Read ()` 每次都去读盘一样,不藏缓存
@@ -251,7 +251,7 @@ Url ::= class {
     }
 }
 
-# 登记成 `IFile` —— `Io.Copy` / `Io.Lines` 那些是按接口收参数的,
+# 登记成 `IFile` —— `Io.CopyTo` / `Io.Lines` 那些是按接口收参数的,
 # 不登记的话传进来会被类型检查挡下(光有那几个成员还不够)。
 impl (IFile Url {
     ()

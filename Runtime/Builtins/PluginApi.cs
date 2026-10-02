@@ -221,7 +221,7 @@ internal static class PluginLoader
             // `using "math.rav"`)。`Define` 撞名就报「已经定义过」,那是 `:=` 的规矩,
             // 不是"装库"的规矩 —— 装库这一刻该是**以库为准**。
             // (它只挡 `readonly` 那些:用户自己标了只读的东西,照样不许悄悄换掉。)
-            ScopeOf(module, global, modules)
+            ScopeOf(self, module, global, modules)
                 .DefineOrReplace(name, value?.Type ?? BuiltinClasses.Function, m is null ? value! : ClassRegistry.Fn(self, m));
     }
 
@@ -254,7 +254,7 @@ internal static class PluginLoader
         }
 
         if (module is not null)
-            ScopeOf(module, global, modules).DefineOrReplace(cls.Name, BuiltinClasses.Type, klass);
+            ScopeOf(self, module, global, modules).DefineOrReplace(cls.Name, BuiltinClasses.Type, klass);
     }
 
     /// <summary>这个名字的类已经有了吗(内置的、或者上一个解释器装进来的)</summary>
@@ -318,12 +318,15 @@ internal static class PluginLoader
 
     /// <summary>模块名 → 那个模块的作用域。没见过的名字现建一个(和 `ravel "X"` 建模块一个做法)。
     /// 名字是 `""` 就是**全局作用域**(不建模块)。</summary>
-    private static Scope ScopeOf(string name, Scope global, Dictionary<string, ModuleVal> modules)
+    private static Scope ScopeOf(Interpreter self, string name, Scope global, Dictionary<string, ModuleVal> modules)
     {
         if (name.Length == 0) return global;
         if (modules.TryGetValue(name, out var mv)) return mv.Scope;
 
-        mv = new ModuleVal(name, new Scope(global));
+        // 扩展 dll 建的模块也是**这台引擎的**模块:它没写 `using`(`References ()` 给空表),
+        // 但 `Owner` 这条得和别的模块一样有 —— `lib/math.rav` 那句 `ravel "Math"`
+        // 认领的就是它(那时候引擎才接上引用那串)。
+        mv = ModuleVal.WithOwnTable(name, global, self);
         modules[name] = mv;
         global.Define(name, BuiltinClasses.Ravel, mv);
         return mv.Scope;

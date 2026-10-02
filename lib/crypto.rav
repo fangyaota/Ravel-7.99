@@ -2,7 +2,7 @@
 #
 #     Crypto.Seal key "秘密"                  # → base64 串
 #     Crypto.Open key text                    # → "秘密";拆不开就报错,不交回垃圾
-#     Crypto.Key "口令" salt 600000           # PBKDF2-SHA256 → 32 字节的密钥
+#     Crypto.DeriveKey "口令" salt 600000           # PBKDF2-SHA256 → 32 字节的密钥
 #     Crypto.HashPassword "口令"              # → "pbkdf2$sha256$600000$<盐>$<哈希>"
 #     Crypto.CheckPassword "口令" stored      # → bool
 #     Crypto.Salt ()                          # 16 字节随机盐
@@ -13,7 +13,7 @@
 # **加密和口令不是一回事**,这个库把两件事分得很开:
 #
 #   * `Seal` / `Open` —— 藏一段数据。**密钥在手**(从哪儿来是你的事:配置、环境变量、
-#     `Crypto.Key` 派生的都行),密钥丢了数据就没了。
+#     `Crypto.DeriveKey` 派生的都行),密钥丢了数据就没了。
 #   * `HashPassword` / `CheckPassword` —— 存用户口令。**存的是"怎么校验",不是口令本身**;
 #     就算整个库被人拖走,也还原不出口令。所以这两条**没有**"解密"这一半,那是故意的。
 #
@@ -70,12 +70,12 @@ readonly Salt := () => { Native.RandomBytes SaltLen; }
 # 轮数:2026 年那批建议是 60 万起步(salt 16 字节)。数越大越难被硬试,代价是自己也慢。
 readonly Rounds := 600000
 
-readonly Key := (password: object salt: object rounds: int) => {
+readonly DeriveKey := (password: object salt: object rounds: int) => {
     Native.Pbkdf2 (BytesOf password) (BytesOf salt) rounds;
 }
 
 # 常用那份:轮数用默认的(和 `HashPassword` 存的轮数一致)
-readonly Derive := (password: object salt: object) => { Key password salt Rounds; }
+readonly Derive := (password: object salt: object) => { DeriveKey password salt Rounds; }
 
 # ── 口令:存"怎么校验",不存口令 ──
 #
@@ -86,7 +86,7 @@ readonly Prefix := "pbkdf2$sha256$"
 
 readonly HashWith := (password: object salt: object rounds: int) => {
     # 一行写完:换行再接 `+` 不认(表达式不跨行)
-    (((((Prefix + (string rounds)) + "$") + (Encoding.Base64 (BytesOf salt))) + "$") + (Encoding.Base64 (Key password salt rounds)))
+    (((((Prefix + (string rounds)) + "$") + (Encoding.Base64 (BytesOf salt))) + "$") + (Encoding.Base64 (DeriveKey password salt rounds)))
 }
 
 readonly HashPassword := (password: object) => { HashWith password (Salt ()) Rounds; }
@@ -103,7 +103,7 @@ readonly CheckPassword := (password: object stored: object) => {
             rounds := int (parts.At 2)
             salt := Encoding.Unbase64 (parts.At 3)
             want := Encoding.Hex (Encoding.Unbase64 (parts.At 4))
-            Hash.Equal (Encoding.Hex (Key password salt rounds)) want
+            Hash.Equal (Encoding.Hex (DeriveKey password salt rounds)) want
         } { false; }
     } { false; }
 }

@@ -1,0 +1,35 @@
+# **模块的顶层作用域就是它的成员表** —— 顶层 `:=` 一个类链上本来就有名字会被拒
+# (`References` 挂在 `Ravel` 上,`Fields` / `Copy` / `ToString` 挂在 `Object` 上)。
+# 那条整份文件只能试一次(报了错后面就不跑了),所以单开了 `tests/294_module_member_define.rav`。
+#
+# 这一份钉的是另一半 —— **要覆盖写 `=`**:`=` 落到继承来的成员时,在**本层**开一格盖住它。
+# 不去改类对象上那一格:那是**所有模块共用的同一份**,盖一个模块不能顺手把别的也改了。
+#
+# 规矩只管**最外层**那几句:`try` / `eval` / 函数体里跑在自己的子作用域里,在那儿定义
+# 就是"内层遮蔽外层",本来就允许 —— 下面第三条钉的就是这个。
+ravel "M"
+x := 1                                   # 不在类链上的名字照旧
+print x
+print ((M.References ()))                # 类成员还在
+
+try { References := 1; print ("子作用域里照旧: " + string References); } (e: Exception) => { print ("拦住了: " + string e); }
+print ((M.References ()))                # 那一句没碰着模块的表
+
+References = () => { ["覆盖过的"]; }      # `=` 覆盖
+print (M.References ())
+ravel ""
+
+ravel "N"
+print (M.References ())                  # 只盖住 `M` 这一格
+print (N.References ())                  # `N` 没碰过 —— 类对象上那份没被改
+ravel ""
+print (typeof N)
+# --- expected ---
+# 1
+# []
+# 子作用域里照旧: 1
+# []
+# [覆盖过的]
+# [覆盖过的]
+# []
+# Ravel

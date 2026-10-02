@@ -5,14 +5,14 @@
 using "crypto.rav"
 
 # ── PBKDF2-SHA256:公开测试向量(口令 "password"、盐 "salt"、1 轮)──
-print (Encoding.Hex (Crypto.Key "password" (Encoding.Utf8 "salt") 1))
-print (Encoding.Hex (Crypto.Key "password" (Encoding.Utf8 "salt") 4096))
-print ((Crypto.Key "密码" (Crypto.Salt ()) 1000).Count ())         # 一律 32 字节
+print (Encoding.Hex (Crypto.DeriveKey "password" (Encoding.Utf8 "salt") 1))
+print (Encoding.Hex (Crypto.DeriveKey "password" (Encoding.Utf8 "salt") 4096))
+print ((Crypto.DeriveKey "密码" (Crypto.Salt ()) 1000).Count ())         # 一律 32 字节
 saltLen := Crypto.Salt ()
 print (saltLen.Count ())
 
 # ── AES-256-GCM:固定的密钥 / nonce → 密文也是定死的 ──
-key := Crypto.Key "password" (Encoding.Utf8 "salt") 1
+key := Crypto.DeriveKey "password" (Encoding.Utf8 "salt") 1
 nonce := Native.RandomBytes 12
 print ((Native.AesSeal key nonce (Encoding.Utf8 "")).Count ())     # 空的也带 16 字节标签
 sealed := Native.AesSeal key nonce (Encoding.Utf8 "秘密")
@@ -55,10 +55,10 @@ print ((Crypto.Token 8).Length ())
 # ── 报错的几种:当场说人话 ──
 try { Crypto.Seal [1 2 3] "x"; } (e: Exception) => { print ("1: " + string e); }
 try { Native.AesOpen key (Native.RandomBytes 13) sealed; } (e: Exception) => { print ("2: " + string e); }
-try { Crypto.Open (Crypto.Key "别的" (Encoding.Utf8 "salt") 1) c; } (e: Exception) => { print ("3: " + string e); }
+try { Crypto.Open (Crypto.DeriveKey "别的" (Encoding.Utf8 "salt") 1) c; } (e: Exception) => { print ("3: " + string e); }
 tampered := (Crypto.SealBytes key "abc").Skip 1        # 掐掉一个字节:nonce 就此对不上
 try { Crypto.OpenBytes key tampered; } (e: Exception) => { print ("4: " + string e); }
-try { Crypto.Key "p" (Encoding.Utf8 "s") 0; } (e: Exception) => { print ("5: " + string e); }
+try { Crypto.DeriveKey "p" (Encoding.Utf8 "s") 0; } (e: Exception) => { print ("5: " + string e); }
 try { Native.AesOpen key (Native.RandomBytes 12) [1 2 3]; } (e: Exception) => { print ("6: " + string e); }
 
 # --- expected ---
@@ -86,7 +86,7 @@ try { Native.AesOpen key (Native.RandomBytes 12) [1 2 3]; } (e: Exception) => { 
 # true
 # false
 # 16
-# 1: AesSeal: 密钥要 32 字节（AES-256），得到 3 —— 从口令派生用 `Crypto.Key`
+# 1: AesSeal: 密钥要 32 字节（AES-256），得到 3 —— 从口令派生用 `Crypto.DeriveKey`
 # 2: AesOpen: nonce 要 12 字节，得到 13
 # 3: AesOpen: 拆不开 —— 密钥或 nonce 不对，或者数据被改过
 # 4: AesOpen: 拆不开 —— 密钥或 nonce 不对，或者数据被改过

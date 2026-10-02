@@ -2,7 +2,7 @@
 #   * **内存里的** —— `Io.MemFile` / `Io.MemDir`
 #   * **一棵 JSON 树** —— `Io.JsonNode` / `Io.JsonFile`
 #
-# 有了它们,对着接口写的那三段(`Io.Copy` / `Io.Lines` / `Io.EachDir`)在这四种之间随便搬:
+# 有了它们,对着接口写的那三段(`Io.CopyTo` / `Io.Lines` / `Io.EachDir`)在这四种之间随便搬:
 # 磁盘、控制台、内存、网络(网络那种见 tests/269)。
 using "io.rav"
 
@@ -19,7 +19,7 @@ print (m.IsDir ())
 
 # 对着接口写的那段不认它是内存还是磁盘
 System.CreateDir ".io-test"
-Io.Copy m (Io.File ".io-test/from-mem.txt")
+Io.CopyTo m (Io.File ".io-test/from-mem.txt")
 print ((Io.File ".io-test/from-mem.txt").Read ())
 
 # ── 内存目录:孩子摆在一张 dict 里,`Add` 用条目自己的名字当键 ──
@@ -56,8 +56,8 @@ print (t.Read ())
 # 目录视角走一遍整棵树
 Io.EachDir t (path: string e: object) => { print ("  " + path); }
 
-# 攒好的树可以落盘,也能再读回来(`Io.Copy` 不认它是 Json 还是磁盘)
-Io.Copy t (Io.File ".io-test/conf.json")
+# 攒好的树可以落盘,也能再读回来(`Io.CopyTo` 不认它是 Json 还是磁盘)
+Io.CopyTo t (Io.File ".io-test/conf.json")
 print ((Io.File ".io-test/conf.json").Read ())
 back := Io.JsonFile ".io-test/conf.json"
 print ((back.Child "name").Read ())

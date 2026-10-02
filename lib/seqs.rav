@@ -1,5 +1,5 @@
 # 集合上再补几件:**摊平 / 切块 / 拉链 / 分组 / 计数**。
-# 全都**对着 `IEnumerable` 写**(和 `Io.Copy` / `Io.EachDir` 一个路子),所以
+# 全都**对着 `IEnumerable` 写**(和 `Io.CopyTo` / `Io.EachDir` 一个路子),所以
 # list / set / dict / string / `Generator` 一视同仁。
 #
 # 交回的是**当场算好的** `list` / `dict` —— 要"边要边给"的惰性,用 `Generator`。

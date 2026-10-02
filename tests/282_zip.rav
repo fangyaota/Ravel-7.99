@@ -2,7 +2,7 @@
 #
 # 它就是 `lib/io.rav` 开头许诺的那一格 ——「磁盘上的、内存里的、**zip 条目**、远程的……
 # 都只是 `IFile` 的实现」。归档是 `IDir`、成员是**只读的** `IFile`,于是
-# `Io.EachDir` / `Io.Lines` / `Io.Copy` 那些对着接口写的一律照吃。
+# `Io.EachDir` / `Io.Lines` / `Io.CopyTo` 那些对着接口写的一律照吃。
 #
 # **归档那个文件本身不进用例**:zip 的成员头里带着"什么时候写的",同一份内容两次打出来
 # 字节不一样(所以 `Hash.File` 那条不钉)。钉的是**读回来的东西**。
@@ -39,7 +39,7 @@ Io.EachDir z (p: string e: object) => { print (e.Name ()); }
 foreach (Io.Lines (z.Entry "logs/a.txt")) (l: string) => { print ("行: " + l); }
 z.Extract "disk.bin" ".io-test/out.bin"            # 流式落盘,内容不进堆
 print (System.ReadText ".io-test/out.bin")
-Io.Copy (z.Entry "top.txt") (Io.File ".io-test/copy.txt")
+Io.CopyTo (z.Entry "top.txt") (Io.File ".io-test/copy.txt")
 print (System.ReadText ".io-test/copy.txt")
 
 # ── 报错 ──

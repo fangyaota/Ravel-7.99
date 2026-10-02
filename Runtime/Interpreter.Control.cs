@@ -112,7 +112,15 @@ public partial class Interpreter
             return;
         }
 
-        if (cf.State is StringVal s) _loading.Pop();
+        if (cf.State is StringVal s)
+        {
+            _loading.Pop();
+            // 这个文件跑完**没建出模块**(`enum.rav` 这种:它落的是全局的名字)——
+            // 它写着的那几条 `using` 就归全局那一枚,不然没人接得住。
+            if (!_moduleByPath.ContainsKey(s.Value)
+                && _refsByPath.TryGetValue(s.Value, out var refs) && refs.Count > 0)
+                GlobalModule().ReferencePaths.AddRange(refs);
+        }
         Return(cf, VoidVal.Instance);
     }
 

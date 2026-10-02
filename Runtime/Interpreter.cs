@@ -56,7 +56,7 @@ public partial class Interpreter
     /// 由 `lib/native.rav` 在用到时装进来,成员落在 `Native` 模块。)</summary>
     private void RegisterBuiltins()
     {
-        var module = new ModuleVal("System", new Scope(_global));
+        var module = ModuleVal.WithOwnTable("System", _global, this);
         SysModule.Fill(this, module.Scope);
         _modules["System"] = module;
         _global.Define("System", BuiltinClasses.Ravel, module);
@@ -75,9 +75,16 @@ public partial class Interpreter
     }
 
     private readonly Dictionary<string, ModuleVal> _modules = [];
+    /// <summary>**文件 → 那个文件装出来的模块**(见 `EnterModule`)。`References ()` 拿它把
+    /// 记下的路径解析成模块 —— 记 `using` 的那一刻目标还没跑、模块还没建出来,
+    /// 所以只能回查(见 `ResolveReferences`)。</summary>
+    private readonly Dictionary<string, ModuleVal> _moduleByPath = [];
+    /// <summary>**没写模块名的那些文件**共用的那一枚(见 `GlobalModule`)—— 它们往全局落名字,
+    /// 就是同一个地方,所以 `References ()` 里也只用一枚模块替它们站位。</summary>
+    private ModuleVal? _globalModule;
     /// <summary>正在加载的那个文件 → 它**攒下的那些 `using`**(见 `RecordReference`)。
     /// 按**文件**攒、不按模块攒:`using` 常常写在 `ravel "M"` 前面,那会儿模块还没建出来。
-    /// 建模块时把这份列表**接**给 `ModuleVal.References`,两边从此是同一个列表。</summary>
+    /// 建模块时把这份列表**接**给 `ModuleVal.ReferencePaths`,两边从此是同一个列表。</summary>
     private readonly Dictionary<string, List<string>> _refsByPath = [];
     /// <summary>当前挂着的那个模块(`ravel "M"` 之后、`ravel ""` 之前)。`using` 记给它 ——
     /// 主脚本里定义的模块走这条路(`_loading` 里没有它,它不是被 `using` 进来的文件)。</summary>

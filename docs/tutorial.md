@@ -1308,13 +1308,13 @@ describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
 
 ```ravel
 m := Io.MemFile "mem.txt" "内存里的内容"     # 内容就是一个字符串
-Io.Copy m (Io.File "a.txt")                 # 内存 → 磁盘，同一段代码
+Io.CopyTo m (Io.File "a.txt")                 # 内存 → 磁盘，同一段代码
 
 t := Io.JsonFile "conf.json"                 # 一棵 JSON = 一个目录树
 (t.Child "ver").Read ()                      # "2"（节点内容是它的 JSON 文本）
 (t.Child "ver").Write "3"                    # 当 JSON 解析，换掉那棵子树
 Io.EachDir t (p: string e: object) => { print p; }   # 把配置树当目录走一遍
-Io.Copy t (Io.File "conf.json")              # 攒好了落盘
+Io.CopyTo t (Io.File "conf.json")              # 攒好了落盘
 ```
 
 想加一个自己的实现，就把那几条成员写出来、登记一下：
@@ -1338,16 +1338,16 @@ impl (IFile MemFile {
 })
 
 print (MemFile.GetImplements ())       # [IFile IEntry]
-Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一段代码
+Io.CopyTo (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一段代码
 ```
 
-`Io.Copy` / `Io.EachDir` / `Io.Lines` 就是**对着接口写的**三段：任何实现都吃。
+`Io.CopyTo` / `Io.EachDir` / `Io.Lines` 就是**对着接口写的**三段：任何实现都吃。
 `Io.Lines f` 是个**生成器**（见 4.3 那节）：边要边给，`foreach (Io.Lines f) (l: string) => { … }`。
 （zip 条目那种只读的实现，让 `Write` / `Delete` 抛一句"这份文件是只读的"就行。）
 
 **一个 URL 也是文件**（要 `using "http.rav"`，见 6.16）：`Http.Url "https://…/a.txt"`
 交回的东西就有那一套成员，所以上面这三段对它照样能用 ——
-`Io.Copy (Http.Url "…") (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url "…")` 一行行读远程日志。
+`Io.CopyTo (Http.Url "…") (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url "…")` 一行行读远程日志。
 这就是"对着接口写"的意思：加一种实现，用它的代码不用改。
 
 #### 控制台也是文件
@@ -1357,7 +1357,7 @@ Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一�
 ```ravel
 Terminal.Stdout.Write "直接写到终端
 "
-Io.Copy (Io.File "notes/a.txt") Terminal.Stdout      # 对着接口写的代码:文件 → 终端
+Io.CopyTo (Io.File "notes/a.txt") Terminal.Stdout      # 对着接口写的代码:文件 → 终端
 Terminal.Stdin.ReadLine ()                           # 一行(就是 input)
 foreach (Io.Lines Terminal.Stdin) (l: string) => { print l; }   # 读到 EOF 的每一行（生成器，边要边给）
 ```
@@ -1775,7 +1775,7 @@ print "表的显示 ${[1 2]}"        # 表的显示 [1 2]
 ### 6.9 再补几件（`Seqs`）
 
 `Seqs` 模块里五件：摊平、切块、拉链、分组、计数。全都**对着 `IEnumerable` 写**，
-所以 list / set / dict / string / `Generator` 一视同仁（和 `Io.Copy` 那三条一个路子），
+所以 list / set / dict / string / `Generator` 一视同仁（和 `Io.CopyTo` 那三条一个路子），
 交回的是**当场算好的** `list` / `dict`：
 
 ```ravel
@@ -2221,9 +2221,9 @@ Http.UploadTo "https://…/put" "a.zip" "upload"   # 换个字段名
 所以**对着接口写的东西直接能用**：
 
 ```ravel
-Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
+Io.CopyTo (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
 Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志（惰性）
-Io.Copy (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
+Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
 Http.Download "https://…/a.zip" (Io.File "a.zip")         # 落点也能给条目，不只路径字符串
 
 u := Http.Url "https://…/a.txt"
@@ -2445,7 +2445,7 @@ echo 'print 1 + 1' | dotnet out/ravel.dll examples/repl.rav
 
 ```ravel
 using "crypto.rav"
-key := Crypto.Key "口令" (Crypto.Salt ()) 600000   # PBKDF2-SHA256 → 32 字节
+key := Crypto.DeriveKey "口令" (Crypto.Salt ()) 600000   # PBKDF2-SHA256 → 32 字节
 c   := Crypto.Seal key "秘密"                      # AES-256-GCM → base64 串
 Crypto.Open key c                                  # "秘密"；拆不开就报错，不给垃圾
 

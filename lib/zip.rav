@@ -3,7 +3,7 @@
 #     z := Zip.Open "a.zip"                 # → 归档(它是**一个目录**)
 #     print (z.List ())                     # 名字 → 条目(和 Io.Dir 一个形状)
 #     print ((z.Entry "readme.txt").Read ())
-#     Io.Copy (z.Entry "a.txt") (Io.File "out.txt")     # 对着接口写的那几件直接吃
+#     Io.CopyTo (z.Entry "a.txt") (Io.File "out.txt")     # 对着接口写的那几件直接吃
 #     z.Close ()
 #
 #     w := Zip.Create "new.zip"             # 新建(**同名会被整个覆盖**)
@@ -17,7 +17,7 @@
 #
 #   * `Io.EachDir z (p, e) => { … }` 能把它整个走一遍
 #   * `Io.Lines (z.Entry "a.txt")` 能一行行读里面的文本
-#   * `Io.Copy` / `Hash.File` 那些对着接口写的一律照吃
+#   * `Io.CopyTo` / `Hash.File` 那些对着接口写的一律照吃
 #
 # 一条**只读**的取舍:归档里的成员**写不回去**(`Write` / `Append` / `Delete` 全报错)。
 # zip 要改一个成员得整档重写一遍,而"一个文件改了 3 个字节"的语义在这儿本来就不成立 ——

@@ -96,7 +96,7 @@ internal static class CryptoNative
         var k = Bytes(v, $"{what} 的密钥");
         if (k.Length != KeyBytes)
             throw Fail(
-                $"{what}: 密钥要 {KeyBytes} 字节（AES-256），得到 {k.Length} —— 从口令派生用 `Crypto.Key`", ErrorKind.Value);
+                $"{what}: 密钥要 {KeyBytes} 字节（AES-256），得到 {k.Length} —— 从口令派生用 `Crypto.DeriveKey`", ErrorKind.Value);
         return k;
     }
 

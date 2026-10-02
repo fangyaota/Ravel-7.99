@@ -76,7 +76,7 @@ u.Delete ()                                           # 同上,发的是 DELETE
 print "写和删都过了（不报错就是成）"
 try { u.Append "x"; } (e: Exception) => { print ("2: " + ((string e).Split "：").At 0); }
 
-Io.Copy u (Io.File ".io-test/from-url.txt")            # 对着接口写的 Copy,不认它是网络还是磁盘
+Io.CopyTo u (Io.File ".io-test/from-url.txt")            # 对着接口写的 Copy,不认它是网络还是磁盘
 copied := Io.File ".io-test/from-url.txt"
 print ((copied.Read ()).Trim ())
 foreach (Io.Lines u) (line: string) => { print ("行: " + line); }

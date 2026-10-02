@@ -1,7 +1,10 @@
-﻿# `MyMod.References ()` —— 这个模块**自己写着的那些 `using`**(见 `Ravel.References`)。
+# `MyMod.References ()` —— 这个模块**自己写着的那些 `using`**,交回的是**模块本身**。
 #
 # 它回答的是"我这个模块**直接**引了谁":不是全局的已加载表,也**不是传递闭包**
 # (`Repl` 引的是它自己那三条,不会把 `iterator.rav` 那些也带上)。
+#
+# 那个文件要是没写模块名(`native.rav` / `enum.rav` 这种只往全局落名字的),
+# 一律算到 `<global>` 那一枚上 —— 它们落的就是同一个地方。
 #
 # 随手加一个**用例自己定义**的模块 —— 名字不占 `lib/`。
 using "keys.rav"
@@ -18,11 +21,25 @@ print (MyMod.x)
 print (Keys.References ())          # 它一条 `using` 都没写
 print (Repl.References ())
 print (Terminal.References ())      # 只有它自己的,不带传递闭包
-print (typeof (Repl))              # 这一条挂在 `Ravel` 上,所以每个模块都有
+print (typeof (Repl))               # 这一条挂在 `Ravel` 上,所以每个模块都有
+
+# **顶层的 `using` 记在 `<global>` 那一枚上** —— 别漏到刚加载完的那个文件头上去:
+# `repl.rav` 是以 `ravel "Repl"` 收尾的(它**没有** `ravel ""`),从前这一句之后游标
+# 就停在 `Repl` 上,底下这条会记进 `Repl.References ()` 里。
+using "seqs.rav"
+print (Repl.References ())          # 还是那三条,没长尾巴
+g := (Terminal.References ()).At 0  # 没写模块名的那些,统一是这一枚
+print g
+n := (g.References ()).Count ()
+last := n - 1                       # (不写进实参里:`-` 会被实参那一条吃进去)
+print ((g.References ()).At last)   # 顶层最后引的那个
 # --- expected ---
-# [keys.rav io.rav]
+# [<module Keys> <module Io>]
 # 1
 # []
-# [native.rav terminal.rav io.rav]
-# [native.rav enum.rav io.rav]
+# [<module <global>> <module Terminal> <module Io>]
+# [<module <global>> <module <global>> <module Io>]
 # Ravel
+# [<module <global>> <module Terminal> <module Io>]
+# <module <global>>
+# <module Seqs>

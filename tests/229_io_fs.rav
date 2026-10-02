@@ -185,7 +185,7 @@ ravel "230_io_abstract"
 # 抽象那一层：`IEntry` / `IFile` / `IDir` —— "文件"先是个**形状**，磁盘只是其中一个实现。
 #
 # 这个用例在测试里**现写一个内存文件系统**（十几行，就用 tests/61 那种"content 字段"的做法），
-# 登记两条 `impl` 之后：`is` / 注解认得它，而 `Io.Copy` / `Io.EachDir` 这些**对着接口写的**
+# 登记两条 `impl` 之后：`is` / 注解认得它，而 `Io.CopyTo` / `Io.EachDir` 这些**对着接口写的**
 # 代码两边都吃 —— 这就是"以后要加各种抽象文件"要的那个缝。
 using "io.rav"
 
@@ -257,10 +257,10 @@ print (describe m)
 root := Io.Dir ".io-test-abs"
 root.Create ()
 disk := root.Child "from-mem.txt"
-Io.Copy m disk
+Io.CopyTo m disk
 print (disk.Read ())
 back := MemFile "back.txt" ""
-Io.Copy disk back
+Io.CopyTo disk back
 print (back.Read ())
 foreach (Io.Lines back) (l: string) => { print l; }
 
@@ -285,8 +285,8 @@ ravel ""
 ravel "232_io_console"
 # 控制台也是文件:`stdout` / `stderr` / `stdin` 三个单例值都实现 `IFile`。
 #
-# 这一层的好处就在这儿 —— 对着接口写的代码直接能用:`Io.Copy f Terminal.Stdout` 把文件倒进终端,
-# `Io.Copy Terminal.Stdin f` 把输入倒进文件。只写的那两个读不了、只读的那个写不了(报错说人话)。
+# 这一层的好处就在这儿 —— 对着接口写的代码直接能用:`Io.CopyTo f Terminal.Stdout` 把文件倒进终端,
+# `Io.CopyTo Terminal.Stdin f` 把输入倒进文件。只写的那两个读不了、只读的那个写不了(报错说人话)。
 #
 # 两点说明:① 测试运行器只接管 **stdout**,所以 `Terminal.Stderr.Write` 那行会出现在终端上
 # (比对不到,只证明它不炸);② `Terminal.Stdin.Read ()` 是读到 EOF —— 测试里不去碰它(会挂住),
@@ -322,9 +322,9 @@ d := Io.Dir ".io-test-con"
 d.Create ()
 f := d.Child "a.txt"
 f.Write "从文件来的一行\n"
-Io.Copy f Terminal.Stdout
+Io.CopyTo f Terminal.Stdout
 f.Append "又一行\n"
-Io.Copy f Terminal.Stdout
+Io.CopyTo f Terminal.Stdout
 # `Io.Lines` 是**生成器**:边要边给 —— 配 `match` 挑行、配 `Expected` 兜"读不到"
 IsBlank := (s: string) => { (s.Trim ()).IsEmpty (); }
 foreach (Io.Lines f) (l: string) => {

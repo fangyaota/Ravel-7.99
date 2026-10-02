@@ -38,6 +38,16 @@ public class Scope(Scope? parent = null)
     protected virtual Variable? LookupHere(string name)
         => _vars.TryGetValue(name, out var v) ? v : null;
 
+    /// <summary>这一层**是谁私有的成员表** —— 模块就是这样的:它的作用域**就是**成员表
+    /// (见 <see cref="ModuleVal.WithOwnTable"/>)。普通作用域是普通作用域,这里是 null。
+    ///
+    /// (真的全局作用域**不是**:它同时是预定义、库、脚本共用的一层命名空间,
+    ///  包着它的那一枚 `<global>` 只是"没写模块名的那些文件"的站位,不占有它。)
+    ///
+    /// 有它才能拦住 <see cref="Define"/> 里那一条:往成员表里 `:=` 一个**类型链上已经有**
+    /// 的名字,那是把继承来的成员蒙掉,不是"新开一个变量"。</summary>
+    internal ObjectVal? TableOf { get; set; }
+
     /// <summary>这一层**替哪个对象服务**(类体作用域会说"我服务那个实例")。默认没有。
     ///
     /// 给 `Interpreter.CheckFieldAccess` 那种"当前代码在不在这个对象的类里"的判断用:
@@ -57,6 +67,21 @@ public class Scope(Scope? parent = null)
             && !(site != null && ReferenceEquals(existing.Site, site)))
             throw new RuntimeException(
                 $"'{name}' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）");
+
+        // **这一层是某个值的成员表**(模块):**类型链上**已有的名字也归这条规矩 ——
+        // 那不是"新开一个变量",是把继承来的成员蒙掉:
+        //     ravel "M"
+        //     References := () => { … }      # ✗ 蒙掉 `Ravel.References`
+        //     References = () => { … }       # ✓ 覆盖走 `=`
+        // 类体那边同一条规矩由"各层类体**平铺进同一个实例作用域**"实现(见 `StepClassInit`):
+        // 继承来的 `init` 就摆在本层,再 `:=` 自然撞上。模块的成员是**动态往下查**的
+        // (`MemberView`),平铺不了,所以在这儿补一道。
+        // (`!_vars.ContainsKey` 那半是给**上面那条**让路的:同一个节点重跑时本层已经有它了,
+        //  那是放行的情形,不该再拿去撞类链 —— 撞的是同一个自己。)
+        if (TableOf is { } owner && !_vars.ContainsKey(name)
+            && owner.MemberScope.LookupField(name) is not null)
+            throw new RuntimeException(
+                $"'{name}' 是 {owner.Type} 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）");
         var v = new Variable(name, typeConstraint, initialValue) { Site = site };
         _vars[name] = v;
         return v;
@@ -91,8 +116,28 @@ public class Scope(Scope? parent = null)
 
     public virtual void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
     {
-        var v = Find(name) ?? throw new RuntimeException($"无法给未定义变量 '{name}' 赋值", ErrorKind.Name);
-        v.Assign(value, alsoAccepts);
+        if (Find(name) is { } v)
+        {
+            v.Assign(value, alsoAccepts);
+            return;
+        }
+
+        // **这一层是某个值的成员表**(模块)时,`=` 落到**类型链上**的成员要落到**本层** ——
+        // 在成员表里开一格盖住它(和类体里 `init = …` 一个意思)。
+        // 不能去改类对象上那一格:那是**所有模块共用的同一份**,`M.References = f`
+        // 会顺手把别的模块一起改掉。
+        //
+        // **这里不查只读**:这一句不是"给找到的那个变量赋值",是**新开一个遮蔽的** ——
+        // 内层作用域里 `true := 1` 遮蔽外层那个只读的就是这么过去的(见 `Define` 只查本层)。
+        // 类对象上那一格原样不动,`readonly` 保护的是它。
+        if (TableOf is { } owner && owner.MemberScope.LookupField(name) is { } inherited)
+        {
+            inherited.CheckAssignable(value, alsoAccepts);   // 类型约束照旧
+            _vars[name] = new Variable(name, inherited.TypeConstraint, value);
+            return;
+        }
+
+        throw new RuntimeException($"无法给未定义变量 '{name}' 赋值", ErrorKind.Name);
     }
 
     public Scope Push() => new(this);

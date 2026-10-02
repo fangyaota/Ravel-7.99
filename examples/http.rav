@@ -27,7 +27,7 @@ print ("做完了吗: " + (string ((todo.Get "completed").Extract ())))
 u := Http.Url "https://jsonplaceholder.typicode.com/todos/2"
 print ("名字: " + (u.Name ()) + "，在不在: " + (string (u.Exists ())) + "，多大: " + (string (u.Size ())))
 System.CreateDir ".io-test"
-Io.Copy u (Io.File ".io-test/todo2.json")          # 抓下来存着 —— 这段不认识"网络"
+Io.CopyTo u (Io.File ".io-test/todo2.json")          # 抓下来存着 —— 这段不认识"网络"
 print ("存下来了: " + (string (System.PathSize ".io-test/todo2.json")) + " 字节")
 System.DeletePath ".io-test/todo2.json"
 System.DeletePath ".io-test"

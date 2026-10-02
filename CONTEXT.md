@@ -275,7 +275,7 @@ lib/
   zip.rav                 `Zip` 模块 —— **ZIP 归档**,而且它**是一个文件系统**:
                           `Zip.Open path` / `Zip.Create path` 交回一个归档(它是 `IDir`),
                           成员是**只读**的 `IFile`(`Read` / `Bytes` / `Size` / `Packed`)——
-                          于是 `Io.EachDir` / `Io.Lines` / `Io.Copy` 那些对着接口写的一律照吃。
+                          于是 `Io.EachDir` / `Io.Lines` / `Io.CopyTo` 那些对着接口写的一律照吃。
                           `Add` / `AddFile`(流式)/ `AddDir` / `Extract`(流式)/ `Close ()`。
                           归档里的**目录是推出来的**(`logs/a.txt` 意味着有个 `logs/`),
                           名字认两头:先当完整路径、再当这一层的名字。**要显式引用**
@@ -464,8 +464,10 @@ Object (parent=自己)
         Any Every Exception ValueType Json
 
 (每个类型在 `predefined.rav` 里都有一条全局别名 —— `int` / `string` / `object` /
-`Ravel` …。**`MyMod.References ()`** —— 这个模块**自己写着的那些 `using`**(就是 `using` 后面那一串,
-不是解析后的绝对路径)。挂在 `Ravel` 上(所有模块都是它的实例),所以每个模块白拿。
+`Ravel` …。**`MyMod.References ()`** —— 这个模块**自己写着的那些 `using`**,交回的是**模块本身**
+(`using "io.rav"` 给的是 `Io`,不是那串路径)。挂在 `Ravel` 上(所有模块都是它的实例),
+所以每个模块白拿。那个文件要是**没写模块名**(`native.rav` / `enum.rav` 这种只往全局
+落名字的),一律算到 `<global>` 那一枚上 —— 它们落的就是同一个地方,所以只用一枚替它们站位。
 **不是**全局的已加载表、也**不是传递闭包**:`Repl.References ()` 给的是它自己那三条,
 不会把 `iterator.rav` 那些也带上。`using` 是运行时构造,所以函数体里、`eval` 出来的也算
 —— 但那种本来就是这个模块的一部分代码。(管**搜索目录**的那个全局叫 `ReferencesPath`,
@@ -642,7 +644,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 3. **磁盘实现 + 通用件**（模块 `Io`）：`Io.File "a.txt"` / `Io.Dir "sub"` 造条目
    （`Child` 对不存在的名字**按文件算** —— 写新文件是常事；建目录走 `Mkdir`）；
    `List` / `Files` / `Dirs` 按名字排序；`CopyTo` / `MoveTo` / `Rename` / `LastWrite` 是磁盘特有的。
-   `Io.Lines (f: IFile)`（**生成器**：边要边给，读到第几行就收工都行）/ `Io.Copy (from to)` /
+   `Io.Lines (f: IFile)`（**生成器**：边要边给，读到第几行就收工都行）/ `Io.CopyTo (from to)` /
    `Io.EachDir (d f)`（递归走一遍，每见一个条目叫一次
    `f (路径, 条目)`）**对着接口写**，任何实现都吃 —— 以后加内存文件 / zip / 远程文件就是照这个缝插。
 
@@ -650,7 +652,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 （`Terminal` 模块里 `ConsoleOut` / `ConsoleIn` 两个类各登记一条 —— **住在 `Terminal` 而不是 `Io`**：
 "控制台"整个归 `Terminal`，`io.rav` 只管文件系统，读的人不必在两处犹豫；`IFile` 那个接口仍是 `io.rav` 的）。
 另一头 `Terminal.Write` / `Line` / `ToErr` 是"先渲染标记再写"，和这三个的"裸去路"分得清。于是对着接口写的代码直接能用 ——
-`Io.Copy f Terminal.Stdout` 把文件倒进终端、`Io.Copy Terminal.Stdin f` 把输入倒进文件。取舍写明白：
+`Io.CopyTo f Terminal.Stdout` 把文件倒进终端、`Io.CopyTo Terminal.Stdin f` 把输入倒进文件。取舍写明白：
 只写的那两个 `Read` 报错、只读的那个 `Write` 报错、控制台没有 `Size` 也删不掉（报错说人话）。
 `Stdin.Read ()` 是**读到 EOF**（终端上 Ctrl+Z/D 收），读一行用 `ReadLine ()`（就是 `input`）；
 `print` / `input` 照旧是日常那两个，这里是"抽象的视角"。
@@ -663,14 +665,14 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 **每个节点是一个文件，内容是它的 JSON 文本**：`Read ()` 给紧凑 JSON（字符串叶子也带引号），
 `Write (t)` 把 `t` **当 JSON 解析**了换掉那棵子树（所以 `Write (Read ())` 正好是原样）。
 对象和数组都算目录（数组的名字是 `"0"` `"1"`），`Child name` / `List ()` / `Delete ()` 齐活，
-于是 `Io.EachDir` 能把一棵配置树走一遍、`Io.Copy 树 (Io.File "conf.json")` 就落盘。
+于是 `Io.EachDir` 能把一棵配置树走一遍、`Io.CopyTo 树 (Io.File "conf.json")` 就落盘。
 它改的是**那棵 Json 值本身**（窗口，不是副本）；想要原生值那是 `Extract ()` 的事。
 （`io.rav` 能直接引用 `Json` —— 那是 predefined 的全局名，不用 `using`。）
 
 **一个 URL 也是文件**：`Http.Url "https://…"`（见「网络」一节）照同一条缝插进来 ——
 它自己就有 `IFile` 那几条成员，再 `impl (IFile Url { () })` 登记一下。于是
-`Io.Copy (Http.Url …) (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url …)` 一行行读远程日志、
-`Io.Copy (Http.Url …) Terminal.Stdout` 直接倒进终端 —— **对着接口写的那几件一个都不用改**。
+`Io.CopyTo (Http.Url …) (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url …)` 一行行读远程日志、
+`Io.CopyTo (Http.Url …) Terminal.Stdout` 直接倒进终端 —— **对着接口写的那几件一个都不用改**。
 `Write` / `Delete` 发的是 PUT / DELETE，`Append` 报错（HTTP 没有追写这回事），
 `Exists` / `Size` 走 HEAD（不下载正文）。
 （`http.rav` 因此 `using "io.rav"`；依赖方向是 网络 → 文件，不是反过来。）
@@ -686,7 +688,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `File (…)` 变成调自己（实测无限递归）；② 实参位置上的 `raw.Get n` 会被读成 `((f …) raw.Get) n`。
 
 测试 —— 229（磁盘：读写/列目录/复制移动改名/报错文案/换目录、临时目录跑完删干净）、
-230（抽象那一层：测试里现写一个内存实现 + `Io.Copy` 两边跑 + `Io.EachDir` 递归）。
+230（抽象那一层：测试里现写一个内存实现 + `Io.CopyTo` 两边跑 + `Io.EachDir` 递归）。
 
 ## 全局变量
 
@@ -772,6 +774,28 @@ RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
            X := class Parent { body }  ← 父类 Parent(必须已经存在)
            ≡ 把 class 换成 type 完全等价(两者是同一个值)
 ```
+
+### 模块的顶层就是它的成员表
+
+模块（`ravel "M"`）的**作用域就是成员表** —— 一个对象两个名字，读成员走的 `MemberView`
+就是"本层 + 类链"。所以顶层那几句 `:=` **不许用类链上本来就有的名字**：
+
+```ravel
+ravel "M"
+References := () => { … }     # ✗ `References` 是 `Ravel` 的成员 —— 蒙掉它不等于新开一个变量
+References =  () => { … }     # ✓ 覆盖走 `=`
+```
+
+这条和类体那边是**同一条规矩**（各层类体**平铺进同一个实例作用域**，继承来的 `init` 就摆在本层，
+再 `:=` 自然撞上）；模块的成员是**动态往下查**的（`MemberView`），平铺不了，所以在
+`Scope.Define` 里补了一道。`=` 那一侧落在**本层**（开一格盖住继承来的），不去改类对象上那一格
+—— 那是**所有模块共用的同一份**。
+
+**只管最外层**：`try` / `eval` / 函数体里跑在自己的子作用域里，在那儿 `:=` 是"内层遮蔽外层"，
+本来就允许（和"内层作用域里 `true := 1` 遮蔽外层那个只读的"一个道理）。
+
+库里有两条撞上了，因此改名：`Io.Copy` → `Io.CopyTo`（撞 `Object.Copy`）、
+`Crypto.Key` → `Crypto.DeriveKey`（撞 `Object.Key` 那个键协议）。
 
 ### 内置类也有类体
 
@@ -1827,12 +1851,12 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 ### 一个 URL 就是一个文件
 
 `Http.Url "https://…"` 交回的东西有 `IFile` 那一套成员(而且 `impl (IFile Url { () })` 登记过),
-于是**对着接口写的那几件直接能用** —— `Io.Copy` / `Io.Lines` / `Io.EachDir` 那些一个都不用改:
+于是**对着接口写的那几件直接能用** —— `Io.CopyTo` / `Io.Lines` / `Io.EachDir` 那些一个都不用改:
 
 ```ravel
-Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
+Io.CopyTo (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
 Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志(惰性)
-Io.Copy (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
+Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
 ```
 
 - 每次 `Read ()` 都是**一次请求**(和 `Io.File.Read ()` 每次都去读盘一样,不藏缓存 ——
