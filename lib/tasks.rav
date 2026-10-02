@@ -48,9 +48,9 @@
 #   ② **状态收进对象的字段**,别散在模块作用域上:任务换来换去,谁读谁写说不清。
 #   ③ **两侧都是"在 lambda 里抓、抓完立刻跳到对面"**。
 #
-# 模块作用域上只剩**一格**真实的运行时事实:`Running`(此刻在跑的是哪个组)。
-# 它必须存在,因为 `t.Value` 那个 by-property 手里没有组 —— 而"同一时刻只有一个组在跑"
-# 对单线程协作式来说是真的,所以这一格不是将就,是事实的转述。
+# **模块作用域上一格状态都没有** —— 组是对象,状态在它的字段里;"等"只有 `group.Await`
+# 一个入口(连 `t.Value` 都不等:没算完就报错,去 `Await` 等)。理由是同一句老话:
+# 藏在 by-property 里的让出,读代码的人看不见。
 ravel "Tasks"
 
 # 一个任务。自动推进的那一半只用 `Job`,自创的那一半只用 `Body` / `Step` / `Started`。
@@ -101,17 +101,19 @@ Task ::= class {
     # 完没完 —— **不阻塞**,随手就能探
     by IsDone := property (() => { Done; }) ((v: bool) => { (); })
 
-    # 取值 —— **会等**。还没完就把当前任务挂起来等它完(`Running` = "我正在哪个组里跑")。
-    # 那边抛了就在这儿重抛:错在**取结果的那一头**现形,不会把组带走。
+    # 取值 —— **检查过的读**:完了就交值,没完就报错,**不等**。
+    #
+    # 要等就用 `group.Await t`(它才是那个挂起点)。这里不等是有意的:
+    # 一个 by-property 悄悄把当前任务挂起来,读代码的人看不见"这一句会让出";
+    # 而"等"是调度的事,该在**调度器那一句**上明写。
     by Value := property (() => {
-        Claimed = true
         if { Done; } { 0; } {
-            # 没有组在跑 = 没人能推进它,别装死,当场说清
-            if { Driving; } { 0; } {
-                throw (Exception ("这个任务还没完,而当前没有组在跑 —— 没有谁能让它往前走"))
-            }
-            CurrentGroup.Await instance
+            throw (Exception ("这个任务还没完 —— 要等它就用 `group.Await t`,"
+                              + "只想探一下就 `t.IsDone`"))
         }
+        # 到这儿才认领:**读到了结果或错**才算"有人接"。上面那句"还没完"不算 ——
+        # 它只是探了一下,没接过任何东西。
+        Claimed = true
         if { Ok; } { Val; } { throw Err; }
     }) ((v: object) => { (); })
 }
@@ -228,13 +230,6 @@ TaskGroup ::= class {
     # 任务让出时跳的都是 `Back` 这一枚 —— 于是回来的落点永远是同一条链上的同一个地方,
     # 而当前那条链整个丢掉(帧链不随切换增长)。
     Run := () => {
-        # 嵌套开不了:`Back` 只有一格,内层组一跑,外层的就找不着回来的路了。
-        # 当场报错,别让它悄悄地烂。
-        if { Driving; } {
-            throw (Exception ("组不能套着跑:里面那个一开始,外面那个就找不着回来的路了"))
-        } { 0; }
-        Driving = true
-        CurrentGroup = this
         callcc (kc: Continuation) => { Back = kc; }
         while { !((Ready.IsEmpty ()) && (Waiting.IsEmpty ())); } {
             if { Ready.IsEmpty (); } { Poll (); } {
@@ -242,8 +237,6 @@ TaskGroup ::= class {
                 Start Current
             }
         }
-        Driving = false
-        CurrentGroup = default
         # 走到这儿 = 没活儿可干了。**但如果还有任务没完**,那不是跑完了,是卡住了:
         # 它停在某个 `Await` 上,而没有任何东西能把它叫醒(典型:在等一个没进组、
         # 也不会有人去完成的自创任务)。当场报出来 —— 干等比报错难查得多。
@@ -263,14 +256,6 @@ TaskGroup ::= class {
         }
     }
 }
-
-# 此刻在跑的是哪个组 —— 只有一格,因为同一时刻真的只有一个在跑(单线程协作式)。
-# 它存在只为 `t.Value`:那个 by-property 手上没有组,而"我在哪个组"这件事得有人记着。
-CurrentGroup: TaskGroup = default
-
-# 此刻有没有组在跑。`CurrentGroup` 是"哪个",这个是"有没有" —— 分开是因为
-# `== ()` 在这门语言里不吃 Void 操作数,而"还没跑过"这件事得能问得出来。
-Driving: bool = false
 
 # `Tasks.After ms` —— 一个**毫秒后自动完成**的任务。
 #

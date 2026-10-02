@@ -22,11 +22,12 @@ Tasks.Cycle [
     })
 ]
 
-# ② 结果在任务自己身上:IsDone 不阻塞,Value 会等
+# ② 结果在任务自己身上:IsDone 探一下,Value 是**检查过的读**(没完就报错,不等)
 t := Tasks.After 0
 print t.IsDone
+try { t.Value; print "不该到这儿"; } (e: Exception) => { print ("没完就读:" + e.Message); }
 Tasks.Cycle [
-    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await t; print t.IsDone; })
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await t; print t.IsDone; print ("读完:" + (string t.Value)); })
 ]
 
 # ③ 跑着再加一个(group.Add)
@@ -79,10 +80,18 @@ try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { g.Await orphan; })]; } 
 # ⑧ 任务失败了**而没人接** —— 和"没人接的错误"一个口径,也当场报
 try { Tasks.Cycle [(Tasks.Task (g: Tasks.TaskGroup) => { throw (Exception "没人理我"); })]; } (e: Exception) => { print e.Message; }
 
-# ⑨ 组不能套着跑:`Back` 只有一格
-try { Tasks.Cycle [
-    (Tasks.Task (g: Tasks.TaskGroup) => { Tasks.Cycle []; })
-]; } (e: Exception) => { print e.Message; }
+# ⑨ 组能套着跑:每组的就绪队列 / 等待集合 / `Back` 都是**它自己的字段**,互不打扰
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "外:起"
+        Tasks.Cycle [
+            (Tasks.Task (g2: Tasks.TaskGroup) => { g2.Await (Tasks.After 0); print "  内:完"; })
+        ]
+        g.Await (Tasks.After 0)
+        print "外:完"
+    })
+]
+
 # --- expected ---
 A1
 B1
@@ -91,7 +100,9 @@ B2
 A3
 B3
 false
+没完就读:这个任务还没完 —— 要等它就用 `group.Await t`,只想探一下就 `t.IsDone`
 true
+读完:()
 主:开帮手
 帮手:完
 主:帮手回来了
@@ -105,4 +116,6 @@ M2
 接住:任务里炸了
 死锁:还有 1 个任务没完,但已经没有谁能推进它们了 —— 多半是在等一个没进组、也不会有人完成的东西
 有 1 个任务失败了,而没人接它的错:没人理我 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)
-有 1 个任务失败了,而没人接它的错:组不能套着跑:里面那个一开始,外面那个就找不着回来的路了 —— 谁起的任务谁负责等它(`group.Await` / `.Value`)
+外:起
+  内:完
+外:完
