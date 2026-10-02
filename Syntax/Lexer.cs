@@ -188,63 +188,6 @@ public class Lexer(string source, string? file = null)
         return tokens;
     }
 
-    /// <summary>扫一遍源码,回答「括号合上了吗、末尾在不在字符串里」。REPL 用它判断
-    /// 这一行能不能交给求值器(见 `NeoInteractor.IsBalanced`)。
-    ///
-    /// **规则必须和词法器一致** —— 从前 REPL 自己抄了一份,不认 `\` 转义,于是
-    /// `"a\"b"` 会把字符串状态判反、后面整行的括号都跟着数错。
-    ///
-    /// 深度只做加减不做校验(`)` 也能让深度回到 0):这样多一个右括号照样会交给解析器去
-    /// 报错,而不是卡在"还没写完"上。</summary>
-    public static (int Depth, bool InString) ScanState(string src)
-    {
-        int depth = 0;
-        bool inString = false;
-        bool inRaw = false;                          // 原始字符串:里面只有 `"""` 能收
-        for (int i = 0; i < src.Length; i++)
-        {
-            char c = src[i];
-
-            if (inString)
-            {
-                if (inRaw)
-                {
-                    if (c == '"' && i + 2 < src.Length && src[i + 1] == '"' && src[i + 2] == '"')
-                    {
-                        inString = false;
-                        inRaw = false;
-                        i += 2;
-                    }
-                    continue;                        // 里面的 `\` 和 `#` 一律不算
-                }
-
-                if (c == '\\') i++;                 // 转义:下一个字符不参与判断
-                else if (c == '"') inString = false;
-                continue;
-            }
-
-            if (c == '#')                            // 注释到行尾
-            {
-                while (i < src.Length && src[i] != '\n') i++;
-                continue;
-            }
-
-            if (c == '"' && i + 2 < src.Length && src[i + 1] == '"' && src[i + 2] == '"')
-            {
-                inString = true;                     // 原始字符串(要排在 `""` 空串前面)
-                inRaw = true;
-                i += 2;
-                continue;
-            }
-
-            if (c == '"') inString = true;
-            else if (c is '(' or '[' or '{') depth++;
-            else if (c is ')' or ']' or '}') depth--;
-        }
-
-        return (depth, inString);
-    }
-
     // ==================== helpers ====================
 
     /// <summary>多字符运算符:**文本 → token**,按顺序试第一个命中的。
@@ -504,7 +447,8 @@ public class Lexer(string source, string? file = null)
             _pos++;
         }
 
-        // 跨度照旧是**源码**跨度(含两边定界符) —— 行高亮靠它(见 ReplView)
+        // 跨度照旧是**源码**跨度(含两边定界符) —— 行高亮从前靠它(C# 那版 REPL 的 `ReplView`,
+        // 已删;`lib/repl.rav` 那半不经过 token,自己扫一遍)
         return new Token(TokenType.String, text, line, col, _pos - start);
     }
 

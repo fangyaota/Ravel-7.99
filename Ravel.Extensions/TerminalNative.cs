@@ -55,8 +55,8 @@ internal static class TerminalNative
     public static RuntimeValue TerminalWidth(RuntimeValue _) => IntVal.Of(Width());
 
     /// <summary>把几行**已经带标记的**文本装进一个方框(就是 Spectre 的 `Panel`),交回整块。
-    /// 和 `TerminalRender` 一样是**纯函数**,只是外面多包一圈边框 ——
-    /// `Cli/Repl/NeoInteractor.cs` 那边写的是 `AnsiConsole.Write(new Panel(text))`,这两条是同一件事。
+    /// 和 `TerminalRender` 一样是**纯函数**,只是外面多包一圈边框 —— C# 那版 REPL 从前
+    /// 写的是 `AnsiConsole.Write(new Panel(text))`,这两条是同一件事(那一版已删,REPL 现在住 `lib/repl.rav`)。
     ///
     /// 宽度取**当前终端**的宽(看不见终端就用 80):方框要跟屏幕一样宽,这是它唯一的意义。
     /// (自己拿 `┌─┐` 拼也行,但每行的**纯文本**宽度得先算出来 —— 行里全是标记,
@@ -110,8 +110,8 @@ internal static class TerminalNative
     /// <summary>一列里挑一个,交回**选中的序号**(不是那个字符串)—— 调用方按序号分派就是了。
     ///
     /// 和 `TerminalChoose` 的分别:这一条是**主菜单**那种用法 —— 带搜索、每屏定死 6 条、
-    /// 每项前面挂着序号。参数是照着 `Cli/Repl/NeoInteractor.cs` 那台 `SelectionPrompt<int>`
-    /// 一条条抄的,为的是两边的菜单长得一模一样。</summary>
+    /// 每项前面挂着序号。参数是照着 Spectre 那台 `SelectionPrompt<int>` 一条条定的 ——
+    /// `lib/repl.rav` 的主菜单走的就是它,两边长得一模一样。</summary>
     [RavelFn("TerminalMenu")]
     public static RuntimeValue TerminalMenu(RuntimeValue title, RuntimeValue items) => Bad("菜单", () =>
     {

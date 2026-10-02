@@ -1,5 +1,4 @@
 ﻿using Ravel;
-using Ravel.Repl;
 using Ravel.Runtime;
 using Ravel.Testing;
 
@@ -24,7 +23,7 @@ var rest = args[first..];
 
 if (rest.Length == 0)
 {
-    new NeoInteractor(new Interpreter { WarnForgotCall = warn }).Run();
+    RunRepl(warn);
 }
 else if (rest[0] == "test")
 {
@@ -39,6 +38,19 @@ else
     // 脚本名之后那些交给 `System.Args ()`(REPL / `ravel test` 没有,它们是空的)
     RunFile(rest[0], rest[1..], warn);
 }
+
+/// <summary>不带参数 = 进 REPL。**这个 REPL 是 Ravel 自己写的**(`lib/repl.rav`,
+/// 入口 `Repl.Run ()`)—— 引擎里那一版(C# 的 `NeoInteractor`)已经删掉:两边行为一模一样,
+/// 而"这门语言能拿自己写自己的 REPL"正是它的门面(照它写一遍的动机、以及为什么能成,
+/// `lib/repl.rav` 头上有)。
+///
+/// 所以这儿做的事就是**跑两行脚本**,不多不少:不去查模块、不去摸它的内部 —— 那样等于
+/// 把 REPL 的入口又编回 C# 里,下回想改就得动引擎(`lib/repl.rav` 也就不用谈"库"了)。
+///
+/// 顺带白拿一条:C# 那版没有"看不见终端"这一路,而 `lib/repl.rav` 有(见它的 `Run`)——
+/// 管道里喂进去的整段会被当成一段程序跑完,于是 `echo 'print 1' | ravel` 现在通。</summary>
+static void RunRepl(bool warn)
+    => RunSource("using \"repl.rav\"\nRepl.Run ()\n", "<repl>", [], warn);
 
 static void RunFile(string path, string[] scriptArgs, bool warn)
 {
@@ -59,6 +71,14 @@ static void RunFile(string path, string[] scriptArgs, bool warn)
     Console.WriteLine($"── {path} ──");
     Console.WriteLine(source.Trim());
     Console.WriteLine("── Output ──");
+    RunSource(source, path, scriptArgs, warn);
+    Console.WriteLine();
+}
+
+/// <summary>跑一段源码 —— **单文件和 REPL 入口都走这里**,报错就只写这一套。
+/// 出事把退出码拨成 1(和测试那条线一个规矩:说了话就是出事)。</summary>
+static void RunSource(string source, string path, string[] scriptArgs, bool warn)
+{
     try
     {
         // 开关在**建完之后**才拨:构造时就把 predefined 跑了,而那是库、不是用户代码 ——
@@ -95,8 +115,6 @@ static void RunFile(string path, string[] scriptArgs, bool warn)
         // (递归到栈溢出这类尤其如此,消息里什么线索都没有)。要的时候开这个开关。
         if (Environment.GetEnvironmentVariable("RAVEL_TRACE") == "1") Console.WriteLine(ex.StackTrace);
     }
-
-    Console.WriteLine();
 }
 
 /// <summary>把内层异常一层层接在后面。**判断一条 C# 异常"到底为什么"常常全在内层** ——

@@ -2481,23 +2481,25 @@ print (Terminal.Bar 3 10 20)               # [######..............] 30%
 
 **用例见 tests/285。**
 
-### 6.24 用 Ravel 写一个 REPL（`Repl`）
+### 6.24 REPL 是用 Ravel 写的（`Repl`）
 
-`examples/repl.rav` —— 多页缓冲、三维光标、按词上色、按键编辑、主菜单、会话存盘，
-**全用 Ravel 写**，在 [lib/repl.rav](lib/repl.rav) 里：
+多页缓冲、三维光标、按词上色、按键编辑、主菜单、会话存盘，**全用 Ravel 写**，
+在 [lib/repl.rav](lib/repl.rav) 里（`examples/repl.rav` 就是下面这两行）：
 
 ```ravel
 using "repl.rav"
 Repl.Run ()
 ```
 
-它是 C# 那版 `Cli/Repl/NeoInteractor.cs` 的**一比一复刻**（连启动那张大图和菜单项的顺序都一样），
-为的是看看这门语言自己够不够用 —— 结论是够：**引擎只多了六样原语**（读单个键、清屏、
-定位光标、藏光标、把异常渲染成那份报告，再加"把 stdout 收进字符串"那一对），
-其余全在库里（连高亮用的扫描器都是）。接管道时它不当编辑器，把喂进来的整段跑完就走：
+**`ravel` 不带参数进的就是它**（CLI 那边就 `Repl.Run ()` 一行）。它从前是 C# 那版
+（`Cli/Repl/NeoInteractor.cs`）的一比一复刻，那一版后来删了 —— 两边行为一模一样，
+留着等于同一件事写两遍。当初照它写一遍是为了看看这门语言自己够不够用 —— 结论是够：
+**引擎只多了六样原语**（读单个键、清屏、定位光标、藏光标、把异常渲染成那份报告，
+再加"把 stdout 收进字符串"那一对），其余全在库里（连高亮用的扫描器都是）。
+接管道时它不当编辑器，把喂进来的整段跑完就走：
 
 ```bash
-echo 'print 1 + 1' | dotnet out/ravel.dll examples/repl.rav
+echo 'print 1 + 1' | dotnet out/ravel.dll
 ```
 
 **用例见 tests/286。**

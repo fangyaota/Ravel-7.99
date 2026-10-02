@@ -80,7 +80,9 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 
 **工具**
 
-- **REPL**:`dotnet out/ravel.dll` 不带参数就进,多页缓冲 + 高亮 + 光标(靠 Spectre.Console)。
+- **REPL**:`dotnet out/ravel.dll` 不带参数就进,多页缓冲 + 高亮 + 光标 —— 而且
+  **这个 REPL 本身就是 Ravel 写的**(`lib/repl.rav`:按键编辑、主菜单、读写页、会话存盘
+  都在里头,引擎只为它多给了六条"进程边界"原语)。
 - **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test` 比对。
 - **`--warn`**:少给一块的 `if`、`assert 条件` 忘了写消息 —— 这类"半成品函数被静默丢掉"的坑,
   开着它就当场提醒一句(见 `CONTEXT.md` 的「诊断」一节)。
@@ -145,7 +147,8 @@ cmd //c mklink /J "ravel.ravel-language-0.4.0" "D:\Codes\Ravel 7.99\vscode-ravel
 Syntax/             前端(词法 / 递归下降 / AST)—— `Lexer.cs` / `Parser*.cs` / `Ast.cs` / `Token*.cs`
 Runtime/            求值器(按职责拆成多个 partial class 文件)+ 值类型 + 内置类
 Runtime/Values/     每种值一个文件(IntVal / StringVal / ClassVal / RangeVal / …)
-Cli/                引擎**外面**那个程序:`Program.cs`(CLI 入口)+ `Repl/` + `Testing/`
+Cli/                引擎**外面**那个程序:`Program.cs`(CLI 入口)+ `Testing/`
+                    (REPL 本体在库里:`lib/repl.rav` —— 不带参数进来跑的就是它)
 Ravel.Structures/   **官方插件**之一:数据结构那一族 → `plugins/Ravel.Structures.dll`
 Ravel.Extensions/   **官方扩展**:几个库的本机半边(Hash / Crypto / Net / Regex /
                     Sqlite / Random / Zip / Xml / Terminal)+ 整个 Math 模块 → `plugins/Ravel.Extensions.dll`

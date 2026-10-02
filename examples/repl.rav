@@ -1,11 +1,12 @@
-# 用 Ravel 写的 REPL —— 见 `lib/repl.rav`。它是 C# 那版 `Repl/NeoInteractor.cs` 的
-# **一比一复刻**(连启动那张大图和菜单项的顺序都一样),另外多要了**六样原语**。
+# 用 Ravel 写的 REPL —— 见 `lib/repl.rav`。**它就是 `ravel` 不带参数时进的那个**
+# (`Cli/Program.cs` 的 `RunRepl` 跑的就是下面这两行),这份例子只是把它摊开:
 #
+#     dotnet out/ravel.dll              # 同一个东西,省掉文件名
 #     dotnet out/ravel.dll examples/repl.rav
 #
 # 接管道时它不当编辑器(画什么都是白画),而是把喂进来的整段当程序跑:
 #
-#     echo 'print 1 + 1' | dotnet out/ravel.dll examples/repl.rav
+#     echo 'print 1 + 1' | dotnet out/ravel.dll
 using "repl.rav"
 
 Repl.Run ()

@@ -74,8 +74,8 @@ readonly Choose := (question: string choices: list) => { Native.TerminalChoose q
 #     Terminal.ConfirmDefault "开关显示执行结果吗？" false   # 默认值由调用方给
 #     Terminal.Menu "------主菜单------" (Items ())         # 交回**选中的序号**
 #
-# `Menu` 是主菜单那种用法(带搜索、每屏 6 条、每项挂着序号),参数照着
-# `Repl/NeoInteractor.cs` 那台 `SelectionPrompt<int>` 抄的。
+# `Menu` 是主菜单那种用法(带搜索、每屏 6 条、每项挂着序号),参数照着 Spectre 的
+# `SelectionPrompt<int>` 定的 —— `lib/repl.rav` 那台主菜单走的就是它。
 readonly AskDefault := (prompt: string dflt: string) => { Native.TerminalAskDefault prompt dflt; }
 readonly ConfirmDefault := (prompt: string dflt: bool) => { Native.TerminalConfirmDefault prompt dflt; }
 readonly Menu := (title: string items: list) => { Native.TerminalMenu title items; }

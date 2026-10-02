@@ -122,19 +122,18 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
                                 命名空间仍然是 `Ravel`(和 `Runtime/` 那些各层共用),
                                 C# 不看文件夹,所以这一趟搬家一个字符的代码都没动
   Lexer.cs / Ast.cs / Token.cs / TokenType.cs
-                                Lexer 还对外给一个 `ScanState(源码) -> (深度, 在不在字符串里)`,
-                                REPL 判断"这行写完没有"用它(规则和词法共用一份,别各写一遍);
                                 **`(` / `[` 里的换行不当语句结束**(`_groups` 那个括号栈盯着):
                                 表和长参数列表因此能写好看;花括号不在其内 —— 块靠换行分语句。
-                                REPL 的 `ScanState` 深度判据和它是同一件事的两面(深度 > 0 =
-                                这行还没写完)
+                                (从前另有一条 `ScanState` —— "括号合上了吗、末尾在不在字符串里",
+                                给 C# 那版 REPL 判"这行写完没有"用的,其中也包括"多行原始字符串
+                                不算没写完"。REPL 搬进库、C# 那一版删掉之后它没有调用者了,
+                                一并删掉;那条规矩现在只有 `lib/repl.rav` 的 `Balanced` 一份。)
                                 Token.Length 是**源码跨度**(字符串含引号、带转义),
                                 和 Lexeme(给人看的文本)不是一回事
                                 字符串没收到尾的引号 = 语法错误(从前静默吞掉后面全部源码)
                                 `"""…"""` 是**原始字符串**:里面一个字符都不动(不转义、
                                 不插值、`#` 不是注释),只有连着三个引号才收;空白按 C# 那套
                                 (去开头换行 + 剥收尾引号那一行的缩进,对不齐就报错)。
-                                `ScanState` 也得跟着认它,不然多行原始字符串会被判成"没写完"
   Parser.cs                     入口 + token 辅助(Peek/Consume/ParseError)
     Parser.Statements.cs        语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
     Parser.Expressions.cs       优先级链(管道→逻辑→比较→加减→乘除)
@@ -142,12 +141,9 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
     Parser.Holes.cs             `_` 占位符消糖那趟 AST 改写
                                 `do` 是**纯语法糖**:解析期就地折成 `m.Bind (…)`,
                                 运行时不为它添任何东西(`BindStatement` 活不到求值期)
-Cli/                            **引擎外面那个程序**:三种跑法 + REPL 界面 + 测试运行器
-  Program.cs                    CLI 入口(REPL / test / 单文件)
-  Repl/                         REPL 前端
-    NeoInteractor.cs      外壳:多页缓冲 + 光标 + 主菜单(编辑/运行/读写/普通 REPL)
-    ReplView.cs           单行渲染(按 token 高亮 + 光标块),纯函数
-    ReplSession.cs        编辑缓冲持久化(repl_session.json),读写失败静默
+Cli/                            **引擎外面那个程序**:三种跑法 + 测试运行器
+  Program.cs                    CLI 入口(REPL / test / 单文件);`RunRepl` 就两行 ——
+                                `using "repl.rav"` + `Repl.Run ()`,REPL 本体在库里
   Testing/GoldenTestRunner.cs   golden test 运行器(解析/执行/比对/汇报)
   Testing/LoopbackServer.cs     自己拿 `TcpListener` 说 HTTP,给的是**定死的字节**
 
@@ -1040,25 +1036,31 @@ using "structures.rav"       # 库里那半边,照旧
 
 ## REPL 也是用 Ravel 写的（`lib/repl.rav`）
 
-`Cli/Repl/NeoInteractor.cs` 那个 C# 版 REPL 的**一比一复刻**:同样的多页缓冲、三维光标、
-按词上色的行渲染、按键编辑、主菜单(**连菜单项的顺序都一样**)、启动那张 ASCII 大图、
-运行整页、读写文件、会话存盘。写它是为了回答一个问题 ——
+**REPL 本体就在这儿** —— `ravel` 不带参数进的就是它:`Cli/Program.cs` 的 `RunRepl` 只跑
+`using "repl.rav"` + `Repl.Run ()` 两行,不多做别的(不去查模块、不摸它的内部 —— 那样等于
+把入口又编回 C# 里)。多页缓冲、三维光标、按词上色的行渲染、按键编辑、主菜单
+(**连菜单项的顺序都一样**)、启动那张 ASCII 大图、运行整页、读写文件、会话存盘,全在这一份。
+
+它**从前是 C# 那版(`Cli/Repl/NeoInteractor.cs`)的一比一复刻,那一版后来删了** ——
+两边行为一模一样,留着等于同一件事写两遍。当初照它写一遍是为了回答一个问题 ——
 **这门语言自己够不够用**。答案:够,而且只多要了**六样原语**,全落在"进程边界"那一类
 (`ReadKey` / `ScreenClear` / `CursorTo` / `CursorShow` / `FormatError`,外加
-`CaptureStart` + `CaptureEnd` 这一对)。
+`CaptureStart` + `CaptureEnd` 这一对)。C# 那版连同专为它写的 `Lexer.ScanState` 一起删掉:
+那条"括号合上了吗、末尾在不在字符串里"的规矩,现在只有 `lib/repl.rav` 一份。
 
 - **高亮的扫描器是库自己写的**(`Segments`):高亮只要"编辑器那种粗细"(字符串 / 数字 /
   词 / 别的),不必是完整的词法 —— 而"哪些算一个词"本来就该由库说。
-- `Balanced`(这句写完了吗)**照抄**引擎的 `Lexer.ScanState`,连它的脾气一起:
-  深度只做加减不校验(多一个右括号让解析器去报),`'a'` 里的括号也算进去。
-  那边写着为什么不能让库自己发明规则:`NeoInteractor` 从前抄的那份不认 `\` 转义,
-  `"a\"b"` 就把字符串状态判反、后面整行的括号跟着数错。
+- `Balanced`(这句写完了吗)的规矩是从引擎那条 `ScanState` 抄来的(它已删):深度只做加减
+  不校验(多一个右括号让解析器去报),`'a'` 里的括号也算进去。当初为什么不能让 REPL
+  自己发明规则:C# 那版从前抄的那份不认 `\` 转义,`"a\"b"` 就把字符串状态判反、
+  后面整行的括号跟着数错。
 - **抓输出靠那对新原语**(`CaptureStart` / `CaptureEnd`)—— 就是 C# 那两句
   `Console.SetOut` 的原语化,只动 stdout 不动 stderr。「显示结果」那个开关于是和 C# 一样:
   **关掉照样求值**,只是输出和 `==>` 都不显示。为它加原语是划算的 ——
   "把这段代码说的话收起来"是库自己写不出来的能力,而 C# 那版天生就有。
 - **看不见终端就不当编辑器**:管道里把喂进来的整段当程序跑完就走 ——
-  `echo 'print 1 + 1' | dotnet out/ravel.dll examples/repl.rav` 给 `2`。
+  `echo 'print 1 + 1' | dotnet out/ravel.dll` 给 `2`(C# 那版没有这一路:接管道时它照样
+  想当编辑器,画出来的东西没人看,喂进去的东西也没人吃)。
 - **`Terminal.Panel` / `Terminal.Menu` / `AskDefault` / `ConfirmDefault`** 是为这一版新加的
   扩展面:方框和"带搜索的主菜单"交给 Spectre 那台现成的控件(和 C# 用的是**同一个**),
   两边才长得一模一样 —— 自己拼那圈边框得先算每行的**纯文本**宽度,不划算。

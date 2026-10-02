@@ -80,7 +80,7 @@ foreach (m.Items ()) (name: string) => { print name; }
 m.Pages = [["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l"]]
 m.Z = 0
 print ((m.Screen ()).Count ())           # 12 行那页:标题 + 12,不用垫,末尾挂个换行 → 14
-# 启动那张大图 —— 一个字没改地照抄 `NeoInteractor.EvaluateShowRavel`
+# 启动那张大图 —— C# 那版 REPL 原样搬过来的(那一版已删,图留在 `lib/repl.rav` 的 `Banner`)
 print ((System.SplitLines (Repl.Banner ())).Count ())
 # 「读取」问页码那一步:读得动就是那个数,读不动是 -1
 print (Repl.PageOf "13")
