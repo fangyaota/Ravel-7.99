@@ -76,6 +76,7 @@ public partial class Interpreter
                 case NodeFrame nf: StepNode(nf); break;
                 case BlockExecFrame bf: StepBlockExec(bf); break;
                 case ControlFrame cf: StepControl(cf); break;
+                case VmFrame vf: StepVm(vf); break;
             }
         }
         catch (RuntimeException ex)

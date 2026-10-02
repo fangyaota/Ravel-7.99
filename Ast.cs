@@ -166,6 +166,13 @@ public record LiteralExpr(RuntimeValue Value) : Expression;
 public record HoleExpr(int Index) : Expression;
 public record BlockExpr(List<Statement> Statements) : Expression
 {
+    /// <summary>这一块编出来的字节码 —— **顺带也是"编过了"的记号**(null = 编不了)。
+    /// 块会被反复执行(循环体就是块),不能每次重编。和 `StringLiteral.Packed` 一个路子。</summary>
+    public VmCode? Compiled { get; set; }
+
+    /// <summary>试过了吗 —— 失败也要记,不然每跑一次就重试一次</summary>
+    public bool CompileTried { get; set; }
+
     /// <summary>这个块来自哪个源文件(主文件 / using 的模块 / eval 的片段)。
     /// 节点本身只有行列,文件名记在块上——求值器报错和拼调用栈时沿帧链取最近的一个。</summary>
     public string? Source { get; init; }

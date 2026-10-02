@@ -70,7 +70,7 @@ public partial class Interpreter
         if (cf.Count == 0)
         {
             // 控制状态的拍 / 还原由**库**决定(见 predefined.rav 里 callcc 的包装),引擎不掺和
-            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(cf));
+            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(Snap(cf)));
             return;
         }
 

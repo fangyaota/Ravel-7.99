@@ -13,7 +13,10 @@ public abstract record Frame
     public int Count => Results.Count;
     public RuntimeValue Result(int i) => Results.At(i);
     public RuntimeValue Last => Results.Last;
-    public Frame WithResult(RuntimeValue v) => this with { Results = Results.Add(v) };
+    /// <summary>收下一个值。默认是"拷一份自己、把值挂进 Results" —— 持久化,
+    /// 于是 `callcc` 捕获整条链时天然安全。**VM 帧把它反过来做**(原地收下、交回自己),
+    /// 见 <see cref="VmFrame.WithResult"/>。</summary>
+    public virtual Frame WithResult(RuntimeValue v) => this with { Results = Results.Add(v) };
 }
 
 /// <summary>求值一个 AST 节点(语句/表达式)</summary>

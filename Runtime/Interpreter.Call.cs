@@ -37,7 +37,11 @@ public partial class Interpreter
                 break;
             }
             case BlockVal blk:
-                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.CaptureScope.Push() };
+                // 能编就编(结论挂在 AST 节点上,只算一次)。编不了照旧树遍历 —— 两条路并存
+                if (TryCompileBlock(blk.Block) is { } code)
+                    _top = new VmFrame { Code = code, Parent = sink, Scope = blk.CaptureScope.Push() };
+                else
+                    _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.CaptureScope.Push() };
                 break;
             // 类对象 = 实例化它。**这是唯一一条路**:类对象自己就是可调用的东西
             // (ClassVal : FunctionVal),没有 `call` 成员、也没有中间的 BoundCall 转发。
@@ -90,7 +94,7 @@ public partial class Interpreter
                 if (k.Captured is null)
                     throw new RuntimeException("这枚续延是 default（还没到手的那一枚），调不了 —— "
                                              + "能跳的续延只有 callcc 交出来的那种", ErrorKind.Value);
-                _top = k.Captured.WithResult(arg);
+                _top = Snap(k.Captured).WithResult(arg);
                 break;
             case BoolVal bv:
                 // true/false 是函数(lisp 式):收两个块,返回选中那个块的结果
