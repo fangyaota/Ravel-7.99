@@ -555,6 +555,20 @@ internal static partial class BuiltinClasses
                 throw new RuntimeException("scope.Lookup 需要字符串参数", ErrorKind.Argument);
             return Wrap(((ScopeVal)s).Inner.Lookup(name.Value));
         });
+        // **删掉本层的一个名字** —— `IDict` 的 `Remove` 槽要它(作用域从前只有增改,没有删)。
+        // 和 `Lookup` 不同:找不到**不报错**,当"本来就没有" —— `Remove` 的语义就是这个。
+        ScopeType.DefineMethod("Remove", (s, a) =>
+        {
+            if (a is not StringVal name)
+                throw new RuntimeException("scope.Remove 需要字符串名称", ErrorKind.Argument);
+            ((ScopeVal)s).Inner.RemoveHere(name.Value);
+            return VoidVal.Instance;
+        });
+        ScopeType.DefineMethod("Keys", (s, _) =>
+            new ListVal([.. ((ScopeVal)s).Inner.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
+        ScopeType.DefineMethod("Values", (s, _) =>
+            new ListVal([.. ((ScopeVal)s).Inner.Variables.Select(kv => Wrap(kv.Value))]));
+        ScopeType.DefineMethod("Count", (s, _) => IntVal.Of(((ScopeVal)s).Inner.MemberNames.Count()));
         ScopeType.DefineMethod("Variables", (s, _) =>
         {
             var scope = ((ScopeVal)s).Inner;

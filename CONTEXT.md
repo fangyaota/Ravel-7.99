@@ -458,12 +458,17 @@ Object (parent=自己)
 
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
-**类型**: Integer String Char Bool Float BigInteger Fraction BigFraction Range
+**类型**: Integer String Char Bool Float BigInteger Fraction BigFraction Scope Range
         List Set Dict Object **Ravel** Void Function Continuation Type Interface BaseInterface
         Any Every Exception ValueType Json
 
 (每个类型在 `predefined.rav` 里都有一条全局别名 —— `int` / `string` / `object` /
-`Ravel` …。`Ravel` 是**所有模块的类对象**:模块是它的**实例**不是子类,
+`Ravel` …。`Scope` 是从前那个**叫不出来的类型**(只在 `typeof (x.Scope ())` 里露过名字)——
+现在 `System.Scope` 是个名字,于是 `impl (IDict System.Scope …)` / `impl (IEnumerable System.Scope …)`
+写得出来了(`lib/keys.rav` / `lib/iterator.rav` 各一条);顺带给它补了 `Remove` / `Keys` / `Values` / `Count`
+—— 作用域从此和别的表一视同仁。
+
+`Ravel` 是**所有模块的类对象**:模块是它的**实例**不是子类,
 所以"这是不是个模块"就一句 `Math is Ravel`。它和 `Scope` 是树里仅有的两个
 "光杆"(下面什么都不挂)。)
 

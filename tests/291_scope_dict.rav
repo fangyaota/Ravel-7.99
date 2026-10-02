@@ -1,0 +1,58 @@
+# `Scope` 也是一张**表**:`IDict`(见 lib/keys.rav)+ `IEnumerable`(见 lib/iterator.rav)。
+#
+# 名字 → 变量。从前这个类型在 Ravel 层**叫不出来**(`Scope` / `System.Scope` 都报未定义),
+# 所以那两条 `impl` 一直写不出来;引擎那边露了一条 `DefType(… "Scope" …)` 之后才写得成。
+#
+# 顺带给 `Scope` 补了 `Remove`(从前只有增改,没有删)、`Keys` / `Count`
+# —— 后两个是"让它像 `dict` 一样能当 `IDict` 用"那几条。
+using "keys.rav"
+
+probe := () => {
+    a := 1
+    b := 2
+    s := currentScope ()            # 就是**这一次调用**那一层,小而且定得死
+
+    print (s is IDict)
+    print (s is IEnumerable)
+    print ((typeof s))
+
+    print (s.Has "a")               # 在
+    print (s.Has "没这个")           # 不在 —— 报 false,不报错
+    print (s.Get "a")
+    print (s.GetOr "没这个" 99)
+
+    n0 := s.Count ()
+    s.Set "c" 7                     # 名字**不在** → 按这次写进来的值的类型新开一格
+    print (s.Get "c")
+    print ((s.Count ()) - n0)       # 多了两格:`c` 一格,还有 `n0` 自己(它在数完之后才落下)
+    s.Set "a" 10                    # 名字**在** → 改值,不新开
+    print (s.Get "a")
+    print (s.Count ())
+
+    s.Remove "a"
+    print (s.Has "a")
+    print ((s.Count ()) - n0)       # 又少回去一格(删掉的是 `a`)
+
+    # 当 `IDict` 用:库那套现成的直接能接
+    print ((s.Keys ()).Count ())
+    print ((s.Values ()).Count ())
+    print "end"
+}
+probe ()
+# --- expected ---
+# true
+# true
+# Scope
+# true
+# false
+# 1
+# 99
+# 7
+# 2
+# 10
+# 7
+# false
+# 1
+# 6
+# 6
+# end

@@ -1,4 +1,4 @@
-# 按顺序把元素交出来。形状照 C#:`IEnumerable`(交回一个枚举器)/ `IEnumerator`(MoveNext + Current),
+﻿# 按顺序把元素交出来。形状照 C#:`IEnumerable`(交回一个枚举器)/ `IEnumerator`(MoveNext + Current),
 # 外加一个通用枚举器 `Enumerator`;几种容器各实现一条。`foreach` 就是照这个形状写的。
 # 由 predefined.rav 加载(名字落在全局作用域)。
 #
@@ -383,6 +383,12 @@ impl (IEnumerable string {
 })
 impl (IEnumerable dict {
     by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+})
+# **作用域**也是一串:元素就是 `Variables ()` 那份 dict 的**值**(变量本身,和 `foreach` 一个 dict
+# 交回它的值一个口径)。要**名字**用 `Keys ()`。`System.Scope` 这个名字来自引擎那边新露的一条
+# (`SysModule.Types`)—— 从前这个类型在 Ravel 层叫不出来,所以这两条 `impl` 一直写不出来。
+impl (IEnumerable System.Scope {
+    by GetEnumerator = property (() => { () => { Enumerator ((instance.Variables ()).Values ()); }; }) ((v: function) => { (); })
 })
 # `Option` 也是"一串" —— **0 个或 1 个**:`Some x` 走一次、`None` 一次都不走。
 # 于是 `foreach (Some 5) …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法

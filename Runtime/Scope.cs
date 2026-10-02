@@ -76,6 +76,13 @@ public class Scope(Scope? parent = null)
         return v;
     }
 
+    /// <summary>**删掉本层的一个名字**,找不到就什么都不做。给 `IDict` 的 `Remove` 槽用 ——
+    /// 作用域从前只有增改,没有删(`lib/keys.rav` 里那条 `impl (IDict System.Scope …)`)。
+    ///
+    /// 只删**本层**:外层同名的那个不受影响(它本来就是另一格);和 `Define` 一样,
+    /// 作用域是棵树,别处不该被牵连。</summary>
+    public void RemoveHere(string name) => _vars.Remove(name);
+
     public Variable Lookup(string name)
         => Find(name) ?? throw new RuntimeException($"未定义的变量 '{name}'", ErrorKind.Name);
 

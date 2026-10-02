@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>`System` 模块的**装配**:三张"数据"表(类型别名 / 常量 / 控制内建)+ 把 `[Sys]`
 /// 那一族(散在 `Runtime/Builtins/*.cs` 里的那些类)登记进来。
@@ -43,6 +43,7 @@ internal static class SysModule
         DefType(scope, "BigInteger", BuiltinClasses.BigInt);
         DefType(scope, "Fraction", BuiltinClasses.Fraction);
         DefType(scope, "BigFraction", BuiltinClasses.BigFraction);
+        DefType(scope, "Scope", BuiltinClasses.ScopeType);   // 作用域那个类型
         DefType(scope, "Range", BuiltinClasses.Range);
         DefType(scope, "List", BuiltinClasses.List);
         DefType(scope, "Set", BuiltinClasses.Set);
