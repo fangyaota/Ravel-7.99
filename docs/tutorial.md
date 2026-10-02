@@ -1303,7 +1303,7 @@ describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
 ```
 
 **库里已经有了四种**（第四种见 6.16 那个 `Http.Url`）：磁盘的 `Io.File` / `Io.Dir`、
-控制台的 `Io.Stdout` / `Io.Stderr` / `Io.Stdin`、**内存里的** `Io.MemFile` / `Io.MemDir`、
+控制台的 `Terminal.Stdout` / `Terminal.Stderr` / `Terminal.Stdin`、**内存里的** `Io.MemFile` / `Io.MemDir`、
 **一棵 JSON 树** `Io.JsonNode`（`Io.JsonFile "conf.json"` 从文件读一棵出来）：
 
 ```ravel
@@ -1352,24 +1352,24 @@ Io.Copy (Io.File "notes/b.txt") (MemFile "m" "")   # 磁盘 → 内存，同一�
 
 #### 控制台也是文件
 
-`Io.Stdout` / `Io.Stderr` / `Io.Stdin` 三个值都实现了 `IFile` —— 抽象那一层现成的用例：
+`Terminal.Stdout` / `Terminal.Stderr` / `Terminal.Stdin` 三个值都实现了 `IFile` —— 抽象那一层现成的用例：
 
 ```ravel
-Io.Stdout.Write "直接写到终端
+Terminal.Stdout.Write "直接写到终端
 "
-Io.Copy (Io.File "notes/a.txt") Io.Stdout      # 对着接口写的代码:文件 → 终端
-Io.Stdin.ReadLine ()                           # 一行(就是 input)
-foreach (Io.Lines Io.Stdin) (l: string) => { print l; }   # 读到 EOF 的每一行（生成器，边要边给）
+Io.Copy (Io.File "notes/a.txt") Terminal.Stdout      # 对着接口写的代码:文件 → 终端
+Terminal.Stdin.ReadLine ()                           # 一行(就是 input)
+foreach (Io.Lines Terminal.Stdin) (l: string) => { print l; }   # 读到 EOF 的每一行（生成器，边要边给）
 ```
 
 只写的那两个读不了、只读的那个写不了，报错说人话（控制台也没有大小、删不掉）：
 
 ```ravel
-try { Io.Stdout.Read (); } (e: Exception) => { print (string e); }
+try { Terminal.Stdout.Read (); } (e: Exception) => { print (string e); }
 # 这是只写的（stdout），读不了
 ```
 
-`Io.Stdin.Read ()` 是**读到 EOF**（终端上要 Ctrl+Z / Ctrl+D 收），所以测试里别去碰它。
+`Terminal.Stdin.Read ()` 是**读到 EOF**（终端上要 Ctrl+Z / Ctrl+D 收），所以测试里别去碰它。
 日常还是用 `print` / `input`；这两个值存在的意义是"用同一段代码对付文件和终端"。
 
 #### 什么时候值得用 `IoMonad` 包一层
@@ -2084,6 +2084,54 @@ Named ::= dataclass {
 
 **用例见 tests/257。**
 
+### 6.14.1 枚举（`enum`）
+
+一串名字和值，每个名字拿到一枚**这个枚举的**值：
+
+```ravel
+using "enum.rav"
+myEnum ::= enum {
+    A := 1
+    B := 2
+    C := 3
+}
+
+myEnum.A              # 一枚 myEnum 类型的值（单例）
+myEnum.A.Value        # 1
+myEnum.A.Name         # "A"
+myEnum.A.Text ()      # "A" —— `print` 打的是 C# 那侧的 `ToString`，要好看的走 `Text ()`
+myEnum.Values ()      # [A B C]，按声明的先后
+myEnum.Of 2           # myEnum.B；没有这个值当场报错
+myEnum.A == myEnum.A  # true（单例，比的就是身份）
+```
+
+值是**任何东西**都行 —— `Red := "红"` 也成立。
+
+**元类只管固定的那一套**（`Value` / `Name` / `Text ()` / `Values ()` / `Of`），
+`A`/`B`/`C` 是类体正文里写的，一个都不写死在元类里。它这么收：建一个**空类**，
+拿一个普通实例当**落脚点**把那份 `{ A := 1 … }` 跑一遍（`with` 现在**不推层**，
+所以定义留得下来），再把每个名字换成"枚举值"挂到类上。
+
+> 为什么要绕这一圈：要是拿 `{ A := 1 … }` 直接当类体，`A` 就先成了 `int`，
+> 回头再往它上面挂一枚实例会撞类型。落脚点把这一步隔开了。
+
+**继承**：父类**必须也是个 enum**（拿普通类当父类当场报错 —— 枚举继承过来的是"父类那几枚成员"，
+一个普通类没有任何东西可迁）。父类那几枚会**迁过来**，这一层的块接着填新的：
+
+```ravel
+base ::= enum { A := 1  B := 2 }
+sub  ::= enum base { X := 7 }
+
+sub.A.Value      # 1 —— 父类那枚迁过来了
+sub.X.Value      # 7
+sub.Values ()    # [A B X]，父类的在前
+sub.A is sub     # true  —— 迁过来的是**这个枚举的**值
+sub.A == base.A  # false —— 所以两边同名不同枚
+(sub ()) is base # true  —— 但 sub 的实例仍是 base（类链那条）
+```
+
+**用例见 tests/290。**
+
 ### 6.15 位（`Bits`）
 
 运算符那边已经有 `&` `|` `^` `<<` `>>` `<<<` `>>>`；这个模块补的是它们给不了的 ——
@@ -2175,7 +2223,7 @@ Http.UploadTo "https://…/put" "a.zip" "upload"   # 换个字段名
 ```ravel
 Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
 Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志（惰性）
-Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
+Io.Copy (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
 Http.Download "https://…/a.zip" (Io.File "a.zip")         # 落点也能给条目，不只路径字符串
 
 u := Http.Url "https://…/a.txt"
@@ -2899,8 +2947,12 @@ print (p.name)      # Bob —— **就是同一个对象**,`with` 不拷
 `with (对象: 块)` 做且只做一件事:**换一下"接下来这段代码算谁的成员"**。
 
 - 块里的**赋值**(`name = "Bob"`)沿作用域链落回原对象的字段 —— 改的就是它本身;
-- 块里的**定义**(`tmp := 1`)落在推出来的那一层,块一结束就没了(和块里新开的局部变量一个待遇);
+- 块里的**定义**(`tmp := 1`)**也落在那个对象上** —— 块结束也不没,它成了对象的一个字段;
 - 交回的是那个对象**本身**(所以上面 `p2` 和 `p` 是同一个东西)。
+
+（"定义留下"这条是 `enum` 那种元类要的：拿一个普通实例当**落脚点**，把一块里的名字收出来。
+要临时的名字就自己开个作用域 —— 拿个一次性的实例当落脚点。同一个对象上分两次跑同一块、
+里面又有 `:=`,第二次会撞"`:=` 是定义不是覆盖"。）
 
 **要副本请明说**:
 
@@ -3583,7 +3635,8 @@ Error: '$' 只用在字符串里的插值 `${…}`（要把右边封成一个实
 | `System.Env n` / `EnvOr n d` | 环境变量（`SetEnv` / `UnsetEnv` / `EnvAll` 见 8.5） |
 | `f <| a b` / `x |> .g ()` | 一个封右、一个封左：`<|` 把右边整个当一个实参，`|>` 把左边封口让成员接着挂 |
 | `callcc fn` | 续延（拿到的类型是 `Continuation`，见 4.5） |
-| `with obj { }` | 进到 obj 的成员表里跑一段（**不拷**；要副本用 `Copy ()`）|
+| `with obj { }` | 进到 obj 的成员表里跑一段（**不拷**、**不推层**：块里的 `:=` 留在 obj 上；要副本用 `Copy ()`）|
+| `o.MemberScope ()` | 这个对象的**成员表**（一个 `Scope`）—— 按动态名字读写成员时用它 |
 | `assert cond msg` | 断言（**两个实参一次写完、别跨行**，见 11.x 那条）|
 | `use impl` | 在**当前作用域**启用一个接口实现（`实现.Dispose ()` 取消；见 7.11） |
 | `impl 实现` | 同上，但**全局**生效（登记在全局作用域上） |

@@ -1,4 +1,4 @@
-# `with` —— **进到那个对象的成员表里跑一段**,不拷任何东西。
+﻿# `with` —— **进到那个对象的成员表里跑一段**,不拷任何东西。
 #
 # 块里的**赋值**(`v = 10`)沿作用域链落回原对象的字段:改的就是它本身;
 # **定义**(`x := 1`)落在推出来的那一层,块一结束就没了。块跑完交回的还是那个对象。
@@ -18,7 +18,7 @@ c2.set 99                          # c2 就是 c,方法照常落在原对象上
 print (c.get ())
 print (c2.get ())
 
-# 块里的**定义**不进对象,块一结束就没了
+# 块里的**定义**现在**落进对象**了（`with` 不再推一层）—— 于是 `tmp` 成了 c 的字段
 c3 := with c { tmp := 123; print (string tmp); }
 print (c3.Fields ())
 
@@ -80,7 +80,7 @@ try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 re
 # 99
 # 99
 # 123
-# [init v set get is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# [init v set get tmp is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 99
 # 7
 # 1
@@ -91,5 +91,5 @@ try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 re
 # 1
 # 10
 # 5
-# [init _v v w is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# [init _v v w is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 168_copy_readonly: 无法给只读变量 'w' 赋值

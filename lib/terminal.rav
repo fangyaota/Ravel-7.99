@@ -26,6 +26,8 @@
 # 一条**该知道的事**:上色与否这一层看 `Terminal.Tty ()` —— 那是**进程级**的
 # "stdout 是不是真终端"。要确定性的输出(测试、往文件里写)用 `Terminal.Plain`,别用 `Render`。
 using "native.rav"
+using "enum.rav"
+using "io.rav"        # 控制台那三个单例要实现 IFile
 
 ravel "Terminal"
 
@@ -91,25 +93,47 @@ readonly Menu := (title: string items: list) => { Native.TerminalMenu title item
 #
 # (要往标记里塞**动态**文本就自己过一遍 `Terminal.Escape`,和自己拼别处一个规矩。)
 
-readonly Wrap := (tag: string s: object) => { "[" + tag + "]" + (Escape (string s)) + "[/]"; }
+# **颜色收成一枚 enum** —— 从前每个颜色各写一串字面量(`Wrap "grey" s`),而标记里那个
+# 名字是给 Spectre 看的:**拼错了要到渲染那一刻才知道**(它认不出来的颜色名是抛异常)。
+# 收拢成一处之后名字只有一份,`grey` 还是 `gray`、`b` 还是 `bold` 这种事不会再各写各的。
+#
+#     Terminal.Red "错了"                    # 常用那几条直接调
+#     Terminal.Wrap Terminal.Color.Red "错了"  # 要动态挑颜色时,拿一枚 `Color` 传进去
+Color ::= enum {
+    Red := "red"
+    Green := "green"
+    Yellow := "yellow"
+    Blue := "blue"
+    Magenta := "magenta"
+    Cyan := "cyan"
+    Grey := "grey"
+    Bold := "b"
+    Dim := "dim"
+    Underline := "u"
+}
+
+readonly Wrap := (c: object s: object) => { "[" + c.Value + "]" + (Escape (string s)) + "[/]"; }
 readonly Escape := (s: string) => { Native.TerminalEscape s; }
 
-readonly Red := (s: object) => { Wrap "red" s; }
-readonly Green := (s: object) => { Wrap "green" s; }
-readonly Yellow := (s: object) => { Wrap "yellow" s; }
-readonly Blue := (s: object) => { Wrap "blue" s; }
-readonly Magenta := (s: object) => { Wrap "magenta" s; }
-readonly Cyan := (s: object) => { Wrap "cyan" s; }
-readonly Grey := (s: object) => { Wrap "grey" s; }
-readonly Bold := (s: object) => { Wrap "b" s; }
-readonly Dim := (s: object) => { Wrap "dim" s; }
-readonly Underline := (s: object) => { Wrap "u" s; }
+# 这几条**不用写 lambda**:`Wrap` 是柯里化的(收一枚颜色、再收文字),喂它颜色
+# 就交回"还等着文字"的那一半 —— 那正好就是一条糖。写成 `(s) => { Wrap Color.Red s; }`
+# 是把同一件事又说了一遍(而且十遍)。
+readonly Red := Wrap Color.Red
+readonly Green := Wrap Color.Green
+readonly Yellow := Wrap Color.Yellow
+readonly Blue := Wrap Color.Blue
+readonly Magenta := Wrap Color.Magenta
+readonly Cyan := Wrap Color.Cyan
+readonly Grey := Wrap Color.Grey
+readonly Bold := Wrap Color.Bold
+readonly Dim := Wrap Color.Dim
+readonly Underline := Wrap Color.Underline
 
 # 几条"就这么写"的语义色 —— 拼 `Red` 那些是猜,这几条是**说事情**(好 / 警告 / 坏 / 提示)
-readonly Good := (s: object) => { Wrap "green" s; }
-readonly Warn := (s: object) => { Wrap "yellow" s; }
-readonly Bad := (s: object) => { Wrap "red" s; }
-readonly Hint := (s: object) => { Wrap "grey" s; }
+readonly Good := Wrap Color.Green
+readonly Warn := Wrap Color.Yellow
+readonly Bad := Wrap Color.Red
+readonly Hint := Wrap Color.Grey
 
 # ── 几条纯 Ravel 的画 ──
 
@@ -136,3 +160,52 @@ readonly Tick := (done: int total: int) => {
     System.Write ("\r" + (Bar done total w))
     ();
 }
+
+# ── 控制台也是文件 ──
+# `stdout` / `stderr` / `stdin` 三个**单例值**,实现 `IFile` —— 于是对着接口写的代码直接能用:
+# 把文件倒进终端 `Io.Copy f Terminal.Stdout`,把输入倒进文件 `Io.Copy Terminal.Stdin f`。
+# 只写的那两个读不了、只读的那个写不了(报错说人话,和"只读的 zip 条目"是同一种取舍)。
+ConsoleOut ::= class {
+    Label: string = "stdout"
+    ToErr: bool = false
+
+    init = (label: string toErr: bool) => { Label = label; ToErr = toErr; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Size := () => { throw (Exception ("控制台没有大小：" + Label)); }
+    Read := () => { throw (Exception ("这是只写的（" + Label + "），读不了")); }
+    Delete := () => { throw (Exception ("控制台删不掉：" + Label)); }
+    Write := (text: string) => {
+        if { ToErr; } { System.WriteErr text; } { System.Write text; }
+        ();
+    }
+    Append := (text: string) => { Write text; }
+}
+
+ConsoleIn ::= class {
+    Name := () => { "stdin"; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Size := () => { throw (Exception "控制台没有大小：stdin"); }
+    Delete := () => { throw (Exception "控制台删不掉：stdin"); }
+    Write := (text: string) => { throw (Exception "这是只读的（stdin），写不了"); }
+    Append := (text: string) => { throw (Exception "这是只读的（stdin），写不了"); }
+
+    # `Read ()` 是**读到 EOF**(终端上要 Ctrl+Z / Ctrl+D 收);想读一行用 `ReadLine ()`(就是 `input`)
+    Read := () => { System.ReadAllInput (); }
+    ReadLine := () => { System.ReadLine (); }
+    Lines := () => { System.SplitLines (System.ReadAllInput ()); }
+}
+
+impl (IFile ConsoleOut {
+    ()
+})
+impl (IFile ConsoleIn {
+    ()
+})
+
+readonly Stdout := ConsoleOut "stdout" false
+readonly Stderr := ConsoleOut "stderr" true
+readonly Stdin := ConsoleIn ()

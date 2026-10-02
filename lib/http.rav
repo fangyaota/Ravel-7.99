@@ -202,13 +202,13 @@ readonly Expect := (r: Response) => {
 #
 #     Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
 #     Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志(惰性)
-#     Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
+#     Io.Copy (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
 #
 # 几条规矩:
 #   * 每次 `Read ()` 都是**一次请求** —— 和 `Io.File.Read ()` 每次都去读盘一样,不藏缓存
 #     (藏了就会拿到旧内容还以为是最新的);
 #   * `Write` / `Delete` 发的是 **PUT / DELETE**(HTTP 里"写一个资源"和"删一个资源");
-#   * `Append` 报错 —— HTTP 没有"追写"这回事(和 `Io.Stdout` 删不掉、`stdin` 写不了一个待遇);
+#   * `Append` 报错 —— HTTP 没有"追写"这回事(和 `Terminal.Stdout` 删不掉、`stdin` 写不了一个待遇);
 #   * `Exists ()` / `Size ()` 走 **HEAD**(服务器不认 HEAD 就退回 GET),
 #     所以它们**不下载正文**,除非对面连 `content-length` 都没给。
 Url ::= class {

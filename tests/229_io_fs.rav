@@ -4,6 +4,7 @@
 # 所以只对它们做行为断言、不打印）；**只打稳定量**（名字、内容、大小、Exists、报错消息），
 # 不打时间戳（那是会变的）。
 using "io.rav"
+using "terminal.rav"    # 控制台那三个单例住这儿
 
 root := Io.Dir ".io-test"
 root.Create ()
@@ -284,35 +285,35 @@ ravel ""
 ravel "232_io_console"
 # 控制台也是文件:`stdout` / `stderr` / `stdin` 三个单例值都实现 `IFile`。
 #
-# 这一层的好处就在这儿 —— 对着接口写的代码直接能用:`Io.Copy f Io.Stdout` 把文件倒进终端,
-# `Io.Copy Io.Stdin f` 把输入倒进文件。只写的那两个读不了、只读的那个写不了(报错说人话)。
+# 这一层的好处就在这儿 —— 对着接口写的代码直接能用:`Io.Copy f Terminal.Stdout` 把文件倒进终端,
+# `Io.Copy Terminal.Stdin f` 把输入倒进文件。只写的那两个读不了、只读的那个写不了(报错说人话)。
 #
-# 两点说明:① 测试运行器只接管 **stdout**,所以 `Io.Stderr.Write` 那行会出现在终端上
-# (比对不到,只证明它不炸);② `Io.Stdin.Read ()` 是读到 EOF —— 测试里不去碰它(会挂住),
+# 两点说明:① 测试运行器只接管 **stdout**,所以 `Terminal.Stderr.Write` 那行会出现在终端上
+# (比对不到,只证明它不炸);② `Terminal.Stdin.Read ()` 是读到 EOF —— 测试里不去碰它(会挂住),
 # 只查它认不认这个形状。
 using "io.rav"
 
-print (Io.Stdout is IFile)
-print (Io.Stdout is IEntry)
-print (Io.Stderr is IFile)
-print (Io.Stdin is IFile)
-print (Io.Stdout.Name ())
-print (Io.Stderr.Name ())
-print (Io.Stdin.Name ())
-print (Io.Stdout.IsDir ())
-print (Io.Stdout.Exists ())
+print (Terminal.Stdout is IFile)
+print (Terminal.Stdout is IEntry)
+print (Terminal.Stderr is IFile)
+print (Terminal.Stdin is IFile)
+print (Terminal.Stdout.Name ())
+print (Terminal.Stderr.Name ())
+print (Terminal.Stdin.Name ())
+print (Terminal.Stdout.IsDir ())
+print (Terminal.Stdout.Exists ())
 
-Io.Stdout.Write "直接写到 stdout\n"
-Io.Stdout.Append "追一行(没有换行)"
-Io.Stdout.Write "\n"
-Io.Stderr.Write "这行去 stderr（比对不到，只在终端上看得见）\n"
+Terminal.Stdout.Write "直接写到 stdout\n"
+Terminal.Stdout.Append "追一行(没有换行)"
+Terminal.Stdout.Write "\n"
+Terminal.Stderr.Write "这行去 stderr（比对不到，只在终端上看得见）\n"
 
 # 只写的读不了 / 只读的写不了 / 没有大小 / 删不掉
-try { Io.Stdout.Read (); } (e: Exception) => { print ("1: " + string e); }
-try { Io.Stderr.Read (); } (e: Exception) => { print ("2: " + string e); }
-try { Io.Stdin.Write "x"; } (e: Exception) => { print ("3: " + string e); }
-try { Io.Stdout.Size (); } (e: Exception) => { print ("4: " + string e); }
-try { Io.Stdout.Delete (); } (e: Exception) => { print ("5: " + string e); }
+try { Terminal.Stdout.Read (); } (e: Exception) => { print ("1: " + string e); }
+try { Terminal.Stderr.Read (); } (e: Exception) => { print ("2: " + string e); }
+try { Terminal.Stdin.Write "x"; } (e: Exception) => { print ("3: " + string e); }
+try { Terminal.Stdout.Size (); } (e: Exception) => { print ("4: " + string e); }
+try { Terminal.Stdout.Delete (); } (e: Exception) => { print ("5: " + string e); }
 
 # 实现者名单里有它们(磁盘那个 File 也在 —— 同一族的三个实现)
 
@@ -321,9 +322,9 @@ d := Io.Dir ".io-test-con"
 d.Create ()
 f := d.Child "a.txt"
 f.Write "从文件来的一行\n"
-Io.Copy f Io.Stdout
+Io.Copy f Terminal.Stdout
 f.Append "又一行\n"
-Io.Copy f Io.Stdout
+Io.Copy f Terminal.Stdout
 # `Io.Lines` 是**生成器**:边要边给 —— 配 `match` 挑行、配 `Expected` 兜"读不到"
 IsBlank := (s: string) => { (s.Trim ()).IsEmpty (); }
 foreach (Io.Lines f) (l: string) => {

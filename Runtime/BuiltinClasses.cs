@@ -329,6 +329,28 @@ internal static partial class BuiltinClasses
     {
         var pieces = BodyPieces(body);
         var blk = pieces[0];
+
+        // **同一个块挂在祖先链的两层上** —— 建类时当场说清楚。
+        //
+        // 不查的话它会跑到实例化才发作,而症状是静默的:那一块被跑两遍,里面的定义第二次
+        // 覆盖掉第一次(值被重置回默认)。`Scope.Define` 那条"同一条定义语句重跑"的豁免
+        // (为 `while` 的续延重入开的)正好把 `Site` 相同的情形放过去,一个字都不说。
+        //
+        // **预设体不在其列**:引擎自己装的类体是 C# 造的(`PresetCtor` 标了 `Source = "<preset>"`),
+        // 而错误那一族**故意**共用同一份 —— 那不叫重复(见 `RegisterInitializers`)。
+        for (var t = parent; t != null; t = t.Parent)
+        {
+            if (t.ClassBody is { } cb && IsShared(pieces, cb))
+                throw new RuntimeException(
+                    "同一个代码块被挂在类的**两层**上了（比如 `M := { … }` 之后 `class M` 又 `class 父 M`）"
+                    + " —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次", ErrorKind.Value);
+            foreach (var extra in t.BodyExtras)
+                if (IsShared(pieces, extra))
+                    throw new RuntimeException(
+                        "同一个代码块被挂在类的**两层**上了（`body.Append` 拼上去的那一块也是这个规矩）"
+                        + " —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次", ErrorKind.Value);
+            if (ReferenceEquals(t.Parent, t)) break;
+        }
         // 正在被装成的这个对象**一般是 ClassVal**:这段在实例化 `type` 或它的子类时跑,
         // 而 StepClassInit 正是按"被实例化的类 <: type"来决定造 ClassVal 的。
         // 但**接口**是个例外:接口对象的 parent 是 `BaseInterface`(普通对象),
@@ -362,6 +384,11 @@ internal static partial class BuiltinClasses
 
         return self;
     }
+
+    /// <summary>这一串块里有没有**就是** `block` 这一个(按身份比 —— `BlockVal` 是 record,
+    /// 默认的相等是按内容,而这儿要的是"同一个块对象")。</summary>
+    private static bool IsShared(List<BlockVal> pieces, BlockVal block)
+        => pieces.Any(p => ReferenceEquals(p, block));
 
     /// <summary>把"体"摊平成**一串块**(执行顺序)。`Append` / `Prepend` 交出来的是
     /// <see cref="ComposeVal"/>(原值 + 那一块),这里把它拆开:prepend 的块排在原值前面、

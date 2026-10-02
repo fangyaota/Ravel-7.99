@@ -609,7 +609,10 @@ Editor ::= class {
             out := System.CaptureEnd ()
             if { ShowResult; } {
                 captured := out.Trim ()
-                if { !(captured.IsEmpty ()); } { Terminal.Line (Terminal.Escape captured); }
+                # **三块都要给** —— 少最后那个 `{ 0; }` 的话这个 `if` 就是个半成品,
+                # 整块**静默不跑**(用户的 `print` 就那么没了)。这条坑 `--warn` 认得出来,
+                # 但得**跑到**这一句才报 —— 所以 `tests/286` 里有一条驱动 `TryEval` 的用例。
+                if { !(captured.IsEmpty ()); } { Terminal.Line (Terminal.Escape captured); } { 0; }
                 if { (typeof v) != void; } {
                     # `==>` 和结果**紧挨着**,和 C# 一个样
                     Terminal.Line ("[yellow]==>[/]" + (Terminal.Escape (string v)))

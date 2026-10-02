@@ -127,6 +127,22 @@ m.Edit1 "delete"
 m.Clamp ()
 print ((m.Text ()).Length ())
 print "end"
+
+# ── 壳里**离线也跑得动**的那几条:运行那一页 ──
+#
+# **这条是补闸的**:`TryEval` 里从前有一句**只有两块**的 `if`(`if { c; } { t; }`),
+# 而少给一块在 Ravel 里 = 那个 `if` 变成半成品、**整块静默不跑** —— 用户的 `print`
+# 于是被整段吞掉,一声不吭。`--warn` 认得出来,但**得跑到那一句**才报,而这一页
+# 从前没有任何用例驱动过。下面这几行就是让它跑到。
+e2 := Repl.Editor ()
+e2.TryEval "print 1 + 1"                    # 用户代码的打印要出得来
+e2.TryEval "print \"第一行\"
+2 + 3"          # 打印 + 交回值:两样都要有
+e2.ShowResult = false
+e2.TryEval "print \"关掉开关\""
+e2.ShowResult = true
+e2.TryEval "print \"又回来了\""
+print "end2"
 # --- expected ---
 # [{kind: word text: x} {kind: other text:  } {kind: other text: :} {kind: other text: =} {kind: other text:  } {kind: number text: 12}]
 # [{kind: word text: print} {kind: other text:  } {kind: string text: "你好"}]
@@ -189,3 +205,8 @@ print "end"
 # 0
 # 2
 # end
+# 2
+# 第一行
+# ==>5
+# 又回来了
+# end2

@@ -1,0 +1,82 @@
+# `enum` 元类(见 lib/enum.rav)。**要显式引用**。
+#
+# 元类只管**固定的那一套**(`.Value` / `.Name` / `.Text ()` / `Values ()` / `Of`);
+# `A`/`B`/`C` 全是类体正文里写的 —— 一个都没写死在元类里。
+using "enum.rav"
+
+myEnum ::= enum {
+    A := 1
+    B := 2
+    C := 3
+}
+
+# 每枚成员:一个 myEnum 类型的值,带着自己的值和名字
+print (myEnum.A.Value)
+print (myEnum.A.Name)
+print (myEnum.A.Text ())
+print ((myEnum.B.Value) + 10)
+
+# 单例:同一枚每次拿到的是同一个值,所以 `==` 就是身份
+print (myEnum.A == myEnum.A)
+print (myEnum.A == myEnum.B)
+
+# 全部成员,按声明的先后
+foreach (myEnum.Values ()) (e: object) => { print (e.Name); }
+
+# 按值反查;没有这个值就当场报错
+print ((myEnum.Of 3).Name)
+try { myEnum.Of 99; } (e: Exception) => { print ("1: " + string e); }
+
+# 值是**任何东西**都行,不只是 int
+color ::= enum {
+    Red := "红"
+    Green := "绿"
+}
+print (color.Red.Value)
+print (color.Green.Text ())
+
+# ── 继承:父类**必须也是个 enum**,父类那几枚**迁过来**,这一层的块填新的 ──
+base ::= enum {
+    A := 1
+    B := 2
+}
+sub ::= enum base {
+    X := 7
+}
+print (sub.A.Value)              # 父类那枚迁过来了
+print (sub.X.Value)              # 这一层块里写的
+print (sub.A is sub)             # 迁过来的是**这个枚举的**值,不是父类那一枚
+print (sub.A == base.A)          # 所以两边同名不同枚
+print ((sub ()) is base)         # 但 sub 的实例仍是 base(类链那条)
+                                 # (括号不能省:实参吃到运算符为止,`sub () is base` 会读成 `sub (() is base)`)
+foreach (sub.Values ()) (e: object) => { print (e.Name); }   # 父类的在前
+print ((sub.Of 2).Name)
+
+# 父类不是 enum —— 当场说清楚,别静默建个空壳
+try { plain ::= class { x: int = 0; }; bad ::= enum plain { X := 1; }; } (e: Exception) => { print ("2: " + string e); }
+print "end"
+# --- expected ---
+# 1
+# A
+# A
+# 12
+# true
+# false
+# A
+# B
+# C
+# C
+# 1: 这个枚举里没有值等于 99 的成员
+# 红
+# Green
+# 1
+# 7
+# true
+# false
+# true
+# A
+# B
+# X
+# B
+# 2: 'enum' 的父类得也是一个 enum（得到 plain）
+# end

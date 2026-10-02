@@ -1,4 +1,4 @@
-# ravel "" 是「回全局作用域」,不是「建一个名字叫空串的模块」
+﻿# ravel "" 是「回全局作用域」,不是「建一个名字叫空串的模块」
 # 后者会让 ravel "" 之后的定义落进那个幽灵模块 —— 模块作用域只挂到 _global 上,
 # 所以从别的模块根本看不见它们。
 x := 0
@@ -17,5 +17,5 @@ print x
 # --- expected ---
 # 2
 # 1
-# [a is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# [a is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 0

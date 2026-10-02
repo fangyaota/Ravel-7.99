@@ -1,4 +1,4 @@
-# 模块**不是类**,也不是"某种类":它的类对象就是 `Ravel` 本身。
+﻿# 模块**不是类**,也不是"某种类":它的类对象就是 `Ravel` 本身。
 #
 # 从前每建一个模块就**新造一个 `Ravel` 的子类**(`BuiltinClasses.NewModuleClass`)——
 # 那份类对象只为两件事活着:让 `print` 打出 `<module Math>`、让 `typeof` 打出 `Math`。
@@ -49,7 +49,7 @@ print (Mine)
 # false
 # false
 # 36
-# 53
+# 54
 # 1: 模块 'System' 没有方法 'Class'
 # 2: 模块 'Math' 没有方法 'Nope'
 # 3: '<:' 的左边得是个类型，得到模块 'Math'

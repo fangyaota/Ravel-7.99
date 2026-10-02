@@ -1,4 +1,4 @@
-# 接口(interface)+ 实现 + use。带用法和期望输出的草稿是 myMetaClass.rav。
+﻿# 接口(interface)+ 实现 + use。带用法和期望输出的草稿是 myMetaClass.rav。
 #
 # `myTrait ::= interface { by a : int = default … }` —— interface 内置、继承于 type,
 # 所以造出来的 myTrait 也是个**类对象**(`myTrait is type`),它的类体就是接口的"形"。
@@ -373,7 +373,7 @@ ravel ""
 # 0
 # 3: 参数 'v' 需要 myTrait，得到 Integer
 # 4: 参数 'v' 需要 myTrait，得到 otherClass
-# [init x is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# [init x is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 99
 # 7
 # 5: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)

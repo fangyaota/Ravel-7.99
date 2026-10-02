@@ -33,13 +33,17 @@ public partial class Interpreter
     /// attrs 全在里面),而且"改副本、原件不动"这件事 `Copy ()` 说得更明白 ——
     /// `with` 本来该是**作用域**的事。
     ///
-    /// 现在:块跑在原对象成员表上推出来的那一层里。于是
+    /// 现在:块跑在**原对象成员表本身**里,那一层都不推。于是
     /// <list type="bullet">
     /// <item>`v = 10` 这种**赋值**沿链落回原对象的字段 —— 改的就是它;</item>
-    /// <item>`x := 1` 这种**定义**落在推出来的那一层,块一结束就没了(和块里新开的局部变量
-    /// 一个待遇);</item>
+    /// <item>`x := 1` 这种**定义**也**落在这个对象上** —— 留下来,块结束也不没
+    /// (`enum` 那种元类就靠这一条:拿个普通实例当落脚点,把一块里的名字收出来);</item>
     /// <item>交回的是那个对象本身。</item>
     /// </list>
+    ///
+    /// **从前是推一层再跑**,于是"块里的局部变量"不污染对象。那条改掉了:两个语义里
+    /// 只能留一个,而"定义留下来"是能拿它当工具用的那个。要临时的名字就自己开个作用域
+    /// (拿个一次性的实例当落脚点)。
     ///
     /// 一句话:`with` 只做一件事 —— 换一下"接下来这段代码算谁的成员"。</summary>
     private void StepWith(ControlFrame cf)
@@ -53,8 +57,11 @@ public partial class Interpreter
             // 其余的(原子值、函数、类对象、模块、属性、作用域值)块跑在自己的捕获作用域里
             // —— 判据不能写 `is ObjectVal`:函数也是 ObjectVal,那样会把块的作用域换成
             // 函数自己的成员表。
+            // 有自己的成员表就直接跑在它**本身**里(不推)—— 定义落回对象。
+            // 没有的(函数 / 类对象 / 模块 / 属性 / 作用域值)只能退到块自己的捕获作用域,
+            // 那儿还是推一层:那些东西没有"能落定义的成员表",不推的话定义会漏到外层去。
             var bodyScope = BuiltinClasses.HasOwnTable(obj)
-                ? ((ObjectVal)obj).Scope.Push()
+                ? ((ObjectVal)obj).Scope
                 : body.CaptureScope.Push();
             _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = bodyScope };
             return;

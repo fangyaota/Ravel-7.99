@@ -42,6 +42,18 @@ internal static partial class BuiltinClasses
         // 现在两段判据只有一份,和成员查找共用(见 MemberView)。
         Object.DefineMethod("Fields", (s, _) =>
             new ListVal([.. s.MemberScope.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
+        // **成员表本身**,交回一个 `Scope` 值。有它才能按**动态名字**读写成员:
+        //     (o.MemberScope ()).Lookup n     读
+        //     (o.MemberScope ()).Define n t   挂
+        // 元类要用 —— `enum` 的名字来自类体的正文,写不死在代码里。
+        //
+        // **给的是那一个值自己的那张表**(`ObjectVal.Scope`),不是 `MemberScope` 那个**合并视图**:
+        // 视图是"以值的身份取成员",自己那层之外还并上类型链(`Fields ()` 用的就是它);
+        // 而读写要落在**本层**,落进视图等于没落。原子值(数、字符串)自己没有表,才退回视图。
+        //
+        // 和 `Scope ()` **不是一回事**:那个是**捕获作用域**(函数独有,类对象给空 Scope)。
+        Object.DefineMethod("MemberScope", (s, _) =>
+            new ScopeVal(s is ObjectVal o ? o.Scope : s.MemberScope));
         // 谁大谁小 —— 库里的 `IComparable`(`lib/sorting.rav`)就架在这条上:内建那些(数值、字符串)
         // 由引擎那把尺子(`Less`,也就是 `<` 的口径)说话,用户类在自己类体里写一条 `CompareTo`
         // 就把它盖掉 —— 和 `ToString` 一个规矩。交回 -1 / 0 / 1,和 C# 的 IComparable 同约定,

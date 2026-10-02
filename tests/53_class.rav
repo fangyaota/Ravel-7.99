@@ -1,4 +1,4 @@
-C := class {
+﻿C := class {
     init = () => { this.n = 10; this; }
     n: int = 0
     + := (x: int) => { n + x; }
@@ -156,6 +156,12 @@ Zero := class {
 }
 zz := Zero ()
 print (zz.z)
+
+# 同一个块挂在祖先链的**两层**上 —— 建类时当场报(不查的话实例化时会跑两遍,
+# 里面的定义第二次静默盖掉第一次)
+M := { X := 1; }
+baseM ::= class M
+try { badM ::= class baseM M; } (e: Exception) => { print ("1: " + string e); }
 ravel ""
 # --- expected ---
 # 10
@@ -181,3 +187,4 @@ ravel ""
 # 6
 # 5
 # 9
+# 1: 同一个代码块被挂在类的**两层**上了（比如 `M := { … }` 之后 `class M` 又 `class 父 M`） —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次

@@ -1,0 +1,136 @@
+# `enum` —— **枚举**:写一串名字和值,每个名字拿到一枚"这个枚举的"值。
+#
+# 要显式引用:`using "enum.rav"`。它是个**元类**(父类是 `type`,造出来的东西是**类**):
+#
+#     myEnum ::= enum {
+#         A := 1
+#         B := 2
+#         C := 3
+#     }
+#
+#     myEnum.A              # 一枚 myEnum 类型的值(单例)
+#     myEnum.A.Value        # 1
+#     myEnum.A.Name         # "A"
+#     print myEnum.A        # A
+#     myEnum.Values ()      # [A B C] —— 按声明的先后
+#     myEnum.Of 2           # myEnum.B;没有这个值当场报错
+#
+# **元类只管固定的那一套** —— `Value` / `Name` / 打印 / `Values ()` / `Of`。
+# `A`/`B`/`C` 是**用户写什么就是什么**,一个都不写死在元类里(见下面怎么收的)。
+#
+# 两处**故意和 `dataclass` 不一样**:
+#
+# * **类体是空的**(`{();}`),那份 `{ A := 1 … }` 是**单独一块**(`vars`),
+#   由元类自己拿一个普通实例当**落脚点**跑一遍 —— 于是 `A`/`B`/`C` 先是那个落脚点上的
+#   普通字段,再被逐个换成"枚举值"挂到类上。要是拿 `vars` 当类体,`A` 就先成了 `int`,
+#   回头再往上挂一枚实例会撞类型;
+# * **`with` 现在不推层了**(见 `StepWith`),所以块里的定义**留得下来** —— 靠的就是这一条。
+using "io.rav"
+
+enum ::= class type {
+    private parentInit := init
+
+    # 每个枚举值身上那几条**固定**的。写成类体传给 `parentInit` —— 实例化时接着跑,
+    # 于是每枚成员都白拿这几条。
+    # `Value` 声明成 `object`:枚举值可以是任何东西(`A := "红"` 也该成立),
+    # 写死成 `int` 的话下面 `e.Value = v` 就落不进去了。
+    private Members := {
+        Value : object = 0
+        Name : string = ""
+        # 名字和 `Text ()` —— **`print e` 打不出 `A`**(`Show` 是 C# 那侧的 `v.ToString ()`,
+        # 库层盖不掉),要"打成人看的那个样子"按现成的规矩走 `Text ()`
+        # (`dataclass` 也是这条:`print (p.Text ())`)
+        Text := () => { Name; }
+        ToString := () => { Name; }
+    }
+
+    # 两个建类分支和 `type` 那层一样(带父类 / 不带),差别有两处:
+    # 类体换成 `Members`;建完再把 `vars` 收成成员挂上去。
+    #
+    # **带父类时那条规矩**:父类**必须也是个 enum** —— 枚举不是普通类,继承过来的是
+    # "父类那几枚成员"(见 `Collect`),拿个普通类当父类没有任何东西可迁,那不是笔误就是误会,
+    # 当场说出来比静默建一个空壳强。
+    init = (parent: type vars: function) => {
+        if { (typeof parent) != enum; } {
+            throw (Exception ("'enum' 的父类得也是一个 enum（得到 " + (string parent) + "）"))
+        } { 0; }
+        # 类体传**空的** —— `Members` 已经在父类那一层了(父类也是这个元类建的,
+        # 它的体就是 `Members`),而实例化时类体是**沿祖先链**跑的(`CollectBodies`),
+        # 父类那层照样跑到。再传一次等于把同一条定义跑两遍。
+        parentInit parent {();}
+        Collect parent vars
+        this
+    } | (vars: function) => {
+        parentInit object Members
+        Collect () vars
+        this
+    }
+
+    # 把成员收齐、做成值挂到类上。两个来源,按先后:
+    #
+    #   1. **父类迁过来的**(有父类时)—— 名字和值都照父类那几枚,只是重做成**这个枚举的**值
+    #      (所以 `sub.A` 是 `sub`,不是 `base`;两边的 `A` 也就不是同一枚);
+    #   2. **这一层块里写的** —— `A := 1` 那种。
+    #
+    # `with` 现在不推层,所以第 2 步拿一个**普通实例**当落脚点跑一遍,定义就留在它身上,
+    # 再一条条读出来。
+    Collect := (parent: object vars: function) => {
+        names := []
+        vals := []
+
+        if { (typeof parent) == enum; } {
+            # 父类表里**是它实例的那些**才是枚举成员 —— 元类自己那几条
+            # (`init` / `Collect` / `Members` 那块 / `Values` / `Of` …)都不是实例,自然滤掉,
+            # 不必另立一个"哪些是成员"的记号(记号还会撞 `private`:那条门禁看的是
+            # "当前作用域在不在**这个对象**的类里",而这儿站在子类的方法里,够不着父类的私有)
+            pf := parent.MemberScope ()
+            foreach ((pf.Variables ()).Keys ()) (n: string) => {
+                v := (pf.Lookup n).Get ()
+                if { v is parent; } {
+                    names.Add v.Name
+                    vals.Add v.Value
+                } { 0; }
+            }
+        } { 0; }
+
+        box := object ()
+        with box vars
+        from := box.MemberScope ()
+        foreach ((from.Variables ()).Keys ()) (n: string) => {
+            # `object ()` 自己那条默认构造器也在这张表里 —— 它不是枚举成员
+            if { n == "init"; } { 0; } {
+                names.Add n
+                vals.Add ((from.Lookup n).Get ())
+            }
+        }
+
+        cls := this
+        members := []
+        i := 0
+        while { i < (names.Count ()); } {
+            e := cls ()
+            e.Value = (vals.At i)
+            e.Name = (names.At i)
+            members.Add e
+            # 按**动态名字**挂到类上:`Define` 先占个位,`Set` 再把值填进去
+            (cls.MemberScope ()).Define (names.At i) (typeof e)
+            ((cls.MemberScope ()).Lookup (names.At i)).Set e
+            i += 1
+        }
+
+        # 挂在类上的那几条:成员表用闭包带上,写死名字就够
+        cls.Values := () => { members; }
+        cls.Of := (v: object) => {
+            hit := []
+            foreach (members) (e: object) => {
+                if { (hit.Count ()) == 0; } {
+                    if { e.Value == v; } { hit.Add e; } { 0; }
+                } { 0; }
+            }
+            if { (hit.Count ()) == 0; } {
+                throw (Exception ("这个枚举里没有值等于 " + (string v) + " 的成员"))
+            } { 0; }
+            hit.At 0
+        }
+    }
+}

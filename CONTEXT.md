@@ -203,6 +203,14 @@ lib/
                           全都自动有(用户自己写了同名的就以用户的为准)。
                           字段是"自己那层里值不是函数的那些",**到用的时候才算**,
                           所以拿它当父类也认得出子类新加的字段。**要显式引用**
+  enum.rav                `enum` —— **枚举**的元类(父类同样是 `type`):
+                          `myEnum ::= enum { A := 1; B := 2 }` 之后
+                          `myEnum.A` 是一枚 `myEnum` 类型的值(`.Value` / `.Name` / `Text ()`),
+                          类上挂 `Values ()` / `Of v`。**元类只管固定的那一套**,`A`/`B`/`C`
+                          一个都不写死 —— 它建一个**空类**,拿普通实例当落脚点把那份
+                          块跑一遍(靠"`with` 不推层"),再逐个换成值挂到类上。
+                          **继承**:父类也得是 enum(否则当场报错),父类那几枚**迁过来**
+                          (重做成这个枚举的值),这一层的块接着填新的。**要显式引用**
   format.rav              `Format` 模块 —— 拼串与排版:`Fmt "{} 有 {} 个" [a b]`(占位/位置复用/
                           给 dict 就按名字取)、`PadL`/`PadR`/`Pad`/`Center`(对齐与填充)、
                           `Num x 2`(定小数位)、`Thousands`(千分位)、`Hex`/`Bin`/`Oct`、
@@ -625,9 +633,11 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
    `Io.EachDir (d f)`（递归走一遍，每见一个条目叫一次
    `f (路径, 条目)`）**对着接口写**，任何实现都吃 —— 以后加内存文件 / zip / 远程文件就是照这个缝插。
 
-**控制台也是文件**：`Io.Stdout` / `Io.Stderr` / `Io.Stdin` 三个单例值实现 `IFile`（模块 `Io` 里
-`ConsoleOut` / `ConsoleIn` 两个类各登记一条）。于是对着接口写的代码直接能用 ——
-`Io.Copy f Io.Stdout` 把文件倒进终端、`Io.Copy Io.Stdin f` 把输入倒进文件。取舍写明白：
+**控制台也是文件**：`Terminal.Stdout` / `Terminal.Stderr` / `Terminal.Stdin` 三个单例值实现 `IFile`
+（`Terminal` 模块里 `ConsoleOut` / `ConsoleIn` 两个类各登记一条 —— **住在 `Terminal` 而不是 `Io`**：
+"控制台"整个归 `Terminal`，`io.rav` 只管文件系统，读的人不必在两处犹豫；`IFile` 那个接口仍是 `io.rav` 的）。
+另一头 `Terminal.Write` / `Line` / `ToErr` 是"先渲染标记再写"，和这三个的"裸去路"分得清。于是对着接口写的代码直接能用 ——
+`Io.Copy f Terminal.Stdout` 把文件倒进终端、`Io.Copy Terminal.Stdin f` 把输入倒进文件。取舍写明白：
 只写的那两个 `Read` 报错、只读的那个 `Write` 报错、控制台没有 `Size` 也删不掉（报错说人话）。
 `Stdin.Read ()` 是**读到 EOF**（终端上 Ctrl+Z/D 收），读一行用 `ReadLine ()`（就是 `input`）；
 `print` / `input` 照旧是日常那两个，这里是"抽象的视角"。
@@ -647,7 +657,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 **一个 URL 也是文件**：`Http.Url "https://…"`（见「网络」一节）照同一条缝插进来 ——
 它自己就有 `IFile` 那几条成员，再 `impl (IFile Url { () })` 登记一下。于是
 `Io.Copy (Http.Url …) (Io.File "a.txt")` 抓下来存着、`Io.Lines (Http.Url …)` 一行行读远程日志、
-`Io.Copy (Http.Url …) Io.Stdout` 直接倒进终端 —— **对着接口写的那几件一个都不用改**。
+`Io.Copy (Http.Url …) Terminal.Stdout` 直接倒进终端 —— **对着接口写的那几件一个都不用改**。
 `Write` / `Delete` 发的是 PUT / DELETE，`Append` 报错（HTTP 没有追写这回事），
 `Exists` / `Size` 走 HEAD（不下载正文）。
 （`http.rav` 因此 `using "io.rav"`；依赖方向是 网络 → 文件，不是反过来。）
@@ -1809,13 +1819,13 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 ```ravel
 Io.Copy (Http.Url "https://…/a.txt") (Io.File "a.txt")   # 抓下来存着
 Io.Lines (Http.Url "https://…/log")                       # 一行行读远程日志(惰性)
-Io.Copy (Http.Url "…") Io.Stdout                          # 直接倒进终端
+Io.Copy (Http.Url "…") Terminal.Stdout                          # 直接倒进终端
 ```
 
 - 每次 `Read ()` 都是**一次请求**(和 `Io.File.Read ()` 每次都去读盘一样,不藏缓存 ——
   藏了就会拿到旧内容还以为是最新的);
 - `Write` / `Delete` 发 **PUT / DELETE**;`Append` 报错(HTTP 没有追写这回事,
-  和 `Io.Stdout` 删不掉一个待遇);`Exists` / `Size` 走 **HEAD**(不下载正文,
+  和 `Terminal.Stdout` 删不掉一个待遇);`Exists` / `Size` 走 **HEAD**(不下载正文,
   服务器不认 HEAD 就退回 GET);
 - 落点那两条(`Download` / `Upload`)也收**磁盘条目**(`Io.File "a.zip"`),和 `Io.CopyTo dest` 一样两种都收。
 

@@ -1,4 +1,4 @@
-# 成员查找只有**一条路**:`Value.MemberScope`,由 MemberView 一次走完两段 ——
+﻿# 成员查找只有**一条路**:`Value.MemberScope`,由 MemberView 一次走完两段 ——
 #   ① 值自己那层(对象是它的实例作用域,扁平)
 #   ② 沿**类对象**的 parent 链兜底(方法住在类那层,`Fields` 在 `object` 上)
 #
@@ -299,7 +299,7 @@ print (c.Fields ())
 print ((1).Fields ())
 ravel ""
 # --- expected ---
-# [+ - * / % << >> <<< >>> == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields CompareTo Key]
+# [+ - * / % << >> <<< >>> == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]
 # 3
 # 4
 # true
@@ -397,5 +397,5 @@ ravel ""
 # false
 # 1: 运算符 '==' 不支持 Integer 操作数
 # 2: 运算符 '==' 不支持 Void 操作数
-# [init x s m is isnot == != <: :> ToString Copy Fields CompareTo Key]
-# [+ - * / % << >> <<< >>> == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields CompareTo Key]
+# [init x s m is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [+ - * / % << >> <<< >>> == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]

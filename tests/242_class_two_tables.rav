@@ -1,4 +1,4 @@
-# 一个**类对象有两张表**,分工是结构性的(不靠标记、不靠过滤):
+﻿# 一个**类对象有两张表**,分工是结构性的(不靠标记、不靠过滤):
 #
 #   ① 类自己那张（`ClassVal.Scope`，也就是基类 `ObjectVal.Scope`）—— 类对象是元类 `type`
 #      的实例,建类时平铺进来的 `name`/`parent`/`block`/`init`/`==`/`!=`,用户事后挂上去的
@@ -173,7 +173,7 @@ ravel ""
 # 3
 # 3: 类型 'Type' 没有方法 'Count'
 # 4: 类型 'Type' 没有方法 'Add'
-# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Each Map Where All Any Find SortBy Fold is isnot == != <: :> ToString Copy Fields CompareTo Key]
+# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Each Map Where All Any Find SortBy Fold is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # false
 # {"a":1}
 # 5: 类型 'Type' 没有方法 'Kind'

@@ -34,21 +34,25 @@ internal static partial class BuiltinClasses
         Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
         BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
         Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
-        // 错误那一族共用同一份预设类体(Message 字段 + 那个构造器)。类体**不可变**,
-        // 几层类体又都平铺进同一个实例作用域,所以共用一份不会有副作用。
-        var errBody = Exception.ClassBody;
-        TypeError.ClassBody = errBody;
-        NameError.ClassBody = errBody;
-        AttributeError.ClassBody = errBody;
-        IndexError.ClassBody = errBody;
-        KeyError.ClassBody = errBody;
-        ZeroDivisionError.ClassBody = errBody;
-        AssertionError.ClassBody = errBody;
-        AccessError.ClassBody = errBody;
-        ArgumentError.ClassBody = errBody;
-        ValueError.ClassBody = errBody;
-        IoError.ClassBody = errBody;
-        RegexError.ClassBody = errBody;
+        // 错误那一族各拿**自己的一份**(Message 字段 + 那个构造器)。
+        //
+        // **不能共用同一个块对象** —— 它们和 `Exception` 在**同一条祖先链**上,
+        // 同一个块挂两层会被 `Install` 当成"同一个块重复挂"挡下来(那是对的:
+        // 实例化时它会跑两遍,里面那条 `Message := …` 第二次静默盖掉第一次)。
+        // 从前这儿是 `var errBody = Exception.ClassBody;` 大家共用一份,靠"类体不可变、
+        // 又都平铺进同一个实例作用域"说没关系 —— 那是绕开判据,不是判据不对。
+        TypeError.ClassBody = ExceptionBody();
+        NameError.ClassBody = ExceptionBody();
+        AttributeError.ClassBody = ExceptionBody();
+        IndexError.ClassBody = ExceptionBody();
+        KeyError.ClassBody = ExceptionBody();
+        ZeroDivisionError.ClassBody = ExceptionBody();
+        AssertionError.ClassBody = ExceptionBody();
+        AccessError.ClassBody = ExceptionBody();
+        ArgumentError.ClassBody = ExceptionBody();
+        ValueError.ClassBody = ExceptionBody();
+        IoError.ClassBody = ExceptionBody();
+        RegexError.ClassBody = ExceptionBody();
         Json.ClassBody = PresetCtor(MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
         List.ClassBody = PresetCtor(MakeDefaultCaster(List));
         // `Continuation f` —— 把一枚函数**当成**续延(调它 = 调那枚函数)。
