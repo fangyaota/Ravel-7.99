@@ -7,9 +7,15 @@ Ravel 是一个**显式持久帧栈**解释型编程语言（原 CPS trampoline 
 ## 编译运行
 
 ```bash
+bash build.sh                            # 下面那几步收成一条命令:发布到 out/ + 全量测试 + 冒烟
+bash build.sh --rebuild --warn           # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
+
 rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c Debug -o out
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
+     # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/
+     # (见 Ravel.csproj 的 CopyPlugins / CopyLib),搜索路径里有"程序集目录"那两格
+     # (Runtime/ModuleSearchPath.cs),所以 out/ 那一份换到哪个工作目录都跑得起来
 dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav      # 单文件
 dotnet out/ravel.dll path/file.rav a b  # 脚本名之后那些进 System.Args ();见「System 模块」
@@ -334,6 +340,7 @@ lib/
                           这个文件只往上补 Ravel 说得清的那四个(square/cube/deg/rad)。
                           `using "math.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes () 取直接子类,
+                          **接口那一支再挂一句 `实现 ← …`**(`GetImplementors ()`,当下那份快照),
                           `├──/└──` 那套缩进是 `Text.Tree` 画的 —— 这一条只是"子类是谁 /
                           这一行写什么"两枚 lambda),`using "types.rav"` 引入(它会带上 text.rav);
                           examples/type_tree.rav 打的就是它

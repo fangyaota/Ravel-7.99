@@ -18,6 +18,16 @@
 # 只认**直接**子类:`Subtypes ()` 给的是所有后代,所以还要求 `parent` 就是当前这个 ——
 # 另外排掉名字相同的那个(自引用的 `type`,它的 Parent 是自己)。
 #
+# **接口那一支还多一句"谁实现了它"**(`GetImplementors ()`,和 `x is I` 同一份判据):
+#
+#     │   ├── IEnumerable [Interface]
+#     │   │   ├── IEnumerator [Interface]
+#     │   │   └── 实现 ← GeneratorCursor Generator Enumerator Option Range Scope Dict String Set List
+#
+# 那一句**不是类型**(它只是一串名字,所以也没有子节点),而且和别的东西一样是**当下**的:
+# 接口是"在这个作用域里生效"的东西,`impl` 没跑到、或者 `Dispose` 之后就列不出来了。
+# 普通类问 `GetImplementors ()` 永远是空的,所以只有接口会长出这一行。
+#
 # **画树那件事不在这儿**:`├── / └──` 那套缩进是 `Text.Tree`(`lib/text.rav`),这一条
 # 只是把"类型树"翻成它认的两枚 lambda(子类是谁、这一行写什么)。
 using "text.rav"
@@ -28,19 +38,39 @@ ravel "Types"
 readonly PrintTree := (root: object) => {
     # 直接子类。顺序照 `Subtypes ()` 给的来,不重排 —— 输出才稳定。
     children := (t: object) => {
-        subs := t.Subtypes ()
-        kids := []
-        i := 0
-        while { i < subs.Count (); } {
-            s := subs.At i
-            if { (s.parent).name == t.name && s.name != t.name; } { kids.Add s; } { 0; }
-            i += 1
+        # 「实现 ← …」那一句挂成**字符串**(不是类型),它没有子节点 —— 见下。
+        (t is string) { []; } {
+            subs := t.Subtypes ()
+            kids := []
+            i := 0
+            while { i < subs.Count (); } {
+                s := subs.At i
+                if { (s.parent).name == t.name && s.name != t.name; } { kids.Add s; } { 0; }
+                i += 1
+            }
+            # 接口再补一句"谁实现了它"。顺序照 `GetImplementors ()` 给的来,不重排。
+            #
+            # **`t is interface` 这一问不能省**:判据是"谁的接口闭包里有它",而**每个类型**
+            # 都能走到 `object`,于是 `object.GetImplementors ()` 会把所有实现者全倒出来 ——
+            # 那不是"接口的实现者",是"全世界"。只有真的接口才配这一行。
+            # (`interface` 小写是那个全局别名 —— 元类印出来叫 `Interface`,见 predefined.rav。)
+            imps := (t is interface) { t.GetImplementors (); } { []; }
+            if { (imps.Count ()) > 0; } {
+                names := []
+                j := 0
+                while { j < imps.Count (); } {
+                    names.Add (imps.At j).name
+                    j += 1
+                }
+                kids.Add ("实现 ← " + (names.Join " "))
+            } { 0; }
+            kids
         }
-        kids
     }
 
-    # 每一行:`类型名 [它的 typeof]` —— 方括号里是**创建者**(类对象显 `Type`…)
-    label := (t: object) => { t.name + " [" + (typeof t).name + "]"; }
+    # 每一行:`类型名 [它的 typeof]` —— 方括号里是**创建者**(类对象显 `Type`…)。
+    # 字符串那一格是上面那句「实现 ← …」,原样打出来。
+    label := (t: object) => { (t is string) { t; } { t.name + " [" + (typeof t).name + "]"; }; }
 
     print (Text.Tree root children label)
 }

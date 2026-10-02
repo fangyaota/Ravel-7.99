@@ -91,4 +91,27 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- 标准库(`lib/*.rav`)**不是编译产物** —— 解释器是**读源码**跑的,`predefined.rav` 就在里头。
+       所以它也得跟着 dll 走,和插件那两趟一个落点、一个道理(见上):
+       `$(OutDir)` 那份给平时 build / VS Code 的 F5,`$(PublishDir)` 那份给 `-o out`。
+       搜索路径里有"程序集目录下的 lib/"(见 Runtime/ModuleSearchPath.cs),
+       拷过去之后**从哪个工作目录跑都行** —— 不然 `out/` 只在工作目录里正好有 `lib/` 时才转得起来。 -->
+  <Target Name="CopyLib" AfterTargets="Build" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <LibFile Include="lib/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LibFile)"
+          DestinationFiles="@(LibFile->'$(OutDir)lib/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyLibToPublish" AfterTargets="Publish" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <LibFileP Include="lib/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LibFileP)"
+          DestinationFiles="@(LibFileP->'$(PublishDir)lib/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

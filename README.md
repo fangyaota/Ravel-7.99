@@ -93,9 +93,15 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 ## 编译运行
 
 ```bash
+bash build.sh                            # 下面那几步收成一条命令:发布到 out/ + 全量测试 + 冒烟
+bash build.sh --rebuild --warn           # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
+bash build.sh --help                     # 还有 --no-test / --release
+
 rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c Debug -o out
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
+     # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/
+     # (见 Ravel.csproj 的 CopyPlugins / CopyLib),所以 out/ 那一份换到哪个工作目录都跑得起来
 
 dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav       # 单文件

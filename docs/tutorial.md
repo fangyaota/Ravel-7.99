@@ -143,6 +143,19 @@ Types.PrintTree object
 
 方括号里是那个类型的 **typeof**（创建者）：类对象显 `Type`，你自己类的实例显它那个类。
 
+**接口那一支还挂着"谁实现了它"**（`GetImplementors ()`，和 `x is I` 同一份判据）：
+
+```ravel
+Types.PrintTree object
+# ├── BaseInterface [Interface]
+# │   ├── IEnumerable [Interface]
+# │   │   └── 实现 ← GeneratorCursor Generator Enumerator Option Range Scope Dict String Set List
+```
+
+那一行是**当下**的：接口是"在这个作用域里生效"的东西，`impl` 没跑到、或者 `Dispose`
+之后就列不出来了。普通类不会长这一行（`object` 也不会 —— 它虽然能把所有人"倒出来"，
+但它不是接口）。
+
 ### 2.4 类型转换
 
 ```ravel
