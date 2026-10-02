@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>Ravel 模块实例。
 ///
@@ -29,6 +29,18 @@ public record ModuleVal : ObjectVal
 
     /// <summary>模块名</summary>
     public string Label { get; init; }
+
+    /// <summary>这个模块**自己写着的那些 `using`** —— 就是 `MyMod.References ()` 交回的那串
+    /// (`Ravel.References` 那条成员读的就是它)。
+    ///
+    /// **只收"跑它的时候真的 `using` 过的"**:`using` 是运行时构造,所以曲线里跑的
+    /// (函数体里、`eval` 出来的)也算 —— 但那种本来就是这个模块的一部分代码。
+    /// 记的是 `using` 后面**写的那一串路径**(`"seqs.rav"`),不是解析后的绝对路径:
+    /// 要的是"这个模块引了谁"这张图,不是磁盘上的位置。
+    /// (由引擎在建模块时**接上**那份按文件攒的列表 —— 见 `Interpreter.RecordReference`:
+    ///  `using` 常常写在 `ravel "M"` **前面**,那会儿模块还没建出来,所以是先按文件攒,
+    ///  建模块那一刻接过来,此后两边是同一个列表。)</summary>
+    public List<string> References { get; set; } = [];
 
     /// <summary>报错里要说**用户写的那个名字**(`System.Class` 打错字该报「类型 'System'」,
     /// 不是「类型 'Ravel'」)—— 类对象都指向同一个 `Ravel`,照基类那条走就串了。</summary>

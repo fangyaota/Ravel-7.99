@@ -1,4 +1,4 @@
-# callcc 单发/多发/生成器/try(合并 40/41/42/50/51/52/85/86/87/88/89/94)
+﻿# callcc 单发/多发/生成器/try(合并 40/41/42/50/51/52/85/86/87/88/89/94)
 result := callcc (k: function) => {
     k 42
 }
@@ -390,7 +390,7 @@ ravel "226_callcc_module"
 # "已加载"里摘掉 —— 下次 `using` 从头上重来（所以下面第二遍会再打一次 "body"）。
 #
 # 伴侣文件是 tests/226_abort_mod.rav（它单独跑会报错，那是它自己的预期）。
-References = ["tests/"]
+ReferencesPath = ["tests/"]
 already := false
 hook: object = 0
 out := callcc (k: function) => {

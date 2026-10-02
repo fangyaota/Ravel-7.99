@@ -1,4 +1,4 @@
-C := class {
+﻿C := class {
     init = () => { 0; this; }
     readonly x: int = 10
 }
@@ -14,7 +14,7 @@ ravel "199_lib_readonly"
 # 理由是这些名字被顺手覆盖掉不会报错、只会让后面所有调用者算错,
 # 而 `:=` 从前能绕过:`true = 1` 报错、`true := 1` 静默成功,而且 readonly
 # 跟着老的那个 Variable 一起没了 —— 同一个"只读"两条路两个答案。
-# 而**状态**故意留可写(`Ex.HandlerStack` / `References`),那些本来就该能改。
+# 而**状态**故意留可写(`Ex.HandlerStack` / `ReferencesPath`),那些本来就该能改。
 using "math.rav"
 Ex.Try { print = 1; } (e: Exception) => { print ("赋值: " + string e); }
 Ex.Try { true = false; } (e: Exception) => { print ("常量: " + string e); }
@@ -24,7 +24,7 @@ Ex.Try { Ex.Throw := 1; } (e: Exception) => { print ("模块 API: " + string e);
 # 状态不是 API:照旧可写
 Ex.HandlerStack = [1]
 print (Ex.HandlerStack)
-print (References)
+print (ReferencesPath)
 
 # 只查**本层**:块里的 `:=` 是另开一个局部变量(遮蔽),不是重新定义 —— 这条不拦
 f := () => { print := 9; print; }

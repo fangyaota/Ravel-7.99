@@ -1,4 +1,4 @@
-References = ["tests/"]
+﻿ReferencesPath = ["tests/"]
 print "B start"
 y: int = 99
 using "129_circ_ref_a.rav"

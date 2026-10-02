@@ -1,14 +1,32 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 /// <summary>模块文件加载:路径搜索、循环引用检测、已加载去重。
-/// 搜索目录 = `references` 里的用户目录(优先) + <see cref="ModuleSearchPath.Defaults"/>。</summary>
+/// 搜索目录 = `ReferencesPath` 里的用户目录(优先) + <see cref="ModuleSearchPath.Defaults"/>。</summary>
 public partial class Interpreter
 {
+    /// <summary>`using` 被执行的那一刻,把它记进**当前正在跑的那个模块**
+    /// (栈顶那条路径对应的模块)。没有模块在跑(顶层脚本里 `using`)就没什么可记的。
+    ///
+    /// 记的是**写的那一串**(`"seqs.rav"`),不是解析后的绝对路径 —— `MyMod.References ()`
+    /// 要回答的是"我这个模块引了谁",那是个源码上的关系。</summary>
+    private void RecordReference(string path)
+    {
+        // **正在加载的那个文件优先** —— 模块体里再 `using` 一个文件时,那个文件的 `using`
+        // 属于它自己,不属于外层刚 `ravel` 过的模块。
+        if (_loading.Count > 0 && _refsByPath.TryGetValue(_loading.Peek(), out var list))
+        {
+            list.Add(path);
+            return;
+        }
+        // 没有文件在加载 = 主脚本:记给当前挂着的那个模块(`ravel "M"` … `ravel ""` 之间)
+        _currentModule?.References.Add(path);
+    }
+
     /// <summary>把模块名解析为绝对路径;找不到返回 null</summary>
     private string? ResolveModulePath(string path)
     {
         var refs = new List<string>();
-        var rv = _global.TryLookup("References");
+        var rv = _global.TryLookup("ReferencesPath");
         if (rv?.Value is ListVal lv) refs.AddRange(lv.Elements.Select(e => As<StringVal>(e, "references 的元素").Value));
         refs.AddRange(ModuleSearchPath.Defaults);
 
@@ -67,6 +85,7 @@ public partial class Interpreter
         // 从别的模块根本看不见:`ravel ""` 之后 `b := 2`,再 `ravel "A"` 就读不到 b。
         if (name.Length == 0)
         {
+            _currentModule = null;
             SetAmbientScope(_global);
             return VoidVal.Instance;
         }
@@ -75,9 +94,14 @@ public partial class Interpreter
         {
             mv = new ModuleVal(name, new Scope(_global));
             _modules[name] = mv;
+            // 把这个文件**已经攒下的那些 `using`** 接给模块(`ravel "M"` 常常写在它们后面);
+            // 此后新来的 `using` 往同一个列表里加。
+            if (_loading.Count > 0)
+                mv.References = _refsByPath.TryGetValue(_loading.Peek(), out var acc) ? acc : [];
             _global.Define(name, BuiltinClasses.Ravel, mv);
         }
 
+        _currentModule = mv;                      // 这之后的 `using` 记给它
         SetAmbientScope(mv.Scope);
         return VoidVal.Instance;
     }

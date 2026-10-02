@@ -75,6 +75,13 @@ public partial class Interpreter
     }
 
     private readonly Dictionary<string, ModuleVal> _modules = [];
+    /// <summary>正在加载的那个文件 → 它**攒下的那些 `using`**(见 `RecordReference`)。
+    /// 按**文件**攒、不按模块攒:`using` 常常写在 `ravel "M"` 前面,那会儿模块还没建出来。
+    /// 建模块时把这份列表**接**给 `ModuleVal.References`,两边从此是同一个列表。</summary>
+    private readonly Dictionary<string, List<string>> _refsByPath = [];
+    /// <summary>当前挂着的那个模块(`ravel "M"` 之后、`ravel ""` 之前)。`using` 记给它 ——
+    /// 主脚本里定义的模块走这条路(`_loading` 里没有它,它不是被 `using` 进来的文件)。</summary>
+    private ModuleVal? _currentModule;
     private readonly HashSet<string> _loaded = [];
     private readonly Stack<string> _loading = new();
     /// <summary>`unsafe ()` 标记过的作用域。core 字段只在「当前作用域往上走得到某个被标记的作用域」

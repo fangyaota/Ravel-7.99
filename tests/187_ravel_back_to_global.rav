@@ -17,5 +17,5 @@ print x
 # --- expected ---
 # 2
 # 1
-# [a is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [a References is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 0

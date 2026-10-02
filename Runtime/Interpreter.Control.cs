@@ -94,6 +94,10 @@ public partial class Interpreter
         if (cf.Count == 0)
         {
             var path = cf.Arg<StringVal>(0, "using").Value;
+            // **就在这一刻记进"当前正在跑的那个模块"** —— 记的是 `using` 后面写的那一串。
+            // (要在 `LoadModuleAst` **之前**:那条路上可能递归跑别的代码,而"当前模块"
+            //  只该是发起这一句的那一个 —— `_loading` 的栈顶就是它。)
+            RecordReference(path);
             var ast = LoadModuleAst(path);
             if (ast == null)
             {
@@ -102,6 +106,7 @@ public partial class Interpreter
             }
 
             var full = ResolveModulePath(path)!;   // 上面刚解析成功过
+            _refsByPath.TryAdd(full, []);          // 这个文件攒 `using` 的地方(第一次加载时开)
             _loading.Push(full);
             _top = new BlockExecFrame(ast) { Parent = cf with { State = new StringVal(full) }, Scope = cf.Scope };
             return;

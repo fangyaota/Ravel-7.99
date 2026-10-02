@@ -1,4 +1,4 @@
-# 启动时第一个加载的文件(见 Interpreter.LoadPredefined):别名 + 控制流 + 把标准库几个子模块拉进来。
+﻿# 启动时第一个加载的文件(见 Interpreter.LoadPredefined):别名 + 控制流 + 把标准库几个子模块拉进来。
 #
 # 别名必须排在最前面 —— 后面的东西(包括子模块)都用它们。
 # 子模块用 `using` 拉进来,名字都落在**全局作用域**上(和从前写在同一个文件里一样),
@@ -52,7 +52,7 @@ readonly Json := System.Json          # JSON 值(包住一棵树,Extract () 才�
 # 用户自定义的模块搜索目录。**位置是有讲究的**:它写在别名之后 ——
 # 注解里的名字就是作用域里的变量,而 `list` 要到上面几行才定义。
 # (从前它在第一行,于是注解解析不得不内置一张 15 条的类型表来兜底;见 ResolveType。)
-References: list = []
+ReferencesPath: list = []
 
 readonly print := System.WriteLine
 readonly true := System.True

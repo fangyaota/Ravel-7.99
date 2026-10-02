@@ -53,7 +53,8 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Nodes.cs    节点状态机(每 AST 节点一个 NodeFrame,按 Results.Count 分阶段)
   Interpreter.Call.cs     CallInto 调用分派 + 合成控制帧的推帧助手
   Interpreter.Control.cs  控制帧状态机(with/callcc/using/eval/类初始化/交替/合成…)
-  Interpreter.Modules.cs  模块路径解析与加载(References + 搜索目录、循环引用检测)
+  Interpreter.Modules.cs  模块路径解析与加载(ReferencesPath + 搜索目录、循环引用检测);
+                          每个模块还记着**自己写着的那些 `using`**(见 `EnterModule`)
   Builtins/SysAttribute.cs / SysRegistry.cs
                           **`[Sys]` 那套机制**:特性本身 + 扫描(扫**整个程序集**,
                           不列名单)+ 绑委托(每实例一次,`CreateDelegate`,热路上不留反射)
@@ -81,7 +82,7 @@ Runtime/                         求值器按职责拆成多个 partial class �
                            **表里的每一个都得有地方读它** —— `override`/`new` 因为无人读
                            已连同修饰符一起删(`public` 是唯一例外:它是默认行为)
                            `lib/` 的 API 都标 readonly(语言级别名/模块函数);
-                           **状态**故意不标(Ex.HandlerStack / References)。
+                           **状态**故意不标(Ex.HandlerStack / ReferencesPath)。
                            readonly 连 `:=` 一起挡(`Scope.DefineOrReplace` 里查本层):
                            `:=` 换掉整个 Variable,attrs 会跟着老的那个没
   ErrorReport.cs          错误渲染(位置 + 源码行 + 插入符 + 调用栈);
@@ -463,7 +464,14 @@ Object (parent=自己)
         Any Every Exception ValueType Json
 
 (每个类型在 `predefined.rav` 里都有一条全局别名 —— `int` / `string` / `object` /
-`Ravel` …。`Scope` 是从前那个**叫不出来的类型**(只在 `typeof (x.Scope ())` 里露过名字)——
+`Ravel` …。**`MyMod.References ()`** —— 这个模块**自己写着的那些 `using`**(就是 `using` 后面那一串,
+不是解析后的绝对路径)。挂在 `Ravel` 上(所有模块都是它的实例),所以每个模块白拿。
+**不是**全局的已加载表、也**不是传递闭包**:`Repl.References ()` 给的是它自己那三条,
+不会把 `iterator.rav` 那些也带上。`using` 是运行时构造,所以函数体里、`eval` 出来的也算
+—— 但那种本来就是这个模块的一部分代码。(管**搜索目录**的那个全局叫 `ReferencesPath`,
+和这一条不是一回事:那个说的是"去哪儿找文件",这个说的是"我引了谁"。)
+
+`Scope` 是从前那个**叫不出来的类型**(只在 `typeof (x.Scope ())` 里露过名字)——
 现在 `System.Scope` 是个名字,于是 `impl (IDict System.Scope …)` / `impl (IEnumerable System.Scope …)`
 写得出来了(`lib/keys.rav` / `lib/iterator.rav` 各一条);顺带给它补了 `Remove` / `Keys` / `Values` / `Count`
 —— 作用域从此和别的表一视同仁。

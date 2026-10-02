@@ -1,0 +1,28 @@
+﻿# `MyMod.References ()` —— 这个模块**自己写着的那些 `using`**(见 `Ravel.References`)。
+#
+# 它回答的是"我这个模块**直接**引了谁":不是全局的已加载表,也**不是传递闭包**
+# (`Repl` 引的是它自己那三条,不会把 `iterator.rav` 那些也带上)。
+#
+# 随手加一个**用例自己定义**的模块 —— 名字不占 `lib/`。
+using "keys.rav"
+using "repl.rav"
+
+ravel "MyMod"
+using "keys.rav"
+using "io.rav"
+x := 1
+ravel ""
+
+print (MyMod.References ())
+print (MyMod.x)
+print (Keys.References ())          # 它一条 `using` 都没写
+print (Repl.References ())
+print (Terminal.References ())      # 只有它自己的,不带传递闭包
+print (typeof (Repl))              # 这一条挂在 `Ravel` 上,所以每个模块都有
+# --- expected ---
+# [keys.rav io.rav]
+# 1
+# []
+# [native.rav terminal.rav io.rav]
+# [native.rav enum.rav io.rav]
+# Ravel

@@ -40,6 +40,13 @@ internal static partial class BuiltinClasses
         // 一圈沿类型链扫**方法名**,于是同一个类体里定义的东西一个列得出、一个列不出
         // (运算符恰好在类对象表里另有一份,所以它在;用户写的方法就凭空消失了)。
         // 现在两段判据只有一份,和成员查找共用(见 MemberView)。
+        // **`Ravel` 身上那一条**:所有模块都是 `Ravel` 的实例,所以这一条每个模块都有。
+        // 交回这个模块**自己写着的那些 `using`**(见 `ModuleVal.References`)——
+        // 不是全局的已加载表,也不是传递闭包:要的是"我这个模块直接引了谁"。
+        // 模块以外的东西(只要它有这个类)给空表,不报错 —— 和 `Fields ()` 一个脾气。
+        Ravel.DefineMethod("References", (s, _) =>
+            new ListVal([.. (s as ModuleVal)?.References.Select(r => (RuntimeValue)new StringVal(r))
+                            ?? []]));
         Object.DefineMethod("Fields", (s, _) =>
             new ListVal([.. s.MemberScope.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
         // **成员表本身**,交回一个 `Scope` 值。有它才能按**动态名字**读写成员:

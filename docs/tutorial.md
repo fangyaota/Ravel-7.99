@@ -2738,7 +2738,7 @@ Error: 类型错误: 无法将 Integer 赋值给 'nickname' (声明为 String)
 | `by` | 属性（getter/setter），见 7.7 |
 
 `lib/` 里的 API 都标了 `readonly`：`predefined.rav` 的语言级别名（`print` / `true` /
-`if` / …）、`Math` 与 `Ex` 的函数。**状态**没标（`Ex.HandlerStack` / `References`）——
+`if` / …）、`Math` 与 `Ex` 的函数。**状态**没标（`Ex.HandlerStack` / `ReferencesPath`）——
 那些本来就该能改。
 
 为什么连 `:=` 也挡：`:=` 换掉的是**整个 Variable**，attrs 跟着老的那个一起没 ——
@@ -3376,7 +3376,7 @@ print (MyMath.Pi)
 ### 8.2 导入文件
 
 ```ravel
-References = ["/path/to/libs/"]
+ReferencesPath = ["/path/to/libs/"]
 using "other.rav"
 ```
 
