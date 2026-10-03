@@ -169,11 +169,44 @@ Head := (lvl: int at: int text: string) => {
     Html.El ("h" + (string lvl)) {"id": ("s" + (string at))} (Inline text);
 }
 
-# 一行 `| a | b |` 拆成单元格
+# 一行 `| a | b |` 拆成单元格。
+#
+# **`\|` 不算分隔符** —— 表格里的行内代码动不动就是 `|>` / `<|`,不转义的话那一行会被
+# 切成好几格(5.5 / 10 章那两张表原本就是这么坏的:一格 `|>`,左边半截右边半截)。
+# 转义符**连同它后面那个字符**一起原样留着,交给 `Inline` 去消化 —— 它认得 `\`,
+# `\|` 最后显示成一个 `|`。
+#
+# 从前这一句是 `inner.Replace "|" "\n"`,一个 `Replace` 把转义和分隔一视同仁了。
 Cells := (line: string) => {
     t := line.Trim ()
-    inner := if { t.EndsWith "|"; } { Mid t 1 ((t.Length ()) - 1); } { Mid t 1 (t.Length ()); }
-    (System.SplitLines (inner.Replace "|" "\n")).Map ((c: string) => { c.Trim (); }) |> .ToList ();
+    out := []
+    cur := ""
+    i := 0
+    n := t.Length ()
+    while { i < n; } {
+        c := Mid t i (i + 1)
+        if { (c == "\\") && ((i + 1) < n); } {
+            # **反斜杠本身不留** —— 它是写给这个拆分器看的,再往下的 `Inline` 不该看见它。
+            # (留着的活,`\|>` 会连反斜杠一起进代码段,那一段里 `Inline` 已经不处理转义了,
+            #  于是屏幕上就是个 `\|>`。)
+            cur += (Mid t (i + 1) (i + 2))
+            i += 2
+        } {
+            if { c == "|"; } {
+                out.Add (cur.Trim ())
+                cur = ""
+                i += 1
+            } {
+                cur += c
+                i += 1
+            }
+        }
+    }
+    out.Add (cur.Trim ())
+    # 两头那两个 `|` 各切出一个空格子,去掉
+    if { ((out.Count ()) > 0) && ((out.At 0) == ""); } { out.Remove 0; } { 0; }
+    if { ((out.Count ()) > 0) && ((out.At ((out.Count ()) - 1)) == ""); } { out.Remove ((out.Count ()) - 1); } { 0; }
+    out;
 }
 
 # 表格:第一行表头,第二行是 `|---|---|` 那种分隔(扔掉),其余是数据行
