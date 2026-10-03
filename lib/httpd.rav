@@ -239,6 +239,13 @@ Server ::= class {
     # —— 一条连接收了 N 个请求时,连接数比请求数小。
     Conns: int = 0
     Requests: int = 0
+    # 此刻还连着的连接号 —— `Stop ()` 要照着它把它们一并断掉(见那儿)。
+    # 不留这张表的话,`Stop ()` 之后那些连接还停在"等下一个请求"上,而那一等是 `Idle`
+    # 毫秒(默认 15 秒)—— 于是**程序停下来了,却要再陪它们干等十几秒才退得出去**。
+    #
+    # 用**字典**不用 list:`list.Remove` 收的是**下标**(`RemoveAt` 的别名),
+    # 拿连接号当下标传会「参数越界」;字典的 `Remove` 才是"按那个键删"。
+    Open: dict = {}
 
     # 两种起法:`Httpd.Server 8080`,或者一张配置
     # `Httpd.Server {"port": 8443 "cert": "s.crt" "key": "s.key"}`(HTTPS 见 `Native.HttpListen`)。
@@ -305,10 +312,18 @@ Server ::= class {
         ()
     }
 
-    # 从别的任务里喊停(比如一个 `/shutdown` 路由)。做的事就一件:**关了监听器** ——
-    # accept 那条路于是交回空 dict,循环收摊,已经在跑的那些连接各自跑完。
+    # 从别的任务里喊停(比如一个 `/shutdown` 路由)。
+    #
+    # 做的事两件:**关监听器**(accept 那条路于是交回空 dict,循环收摊)+ **断掉还连着的
+    # 那些**。后者不能省:它们正停在"等下一个请求"上,而那一等是 `Idle` 毫秒 ——
+    # 不主动断,`Stop ()` 就只是"不再接新的",而程序要再陪它们干等十几秒才退得出去。
+    #
+    # 所以 `Stop ()` 是**立刻**的:正在写响应的那条会写断在半路。想让人家跑完就别喊停。
     # 幂等:已经关了再喊一次也不出错(`HttpClose` 本来就是幂等的)。
     Stop := () => {
+        # 照着**当下这份键表的副本**走 —— 每断一条,伺候它的那个任务会醒过来把它自己
+        # 从 `Open` 里划掉,直接遍历原表就成了边遍历边改。
+        foreach (Open.Keys ()) (c: int) => { Native.HttpClose c; }
         Native.HttpClose Handle;
         ()
     }
@@ -319,6 +334,7 @@ Server ::= class {
         c := conn.Get "conn"
         peer := conn.Get "peer"
         Conns += 1
+        Open.Set c true
         open := true
         while { open; } {
             r := g.Await (Tasks.Of (Native.HttpRead c Idle))
@@ -340,6 +356,9 @@ Server ::= class {
             }
         }
         Native.HttpClose c;
+        # 键可能已经没了(`Stop ()` 断过一轮,或者这条本来就是关过的)—— 删一个不存在的键
+        # 会报错,所以问一句再删
+        if { Open.Has c; } { Open.Remove c; } { 0; }
         ()
     }
 
