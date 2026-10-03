@@ -1,0 +1,349 @@
+# `site` —— 把 `docs/tutorial/*.md` 生成一个静态文档站。
+#
+#     ravel examples/site.rav            # 生成到 site/
+#     ravel examples/site.rav 别的地方   # 换个落点
+#
+# **零依赖**:纯静态 HTML + 一个 CSS,没有 JS、没有 CDN —— 双击就能看,也能直接挂 Pages。
+# (runoob 页面上那些"在线运行"按钮做不了:那要在浏览器里跑一个 Ravel,得先编到 wasm。)
+#
+# markdown 只认这份文档用到的**子集**:标题、表格、``` 代码块、`-` 列表、段落;
+# 行内认 `code` / **粗** / [文字](链接)。认得的少,错得也少。
+#
+# 写这个文件时踩到的三条语言脾气 —— 都不是 bug,是这门口的规矩,后面全按着它们写:
+#
+#   * **`X ().Y` 要写 `(X ()).Y`** —— `.成员` 比并列的调用绑得紧(教程 3.9),所以
+#     `t.Trim ().StartsWith "a"` 会被读成 `t.Trim (().StartsWith "a")`。这条最坑,
+#     报出来的错是"类型 'Void' 没有方法",指着的却是 `.Trim`。
+#   * **`Slice [a..b]` 是闭区间**,和 `[1..3]` 那个 Range 一个规矩 —— 差一格的事全收进
+#     `Sub` / `Mid` / `Tail` 三个小函数里,别在每个调用点各算一遍。
+#   * **长表达式别跨行** —— 只在括号里才续行,行尾的 `+` 不管用。每句都短,要拼长东西
+#     先拆临时变量。
+using "io.rav"
+using "glob.rav"
+
+SRC := "docs/tutorial"
+OUT := if { (System.Args ()).IsEmpty (); } { "site"; } { (System.Args ()).At 0; }
+SITE := "Ravel 语言教程"
+
+# ═══ 小工具 ═══
+
+# HTML 里不能直接出现这几个字符。**在拼标签之前转**,不然标签自己也会被转掉。
+H := (s: string) => {
+    ((s.Replace "&" "&amp;").Replace "<" "&lt;").Replace ">" "&gt;";
+}
+
+# 取子串。**`Slice` 是闭区间**(和 `[1..3]` 那个 Range 一个规矩),差一格的事全收进
+# 这三个里,别在每个调用点各算一遍。
+Sub := (s: string i: int n: int) => {
+    if { n <= 0; } { ""; } { s.Slice [i..((i + n) - 1)]; }
+}
+Mid := (s: string i: int j: int) => { Sub s i (j - i); }      # [i, j)
+
+# 第 i 行,越界就是空串。(`&&` 是**真短路**的,所以这不是为了兜它 —— 是为了读起来
+# 不用每处都先想一遍"这个 i 会不会越界"。)
+LineAt := (lines: list i: int) => {
+    if { i < (lines.Count ()); } { lines.At i; } { ""; }
+}
+Tail := (s: string n: int) => { Sub s n ((s.Length ()) - n); }  # 从第 n 个到末尾
+
+# 从 `from` 起找 `sub`,交回位置;没有就是 -1
+Find := (s: string sub: string from: int) => {
+    at := -1
+    i := from
+    n := s.Length ()
+    m := sub.Length ()
+    while { ((i + m) <= n) && (at < 0); } {
+        if { (Sub s i m) == sub; } { at = i; } { 0; }
+        i += 1
+    }
+    at;
+}
+
+# 行内格式。手写扫描,不用正则 —— 正则在"要先转义的东西"上容易出岔子。
+#
+#   `x`       → <code>x</code>
+#   **x**     → <strong>x</strong>
+#   [x](url)  → <a href="url">x</a>
+#
+# 三条各拆成"交回片段"和"下一个位置"两半:认不出的情况(没有收尾记号)照样得往前走一格,
+# 不然会死循环。
+Inline := (s: string) => {
+    out := ""
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        c := Mid s i (i + 1)
+        if { c == "`"; } {
+            out += Code s i
+            i = CodeEnd s i
+        } {
+            if { c == "*"; } {
+                out += Bold s i
+                i = BoldEnd s i
+            } {
+                if { c == "["; } {
+                    out += LinkAt s i
+                    i = LinkEnd s i
+                } {
+                    out += H c
+                    i += 1
+                }
+            }
+        }
+    }
+    out;
+}
+
+Code := (s: string i: int) => {
+    j := Find s "`" (i + 1)
+    if { j < 0; } { H (Mid s i (i + 1)); } { "<code>" + (H (Mid s (i + 1) j)) + "</code>"; }
+}
+CodeEnd := (s: string i: int) => {
+    j := Find s "`" (i + 1)
+    if { j < 0; } { i + 1; } { j + 1; }
+}
+
+Bold := (s: string i: int) => {
+    j := Find s "**" (i + 2)
+    if { j < 0; } { H (Mid s i (i + 1)); } { "<strong>" + (Inline (Mid s (i + 2) j)) + "</strong>"; }
+}
+BoldEnd := (s: string i: int) => {
+    j := Find s "**" (i + 2)
+    if { j < 0; } { i + 1; } { j + 2; }
+}
+
+LinkAt := (s: string i: int) => {
+    j := Find s "]" (i + 1)
+    k := if { j < 0; } { -1; } { Find s "(" (j + 1) }
+    e := if { k < 0; } { -1; } { Find s ")" (k + 1) }
+    if { e < 0; } { H (Mid s i (i + 1)); } {
+        href := H (Mid s (k + 1) e)
+        text := Inline (Mid s (i + 1) j)
+        "<a href=\"" + href + "\">" + text + "</a>";
+    }
+}
+LinkEnd := (s: string i: int) => {
+    j := Find s "]" (i + 1)
+    k := if { j < 0; } { -1; } { Find s "(" (j + 1) }
+    e := if { k < 0; } { -1; } { Find s ")" (k + 1) }
+    if { e < 0; } { i + 1; } { e + 1; }
+}
+
+# ═══ 块级 ═══
+
+Head := (lvl: int at: int text: string) => {
+    tag := "<h" + (string lvl) + " id=\"s" + (string at) + "\">"
+    tag + (Inline text) + "</h" + (string lvl) + ">\n";
+}
+
+# 一行 `| a | b |` 拆成单元格
+Cells := (line: string) => {
+    t := line.Trim ()
+    inner := if { t.EndsWith "|"; } { Mid t 1 ((t.Length ()) - 1); } { Mid t 1 (t.Length ()); }
+    (System.SplitLines (inner.Replace "|" "\n")).Map ((c: string) => { c.Trim (); }) |> .ToList ();
+}
+
+# 表格:第一行表头,第二行是 `|---|---|` 那种分隔(扔掉),其余是数据行
+Table := (rows: list) => {
+    out := "<table>\n<thead>\n<tr>"
+    foreach (Cells (rows.At 0)) (c: string) => { out += "<th>" + (Inline c) + "</th>"; }
+    out += "</tr>\n</thead>\n<tbody>\n"
+    i := 2
+    while { i < (rows.Count ()); } {
+        out += "<tr>"
+        foreach (Cells (rows.At i)) (c: string) => { out += "<td>" + (Inline c) + "</td>"; }
+        out += "</tr>\n"
+        i += 1
+    }
+    out + "</tbody>\n</table>\n";
+}
+
+# 正文:逐行走一遍状态机。几条判据**平铺**着写(它们互斥,`#### ` 不以 `### ` 开头),
+# 每行至多命中一条,靠 `done` 拦住后面的段落分支。
+Md := (text: string) => {
+    lines := System.SplitLines text
+    out := ""
+    i := 0
+    n := lines.Count ()
+    while { i < n; } {
+        t := (LineAt lines i).Trim ()
+        at := i + 1                              # 锚点用行号:标题是中文,做不出好看的 slug
+        done := false
+
+        if { t.StartsWith "```"; } {
+            i += 1
+            code := []
+            while { (i < n) && !(((LineAt lines i).Trim ()).StartsWith "```"); } {
+                code.Add (LineAt lines i)
+                i += 1
+            }
+            i += 1
+            out += "<pre><code>" + (H (code.Join "\n")) + "</code></pre>\n"
+            done = true
+        } { 0; }
+
+        if { !done && (t.StartsWith "|"); } {
+            rows := []
+            while { (i < n) && (((LineAt lines i).Trim ()).StartsWith "|"); } {
+                rows.Add (LineAt lines i)
+                i += 1
+            }
+            out += Table rows
+            done = true
+        } { 0; }
+
+        if { !done && (t.StartsWith "#### "); } { out += Head 4 at (Tail t 5); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "### "); }  { out += Head 3 at (Tail t 4); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "## "); }   { out += Head 2 at (Tail t 3); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "# "); }    { out += Head 1 at (Tail t 2); i += 1; done = true; } { 0; }
+
+        if { !done && (t.StartsWith "- "); } {
+            out += "<ul>\n"
+            while { (i < n) && (((LineAt lines i).Trim ()).StartsWith "- "); } {
+                item := Tail ((LineAt lines i).Trim ()) 2
+                out += "<li>" + (Inline item) + "</li>\n"
+                i += 1
+            }
+            out += "</ul>\n"
+            done = true
+        } { 0; }
+
+        if { done; } { 0; } {
+            if { t == ""; } { i += 1; } {
+                out += "<p>" + (Inline t) + "</p>\n"
+                i += 1
+            }
+        }
+    }
+    out;
+}
+
+# 抽 `##` / `###` 给左侧导航用
+Toc := (text: string) => {
+    out := []
+    lines := System.SplitLines text
+    i := 0
+    while { i < (lines.Count ()); } {
+        t := (LineAt lines i).Trim ()
+        id := "s" + (string (i + 1))
+        if { t.StartsWith "### "; } { out.Add {"lvl": 3 "id": id "text": (Tail t 4)}; } { 0; }
+        if { t.StartsWith "## "; }  { out.Add {"lvl": 2 "id": id "text": (Tail t 3)}; } { 0; }
+        i += 1
+    }
+    out;
+}
+
+# ═══ 页面 ═══
+
+Page := (title: string nav: string body: string prev: string next: string) => {
+    h := "<!doctype html>\n<html lang=\"zh\">\n<head>\n<meta charset=\"utf-8\">\n"
+    h += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+    h += "<title>" + (H title) + "</title>\n<link rel=\"stylesheet\" href=\"style.css\">\n"
+    h += "</head>\n<body>\n<header><a href=\"index.html\">" + (H SITE) + "</a></header>\n"
+    h += "<div class=\"wrap\">\n<nav>\n" + nav + "</nav>\n<main>\n" + body + "</main>\n</div>\n"
+    h += "<footer>" + prev + "<span></span>" + next + "</footer>\n</body>\n</html>\n"
+    h;
+}
+
+# 样子照 runoob 那种:左边目录、右边正文、代码块浅灰、表格带框
+CSS := """
+    :root { --fg:#333; --dim:#777; --line:#e3e3e3; --link:#0087bd; --code-bg:#f6f6f6; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; color:var(--fg); }
+    header { padding:14px 24px; border-bottom:1px solid var(--line); font-weight:700; font-size:17px; }
+    header a { color:var(--fg); text-decoration:none; }
+    .wrap { display:flex; align-items:flex-start; max-width:1180px; margin:0 auto; }
+    nav { flex:0 0 236px; padding:20px 12px 60px; position:sticky; top:0; max-height:100vh;
+          overflow:auto; font-size:14px; border-right:1px solid var(--line); }
+    nav a { display:block; padding:5px 10px; color:var(--fg); text-decoration:none; border-radius:4px; }
+    nav a:hover { background:var(--code-bg); }
+    nav a.on { background:#e8f4fa; color:var(--link); font-weight:600; }
+    nav a.sub { padding-left:26px; font-size:13px; color:#555; }
+    main { flex:1 1 auto; min-width:0; padding:24px 34px 80px; }
+    h1 { font-size:26px; border-bottom:1px solid var(--line); padding-bottom:10px; }
+    h2 { font-size:21px; margin-top:34px; }
+    h3 { font-size:17px; margin-top:26px; }
+    h4 { font-size:15px; margin-top:22px; color:#555; }
+    a { color:var(--link); }
+    code { background:var(--code-bg); padding:2px 5px; border-radius:3px;
+           font:13.5px/1.5 Consolas,"Courier New",monospace; }
+    pre { background:var(--code-bg); border:1px solid var(--line); border-radius:4px;
+          padding:12px 14px; overflow:auto; }
+    pre code { background:none; padding:0; }
+    table { border-collapse:collapse; margin:14px 0; }
+    th,td { border:1px solid var(--line); padding:6px 12px; text-align:left; }
+    th { background:var(--code-bg); }
+    footer { max-width:1180px; margin:0 auto; padding:18px 34px 40px; border-top:1px solid var(--line);
+             display:flex; justify-content:space-between; font-size:14px; }
+    @media (max-width:820px) { .wrap { display:block; }
+        nav { position:static; max-height:none; border-right:0; border-bottom:1px solid var(--line); } }
+"""
+
+# ═══ 跑起来 ═══
+
+Save := (rel: string text: string) => {
+    (Io.File (OUT + "/" + rel)).Write text;
+    print ("  " + rel);
+}
+
+# 一章的标题:头一行 `# …`
+TitleOf := (src: string) => {
+    t := (LineAt (System.SplitLines src) 0)
+    if { t.StartsWith "# "; } { Tail t 2; } { t; }
+}
+
+Html := (md: string) => { md.Replace ".md" ".html"; }
+
+Chapters := (Glob.Find (SRC + "/*.md") |> .ToList ()) |> .Sort ();
+
+# 左侧导航:每章一条;当前那一章再展开它自己的小节
+Nav := (cur: string src: string) => {
+    out := ""
+    foreach Chapters (p: string) => {
+        name := (Io.File p).Name ()
+        on := if { name == cur; } { " on"; } { ""; }
+        out += "<a class=\"" + (on.Trim ()) + "\" href=\"" + (Html name) + "\">"
+        out += (H (TitleOf ((Io.File p).Read ()))) + "</a>\n"
+        if { name == cur; } {
+            foreach (Toc src) (h: dict) => {
+                if { (h.Get "lvl") == 3; } {
+                    out += "<a class=\"sub\" href=\"#" + (string (h.Get "id")) + "\">"
+                    out += (H (string (h.Get "text"))) + "</a>\n"
+                } { 0; }
+            }
+        } { 0; }
+    }
+    out;
+}
+
+print ("生成到 " + OUT + "/");
+while { !(System.DirExists OUT); } { System.CreateDir OUT; }
+
+i := 0
+while { i < (Chapters.Count ()); } {
+    p := Chapters.At i
+    src := (Io.File p).Read ()
+    name := (Io.File p).Name ()
+    prev := ""
+    next := ""
+    if { i > 0; } {
+        prev = "<a href=\"" + (Html ((Io.File (Chapters.At (i - 1))).Name ())) + "\">← 上一章</a>"
+    } { 0; }
+    if { i < ((Chapters.Count ()) - 1); } {
+        next = "<a href=\"" + (Html ((Io.File (Chapters.At (i + 1))).Name ())) + "\">下一章 →</a>"
+    } { 0; }
+    Save (Html name) (Page (TitleOf src) (Nav name src) (Md src) prev next)
+    i += 1
+}
+
+# 首页 = 目录
+idx := "<h1>" + (H SITE) + "</h1>\n<ul>\n"
+foreach Chapters (p: string) => {
+    name := (Io.File p).Name ()
+    idx += "<li><a href=\"" + (Html name) + "\">"
+    idx += (H (TitleOf ((Io.File p).Read ()))) + "</a></li>\n"
+}
+idx += "</ul>\n"
+Save "index.html" (Page SITE "" idx "" "")
+Save "style.css" CSS
+print ("好了 —— 打开 " + OUT + "/index.html");
