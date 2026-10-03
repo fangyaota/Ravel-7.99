@@ -17,17 +17,24 @@
 # markdown 只认这份文档用到的**子集**:标题、表格、``` 代码块、`-` 列表、段落;
 # 行内认 `code` / **粗** / [文字](链接)。认得的少,错得也少。
 #
-# 写这个文件时踩到的三条语言脾气 —— 都不是 bug,是这门口的规矩,后面全按着它们写:
+# **HTML 那一半交给 `lib/html.rav`**(`using "html.rav"`)。这份文件从前是手写拼串的,
+# 还自带一份 `H` 做转义 —— 现在两样都是 `Html` 的事:块级函数交回**节点**,`Html.Pretty`
+# 负责拼成文本,转义在渲染那一步统一做(所以字符串里的 `<` 不用自己操心了)。
+#
+# 写这个文件时踩到的四条语言脾气 —— 都不是 bug,是这门口的规矩,后面全按着它们写:
 #
 #   * **`X ().Y` 要写 `(X ()).Y`** —— `.成员` 比并列的调用绑得紧(教程 3.9),所以
 #     `t.Trim ().StartsWith "a"` 会被读成 `t.Trim (().StartsWith "a")`。这条最坑,
 #     报出来的错是"类型 'Void' 没有方法",指着的却是 `.Trim`。
+#   * **`[…]` 里空格是元素分隔符** —— `[f 1 2]` 是**三个**元素,要一个调用当一格就得自己
+#     加括号:`[(f 1 2)]`。这个文件里到处是"孩子是一串节点",所以这条几乎每行都躲不开。
 #   * **`Slice [a..b]` 是闭区间**,和 `[1..3]` 那个 Range 一个规矩 —— 差一格的事全收进
 #     `Sub` / `Mid` / `Tail` 三个小函数里,别在每个调用点各算一遍。
 #   * **长表达式别跨行** —— 只在括号里才续行,行尾的 `+` 不管用。每句都短,要拼长东西
 #     先拆临时变量。
 ravel "DocSite"
 
+using "html.rav"
 using "io.rav"
 using "glob.rav"
 
@@ -37,11 +44,6 @@ SRC := "docs/tutorial"
 SITE := "Ravel 语言教程"
 
 # ═══ 小工具 ═══
-
-# HTML 里不能直接出现这几个字符。**在拼标签之前转**,不然标签自己也会被转掉。
-H := (s: string) => {
-    ((s.Replace "&" "&amp;").Replace "<" "&lt;").Replace ">" "&gt;";
-}
 
 # 取子串。**`Slice` 是闭区间**(和 `[1..3]` 那个 Range 一个规矩),差一格的事全收进
 # 这三个里,别在每个调用点各算一遍。
@@ -70,16 +72,19 @@ Find := (s: string sub: string from: int) => {
     at;
 }
 
-# 行内格式。手写扫描,不用正则 —— 正则在"要先转义的东西"上容易出岔子。
+# ═══ 行内 ═══
+#
+# 交回的是**一串节点**,不是字符串 —— 文本走 `Html.Text`(渲染时转义),标签走 `Html`。
+# 手写拼串那份连同 `H` 一起删了:字符串里的 `<` / `&` 现在不用在这儿操心。
 #
 #   `x`       → <code>x</code>
 #   **x**     → <strong>x</strong>
 #   [x](url)  → <a href="url">x</a>
 #
-# 三条各拆成"交回片段"和"下一个位置"两半:认不出的情况(没有收尾记号)照样得往前走一格,
+# 三条各拆成"交回节点"和"下一个位置"两半:认不出的情况(没有收尾记号)照样得往前走一格,
 # 不然会死循环。
 Inline := (s: string) => {
-    out := ""
+    out := []
     i := 0
     n := s.Length ()
     while { i < n; } {
@@ -88,21 +93,21 @@ Inline := (s: string) => {
         # 不然那个 `[` 会被当成链接的开头,而 `\[…\]` 根本不是链接(教程里写"值 \[…\] 不是函数"
         # 就是这么写的)。末尾孤零零一个 `\` 就当一个普通字符走。
         if { c == "\\"; } {
-            if { (i + 1) < n; } { out += H (Mid s (i + 1) (i + 2)); i += 2; } { i += 1; }
+            if { (i + 1) < n; } { out.Add (Html.Text (Mid s (i + 1) (i + 2))); i += 2; } { i += 1; }
         } {
             if { c == "`"; } {
-                out += Code s i
+                out.Add (Code s i)
                 i = CodeEnd s i
             } {
                 if { c == "*"; } {
-                    out += Bold s i
+                    out.Add (Bold s i)
                     i = BoldEnd s i
                 } {
                     if { c == "["; } {
-                        out += LinkAt s i
+                        out.Add (LinkAt s i)
                         i = LinkEnd s i
                     } {
-                        out += H c
+                        out.Add (Html.Text c)
                         i += 1
                     }
                 }
@@ -114,7 +119,7 @@ Inline := (s: string) => {
 
 Code := (s: string i: int) => {
     j := Find s "`" (i + 1)
-    if { j < 0; } { H (Mid s i (i + 1)); } { "<code>" + (H (Mid s (i + 1) j)) + "</code>"; }
+    if { j < 0; } { Html.Text (Mid s i (i + 1)); } { Html.Code (Mid s (i + 1) j); }
 }
 CodeEnd := (s: string i: int) => {
     j := Find s "`" (i + 1)
@@ -123,7 +128,7 @@ CodeEnd := (s: string i: int) => {
 
 Bold := (s: string i: int) => {
     j := Find s "**" (i + 2)
-    if { j < 0; } { H (Mid s i (i + 1)); } { "<strong>" + (Inline (Mid s (i + 2) j)) + "</strong>"; }
+    if { j < 0; } { Html.Text (Mid s i (i + 1)); } { Html.El "strong" {} (Inline (Mid s (i + 2) j)); }
 }
 BoldEnd := (s: string i: int) => {
     j := Find s "**" (i + 2)
@@ -134,10 +139,8 @@ LinkAt := (s: string i: int) => {
     j := Find s "]" (i + 1)
     k := if { j < 0; } { -1; } { Find s "(" (j + 1); }
     e := if { k < 0; } { -1; } { Find s ")" (k + 1); }
-    if { e < 0; } { H (Mid s i (i + 1)); } {
-        href := H (Mid s (k + 1) e)
-        text := Inline (Mid s (i + 1) j)
-        "<a href=\"" + href + "\">" + text + "</a>";
+    if { e < 0; } { Html.Text (Mid s i (i + 1)); } {
+        Html.A (Mid s (k + 1) e) (Inline (Mid s (i + 1) j));
     }
 }
 LinkEnd := (s: string i: int) => {
@@ -149,9 +152,9 @@ LinkEnd := (s: string i: int) => {
 
 # ═══ 块级 ═══
 
+# 锚点用行号:标题是中文,做不出好看的 slug
 Head := (lvl: int at: int text: string) => {
-    tag := "<h" + (string lvl) + " id=\"s" + (string at) + "\">"
-    tag + (Inline text) + "</h" + (string lvl) + ">\n";
+    Html.El ("h" + (string lvl)) {"id": ("s" + (string at))} (Inline text);
 }
 
 # 一行 `| a | b |` 拆成单元格
@@ -163,29 +166,32 @@ Cells := (line: string) => {
 
 # 表格:第一行表头,第二行是 `|---|---|` 那种分隔(扔掉),其余是数据行
 Table := (rows: list) => {
-    out := "<table>\n<thead>\n<tr>"
-    foreach (Cells (rows.At 0)) (c: string) => { out += "<th>" + (Inline c) + "</th>"; }
-    out += "</tr>\n</thead>\n<tbody>\n"
+    head := []
+    foreach (Cells (rows.At 0)) (c: string) => { head.Add (Html.El "th" {} (Inline c)); }
+    body := []
     i := 2
     while { i < (rows.Count ()); } {
-        out += "<tr>"
-        foreach (Cells (rows.At i)) (c: string) => { out += "<td>" + (Inline c) + "</td>"; }
-        out += "</tr>\n"
+        cells := []
+        foreach (Cells (rows.At i)) (c: string) => { cells.Add (Html.El "td" {} (Inline c)); }
+        body.Add (Html.El "tr" {} cells)
         i += 1
     }
-    out + "</tbody>\n</table>\n";
+    Html.El "table" {} [
+        (Html.El "thead" {} [(Html.El "tr" {} head)])
+        (Html.El "tbody" {} body)
+    ]
 }
 
-# 正文:逐行走一遍状态机。几条判据**平铺**着写(它们互斥,`#### ` 不以 `### ` 开头),
-# 每行至多命中一条,靠 `done` 拦住后面的段落分支。
+# 正文:逐行走一遍状态机,交回**一串块节点**。几条判据**平铺**着写(它们互斥,
+# `#### ` 不以 `### ` 开头),每行至多命中一条,靠 `done` 拦住后面的段落分支。
 Md := (text: string) => {
     lines := System.SplitLines text
-    out := ""
+    out := []
     i := 0
     n := lines.Count ()
     while { i < n; } {
         t := (LineAt lines i).Trim ()
-        at := i + 1                              # 锚点用行号:标题是中文,做不出好看的 slug
+        at := i + 1
         done := false
 
         if { t.StartsWith "```"; } {
@@ -196,7 +202,7 @@ Md := (text: string) => {
                 i += 1
             }
             i += 1
-            out += "<pre><code>" + (H (code.Join "\n")) + "</code></pre>\n"
+            out.Add (Html.Pre (code.Join "\n"))
             done = true
         } { 0; }
 
@@ -206,29 +212,28 @@ Md := (text: string) => {
                 rows.Add (LineAt lines i)
                 i += 1
             }
-            out += Table rows
+            out.Add (Table rows)
             done = true
         } { 0; }
 
-        if { !done && (t.StartsWith "#### "); } { out += Head 4 at (Tail t 5); i += 1; done = true; } { 0; }
-        if { !done && (t.StartsWith "### "); }  { out += Head 3 at (Tail t 4); i += 1; done = true; } { 0; }
-        if { !done && (t.StartsWith "## "); }   { out += Head 2 at (Tail t 3); i += 1; done = true; } { 0; }
-        if { !done && (t.StartsWith "# "); }    { out += Head 1 at (Tail t 2); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "#### "); } { out.Add (Head 4 at (Tail t 5)); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "### "); }  { out.Add (Head 3 at (Tail t 4)); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "## "); }   { out.Add (Head 2 at (Tail t 3)); i += 1; done = true; } { 0; }
+        if { !done && (t.StartsWith "# "); }    { out.Add (Head 1 at (Tail t 2)); i += 1; done = true; } { 0; }
 
         if { !done && (t.StartsWith "- "); } {
-            out += "<ul>\n"
+            items := []
             while { (i < n) && (((LineAt lines i).Trim ()).StartsWith "- "); } {
-                item := Tail ((LineAt lines i).Trim ()) 2
-                out += "<li>" + (Inline item) + "</li>\n"
+                items.Add (Inline (Tail ((LineAt lines i).Trim ()) 2))
                 i += 1
             }
-            out += "</ul>\n"
+            out.Add (Html.Ul items)
             done = true
         } { 0; }
 
         if { done; } { 0; } {
             if { t == ""; } { i += 1; } {
-                out += "<p>" + (Inline t) + "</p>\n"
+                out.Add (Html.P (Inline t))
                 i += 1
             }
         }
@@ -253,14 +258,22 @@ Toc := (text: string) => {
 
 # ═══ 页面 ═══
 
-Page := (title: string nav: string body: string prev: string next: string) => {
-    h := "<!doctype html>\n<html lang=\"zh\">\n<head>\n<meta charset=\"utf-8\">\n"
-    h += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-    h += "<title>" + (H title) + "</title>\n<link rel=\"stylesheet\" href=\"style.css\">\n"
-    h += "</head>\n<body>\n<header><a href=\"index.html\">" + (H SITE) + "</a></header>\n"
-    h += "<div class=\"wrap\">\n<nav>\n" + nav + "</nav>\n<main>\n" + body + "</main>\n</div>\n"
-    h += "<footer>" + prev + "<span></span>" + next + "</footer>\n</body>\n</html>\n"
-    h;
+# `prev` / `next` 是**节点**(没有就是 `None`,渲染时会跳过)—— 从前是拼好的字符串,
+# 现在连那一对 `<a href="…">` 都交给 `Html.A`。
+Page := (title: string nav: object body: object prev: object next: object) => {
+    head := [
+        (Html.El "meta" {"name": "viewport" "content": "width=device-width, initial-scale=1"} [])
+        (Html.El "title" {} [title])
+        (Html.CssLink "style.css")
+    ]
+    Html.Doc "zh" head [
+        (Html.El "header" {} [(Html.A "index.html" [SITE])])
+        (Html.El "div" {"class": "wrap"} [
+            (Html.El "nav" {} nav)
+            (Html.El "main" {} body)
+        ])
+        (Html.El "footer" {} [prev (Html.El "span" {} []) next])
+    ]
 }
 
 # 样子照 runoob 那种:左边目录、右边正文、代码块浅灰、表格带框
@@ -310,23 +323,24 @@ TitleOf := (src: string) => {
     if { t.StartsWith "# "; } { Tail t 2; } { t; }
 }
 
-Html := (md: string) => { md.Replace ".md" ".html"; }
+# `01-start.md` → `01-start.html`。
+# **不叫 `Html`** —— 那个名字现在是 `html.rav` 的模块名,盖住它这份文件就没法拼页面了。
+PageOf := (md: string) => { md.Replace ".md" ".html"; }
 
 Chapters := (Glob.Find (SRC + "/*.md") |> .ToList ()) |> .Sort ();
 
 # 左侧导航:每章一条;当前那一章再展开它自己的小节
 Nav := (cur: string src: string) => {
-    out := ""
+    out := []
     foreach Chapters (p: string) => {
         name := (Io.File p).Name ()
-        on := if { name == cur; } { " on"; } { ""; }
-        out += "<a class=\"" + (on.Trim ()) + "\" href=\"" + (Html name) + "\">"
-        out += (H (TitleOf ((Io.File p).Read ()))) + "</a>\n"
+        attrs := if { name == cur; } { {"href": (PageOf name) "class": "on"}; } { {"href": (PageOf name)}; }
+        out.Add (Html.El "a" attrs [(TitleOf ((Io.File p).Read ()))])
         if { name == cur; } {
             foreach (Toc src) (h: dict) => {
                 if { (h.Get "lvl") == 3; } {
-                    out += "<a class=\"sub\" href=\"#" + (string (h.Get "id")) + "\">"
-                    out += (H (string (h.Get "text"))) + "</a>\n"
+                    href := "#" + (string (h.Get "id"))
+                    out.Add (Html.El "a" {"href": href "class": "sub"} [(string (h.Get "text"))])
                 } { 0; }
             }
         } { 0; }
@@ -352,27 +366,28 @@ Build := (out: string) => {
         p := Chapters.At i
         src := (Io.File p).Read ()
         name := (Io.File p).Name ()
-        prev := ""
-        next := ""
+        # 标 `object`:**光写 `None` 会被推成 `Option`**,后面赋一个节点就报"无法将 Dict
+        # 赋值给 'next'(声明为 Option)"。这两个格子装的是"节点或者没有"。
+        prev: object = None
+        next: object = None
         if { i > 0; } {
-            prev = "<a href=\"" + (Html ((Io.File (Chapters.At (i - 1))).Name ())) + "\">← 上一章</a>"
+            prev = Html.A (PageOf ((Io.File (Chapters.At (i - 1))).Name ())) ["← 上一章"]
         } { 0; }
         if { i < ((Chapters.Count ()) - 1); } {
-            next = "<a href=\"" + (Html ((Io.File (Chapters.At (i + 1))).Name ())) + "\">下一章 →</a>"
+            next = Html.A (PageOf ((Io.File (Chapters.At (i + 1))).Name ())) ["下一章 →"]
         } { 0; }
-        Save out (Html name) (Page (TitleOf src) (Nav name src) (Md src) prev next)
+        Save out (PageOf name) ((Html.Pretty (Page (TitleOf src) (Nav name src) (Md src) prev next)) + "\n")
         i += 1
     }
 
     # 首页 = 目录
-    idx := "<h1>" + (H SITE) + "</h1>\n<ul>\n"
+    entries := []
     foreach Chapters (p: string) => {
         name := (Io.File p).Name ()
-        idx += "<li><a href=\"" + (Html name) + "\">"
-        idx += (H (TitleOf ((Io.File p).Read ()))) + "</a></li>\n"
+        entries.Add (Html.El "a" {"href": (PageOf name)} [(TitleOf ((Io.File p).Read ()))])
     }
-    idx += "</ul>\n"
-    Save out "index.html" (Page SITE "" idx "" "")
+    idx := [(Html.H1 SITE) (Html.Ul entries)]
+    Save out "index.html" ((Html.Pretty (Page SITE [] idx None None)) + "\n")
     Save out "style.css" CSS
     print ("好了 —— " + out + "/index.html");
 }

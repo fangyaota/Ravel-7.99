@@ -15,7 +15,8 @@
 #   * **节点就是普通 dict / list** —— 和 `lib/xml.rav` 底下那棵树**同一个形状**
 #     (`{"kind": "element" "name": … "attrs": {} "kids": []}` / `{"kind": "text" "text": …}` /
 #     `{"kind": "raw" "text": …}`)。自己拼一棵、或者把 `Xml.Parse` 交回的那棵喂进来,都认。
-#   * **转义默认开** —— 文本和属性值都过 `Encoding.HtmlEscape`;要插整段现成标记用 `Html.Raw`。
+#   * **转义默认开** —— 文本躲 `&` `<` `>`,属性值再饶上引号(见 `TextEscape`);
+#     要插整段现成标记用 `Html.Raw`。
 #   * **标签名不设白名单** —— 唯一的例外是 void 元素(`br` / `img` / …,标准里那 14 个),
 #     它们不写收尾标签;给它们**塞孩子是写错了**,当场报错,不静默丢掉。
 #   * **孩子是个 list** —— 而 list 字面量里**每个调用要自己加括号**(空格在 `[…]` 里是分隔符,
@@ -36,6 +37,13 @@ readonly Voids := ["area" "base" "br" "col" "embed" "hr" "img" "input"
 readonly IsVoid := (name: string) => { Voids.Contains (name.ToLower ()); }
 
 # ── 造节点 ──
+
+# **文本**只要躲开这三个:引号在文本里是普通字符,转成 `&quot;` 白白让源码变吵
+# (`<pre>` 里的代码最明显:`print "x"` 变成 `print &quot;x&quot;`)。引号是**属性**
+# 那边的事,所以属性值照旧走 `Encoding.HtmlEscape` 那五个。
+readonly TextEscape := (s: string) => {
+    ((s.Replace "&" "&amp;").Replace "<" "&lt;").Replace ">" "&gt;";
+}
 
 readonly TextNode := (s: object) => { {"kind": "text" "text": (string s)}; }
 readonly RawNode := (s: string) => { {"kind": "raw" "text": s}; }
@@ -116,7 +124,7 @@ readonly Render := (n: object) => {
             if { x is dict; } {
                 kind := x.GetOr "kind" ""
                 if { kind == "text"; } {
-                    out += (Encoding.HtmlEscape (x.GetOr "text" ""));
+                    out += (TextEscape (x.GetOr "text" ""));
                 } {
                     if { kind == "raw"; } {
                         out += (x.GetOr "text" "");
@@ -136,7 +144,7 @@ readonly Render := (n: object) => {
                 # 孩子里直接写的东西:字符串、数、bool… 一律转义后当文本写出去
                 # (最常见的写法是直接给字符串,省掉一层 `Text`);`None` 当没有
                 if { (IsNothing x); } { 0; } {
-                    out += (Encoding.HtmlEscape (string x));
+                    out += (TextEscape (string x));
                 }
             }
         }
@@ -196,7 +204,7 @@ readonly Pretty := (n: object) => {
             if { x is dict; } {
                 kind := x.GetOr "kind" ""
                 if { kind == "text"; } {
-                    out += (Encoding.HtmlEscape (x.GetOr "text" ""));
+                    out += (TextEscape (x.GetOr "text" ""));
                 } {
                     if { kind == "raw"; } {
                         out += (x.GetOr "text" "");
@@ -227,7 +235,7 @@ readonly Pretty := (n: object) => {
                 }
             } {
                 if { (IsNothing x); } { 0; } {
-                    out += (Encoding.HtmlEscape (string x));
+                    out += (TextEscape (string x));
                 }
             }
         }

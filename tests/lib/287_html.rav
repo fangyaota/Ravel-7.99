@@ -6,7 +6,8 @@ using "html.rav"
 
 # ── 文本:转义默认开 ──
 print (Html.Render (Html.El "p" {} ["a < b & c"]))
-print (Html.Render (Html.El "p" {} [(Html.Text "\"引\"")]))
+print (Html.Render (Html.El "p" {} [(Html.Text "\"引\"")]))     # 文本:引号是普通字符,不转
+print (Html.Render (Html.El "p" {"title": "\"引\""} []))        # 属性:引号得转,不然属性提前收尾
 print (Html.Render (Html.El "p" {} [(Html.Raw "<i>原样</i>")]))
 
 # 孩子里**直接写的东西**:字符串、数、bool… 一律转义后当文本(`None` 当没有)
@@ -60,7 +61,8 @@ print (Html.Pretty (Html.P ["行内 " (Html.Code "x") " 不拆"]))
 print (Html.Pretty (Html.Page {"title": "页" "css": ["h1 { color: red; }"]} [(Html.H1 "你好")]))
 # --- expected ---
 # <p>a &lt; b &amp; c</p>
-# <p>&quot;引&quot;</p>
+# <p>"引"</p>
+# <p title="&quot;引&quot;"></p>
 # <p><i>原样</i></p>
 # <td>42</td>
 # <p>12</p>
