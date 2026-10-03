@@ -1621,7 +1621,7 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
   字符串。(`$"""…"""` 那种"原始的 + 还插值"的变体**没做**:它要先把 `$` 摆在引号外面,
   而那正好是"代码里不该有 `$`"这条定下来的地方。)
 
-用例 `tests/237_interpolation.rav`;原始字符串见 `tests/287`(快乐路径)+ `288` / `289`
+用例 `tests/237_char_string.rav`;原始字符串见 `tests/287`(快乐路径)+ `288` / `289`
 (缩进对不齐、没收到尾,两条 `# expect-error`)。
 
 ## 空值那三条（`?.` / `??` / `??=`）
@@ -1828,7 +1828,7 @@ impl (IComparable Rec { () })
 - 稳定性：键相等的保持原来的先后（`Merge` 里 `<= 0` 取左边）。
 - `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
 
-用例 `tests/217_icomparable.rav`。
+用例 `tests/217_ienumerable.rav`。
 
 ## JSON（内置 `Json` 类，底层 Newtonsoft.Json）
 
@@ -2094,7 +2094,7 @@ d.SysGet (Rec 1 "甲")          # 报「dict.SysGet 的键得是值类型」—�
 **现装那条路（`by Key = property …`）在这儿用不了** —— 和 `CompareTo` 同一个理由：
 `Key` 这个名字 `Object` 上已经有了，成员查找是**类链先说话**，接口槽还没轮到。
 
-用例 `tests/217_ikey.rav`。
+用例 `tests/217_ienumerable.rav`。
 
 ## core 字段与 unsafe ()
 
@@ -2187,7 +2187,7 @@ Error: 未定义的变量 'missing'
 - 渲染在 `Runtime/ErrorReport.cs`：路径取相对 cwd、分隔符统一 `/`——报告短，
   且让 `tests/152_error_report.rav` 能精确比对（不是 `# expect-error` 那样只看前缀）。
 - **语法错误也走这份渲染**（`SyntaxException`，见 `RuntimeValue.cs`）：位置来自 token、
-  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/152_syntax_error_report.rav`）。
+  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/152_error_report.rav`）。
   它以前是个裸的 `System.Exception`，于是 CLI / 测试运行器分不清「用户代码写错了」
   和「解释器有 bug」——两者都落在同一个 `catch (Exception)` 里。现在三个类型各归各位：
   `RuntimeException`（求值期）/ `SyntaxException`（词法语法期）/ `ExitException`（exit 解栈），

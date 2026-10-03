@@ -159,7 +159,7 @@ lib/                **标准库 —— 用 Ravel 自己写的**(控制流、序�
                     摘要与加密、命令行参数、表格、日志、ZIP 归档、通配符、XML、终端、REPL、数据结构…)
 tests/              golden 用例(.rav + 文件末尾的 `# --- expected ---`)
 examples/           例子(不进测试,给你看着玩)
-docs/               tutorial.md(语言教程)+ adr/(架构决策)
+docs/               tutorial.md(教程索引)+ tutorial/(一章一个文件)+ adr/(架构决策)
 vscode-ravel/       VS Code 扩展
 CONTEXT.md          **架构上下文** —— 想改引擎先读它
 ```

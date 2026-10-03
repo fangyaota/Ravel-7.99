@@ -150,7 +150,7 @@ M 的**元类** = 第一个 `class` → `Class`；M 的**父类** = 第二个 `c
 ### 砍掉
 
 - **元类机制**（`type type` / `Metaclass()` 方法那套）：不再需要「类型的类型去生成类型」的二阶结构。
-- **`Proto` / `Instantiate`**：把字段 shape 的临时 Scope 暴露出去再塞回，是泄漏抽象。建议砍掉。（已砍：`Proto` 现在不存在，`tests/142_property_attrs.rav` 的注释里留了记录。）
+- **`Proto` / `Instantiate`**：把字段 shape 的临时 Scope 暴露出去再塞回，是泄漏抽象。建议砍掉。（已砍：`Proto` 现在不存在。）
 - **`setInitializer`**：保留与否待定——它干净地表达「覆盖默认实例化器」，与 `FieldShape` 正交，倾向保留。
 
 ### 测试影响
