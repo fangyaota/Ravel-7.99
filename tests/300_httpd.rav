@@ -1,0 +1,73 @@
+﻿# `Httpd` —— HTTP 服务端的验收:路由 / 方法 / 查询串 / 正文 / JSON / 静态目录 / 404。
+#
+# **服务端和客户端在同一条 OS 线程上**,所以进程内自测只能走 `Http.GetTask` 那条:
+# 同步的 `Http.Get` 会把唯一那条线程占死,服务端的任务永远轮不上 —— 死锁。
+# 这是协作式调度的本分,不是 bug。
+#
+# 端口一律绑 0(让系统挑),用例里**不打印端口** —— 每次都不一样,打印出来期望就钉不住。
+using "httpd.rav"
+using "tasks.rav"
+using "http.rav"
+
+# 静态目录要有个文件可发,现造一个(名字取得偏门一点,别撞上真东西)
+System.WriteText "httpd_pub.txt" "从磁盘来"
+
+srv := Httpd.Server 0
+srv.Route "GET" "/hi" (req) => { Httpd.Text "你好"; }
+srv.Route "GET" "/q" (req) => { Httpd.Text ("收到 " + (req.Param "name")); }
+srv.Route "POST" "/echo" (req) => { Httpd.Json {"len": ((req.BodyText ()).Length ())}; }
+srv.Route "GET" "/nope" (req) => { Httpd.Text "自定义的没有" |> .With 404; }
+srv.Static "/pub" "."
+
+base := "http://127.0.0.1:" + (string (srv.Port))
+
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        r1 := g.Await (Http.GetTask (base + "/hi"))
+        print (string (r1.status))
+        print (r1.Text ())
+        print (r1.Header "content-type")
+
+        # 查询串里的百分号编码要解开(中文三个字节一组)
+        r2 := g.Await (Http.GetTask (base + "/q?name=%E4%B8%AD%E6%96%87"))
+        print (r2.Text ())
+
+        # 交回 JSON 的路由:dict 正文进去,出来的是个真的 JSON 对象
+        r3 := g.Await (Http.PostTask (base + "/echo") {"a": 1 "b": 2})
+        print (r3.Text ())
+
+        # handler 自己给的 404 —— 和"没有路由"那个 404 不是同一句话
+        r4 := g.Await (Http.GetTask (base + "/nope"))
+        print (string (r4.status))
+        print (r4.Text ())
+
+        r5 := g.Await (Http.GetTask (base + "/missing"))
+        print (string (r5.status))
+
+        # 静态目录:类型按扩展名给
+        r6 := g.Await (Http.GetTask (base + "/pub/httpd_pub.txt"))
+        print (r6.Text ())
+        print (r6.Header "content-type")
+
+        # 穿越防护:`..` 一律 404(不挡的话整个盘都能读出去)
+        r7 := g.Await (Http.GetTask (base + "/pub/../CONTEXT.md"))
+        print (string (r7.status))
+
+        srv.Stop ()
+    })
+]
+
+System.DeletePath "httpd_pub.txt"
+# --- expected ---
+# 200
+# 你好
+# text/plain; charset=utf-8
+# 收到 中文
+# {"len":13}
+# 404
+# 自定义的没有
+# 404
+# 从磁盘来
+# text/plain; charset=utf-8
+# 404

@@ -7,7 +7,9 @@
 #
 #     Native.HashBytes / HashFile / HmacBytes                  ← lib/hash.rav
 #     Native.AesSeal / AesOpen / Pbkdf2                        ← lib/crypto.rav
-#     Native.HttpReq / HttpDownload / HttpUpload / DecodeText  ← lib/http.rav
+#     Native.HttpReq / HttpDownload / HttpUpload / DecodeText  ← lib/http.rav(客户端)
+#     Native.HttpListen / HttpAccept / HttpRead / HttpAnswer / HttpClose / HttpMakeCert
+#                                                              ← lib/httpd.rav(服务端)
 #     Native.RegexMatch / IsMatch / FindAll / Replace / Split / Escape   ← lib/regex.rav
 #     Native.SqliteOpen / Close / Exec / Query / LastId        ← lib/sqlite.rav
 #     Native.RandomBytes / NewRandom / SharedRandom / XoshiroRandom      ← lib/random.rav

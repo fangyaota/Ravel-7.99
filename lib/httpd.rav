@@ -1,0 +1,404 @@
+# `Httpd` —— HTTP **服务端**。**要显式引用**:`using "httpd.rav"`。
+#
+#     srv := Httpd.Server 8080
+#     srv.Route "GET" "/hi" (req) => { Httpd.Text "你好" }
+#     srv.Static "/pub" "public"
+#     srv.Run ()
+#
+# 客户端在 `lib/http.rav`(`Http`),这一层是它的对面。原生那一半是
+# `Native.HttpListen / HttpAccept / HttpRead / HttpAnswer / HttpClose`(`Ravel.Extensions/ServerNative.cs`),
+# 这个文件补的是路由、响应对象、静态目录、keep-alive 这些**策略** —— 和 `Http` / `Regex` 一个分工。
+#
+# ## 它就是一个任务
+#
+# `Run ()` 内部就是 `Tasks.Cycle`:accept 循环是一个任务,**一条连接再一个任务**。所以慢的
+# handler 挡不住别的连接 —— 这正是 `lib/tasks.rav` 那套协作式调度白捡的。挂起点有三处:
+# 等新连接、读请求、回响应,外加 handler 里自己 `g.Await` 的那些。
+#
+# **一条绕不开的约束**:服务端和客户端跑在**同一条 OS 线程**上。所以**在同一个进程里
+# 用同步的 `Http.Get` 打自己起的服务器 = 死锁** —— 那一下把唯一那条线程占死了,服务端的
+# 任务永远轮不上。进程内自测一律用 `Http.GetTask`(照 `tests/298` 那个路子)。
+#
+# ## handler
+#
+# handler 收一个 `Request`、交回一个 `Response`(用下面那几个构造器造)。想等 IO 就用
+# `req.Group.Await …`(那是伺候这个请求的那个调度组),或者干脆交回一个**任务**
+# —— `Serve` 那一头会等它。两条都行:
+#
+#     srv.Route "GET" "/hi" (req) => { Httpd.Text "你好" }                      # 直接交响应
+#     srv.Route "GET" "/f"  (req) => { Httpd.File "public/a.txt" }              # 交任务(不占线程)
+#     srv.Route "GET" "/db" (req) => { req.Group.Await (…); Httpd.Text "好了" }  # 自己等
+#
+# handler 里抛出来的错**不会把这台服务器带走**:`Serve` 那一头接着,回一个 500。
+#
+# ## keep-alive
+#
+# `HTTP/1.1` 默认一条连接收多个请求,空转 `Idle` 毫秒(默认 15 秒)没动静才收摊;客户端
+# 说 `Connection: close`、或者 HTTP/1.0 来的,回完就断。**请求正文只认 `Content-Length`**,
+# `Transfer-Encoding: chunked` 明确报错 —— 猜错就是悄悄把正文读歪,那比报错难查得多。
+ravel "Httpd"
+
+using "native.rav"
+using "tasks.rav"
+using "encoding.rav"
+
+# 交回来的是不是 `()`(Void)。**不能直接写 `x == ()`** —— 那个比较不收 Void 操作数,
+# 会当场报「运算符 '==' 不支持操作数」。判类型是那条正路。
+readonly IsNothing := (v: object) => { (typeof v) == System.Void; }
+
+# 一次请求的默认空转时间(毫秒)。keep-alive 的连接闲着超过它就让位 ——
+# 少了这条,一条不说话的连接会永远占着一个任务,而任务是有数的。
+readonly DefaultIdle := 15000;
+
+# `a=1&b=%E4%B8%AD` → `{"a": "1" "b": "中"}`。没写 `=` 的按空串(键照样留)。
+# 解码用 `Encoding.UrlDecode`;`Slice` 是**包含式**的,所以右边那个端点要减一。
+readonly ParseQuery := (q: string) => {
+    out := {}
+    if { q == ""; } { out; } {
+        foreach (q.Split "&") (part: string) => {
+            if { part != ""; } {
+                i := part.IndexOf "="
+                if { i < 0; } { out.Set (Encoding.UrlDecode part) ""; } {
+                    k := part.Slice [0..(i - 1)]
+                    v := part.Slice [(i + 1)..((part.Length ()) - 1)]
+                    out.Set (Encoding.UrlDecode k) (Encoding.UrlDecode v)
+                }
+            } { 0; }
+        }
+        out;
+    }
+}
+
+# 扩展名 → content-type。**这是策略,不归本机那半边**(那边只管把字节发出去)。
+# 表里没有的一律 `application/octet-stream` —— 猜错类型会让浏览器把文本当附件下载,
+# 不如老实说"我不知道这是什么"。
+readonly MimeOf := (path: string) => {
+    i := path.LastIndexOf "."
+    if { i < 0; } { "application/octet-stream"; } {
+        ext := (path.Slice [(i + 1)..((path.Length ()) - 1)]).ToLower ()
+        (MimeTable ()).GetOr ext "application/octet-stream";
+    }
+}
+
+# 造一次就留着 —— 每个静态文件都重建一张表太亏
+MimeCache := {}
+readonly MimeTable := () => {
+    if { MimeCache.IsEmpty (); } {
+        MimeCache.Set "html" "text/html; charset=utf-8"
+        MimeCache.Set "htm" "text/html; charset=utf-8"
+        MimeCache.Set "css" "text/css; charset=utf-8"
+        MimeCache.Set "js" "text/javascript; charset=utf-8"
+        MimeCache.Set "json" "application/json; charset=utf-8"
+        MimeCache.Set "txt" "text/plain; charset=utf-8"
+        MimeCache.Set "md" "text/markdown; charset=utf-8"
+        MimeCache.Set "xml" "application/xml"
+        MimeCache.Set "csv" "text/csv; charset=utf-8"
+        MimeCache.Set "svg" "image/svg+xml"
+        MimeCache.Set "png" "image/png"
+        MimeCache.Set "jpg" "image/jpeg"
+        MimeCache.Set "jpeg" "image/jpeg"
+        MimeCache.Set "gif" "image/gif"
+        MimeCache.Set "webp" "image/webp"
+        MimeCache.Set "ico" "image/x-icon"
+        MimeCache.Set "pdf" "application/pdf"
+        MimeCache.Set "zip" "application/zip"
+        MimeCache.Set "wasm" "application/wasm"
+        MimeCache.Set "woff2" "font/woff2"
+    } { 0; }
+    MimeCache;
+}
+
+readonly PlainType := "text/plain; charset=utf-8"
+readonly HtmlType := "text/html; charset=utf-8"
+readonly JsonType := "application/json; charset=utf-8"
+
+# ── 响应 ──
+
+# 一个响应:`Status` / `Headers` / `Body`(字节表)。handler 交回的就是它。
+#
+# 造的时候用下面那几个构造器(`Httpd.Text` 那些),要改就 `With` / `Header` —— 两条都
+# **交回自己**,所以能用 `|>` 串起来:
+#
+#     Httpd.Text "没有" |> .With 404
+Response ::= class {
+    Status: int = 200
+    Headers: dict = {}
+    Body: list = []
+
+    init = (status: int headers: dict body: list) => {
+        Status = status
+        Headers = headers
+        Body = body
+        this;
+    }
+
+    With := (status: int) => { Status = status; this; }
+
+    Header := (name: string value: string) => {
+        k := name.ToLower ()
+        Headers.Set k value
+        this;
+    }
+
+    # 给 `Native.HttpAnswer` 的那一份。`conn` 由 `Serve` 补(那是每条连接自己的事),
+    # 响应本身不该知道自己在哪条连接上。
+    Wire := (close: bool) => {
+        {"status": Status "headers": Headers "body": Body "close": close};
+    }
+}
+
+readonly Build := (status: int type: string body: list) => {
+    Response status {"content-type": type} body;
+}
+
+# 文本。两种写法:`Httpd.Text "你好"`,或者带状态码的 `Httpd.Text 404 "没有"`
+# (靠第一个实参的**类型**分流 —— `int` 走带状态那条,`string` 走默认 200 那条)。
+readonly Text := ((s: string) => { Build 200 PlainType (Encoding.Utf8 s); }) | ((status: int s: string) => { Build status PlainType (Encoding.Utf8 s); })
+
+readonly Html := ((s: string) => { Build 200 HtmlType (Encoding.Utf8 s); }) | ((status: int s: string) => { Build status HtmlType (Encoding.Utf8 s); })
+
+# 一个 Ravel 值当 JSON 发出去(dict / list / 数字 / 字符串都行)。
+# 里面必须写 `System.Json` —— 外面那个 `Json` 正是这个函数自己,名字把它遮住了。
+readonly Json := (v: object) => {
+    Build 200 JsonType (Encoding.Utf8 ((System.Json v).Text ()));
+}
+
+# 已经是 JSON 文本了(别拿它包一层字符串 —— 那样发出去的是个带引号的 JSON 字符串)
+readonly JsonText := (s: string) => { Build 200 JsonType (Encoding.Utf8 s); }
+
+readonly Bytes := (type: string body: list) => { Build 200 type body; }
+
+# 直接造 `Response` 而不是走 `Build` —— `Build` 的第二个参数是**类型字符串**,
+# 而重定向要带的是一对具体的头(`location`),没有 content-type 可给。
+readonly Redirect := (to: string) => {
+    Response 302 {"location": to "content-length": "0"} [];
+}
+
+readonly NoContent := () => { Build 204 {} []; }
+
+readonly NotFound := () => { Text 404 "404 没有这条路由"; }
+
+# 落盘的一个文件 —— 读盘那条走 `ReadBytesTask`,**不占线程**;文件不在就 404。
+# 查一次 `FileExists` 是值当的:不然"文件不在"会变成任务里的一个异常。
+readonly File := (path: string) => {
+    if { System.FileExists path; } {
+        Tasks.Of (System.ReadBytesTask path) |> .Map ((b: object) => { Build 200 (MimeOf path) b; });
+    } { NotFound (); }
+}
+
+# ── 请求 ──
+
+Request ::= class {
+    Method: string = "GET"
+    Path: string = "/"
+    Query: dict = {}
+    Headers: dict = {}
+    Body: list = []
+    KeepAlive: bool = true
+    Version: string = "HTTP/1.1"
+    Peer: string = ""
+
+    # **伺候这个请求的那个调度组** —— handler 里要等 IO(文件 / 数据库 / 出网)就用它:
+    #     req.Group.Await (System.ReadTextTask "a.txt")
+    # 不用等就当我没提过。
+    Group: object = ()
+
+    init = (raw: dict peer: string group: object) => {
+        Method = raw.Get "method"
+        Path = raw.Get "path"
+        Version = raw.Get "version"
+        Headers = raw.Get "headers"
+        Body = raw.Get "body"
+        KeepAlive = raw.Get "keepAlive"
+        Peer = peer
+        Group = group
+        Query = ParseQuery (raw.Get "query")
+        this;
+    }
+
+    Header := (name: string) => { Headers.GetOr (name.ToLower ()) ""; }
+
+    # 正文里的 charset(从 `content-type` 里抠;抠不出来就给 utf-8)
+    Charset := () => {
+        ct := Header "content-type"
+        if { ct.Contains "charset="; } {
+            rest := ct.Slice [((ct.IndexOf "charset=") + 8)..((ct.Length ()) - 1)]
+            ((rest.Split ";").At 0).Trim ().ToLower ();
+        } { "utf-8"; }
+    }
+
+    BodyText := () => { Native.DecodeText Body (Charset ()); }
+
+    Json := () => { System.Json.FromString (BodyText ()); }
+
+    # 查询串里的一个值(没有就给空串)。同名多个只给第一个。
+    Param := (name: string) => { Query.GetOr name ""; }
+}
+
+# ── 服务器 ──
+
+Server ::= class {
+    Handle: int = 0
+    Port: int = 0
+    Routes: list = []
+    Statics: list = []
+    Idle: int = 0
+    Stopping: bool = false
+    # 收过几条连接 / 答过几个请求。**两个数不一样就说明 keep-alive 在干活**
+    # —— 一条连接收了 N 个请求时,连接数比请求数小。
+    Conns: int = 0
+    Requests: int = 0
+
+    # 两种起法:`Httpd.Server 8080`,或者一张配置
+    # `Httpd.Server {"port": 8443 "cert": "s.crt" "key": "s.key"}`(HTTPS 见 `Native.HttpListen`)。
+    init = (port: int) => {
+        info := Native.HttpListen {"port": port}
+        Handle = info.Get "handle"
+        Port = info.Get "port"
+        Idle = DefaultIdle
+        this;
+    } | (cfg: dict) => {
+        info := Native.HttpListen cfg
+        Handle = info.Get "handle"
+        Port = info.Get "port"
+        Idle = DefaultIdle
+        this;
+    }
+
+    # 加一条路由。`method` 大小写无所谓(`"get"` 也认),`path` 要**整条相等**才命中
+    # (`"/hi"` 不匹配 `"/hi/x"`)。
+    Route := (method: string path: string handler: function) => {
+        Routes.Add {"method": (method.ToUpper ()) "path": path "handler": handler}
+        this;
+    }
+
+    # 把磁盘上一个目录挂在 `prefix` 底下:`srv.Static "/pub" "public"` 之后,
+    # `/pub/a.css` 给的是 `public/a.css`。命中不了就交给 `NotFound`。
+    Static := (prefix: string dir: string) => {
+        Statics.Add {"prefix": prefix "dir": dir}
+        this;
+    }
+
+    # 空转多久让位(毫秒)。0 = 一次也不超时 —— 那样一条不说话的连接会永远占着任务。
+    IdleFor := (ms: int) => { Idle = ms; this; }
+
+    # 跑起来:**阻塞到 `Stop ()`**。就是下面 `RunIn` 包一圈 `Tasks.Cycle` —— 给
+    # "这台服务器就是整个程序"那种用。
+    Run := () => {
+        me := this
+        Tasks.Cycle [
+            (Tasks.Task (g: Tasks.TaskGroup) => { me.RunIn g; })
+        ]
+        ()
+    }
+
+    # 把 accept 循环挂进**你那个**组 —— 进程内自测只能走这条:自己起一个 `Tasks.Cycle`,
+    # 服务器一个任务、客户端另一个任务,**两个得在同一个组里**。
+    #
+    # 别在任务里调 `Run ()`:`Run` 自己又开一个 `Cycle`,那个内层调度器会把线程占住,
+    # 外层那些任务(比如你那个客户端)就再也轮不上了 —— 死锁。
+    # accept 循环。`Stopping` 是唯一的退出条件 —— **不去看 `HttpAccept` 交回什么**:
+    # 那个值是不是 `()` 得判类型,而"我说停就停"本来就该由这边说了算。
+    RunIn := (g: Tasks.TaskGroup) => {
+        me := this
+        running := true
+        while { running; } {
+            a := g.Await (Tasks.Of (Native.HttpAccept Handle))
+            if { Stopping; } { running = false; } {
+                g.Add (Tasks.Task (gg: Tasks.TaskGroup) => { me.ServeConn gg a; })
+            }
+        }
+        ()
+    }
+
+    # 从别的任务里喊停(比如一个 `/shutdown` 路由)。关了监听器,accept 那条路交回 `()`,
+    # 循环收摊,已经在跑的那些连接各自跑完。
+    Stop := () => {
+        Stopping = true
+        Native.HttpClose Handle;
+        ()
+    }
+
+    # 一条连接。keep-alive 时里面的 `while` 会转好几圈,每圈一个请求。
+    ServeConn := (g: Tasks.TaskGroup conn: dict) => {
+        me := this
+        c := conn.Get "conn"
+        peer := conn.Get "peer"
+        Conns += 1
+        open := true
+        while { open; } {
+            r := g.Await (Tasks.Of (Native.HttpRead c Idle))
+            if { IsNothing r; } { open = false; } {
+                req := Request r peer g
+                close := !(req.KeepAlive)
+                resp := me.Settle g (me.Answer req)
+                w := resp.Wire close
+                w.Set "conn" c
+                g.Await (Tasks.Of (Native.HttpAnswer w))
+                if { close; } { open = false; } { 0; }
+            }
+        }
+        Native.HttpClose c;
+        ()
+    }
+
+    # handler 交回的是响应就照用,是个**任务**就等它 —— 于是"读文件不占线程"这件事
+    # 由 handler 自己选(`Httpd.File` 交回的就是任务)。
+    Settle := (g: Tasks.TaskGroup resp: object) => {
+        if { resp is Tasks.ITask; } { g.Await resp; } { resp; }
+    }
+
+    # 挑一条路由。**handler 里抛了错不把这台服务器带走** —— 接住,回 500,
+    # 连接照常收摊(一个 handler 写错不该让整台服务停摆)。
+    Answer := (req: Request) => {
+        me := this
+        try { me.Dispatch req; } (e: Exception) => {
+            Text 500 ("500 handler 出错了:" + e.Message);
+        }
+    }
+
+    Dispatch := (req: Request) => {
+        me := this
+        Requests += 1
+        hit := []
+        foreach Routes (r: dict) => {
+            if { (me.Matches (r.Get "method") req.Method) && (me.Matches (r.Get "path") req.Path); } {
+                hit.Add (r.Get "handler")
+            } { 0; }
+        }
+        if { !(hit.IsEmpty ()); } { (hit.At 0) req; } { me.DispatchStatic req; }
+    }
+
+    # 路由那一格写 `"*"` 就是"什么都收" —— `Serve` 那条糖靠它当万能路由。
+    Matches := (pattern: string got: string) => { (pattern == "*") || (pattern == got); }
+
+    DispatchStatic := (req: Request) => {
+        me := this
+        hit := []
+        foreach Statics (s: dict) => {
+            p := s.Get "prefix"
+            if { (req.Path).StartsWith p; } { hit.Add s; } { 0; }
+        }
+        if { hit.IsEmpty (); } { NotFound (); } { me.SendFile req (hit.At 0); }
+    }
+
+    # 拼出磁盘上那个路径。**`..` 和反斜杠一律不认** —— 不挡的话 `/pub/../../secret`
+    # 就把整个盘读出去了,那是一台服务器最经典的那个洞。
+    SendFile := (req: Request s: dict) => {
+        prefix := s.Get "prefix"
+        dir := s.Get "dir"
+        full := req.Path
+        rest := full.Slice [(prefix.Length ())..((full.Length ()) - 1)]
+        # 两个块**必须写在同一行**(`} {`):换行分开了的话,第二个块会变成一句跟 `if`
+        # 无关的空转 —— 于是"挡穿越"那条根本不执行(`if` 缺一块不报错,见教程十一章)。
+        if { (rest.Contains "..") || (rest.Contains "\\"); } { NotFound (); } { File (dir + rest); }
+    }
+}
+
+# 一圈包住:起一台只有一个"万能路由"的服务器,跑起来。适合"我就想回几行"那种。
+# 路由多就用 `Server` —— 这个每次请求都要自己 `if` 一遍。
+readonly Serve := (port: int handler: function) => {
+    srv := Server port
+    srv.Route "*" "*" handler
+    srv.Run ()
+}

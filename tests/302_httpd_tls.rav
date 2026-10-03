@@ -1,0 +1,40 @@
+﻿# HTTPS:服务端拿**自签**证书起 SSL,客户端用 `insecure` 才连得上。
+#
+# 这条同时钉住了两件事:**加了 `insecure` 真能通**,以及**不加的时候照样校验证书**
+# —— 少了后面那半,`insecure` 一旦变成默认行为,这条用例照样是绿的。
+#
+# 证书是现场签的(`Native.HttpMakeCert`,只为本地起 HTTPS 用),用完删掉。
+# **不打印错误消息**:那里面带着端口,每次都变,打印出来期望就钉不住了。
+using "httpd.rav"
+using "tasks.rav"
+using "http.rav"
+
+Cert := "httpd_test.pfx"
+Native.HttpMakeCert {"path": Cert "password": "pw" "days": 30}
+
+srv := Httpd.Server {"port": 0 "cert": Cert "password": "pw"}
+srv.Route "GET" "/tls" (req) => { Httpd.Text "加密的你好"; }
+base := "https://127.0.0.1:" + (string (srv.Port))
+
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        # 一、说好了不校验,就通
+        r := g.Await (Http.RequestTask {"url": (base + "/tls") "insecure": true})
+        print (string (r.status))
+        print (r.Text ())
+
+        # 二、不说 —— 自签的证书没有一家客户端会信,该报错
+        refused := false
+        try { g.Await (Http.RequestTask {"url": (base + "/tls")}); } (e: Exception) => { refused = true; }
+        print refused
+
+        srv.Stop ()
+    })
+]
+
+System.DeletePath Cert
+# --- expected ---
+# 200
+# 加密的你好
+# true

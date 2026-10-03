@@ -387,6 +387,12 @@ lib/
                           (`GetTask` / `RequestTask` / `DownloadTask` …):交回一个任务,
                           `group.Await` 它的时候别的任务接着跑;底下和同步那条是**同一份实现**,
                           所以报错文案一字不差(见「并发」那节)
+  httpd.rav               `Httpd` 模块 —— HTTP **服务端**:`Server`(Route / Static / Run /
+                          RunIn / Stop / Conns / Requests)、`Request`(Method / Path / Query /
+                          Headers / Body / BodyText () / Param)、响应构造器(Text / Json /
+                          Html / Bytes / Redirect / File / NotFound)、`Serve` 那条糖。
+                          原生半边是 `Native.HttpListen` 那六条(见「网络」一节;要显式
+                          `using "httpd.rav"`)。**没有裸 TCP**:和客户端一样只做到 HTTP 这一层
   bits.rav                `Bits` 模块 —— 位那一套:`Test`/`Set`/`Clear`/`Toggle`/`Not`(单个位)、
                           `Count`(popcount)/`Width`/`High`/`Low`/`ZerosHigh`/`ZerosLow`(数位)、
                           `Mask`/`Field`/`PutField`(一段位)、`Bytes`/`FromBytes` 与 `...LE`
@@ -1968,6 +1974,52 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 **用例**:`tests/268_http.rav`(离线:查询串、响应对象、报错文案)、
 `tests/269_http_live.rav`(真发请求 —— 运行器按 `# net` 标记起一台**回环服务器**,
 见下)。例子 `examples/http.rav` 打的是真网络。
+
+### 服务端（`lib/httpd.rav`）
+
+**自己拿 `TcpListener` 说 HTTP/1.1,不用 `HttpListener`** —— 和用例里那台回环服务器
+(`Cli/Testing/LoopbackServer.cs`)同一个理由,那儿写着:后者在 Windows 上走 http.sys、
+要管理员配 URL 前缀,而且响应字节不完全可控。自己写就没有权限问题,发出的每一颗字节
+也都是我们说了算。
+
+原语六条(`Ravel.Extensions/ServerNative.cs`),**收 dict 交 dict**,句柄照 `SqliteNative`
+那套存号(监听器和连接都是要 Dispose 的本机东西,Ravel 值没有析构 —— 所以**没加新的值类型**):
+
+| 原语 | 收 | 交回 |
+|---|---|---|
+| `Native.HttpListen` | `port`(0 = 随便挑)/ `host`(默认 `127.0.0.1`)/ `backlog` / `cert` / `key` / `password` | `{handle, port, url}` |
+| `Native.HttpAccept` | `handle` | **句柄** → `{conn, peer, tls}`;监听器关了交 `()` |
+| `Native.HttpRead` | `conn` / `idle`(毫秒) | **句柄** → `{method, path, query, version, headers, body, keepAlive}` |
+| `Native.HttpAnswer` | `conn` / `status` / `headers` / `body` | **句柄** → 写出去多少字节 |
+| `Native.HttpClose` | 号(连接或监听器) | `()`,幂等 |
+| `Native.HttpMakeCert` | `path` / `password` / `names` / `days` | 自签证书落成 PFX |
+
+**服务端就是一个任务**:`Run ()` 内部是 `Tasks.Cycle`,`RunIn g` 是把 accept 循环挂进
+**调用方那个组**(进程内自测只能走它 —— `Run` 会在任务里再开一个内层调度器,把线程占死)。
+accept 循环一个任务,**一条连接再一个任务**;挂起点是 accept / 读 / 回,外加 handler 里
+自己 `g.Await` 的。于是慢 handler 挡不住别的连接 —— `tests/301` 钉的就是这个
+(**服务端自己数的并发峰值**,和 298 一个规矩:钉整数不钉墙钟)。
+
+- **两条绕不开的约束**,都写进文档了:(1) 服务端和客户端在**同一条 OS 线程**上,
+  进程内用**同步** `Http.Get` 打自己 = 死锁;(2) 客户端那个任务要是抛了错,服务器任务
+  还在等连接,`Cycle` 就**永远不结束** —— 看着像卡死,其实是"没人喊停"。
+- **`req.Group`** 是伺候这个请求的那个调度组,handler 拿它等 IO。handler 交回**任务**也行
+  (`Httpd.File` 就是),`Settle` 那一头会等它。
+- handler 里抛的错**不把服务器带走**:`Answer` 接住,回 500。
+- **keep-alive** 默认开(HTTP/1.1 最多收 N 个请求,空转 `Idle` 毫秒让位);`Conns` / `Requests`
+  两个计数就是给它看的 —— 一条连接收 N 个请求时,连接数比请求数小。
+- **请求正文只认 `Content-Length`**,`Transfer-Encoding: chunked` 明确报错:猜错就是
+  悄悄把正文读歪,那比报错难查得多。
+- **静态目录挡 `..` 和反斜杠**(`SendFile`)—— 不挡的话 `/pub/../../secret` 把整个盘读出去。
+  MIME 表在 Ravel 这边(策略),认不出的扩展名给 `application/octet-stream`。
+- **TLS 的握手在 `HttpAccept` 里就地做完**,握手失败**只丢这一条连接**,不让 accept 循环塌掉。
+  证书按 **PEM**(证书 + 私钥两个文件)或 **PFX** 读。
+- 客户端为它加了一个 `insecure`(不校验证书),**只为连自签的**:`SocketsHttpHandler` 那开关
+  是处理器级的、没法按请求改,所以宁可多养两台 `HttpClient`。`tests/302` 同时钉住两半 ——
+  带 `insecure` 通、不带**照样报错**。
+
+**用例**:`tests/300`(路由 / 查询串 / JSON / 静态 / 穿越防护)、`301`(keep-alive + 并发峰值)、
+`302`(TLS)。例子 `examples/httpd.rav`(自己起一台、自己打自己、打完收摊)。
 
 ### 一个 URL 就是一个文件
 

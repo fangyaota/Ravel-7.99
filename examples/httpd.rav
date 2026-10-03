@@ -1,0 +1,104 @@
+# 起一台 HTTP 服务器 —— `Httpd` 那套怎么用(见 lib/httpd.rav)。
+#
+# **这是例子,不是用例**:`tests/300`~`302` 那三条才是要精确比对的。
+# 这条自己起一台、自己打自己、打完收摊,所以直接跑就能看到全貌:
+#
+#     ravel examples/httpd.rav
+#
+# 真拿它当服务用的时候,最后那一节是形状(`srv.Run ()` —— 阻塞到 `Ctrl+C`)。
+using "httpd.rav"
+using "tasks.rav"
+using "http.rav"
+
+# ── 一、路由 ──
+#
+# handler 收一个 `Request`、交回一个 `Response`。端口写 0 就是"随便挑一个",
+# `srv.Port` 拿得到真端口(真上线就直接写 8080 那种)。
+srv := Httpd.Server 0
+
+srv.Route "GET" "/" (req) => { Httpd.Html "<h1>你好</h1>"; }
+
+# 查询串:`/greet?name=世界`
+srv.Route "GET" "/greet" (req) => { Httpd.Text ("你好," + (req.Param "name")); }
+
+# 交回的 dict 直接当 JSON 发出去
+srv.Route "GET" "/api/now" (req) => { Httpd.Json {"语言": "Ravel" "版本": 7.99}; }
+
+# 正文、方法、请求头 —— `Body` 是**字段**(字节表),别写 `req.Body ()`:
+# 那样成了"调用一个列表",报「值 [...] 不是函数」。
+srv.Route "POST" "/api/echo" (req) => {
+    Httpd.Json {"方法": req.Method "字节数": ((req.Body).Count ()) "内容": (req.BodyText ())};
+}
+
+# 状态码自己说了算(`With` 交回自己,所以能用 `|>` 串)
+srv.Route "GET" "/teapot" (req) => { Httpd.Text "我是茶壶" |> .With 418; }
+srv.Route "GET" "/old" (req) => { Httpd.Redirect "/"; }
+
+# ── 二、静态目录 ──
+#
+# `/ex/README.md` 给的就是磁盘上的 `README.md`(类型按扩展名)。`..` 一律挡掉。
+srv.Static "/ex" "."
+
+# ── 三、handler 里等 IO ──
+#
+# **这是这一层最要紧的地方**:handler 里 `req.Group.Await …` 挂起的时候,
+# 调度器去伺候别的连接 —— 所以一个慢 handler 不会把整台服务器堵住。
+srv.Route "GET" "/slow" (req) => {
+    req.Group.Await (Tasks.After 200)
+    Httpd.Text "想了两百毫秒";
+}
+
+# 交回一个**任务**也行(`Httpd.File` 就是):读盘在那边跑,不占线程。
+srv.Route "GET" "/readme" (req) => { Httpd.File "README.md"; }
+
+# ── 四、跑起来,自己打自己 ──
+#
+# 服务端和客户端在**同一条 OS 线程**上,所以这儿必须用 `Http.GetTask` ——
+# 同步的 `Http.Get` 会把唯一那条线程占死,服务端的任务再也轮不上(死锁)。
+#
+# 还有一条更闷的:客户端这个任务要是**抛了错**,服务器任务还在等连接,`Tasks.Cycle`
+# 就**永远不结束** —— 看上去就是卡死,而且没有一点提示。自己打自己时客户端那头要收拾干净。
+# (这个例子真踩过:下面那句打印少括了一层括号, `+ " "` 被吃进 `string` 的实参里 ——
+# 报的是个跟这里八竿子打不着的类型错,而现场只留下"卡住"。见教程 3.9 那条。)
+base := "http://127.0.0.1:" + (string (srv.Port))
+
+Tasks.Cycle [
+    # 服务器:把这个循环挂进**这个**组(不是 `Run ()` —— `Run` 会再开一个内层调度器)
+    (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
+    # 客户端:同一组里另一个任务,所以两边才能你来我往
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        r := g.Await (Http.GetTask (base + "/greet?name=%E4%B8%96%E7%95%8C"))
+        # 括号要括**整个** `string r.status` —— 不括的话 `+ " "` 会被读进实参里
+        # (`string (x + " ")`),然后报一个跟这里八竿子打不着的类型错(见教程 3.9)
+        print ((string (r.status)) + " " + (r.Text ()))
+
+        j := g.Await (Http.GetTask (base + "/api/now"))
+        print (j.Header "content-type")
+        print ((j.Json ()).Text ())
+
+        e := g.Await (Http.PostTask (base + "/api/echo") {"hello": "world"})
+        print (e.Text ())
+
+        print (string ((g.Await (Http.GetTask (base + "/teapot"))).status))
+        print (string ((g.Await (Http.GetTask (base + "/nothing"))).status))
+
+        f := g.Await (Http.GetTask (base + "/ex/README.md"))
+        print ("README: " + (string (f.Size ())) + " 字节 " + (f.Header "content-type"))
+
+        print ((g.Await (Http.GetTask (base + "/slow"))).Text ())
+
+        print ("一共收过 " + (string (srv.Conns)) + " 条连接、答过 " + (string (srv.Requests)) + " 个请求")
+        srv.Stop ()
+    })
+]
+
+# ── 五、当服务用的时候,就是这么一句 ──
+#
+#     srv := Httpd.Server 8080
+#     srv.Route "GET" "/" (req) => { Httpd.Text "你好"; }
+#     srv.Static "/pub" "public"
+#     srv.Run ()            # 阻塞在这儿,直到别的任务调 `Stop ()`
+#
+# HTTPS 就把证书给它(自签的一张见 `Native.HttpMakeCert`):
+#
+#     srv := Httpd.Server {"port": 8443 "cert": "server.crt" "key": "server.key"}

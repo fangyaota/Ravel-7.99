@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 
@@ -19,7 +20,7 @@ using static Ravel.Runtime.PluginKit;
 /// 请求 dict 认这些键(缺的都走默认):
 /// `url` / `method`(默认 GET)/ `headers`(名字→值,值也能给 list)/ `body`(字节表)/
 /// `bodyFile`(从文件流式发)/ `follow`(默认 true)/ `timeout`(毫秒,默认 30 秒)/
-/// `max`(响应正文封顶,默认 16 MB)。
+/// `max`(响应正文封顶,默认 16 MB)/ `insecure`(默认 false;**不校验证书**,只为连自签的)。
 /// 交回:`status` / `reason` / `headers`(小写名→值,重复的用 `, ` 连起来)/ `body`(字节表)/
 /// `url`(跟完重定向之后那个)。下载、上传那两条把 `body` 换成 `bytes`(写出去多少字节)。</summary>
 [RavelModule("Native")]
@@ -84,22 +85,35 @@ internal static class NetNative
     public static RuntimeValue DecodeText(RuntimeValue a, RuntimeValue b) => Guarded("解码文本", () =>
         new StringVal(Decode(Bytes(a, "DecodeText 的字节"), Text(b, "DecodeText 的字符集").Value)));
 
-    /// <summary>进程级共享的那一台 —— **别每次请求 new 一个**:连接池挂在它身上,
+    /// <summary>进程级共享的那几台 —— **别每次请求 new 一个**:连接池挂在它们身上,
     /// 一次请求一台的话连接永远复用不上,请求一多就把本机端口耗光(.NET 上最经典的那个坑)。
     ///
-    /// 超时**不设在这台身上**(设了就是全进程一把尺子),每个请求自己用 CancellationToken 管。
-    /// 两台只差一件事:跟不跟重定向 —— 那是**处理器**(handler)级的开关,没法按请求改,
-    /// 所以宁可养两台也不给用户一个"说是不跟、其实跟了"的 `follow`。</summary>
-    public static readonly HttpClient Web = MakeWeb(true);
-    public static readonly HttpClient WebNoRedirect = MakeWeb(false);
+    /// 超时**不设在这些身上**(设了就是全进程一把尺子),每个请求自己用 CancellationToken 管。
+    /// 两个开关都在**处理器**(handler)这一级、没法按请求改,所以宁可养四台也不给用户一个
+    /// "说是不跟、其实跟了"的 `follow`,或者"说是不查证书、其实查了"的 `insecure`。
+    ///
+    /// `*Lax` 那两台**不校验证书** —— 只为连**自己签的**证书(本地起个 HTTPS 试一把)。
+    /// 拿它去连真网站等于把中间人攻击的门开着,`lib/http.rav` 那边的注释也是这么写的。</summary>
+    public static readonly HttpClient Web = MakeWeb(true, false);
+    public static readonly HttpClient WebNoRedirect = MakeWeb(false, false);
+    public static readonly HttpClient WebLax = MakeWeb(true, true);
+    public static readonly HttpClient WebLaxNoRedirect = MakeWeb(false, true);
 
-    public static HttpClient MakeWeb(bool follow) => new(new SocketsHttpHandler
+    public static HttpClient MakeWeb(bool follow, bool insecure)
     {
-        AllowAutoRedirect = follow,
-        MaxAutomaticRedirections = 10,
-        AutomaticDecompression = DecompressionMethods.All,   // gzip / deflate / br 全让 .NET 顺手解开
-    })
-    { Timeout = Timeout.InfiniteTimeSpan };
+        var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = follow,
+            MaxAutomaticRedirections = 10,
+            AutomaticDecompression = DecompressionMethods.All,   // gzip / deflate / br 全让 .NET 顺手解开
+        };
+
+        // **就地改那份现成的** `SslOptions`,别整个换一个 —— 换掉会把 .NET 填好的那些默认
+        // (协议版本之类)一起清掉,而症状是"某些服务器突然握手不上",很难查。
+        if (insecure) handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+
+        return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+    }
 
     /// <summary>发出去、等回来。`bodyOut` 不是 null 时把正文**流式写进它**(下载那条路),
     /// `uploadPath` 不是 null 时把那个文件**流式发出去**(multipart,上传那条路)。</summary>
@@ -137,7 +151,15 @@ internal static class NetNative
         }
 
         using var cts = new CancellationTokenSource(timeout <= 0 ? Timeout.Infinite : timeout);
-        var client = OptBool(req, "follow", true) ? Web : WebNoRedirect;
+        var follow = OptBool(req, "follow", true);
+        var lax = OptBool(req, "insecure", false);
+        var client = (follow, lax) switch
+        {
+            (true, false) => Web,
+            (false, false) => WebNoRedirect,
+            (true, true) => WebLax,
+            _ => WebLaxNoRedirect,
+        };
         try
         {
             // ResponseHeadersRead:正文**边到边收**,不先在内存里攒成一大坨
