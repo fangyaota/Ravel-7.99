@@ -1,4 +1,5 @@
-# `DocSite` —— 把 `docs/tutorial/*.md` 生成一个静态文档站。
+# `DocSite` —— 把 `docs/tutorial/` 生成一个静态文档站:那儿的 `*.md` 是内容,
+# `style.css` 是样子,两样都**从磁盘读**。
 #
 # **这是个模块**(`ravel "DocSite"`),自己什么都不干 —— 调 `DocSite.Build "site"` 才动手。
 # 三个现成的入口:
@@ -13,6 +14,11 @@
 #
 # **零依赖**:纯静态 HTML + 一个 CSS,没有 JS、没有 CDN —— 双击就能看,也能直接挂 Pages。
 # (runoob 页面上那些"在线运行"按钮做不了:那要在浏览器里跑一个 Ravel,得先编到 wasm。)
+#
+# 样式**不写在代码里**(从前是这文件里一个一百多行的 `"""`)—— 改颜色不该要动 Ravel 源码,
+# 编辑器也认不出那是个 CSS。现在它是 `docs/tutorial/style.css`,和 markdown 放同一格:
+# 那一格就是这个站的全部原料。构建时 `docs/**` 会跟着产物走(`Ravel.csproj` 的 `CopyDocs`),
+# 所以发布出去的那份也能就地生成。
 #
 # markdown 只认这份文档用到的**子集**:标题、表格、``` 代码块、`-` 列表、段落;
 # 行内认 `code` / **粗** / [文字](链接)。认得的少,错得也少。
@@ -42,6 +48,12 @@ using "glob.rav"
 # 改这一行。**落点是 `Build out` 的参数**,不在这儿。
 SRC := "docs/tutorial"
 SITE := "Ravel 语言教程"
+
+# 样式表**从磁盘读**,不写在代码里 —— 和 markdown 放同一格:那一格就是"这个站的
+# 全部原料"。好处很实在:改颜色不用碰 Ravel 源码,编辑器也当 CSS 高亮。
+# 和 `SRC` 一样按**当前目录**找,少了它 `Build` 当场报错(生成一团没样子的 HTML
+# 才是真麻烦)。
+CSS_FILE := SRC + "/style.css"
 
 # ═══ 小工具 ═══
 
@@ -280,143 +292,6 @@ Page := (title: string nav: object body: object prev: object next: object) => {
     ]
 }
 
-# 样子照 runoob 那种:左边目录、右边正文、代码块浅灰、表格带框
-CSS := """
-    :root {
-      --bg:#fff; --fg:#1f2328; --dim:#656d76;
-      --line:#e4e7eb; --soft:#f6f8fa;
-      --link:#0a6cbb; --accent:#0a6cbb; --accent-soft:#e9f2fb;
-      --note:#d99b2b;
-      --nav-w:264px; --maxw:1080px; --radius:6px; --header-h:57px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg:#0d1117; --fg:#e6edf3; --dim:#8b949e;
-        --line:#21262d; --soft:#161b22;
-        --link:#6cb6ff; --accent:#6cb6ff; --accent-soft:#12243a;
-        --note:#e3b341;
-      }
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin:0; background:var(--bg); color:var(--fg);
-      font:16px/1.8 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-           "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-    ::selection { background:var(--accent-soft); }
-
-    header {
-      position:sticky; top:0; z-index:10; background:var(--bg);
-      height:var(--header-h); display:flex; align-items:center;
-      border-bottom:1px solid var(--line);
-      font-weight:700; font-size:16px; letter-spacing:.3px;
-      /* 标题跟着正文那一栏走 —— 不然它在最左、正文居中,看着像两块东西 */
-      padding-left:max(28px, calc((100% - var(--maxw)) / 2));
-      padding-right:28px;
-    }
-    header a { color:var(--fg); text-decoration:none; }
-    header a:hover { color:var(--accent); }
-
-    .wrap { display:flex; align-items:flex-start; max-width:var(--maxw); margin:0 auto; }
-    nav {
-      flex:0 0 var(--nav-w); position:sticky; top:var(--header-h);
-      max-height:calc(100vh - var(--header-h)); overflow:auto;
-      padding:20px 12px 60px; font-size:14px; line-height:1.6;
-      border-right:1px solid var(--line);
-    }
-    nav::-webkit-scrollbar { width:8px; }
-    nav::-webkit-scrollbar-thumb { background:var(--line); border-radius:8px; }
-    nav a {
-      display:block; padding:6px 12px; margin:1px 0;
-      color:var(--dim); text-decoration:none; border-radius:var(--radius);
-      border-left:2px solid transparent;
-      transition:background .15s, color .15s, border-color .15s;
-    }
-    nav a:hover { background:var(--soft); color:var(--fg); }
-    nav a.on { background:var(--accent-soft); color:var(--accent);
-               font-weight:600; border-left-color:var(--accent); }
-    nav a.sub { padding-left:28px; font-size:13px; }
-    nav a.sub:hover { color:var(--fg); }
-    /* 目录里的行内代码别带底色和框 —— 那儿本来就密,一带就成了一个个色块 */
-    nav code, ul.chapters code { background:none; border:0; padding:0; font-size:.92em; }
-    /* 首页没有侧栏 —— 空的 `<nav>` 不占位,不然左边空出一条、正文还偏在右边 */
-    nav:empty { display:none; }
-
-    /* 封顶是为了首页:那儿没有侧栏,不封的话 `main` 铺满一整屏,h1 那条横线
-       会拖得比目录卡片长出一截。章节页本来就只有 736px 宽,封了也不动。 */
-    main { flex:1 1 auto; min-width:0; max-width:820px; padding:32px 40px 96px; }
-    main img { max-width:100%; }
-
-    h1,h2,h3,h4 { line-height:1.4; scroll-margin-top:calc(var(--header-h) + 16px); }
-    h1 { font-size:28px; margin:0 0 24px; padding-bottom:14px; border-bottom:1px solid var(--line); }
-    h2 { font-size:22px; margin:46px 0 14px; padding-left:12px; border-left:4px solid var(--accent); }
-    h3 { font-size:18px; margin:32px 0 10px; }
-    h4 { font-size:15px; margin:24px 0 8px; color:var(--dim); }
-
-    p { margin:14px 0; }
-    ul,ol { margin:14px 0; padding-left:26px; }
-    li { margin:5px 0; }
-    strong { font-weight:600; }
-    a { color:var(--link); text-decoration:none; }
-    a:hover { text-decoration:underline; text-underline-offset:3px; }
-
-    p.note {
-      background:var(--soft); border-left:3px solid var(--note);
-      border-radius:0 var(--radius) var(--radius) 0;
-      padding:10px 16px; margin:16px 0; font-size:15.5px;
-    }
-
-    code {
-      background:var(--soft); border:1px solid var(--line); border-radius:5px;
-      padding:1px 6px; font-size:.88em;
-      font-family:ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
-    }
-    pre {
-      background:var(--soft); border:1px solid var(--line); border-radius:var(--radius);
-      padding:14px 18px; overflow:auto; line-height:1.65; margin:18px 0;
-    }
-    pre code { background:none; border:0; padding:0; font-size:13.5px; }
-
-    table { border-collapse:collapse; width:100%; margin:18px 0; font-size:15px; }
-    th,td { border:1px solid var(--line); padding:8px 14px; text-align:left; vertical-align:top; }
-    th { background:var(--soft); font-weight:600; }
-    tbody tr:nth-child(even) { background:var(--soft); }
-
-    ul.chapters { list-style:none; padding:0; margin:20px 0; display:grid; gap:8px; }
-    ul.chapters li { margin:0; }
-    ul.chapters a {
-      display:block; padding:12px 18px; font-size:15.5px; color:var(--fg);
-      border:1px solid var(--line); border-radius:var(--radius);
-      transition:border-color .15s, color .15s, background .15s;
-    }
-    ul.chapters a:hover { border-color:var(--accent); color:var(--accent);
-                          background:var(--accent-soft); text-decoration:none; }
-
-    footer {
-      max-width:var(--maxw); margin:0 auto; padding:22px 40px 56px;
-      border-top:1px solid var(--line); display:flex; gap:12px;
-      justify-content:space-between; align-items:center; font-size:14px;
-    }
-    footer a { padding:7px 16px; color:var(--dim); border:1px solid var(--line);
-               border-radius:var(--radius); }
-    footer a:hover { color:var(--accent); border-color:var(--accent); text-decoration:none; }
-
-    @media (max-width:900px) {
-      .wrap { display:block; }
-      /* 窄屏把目录压成一条**横向**的条:竖着排的话,十几章再加小节能把首屏整个占满,
-         正文得翻到第二屏才见着。小节在横条里放不下,先收起来。 */
-      nav { position:sticky; top:var(--header-h); z-index:5; background:var(--bg);
-            display:flex; gap:6px; overflow-x:auto; max-height:none;
-            padding:10px 12px; border-right:0; border-bottom:1px solid var(--line); }
-      nav a { flex:0 0 auto; white-space:nowrap; border-left:0; padding:5px 10px; }
-      nav a.sub { display:none; }
-      main { padding:20px 18px 64px; max-width:none; }
-      header { padding:0 18px; }
-      footer { padding:18px; }
-    }
-"""
 
 # ═══ 跑起来 ═══
 
@@ -468,6 +343,11 @@ Build := (out: string) => {
     if { Chapters.IsEmpty (); } {
         throw (Exception ("找不到 markdown 源:" + SRC + " —— 在仓库根跑,或者把 docs/ 一起带上"))
     } { 0; }
+    # 样式表也**大声要**:少了它照样能生成,但出来的是一团没样子的 HTML —— 那种
+    # "看着像好了"比直接报错难查得多(上一格那条 `Chapters.IsEmpty` 是同一个理由)。
+    if { !(System.FileExists CSS_FILE); } {
+        throw (Exception ("找不到样式表:" + CSS_FILE + " —— 和 markdown 同一处,按当前目录找"))
+    } { 0; }
     print ("生成到 " + out + "/");
     while { !(System.DirExists out); } { System.CreateDir out; }
 
@@ -498,7 +378,9 @@ Build := (out: string) => {
     }
     idx := [(Html.H1 SITE) (Html.El "ul" {"class": "chapters"} entries)]
     Save out "index.html" ((Html.Pretty (Page SITE [] idx None None)) + "\n")
-    Save out "style.css" CSS
+    # 行尾按 `\n` 归一再写出去:不归一的话,检出时是 CRLF 就把 CRLF 一路带进产物 ——
+    # 同一份库在两台机器上生成的 `style.css` 会长得不一样(`"""` 那条也是这个道理)。
+    Save out "style.css" (((Io.File CSS_FILE).Read ()).Replace "\r\n" "\n")
     print ("好了 —— " + out + "/index.html");
 }
 

@@ -191,8 +191,11 @@ lib/
   docsite.rav             模块 `DocSite` —— **教程 → 静态站的渲染器**(`DocSite.Build out`)。
                           零依赖(纯静态 HTML + 一个 CSS,没有 JS、没有 CDN)。住在 `lib/`
                           而不是 `examples/`:**REPL 要用它**(菜单里那条「教程」),标准库反过来
-                          依赖 `examples/` 就把方向搞反了。它的输入是 `docs/tutorial/*.md`,
-                          而 `docs/` 是跟着发布走的(见 `Ravel.csproj` 的 `CopyDocs`)。
+                          依赖 `examples/` 就把方向搞反了。它的输入就是 `docs/tutorial/`
+                          那一格:`*.md` 是内容、`style.css` 是样子,**两样都从磁盘读**
+                          (样式从前是这文件里一个一百多行的 `"""`,改颜色得动 Ravel 源码)。
+                          两样都少了就**当场报错**,不生成一团没样子的 HTML。`docs/` 是跟着
+                          发布走的(见 `Ravel.csproj` 的 `CopyDocs`),所以发布出去那份也能就地生成。
   tasks.rav               `Tasks` 模块 —— **协作式任务**(要显式 `using "tasks.rav"`)。
                           一个 OS 线程,任务只在**挂起点**换人:`TaskGroup`(Run / Await / Add)
                           跑一列任务。**任务那一族分三层**:
