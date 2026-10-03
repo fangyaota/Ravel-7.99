@@ -28,7 +28,8 @@ g := (x: int) => { x * 2 }     # ❌ 报「lambda body 需要代码块」
 
 ```ravel
 print ("共 " + string n + " 个")      # ❌ → string (n + " 个") → 类型错误
-print ("共 " + string (n) + " 个")    # ✅
+print ("共 " + string (n) + " 个")    # ❌ 一样 —— 括住 n 没用
+print ("共 " + (string n) + " 个")    # ✅ 要括住整个 `string n`
 print ((typeof x) == int)             # ✅ —— 判断"是不是 int"
 print (xs.At (0) + 1)                 # ❌ —— 现在是 `xs.At ((0) + 1)`：取第 1 个
 print ((xs.At (0)) + 1)               # ✅
