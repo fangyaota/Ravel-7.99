@@ -47,7 +47,7 @@ f ()
 执行以上程序会输出如下结果：
 
 ```
-Error: 类型不匹配: 无法将 Integer 赋值给 C —— 无法将 Integer 转换为 C
+Error: 类型不匹配: 无法将 Integer 赋值给 C — 无法将 Integer 转换为 C
 ```
 
 遮蔽写在内层作用域里（顶层 `string := C` 报「已经定义过」），之后注解 `z: string` 指的就是 `C`。
