@@ -1,0 +1,1 @@
+bash build.sh --no-test --release
