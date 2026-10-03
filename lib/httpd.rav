@@ -42,10 +42,6 @@ using "native.rav"
 using "tasks.rav"
 using "encoding.rav"
 
-# 交回来的是不是 `()`(Void)。**不能直接写 `x == ()`** —— 那个比较不收 Void 操作数,
-# 会当场报「运算符 '==' 不支持操作数」。判类型是那条正路。
-readonly IsNothing := (v: object) => { (typeof v) == System.Void; }
-
 # 一次请求的默认空转时间(毫秒)。keep-alive 的连接闲着超过它就让位 ——
 # 少了这条,一条不说话的连接会永远占着一个任务,而任务是有数的。
 readonly DefaultIdle := 15000;
@@ -243,7 +239,6 @@ Server ::= class {
     Routes: list = []
     Statics: list = []
     Idle: int = 0
-    Stopping: bool = false
     # 收过几条连接 / 答过几个请求。**两个数不一样就说明 keep-alive 在干活**
     # —— 一条连接收了 N 个请求时,连接数比请求数小。
     Conns: int = 0
@@ -297,24 +292,27 @@ Server ::= class {
     #
     # 别在任务里调 `Run ()`:`Run` 自己又开一个 `Cycle`,那个内层调度器会把线程占住,
     # 外层那些任务(比如你那个客户端)就再也轮不上了 —— 死锁。
-    # accept 循环。`Stopping` 是唯一的退出条件 —— **不去看 `HttpAccept` 交回什么**:
-    # 那个值是不是 `()` 得判类型,而"我说停就停"本来就该由这边说了算。
+    # accept 循环。**退出条件就是 `HttpAccept` 交回了个空 dict** —— 不去问某个"我说停了"的
+    # 标志:标志只反映"我主动喊过"那一半,监听器要是因为别的原因没了(比如谁直接
+    # `Native.HttpClose` 了那个号),标志还是 false,这个循环就会一圈圈空转。
     RunIn := (g: Tasks.TaskGroup) => {
         me := this
         running := true
         while { running; } {
             a := g.Await (Tasks.Of (Native.HttpAccept Handle))
-            if { Stopping; } { running = false; } {
+            # 退出条件就是**它交回了什么**,不是某个"我喊过停"的标志 —— 监听器因为什么
+            # 原因关掉都收得了摊(标志只反映"我主动喊过"那一半)。
+            if { a.IsEmpty (); } { running = false; } {
                 g.Add (Tasks.Task (gg: Tasks.TaskGroup) => { me.ServeConn gg a; })
             }
         }
         ()
     }
 
-    # 从别的任务里喊停(比如一个 `/shutdown` 路由)。关了监听器,accept 那条路交回 `()`,
-    # 循环收摊,已经在跑的那些连接各自跑完。
+    # 从别的任务里喊停(比如一个 `/shutdown` 路由)。做的事就一件:**关了监听器** ——
+    # accept 那条路于是交回空 dict,循环收摊,已经在跑的那些连接各自跑完。
+    # 幂等:已经关了再喊一次也不出错(`HttpClose` 本来就是幂等的)。
     Stop := () => {
-        Stopping = true
         Native.HttpClose Handle;
         ()
     }
@@ -328,7 +326,7 @@ Server ::= class {
         open := true
         while { open; } {
             r := g.Await (Tasks.Of (Native.HttpRead c Idle))
-            if { IsNothing r; } { open = false; } {
+            if { r.IsEmpty (); } { open = false; } {
                 req := Request r peer g
                 close := !(req.KeepAlive)
                 resp := me.Settle g (me.Answer req)

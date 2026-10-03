@@ -1988,8 +1988,8 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 | 原语 | 收 | 交回 |
 |---|---|---|
 | `Native.HttpListen` | `port`(0 = 随便挑)/ `host`(默认 `127.0.0.1`)/ `backlog` / `cert` / `key` / `password` | `{handle, port, url}` |
-| `Native.HttpAccept` | `handle` | **句柄** → `{conn, peer, tls}`;监听器关了交 `()` |
-| `Native.HttpRead` | `conn` / `idle`(毫秒) | **句柄** → `{method, path, query, version, headers, body, keepAlive}` |
+| `Native.HttpAccept` | `handle` | **句柄** → `{conn, peer, tls}`;监听器关了交**空 dict** |
+| `Native.HttpRead` | `conn` / `idle`(毫秒) | **句柄** → `{method, path, query, version, headers, body, keepAlive}`;对面关了交**空 dict** |
 | `Native.HttpAnswer` | `conn` / `status` / `headers` / `body` | **句柄** → 写出去多少字节 |
 | `Native.HttpClose` | 号(连接或监听器) | `()`,幂等 |
 | `Native.HttpMakeCert` | `path` / `password` / `names` / `days` | 自签证书落成 PFX |
@@ -2003,6 +2003,12 @@ accept 循环一个任务,**一条连接再一个任务**;挂起点是 accept / 
 - **两条绕不开的约束**,都写进文档了:(1) 服务端和客户端在**同一条 OS 线程**上,
   进程内用**同步** `Http.Get` 打自己 = 死锁;(2) 客户端那个任务要是抛了错,服务器任务
   还在等连接,`Cycle` 就**永远不结束** —— 看着像卡死,其实是"没人喊停"。
+- **"没有下一步了"交回的是空 dict,不是 `()`**。Ravel 里 `Void` 跟非 `Void` **不能比**
+  (`() == ()` 倒是 `true`,见 3.2 "值跟值比、对象跟对象比"),判一句"交回来的是不是空"
+  得绕成 `(typeof a) == System.Void`。空 dict 直接 `IsEmpty ()`,而**真请求 / 真连接
+  永远不会是空的**(至少带 `method` / `conn`),认不错。更要紧的是:用 `()` 的话,库那边
+  只能靠一个"我喊过停"的标志去收摊,而那个标志**反映不了"监听器因为别的原因没了"**
+  —— accept 会一圈圈空转。现在退出条件就是交回来的东西,**监听器怎么没的都能收摊**。
 - **`req.Group`** 是伺候这个请求的那个调度组,handler 拿它等 IO。handler 交回**任务**也行
   (`Httpd.File` 就是),`Settle` 那一头会等它。
 - handler 里抛的错**不把服务器带走**:`Answer` 接住,回 500。

@@ -1,0 +1,45 @@
+﻿# 服务器怎么收摊 —— accept 循环的退出条件。
+#
+# 这一段钉的是"**监听器怎么没的都能收摊**"。从前不是这样:库里靠一个"我喊过停"的标志
+# 判断,于是 `Stop ()` 那条路管用,而**别人直接把监听器关掉**的话标志还是 false,
+# 循环就一圈圈空转(每次挂一个一进来就死的连接任务),既不报错也停不下来。
+#
+# 现在退出条件就是 `HttpAccept` 交回来的东西:关了就是**空 dict**,`IsEmpty ()` 收摊。
+using "httpd.rav"
+using "tasks.rav"
+using "native.rav"
+
+# ── 一、`Stop ()` —— 而且喊两次也不出错(关门本来就是幂等的)──
+srv := Httpd.Server 0
+stopped := false
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; stopped = true; })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        g.Await (Tasks.After 20)
+        srv.Stop ()
+        srv.Stop ()
+        ()
+    })
+]
+print stopped
+
+# ── 二、绕过 `Stop ()`,直接关那个号 —— 照样收得了摊 ──
+other := Httpd.Server 0
+unwound := false
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { other.RunIn g; unwound = true; })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        g.Await (Tasks.After 20)
+        Native.HttpClose other.Handle;
+        ()
+    })
+]
+print unwound
+
+# ── 三、关过之后再 `Stop ()` 还是幂等的 ──
+other.Stop ()
+print "没出错"
+# --- expected ---
+# true
+# true
+# 没出错

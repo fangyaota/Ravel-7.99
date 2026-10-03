@@ -55,6 +55,16 @@ internal static class ServerNative
     private static readonly Dictionary<int, Conn> Conns = [];
     private static int _next;                 // 两种号共用一个计数器:号落在哪张表上一查便知
 
+    /// <summary>「没有下一步了」交回的那一枚 —— **空 dict,不是 `()`**。
+    ///
+    /// Ravel 那边要判它,而 `Void` 跟非 `Void` 是**不能比**的(`() == ()` 倒可以)——
+    /// 判一句"交回来的是不是空"得绕成 `(typeof a) == System.Void`。空 dict 直接 `IsEmpty ()`,
+    /// 而且**真请求 / 真连接永远不会是空的**(至少带着 `method` / `conn`),认不错。
+    ///
+    /// 用 `()` 还有一层更坏的:库里就只能靠一个"我喊过停"的布尔标志去收摊,而那个标志
+    /// **反映不了"监听器因为别的原因没了"** —— 那种情况下 accept 会一圈圈空转。</summary>
+    private static DictVal Gone => new([]);
+
     // ── 起一台 ──
 
     /// <summary>`Native.HttpListen {port host backlog cert key password}` →
@@ -103,8 +113,9 @@ internal static class ServerNative
     /// 带着连接号),不是"一次收一批":要几条并着收,就多挂几个 accept 在调度器里 ——
     /// 那是策略,归 `lib/httpd.rav`。
     ///
-    /// **监听器关了交回 `()`,不报错** —— 那是 `Stop ()` 的收摊路,拿报错表示"我主动关了"
-    /// 会让每一处 accept 都得裹一层 `try`。
+    /// **监听器关了交回空 dict,不报错** —— 那是 `Stop ()` 的收摊路,拿报错表示"我主动关了"
+    /// 会让每一处 accept 都得裹一层 `try`。库里判一句 `a.IsEmpty ()` 就能收摊,
+    /// **不管监听器是被谁、为什么关掉的**。
     ///
     /// HTTPS 的**握手就在这儿做完**(`AuthenticateAsServerAsync`):交回来的连接拿起来就能读,
     /// 用的人不用知道底下还有一层 TLS。**握手失败只丢这一条连接**,循环接着等下一条 ——
@@ -117,7 +128,7 @@ internal static class ServerNative
     {
         while (true)
         {
-            if (!Listeners.TryGetValue(id, out var l) || l.Closed) return Void;
+            if (!Listeners.TryGetValue(id, out var l) || l.Closed) return Gone;
 
             TcpClient client;
             try
@@ -126,7 +137,7 @@ internal static class ServerNative
             }
             catch (Exception)
             {
-                return Void;                       // Stop() 了,或者监听器没了
+                return Gone;                       // Stop() 了,或者监听器没了
             }
 
             Stream stream = client.GetStream();
@@ -168,7 +179,7 @@ internal static class ServerNative
     // ── 收一个请求 ──
 
     /// <summary>`Native.HttpRead conn idle` → 交回句柄,结果是
-    /// `{method path query version headers body keepAlive}`;对面关了(或者空转超时)交回 `()`。
+    /// `{method path query version headers body keepAlive}`;对面关了(或者空转超时)交回**空 dict**。
     ///
     /// **`idle` 是 keep-alive 的空闲超时**(毫秒,0 = 不超时)。少了它就是一条不说话的连接
     /// 永远占着一个任务 —— 而任务是有数的。第一条请求一般给 0(客户端正在发),
@@ -185,7 +196,7 @@ internal static class ServerNative
 
     private static async Task<RuntimeValue> Read(int id, int idleMs)
     {
-        if (!Conns.TryGetValue(id, out var c) || c.Closed) return Void;
+        if (!Conns.TryGetValue(id, out var c) || c.Closed) return Gone;
 
         try
         {
@@ -193,7 +204,7 @@ internal static class ServerNative
                 idleMs > 0 ? TimeSpan.FromMilliseconds(idleMs) : Timeout.InfiniteTimeSpan);
 
             var head = await ReadHead(c.Stream, cts.Token);
-            if (head is null) return Void;         // 对面关了 / 空转超时
+            if (head is null) return Gone;         // 对面关了 / 空转超时
 
             var (headText, extra) = head.Value;
             return await Parse(c, headText, extra, cts.Token);
@@ -201,8 +212,8 @@ internal static class ServerNative
         catch (Exception)
         {
             // 对面把连接掐了、或者读到一半断了 —— **这是网络上的家常便饭,不是这台服务器的错**。
-            // 当"这一条结束了"交回 (),让库里那条 while 正常收摊(和 LoopbackServer.Serve 一个态度)。
-            return Void;
+            // 当"这一条结束了"交回空 dict,让库里那条 while 正常收摊(和 LoopbackServer.Serve 一个态度)。
+            return Gone;
         }
     }
 
