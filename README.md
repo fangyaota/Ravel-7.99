@@ -1,4 +1,4 @@
-# Ravel
+﻿# Ravel
 
 一门**解释型编程语言**,C# 写的,求值器是**显式持久帧栈**(不是递归、也不是 CPS 蹦床;
 为什么这么选见 [ADR-0002](docs/adr/0002-explicit-stack-evaluator.md))。
@@ -103,7 +103,7 @@ rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c D
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
      # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/、例子在 out/examples/
-     # (见 Ravel.csproj 的 CopyPlugins / CopyLib / CopyExamples),所以 out/ 那一份换到哪个工作目录都跑得起来
+     # (见 Ravel.csproj 的 CopyPlugins / CopyLib / CopyExamples / CopyDocs),所以 out/ 那一份换到哪个工作目录都跑得起来
      # 发布出去的标准库**不带注释**(发布时过一遍 `ravel strip`,见 Ravel.csproj 的 StripLibComments
      # 与 Syntax/CommentStripper.cs):那些注释是写给改这门语言的人看的。仓库里那份当然留着。
 

@@ -333,6 +333,12 @@ Nav := (cur: string src: string) => {
 #
 # 只做"写文件"这一件事 —— 想让它起个服务器给人看,见 `examples/serve.rav`。
 Build := (out: string) => {
+    # **一章都没搜到就别装作成功。** 从前是照样生成一个只有 `index.html` 的空站、还印一句
+    # "好了" —— 而原因通常只是**跑错地方了**:`SRC` 是**相对当前目录**的,从 `out/` 跑就得
+    # 那儿也有 `docs/`(构建时拷过去了,见 `Ravel.csproj` 的 `CopyDocs`)。
+    if { Chapters.IsEmpty (); } {
+        throw (Exception ("找不到 markdown 源:" + SRC + " —— 在仓库根跑,或者把 docs/ 一起带上"))
+    } { 0; }
     print ("生成到 " + out + "/");
     while { !(System.DirExists out); } { System.CreateDir out; }
 

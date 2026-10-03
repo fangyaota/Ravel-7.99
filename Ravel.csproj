@@ -148,4 +148,27 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- `docs/`(教程的 markdown 源)也**跟着走** —— 它是 `examples/site.rav` / `serve.rav`
+       拿来生成那个静态站的料。不带上的话,从 `out/` 跑起来 `Glob.Find "docs/tutorial/*.md"`
+       一个都找不到,于是**静默生成一个空站**(只有 index.html 和 css,一章都没有,
+       而且它还印"好了")。例子指 `lib/`、又指 `docs/`,三样得一起走。
+       落点照旧分两份:平时的 `$(OutDir)`、发布的 `$(PublishDir)`。 -->
+  <Target Name="CopyDocs" AfterTargets="Build" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <DocFile Include="docs/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DocFile)"
+          DestinationFiles="@(DocFile->'$(OutDir)docs/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyDocsToPublish" AfterTargets="Publish" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <DocFileP Include="docs/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DocFileP)"
+          DestinationFiles="@(DocFileP->'$(PublishDir)docs/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

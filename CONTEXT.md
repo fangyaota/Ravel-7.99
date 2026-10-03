@@ -14,7 +14,7 @@ rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c D
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
      # 指定 .csproj 而不是 .sln:"-o" 配 sln 会报 NETSDK1194
      # 发布产物是**自洽**的:插件 dll 在 out/plugins/、标准库在 out/lib/、例子在 out/examples/
-     # (见 Ravel.csproj 的 CopyPlugins / CopyLib / CopyExamples),搜索路径里有"程序集目录"那两格
+     # (见 Ravel.csproj 的 CopyPlugins / CopyLib / CopyExamples / CopyDocs),搜索路径里有"程序集目录"那两格
      # (Runtime/ModuleSearchPath.cs),所以 out/ 那一份换到哪个工作目录都跑得起来
      # **发布出去的 lib/ 不带注释**(`StripLibComments` 在 publish 之后跑一遍 `ravel strip`):
      # 那些注释是写给改这门语言的人看的,不是写给跑它的人看的 —— 仓库里那份留着,`bin/` 那份也留着
@@ -433,7 +433,17 @@ lib/
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
 
-tests/                    golden test(普通 + expect-error + todo + fixture),个数以目录为准
+tests/                    golden test(普通 + expect-error + todo + fixture),按类型分子目录
+                          (lang / class / module / diag / lib / net / task),个数以目录为准
+
+docs/tutorial/            教程的 **markdown 源**(一章一个文件)—— 那个静态站就是拿它生成的
+docs/adr/                 几条大决定
+examples/docsite.rav      模块 `DocSite`:教程 → 静态站的**渲染器**(`DocSite.Build out`)
+examples/site.rav         壳:生成到 `site/`
+examples/serve.rav        一键:生成 + `Httpd` 起服务器,浏览器里看
+                          (后两个都从 `docs/tutorial/` 读,而 `docs/` 是**跟着发布走**的
+                          —— 见 `Ravel.csproj` 的 `CopyDocs`;不带上的话从 `out/` 跑会
+                          **静默生成一个空站**,所以 `Build` 里现在一句 `Chapters.IsEmpty ()` 就抛)
 
 .vscode/                  VS Code 工作区配置
   tasks.json              Ctrl+Shift+B 跑当前 .rav(默认)、ravel: 全量测试
