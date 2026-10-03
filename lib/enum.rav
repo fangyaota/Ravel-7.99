@@ -32,9 +32,13 @@ enum ::= class type {
 
     # 每个枚举值身上那几条**固定**的。写成类体传给 `parentInit` —— 实例化时接着跑,
     # 于是每枚成员都白拿这几条。
+    #
+    # **标 `protected` 是故意的**:这是留给子类元类(`flags`)的扩展口子。写成 `private`
+    # 也能跑,但那靠的是"`private` 判的是**对象**不是**类**"这条 —— 子类盖得动父类的私有,
+    # 是那条规矩的副产品,不是谁答应过的事。挑明成 `protected`:子类的代码本来就该能碰它。
     # `Value` 声明成 `object`:枚举值可以是任何东西(`A := "红"` 也该成立),
     # 写死成 `int` 的话下面 `e.Value = v` 就落不进去了。
-    private Members := {
+    protected Members := {
         Value : object = 0
         Name : string = ""
         # 名字和 `Text ()` —— **`print e` 打不出 `A`**(`Show` 是 C# 那侧的 `v.ToString ()`,
@@ -172,9 +176,14 @@ flags ::= class enum {
     # (子类盖住了就走子类那份,`Members` 就是这么生效的),覆盖之后再读 `init` 就是新的了。
     private baseInit := init
 
+    # 父类那份"值身上固定的几条"先抓在手里(覆盖**之前**) —— 待会儿在自己的体里把它
+    # **跑一遍**,而不是照抄一份:照抄的话 `enum` 那边加一条,这边就悄悄落后了。
+    private baseMembers := Members
+
     Members = {
-        Value : object = 0
-        Name : string = ""
+        # `with` **不推层**,这几条会实实在在落到正在建的那枚值上 —— 和 `enum` 建落脚点
+        # 时那句 `with box vars` 是同一条路。
+        with this baseMembers
 
         # 位运算另一边那个数:同一个 flags 的值,或者直接是整数
         Bits := (o: object) => {
@@ -218,13 +227,13 @@ flags ::= class enum {
         != := (o: object) => { !((this) == o); }
 
         # 打出来是"有的那几枚连起来":单枚就是它自己的名字,组合就是 `Read|Exec`
-        Text := () => {
+        Text = () => {
             if { Name != ""; } { Name; } {
                 ns := Names ()
                 if { ns.IsEmpty (); } { "0"; } { ns.Join "|"; }
             }
         }
-        ToString := () => { Text (); }
+        ToString = () => { Text (); }
     }
 
     # 建完把 `Of` 换掉:声明过的成员照旧按值找,找不着的**现拼一枚组合值** ——
