@@ -13,8 +13,9 @@ repl_session.json
 temp.ravel
 temp*.rav
 .io-test/
-# `tests/296` 造的那几个 `using` 搜索目录(它自己会删干净 —— 中途失败才会留在盘上)
+# `tests/296` / `305` 造的那几个 `using` 搜索目录(它们自己会删干净 —— 中途失败才会留在盘上)
 .using-test/
+.using-test-nested/
 # 服务端那三条用例现造的静态文件和自签证书(同样是自己会删,中途失败才留)
 tut_pub.css
 tut_local.pfx

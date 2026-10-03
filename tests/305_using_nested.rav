@@ -1,0 +1,29 @@
+﻿# `using` 一个**模块文件**时,那个文件里 `ravel "X"` **之前**定义的名字要连得上 X 的作用域。
+#
+# 这条从前是坏的,而且被加载顺序**掩盖**着:`lib/io.rav` 那种写法是先摆接口(`IFile`)、
+# 再 `ravel "Io"`、最后 `impl (IFile File { … })`。当它被**模块里**的一句 `using` 加载时,
+# `IFile` 会落进*调用方那个模块*,而 `Io` 的父链挂的是全局 —— 于是那句 `impl` 找不到自己的
+# 接口,报「未定义的变量 'IFile'」,而它明明就在几十行前定义过。库里一直没露头,是因为
+# `io.rav` 总在别处先被加载过一遍,第二次 `using` 直接返回空块、那条路根本走不到。
+#
+# 造两个文件钉住它(写在仓库里,结尾删干净,和 `tests/296` 一个规矩)。
+using "io.rav"
+
+root := Io.Dir ".using-test-nested"
+root.Create ()
+# 里层:`GREET` 在 `ravel "Inner"` **之前**定义,`Shout` 在**之后**用它
+(root.Child "inner.rav").Write "GREET := \"hi\"\nravel \"Inner\"\nShout := () => { GREET + \"!\"; }\nravel \"\"\n"
+# 外层:自己是个模块,`using` 里层 —— **这一层嵌套正是从前炸掉的地方**
+(root.Child "outer.rav").Write "ravel \"Outer\"\nusing \"inner.rav\"\nGo := () => { Inner.Shout (); }\nravel \"\"\n"
+
+ReferencesPath = [".using-test-nested"]
+
+using "outer.rav"
+print (Outer.Go ())
+
+# `Io.Dir.Delete` **不递归** —— 先收掉里面那两个,再收目录本身
+(root.Child "inner.rav").Delete ()
+(root.Child "outer.rav").Delete ()
+root.Delete ()
+# --- expected ---
+# hi!

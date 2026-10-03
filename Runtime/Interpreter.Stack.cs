@@ -26,6 +26,15 @@ public partial class Interpreter
         return _result;
     }
 
+    /// <summary>此刻"代码正落在哪个作用域里" —— 沿帧链找到最近的那个块帧。
+    /// 顶层就是主脚本那一块(它的 Scope 就是 `_global`)。</summary>
+    private Scope AmbientScope()
+    {
+        var f = _top;
+        while (f is not BlockExecFrame && f.Parent != null) f = f.Parent;
+        return f.Scope;
+    }
+
     /// <summary>切换作用域:顶层改 _rootScope,块内改最近的 BlockExecFrame 的 scope(ravel 模块用)</summary>
     private void SetAmbientScope(Scope scope)
     {

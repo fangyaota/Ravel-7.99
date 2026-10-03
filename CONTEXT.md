@@ -64,6 +64,14 @@ Runtime/                         求值器按职责拆成多个 partial class �
   Interpreter.Modules.cs  模块路径解析与加载(ReferencesPath + 搜索目录、循环引用检测);
                           **名字可以省后缀**(`seqs` / `Ravel.Extensions`,两种写法都命中就报错);
                           每个模块还记着**自己写着的那些 `using`**(见 `EnterModule`)
+                          **`ravel "X"` 建的模块,父作用域是当时那一块**(`AmbientScope ()`),
+                          不是硬挂全局。一个文件常在 `ravel "X"` **之前**先摆几个名字
+                          (`io.rav` 先写 `IFile` / `IDir`,`ravel "Io"` 之后才 `impl (IFile File …)`
+                          把它们接到类上),那些名字落在"这个文件跑在哪个作用域里";
+                          硬挂全局的话,X 就看不见它们,那句 `impl` 会报「未定义的变量 'IFile'」
+                          —— 而它明明就在上几行定义过。**从顶层 `using` 时这一块就是全局**,
+                          和从前一模一样;只有"从**模块里** `using` 一个模块文件"那条路不一样,
+                          而那条从前是坏的(被 `io.rav` 总被先加载过一遍掩盖着)。用例 `tests/305`。
   Builtins/SysAttribute.cs / SysRegistry.cs
                           **`[Sys]` 那套机制**:特性本身 + 扫描(扫**整个程序集**,
                           不列名单)+ 绑委托(每实例一次,`CreateDelegate`,热路上不留反射)

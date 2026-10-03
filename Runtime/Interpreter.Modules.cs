@@ -161,7 +161,13 @@ public partial class Interpreter
 
         if (!_modules.TryGetValue(name, out var mv))
         {
-            mv = ModuleVal.WithOwnTable(name, _global, this);
+            // 父作用域是**此刻这一块**的,不是硬挂全局。一个文件常在 `ravel "X"` **之前**
+            // 先摆几个名字(`io.rav` 先写 `IFile`、`IDir`,再 `ravel "Io"`,最后
+            // `impl (IFile File { … })` 把它们接到类上)—— 那些名字落在"这个文件跑在哪个
+            // 作用域里",而 X 得看得见它们,不然那句 `impl` 会报「未定义的变量 'IFile'」,
+            // 而它明明就在上几行定义过。从顶层 `using` 时这一块就是全局,和从前一模一样;
+            // 只有"**从模块里** `using` 一个模块文件"那条路不一样 —— 那条从前是坏的。
+            mv = ModuleVal.WithOwnTable(name, AmbientScope(), this);
             _modules[name] = mv;
             _global.Define(name, BuiltinClasses.Ravel, mv);
         }
