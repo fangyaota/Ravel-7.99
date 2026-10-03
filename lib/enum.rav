@@ -51,7 +51,9 @@ enum ::= class type {
     # "父类那几枚成员"(见 `Collect`),拿个普通类当父类没有任何东西可迁,那不是笔误就是误会,
     # 当场说出来比静默建一个空壳强。
     init = (parent: type vars: function) => {
-        if { (typeof parent) != enum; } {
+        # 判的是**子类型**不是相等:`flags`(`enum` 的子类)建出来的类也该能当父类。
+        # 普通类的 `typeof` 是 `object`,不是 `enum` 的子类型,照旧当场拦下。
+        if { !((typeof parent) <: enum); } {
             throw (Exception ("'enum' 的父类得也是一个 enum（得到 " + (string parent) + "）"))
         } { 0; }
         # 类体传**空的** —— `Members` 已经在父类那一层了(父类也是这个元类建的,
@@ -78,7 +80,8 @@ enum ::= class type {
         names := []
         vals := []
 
-        if { (typeof parent) == enum; } {
+        # 同上:认**子类型**。`flags` 建的类也是 enum 一族,父类那几枚得照迁。
+        if { (typeof parent) <: enum; } {
             # 父类表里**是它实例的那些**才是枚举成员 —— 元类自己那几条
             # (`init` / `Collect` / `Members` 那块 / `Values` / `Of` …)都不是实例,自然滤掉,
             # 不必另立一个"哪些是成员"的记号(记号还会撞 `private`:那条门禁看的是
@@ -132,5 +135,125 @@ enum ::= class type {
             } { 0; }
             hit.At 0
         }
+    }
+}
+
+# `flags` —— **按位的枚举**(`enum` 的**子类**):每枚成员占一位,能拼起来。
+#
+#     perms ::= flags {
+#         Read := 1
+#         Write := 2
+#         Exec := 4
+#     }
+#
+#     p := (perms.Read | perms.Exec)   # 拼:值 5
+#     p.Value                          # 5
+#     p.Text ()                        # "Read|Exec"
+#     p.Has (perms.Exec)               # true —— "我里面有没有这一位"
+#     p |> .Names ()                   # [Read Exec] —— 有的那几枚,按声明先后
+#     perms.Of 5                       # 也交回 Read|Exec(组合值,不是报错)
+#
+# 声明、成员、`Values ()` 那一套全照 `enum`,多出来的是**位运算**和"组合值":
+#
+#     |   并        &   交        ^   对称差        -   差(把右边有的那几位去掉)
+#
+# 三条要记住的:
+#
+#   * **值自己写,而且该是二的幂**(1 / 2 / 4 / 8 …) —— `Has` / `Names` 都按位算,
+#     写个 3 进去,那一枚就同时占两位。**不拦**你(确实有想要 `All := 7` 那种组合成员的),
+#     但心里得有数。
+#   * **组合值不是成员**:`Read | Exec` 交回的是一枚**新的**值(值 5),它不在 `Values ()`
+#     里、`Name` 是空的 —— "名字"要 `Text ()` 现算(把有的那几枚用 `|` 连起来)。
+#     `Of` 找不着成员就现拼一枚,不再报错;拼出来正好等于某枚成员时,交回的就是**那枚成员**。
+#   * **另一边给什么**:同一个 flags 的值,或者直接给整数(解配置里的掩码时好使)。
+#     别的类型当场报错,不瞎猜。
+flags ::= class enum {
+    # 父类那份 `init` 先抓在手里再包一层。**必须在覆盖之前取** —— 这儿的名字是**动态**解析的
+    # (子类盖住了就走子类那份,`Members` 就是这么生效的),覆盖之后再读 `init` 就是新的了。
+    private baseInit := init
+
+    Members = {
+        Value : object = 0
+        Name : string = ""
+
+        # 位运算另一边那个数:同一个 flags 的值,或者直接是整数
+        Bits := (o: object) => {
+            if { o is int; } { o; } {
+                if { (typeof o) == (typeof this); } { o.Value; } {
+                    throw (Exception ("flags: 位运算两边得是同一个 flags 的值或整数（那边是 " + (string (typeof o)) + "）"))
+                }
+            }
+        }
+
+        # 拼一枚出来 —— 交给类上那个 `Of`(它认得已声明的成员,否则现拼),
+        # 于是 `Read | Read` 交回的**就是** `Read` 那一枚,不是个等值的新壳子。
+        Combine := (v: object) => { ((typeof this).Of) v; }
+
+        | := (o: object) => { Combine (Value | (Bits o)); }
+        & := (o: object) => { Combine (Value & (Bits o)); }
+        ^ := (o: object) => { Combine (Value ^ (Bits o)); }
+        - := (o: object) => { Combine (Value - (Value & (Bits o))); }
+
+        # 我这枚里**有没有** `o` 那几位的全部
+        Has := (o: object) => { ((Value & (Bits o)) == (Bits o)); }
+
+        # 我里面**有哪几枚声明过的成员**(按声明的先后)。
+        # 值为 0 的那几枚一律不算"有" —— 不然每个组合里都跟着它们。
+        Names := () => {
+            out := []
+            foreach ((typeof this).Values ()) (m: object) => {
+                if { (m.Value) != 0; } {
+                    if { (Value & (m.Value)) == (m.Value); } { out.Add m.Name; } { 0; }
+                } { 0; }
+            }
+            out
+        }
+
+        # `==` 比**值**,不比身份 —— 拼出来的组合每次都是新的一枚,按身份比就永远不相等,
+        # 而"这俩掩码一样不一样"是天天要问的。两枚还得是**同一个** flags 的:
+        # `sub.Read == base.Read` 照旧 false(`enum` 那条规矩:同名不同枚)。
+        == := (o: object) => {
+            if { (typeof o) == (typeof this); } { Value == (o.Value); } { false; }
+        }
+        != := (o: object) => { !((this) == o); }
+
+        # 打出来是"有的那几枚连起来":单枚就是它自己的名字,组合就是 `Read|Exec`
+        Text := () => {
+            if { Name != ""; } { Name; } {
+                ns := Names ()
+                if { ns.IsEmpty (); } { "0"; } { ns.Join "|"; }
+            }
+        }
+        ToString := () => { Text (); }
+    }
+
+    # 建完把 `Of` 换掉:声明过的成员照旧按值找,找不着的**现拼一枚组合值** ——
+    # flags 的值本来就是拼出来的,`perms.Of 5` 该给东西,不该说"没有这个值"。
+    private Patch := (cls: object) => {
+        cls.Of := (v: object) => {
+            hit := []
+            foreach (cls.Values ()) (m: object) => {
+                if { ((hit.Count ()) == 0) && ((m.Value) == v); } { hit.Add m; } { 0; }
+            }
+            if { (hit.Count ()) > 0; } { hit.At 0; } {
+                r := cls ()
+                r.Value = v
+                r.Name = ""
+                r
+            }
+        }
+    }
+
+    # 分支的先后**照 `enum` 那份**(父类那支在前)—— 派发是按元数挑的,顺序换了
+    # `flags base { … }` 会被当成"只给一个实参",`flags base` 当场变成一个类,
+    # 后面那个块再往上调就是「'class' 不能作为函数调用」。
+    init = (parent: type vars: function) => {
+        baseInit parent vars
+        Patch this
+        this
+    } | (vars: function) => {
+        baseInit vars
+        Patch this
+        this
     }
 }
