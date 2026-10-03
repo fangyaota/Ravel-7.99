@@ -13,7 +13,7 @@ Cert := "httpd_test.pfx"
 Native.HttpMakeCert {"path": Cert "password": "pw" "days": 30}
 
 srv := Httpd.Server {"port": 0 "cert": Cert "password": "pw"}
-srv.Route "GET" "/tls" (req) => { Httpd.Text "加密的你好"; }
+srv.Route "GET" "/tls" (req g) => { Httpd.Text "加密的你好"; }
 base := "https://127.0.0.1:" + (string (srv.Port))
 
 Tasks.Cycle [

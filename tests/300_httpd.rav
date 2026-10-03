@@ -13,15 +13,15 @@ using "http.rav"
 System.WriteText "httpd_pub.txt" "从磁盘来"
 
 srv := Httpd.Server 0
-srv.Route "GET" "/hi" (req) => { Httpd.Text "你好"; }
-srv.Route "GET" "/q" (req) => { Httpd.Text ("收到 " + (req.Param "name")); }
-srv.Route "POST" "/echo" (req) => { Httpd.Json {"len": ((req.BodyText ()).Length ())}; }
-srv.Route "GET" "/nope" (req) => { Httpd.Text "自定义的没有" |> .With 404; }
-# 两种出错:同步抛的,和**交回一个会失败的任务**。两条都该回 500 ——
-# 后者尤其要紧:它的错是等到 `Settle` 那一头才冒出来的,不裹进同一个 try 的话
-# 会把连接任务整个带走,对面只能干等到超时。
-srv.Route "GET" "/boom" (req) => { throw (Exception "炸了"); }
-srv.Route "GET" "/boomTask" (req) => { Tasks.Of (System.ReadTextTask "根本没有.txt"); }
+srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好"; }
+srv.Route "GET" "/q" (req g) => { Httpd.Text ("收到 " + (req.Param "name")); }
+srv.Route "POST" "/echo" (req g) => { Httpd.Json {"len": ((req.BodyText ()).Length ())}; }
+srv.Route "GET" "/nope" (req g) => { Httpd.Text "自定义的没有" |> .With 404; }
+# 两种出错,都该回 500:光抛一句的,和**在 handler 里等 IO 结果那次等砸了的**。
+# 后者尤其要紧:它是 `g.Await` 抛出来的,和同步抛的错是同一回事 —— 从前 handler 交回任务
+# 时它是等到外头才跑的,那个失败会把连接任务整个带走,对面只能干等到超时。
+srv.Route "GET" "/boom" (req g) => { throw (Exception "炸了"); }
+srv.Route "GET" "/boomTask" (req g) => { g.Await (Tasks.Of (System.ReadTextTask "根本没有.txt")); Httpd.Text "到不了这儿"; }
 srv.Static "/pub" "."
 
 base := "http://127.0.0.1:" + (string (srv.Port))

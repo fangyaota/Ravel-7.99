@@ -390,7 +390,8 @@ lib/
   httpd.rav               `Httpd` 模块 —— HTTP **服务端**:`Server`(Route / Static / Run /
                           RunIn / Stop / Conns / Requests)、`Request`(Method / Path / Query /
                           Headers / Body / BodyText () / Param)、响应构造器(Text / Json /
-                          Html / Bytes / Redirect / File / NotFound)、`Serve` 那条糖。
+                          Html / Bytes / Redirect / File g / NotFound)、`Serve` 那条糖。
+                          handler 一律 `(req g) => Response`(`g` 是这次请求的调度组)。
                           原生半边是 `Native.HttpListen` 那六条(见「网络」一节;要显式
                           `using "httpd.rav"`)。**没有裸 TCP**:和客户端一样只做到 HTTP 这一层
   bits.rav                `Bits` 模块 —— 位那一套:`Test`/`Set`/`Clear`/`Toggle`/`Not`(单个位)、
@@ -2009,12 +2010,15 @@ accept 循环一个任务,**一条连接再一个任务**;挂起点是 accept / 
   永远不会是空的**(至少带 `method` / `conn`),认不错。更要紧的是:用 `()` 的话,库那边
   只能靠一个"我喊过停"的标志去收摊,而那个标志**反映不了"监听器因为别的原因没了"**
   —— accept 会一圈圈空转。现在退出条件就是交回来的东西,**监听器怎么没的都能收摊**。
-- **`req.Group`** 是伺候这个请求的那个调度组,handler 拿它等 IO。handler 交回**任务**也行
-  (`Httpd.File` 就是),`Settle` 那一头会等它。
-- handler 里出的错**不把服务器带走**:`Answer` 接住,回 500。**`Settle` 必须裹在同一个
-  `try` 里** —— handler 交回的任务(`Httpd.File` 那种)是等到那一头才跑的,它失败和
-  同步抛的错是一回事;放在 try 外面的话那个失败会把连接任务整个带走,对面什么都收不到,
-  只能干等到超时(这条真踩过,`tests/300` 的 `/boom` 与 `/boomTask` 钉住两种长相)。
+- **handler 收 `(req g)` 两个参数**、**只交回 `Response`**。`g` 是伺候这个请求的那个调度组
+  —— 和 `Tasks.Task (group) => …` 一个规矩,要等 IO 就 `g.Await`(不等也照写,参数占位)。
+  早先的写法是收一个参数、再交回"响应**或**任务",由 `Settle` 那头现场 `is Tasks.ITask`
+  嗅探:那个形状让 `Request` 背着调度器(不再是纯数据)、让签名说了假话,而且**藏了个
+  真 bug** —— 交回的任务是等到 `Settle` 才跑的,它的失败落在 `Answer` 的 `try` **外面**,
+  把连接任务整个带走、对面**干等到超时**。给 handler 发 `g` 之后"交回任务"这条路就没用了,
+  两处一起没了。
+- handler 里出的错**不把服务器带走**:`Answer` 接住,回 500 —— 等 IO 的错也在那个 `try` 里
+  (它就在 handler 身上发生)。`tests/300` 的 `/boom` 与 `/boomTask` 钉住两种长相。
 - **keep-alive** 默认开(HTTP/1.1 最多收 N 个请求,空转 `Idle` 毫秒让位);`Conns` / `Requests`
   两个计数就是给它看的 —— 一条连接收 N 个请求时,连接数比请求数小。
 - **请求正文只认 `Content-Length`**,`Transfer-Encoding: chunked` 明确报错:猜错就是

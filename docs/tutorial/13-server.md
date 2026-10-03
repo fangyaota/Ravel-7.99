@@ -1,4 +1,4 @@
-# 十三、HTTP 服务端
+﻿# 十三、HTTP 服务端
 
 `Httpd` 是 `Http` 的对面。**要显式引用**:`using "httpd.rav"`。
 
@@ -25,7 +25,7 @@ using "tasks.rav"
 using "http.rav"
 
 srv := Httpd.Server 0
-srv.Route "GET" "/hi" (req) => { Httpd.Text "你好"; }
+srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好"; }
 base := "http://127.0.0.1:" + (string (srv.Port))
 
 Tasks.Cycle [
@@ -50,7 +50,11 @@ Tasks.Cycle [
 
 ## 13.2 路由与响应
 
-handler 收一个 `Request`、交回一个 `Response`。响应用这几个构造器造:
+handler 收**两个**参数 —— `req`(这次请求)和 `g`(伺候它的那个调度组)—— 交回一个 `Response`。
+
+`g` 和 `Tasks.Task (group) => …` 里那个是同一个东西:要等 IO 就用它(`g.Await …`)。不等也照写,参数得占位。
+
+响应用这几个构造器造:
 
 | 写法 | 交回 |
 |------|------|
@@ -61,7 +65,7 @@ handler 收一个 `Request`、交回一个 `Response`。响应用这几个构造
 | `Httpd.Redirect to` | 302 |
 | `Httpd.NoContent ()` | 204 |
 | `Httpd.NotFound ()` | 404 |
-| `Httpd.File path` | 磁盘上一个文件(**交回任务**,读盘不占线程) |
+| `Httpd.File g path` | 磁盘上一个文件(读盘走 `g`,**不占线程**) |
 
 要改状态码或者补个头就 `|>` 串(`With` / `Header` 都交回自己):
 
@@ -78,11 +82,11 @@ using "tasks.rav"
 using "http.rav"
 
 srv := Httpd.Server 0
-srv.Route "GET" "/t" (req) => { Httpd.Text "文本"; }
-srv.Route "GET" "/h" (req) => { Httpd.Html "<b>粗</b>"; }
-srv.Route "GET" "/j" (req) => { Httpd.Json {"n": 1}; }
-srv.Route "GET" "/e" (req) => { Httpd.Text 404 "自定义的没有"; }
-srv.Route "GET" "/r" (req) => { Httpd.Redirect "/t"; }
+srv.Route "GET" "/t" (req g) => { Httpd.Text "文本"; }
+srv.Route "GET" "/h" (req g) => { Httpd.Html "<b>粗</b>"; }
+srv.Route "GET" "/j" (req g) => { Httpd.Json {"n": 1}; }
+srv.Route "GET" "/e" (req g) => { Httpd.Text 404 "自定义的没有"; }
+srv.Route "GET" "/r" (req g) => { Httpd.Redirect "/t"; }
 base := "http://127.0.0.1:" + (string (srv.Port))
 
 Tasks.Cycle [
@@ -123,7 +127,6 @@ text/plain; charset=utf-8
 | `req.Header name` | 方法 | 一个请求头(没有给空串) |
 | `req.BodyText ()` | 方法 | 正文按 charset 解成文本 |
 | `req.Json ()` | 方法 | 正文当 JSON 解 |
-| `req.Group` | 字段 | **伺候这个请求的调度组** —— 要等 IO 就用它 |
 | `req.Peer` | 字段 | 对面的地址 |
 
 **`Body` 是字段** —— 写 `req.Body ()` 会变成"调用一个列表",报「值 \[…\] 不是函数」。
@@ -136,7 +139,7 @@ using "tasks.rav"
 using "http.rav"
 
 srv := Httpd.Server 0
-srv.Route "POST" "/in" (req) => {
+srv.Route "POST" "/in" (req g) => {
     Httpd.Json {"路径": req.Path "方法": req.Method "参数": (req.Param "q") "内容": (req.BodyText ())};
 }
 base := "http://127.0.0.1:" + (string (srv.Port))
@@ -201,7 +204,7 @@ text/css; charset=utf-8 body { color: red }
 
 ## 13.5 一个慢 handler 挡不住别的连接
 
-服务器就是一个任务,**一条连接再一个任务** —— 所以 handler 里 `req.Group.Await …`
+服务器就是一个任务,**一条连接再一个任务** —— 所以 handler 里 `g.Await …`
 挂起的时候,调度器去伺候别的连接。
 
 #### 实例
@@ -215,10 +218,10 @@ live := 0
 peak := 0
 
 srv := Httpd.Server 0
-srv.Route "GET" "/hold" (req) => {
+srv.Route "GET" "/hold" (req g) => {
     live += 1
     if { live > peak; } { peak = live; } { 0; }
-    req.Group.Await (Tasks.After 200)
+    g.Await (Tasks.After 200)
     live -= 1
     Httpd.Text "ok";
 }
@@ -244,8 +247,8 @@ Tasks.Cycle [
 
 注意:三个 handler 各自挂起 200 毫秒,**三个是叠着的**(峰值 3)而不是排队的(那样是 1)。
 
-注意:handler 交回一个**任务**也行 —— `Httpd.File` 交回的就是任务,读盘在那边跑,
-一样不占线程。
+注意:**返回类型只有一种**(`Response`)。要等 IO 就在 handler 里 `g.Await` —— 读盘不占线程
+这件事,`Httpd.File g path` 就是这么做的(它自己在那里面等)。
 
 ## 13.6 keep-alive
 
@@ -273,7 +276,7 @@ using "tasks.rav"
 using "http.rav"
 
 srv := Httpd.Server {"port": 0 "max": 1024}
-srv.Route "POST" "/in" (req) => { Httpd.Text ("收到 " + (string ((req.Body).Count ()))); }
+srv.Route "POST" "/in" (req g) => { Httpd.Text ("收到 " + (string ((req.Body).Count ()))); }
 base := "http://127.0.0.1:" + (string (srv.Port))
 
 Tasks.Cycle [
@@ -324,7 +327,7 @@ using "http.rav"
 
 Native.HttpMakeCert {"path": "tut_local.pfx" "password": "pw" "days": 30}
 srv := Httpd.Server {"port": 0 "cert": "tut_local.pfx" "password": "pw"}
-srv.Route "GET" "/tls" (req) => { Httpd.Text "加密的你好"; }
+srv.Route "GET" "/tls" (req g) => { Httpd.Text "加密的你好"; }
 base := "https://127.0.0.1:" + (string (srv.Port))
 
 Tasks.Cycle [

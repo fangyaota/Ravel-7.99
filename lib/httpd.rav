@@ -1,7 +1,7 @@
-# `Httpd` —— HTTP **服务端**。**要显式引用**:`using "httpd.rav"`。
+﻿# `Httpd` —— HTTP **服务端**。**要显式引用**:`using "httpd.rav"`。
 #
 #     srv := Httpd.Server 8080
-#     srv.Route "GET" "/hi" (req) => { Httpd.Text "你好" }
+#     srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好" }
 #     srv.Static "/pub" "public"
 #     srv.Run ()
 #
@@ -21,15 +21,17 @@
 #
 # ## handler
 #
-# handler 收一个 `Request`、交回一个 `Response`(用下面那几个构造器造)。想等 IO 就用
-# `req.Group.Await …`(那是伺候这个请求的那个调度组),或者干脆交回一个**任务**
-# —— `Serve` 那一头会等它。两条都行:
+# handler 收**两个**参数 —— `req`(这次请求)和 `g`(伺候它的那个调度组)—— 交回一个
+# `Response`(用下面那几个构造器造):
 #
-#     srv.Route "GET" "/hi" (req) => { Httpd.Text "你好" }                      # 直接交响应
-#     srv.Route "GET" "/f"  (req) => { Httpd.File "public/a.txt" }              # 交任务(不占线程)
-#     srv.Route "GET" "/db" (req) => { req.Group.Await (…); Httpd.Text "好了" }  # 自己等
+#     srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好" }                     # 不用等
+#     srv.Route "GET" "/db" (req g) => { g.Await (…); Httpd.Text "好了" }        # 自己等
+#     srv.Route "GET" "/f"  (req g) => { Httpd.File g "public/a.txt" }           # 读盘不占线程
 #
-# handler 里抛出来的错**不会把这台服务器带走**:`Serve` 那一头接着,回一个 500。
+# `g` 和 `Tasks.Task (group) => …` 里那个是同一个东西:要等 IO 就用它。不等也照写
+# (参数得占位)。**返回类型只有一种**,所以签名说了实话 —— 交错了在调用点就看得见。
+#
+# handler 里出了错**不会把这台服务器带走**:`Serve` 那一头接着,回一个 500。
 #
 # ## keep-alive
 #
@@ -176,9 +178,9 @@ readonly NotFound := () => { Text 404 "404 没有这条路由"; }
 
 # 落盘的一个文件 —— 读盘那条走 `ReadBytesTask`,**不占线程**;文件不在就 404。
 # 查一次 `FileExists` 是值当的:不然"文件不在"会变成任务里的一个异常。
-readonly File := (path: string) => {
+readonly File := (g: Tasks.TaskGroup path: string) => {
     if { System.FileExists path; } {
-        Tasks.Of (System.ReadBytesTask path) |> .Map ((b: object) => { Build 200 (MimeOf path) b; });
+        Build 200 (MimeOf path) (g.Await (Tasks.Of (System.ReadBytesTask path)));
     } { NotFound (); }
 }
 
@@ -194,12 +196,7 @@ Request ::= class {
     Version: string = "HTTP/1.1"
     Peer: string = ""
 
-    # **伺候这个请求的那个调度组** —— handler 里要等 IO(文件 / 数据库 / 出网)就用它:
-    #     req.Group.Await (System.ReadTextTask "a.txt")
-    # 不用等就当我没提过。
-    Group: object = ()
-
-    init = (raw: dict peer: string group: object) => {
+    init = (raw: dict peer: string) => {
         Method = raw.Get "method"
         Path = raw.Get "path"
         Version = raw.Get "version"
@@ -207,7 +204,6 @@ Request ::= class {
         Body = raw.Get "body"
         KeepAlive = raw.Get "keepAlive"
         Peer = peer
-        Group = group
         Query = ParseQuery (raw.Get "query")
         this;
     }
@@ -336,7 +332,7 @@ Server ::= class {
                     me.Reply g c (Text 413 (r.Get "why")) true
                     open = false
                 } {
-                    req := Request r peer g
+                    req := Request r peer
                     close := !(req.KeepAlive)
                     me.Reply g c (me.Answer g req) close
                     if { close; } { open = false; } { 0; }
@@ -345,12 +341,6 @@ Server ::= class {
         }
         Native.HttpClose c;
         ()
-    }
-
-    # handler 交回的是响应就照用,是个**任务**就等它 —— 于是"读文件不占线程"这件事
-    # 由 handler 自己选(`Httpd.File` 交回的就是任务)。
-    Settle := (g: Tasks.TaskGroup resp: object) => {
-        if { resp is Tasks.ITask; } { g.Await resp; } { resp; }
     }
 
     # 把一个响应写回去。`Wire` 那一份还差个 `conn` —— 那是**每条连接自己的事**,
@@ -364,17 +354,17 @@ Server ::= class {
     # 挑一条路由、把它跑出来。**handler 里出了错不把这台服务器带走** —— 接住,回 500,
     # 连接照常收摊(一个 handler 写错不该让整台服务停摆)。
     #
-    # `Settle` 必须在**这个 try 里面**:handler 交回的任务(`Httpd.File` 那种)是**等到
-    # 这一头才跑**的,它失败和同步抛出来的错是一回事。放在 try 外面的话,那个失败会把
-    # 连接任务整个带走 —— 对面什么都收不到,只能干等到超时(这条真踩过)。
+    # handler 拿得到 `g`,所以**等 IO 就在它自己身上发生** —— 错是同步冒出来的,落在
+    # 这个 try 里面。从前"handler 交回任务"那条路是等到外头才跑的,它的失败会把连接
+    # 任务整个带走(对面什么都收不到,干等到超时);现在没有那条路了。
     Answer := (g: Tasks.TaskGroup req: Request) => {
         me := this
-        try { me.Settle g (me.Dispatch req); } (e: Exception) => {
+        try { me.Dispatch g req; } (e: Exception) => {
             Text 500 ("500 handler 出错了:" + e.Message);
         }
     }
 
-    Dispatch := (req: Request) => {
+    Dispatch := (g: Tasks.TaskGroup req: Request) => {
         me := this
         hit := []
         foreach Routes (r: dict) => {
@@ -382,32 +372,32 @@ Server ::= class {
                 hit.Add (r.Get "handler")
             } { 0; }
         }
-        if { !(hit.IsEmpty ()); } { (hit.At 0) req; } { me.DispatchStatic req; }
+        if { !(hit.IsEmpty ()); } { (hit.At 0) req g; } { me.DispatchStatic g req; }
     }
 
     # 路由那一格写 `"*"` 就是"什么都收" —— `Serve` 那条糖靠它当万能路由。
     Matches := (pattern: string got: string) => { (pattern == "*") || (pattern == got); }
 
-    DispatchStatic := (req: Request) => {
+    DispatchStatic := (g: Tasks.TaskGroup req: Request) => {
         me := this
         hit := []
         foreach Statics (s: dict) => {
             p := s.Get "prefix"
             if { (req.Path).StartsWith p; } { hit.Add s; } { 0; }
         }
-        if { hit.IsEmpty (); } { NotFound (); } { me.SendFile req (hit.At 0); }
+        if { hit.IsEmpty (); } { NotFound (); } { me.SendFile g req (hit.At 0); }
     }
 
     # 拼出磁盘上那个路径。**`..` 和反斜杠一律不认** —— 不挡的话 `/pub/../../secret`
     # 就把整个盘读出去了,那是一台服务器最经典的那个洞。
-    SendFile := (req: Request s: dict) => {
+    SendFile := (g: Tasks.TaskGroup req: Request s: dict) => {
         prefix := s.Get "prefix"
         dir := s.Get "dir"
         full := req.Path
         rest := full.Slice [(prefix.Length ())..((full.Length ()) - 1)]
         # 两个块**必须写在同一行**(`} {`):换行分开了的话,第二个块会变成一句跟 `if`
         # 无关的空转 —— 于是"挡穿越"那条根本不执行(`if` 缺一块不报错,见教程十一章)。
-        if { (rest.Contains "..") || (rest.Contains "\\"); } { NotFound (); } { File (dir + rest); }
+        if { (rest.Contains "..") || (rest.Contains "\\"); } { NotFound (); } { File g (dir + rest); }
     }
 }
 

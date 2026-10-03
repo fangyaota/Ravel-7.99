@@ -16,23 +16,23 @@ using "http.rav"
 # `srv.Port` 拿得到真端口(真上线就直接写 8080 那种)。
 srv := Httpd.Server 0
 
-srv.Route "GET" "/" (req) => { Httpd.Html "<h1>你好</h1>"; }
+srv.Route "GET" "/" (req g) => { Httpd.Html "<h1>你好</h1>"; }
 
 # 查询串:`/greet?name=世界`
-srv.Route "GET" "/greet" (req) => { Httpd.Text ("你好," + (req.Param "name")); }
+srv.Route "GET" "/greet" (req g) => { Httpd.Text ("你好," + (req.Param "name")); }
 
 # 交回的 dict 直接当 JSON 发出去
-srv.Route "GET" "/api/now" (req) => { Httpd.Json {"语言": "Ravel" "版本": 7.99}; }
+srv.Route "GET" "/api/now" (req g) => { Httpd.Json {"语言": "Ravel" "版本": 7.99}; }
 
 # 正文、方法、请求头 —— `Body` 是**字段**(字节表),别写 `req.Body ()`:
 # 那样成了"调用一个列表",报「值 [...] 不是函数」。
-srv.Route "POST" "/api/echo" (req) => {
+srv.Route "POST" "/api/echo" (req g) => {
     Httpd.Json {"方法": req.Method "字节数": ((req.Body).Count ()) "内容": (req.BodyText ())};
 }
 
 # 状态码自己说了算(`With` 交回自己,所以能用 `|>` 串)
-srv.Route "GET" "/teapot" (req) => { Httpd.Text "我是茶壶" |> .With 418; }
-srv.Route "GET" "/old" (req) => { Httpd.Redirect "/"; }
+srv.Route "GET" "/teapot" (req g) => { Httpd.Text "我是茶壶" |> .With 418; }
+srv.Route "GET" "/old" (req g) => { Httpd.Redirect "/"; }
 
 # ── 二、静态目录 ──
 #
@@ -41,15 +41,15 @@ srv.Static "/ex" "."
 
 # ── 三、handler 里等 IO ──
 #
-# **这是这一层最要紧的地方**:handler 里 `req.Group.Await …` 挂起的时候,
+# **这是这一层最要紧的地方**:handler 里 `g.Await …` 挂起的时候,
 # 调度器去伺候别的连接 —— 所以一个慢 handler 不会把整台服务器堵住。
-srv.Route "GET" "/slow" (req) => {
-    req.Group.Await (Tasks.After 200)
+srv.Route "GET" "/slow" (req g) => {
+    g.Await (Tasks.After 200)
     Httpd.Text "想了两百毫秒";
 }
 
 # 交回一个**任务**也行(`Httpd.File` 就是):读盘在那边跑,不占线程。
-srv.Route "GET" "/readme" (req) => { Httpd.File "README.md"; }
+srv.Route "GET" "/readme" (req g) => { Httpd.File g "README.md"; }
 
 # ── 四、跑起来,自己打自己 ──
 #
@@ -95,7 +95,7 @@ Tasks.Cycle [
 # ── 五、当服务用的时候,就是这么一句 ──
 #
 #     srv := Httpd.Server 8080
-#     srv.Route "GET" "/" (req) => { Httpd.Text "你好"; }
+#     srv.Route "GET" "/" (req g) => { Httpd.Text "你好"; }
 #     srv.Static "/pub" "public"
 #     srv.Run ()            # 阻塞在这儿,直到别的任务调 `Stop ()`
 #
