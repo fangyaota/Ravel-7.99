@@ -338,8 +338,7 @@ Server ::= class {
                 } {
                     req := Request r peer g
                     close := !(req.KeepAlive)
-                    resp := me.Settle g (me.Answer req)
-                    me.Reply g c resp close
+                    me.Reply g c (me.Answer g req) close
                     if { close; } { open = false; } { 0; }
                 }
             }
@@ -362,11 +361,15 @@ Server ::= class {
         g.Await (Tasks.Of (Native.HttpAnswer w))
     }
 
-    # 挑一条路由。**handler 里抛了错不把这台服务器带走** —— 接住,回 500,
+    # 挑一条路由、把它跑出来。**handler 里出了错不把这台服务器带走** —— 接住,回 500,
     # 连接照常收摊(一个 handler 写错不该让整台服务停摆)。
-    Answer := (req: Request) => {
+    #
+    # `Settle` 必须在**这个 try 里面**:handler 交回的任务(`Httpd.File` 那种)是**等到
+    # 这一头才跑**的,它失败和同步抛出来的错是一回事。放在 try 外面的话,那个失败会把
+    # 连接任务整个带走 —— 对面什么都收不到,只能干等到超时(这条真踩过)。
+    Answer := (g: Tasks.TaskGroup req: Request) => {
         me := this
-        try { me.Dispatch req; } (e: Exception) => {
+        try { me.Settle g (me.Dispatch req); } (e: Exception) => {
             Text 500 ("500 handler 出错了:" + e.Message);
         }
     }

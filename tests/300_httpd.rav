@@ -17,6 +17,11 @@ srv.Route "GET" "/hi" (req) => { Httpd.Text "你好"; }
 srv.Route "GET" "/q" (req) => { Httpd.Text ("收到 " + (req.Param "name")); }
 srv.Route "POST" "/echo" (req) => { Httpd.Json {"len": ((req.BodyText ()).Length ())}; }
 srv.Route "GET" "/nope" (req) => { Httpd.Text "自定义的没有" |> .With 404; }
+# 两种出错:同步抛的,和**交回一个会失败的任务**。两条都该回 500 ——
+# 后者尤其要紧:它的错是等到 `Settle` 那一头才冒出来的,不裹进同一个 try 的话
+# 会把连接任务整个带走,对面只能干等到超时。
+srv.Route "GET" "/boom" (req) => { throw (Exception "炸了"); }
+srv.Route "GET" "/boomTask" (req) => { Tasks.Of (System.ReadTextTask "根本没有.txt"); }
 srv.Static "/pub" "."
 
 base := "http://127.0.0.1:" + (string (srv.Port))
@@ -54,6 +59,10 @@ Tasks.Cycle [
         r7 := g.Await (Http.GetTask (base + "/pub/../CONTEXT.md"))
         print (string (r7.status))
 
+        # handler 出错的两种长相,都该是 500(只印状态码 —— 那句话里带着文件路径,会飘)
+        print (string ((g.Await (Http.GetTask (base + "/boom"))).status))
+        print (string ((g.Await (Http.GetTask (base + "/boomTask"))).status))
+
         srv.Stop ()
     })
 ]
@@ -71,3 +80,5 @@ System.DeletePath "httpd_pub.txt"
 # 从磁盘来
 # text/plain; charset=utf-8
 # 404
+# 500
+# 500

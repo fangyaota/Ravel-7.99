@@ -2011,7 +2011,10 @@ accept 循环一个任务,**一条连接再一个任务**;挂起点是 accept / 
   —— accept 会一圈圈空转。现在退出条件就是交回来的东西,**监听器怎么没的都能收摊**。
 - **`req.Group`** 是伺候这个请求的那个调度组,handler 拿它等 IO。handler 交回**任务**也行
   (`Httpd.File` 就是),`Settle` 那一头会等它。
-- handler 里抛的错**不把服务器带走**:`Answer` 接住,回 500。
+- handler 里出的错**不把服务器带走**:`Answer` 接住,回 500。**`Settle` 必须裹在同一个
+  `try` 里** —— handler 交回的任务(`Httpd.File` 那种)是等到那一头才跑的,它失败和
+  同步抛的错是一回事;放在 try 外面的话那个失败会把连接任务整个带走,对面什么都收不到,
+  只能干等到超时(这条真踩过,`tests/300` 的 `/boom` 与 `/boomTask` 钉住两种长相)。
 - **keep-alive** 默认开(HTTP/1.1 最多收 N 个请求,空转 `Idle` 毫秒让位);`Conns` / `Requests`
   两个计数就是给它看的 —— 一条连接收 N 个请求时,连接数比请求数小。
 - **请求正文只认 `Content-Length`**,`Transfer-Encoding: chunked` 明确报错:猜错就是
