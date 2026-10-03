@@ -1,0 +1,38 @@
+# `serve` —— **一键**:把教程生成出来,再起个服务器,浏览器里直接看。
+#
+#     ravel examples/serve.rav            # 生成到 site/,起在 8080
+#     ravel examples/serve.rav 9000       # 换个端口
+#
+# 跑起来之后它会印一行网址,点开就是整个教程(左边目录、右边正文、上一篇/下一篇)。
+# **Ctrl+C 停。**
+#
+# 每次启动都重新生成一遍(旧文件会被写掉);**跑着的时候改了 markdown 不会自己刷新**
+# —— 想刷新就重启它,或者另开一个终端再跑一次 `examples/site.rav`(生成器只写文件,
+# 不碰正在跑的那个进程)。
+#
+# 服务的就是磁盘上那份 `site/`(`srv.Static`),所以:
+#   * 换成别的东西去看也行 —— 它就是个普通目录;
+#   * 端口被占了会当场报错,换一个就行。
+using "httpd.rav"
+# **路径要带 `examples/`**:`using` 找的是 `cwd → lib/ → plugins/ → 程序集旁边`,
+# **不含脚本自己所在的那个目录**。所以这条得从仓库根跑。
+using "examples/docsite.rav"
+
+OUT := "site"
+PORT := if { (System.Args ()).IsEmpty (); } { 8080; } { int ((System.Args ()).At 0); }
+
+DocSite.Build OUT
+
+srv := Httpd.Server PORT
+srv.Static "/" OUT
+# `/` 要单独给一条:静态那条按路径拼文件名,`/` 拼出来是目录本身,不是 `index.html`。
+srv.Route "GET" "/" (req g) => { Httpd.File g (OUT + "/index.html"); }
+
+print ""
+print ("  看这儿 —— http://127.0.0.1:" + (string (srv.Port)) + "/")
+print "  (Ctrl+C 停)"
+print ""
+
+# 这台服务器就是整个程序,所以走 `Run ()`(它内部是一个 `Tasks.Cycle`,阻塞到 `Stop ()`;
+# 这里没人喊停,于是它就是一直开着)。
+srv.Run ()

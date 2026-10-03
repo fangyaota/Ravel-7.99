@@ -2,7 +2,14 @@
 
 一章一个文件，在 [docs/tutorial/](tutorial/) 下。**面向有经验的程序员** —— 只讲"这门语言和别家不一样"的地方，不解释通用概念。
 
-想当网页看：`ravel examples/site.rav`，然后打开 `site/index.html`（左边目录、右边正文、上一篇/下一篇）。
+想当网页看（左边目录、右边正文、上一篇/下一篇）—— 两条路：
+
+```bash
+ravel examples/serve.rav          # 一键：生成 + 起服务器，浏览器里点它印出来的网址
+ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 也能看
+```
+
+同一份东西还有 `.md` 源文件在 [`docs/tutorial/`](tutorial/) 下，一章一个。
 
 | 章 | |
 |---|---|

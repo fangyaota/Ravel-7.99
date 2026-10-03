@@ -1,4 +1,4 @@
-﻿# `Httpd` —— HTTP **服务端**。**要显式引用**:`using "httpd.rav"`。
+# `Httpd` —— HTTP **服务端**。**要显式引用**:`using "httpd.rav"`。
 #
 #     srv := Httpd.Server 8080
 #     srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好" }
@@ -395,9 +395,13 @@ Server ::= class {
         dir := s.Get "dir"
         full := req.Path
         rest := full.Slice [(prefix.Length ())..((full.Length ()) - 1)]
+        # 前缀写 `/`(把整个目录挂上去)时,剩下那段**不带**打头的斜杠 —— 得自己剥掉再拼,
+        # 不然 `dir + rest` 会拼成 `siteindex.html`。前缀带名字(`/pub`)时反倒带着,所以
+        # 统一剥一次、统一补一次分隔符,两种写法才走到同一个地方。
+        rel := if { rest.StartsWith "/"; } { rest.Slice [1..((rest.Length ()) - 1)]; } { rest; }
         # 两个块**必须写在同一行**(`} {`):换行分开了的话,第二个块会变成一句跟 `if`
         # 无关的空转 —— 于是"挡穿越"那条根本不执行(`if` 缺一块不报错,见教程十一章)。
-        if { (rest.Contains "..") || (rest.Contains "\\"); } { NotFound (); } { File g (dir + rest); }
+        if { (rel.Contains "..") || (rel.Contains "\\"); } { NotFound (); } { File g (dir + "/" + rel); }
     }
 }
 
