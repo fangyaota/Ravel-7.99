@@ -1,0 +1,72 @@
+# `Html` —— 拼 HTML(见 lib/html.rav)。**要显式引用**。
+#
+# 节点就是普通 dict / list(和 `Xml` 底下那棵树**同一个形状**),所以 `Render` 收的是**数据**
+# 不是某个新类型 —— "自己手拼一棵"和"从别处拿一棵"都合法,用例里两处都钉了。
+using "html.rav"
+
+# ── 文本:转义默认开 ──
+print (Html.Render (Html.El "p" {} ["a < b & c"]))
+print (Html.Render (Html.El "p" {} [(Html.Text "\"引\"")]))
+print (Html.Render (Html.El "p" {} [(Html.Raw "<i>原样</i>")]))
+
+# 孩子里**直接写的东西**:字符串、数、bool… 一律转义后当文本(`None` 当没有)
+print (Html.Render (Html.El "td" {} [42]))
+print (Html.Render (Html.El "p" {} [1 None 2]))
+print (Html.Render (Html.El "p" {} "单串"))
+
+# ── void 元素:不写收尾标签,而且**不许有孩子** ──
+print (Html.Render (Html.El "br" {} []))
+print (Html.Render (Html.El "IMG" {} []))       # 标签名大小写不敏感
+print (Html.Render (Html.El "hr" {} None))      # `None` 当没有孩子
+print ((try { Html.El "br" {} ["x"]; } (e: Exception) => { "报错: " + (string e); }))
+
+# ── 属性:None 不写、true 光写名字、false 当没写、list 按空格拼、别的转义 ──
+print (Html.Render (Html.El "a" {"href": "/x?a=1&b=2" "target": None} ["点"]))
+print (Html.Render (Html.El "input" {"type": "text" "disabled": true "checked": false "class": ["a" "b"]} []))
+print (Html.Render (Html.El "div" {"data-n": 5} []))
+print (Html.Render (Html.El "div" {"a": "1" "b": "2"} []))   # 先后照写的先后
+
+# ── 嵌套 + 片段 ──
+print (Html.Render (Html.El "ul" {} [(Html.El "li" {} ["一"]) (Html.El "li" {} ["二"])]))
+print (Html.Render (Html.El "div" {} [(Html.Frag [(Html.El "b" {} ["粗"]) "尾"])]))
+
+# ── `Pretty`:孩子里有元素就一层一行,全是文本的收成一行 ──
+print (Html.Pretty (Html.El "div" {"class": "card"} [(Html.El "h2" {} ["标题"]) (Html.El "p" {} ["a < b"])]))
+
+# ── 整篇:`Doc` 自动把 `<meta charset>` 放在 head 第一个,doctype 自己带一个换行 ──
+print (Html.Pretty (Html.Doc "zh" [(Html.El "title" {} ["页"])] [(Html.El "h1" {} ["你好"])]))
+
+# ── 树是普通数据:手拼一棵照样认 ──
+print (Html.Render ({"kind": "element" "name": "b" "attrs": {} "kids": [{"kind": "text" "text": "<手拼>"}]}))
+# --- expected ---
+# <p>a &lt; b &amp; c</p>
+# <p>&quot;引&quot;</p>
+# <p><i>原样</i></p>
+# <td>42</td>
+# <p>12</p>
+# <p>单串</p>
+# <br>
+# <IMG>
+# <hr>
+# 报错: Html: 'br' 是 void 元素,不写收尾标签,也就不该有孩子 —— 标准里那 14 个是:area base br col embed hr img input link meta param source track wbr
+# <a href="/x?a=1&amp;b=2">点</a>
+# <input type="text" disabled class="a b">
+# <div data-n="5"></div>
+# <div a="1" b="2"></div>
+# <ul><li>一</li><li>二</li></ul>
+# <div><b>粗</b>尾</div>
+# <div class="card">
+#   <h2>标题</h2>
+#   <p>a &lt; b</p>
+# </div>
+# <!DOCTYPE html>
+# <html lang="zh">
+#   <head>
+#     <meta charset="utf-8">
+#     <title>页</title>
+#   </head>
+#   <body>
+#     <h1>你好</h1>
+#   </body>
+# </html>
+# <b>&lt;手拼&gt;</b>

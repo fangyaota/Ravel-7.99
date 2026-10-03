@@ -1,0 +1,233 @@
+# `Html` —— 拼 HTML。**要显式引用**:`using "html.rav"`。
+#
+#     using "html.rav"
+#
+#     card := (title: string body: string) => {
+#         Html.El "div" {"class": "card"} [
+#             (Html.El "h2" {} [title])
+#             (Html.El "p" {} [body])
+#         ]
+#     }
+#     print (Html.Pretty (card "标题" "a < b"))
+#
+# 四条立起来的规矩:
+#
+#   * **节点就是普通 dict / list** —— 和 `lib/xml.rav` 底下那棵树**同一个形状**
+#     (`{"kind": "element" "name": … "attrs": {} "kids": []}` / `{"kind": "text" "text": …}` /
+#     `{"kind": "raw" "text": …}`)。自己拼一棵、或者把 `Xml.Parse` 交回的那棵喂进来,都认。
+#   * **转义默认开** —— 文本和属性值都过 `Encoding.HtmlEscape`;要插整段现成标记用 `Html.Raw`。
+#   * **标签名不设白名单** —— 唯一的例外是 void 元素(`br` / `img` / …,标准里那 14 个),
+#     它们不写收尾标签;给它们**塞孩子是写错了**,当场报错,不静默丢掉。
+#   * **孩子是个 list** —— 而 list 字面量里**每个调用要自己加括号**(空格在 `[…]` 里是分隔符,
+#     这是语言的规矩,不是这个模块的):`[(El "h2" {} ["x"]) (El "p" {} ["y"])]`。
+#
+# 组件就是**普通函数**:收几个值、交回一棵节点树。这门语言不需要另造一套模板语法 ——
+# 上面那个 `card` 就是一份"组件",直接嵌进别人的孩子里用。
+using "encoding.rav"
+
+ravel "Html"
+
+readonly Doctype := "<!DOCTYPE html>"
+
+# void 元素 —— 标准里不写收尾标签的那 14 个
+readonly Voids := ["area" "base" "br" "col" "embed" "hr" "img" "input"
+                   "link" "meta" "param" "source" "track" "wbr"]
+
+readonly IsVoid := (name: string) => { Voids.Contains (name.ToLower ()); }
+
+# ── 造节点 ──
+
+readonly TextNode := (s: object) => { {"kind": "text" "text": (string s)}; }
+readonly RawNode := (s: string) => { {"kind": "raw" "text": s}; }
+
+# 孩子:list 照收;单个(一个节点、一个字符串)包成只有一个元素的 list;`None` 当没有
+readonly KidsOf := (kids: object) => {
+    if { (IsNothing kids); } { []; } {
+        if { kids is list; } { kids; } { [kids]; }
+    }
+}
+
+readonly Build := (name: string attrs: object kids: object) => {
+    ks := KidsOf kids
+    if { IsVoid name; } {
+        if { (ks.Count ()) > 0; } {
+            throw (Exception ("Html: '" + name + "' 是 void 元素,不写收尾标签,也就不该有孩子 —— 标准里那 14 个是:" + (Voids.Join " ")))
+        } { 0; }
+        {"kind": "element" "name": name "attrs": attrs "kids": []};
+    } {
+        {"kind": "element" "name": name "attrs": attrs "kids": ks};
+    }
+}
+
+readonly El := (name: string attrs: object kids: object) => { Build name attrs kids; }
+
+# 文本 —— 渲染时转义(`&` `<` `>` `"` `'` 五个)
+readonly Text := (s: object) => { TextNode s; }
+
+# 原样标记 —— **不转义**,安全得你自己保证(插一段别的生成器产出的 HTML 时用)
+readonly Raw := (s: string) => { RawNode s; }
+
+# 一串节点当一串用(交回的就是那个 list,方便往孩子里嵌)
+readonly Frag := (kids: object) => { KidsOf kids; }
+
+# ── 属性 ──
+#
+#   `None`  → 这个属性整个不写(要"有没有看情况"就用它)
+#   `true`  → 光写名字(`disabled` / `checked` 那类布尔属性);`false` 当没写
+#   list    → 按空格拼起来(最常见的用法是 `class`)
+#   别的    → `name="值"`,值过 HTML 转义
+#
+# 属性的先后**照你写的先后**(dict 是有序的),不重排 —— 输出才稳、diff 才好看。
+
+readonly AttrText := (v: object) => {
+    if { v is list; } { v.Join " "; } { string v; }
+}
+
+readonly AttrsText := (attrs: object) => {
+    out := ""
+    foreach (attrs.Keys ()) (k: string) => {
+        v := attrs.GetOr k ""
+        if { (IsNothing v); } { 0; } {
+            if { v is bool; } {
+                if { v; } { out += (" " + k); } { 0; }
+            } {
+                out += (" " + k + "=\"" + (Encoding.HtmlEscape (AttrText v)) + "\"")
+            }
+        }
+    }
+    out
+}
+
+# ── 渲染 ──
+#
+# `Render` 紧凑(整棵一行);`Pretty` 缩进。
+#
+# 缩进的规矩:**孩子里有元素就一层一行,全是文本的收成一行**。所以
+# `<p>正文</p>` 不会被打散,而 `<div>` 套 `<p>` 会分层。
+# 代价是**空白敏感的地方**(`<pre>`、行内元素之间的那个空格)别用 `Pretty` ——
+# 换行在 HTML 里会折成一个空格,该自己控的地方用 `Render`。
+
+readonly Render := (n: object) => {
+    out := ""
+    walk := (x: object) => {
+        if { x is list; } {
+            foreach x (k: object) => { walk k; }
+        } {
+            if { x is dict; } {
+                kind := x.GetOr "kind" ""
+                if { kind == "text"; } {
+                    out += (Encoding.HtmlEscape (x.GetOr "text" ""));
+                } {
+                    if { kind == "raw"; } {
+                        out += (x.GetOr "text" "");
+                    } {
+                        name := x.GetOr "name" ""
+                        out += ("<" + name + (AttrsText (x.GetOr "attrs" {})))
+                        if { IsVoid name; } {
+                            out += ">"
+                        } {
+                            out += ">"
+                            foreach (x.GetOr "kids" []) (k: object) => { walk k; }
+                            out += ("</" + name + ">")
+                        }
+                    }
+                }
+            } {
+                # 孩子里直接写的东西:字符串、数、bool… 一律转义后当文本写出去
+                # (最常见的写法是直接给字符串,省掉一层 `Text`);`None` 当没有
+                if { (IsNothing x); } { 0; } {
+                    out += (Encoding.HtmlEscape (string x));
+                }
+            }
+        }
+    }
+    walk n
+    out
+}
+
+readonly Pad := (n: int) => {
+    s := ""
+    i := 0
+    while { i < n; } { s += "  "; i += 1; }
+    s
+}
+
+# 孩子里有没有元素(list 也算 —— 片段展开后还是元素)
+readonly HasElem := (kids: list) => {
+    hit := false
+    foreach kids (k: object) => { hit = (hit || (IsElem k)); }
+    hit
+}
+
+readonly IsElem := (x: object) => {
+    if { x is dict; } { (x.GetOr "kind" "") == "element"; } { x is list; }
+}
+
+readonly Pretty := (n: object) => {
+    out := ""
+    emit := (x: object depth: int) => {
+        if { x is list; } {
+            foreach x (k: object) => { emit k depth; }
+        } {
+            if { x is dict; } {
+                kind := x.GetOr "kind" ""
+                if { kind == "text"; } {
+                    out += (Encoding.HtmlEscape (x.GetOr "text" ""));
+                } {
+                    if { kind == "raw"; } {
+                        out += (x.GetOr "text" "");
+                    } {
+                        name := x.GetOr "name" ""
+                        open := "<" + name + (AttrsText (x.GetOr "attrs" {}))
+                        kids := x.GetOr "kids" []
+                        if { IsVoid name; } {
+                            out += (open + ">")
+                        } {
+                            if { HasElem kids; } {
+                                out += (open + ">")
+                                out += "\n"
+                                foreach kids (k: object) => {
+                                    out += (Pad (depth + 1))
+                                    emit k (depth + 1)
+                                    out += "\n"
+                                }
+                                out += (Pad depth)
+                                out += ("</" + name + ">")
+                            } {
+                                out += (open + ">")
+                                foreach kids (k: object) => { emit k depth; }
+                                out += ("</" + name + ">")
+                            }
+                        }
+                    }
+                }
+            } {
+                if { (IsNothing x); } { 0; } {
+                    out += (Encoding.HtmlEscape (string x));
+                }
+            }
+        }
+    }
+    emit n 0
+    out
+}
+
+# ── 整篇文档 ──
+#
+# `Doc lang head body` 把骨架搭好:`<!DOCTYPE html>` + `<html lang>` + `<head>` + `<body>`,
+# 并且**自动把 `<meta charset="utf-8">` 放在 head 第一个**(这个库里所有文本都是 utf-8)。
+# head / body 收的是**里面的东西**,`<head>` / `<body>` 这两个标签由它加上。
+
+readonly Doc := (lang: string head: object body: object) => {
+    hk := [(El "meta" {"charset": "utf-8"} [])]
+    foreach (KidsOf head) (k: object) => { hk.Add k; }
+    Frag [
+        {"kind": "raw" "text": (Doctype + "\n")}
+        (El "html" {"lang": lang} [
+            (El "head" {} hk)
+            (El "body" {} body)
+        ])
+    ]
+}
+
+ravel ""

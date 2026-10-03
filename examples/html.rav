@@ -1,0 +1,69 @@
+# 拼 HTML —— `Html` 那套怎么用(见 lib/html.rav)。
+#
+# **这是例子,不是用例**:`tests/lib/287_html.rav` 才是要精确比对的那条。
+# 直接跑就能看到全貌:
+#
+#     ravel examples/html.rav
+#
+# 三件事值得看一眼:组件就是普通函数、孩子里直接写字符串(自动转义)、
+# 循环用"先攒一个 list 再 `Add`"。
+using "html.rav"
+
+# ── 一、组件就是函数 ──
+#
+# 收几个值、交回一棵节点树。没有什么"模板语法"要学 —— 它就是个普通函数,
+# 直接嵌进别人的孩子里用。
+card := (title: string body: string) => {
+    Html.El "div" {"class": "card"} [
+        (Html.El "h2" {} [title])
+        (Html.El "p" {} [body])
+    ]
+}
+
+# 注意那两个括号:`[…]` 里**空格是元素分隔符**(`[a b]` 是两个元素),
+# 所以里面的每个调用要自己括起来。这是语言的规矩,不是 `Html` 的。
+print (Html.Pretty (card "标题" "正文里 < 和 & 会被转义"))
+
+# ── 二、循环:先攒一个 list,再往里 Add ──
+#
+# `Html.El` 的孩子收的就是一个 list,所以"攒一个 list"是最顺的写法。
+rows := [["甲" 12] ["乙" 7] ["丙" 30]]
+
+body := []
+foreach rows (r: list) => {
+    tds := []
+    foreach r (c: object) => { tds.Add (Html.El "td" {} [c]); }
+    body.Add (Html.El "tr" {} tds)
+}
+
+# ── 三、属性 ──
+#
+#   `None` → 整个不写("有没有看情况"就用它)
+#   `true` → 光写名字(布尔属性);`false` 当没写
+#   list   → 按空格拼起来(`class` 最常见)
+#   别的   → `name="值"`,值过转义
+print (Html.Pretty (Html.El "table" {"class": ["data" "striped"] "border": true} [
+    (Html.El "tbody" {} body)
+]))
+
+# ── 四、`Raw`:插一段现成的标记(不转义) ──
+#
+# 安全得你自己保证 —— **用户的输入不要走这儿**,那条走 `Html.Text` / 直接写字符串。
+print (Html.Render (Html.El "div" {} [(Html.Raw "<svg>…</svg>") " 后面这段照常转义: <b>"] ))
+
+# ── 五、整篇 ──
+#
+# `Doc` 把 `<!DOCTYPE html>` / `<html lang>` / `<head>` / `<body>` 搭好,
+# 并且自己把 `<meta charset="utf-8">` 放进 head 第一个(head / body 收的是**里面**的东西)。
+page := Html.Doc "zh" [(Html.El "title" {} ["报表"])] [
+    (card "标题" "正文")
+]
+
+print (Html.Pretty page)
+
+# 发给浏览器就这么写:
+#
+#     srv.Route "GET" "/" (req g) => { Httpd.Html (Html.Render page); }
+#
+# 用的是 `Render`(紧凑)不是 `Pretty` —— `Pretty` 那些换行在 HTML 里会折成一个空格,
+# 只在你想看源码的时候用(`pre` 和行内元素之间的空白尤其敏感)。

@@ -621,3 +621,45 @@ Crypto.CheckPassword "hunter2" stored                    # true（常数时间�
 **`Table`** —— 最要紧的是**宽度**：算的是"终端里占几格"（汉字 2、其余 1），不是 `s.Length ()` —— 拿来对齐中文会歪。
 
 **`Log`** —— 分级日志：`Log.New {"level": "debug" "file": "app.log" "tag": "db"}`，然后 `lg.Info "…"`。
+
+## 6.26 拼 HTML（`Html`）
+
+```ravel
+using "html.rav"
+
+card := (title: string body: string) => {
+    Html.El "div" {"class": "card"} [
+        (Html.El "h2" {} [title])
+        (Html.El "p" {} [body])
+    ]
+}
+print (Html.Pretty (card "标题" "a < b"))
+```
+
+执行以上程序会输出如下结果：
+
+```
+<div class="card">
+  <h2>标题</h2>
+  <p>a &lt; b</p>
+</div>
+```
+
+节点就是**普通 dict / list**（和 6.22 的 `Xml` 底下那棵树同一个形状），`Render` 收的是**数据** —— 自己手拼一棵、或者把别处拿到的树喂进去，都认。
+
+| 写法 | 意思 |
+|------|------|
+| `Html.El name attrs kids` | 元素；`kids` 收一个 list（给单个也行，自动包一层）|
+| `Html.Text s` / 孩子里直接写字符串 | 文本，**渲染时转义** |
+| `Html.Raw s` | 原样标记，**不转义**（安全自己保证）|
+| `Html.Frag kids` | 一串节点当一串用 |
+| `Html.Render n` / `Html.Pretty n` | 紧凑一行 / 缩进 |
+| `Html.Doc lang head body` | 整篇：doctype + `<html lang>` + `<head>`（自动补 `<meta charset="utf-8">`）+ `<body>` |
+
+**属性**：`None` 整个不写（"有没有看情况"就用它）、`true` 光写名字（布尔属性）、list 按空格拼（`class` 最常见）、别的 `name="转义过的值"`。先后照你写的先后。
+
+**`Pretty` 的规矩**：孩子里有元素就一层一行，全是文本的收成一行。代价是空白敏感的地方（`<pre>`、行内元素之间那个空格）会多出空白 —— 发给浏览器的一律用 `Render`。
+
+两条 Ravel 自己的坑：`[…]` 里**空格是元素分隔符**，所以孩子里每个调用得自己加括号（`[(El "a" {} []) (El "b" {} [])]`）；void 元素（`br` / `img` / …，标准里那 14 个）**给了孩子就当场报错**，不静默丢掉。
+
+组件就是**普通函数** —— 上面那个 `card` 直接嵌进别人的孩子里。这门语言不需要另造一套模板语法。
