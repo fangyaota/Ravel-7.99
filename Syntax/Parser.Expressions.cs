@@ -46,7 +46,7 @@ public partial class Parser
         }
 
         if (Match(TokenType.Equal) || Match(TokenType.ColonEqual) || Match(TokenType.PlusEqual) ||
-            Match(TokenType.MinusEqual) || Match(TokenType.StarEqual) ||
+            Match(TokenType.MinusEqual) || Match(TokenType.StarEqual) || Match(TokenType.StarStarEqual) ||
             Match(TokenType.SlashEqual) || Match(TokenType.PercentEqual))
         {
             var op = Previous().Lexeme;
@@ -249,13 +249,38 @@ public partial class Parser
     /// <summary>乘除取模 * / %</summary>
     private Expression ParseFactor(bool allowCall = true)
     {
-        var left = ParseCall(allowCall);
+        var left = ParsePower(allowCall);
 
         while (Match(TokenType.Star) || Match(TokenType.Slash) || Match(TokenType.Percent))
         {
             var op = Previous().Lexeme;
-            var right = ParseCall(allowCall);
+            var right = ParsePower(allowCall);
             left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
+        }
+
+        return left;
+    }
+
+    /// <summary>乘方 `**` —— **右结合**,而且**比一元还紧**:
+    ///
+    ///     -2 ** 2     ≡  -(2 ** 2)       = -4     ← 要 (-2)² 得自己括
+    ///     2 ** 3 ** 2 ≡  2 ** (3 ** 2)   = 512
+    ///     2 ** -1     ≡  2 ** (-1)       = 0.5    ← 指数里的负号照样是一元的
+    ///
+    /// 它是这门口子里**唯一**比一元紧的二元运算符(`-2 * 3` 仍然是 `(-2) * 3`)。
+    /// 照着数学写法定的:写 `-2 ** 2` 的人要的是 -4 的多。
+    ///
+    /// 实现上不是靠优先级表——是让 `ParseCall` 里那个一元分支的**操作数走这一层**
+    /// (而不是它自己),于是"先把整个乘方收完、再套负号"。</summary>
+    private Expression ParsePower(bool allowCall = true)
+    {
+        var left = ParseCall(allowCall);
+
+        if (Match(TokenType.StarStar))
+        {
+            var op = Previous().Lexeme;
+            var right = ParsePower(allowCall);      // 往本层递归 = 右结合
+            return new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
         }
 
         return left;
@@ -267,10 +292,13 @@ public partial class Parser
         // 一元 ! 和 -(都往本层递归,所以 `! !x` / `- -1` 写得出来)。
         // 位置取**运算符**那个 token:从前是把操作数解析完才回头 Previous(),
         // 拿到的是操作数的最后一个 token,报错时插入符指在算式末尾。
+        //
+        // **操作数走 `ParsePower` 而不是本层**:`-2 ** 2` 要读成 `-(2 ** 2)`
+        // (`**` 比一元紧)。走本层的话负号先落地,就成了 `(-2) ** 2`。
         if (Match(TokenType.Bang) || Match(TokenType.Minus))
         {
             var op = Previous();
-            return new UnaryExpr(op.Lexeme, ParseCall(allowCall)) { Line = op.Line, Column = op.Column };
+            return new UnaryExpr(op.Lexeme, ParsePower(allowCall)) { Line = op.Line, Column = op.Column };
         }
 
         // .成员访问 — 在空格调用之前处理

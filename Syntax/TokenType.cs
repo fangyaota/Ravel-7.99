@@ -57,6 +57,7 @@ public enum TokenType
     Star,          // *
     Slash,         // /
     Percent,       // %
+    StarStar,      // **   乘方(右结合、比一元还紧 —— 见 Parser 里的 ParsePower)
 
     // 移位与循环移位(见 BuiltinClasses.Operators 里那段说明)
     ShiftLeft,     // <<   左移(位型:高位丢出去就没了)
@@ -68,6 +69,7 @@ public enum TokenType
     PlusEqual,     // +=
     MinusEqual,    // -=
     StarEqual,     // *=
+    StarStarEqual, // **=
     SlashEqual,    // /=
     PercentEqual,  // %=
 

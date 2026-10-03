@@ -299,7 +299,7 @@ print (c.Fields ())
 print ((1).Fields ())
 ravel ""
 # --- expected ---
-# [+ - * / % << >> <<< >>> == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]
+# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]
 # 3
 # 4
 # true
@@ -398,4 +398,4 @@ ravel ""
 # 1: 运算符 '==' 不支持 Integer 操作数
 # 2: 运算符 '==' 不支持 Void 操作数
 # [init x s m is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
-# [+ - * / % << >> <<< >>> == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]
+# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]

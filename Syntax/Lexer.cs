@@ -233,6 +233,9 @@ public class Lexer(string source, string? file = null)
         ("||", TokenType.OrOr),
         ("+=", TokenType.PlusEqual),
         ("-=", TokenType.MinusEqual),
+        // `**=` 得排在 `**` 前面(前缀相同的,长的先试)—— 和 `??=` 先于 `??` 一个道理
+        ("**=", TokenType.StarStarEqual),
+        ("**", TokenType.StarStar),
         ("*=", TokenType.StarEqual),
         ("/=", TokenType.SlashEqual),
         ("%=", TokenType.PercentEqual),

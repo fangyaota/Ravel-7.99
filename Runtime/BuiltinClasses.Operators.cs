@@ -144,6 +144,24 @@ internal static partial class BuiltinClasses
         DefineOp(Float, "/", (a, b) => new FloatVal(AsDouble(a, "/") / AsDouble(b, "/")));
         DefineOp(Float, "%", (a, b) => new FloatVal(AsDouble(a, "%") % AsDouble(b, "%")));
 
+        // ── 乘方 `**` ──
+        //
+        // 两条规矩,都照这门语言已有的口径定:
+        //
+        //   * **左边是什么类型就在那个类型里算** —— `int ** int` 还是 int(装不下照旧报
+        //     「大数用 bigint」,和 `*` 一样,不悄悄换成 bigint);掺了 float 就全程 double。
+        //   * **整数的负次幂交回 float**(`2 ** -1` = 0.5)。整数装不下 1/2,而"报错让人
+        //     自己去转 float"太不划算 —— Python 也是这么干的。**分数不受这条影响**:
+        //     负次幂只是上下颠倒,分数本来就装得下,所以还是分数。
+        //
+        // 优先级和结合性在解析器那头(`Parser.Expressions` 的 `ParsePower`):右结合、
+        // 而且比一元负号紧 —— `-2 ** 2` 是 `-(2 ** 2)` = -4。
+        DefineOp(Int, "**", (a, b) => IntPow(((IntVal)a).Value, b));
+        DefineOp(Float, "**", (a, b) => new FloatVal(Math.Pow(AsDouble(a, "**"), AsDouble(b, "**"))));
+        DefineOp(BigInt, "**", (a, b) => BigIntPow(AsBigInt(a, "**"), b));
+        DefineOp(Fraction, "**", (a, b) => FractionPow(Operand<FractionVal>(a, "**"), b));
+        DefineOp(BigFraction, "**", (a, b) => BigFractionPow(Operand<BigFractionVal>(a, "**"), b));
+
         // BigInt 运算符
         DefineOp(BigInt, "+", (a, b) => new BigIntVal(AsBigInt(a, "+") + AsBigInt(b, "+")));
         DefineOp(BigInt, "-", (a, b) => new BigIntVal(AsBigInt(a, "-") - AsBigInt(b, "-")));
@@ -389,6 +407,112 @@ internal static partial class BuiltinClasses
             throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
         return new FractionVal((int)num, (int)den);
     }
+
+    /// <summary>同上,但先从 `BigInteger` 收 —— 乘方涨得太快,中间那一步 `long` 就装不下了
+    /// (`(fraction 2000000000 1) ** 20` 是个 190 位的数)。</summary>
+    private static RuntimeValue MakeFraction(System.Numerics.BigInteger num, System.Numerics.BigInteger den)
+    {
+        if (num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue)
+            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+        return new FractionVal((int)num, (int)den);
+    }
+
+    // ── 乘方 `**` 的几条实现 ──
+
+    /// <summary>`int ** n`:指数非负就在整数里算,负的(或 float / 分数那种)交给 `Math.Pow` 出小数。</summary>
+    private static RuntimeValue IntPow(int x, RuntimeValue b)
+    {
+        switch (b)
+        {
+            case IntVal i when i.Value >= 0:
+                return NarrowIntPow(x, i.Value);
+            case BigIntVal g when g.Value.Sign >= 0:
+                if (g.Value > int.MaxValue) throw PowExponentTooBig(g.Value);
+                return NarrowIntPow(x, (int)g.Value);
+            default:
+                return new FloatVal(Math.Pow(x, AsDouble(b, "**")));
+        }
+    }
+
+    /// <summary>在 `BigInteger` 里算出来再收窄回 int —— 和 `*` 那条 `Narrow((long)…)` 一个意思,
+    /// 只是乘方涨得太快,`long` 那个中间层不够用。
+    ///
+    /// **先拦一道**:`|底| >= 2` 时指数过 31 必定装不下,当场报 —— 不拦的话
+    /// `2 ** 1000000000` 会真的去算那个几十万位的数,而不是报错。
+    /// (`|底| <= 1` 不用拦:`0` / `1` / `-1` 的多少次方都还是那三个。)</summary>
+    private static IntVal NarrowIntPow(int x, int e)
+    {
+        if (e > 31 && (x >= 2 || x <= -2))
+            throw new RuntimeException($"{x} ** {e} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
+
+        var r = System.Numerics.BigInteger.Pow(x, e);
+        if (r < int.MinValue || r > int.MaxValue)
+            throw new RuntimeException($"{x} ** {e} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
+        return IntVal.Of((int)r);
+    }
+
+    /// <summary>`bigint ** n`:指数非负时是**精确**的(bigint 不会溢出);负指数同样落回 float
+    /// —— 和 int 那条一个规矩。
+    ///
+    /// 指数本身超过 32 位就报:那是 `.NET` 的 `BigInteger.Pow` 收不下(它只收 `int`),
+    /// 不是"算得出来却不给算"—— 真算出来也是个存不下的东西。</summary>
+    private static RuntimeValue BigIntPow(System.Numerics.BigInteger x, RuntimeValue b)
+    {
+        switch (b)
+        {
+            case IntVal i when i.Value >= 0:
+                return new BigIntVal(System.Numerics.BigInteger.Pow(x, i.Value));
+            case BigIntVal g when g.Value.Sign >= 0:
+                if (g.Value > int.MaxValue) throw PowExponentTooBig(g.Value);
+                return new BigIntVal(System.Numerics.BigInteger.Pow(x, (int)g.Value));
+            default:
+                return new FloatVal(Math.Pow((double)x, AsDouble(b, "**")));
+        }
+    }
+
+    private static RuntimeException PowExponentTooBig(System.Numerics.BigInteger e)
+        => new RuntimeException($"指数太大（{e}）—— 乘方的指数要装得进 32 位", ErrorKind.Value);
+
+    /// <summary>`fraction ** n`。**负指数不用落回 float**:上下颠倒就行,分数本来就装得下
+    /// (`fraction 1 2 ** -1` 是 `2/1`)—— 只有"指数不是整数"那几种才交给 double。</summary>
+    private static RuntimeValue FractionPow(FractionVal x, RuntimeValue b)
+    {
+        if (PowCount(b) is not { } k)
+            return new FloatVal(Math.Pow((double)x.Num / x.Den, AsDouble(b, "**")));
+        if (k < 0 && x.Num == 0)
+            throw new RuntimeException("运算符 '**' 的除数为零（0 的负数次幂）", ErrorKind.ZeroDivision);
+        // 装不下就报(和别的分数运算一个口径)。**先拦一道**:`|分子|` 或 `|分母|` 过了 2,
+        // 指数一过 31 必定超出 int32,直接报 —— 免得真去算那个天文数字。
+        if ((k > 31 || k < -31) && (Math.Abs((long)x.Num) >= 2 || Math.Abs((long)x.Den) >= 2))
+            throw new RuntimeException(
+                "运算符 '**' 的结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+
+        return k >= 0
+            ? MakeFraction(System.Numerics.BigInteger.Pow(x.Num, k), System.Numerics.BigInteger.Pow(x.Den, k))
+            : MakeFraction(System.Numerics.BigInteger.Pow(x.Den, -k), System.Numerics.BigInteger.Pow(x.Num, -k));
+    }
+
+    /// <summary>`bigfraction ** n` —— 和 <see cref="FractionPow"/> 一个规矩,只是不必收窄。</summary>
+    private static RuntimeValue BigFractionPow(BigFractionVal x, RuntimeValue b)
+    {
+        if (PowCount(b) is not { } k)
+            return new FloatVal(Math.Pow((double)x.Num / (double)x.Den, AsDouble(b, "**")));
+        if (k < 0 && x.Num.IsZero)
+            throw new RuntimeException("运算符 '**' 的除数为零（0 的负数次幂）", ErrorKind.ZeroDivision);
+
+        return k >= 0
+            ? new BigFractionVal(System.Numerics.BigInteger.Pow(x.Num, k), System.Numerics.BigInteger.Pow(x.Den, k))
+            : new BigFractionVal(System.Numerics.BigInteger.Pow(x.Den, -k), System.Numerics.BigInteger.Pow(x.Num, -k));
+    }
+
+    /// <summary>这个指数能不能当"数得清的次数"用 —— 是整数、而且装得进 int32 才有值。
+    /// 交回 null 的那些(浮点、超宽的 bigint)一律落回 `Math.Pow`。</summary>
+    private static int? PowCount(RuntimeValue b) => b switch
+    {
+        IntVal i => i.Value,
+        BigIntVal g when g.Value >= int.MinValue && g.Value <= int.MaxValue => (int)g.Value,
+        _ => null,
+    };
 
     private static RuntimeValue BigFractionBinOp(RuntimeValue a, RuntimeValue b,
         Func<System.Numerics.BigInteger, System.Numerics.BigInteger, System.Numerics.BigInteger,

@@ -14,7 +14,7 @@ using Ravel.Runtime;
 public static class OperatorSymbols
 {
     public static readonly HashSet<string> All =
-        ["+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^",
+        ["+", "-", "*", "/", "%", "**", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^",
          "<<", ">>", "<<<", ">>>", "is", "isnot", "<:", ":>"];
 
     public static bool IsSymbol(string name) => All.Contains(name);
@@ -29,7 +29,7 @@ public static class OperatorSymbols
     /// 时要跳过它们 —— 赋值的事已经做了,丢的只是回显,不是"忘了调用"。
     /// (改 `ParseAssignment` 里那串 `Match` 的话,这儿也得跟着改。)</summary>
     public static readonly HashSet<string> AssignOps =
-        ["=", ":=", "+=", "-=", "*=", "/=", "%="];
+        ["=", ":=", "+=", "-=", "*=", "**=", "/=", "%="];
 }
 
 // ============================================================

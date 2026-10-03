@@ -1,0 +1,103 @@
+﻿# 乘方 `**` —— 优先级、结合性,和几种数值类型各给什么。
+#
+# 两条定下来的规矩(都不显然,所以钉住):
+#
+#   * **整数的负次幂交回 float**(`2 ** -1` = 0.5)。整数装不下 1/2,而"报错让人自己去转"
+#     太不划算。**分数不受这条影响** —— 上下颠倒就行,它本来就装得下。
+#   * **`**` 比一元负号紧**:`-2 ** 2` 是 `-(2**2)` = -4。它是这门语言**唯一**比一元紧的
+#     二元运算符(`-2 * 3` 仍然是 `(-2)*3`),按数学写法定的。
+print (2 ** 10)
+print (typeof (2 ** 10))
+
+# 指数非负 → int(和 `*` 一个口径,装不下报「大数用 bigint」)
+try { print (2 ** 40); } (e: Exception) => { print ("1: " + e.Message); }
+# 拦在算之前 —— 真去算 2 的十亿次方就挂住了
+try { print (2 ** 1000000000); } (e: Exception) => { print ("2: " + e.Message); }
+print (1 ** 1000000000)
+print (2 ** 30)
+
+# 负指数 → float。`(bigint -1)` 那两个括号不能省:`bigint -1` 会被读成 `bigint - 1`
+# (实参吃到运算符为止)。
+print (2 ** -1)
+print (typeof (2 ** -1))
+print (2 ** (bigint (-1)))
+
+# 结合性:右结合。`2 ** -1 ** 2` 是 `2 ** (-1 ** 2)` = `2 ** -1` —— 里面那个负号
+# 也归 `**` 管(`-1 ** 2` = -(1²) = -1)。
+print (2 ** 3 ** 2)
+print (2 ** -1 ** 2)
+
+# 一元负号比 `**` 松
+print (-2 ** 2)
+print ((-2) ** 2)
+print (-2 ** 3)
+
+# 掺 float 全程 double
+print (2 ** 0.5)
+print ((-8) ** 0.5)          # IEEE:负数开方是 NaN
+
+# bigint:指数非负时精确
+print ((bigint 2) ** 100)
+print (typeof ((bigint 2) ** 100))
+# 指数本身装不进 32 位就报(.NET 的 BigInteger.Pow 只收 int)
+try { print ((bigint 2) ** 99999999999999); } (e: Exception) => { print ("3: " + e.Message); }
+
+# 分数:负次幂还是分数
+print ((fraction 1 2) ** 3)
+print ((fraction 1 2) ** -1)
+print ((fraction 2 1) ** -3)
+print (2 ** (fraction 1 2))
+
+# 别的类型没有这条
+try { print (2 ** true); } (e: Exception) => { print ("4: " + e.Message); }
+try { print ("a" ** 2); } (e: Exception) => { print ("5: " + e.Message); }
+
+# 复合赋值
+x := 3
+x **= 3
+print x
+
+# 类里也能自己定义 `**`(`OperatorSymbols.All` 里那一串,现在多了它)
+Vec := class {
+    init = () => { 0; this; }
+    x: int = 0
+    ** := (n: int) => {
+        v := 1
+        i := 0
+        while { i < n; } { v = v * x; i += 1 }
+        r := Vec ()
+        r.x = v
+        r;
+    }
+}
+a := Vec ()
+a.x = 3
+print ((a ** 4).x)
+# --- expected ---
+# 1024
+# Integer
+# 1: 2 ** 40 超出 int 范围（int 是 32 位，大数用 bigint）
+# 2: 2 ** 1000000000 超出 int 范围（int 是 32 位，大数用 bigint）
+# 1
+# 1073741824
+# 0.5
+# Float
+# 0.5
+# 512
+# 0.5
+# -4
+# 4
+# -8
+# 1.4142135623730951
+# NaN
+# 1267650600228229401496703205376
+# BigInt
+# 3: 指数太大（99999999999999）—— 乘方的指数要装得进 32 位
+# 1/8
+# 2/1
+# 1/8
+# 1.4142135623730951
+# 4: 运算符 '**' 不支持 Bool 操作数
+# 5: 类型 String 不支持运算符 '**'
+# 27
+# 81

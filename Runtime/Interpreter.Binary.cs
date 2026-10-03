@@ -167,7 +167,7 @@ public partial class Interpreter
         if (bin.Op == "=")
             throw new RuntimeException("赋值的左边得是个变量名或字段，不能是别的表达式");
 
-        if (bin.Op is "+=" or "-=" or "*=" or "/=" or "%=")
+        if (bin.Op is "+=" or "-=" or "*=" or "**=" or "/=" or "%=")
         {
             StepCompoundAssignVar(nf, bin, left, right);
             return;
@@ -205,11 +205,18 @@ public partial class Interpreter
     /// 目标必须是**变量名**,不是任意表达式 —— 要写回去,得知道写给谁。
     ///
     /// 内置同步方法当场算、当场写;类运算符得推 CallAssign 帧(算完由那个帧写回)。</summary>
+    /// <summary>复合赋值那个符号去掉末尾的 `=` —— `"+="` → `"+"`。
+    ///
+    /// **不能简单取第一个字符**:`"**="` 的第一个字符是 `*`,那样 `a **= 2` 会算成
+    /// `a * 2`(静默算错)。所以 `**` 得单独认。</summary>
+    private static string BaseOp(string compound)
+        => compound == "**=" ? "**" : compound[..1];
+
     private void StepCompoundAssignVar(NodeFrame nf, BinaryExpr bin, RuntimeValue left, RuntimeValue right)
     {
         if (bin.Left is not IdentifierExpr target)
             throw new RuntimeException("复合赋值目标必须是变量");
-        var (fn, builtin) = BindOperator(left, bin.Op[..1]);
+        var (fn, builtin) = BindOperator(left, BaseOp(bin.Op));
         if (fn is not BuiltinMethodVal bm)
         {
             PushCallAssign(nf, BindSelf(fn, left), right, target.Name);
@@ -226,7 +233,7 @@ public partial class Interpreter
     /// by 属性多两步(读过 getter、写过 setter),见 StepByCompoundAssign。</summary>
     private void StepCompoundAssign(NodeFrame nf, BinaryExpr bin, MemberAccess ma)
     {
-        var op = bin.Op[..1];
+        var op = BaseOp(bin.Op);
         if (nf.Count == 0) { PushChild(nf, ma.Object); return; }
         if (nf.Count == 1) { PushChild(nf, bin.Right); return; }
 
