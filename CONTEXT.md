@@ -2357,6 +2357,22 @@ Error: 未定义的变量 'missing'
 `tests/` 下的 golden test。`# expect-error` 预期异常，`# --- expected ---` 预期输出，`# todo` 等待实现
 （**当前没有 todo 了**：最后 4 个是元类，随「类就是 ObjectVal」那一轮落地）。计数不写在这里——跑 `dotnet out/ravel.dll test` 看，或者按目录数。早期把基础特性合并过几个大文件（`01_core`(基础/运算符/列表/位运算/_)·`11_control_flow`·`13_functions`·`40_callcc`·`75_modules`·`98_types`·`99_collections`），后面按特性一个用例一个文件。expect-error 与 todo 因语义必须独立。
 
+**挑子集跑**（迭代时别每次全量）：
+
+```
+ravel test http           # 只跑**相对路径里带 `http`** 的（不区分大小写，**子目录名也算**）
+ravel test 29 30          # 给几个就是"含其中任意一个"
+ravel test --fast         # 跳过带 `# slow` 的
+```
+
+挑选词打在**相对路径**上，所以用例按文件夹分好之后 `ravel test http` 挑的就是那一摞 ——
+运行器本来就递归子目录（`SearchOption.AllDirectories`）。一个词都没命中的话它明说
+"没有一条对得上"，不会让人对着"0 passed"发愣。
+
+`# slow`（和 `# net` / `# warn` 并列，`GoldenTestRunner` 顶上有表）标的是**跑起来费时间**的，
+不是"不重要"：全量照跑，`--fast` 才跳。目前只有 `40_callcc`（近 600 行续延，一条 20 秒，
+占全量的一半）。**跳过了会在汇总那一行说一声** —— `--fast` 下的全绿不等于全量绿。
+
 - `expect-error` 只看 `output.StartsWith("Error:")`，所以**解释器自己漏出来的 C# 异常不算数**：
   `CaptureOutput` 给非 `RuntimeException`/`SyntaxException`/`ExitException` 的异常加了
   `!! C# 异常 …` 前缀，它不以 `Error:` 开头，会直接把用例判 FAIL。加这个前缀当场就抓到过 6 个

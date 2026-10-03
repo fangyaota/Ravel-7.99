@@ -6,6 +6,8 @@
 #     bash build.sh --rebuild    顺带做一次 -t:Rebuild,有 C# 警告就当场红
 #     bash build.sh --no-test    只发布
 #     bash build.sh --release    用 Release 配置(默认 Debug)
+#     bash build.sh --fast       测试那一趟跳过带 `# slow` 的
+#     bash build.sh --pick=http  测试只跑相对路径里带 `http` 的那些(可给多个 --pick=)
 #
 # 两条讲究都在 CONTEXT.md 里写着,别改:
 #   * **先删 out/**:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论;
@@ -72,6 +74,7 @@ GC=0x10000000
 run_warn=0
 run_rebuild=0
 run_test=1
+test_args=""
 
 for arg in "$@"; do
     case "$arg" in
@@ -79,6 +82,9 @@ for arg in "$@"; do
         --rebuild) run_rebuild=1 ;;
         --no-test) run_test=0 ;;
         --release) CONF=Release ;;
+        # 透给 `ravel test`:`--fast` 跳过带 `# slow` 的,`--pick=词` 只跑沾那个词的
+        --fast)      test_args="$test_args --fast" ;;
+        --pick=*)    test_args="$test_args ${arg#--pick=}" ;;
         -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "不认识的参数 '$arg'(试试 --help)" >&2; exit 2 ;;
     esac
@@ -109,7 +115,7 @@ fi
 if [ "$run_test" = 1 ]; then
     echo
     echo "== 全量测试 =="
-    DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll test
+    DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll test $test_args
 
     if [ "$run_warn" = 1 ]; then
         echo

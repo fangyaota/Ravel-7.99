@@ -23,13 +23,25 @@ internal static class GoldenTestRunner
     /// 用例莫名其妙地红。回环服务器给的是**定死的字节**(见 LoopbackServer 里那几条路由)。</summary>
     private const string NetMarker = "# net";
 
+    /// <summary>`# slow` —— 这条**跑起来费时间**(起服务器、等计时器、跑十万次切换…)。
+    /// 迭代的时候 `ravel test --fast` 把它们跳过:改一行等三分钟和等十秒是两种体验。
+    ///
+    /// **别拿它当"这条不重要"**:全量那一趟照跑不误,它只是给了个"我这会儿只想跑快的"的开关。</summary>
+    private const string SlowMarker = "# slow";
+
     /// <summary>回环服务器:第一次有人要才起,整个跑完关掉</summary>
     private static LoopbackServer? _server;
 
-    /// <summary>跑 tests/ 下全部 *.rav,打印逐条结果与汇总。有 FAIL 时返回 false(调用方据此设退出码)。
+    /// <summary>跑 tests/ 下的 *.rav(**含子目录**),打印逐条结果与汇总。有 FAIL 时返回 false
+    /// (调用方据此设退出码)。
+    ///
+    /// `pick` 是**挑选词**:给几个就只跑**相对路径里带其中任意一个**的(不区分大小写)。
+    /// 子目录名也算在里面 —— 所以用例按文件夹分好之后,`ravel test http` 挑的就是那一摞。
+    /// 不给就是全量。`fast` 跳过带 `# slow` 的那些。
+    ///
     /// `warn` 是一次性的总开关(CLI 的 `--warn`):每条用例都带着它跑,
     /// 好把整个用例库当成一份样本,过一遍"是不是忘了调用"的筛子。</summary>
-    public static bool RunAll(bool warn = false)
+    public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false)
     {
         var testDir = FindTestDir();
         if (testDir == null)
@@ -38,11 +50,25 @@ internal static class GoldenTestRunner
             return false;
         }
 
-        int passed = 0, failed = 0, todo = 0;
-        foreach (var file in Directory.GetFiles(testDir, "*.rav").OrderBy(f => f))
+        var chosen = Directory.GetFiles(testDir, "*.rav", SearchOption.AllDirectories)
+            .Where(f => Matches(f, testDir, pick))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .ToList();
+
+        if (chosen.Count == 0)
+        {
+            // 挑了个什么都不沾的词,别让人对着"0 passed"发愣
+            Console.WriteLine($"没有一条用例对得上:{string.Join(" ", pick!)}");
+            return false;
+        }
+
+        int passed = 0, failed = 0, todo = 0, skipped = 0;
+        foreach (var file in chosen)
         {
             var test = Parse(File.ReadAllText(file));
-            Console.Write($"{Path.GetFileName(file),-35} ");
+            // 慢的那些**整条跳过**,连名字都不打 —— 打了就是刷屏,数量留给汇总那一行说
+            if (fast && test.Slow) { skipped++; continue; }
+            Console.Write($"{Path.GetRelativePath(testDir, file).Replace('\\', '/'),-35} ");
 
             // `# net` 的用例要真发请求:先把回环服务器拉起来(它自己把基址写进环境变量)。
             // 起不来就让它起不来 —— 用例会以"连不上"明显报错,不静默跳过
@@ -79,8 +105,19 @@ internal static class GoldenTestRunner
         _server?.Dispose();          // 把回环服务器收掉(顺手清掉那个环境变量)
         _server = null;
 
-        Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo");
+        // 跳过的要说一声 —— `--fast` 下的"全绿"不等于全量绿
+        var tail = skipped > 0 ? $"(跳过 {skipped} 条 # slow)" : "";
+        Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo {tail}");
         return failed == 0;
+    }
+
+    /// <summary>这个文件的**相对路径**里含不含挑选词(含任意一个就算)。子目录名一并算进去
+    /// —— 用例按文件夹分好之后,`ravel test http` 挑的就是那一摞。</summary>
+    private static bool Matches(string file, string testDir, string[]? pick)
+    {
+        if (pick is null || pick.Length == 0) return true;
+        var rel = Path.GetRelativePath(testDir, file).Replace('\\', '/');
+        return pick.Any(p => rel.Contains(p, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsPassing(GoldenTest test, string output)
@@ -137,7 +174,7 @@ internal static class GoldenTestRunner
 
     private static GoldenTest Parse(string content)
     {
-        bool expectError = false, isTodo = false, warn = false, net = false, inExpected = false;
+        bool expectError = false, isTodo = false, warn = false, net = false, slow = false, inExpected = false;
         var sourceLines = new List<string>();
         var expectedLines = new List<string>();
 
@@ -167,11 +204,12 @@ internal static class GoldenTestRunner
             if (trimmed.StartsWith("# todo")) { isTodo = true; sourceLines.Add(""); continue; }
             if (trimmed == WarnMarker) { warn = true; sourceLines.Add(""); continue; }
             if (trimmed == NetMarker) { net = true; sourceLines.Add(""); continue; }
+            if (trimmed == SlowMarker) { slow = true; sourceLines.Add(""); continue; }
 
             sourceLines.Add(line);
         }
 
-        return new GoldenTest(string.Join("\n", sourceLines), string.Join("\n", expectedLines), expectError, isTodo, warn, net);
+        return new GoldenTest(string.Join("\n", sourceLines), string.Join("\n", expectedLines), expectError, isTodo, warn, net, slow);
     }
 
     private static string? FindTestDir()
@@ -188,4 +226,4 @@ internal static class GoldenTestRunner
 }
 
 /// <summary>一个 golden test 文件解析后的几要素(标记 → 各自那一份,见 <see cref="GoldenTestRunner"/> 顶上的说明)</summary>
-internal sealed record GoldenTest(string Source, string Expected, bool ExpectError, bool IsTodo, bool Warn, bool Net);
+internal sealed record GoldenTest(string Source, string Expected, bool ExpectError, bool IsTodo, bool Warn, bool Net, bool Slow);

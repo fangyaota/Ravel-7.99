@@ -27,11 +27,28 @@ if (rest.Length == 0)
 }
 else if (rest[0] == "test")
 {
+    // `ravel test [词…] [--fast]`:
+    //
+    //     词    只跑**相对路径里带它**的(不区分大小写,子目录名也算在内)。
+    //           给几个就是"含其中任意一个"。不给就是全量。
+    //             ravel test http          名字/目录里带 http 的那些
+    //             ravel test 29 30         29x 和 30x
+    //           **迭代的时候就用它** —— 全量那份要跑几分钟,改一行不值得。
+    //     --fast 跳过带 `# slow` 的(起服务器、等计时器那几条)。
+    //
     // `--warn` 传下去:每条用例都带上开关跑一遍。**比对的是 stdout**,警告走 stderr ——
     // 所以这一趟不会让谁红掉,它就是个"整个用例库过一遍筛子"的用法:
     //     ravel --warn test 2>&1 | grep 警告
     // (单独一条用例要**钉住**警告长什么样,在它开头写 `# warn`,见 GoldenTestRunner)
-    if (!GoldenTestRunner.RunAll(warn)) Environment.ExitCode = 1;
+    var pick = new List<string>();
+    var fast = false;
+    foreach (var arg in rest[1..])
+    {
+        if (arg is "--fast" or "-f") fast = true;
+        else pick.Add(arg);
+    }
+
+    if (!GoldenTestRunner.RunAll(warn, [.. pick], fast)) Environment.ExitCode = 1;
 }
 else if (rest[0] == "strip")
 {
