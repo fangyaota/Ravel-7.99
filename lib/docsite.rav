@@ -1,10 +1,15 @@
 # `DocSite` —— 把 `docs/tutorial/*.md` 生成一个静态文档站。
 #
 # **这是个模块**(`ravel "DocSite"`),自己什么都不干 —— 调 `DocSite.Build "site"` 才动手。
-# 两个现成的入口:
+# 三个现成的入口:
 #
 #     ravel examples/site.rav            # 只生成到 site/(= `DocSite.Build "site"`)
 #     ravel examples/serve.rav           # 生成 + 起服务器,浏览器里直接看(见那个文件)
+#     REPL 的「教程」那一项              # 生成 + 用默认浏览器打开
+#
+# **它住在 `lib/` 而不是 `examples/`** —— 因为 REPL(`lib/repl.rav`)要用它。`examples/`
+# 那一格是"给你看着玩"的脚本,标准库反过来依赖它就把方向搞反了。而它和 `repl.rav` 一样,
+# 属于"这个发行版自带的东西",不是通用库 —— 放 `lib/` 里正合适。
 #
 # **零依赖**:纯静态 HTML + 一个 CSS,没有 JS、没有 CDN —— 双击就能看,也能直接挂 Pages。
 # (runoob 页面上那些"在线运行"按钮做不了:那要在浏览器里跑一个 Ravel,得先编到 wasm。)

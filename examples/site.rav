@@ -1,4 +1,4 @@
-# `site` —— 把教程生成一个静态文档站(**只生成,不起服务器**)。
+﻿# `site` —— 把教程生成一个静态文档站(**只生成,不起服务器**)。
 #
 #     ravel examples/site.rav            # 生成到 site/
 #     ravel examples/site.rav 别的地方   # 换个落点
@@ -8,11 +8,9 @@
 #
 # **想边生成边在浏览器里看**,用 `examples/serve.rav` —— 那个会顺手起个服务器。
 #
-# 真正的渲染逻辑在 `examples/docsite.rav`(模块 `DocSite`);这个文件只是一层壳,
+# 真正的渲染逻辑在 `lib/docsite.rav`(模块 `DocSite`);这个文件只是一层壳,
 # 把"命令行怎么用"和"页面怎么长"分开 —— 前者会变,后者不该跟着动。
-# **路径要带 `examples/`**:`using` 找的是 `cwd → lib/ → plugins/ → 程序集旁边`,
-# **不含脚本自己所在的那个目录**。所以这条得从仓库根跑(下面那两行命令也是这么写的)。
-using "examples/docsite.rav"
+using "docsite.rav"
 
 OUT := if { (System.Args ()).IsEmpty (); } { "site"; } { (System.Args ()).At 0; }
 DocSite.Build OUT

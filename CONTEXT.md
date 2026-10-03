@@ -188,6 +188,11 @@ lib/
   generator.rav           `Generator f` —— 把"往外送值"的一段代码包成 `IEnumerable`
                           (体的参数 `y` 是投喂口:`y v` 送出并挂起;惰性,可无限流)。
                           实现是 227 那个"两枚续延"原型,状态收进 `GeneratorCursor` 的字段
+  docsite.rav             模块 `DocSite` —— **教程 → 静态站的渲染器**(`DocSite.Build out`)。
+                          零依赖(纯静态 HTML + 一个 CSS,没有 JS、没有 CDN)。住在 `lib/`
+                          而不是 `examples/`:**REPL 要用它**(菜单里那条「教程」),标准库反过来
+                          依赖 `examples/` 就把方向搞反了。它的输入是 `docs/tutorial/*.md`,
+                          而 `docs/` 是跟着发布走的(见 `Ravel.csproj` 的 `CopyDocs`)。
   tasks.rav               `Tasks` 模块 —— **协作式任务**(要显式 `using "tasks.rav"`)。
                           一个 OS 线程,任务只在**挂起点**换人:`TaskGroup`(Run / Await / Add)
                           跑一列任务。**任务那一族分三层**:
@@ -438,10 +443,9 @@ tests/                    golden test(普通 + expect-error + todo + fixture),�
 
 docs/tutorial/            教程的 **markdown 源**(一章一个文件)—— 那个静态站就是拿它生成的
 docs/adr/                 几条大决定
-examples/docsite.rav      模块 `DocSite`:教程 → 静态站的**渲染器**(`DocSite.Build out`)
 examples/site.rav         壳:生成到 `site/`
 examples/serve.rav        一键:生成 + `Httpd` 起服务器,浏览器里看
-                          (后两个都从 `docs/tutorial/` 读,而 `docs/` 是**跟着发布走**的
+                          (两个都从 `docs/tutorial/` 读,而 `docs/` 是**跟着发布走**的
                           —— 见 `Ravel.csproj` 的 `CopyDocs`;不带上的话从 `out/` 跑会
                           **静默生成一个空站**,所以 `Build` 里现在一句 `Chapters.IsEmpty ()` 就抛)
 
@@ -1157,6 +1161,12 @@ using "structures.rav"       # 库里那半边,照旧
   `Console.SetOut` 的原语化,只动 stdout 不动 stderr。「显示结果」那个开关于是和 C# 一样:
   **关掉照样求值**,只是输出和 `==>` 都不显示。为它加原语是划算的 ——
   "把这段代码说的话收起来"是库自己写不出来的能力,而 C# 那版天生就有。
+- **菜单里那条「教程」是后加的**,和 C# 那版无关:生成静态站 + 用默认浏览器打开。
+  生成走 `lib/docsite.rav`(模块 `DocSite`),所以 REPL 一加载就把它也拉进来了 ——
+  引用图上看得见(`tests/module/292` 那份列表里多了个 `<module DocSite>`,菜单那串也多一项,
+  `tests/lib/286` 钉着)。**它不起服务器**:那个站是纯静态的,`file://` 打开和服务器看
+  一模一样;而起服务器要阻塞到 `Stop ()`,菜单就再也回不来了。打开那一步是 `System.Open`
+  —— 交给系统去开,库里不必判平台(见「System 模块」那节)。
 - **看不见终端就不当编辑器**:管道里把喂进来的整段当程序跑完就走 ——
   `echo 'print 1 + 1' | dotnet out/ravel.dll` 给 `2`(C# 那版没有这一路:接管道时它照样
   想当编辑器,画出来的东西没人看,喂进去的东西也没人吃)。
@@ -1951,6 +1961,20 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 
 引擎里的实现是 `System.Cmd`(`Runtime/Builtins/SysCmd.cs`),`predefined.rav` 给全局别名
 `cmd`。用例在 `tests/lib/229_io_fs.rav` 里。
+
+### `System.Open`（交给系统去打开）
+
+`System.Open x` —— 文件用默认程序打开(网页 → 默认浏览器),网址也一样。是"打开它"不是
+"跑它",所以**不等它关掉**。REPL 菜单里那条「教程」用它开生成的静态站。
+
+**为什么要引擎里出一条**:这件事每台机器做法都不一样(Windows `start` / macOS `open` /
+Linux `xdg-open`),库里要判平台只能去嗅环境变量,判错了就是"什么都没发生"——静默失败。
+.NET 那一条 `UseShellExecute = true` 正好是"让系统自己决定拿谁开"的跨平台说法,而且
+**不走 shell**:路径里的空格、中文、`&` 都不用自己转义(拿 `cmd /c start` 去开就会)。
+
+本机的目标**先自己看一眼在不在**,不在就报「没有这个东西」—— 交给系统的话回来的是它那句
+"系统找不到指定的文件",那是跟着系统语言变的,而报错文案要被用例钉住。网址不查
+(`http://…` 本来就不该在本地存在)。
 
 ## 网络（`lib/http.rav`，要显式 `using "http.rav"`）
 

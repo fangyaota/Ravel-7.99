@@ -36,6 +36,7 @@
 using "native.rav"
 using "terminal.rav"
 using "io.rav"
+using "docsite.rav"   # 菜单里那条「教程」:生成静态站 + 用浏览器打开
 
 ravel "Repl"
 
@@ -518,7 +519,7 @@ Editor ::= class {
     # 菜单项的顺序**照抄 C# 那张 map** —— 「退出」在第六个、「作者」在第七个,
     # 不是放在最后。`Pick` 里那串 `match` 的序号和这里**一一对应**。
     Items := () => {
-        ["编辑" "运行" "普通 Repl" "读取" "保存" "退出" "作者" "开关自动对齐" "开关结果显示"]
+        ["编辑" "运行" "普通 Repl" "读取" "保存" "退出" "作者" "开关自动对齐" "开关结果显示" "教程"]
     }
 
     # 主菜单。控件走 `Terminal.Menu` —— 和 C# 那边同一台 Spectre `SelectionPrompt`
@@ -567,6 +568,7 @@ Editor ::= class {
             [==.6 { About (); }]              # 作者 —— 就是把那张大图再放一遍
             [==.7 { SwitchAutoTab (); }]
             [==.8 { SwitchResult (); }]
+            [==.9 { Tutorial (); }]            # 教程 —— 见下
         ] { 0; }
         sel != 5;                             # 只有"退出"那一条交回 false,菜单就停了
     }
@@ -575,6 +577,31 @@ Editor ::= class {
         Terminal.Line ""
         Terminal.Line "[green]按任意键继续[/]"
         System.ReadKey ()
+        ();
+    }
+
+    # ── 教程 ──
+
+    # 一键:把 `docs/tutorial/*.md` 生成静态站,再用**默认浏览器**打开首页。
+    #
+    # **不起服务器** —— 那个站是纯静态的(没有 JS、没有 CDN),`file://` 打开和用服务器看
+    # 一模一样;而起服务器要阻塞到 `Stop ()`,菜单就再也回不来了(想看服务器那版:
+    # `examples/serve.rav`)。REPL 里要的是"按一下就看到",不是"占住不放"。
+    #
+    # 生成一份要十几秒,所以先打一句 —— 不然按下去像卡住了。(生成器每次重跑一遍,
+    # 旧文件会被写掉;跑着的时候改了 markdown 想刷新,再按一次就行。)
+    #
+    # 找不到 `docs/` 会抛(比如在一个不相干的目录里开的 REPL),`Guard` 接住报一句 ——
+    # 这儿不必自己判:那句话本来就写清楚了该在哪儿跑。
+    Tutorial := () => {
+        here := System.CurrentDir ()
+        Terminal.Line "[green]正在生成教程……[/]"
+        DocSite.Build "site"
+        # 传**绝对路径**:`Process.Start` 那一条是交给系统去打开的,相对路径解到哪儿
+        # 得看系统怎么理解,不如自己拼死。
+        System.Open (here + "/site/index.html")
+        Terminal.Line ("[green]已经用浏览器打开了:[/]" + here + "/site/index.html")
+        Hold ()
         ();
     }
 

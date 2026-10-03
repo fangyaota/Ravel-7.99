@@ -1,4 +1,4 @@
-# `serve` —— **一键**:把教程生成出来,再起个服务器,浏览器里直接看。
+﻿# `serve` —— **一键**:把教程生成出来,再起个服务器,浏览器里直接看。
 #
 #     ravel examples/serve.rav            # 生成到 site/,起在 8080
 #     ravel examples/serve.rav 9000       # 换个端口
@@ -14,9 +14,7 @@
 #   * 换成别的东西去看也行 —— 它就是个普通目录;
 #   * 端口被占了会当场报错,换一个就行。
 using "httpd.rav"
-# **路径要带 `examples/`**:`using` 找的是 `cwd → lib/ → plugins/ → 程序集旁边`,
-# **不含脚本自己所在的那个目录**。所以这条得从仓库根跑。
-using "examples/docsite.rav"
+using "docsite.rav"
 
 OUT := "site"
 PORT := if { (System.Args ()).IsEmpty (); } { 8080; } { int ((System.Args ()).At 0); }

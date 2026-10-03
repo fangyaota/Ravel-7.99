@@ -63,6 +63,46 @@ internal static class SysCmd
         return ms.ToArray();
     }
 
+    /// <summary>`System.Open x` —— **交给系统去打开**:文件用默认程序(网页就开默认浏览器),
+    /// 网址也一样。是"打开它"而不是"跑它",所以**不等它关掉**,立刻交回来。
+    ///
+    /// 为什么要引擎里出一条:这件事**每台机器做法都不一样**(Windows `start` / macOS `open` /
+    /// Linux `xdg-open`),而库里要判平台只能去嗅环境变量 —— 判错了就是"什么都没发生",
+    /// 静默失败。.NET 那一条 `UseShellExecute = true` 正好是"让系统自己决定拿谁开"的
+    /// 跨平台说法,而且**不走 shell**:路径里的空格、中文、`&` 都不用自己转义。
+    ///
+    /// 打不开就报 `IoError` —— 目标不存在、没有默认程序、被策略挡了,都落这儿。</summary>
+    [Sys("Open")]
+    public static RuntimeValue Open(RuntimeValue a)
+    {
+        var target = As<StringVal>(a, "Open 的目标").Value;
+
+        // **本机的东西存在不存在,自己先说一句** —— 交给系统的话回来的是它那句
+        // "系统找不到指定的文件",那是跟着系统语言变的,而报错文案是要被用例钉住的。
+        // 网址(`http://…` 那种)不走这一条:它本来就不该在本地存在。
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || uri.IsFile)
+        {
+            if (!File.Exists(target) && !Directory.Exists(target))
+                throw new RuntimeException($"打不开 '{target}':没有这个东西", ErrorKind.Io);
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+                                      or InvalidOperationException
+                                      or FileNotFoundException)
+        {
+            throw new RuntimeException($"打不开 '{target}':{ex.Message}", ErrorKind.Io);
+        }
+
+        return VoidVal.Instance;
+    }
+
     /// <summary>外部命令的输出按什么编码解?——**先按 UTF-8 试,不合法就退回控制台编码**。
     /// 两边都常见:git / python 那些吐 UTF-8,而 `dir` 这类走的是控制台那套(中文 Windows
     /// 上就是 GBK)。合法的 UTF-8 里出现 GBK 字节的概率极低,所以这个判据够用。</summary>
