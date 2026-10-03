@@ -51,19 +51,32 @@ print (Html.Pretty (Html.El "table" {"class": ["data" "striped"] "border": true}
 # 安全得你自己保证 —— **用户的输入不要走这儿**,那条走 `Html.Text` / 直接写字符串。
 print (Html.Render (Html.El "div" {} [(Html.Raw "<svg>…</svg>") " 后面这段照常转义: <b>"] ))
 
-# ── 五、整篇 ──
+# ── 五、写文档那一层:标题 / 段落 / 列表 / 表格 ──
 #
-# `Doc` 把 `<!DOCTYPE html>` / `<html lang>` / `<head>` / `<body>` 搭好,
-# 并且自己把 `<meta charset="utf-8">` 放进 head 第一个(head / body 收的是**里面**的东西)。
-page := Html.Doc "zh" [(Html.El "title" {} ["报表"])] [
-    (card "标题" "正文")
+# 上面那些是"元素",下面这些是"正文"。交回的**还是同一棵树**,所以两层随便混着写。
+doc := Html.Page {"title": "报表" "css": [Html.BaseCss]} [
+    (Html.H1 "报表")
+    (Html.P ["正文里 < 和 & 会转义;行内可以嵌 " (Html.Code "code") " 和 " (Html.A "https://example.com" "链接")])
+    (Html.Ul ["第一项" "第二项"])
+    (Html.Table ["名称" "数量"] [["甲" 12] ["乙" 7]])
+    (Html.Pre "if (a < b) { x (); }")
+    (Html.Hr ())
+    (card "组件照旧" "同一棵树,所以和上面那个 `card` 直接混用")
 ]
 
-print (Html.Pretty page)
+# `Page` = `Doc` + 把 opts 里的东西摆进 head:
+#
+#     "title"  标题        "lang"  `<html lang>`,默认 "zh"
+#     "css"    一串 CSS 文本,每条包成一个 `<style>`
+#     "head"   额外塞进 head 的节点(要挂外部样式表就写 `Html.CssLink "/style.css"`)
+#
+# `BaseCss` 是随库带的一份能看的默认样式(系统字体、正文限宽、表格带框、代码浅底)。
+# **不会自动带上** —— 不要就自己写一份传进去。
+print (Html.Pretty doc)
 
 # 发给浏览器就这么写:
 #
-#     srv.Route "GET" "/" (req g) => { Httpd.Html (Html.Render page); }
+#     srv.Route "GET" "/" (req g) => { Httpd.Html (Html.Render doc); }
 #
 # 用的是 `Render`(紧凑)不是 `Pretty` —— `Pretty` 那些换行在 HTML 里会折成一个空格,
-# 只在你想看源码的时候用(`pre` 和行内元素之间的空白尤其敏感)。
+# 只在你想看源码的时候用。

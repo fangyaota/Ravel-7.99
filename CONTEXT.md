@@ -345,17 +345,24 @@ lib/
                           普通的 dict / list。三条取舍:**命名空间不参与**(前缀与 `xmlns:`
                           都丢掉,按局部名认)、**空白文本节点不收**、属性是有序表。
                           本机两条在官方扩展里(`XmlParse` / `XmlRender`)。**要显式引用**
-  html.rav                `Html` 模块 —— **拼 HTML**(只生成,不解析):`Html.El name attrs kids` /
-                          `Text` / `Raw` / `Frag` / `Render`(**紧凑**) / `Pretty`(缩进) /
-                          `Doc lang head body`(doctype + `<html lang>` + head/body,自动补
-                          `<meta charset>`) / `Doctype`。节点就是**普通 dict / list** —— 和
-                          `xml.rav` 底下那棵树**同一个形状**(`kind` / `name` / `attrs` / `kids`,
-                          `kind` / `text`),所以自己手拼一棵、把别处拿到的树喂进来都认。
+  html.rav                `Html` 模块 —— **拼 HTML**(只生成,不解析)。分两层:
+                          **元素层** `El name attrs kids` / `Text` / `Raw` / `Frag` /
+                          `Render`(**紧凑**) / `Pretty`(缩进) / `Doc lang head body`(doctype +
+                          `<html lang>` + head/body,自动补 `<meta charset>`) / `Doctype`;
+                          **块级层** `H1`~`H6` / `P` / `Blockquote` / `Code` / `Pre` / `Ul` /
+                          `Ol` / `Table headers rows` / `A` / `Img` / `Hr ()` / `Br ()` /
+                          `Style css` / `CssLink href` / `Page opts body`(opts 认 `"title"` /
+                          `"lang"` / `"css"` / `"head"`) / `BaseCss`(一份能看的默认样式,
+                          **opt-in**,不自动带)。
+                          节点就是**普通 dict / list** —— 和 `xml.rav` 底下那棵树**同一个形状**
+                          (`kind` / `name` / `attrs` / `kids`,`kind` / `text`),所以自己手拼一棵、
+                          把别处拿到的树喂进来都认;两层交回的是同一棵树,可以混着写。
                           转义默认开(文本与属性值都过 `Encoding.HtmlEscape`);属性 `None`
                           不写 / `true` 光写名字 / list 按空格拼(`class`);void 元素那 14 个
-                          不写收尾标签,给了孩子**当场报错**。`Pretty` 只在孩子里有元素时
-                          才一层一行(全是文本的收成一行),空白敏感的地方该用 `Render`。
-                          **要显式引用**
+                          不写收尾标签,给了孩子**当场报错**。`Pretty` 只在"自己块级、
+                          孩子里**也有**块级"时才拆行(少了后半条,段里那些行内元素会被拆开、
+                          多出空格 —— 那是改内容);`<style>` 的内容走 `Raw`(那两个标签里
+                          实体不解码)。**要显式引用**
   glob.rav                `Glob` 模块 —— 通配符:`*`(不跨 `/`)/ `?` / `**`(跨 `/`,零层也算)/
                           `[...]`(`[!...]` 取反)。`Match pat path`(**整串比**)/ `Filter` /
                           `Split`(分成相符与不相符两堆)/ `Find pat`(从当前目录递归找)/

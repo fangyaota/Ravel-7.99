@@ -656,9 +656,77 @@ print (Html.Pretty (card "标题" "a < b"))
 | `Html.Render n` / `Html.Pretty n` | 紧凑一行 / 缩进 |
 | `Html.Doc lang head body` | 整篇：doctype + `<html lang>` + `<head>`（自动补 `<meta charset="utf-8">`）+ `<body>` |
 
+#### 块级：写正文那一层
+
+上面那些是"元素"，这一层是"正文" —— 交回的**还是同一棵树**，两层随便混着写。
+
+| 写法 | 意思 |
+|------|------|
+| `Html.H1 s` … `H6` / `P` / `Blockquote` / `Code` | 标题 / 段落 / 引用 / 行内代码 |
+| `Html.Ul items` / `Ol items` | 列表，一项一个 `<li>` |
+| `Html.Table headers rows` | 表格；`headers` 给 `[]` 就没有表头（不硬塞一个空 `<thead>`）|
+| `Html.Pre s` | 代码块（`<pre><code>`，内容照原样，转义是渲染那一步做的）|
+| `Html.A href kids` / `Img src alt` / `Hr ()` / `Br ()` | 链接 / 图 / 分隔线 / 换行 |
+| `Html.Style css` / `CssLink href` | 内联 `<style>` / 外链样式表 |
+| `Html.Page opts body` | 整篇；`opts` 认 `"title"` / `"lang"` / `"css"` / `"head"` |
+| `Html.BaseCss` | 随库带的一份默认样式（系统字体、正文限宽、表格带框、代码浅底）—— **不会自动带上** |
+
+```ravel
+using "html.rav"
+print (Html.Pretty (Html.Page {"title": "报表" "css": ["h1 { color: teal; }"]} [
+    (Html.H1 "报表")
+    (Html.P "正文里 < 会转义")
+    (Html.Ul ["甲" "乙"])
+    (Html.Table ["名称" "数量"] [["甲" 12] ["乙" 7]])
+    (Html.Pre "if (a < b) { x (); }")
+]))
+```
+
+执行以上程序会输出如下结果：
+
+```
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <title>报表</title>
+    <style>h1 { color: teal; }</style>
+  </head>
+  <body>
+    <h1>报表</h1>
+    <p>正文里 &lt; 会转义</p>
+    <ul>
+      <li>甲</li>
+      <li>乙</li>
+    </ul>
+    <table>
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>数量</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>甲</td>
+          <td>12</td>
+        </tr>
+        <tr>
+          <td>乙</td>
+          <td>7</td>
+        </tr>
+      </tbody>
+    </table>
+    <pre><code>if (a &lt; b) { x (); }</code></pre>
+  </body>
+</html>
+```
+
+`<style>` 里的内容走 `Raw`（那两个标签里 HTML 实体**不解码**，转了反而是错字符），所以**别把用户输入拼进 CSS**。挂外部样式表用 `CssLink`，塞进 `Page` 的 `"head"`。
+
 **属性**：`None` 整个不写（"有没有看情况"就用它）、`true` 光写名字（布尔属性）、list 按空格拼（`class` 最常见）、别的 `name="转义过的值"`。先后照你写的先后。
 
-**`Pretty` 的规矩**：孩子里有元素就一层一行，全是文本的收成一行。代价是空白敏感的地方（`<pre>`、行内元素之间那个空格）会多出空白 —— 发给浏览器的一律用 `Render`。
+**`Pretty` 的换行规矩**：只有"自己是块级、孩子里**也有**块级"才拆行。少了后半条，`<p>行内 <code>x</code> 和 <a>链接</a></p>` 会被拆成三行 —— 行内元素之间的换行在 HTML 里**会折成一个空格**，那是改了内容。`<pre>` 自己块级、里面是 `<code>`，于是天然收成一行。发给浏览器的一律用 `Render`。
 
 两条 Ravel 自己的坑：`[…]` 里**空格是元素分隔符**，所以孩子里每个调用得自己加括号（`[(El "a" {} []) (El "b" {} [])]`）；void 元素（`br` / `img` / …，标准里那 14 个）**给了孩子就当场报错**，不静默丢掉。
 

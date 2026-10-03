@@ -38,6 +38,26 @@ print (Html.Pretty (Html.Doc "zh" [(Html.El "title" {} ["页"])] [(Html.El "h1" 
 
 # ── 树是普通数据:手拼一棵照样认 ──
 print (Html.Render ({"kind": "element" "name": "b" "attrs": {} "kids": [{"kind": "text" "text": "<手拼>"}]}))
+# ── 块级:写文档那一层(列表 / 表格 / 排版) ──
+print (Html.Render (Html.H1 "标题"))
+print (Html.Render (Html.P "a < b"))
+print (Html.Render (Html.P [(Html.Code "x") " 和 " (Html.A "/y" "链接")]))
+print (Html.Render (Html.Ul ["甲" "乙"]))
+print (Html.Render (Html.Ol [(Html.A "/y" "一") "二"]))
+print (Html.Render (Html.Table ["名" "数"] [["甲" 1] ["乙" 2]]))
+print (Html.Render (Html.Table [] [["只有一行"]]))     # 没表头就不出 `<thead>`
+print (Html.Render (Html.Pre "if (a < b) { x (); }"))  # 代码块:内容照原样,转义是渲染做的
+print (Html.Render (Html.Img "/a.png" "图"))
+print (Html.Render (Html.Hr ()))
+print (Html.Render (Html.Style "p { color: red; }"))   # `<style>` 里走 `Raw`,不做 HTML 转义
+print (Html.Render (Html.CssLink "/a.css"))
+
+# `Pretty` 只在这两样**都**成立时拆行:自己是块级、孩子里也有块级。
+# 所以段里的行内元素(`<code>` / `<a>`)**不会被拆开** —— 拆了会多出空格,那是改内容。
+print (Html.Pretty (Html.P ["行内 " (Html.Code "x") " 不拆"]))
+
+# `Page`:head 里自动有 charset 和 title,`css` / 额外的 head 节点从 opts 里拿
+print (Html.Pretty (Html.Page {"title": "页" "css": ["h1 { color: red; }"]} [(Html.H1 "你好")]))
 # --- expected ---
 # <p>a &lt; b &amp; c</p>
 # <p>&quot;引&quot;</p>
@@ -70,3 +90,27 @@ print (Html.Render ({"kind": "element" "name": "b" "attrs": {} "kids": [{"kind":
 #   </body>
 # </html>
 # <b>&lt;手拼&gt;</b>
+# <h1>标题</h1>
+# <p>a &lt; b</p>
+# <p><code>x</code> 和 <a href="/y">链接</a></p>
+# <ul><li>甲</li><li>乙</li></ul>
+# <ol><li><a href="/y">一</a></li><li>二</li></ol>
+# <table><thead><tr><th>名</th><th>数</th></tr></thead><tbody><tr><td>甲</td><td>1</td></tr><tr><td>乙</td><td>2</td></tr></tbody></table>
+# <table><tbody><tr><td>只有一行</td></tr></tbody></table>
+# <pre><code>if (a &lt; b) { x (); }</code></pre>
+# <img src="/a.png" alt="图">
+# <hr>
+# <style>p { color: red; }</style>
+# <link rel="stylesheet" href="/a.css">
+# <p>行内 <code>x</code> 不拆</p>
+# <!DOCTYPE html>
+# <html lang="zh">
+#   <head>
+#     <meta charset="utf-8">
+#     <title>页</title>
+#     <style>h1 { color: red; }</style>
+#   </head>
+#   <body>
+#     <h1>你好</h1>
+#   </body>
+# </html>

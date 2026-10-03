@@ -152,15 +152,39 @@ readonly Pad := (n: int) => {
     s
 }
 
-# 孩子里有没有元素(list 也算 —— 片段展开后还是元素)
-readonly HasElem := (kids: list) => {
+# ── `Pretty` 在哪儿换行:看**块级** ──
+#
+# 只有"自己是这号元素、孩子里也有"才拆行。少了后半条,`<p>行内 <code>x</code> 和
+# <a>链接</a></p>` 会被拆成三行 —— 而行内元素之间的换行在 HTML 里**会折成一个空格**,
+# 那是改了内容(`a<code>b</code>c` 变成 `a b c`)。`<pre>` 自己是这号、里面是 `<code>`,
+# 于是天然收成一行,不用再给它开单独的口子。
+#
+# 表里不止 CSS 意义上的"块级":`head` 那几样(`meta` / `title` / `link` / `style`)
+# 也算了进来 —— 它们不是块级盒子,但一个 `<head>` 挤成一行、里面还塞着整段 `<style>`,
+# 那是没法看的。
+
+readonly BlockTags := ["address" "article" "aside" "blockquote" "body" "details" "div"
+                       "dl" "dd" "dt" "fieldset" "figcaption" "figure" "footer" "form"
+                       "h1" "h2" "h3" "h4" "h5" "h6" "head" "header" "hr" "html" "li"
+                       "main" "nav" "ol" "p" "pre" "section" "summary" "table" "tbody"
+                       "td" "tfoot" "th" "thead" "tr" "ul"
+                       "base" "link" "meta" "script" "style" "title"]
+
+readonly IsBlockTag := (name: string) => { BlockTags.Contains (name.ToLower ()); }
+
+# 孩子里有没有块级的(片段按"里面有没有"算)
+readonly HasBlockKid := (kids: list) => {
     hit := false
-    foreach kids (k: object) => { hit = (hit || (IsElem k)); }
+    foreach kids (k: object) => { hit = (hit || (IsBlock k)); }
     hit
 }
 
-readonly IsElem := (x: object) => {
-    if { x is dict; } { (x.GetOr "kind" "") == "element"; } { x is list; }
+readonly IsBlock := (x: object) => {
+    if { x is list; } {
+        HasBlockKid x
+    } {
+        if { x is dict; } { IsBlockTag (x.GetOr "name" ""); } { false; }
+    }
 }
 
 readonly Pretty := (n: object) => {
@@ -183,7 +207,7 @@ readonly Pretty := (n: object) => {
                         if { IsVoid name; } {
                             out += (open + ">")
                         } {
-                            if { HasElem kids; } {
+                            if { (IsBlockTag name) && (HasBlockKid kids); } {
                                 out += (open + ">")
                                 out += "\n"
                                 foreach kids (k: object) => {
@@ -228,6 +252,115 @@ readonly Doc := (lang: string head: object body: object) => {
             (El "body" {} body)
         ])
     ]
+}
+
+# ── 块级:写文档那一层 ──
+#
+# 上面那些是"元素",这一层是"段落、列表、表格"—— 写正文用这些,不用自己拼 `<div>`。
+# 它们交回的还是同一棵树,所以能和 `El` 随便混着用。
+#
+#     Html.Page {"title": "报表" "css": [Html.BaseCss]} [
+#         (Html.H1 "标题")
+#         (Html.P "正文,<和& 会被转义")
+#         (Html.Ul ["甲" "乙"])
+#         (Html.Table ["名称" "数量"] [["甲" 12] ["乙" 7]])
+#     ]
+
+readonly H1 := (kids: object) => { El "h1" {} kids; }
+readonly H2 := (kids: object) => { El "h2" {} kids; }
+readonly H3 := (kids: object) => { El "h3" {} kids; }
+readonly H4 := (kids: object) => { El "h4" {} kids; }
+readonly H5 := (kids: object) => { El "h5" {} kids; }
+readonly H6 := (kids: object) => { El "h6" {} kids; }
+
+readonly P := (kids: object) => { El "p" {} kids; }
+readonly Blockquote := (kids: object) => { El "blockquote" {} kids; }
+readonly Code := (s: object) => { El "code" {} [s]; }
+
+# 代码块 —— 里面的东西**照原样显示**(转义是渲染那一步做的,`<` 不会变成标签)
+readonly Pre := (s: object) => { El "pre" {} [(El "code" {} [s])]; }
+
+# 列表:一项一个 `<li>`;某一项本身是个 list 时,那就是那个 `<li>` 的内容
+readonly Ul := (items: object) => { ListOf "ul" items; }
+readonly Ol := (items: object) => { ListOf "ol" items; }
+
+readonly ListOf := (tag: string items: object) => {
+    lis := []
+    foreach (KidsOf items) (it: object) => { lis.Add (El "li" {} it); }
+    El tag {} lis
+}
+
+# 表格:`Table headers rows`,两边都是"一串一串"。
+# `headers` 给 `[]` 就是没有表头(那样只出 `<tbody>`,不硬塞一个空 `<thead>`)。
+readonly Table := (headers: object rows: object) => {
+    body := []
+    foreach (KidsOf rows) (r: object) => {
+        cells := []
+        foreach (KidsOf r) (c: object) => { cells.Add (El "td" {} [c]); }
+        body.Add (El "tr" {} cells)
+    }
+    hs := KidsOf headers
+    if { (hs.IsEmpty ()); } {
+        El "table" {} [(El "tbody" {} body)]
+    } {
+        hcells := []
+        foreach hs (h: object) => { hcells.Add (El "th" {} [h]); }
+        El "table" {} [
+            (El "thead" {} [(El "tr" {} hcells)])
+            (El "tbody" {} body)
+        ]
+    }
+}
+
+readonly A := (href: string kids: object) => { El "a" {"href": href} kids; }
+readonly Img := (src: string alt: string) => { El "img" {"src": src "alt": alt} []; }
+readonly Hr := () => { El "hr" {} []; }
+readonly Br := () => { El "br" {} []; }
+
+# ── CSS ──
+#
+# `<style>` 里的东西**不能**做 HTML 转义(那两个标签里实体是不解码的,`&gt;` 进去就是
+# 一串错字符),所以它走 `Raw` —— 也就是说,别把用户输入拼进 CSS。
+readonly Style := (css: string) => { El "style" {} [(Raw css)]; }
+readonly CssLink := (href: string) => { El "link" {"rel": "stylesheet" "href": href} []; }
+
+# 一份能看的默认样式(系统字体、正文限宽、表格带框、代码浅底)。
+# `Page` **不会**自动带上它 —— 想要就写 `"css": [Html.BaseCss]`,不要就自己写。
+readonly BaseCss := """
+    :root { --fg:#222; --dim:#666; --line:#ddd; --code:#f6f6f6; --link:#0087bd; }
+    * { box-sizing: border-box; }
+    body { max-width:46rem; margin:0 auto; padding:2rem 1.2rem; color:var(--fg);
+           font:16px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+    h1, h2, h3, h4 { line-height:1.3; margin:1.6em 0 .6em; }
+    h1 { font-size:1.9em; } h2 { font-size:1.45em; } h3 { font-size:1.2em; }
+    a { color:var(--link); }
+    hr { border:0; border-top:1px solid var(--line); margin:1.8em 0; }
+    table { border-collapse:collapse; width:100%; margin:1em 0; }
+    th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; }
+    th { background:var(--code); }
+    code { background:var(--code); padding:1px 4px; border-radius:3px; font-size:.94em; }
+    pre { background:var(--code); padding:12px; overflow:auto; border-radius:4px; }
+    pre code { background:none; padding:0; font-size:1em; }
+    blockquote { margin:0; padding:0 1rem; border-left:3px solid var(--line); color:var(--dim); }
+"""
+
+# ── 整篇 ──
+#
+# `Page opts body` = `Doc` 那一套 + 把 `opts` 里的东西摆进 head。
+# `opts` 是个 dict(和 `Log.New` 一个路子),认这几个键:
+#
+#     "title"  标题(不写就空着)
+#     "lang"   `<html lang>`,默认 "zh"
+#     "css"    一串 CSS 文本,每条包成 `<style>`(顺序照给的顺序)
+#     "head"   额外塞进 head 的节点(要 `CssLink` / `Html.Raw` 那种就写这儿)
+#
+# head 里的先后:`<meta charset>` → `<title>` → 那些 `<style>` → `"head"` 里给的。
+
+readonly Page := (opts: object body: object) => {
+    head := [(El "title" {} [(opts.GetOr "title" "")])]
+    foreach (KidsOf (opts.GetOr "css" [])) (css: object) => { head.Add (Style (string css)); }
+    foreach (KidsOf (opts.GetOr "head" [])) (n: object) => { head.Add n; }
+    Doc (opts.GetOr "lang" "zh") head body
 }
 
 ravel ""
