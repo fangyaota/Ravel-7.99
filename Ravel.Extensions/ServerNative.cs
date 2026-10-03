@@ -51,6 +51,7 @@ internal static class ServerNative
         public Stream Stream = null!;
         public bool Closed;
         public int MaxBody;                    // 从它那台监听器上抄下来的一次请求正文上限
+        public int PendingBody;                // 因为超限**没去读**的那些字节(见 Parse / Answer)
     }
 
     private static readonly Dictionary<int, Listener> Listeners = [];
@@ -298,6 +299,10 @@ internal static class ServerNative
         // 回 413 然后断。之所以不是在这儿直接抛:抛了连接任务是没了,对面看到的只是断线,
         // 连句人话都收不到。
         if (want > c.MaxBody)
+        {
+            // 记下"有多少正文还在路上" —— 回完 413 要**把它收干净再关**(见 `Answer` 里的
+            // 那一小段)。不收的话关这个连接会发 RST,对面看不到刚写出去的 413。
+            c.PendingBody = want;
             return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
             {
                 [new StringVal("method")] = new StringVal(method),
@@ -312,7 +317,10 @@ internal static class ServerNative
                 [new StringVal("why")] = new StringVal(
                     $"请求正文太大（超过 {NetNative.Human(c.MaxBody)}，它说 {NetNative.Human(want)}）"),
             });
+        }
 
+        // 正文正常读完了(或者本来就没有),把"还欠着"那笔账清掉
+        c.PendingBody = 0;
         var body = new byte[want];
         var got = Math.Min(want, extra.Length);
         Array.Copy(extra, body, got);
@@ -405,7 +413,18 @@ internal static class ServerNative
             return Void;                           // 对面走了,写不动就算了(和读那头一个态度)
         }
 
-        if (close) Close(id);
+        if (close)
+        {
+            // **关之前先把对面还在路上的正文收干净。** 关一个"收下过东西、却没读它"的连接,
+            // 内核发的是 **RST** 而不是 FIN —— 对面于是看不到我们刚写出去的那句 413,
+            // 只看到"连接被重置"(HttpClient 那边直接抛异常)。实测约每 12 次撞 1 次。
+            //
+            // **只收这一小段**:真去把 2 GB 收完,那个"上限"就白设了(见 `Parse` 里那段)。
+            // 所以是尽力而为 —— 常见那点超限(几十 KB)够用;恶意的大肚子照样吃 RST,
+            // 那正是我们想要的。
+            if (c.PendingBody > 0) await Drain(c.Stream, c.PendingBody);
+            Close(id);
+        }
         return Narrow(head.Length + (long)body.Length, "写出去的字节数");
     }
 
@@ -438,6 +457,37 @@ internal static class ServerNative
         Close(id);
         return Void;
     }
+
+    /// <summary>把对面还在路上的正文**读掉丢掉**,最多收 `cap` 那么多、最多等一会儿。
+    ///
+    /// 目的是让关连接走成 FIN 而不是 RST(见 `Answer` 里那段)。所以**读出来的字节直接扔**,
+    /// 不进任何缓冲区 —— 这一步本来就只是为了"让内核觉得收干净了"。
+    /// 对面不发(或者发得慢)就按超时走,别把这条连接的任务耗在这儿。</summary>
+    private static async Task Drain(Stream s, int cap)
+    {
+        var buf = new byte[8192];
+        var left = Math.Min(cap, DrainCap);
+        using var cts = new CancellationTokenSource(DrainTimeout);
+        try
+        {
+            while (left > 0)
+            {
+                var n = await s.ReadAsync(buf.AsMemory(0, Math.Min(buf.Length, left)), cts.Token);
+                if (n <= 0) break;
+                left -= n;
+            }
+        }
+        catch (Exception)
+        {
+            // 超时 / 对面断了 / 读不动了 —— 都无所谓,这一步本来就是尽力而为
+        }
+    }
+
+    /// <summary>上面那条最多收这么多(真收 2 GB 的话那个上限就白设了)</summary>
+    private const int DrainCap = 1024 * 1024;
+
+    /// <summary>上面那条最多等这么久 —— 对面已经不发了就别耗着</summary>
+    private static readonly TimeSpan DrainTimeout = TimeSpan.FromMilliseconds(250);
 
     private static void Close(int id)
     {
