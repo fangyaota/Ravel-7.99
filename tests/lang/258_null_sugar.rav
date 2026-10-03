@@ -84,6 +84,16 @@ has := (_?.Length ())
 print ((has "abc") ?? -1)
 print (has (None))
 
+# ── 和 `|>` 搭:一路 `?.` 喂下去 ──
+# `?.` 是「拆开—走一趟—包回去」,所以每过一段形状**还是 Option**,不会叠成 `Some (Some x)`;
+# `None` 从头短路到尾(中间那些 `.成员` 一次都不跑),末尾用一个 `??` 收口。
+print (Some "  hi  " |> ?.Trim ())
+print (None |> ?.Trim ())
+print (Some "  hi  " |> ?.Trim () |> ?.Length ())
+print (None |> ?.Trim () |> ?.Length ())
+print ((Some [1 2 3] |> ?.Count ()) ?? 0)
+print ((None |> ?.Count ()) ?? 0)
+
 # ── 报错:左值不是变量/成员、单独的 `?` ──
 try { eval "(1 + 2) ??= 3"; } (e: Exception) => { print ("2: " + string e); }
 try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
@@ -118,5 +128,11 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # 有
 # 3
 # Option { Has = false, Inner = () }
+# Option { Has = true, Inner = hi }
+# Option { Has = false, Inner = () }
+# Option { Has = true, Inner = 2 }
+# Option { Has = false, Inner = () }
+# 3
+# 0
 # 2: '??=' 的左边得是变量或成员（就像 '=' 那样）
 # 3: '?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）
