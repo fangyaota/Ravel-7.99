@@ -327,13 +327,21 @@ Server ::= class {
         while { open; } {
             r := g.Await (Tasks.Of (Native.HttpRead c Idle))
             if { r.IsEmpty (); } { open = false; } {
-                req := Request r peer g
-                close := !(req.KeepAlive)
-                resp := me.Settle g (me.Answer req)
-                w := resp.Wire close
-                w.Set "conn" c
-                g.Await (Tasks.Of (Native.HttpAnswer w))
-                if { close; } { open = false; } { 0; }
+                # 读到一个请求就数一个 —— **计数挂在这儿而不是 `Dispatch`**:超限那条路
+                # 不走 dispatch,可那个 413 也是答过的
+                Requests += 1
+                # 正文超过本机那一层设的顶:**它一个字都没读**,所以我们回 413 就断,
+                # 不能再说"接着来下一个请求"(后半个正文还在路上,读下去就是那条老路)。
+                (r.Has "oversize") {
+                    me.Reply g c (Text 413 (r.Get "why")) true
+                    open = false
+                } {
+                    req := Request r peer g
+                    close := !(req.KeepAlive)
+                    resp := me.Settle g (me.Answer req)
+                    me.Reply g c resp close
+                    if { close; } { open = false; } { 0; }
+                }
             }
         }
         Native.HttpClose c;
@@ -344,6 +352,14 @@ Server ::= class {
     # 由 handler 自己选(`Httpd.File` 交回的就是任务)。
     Settle := (g: Tasks.TaskGroup resp: object) => {
         if { resp is Tasks.ITask; } { g.Await resp; } { resp; }
+    }
+
+    # 把一个响应写回去。`Wire` 那一份还差个 `conn` —— 那是**每条连接自己的事**,
+    # 响应对象不该知道自己在哪条连接上,所以在这儿补。
+    Reply := (g: Tasks.TaskGroup conn: int resp: Response close: bool) => {
+        w := resp.Wire close
+        w.Set "conn" conn
+        g.Await (Tasks.Of (Native.HttpAnswer w))
     }
 
     # 挑一条路由。**handler 里抛了错不把这台服务器带走** —— 接住,回 500,
@@ -357,7 +373,6 @@ Server ::= class {
 
     Dispatch := (req: Request) => {
         me := this
-        Requests += 1
         hit := []
         foreach Routes (r: dict) => {
             if { (me.Matches (r.Get "method") req.Method) && (me.Matches (r.Get "path") req.Path); } {

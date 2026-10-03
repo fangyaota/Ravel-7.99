@@ -40,6 +40,7 @@ internal static class ServerNative
         public TcpListener Tcp = null!;
         public X509Certificate2? Cert;
         public bool Closed;
+        public int MaxBody = DefaultMaxBody;
     }
 
     /// <summary>一条连上的连接。`Stream` 可能就是 `Client.GetStream ()`(纯 HTTP),
@@ -49,6 +50,7 @@ internal static class ServerNative
         public TcpClient Client = null!;
         public Stream Stream = null!;
         public bool Closed;
+        public int MaxBody;                    // 从它那台监听器上抄下来的一次请求正文上限
     }
 
     private static readonly Dictionary<int, Listener> Listeners = [];
@@ -74,6 +76,9 @@ internal static class ServerNative
     /// `host` 默认 `127.0.0.1`:**默认只听本机**。要对外就显式写 `0.0.0.0`,
     /// 这种"要不要暴露到网上"的事不该由一个默认值替你决定。
     ///
+    /// `max` 是**一次请求正文的上限**(字节,默认 16 MB)。超了的请求**正文一个字都不读**,
+    /// 交回一个带 `oversize` 的请求,由库里回 413 再断(见 `HttpRead` 那一头)。
+    ///
     /// 给了 `cert` 就是 HTTPS:`key` 也给了按 **PEM**(证书 + 私钥两个文件)读,
     /// 否则按 **PFX**(`password` 是它的口令)。</summary>
     [RavelFn("HttpListen")]
@@ -93,6 +98,7 @@ internal static class ServerNative
         {
             Tcp = new TcpListener(Address(host), port),
             Cert = cert.Length == 0 ? null : LoadCert(cert, key, password),
+            MaxBody = OptInt(cfg, "max", 0) is var m and > 0 ? m : DefaultMaxBody,
         };
         listener.Tcp.Start(backlog);
         var id = ++_next;
@@ -165,7 +171,7 @@ internal static class ServerNative
             }
 
             var connId = ++_next;
-            Conns[connId] = new Conn { Client = client, Stream = stream };
+            Conns[connId] = new Conn { Client = client, Stream = stream, MaxBody = l.MaxBody };
             var peer = client.Client.RemoteEndPoint?.ToString() ?? "";
             return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
             {
@@ -286,6 +292,26 @@ internal static class ServerNative
 
         var want = headers.TryGetValue("content-length", out var cl) && int.TryParse(cl[0], out var size)
             ? size : 0;
+
+        // **超过上限就一个字都不读**:读了再丢等于"对面说多大我们就读多大",那个顶就白设了。
+        // 交回一个带 `oversize` 的请求(正文空的),**连接明确标成不再复用** —— 库里那头据此
+        // 回 413 然后断。之所以不是在这儿直接抛:抛了连接任务是没了,对面看到的只是断线,
+        // 连句人话都收不到。
+        if (want > c.MaxBody)
+            return new DictVal(new Dictionary<RuntimeValue, RuntimeValue>
+            {
+                [new StringVal("method")] = new StringVal(method),
+                [new StringVal("path")] = new StringVal(Uri.UnescapeDataString(path)),
+                [new StringVal("query")] = new StringVal(query),
+                [new StringVal("version")] = new StringVal(version),
+                [new StringVal("headers")] = new DictVal(headDict),
+                [new StringVal("body")] = BytesList([]),
+                [new StringVal("keepAlive")] = new BoolVal(false),
+                [new StringVal("oversize")] = new BoolVal(true),
+                // 文案在这儿拼成一整句 —— 和 `NetNative.Why` 一个道理:**报错只有一份**
+                [new StringVal("why")] = new StringVal(
+                    $"请求正文太大（超过 {NetNative.Human(c.MaxBody)}，它说 {NetNative.Human(want)}）"),
+            });
 
         var body = new byte[want];
         var got = Math.Min(want, extra.Length);
@@ -510,4 +536,9 @@ internal static class ServerNative
     private static string Show2Host(string host) => host is "0.0.0.0" or "*" ? "127.0.0.1" : host;
 
     private const int MaxHead = 64 * 1024;
+
+    /// <summary>一次请求正文的默认上限 —— 和客户端那条 `max` 一个数(`NetNative` 的 16 MB)。
+    /// **这个顶不能让对面说了算**:少了它,一句 `Content-Length: 2000000000` 就能让这台
+    /// 先分配两个 G 再开始读第一个字节。</summary>
+    private const int DefaultMaxBody = 16 * 1024 * 1024;
 }

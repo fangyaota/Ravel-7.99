@@ -257,7 +257,53 @@ Tasks.Cycle [
 注意:**请求正文只认 `Content-Length`**。碰上 `Transfer-Encoding: chunked` 会**明确报错**,
 不猜 —— 猜错就是悄悄把正文读歪,那比报错难查一百倍。
 
-## 13.7 HTTPS
+## 13.7 正文上限
+
+`max` 是一次请求正文的**上限**,默认 16 MB(和客户端那条一个数)。超了的请求**正文一个字都不读**,直接回 413 再断。
+
+```ravel
+srv := Httpd.Server {"port": 8080 "max": 65536}
+```
+
+#### 实例
+
+```ravel
+using "httpd.rav"
+using "tasks.rav"
+using "http.rav"
+
+srv := Httpd.Server {"port": 0 "max": 1024}
+srv.Route "POST" "/in" (req) => { Httpd.Text ("收到 " + (string ((req.Body).Count ()))); }
+base := "http://127.0.0.1:" + (string (srv.Port))
+
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        ok := g.Await (Http.PostTask (base + "/in") "小东西")
+        print ((string (ok.status)) + " " + (ok.Text ()))
+
+        st := 0
+        why := ""
+        try { r := g.Await (Http.PostTask (base + "/in") ("x" * 4000)); st = r.status; why = r.Text (); } (e: Exception) => { st = -1; }
+        print ((string st) + " " + why)
+
+        srv.Stop ()
+    })
+]
+```
+
+执行以上程序会输出如下结果：
+
+```
+200 收到 9
+413 请求正文太大（超过 1 KB，它说 3 KB）
+```
+
+注意:**这个顶不能让对面说了算**。少一条上限,一句 `Content-Length: 2000000000` 就能让这台先分配两个 G 再开始读第一个字节 —— 那是最省事的一种打垮法。
+
+注意:超了之后**那条连接不再复用** —— 后半个正文还在路上,接着读就是又回到那条老路。
+
+## 13.8 HTTPS
 
 给 `cert` 就是 HTTPS。证书按 **PEM**(证书 + 私钥两个文件)读,只给一个文件就按 **PFX**
 (`password` 是它的口令)。

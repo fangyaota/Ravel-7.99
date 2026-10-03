@@ -18,7 +18,7 @@
 | [十、内置函数速查](tutorial/10-cheatsheet.md) | 一张表 |
 | [十一、常见陷阱](tutorial/11-pitfalls.md) | 十条最容易栽的 |
 | [十二、并发](tutorial/12-tasks.md) | `Tasks`：协作式任务、挂起点、`Signal` / `All` / `Any` / `Chan` |
-| [十三、HTTP 服务端](tutorial/13-server.md) | `Httpd`：路由 / 请求对象 / 响应 / 静态目录 / 一个慢 handler 挡不住别的连接 / keep-alive / HTTPS |
+| [十三、HTTP 服务端](tutorial/13-server.md) | `Httpd`：路由 / 请求对象 / 响应 / 静态目录 / 一个慢 handler 挡不住别的连接 / keep-alive / 正文上限 / HTTPS |
 
 ## 想深挖
 

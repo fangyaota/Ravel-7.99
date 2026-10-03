@@ -1987,7 +1987,7 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 
 | 原语 | 收 | 交回 |
 |---|---|---|
-| `Native.HttpListen` | `port`(0 = 随便挑)/ `host`(默认 `127.0.0.1`)/ `backlog` / `cert` / `key` / `password` | `{handle, port, url}` |
+| `Native.HttpListen` | `port`(0 = 随便挑)/ `host`(默认 `127.0.0.1`)/ `backlog` / `max`(正文上限)/ `cert` / `key` / `password` | `{handle, port, url}` |
 | `Native.HttpAccept` | `handle` | **句柄** → `{conn, peer, tls}`;监听器关了交**空 dict** |
 | `Native.HttpRead` | `conn` / `idle`(毫秒) | **句柄** → `{method, path, query, version, headers, body, keepAlive}`;对面关了交**空 dict** |
 | `Native.HttpAnswer` | `conn` / `status` / `headers` / `body` | **句柄** → 写出去多少字节 |
@@ -2016,6 +2016,10 @@ accept 循环一个任务,**一条连接再一个任务**;挂起点是 accept / 
   两个计数就是给它看的 —— 一条连接收 N 个请求时,连接数比请求数小。
 - **请求正文只认 `Content-Length`**,`Transfer-Encoding: chunked` 明确报错:猜错就是
   悄悄把正文读歪,那比报错难查得多。
+- **正文有上限**(`max`,默认 16 MB,和客户端那条一个数)。**这个顶不能让对面说了算**:
+  一句话 `Content-Length: 2000000000` 就是先分配两个 G 再读第一个字节。超了**一个字都不读**
+  —— 读完再丢等于"对面说多大就读多大",顶就白设了 —— 交回一个带 `oversize` 的请求,
+  库那头据此回 **413** 再断(不是在这儿抛:抛了对面只看到断线,连句人话都收不到)。
 - **静态目录挡 `..` 和反斜杠**(`SendFile`)—— 不挡的话 `/pub/../../secret` 把整个盘读出去。
   MIME 表在 Ravel 这边(策略),认不出的扩展名给 `application/octet-stream`。
 - **TLS 的握手在 `HttpAccept` 里就地做完**,握手失败**只丢这一条连接**,不让 accept 循环塌掉。
