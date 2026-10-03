@@ -53,6 +53,14 @@ print (rick)
 print (Repl.Balanced "\"\"\"abc\"\"\"")
 print (Repl.Balanced "\"\"\"abc")
 print (Repl.Balanced "# \"\"\" 注释里的不算")
+# ── 行尾按 `\n` 归一:CRLF 的源码里,那两处的换行**不该**漏进来 ──
+# 从前的毛病:只认 `\n`,于是 CRLF 检出下开头那半个 `\r\n` 吃不掉、后面每行还各带一个
+# `\r` —— 同一份库,检出时的行尾不同,字符串就不同(`lib/docsite.rav` 那份 CSS 就是
+# 这么凭空多出 32 个字节的)。`eval` 收的是**字符串**,所以这段源码里的 `\r\n` 是真的,
+# 不用把测试文件本身存成 CRLF(存了也会被 git 的行尾转换抹掉)。
+print ((eval "a := \"\"\"\r\n    X\r\n    \"\"\"\r\na").Length ())
+print ((eval "b := \"\"\"\r\n    A\r\n    B\r\n    \"\"\"\r\nb").Replace "\n" "|")
+print ((eval "c := \"\"\"\r\n    A\r\n    \r\n    B\r\n    \"\"\"\r\nc").Replace "\n" "|")
 # --- expected ---
 # C:\path\nope
 # say "hi" 吧
@@ -69,3 +77,6 @@ print (Repl.Balanced "# \"\"\" 注释里的不算")
 # true
 # false
 # true
+# 1
+# A|B
+# A||B

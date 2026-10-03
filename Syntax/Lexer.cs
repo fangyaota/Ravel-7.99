@@ -402,6 +402,11 @@ public class Lexer(string source, string? file = null)
     /// 再按收尾那三个引号所在行的缩进给每行剥掉同样多 —— 于是块能跟着代码正常缩进,
     /// 内容看起来就跟画的一样。
     ///
+    /// 行尾**按 `\n` 归一**:源码里成对的 `\r\n` 在内容里就是一个 `\n`(单独一个 `\r` 是
+    /// 内容,留着)。不归一的话,"画什么样是什么样"就成了"看检出时的行尾是什么样"——
+    /// 同一份库在 LF / CRLF 两种检出下会给出不同的字符串(从前就是这个毛病:
+    /// `lib/docsite.rav` 那份 CSS 每个行尾都多一个 `\r`)。
+    ///
     ///     readonly Banner := () => {
     ///         """
     ///          ____
@@ -417,11 +422,20 @@ public class Lexer(string source, string? file = null)
 
         // ① 开引号后面一路到行尾都是空白 → 那段空白连同那个换行都不算内容。
         //    (只有"开引号后面直接换行"那种写法会吃掉一个换行;`"""abc"""` 原封不动)
+        //
+        //    **`\r\n` 也算一个换行** —— 源码是 CRLF 检出的时候(Windows 上很常见),只认
+        //    `\n` 会让这半个 `\r\n` 漏进内容:同一个库,检出时的行尾不同,字符串就不同。
         int probe = _pos;
         while (probe < source.Length && source[probe] is ' ' or '\t') probe++;
         if (probe < source.Length && source[probe] == '\n')
         {
             _pos = probe + 1;
+            _line++;
+            _col = 1;
+        }
+        else if (probe + 1 < source.Length && source[probe] == '\r' && source[probe + 1] == '\n')
+        {
+            _pos = probe + 2;
             _line++;
             _col = 1;
         }
@@ -449,7 +463,10 @@ public class Lexer(string source, string? file = null)
         string before = source[lineStart..close];
         bool ownLine = before.All(ch => ch is ' ' or '\t');
 
-        string text = StripRawIndent(source[contentStart..close], ownLine ? before : "", ownLine, line, col);
+        // 内容里的 `\r\n` 一律按 `\n` 算,和上面①同一个理由:原始字符串"画什么样就是什么样"
+        // 这条,不该被检出时的行尾搅掉。(只动成对的 `\r\n`;单独一个 `\r` 是内容,留着。)
+        string body = source[contentStart..close].Replace("\r\n", "\n");
+        string text = StripRawIndent(body, ownLine ? before : "", ownLine, line, col);
 
         // ④ 游标推到收尾引号之后 —— 从 contentStart 一格一格数过去,`_line` / `_col` 才准
         //    (报错位置、以及后面 token 的行列都吃它)
