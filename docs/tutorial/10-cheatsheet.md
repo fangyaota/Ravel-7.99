@@ -15,7 +15,7 @@
 | `System.Args ()` | 脚本名之后的命令行参数（list，见 8.5）|
 | `System.WarnForgotCall b` | 开关：「是不是忘了调用？」的提醒（见 11 章那条坑）|
 | `System.Env n` / `EnvOr n d` | 环境变量（`SetEnv` / `UnsetEnv` / `EnvAll` 见 8.5）|
-| `f <\| a b` / `x \|> .g ()` | 一个封右、一个封左（见 5.5）|
+| `f <\| a b` / `x \|> f` | `<\|` 把右边封成一个实参；`\|>` 右边是 `.成员` 就挂上去、否则**把左边喂给它**（见 5.5）|
 | `callcc fn` | 续延（拿到的类型是 `Continuation`，见 4.5）|
 | `with obj { }` | 进到 obj 的成员表里跑一段（**不拷**、**不推层**；要副本用 `Copy ()`，见 7.8）|
 | `o.MemberScope ()` | 这个对象的**成员表**（一个 `Scope`）—— 按动态名字读写成员时用它 |

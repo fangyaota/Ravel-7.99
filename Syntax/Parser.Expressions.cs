@@ -311,7 +311,8 @@ public partial class Parser
     /// 单拎出来是因为 `?.`:`a?.b c` 里**整条链**(成员访问 + 后面的调用)都归那枚守卫
     /// 闭包管 —— 它在自己的 lambda 体内得再走一趟这段(见 <see cref="GuardedChain"/>)。
     /// `guarded: true` = 已经在一层守卫里了,再撞上 `?.` 就当普通 `.` 使(守卫只包一层)。</summary>
-    private Expression ParsePostfixRest(Expression expr, bool allowCall, bool guarded = false)
+    private Expression ParsePostfixRest(Expression expr, bool allowCall, bool guarded = false,
+                                        bool stopAtPipe = false)
     {
         if (!allowCall) return expr;
 
@@ -320,18 +321,39 @@ public partial class Parser
         // (节形式的 `f is.int` 除外,那是参数)。
         while (true)
         {
-            // `|>` —— **括号,把左边封口**:后面的成员链挂到左边那一串的**结果**上。
-            //     x.f () |> .g ()   ≡   (x.f ()).g ()
-            // 没有它就只能自己写括号:`.成员` 比并列的调用绑得紧,`x.f ().g ()` 会被读成
-            // `x.f ((().g ()))`。后面跟的不是 `.成员` 时,它就是个"到这儿为止"的记号
-            // (`a |> b c` ≡ `(a) b c`,和 `a b c` 本来就一样)。
+            // `|>` —— **把左边交给右边**。右边是什么,决定了交法:
+            //
+            //     x.f () |> .g ()   ≡   (x.f ()).g ()    ← `.成员`:挂到左边那个值上
+            //     x      |> f       ≡   f x              ← 别的:左边当**实参**喂给右边
+            //     x      |> f 1     ≡   f 1 x            ← 右边自己的实参先喂,左边排**最后**
+            //
+            // `.成员` 那一支是它最早的样子,也是它非有不可的理由:`.成员` 比并列的调用绑得紧,
+            // `x.f ().g ()` 会被读成 `x.f ((().g ()))` —— 零参调用后面接链的写法就全废了。
+            //
+            // `stopAtPipe` 是给"右边那半"用的:右边**不吃下一个 `|>`**。吃了的话
+            // `a |> f |> g` 会成 `a |> (f |> g)`,而我们一路往右喂要的是 `g (f a)`。
             if (Match(TokenType.PipeInto))
             {
-                // 封口之后总得接点什么:`.成员` 或者下一段实参。`1 |>` 那种尾巴上多出来的 `|>`
-                // 不该被静默吃掉。
-                if (!Check(TokenType.Dot) && !Check(TokenType.QuestionDot) && !StartsPrimary())
-                    throw ParseError("'|>' 后面得跟点什么（它的意思是「把左边封口，接着往下写」）");
-                expr = ParseMemberChain(expr, allowCall, guarded);
+                if (stopAtPipe) { _pos--; break; }      // 把这一枚还回去,外层接着收
+
+                if (Check(TokenType.Dot) || Check(TokenType.QuestionDot))
+                {
+                    expr = ParseMemberChain(expr, allowCall, guarded);
+                    continue;
+                }
+
+                // 后面总得跟点什么。`1 |>` 那种尾巴上多出来的 `|>` 不该被静默吃掉。
+                // **运算符节也算**(`5 |> +.2` ≡ `(+.2) 5`)—— 那个开头是个 `+`,
+                // `StartsPrimary` 不认它,所以得单独放行。
+                if (!StartsPrimary() && !IsOperatorToken(Peek().Type))
+                    throw ParseError("'|>' 后面得跟点什么（`a |> .f ()` 是挂成员，`a |> g` 是把 a 喂给 g）");
+
+                // 右边整串先收完(`f` / `f 1` / `xs.At 0` / `+.2` / 一个 lambda),
+                // 再把左边当**最后一个**实参喂进去 —— 柯里化的写法得是 `f 1 x`,不是 `f x 1`。
+                var left = expr;
+                var fn = ParseMemberChain(ParsePrimary(), allowCall);
+                fn = ParsePostfixRest(fn, allowCall, guarded: false, stopAtPipe: true);
+                expr = new CallExpr(fn, left) { Line = left.Line, Column = left.Column };
                 continue;
             }
 
