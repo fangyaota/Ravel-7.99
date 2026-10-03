@@ -1,4 +1,4 @@
-﻿ReferencesPath = ["./tests/"]
+﻿ReferencesPath = ["./tests/module/"]
 print "mod start"
 z: int = 7
 print "mod end"

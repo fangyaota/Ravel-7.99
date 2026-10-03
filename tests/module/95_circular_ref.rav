@@ -1,4 +1,4 @@
 ﻿# 测试模块循环引用检测
-ReferencesPath = ["tests/"]
+ReferencesPath = ["tests/module/"]
 using "129_circ_ref_a.rav"
 # expect-error

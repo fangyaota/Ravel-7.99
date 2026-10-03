@@ -112,7 +112,7 @@ public partial class Interpreter
     /// 从前 push/pop 都圈在 ParseBlock 外面——而解析一个文件时不会去解析另一个文件
     /// (`using` 是运行时构造),于是这个集合最多只有一个元素,`Contains` 永远为假:
     /// 循环引用检测是死代码,A→B→A 会静默地什么都不做,拿到的可能是只跑了一半的模块。
-    /// 这也是 `tests/95_circular_ref.rav` 一直测不到东西的原因(它当时连文件都找不到)。</summary>
+    /// 这也是 `tests/module/95_circular_ref.rav` 一直测不到东西的原因(它当时连文件都找不到)。</summary>
     private BlockExpr? LoadModuleAst(string path)
     {
         var full = ResolveModulePath(path);

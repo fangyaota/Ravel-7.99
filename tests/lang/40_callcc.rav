@@ -393,8 +393,8 @@ ravel "226_callcc_module"
 # 静默的空操作，定义缺着）。现在恢复时连 `_loading` 一起还原，并把被中断的那个从
 # "已加载"里摘掉 —— 下次 `using` 从头上重来（所以下面第二遍会再打一次 "body"）。
 #
-# 伴侣文件是 tests/226_abort_mod.rav（它单独跑会报错，那是它自己的预期）。
-ReferencesPath = ["tests/"]
+# 伴侣文件是 tests/lang/226_abort_mod.rav（它单独跑会报错，那是它自己的预期）。
+ReferencesPath = ["tests/lang/"]
 already := false
 hook: object = 0
 out := callcc (k: function) => {

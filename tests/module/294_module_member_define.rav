@@ -2,7 +2,7 @@
 # 在那儿定义 `References`(`Ravel` 的成员)/ `Copy` / `Fields`(`Object` 的成员)
 # 不是"新开一个变量",是把继承来的成员蒙掉。
 #
-# 要覆盖写 `=`(那一半钉在 `tests/293_module_member_table.rav`)。
+# 要覆盖写 `=`(那一半钉在 `tests/module/293_module_member_table.rav`)。
 # 规矩只管**最外层**:`try` / `eval` / 函数体里跑在自己的子作用域里,
 # 在那儿定义就是"内层遮蔽外层",本来就允许。
 ravel "M"

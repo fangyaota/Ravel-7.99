@@ -102,12 +102,12 @@ helper 1
 
 ```
 Error: 未定义的变量 'missing'
-  --> tests/152_error_report.rav:4:29
+  --> tests/diag/152_error_report.rav:4:29
   4 | helper := (n: int) => { n + missing; }
     |                             ^
   调用栈 (2 层):
-    在 tests/152_error_report.rav:4:20
-    在 tests/152_error_report.rav:1:1
+    在 tests/diag/152_error_report.rav:4:20
+    在 tests/diag/152_error_report.rav:1:1
 ```
 
 插入符指向出错的那个表达式；调用栈每层是该函数**定义处**的位置（Ravel 的帧链就是调用栈，所以这个信息是白捡的）。路径取相对 cwd、分隔符统一成 `/`，所以期望输出跨平台一致。

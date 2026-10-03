@@ -230,7 +230,7 @@ lib/
                           让调用方去 `group.Await` —— **"等"只有 `group.Await` 一个入口**
                           (藏在 by-property 里的让出,读代码的人看不见)。
                           挂起/恢复照抄 `generator.rav` 的 `GeneratorCursor`(三条规矩见文件头)。
-                          用例:`tests/297_tasks.rav`
+                          用例:`tests/task/297_tasks.rav`
   cached.rav              `Cached count f` —— 记忆化:按实参把 f 的结果记下来。**是个函数**
                           (不是类型),直接交出包装函数;缓存本身是它捕获的两个 list
                           (所以每调一次是独立的一份,也不进 AllTypes)
@@ -617,7 +617,7 @@ Object (parent=自己)
 那几族类**不持有状态**:要用引擎的把它当第一个参数收(`Interpreter self`),
 用不着的就是纯函数 —— 签名对不对在建表时就报。类型别名 / 常量 / 控制内建**不走这条路**:
 那是数据,`SysModule` 里三张表一眼看全比撒在各处好读。
-**成员表整份钉在 `tests/271_system_members.rav`** —— 加了内置就顺手更新那一行。
+**成员表整份钉在 `tests/lib/271_system_members.rav`** —— 加了内置就顺手更新那一行。
 
 **哪一条该留在这儿,尺子是明着的**:要么是**语言本身**要的(类型、控制流、`eval`、反射、
 状态钩子),要么是**进程边界**(输出、文件、环境变量、子进程、时间)。剩下的一律是
@@ -1636,7 +1636,7 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
   字符串。(`$"""…"""` 那种"原始的 + 还插值"的变体**没做**:它要先把 `$` 摆在引号外面,
   而那正好是"代码里不该有 `$`"这条定下来的地方。)
 
-用例 `tests/237_char_string.rav`;原始字符串见 `tests/287`(快乐路径)+ `288` / `289`
+用例 `tests/lang/237_char_string.rav`;原始字符串见 `tests/287`(快乐路径)+ `288` / `289`
 (缩进对不齐、没收到尾,两条 `# expect-error`)。
 
 ## 空值那三条（`?.` / `??` / `??=`）
@@ -1809,7 +1809,7 @@ C# 调用** —— 它们不收用户函数,所以不走 `SeqMethod` 那套控�
 「没有方法」。现在 `TraitSlot` / `ActiveInstance` 的接收者放宽到 `RuntimeValue` 了:
 **任何值都能挂接口槽**,不管它是不是对象。
 
-用例 `tests/237_char_string.rav`。
+用例 `tests/lang/237_char_string.rav`。
 
 ## 比较与排序（`lib/sorting.rav`；predefined 加载，所以 `IComparable` 是全局名）
 
@@ -1843,7 +1843,7 @@ impl (IComparable Rec { () })
 - 稳定性：键相等的保持原来的先后（`Merge` 里 `<= 0` 取左边）。
 - `Max` / `Min` 空表**报错**（和 `First` / `Last` 一个规矩），相等时留先出现的那个。
 
-用例 `tests/217_ienumerable.rav`。
+用例 `tests/class/217_ienumerable.rav`。
 
 ## JSON（内置 `Json` 类，底层 Newtonsoft.Json）
 
@@ -1919,7 +1919,7 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
 
 依赖：`Ravel.csproj` 里的 `Newtonsoft.Json` 13.0.3（第二个包依赖，另一个是 Spectre.Console）。
 
-用例 `tests/241_json.rav`。
+用例 `tests/lib/241_json.rav`。
 
 ## 跑外部命令（`cmd`）
 
@@ -1940,7 +1940,7 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 - 只做 syscall,**不做沙箱**(和文件那几条一个待遇):跑什么由调用方负责。
 
 引擎里的实现是 `System.Cmd`(`Runtime/Builtins/SysCmd.cs`),`predefined.rav` 给全局别名
-`cmd`。用例在 `tests/229_io_fs.rav` 里。
+`cmd`。用例在 `tests/lib/229_io_fs.rav` 里。
 
 ## 网络（`lib/http.rav`，要显式 `using "http.rav"`）
 
@@ -1950,7 +1950,7 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 一起搬出了 `System`。见下面「插件」那节。C# 那一侧:`Ravel.Extensions/NetNative.cs`。)都**收一个 dict、交回一个 dict**:加字段不用改签名。
 (`…Task` 那几条交回的是句柄,不是 dict —— 那是给任务用的。)
 `lib/http.rav` 里同步那几条**一根毫毛没动**,想重叠就用同名 + `Task` 后缀的那一族
-(`Http.GetTask` 那种),验收在 `tests/298_task_http.rav`。
+(`Http.GetTask` 那种),验收在 `tests/task/298_task_http.rav`。
 
 | 原语 | 收 | 交回 |
 |---|---|---|
@@ -1980,8 +1980,8 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 - 配套加的还有 `System.ReadBytes` / `System.WriteBytes`(字节表和文件来回 ——
   从前只有文本那三条,字节表存不下来也读不回来)和 `System.Sleep ms`(重试退避、限速)。
 
-**用例**:`tests/268_http.rav`(离线:查询串、响应对象、报错文案)、
-`tests/269_http_live.rav`(真发请求 —— 运行器按 `# net` 标记起一台**回环服务器**,
+**用例**:`tests/net/268_http.rav`(离线:查询串、响应对象、报错文案)、
+`tests/net/269_http_live.rav`(真发请求 —— 运行器按 `# net` 标记起一台**回环服务器**,
 见下)。例子 `examples/http.rav` 打的是真网络。
 
 ### 服务端（`lib/httpd.rav`）
@@ -2093,7 +2093,7 @@ Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒�
 ### 并发:调度器 + IO 都接上了
 
 `lib/tasks.rav`(`Tasks` 模块)是那个调度器 —— 协作式任务,见上面文件地图那一格和
-`tests/297_tasks.rav`。引擎这一侧只多了三样原语(`System.WaitAny` / `HandleValue` /
+`tests/task/297_tasks.rav`。引擎这一侧只多了三样原语(`System.WaitAny` / `HandleValue` /
 `Sleepable`,`Runtime/Builtins/SysTask.cs` + `Waitable` 值类型),**调度策略整个在库里**。
 
 **会等的那些操作各有一副"交回任务"的面孔**,命名统一是**同步名 + `Task` 后缀**:
@@ -2111,8 +2111,8 @@ Io.CopyTo (Http.Url "…") Terminal.Stdout                          # 直接倒�
 `IsNetFault`;`System.HandleValue` 对自己人抛的 `RuntimeException` 直接放行,不再裹一层
 "那个活儿没干成")。
 
-验收:`tests/298_task_http.rav`(**钉服务端并发计数,不钉墙钟** —— 三个 `/hold` 并发跑,
-服务端报的峰值 ≥ 2 就是真重叠)、`tests/299_task_io.rav`(cmd 与文件读写)。
+验收:`tests/task/298_task_http.rav`(**钉服务端并发计数,不钉墙钟** —— 三个 `/hold` 并发跑,
+服务端报的峰值 ≥ 2 就是真重叠)、`tests/task/299_task_io.rav`(cmd 与文件读写)。
 用法(`examples/tasks.rav`,八节:交替、收成、跑着再加、文件、错在哪现形、没人接的失败、
 互相等、一个任务只能跑一遍)。
 
@@ -2171,7 +2171,7 @@ d.SysGet (Rec 1 "甲")          # 报「dict.SysGet 的键得是值类型」—�
 **现装那条路（`by Key = property …`）在这儿用不了** —— 和 `CompareTo` 同一个理由：
 `Key` 这个名字 `Object` 上已经有了，成员查找是**类链先说话**，接口槽还没轮到。
 
-用例 `tests/217_ienumerable.rav`。
+用例 `tests/class/217_ienumerable.rav`。
 
 ## core 字段与 unsafe ()
 
@@ -2239,15 +2239,15 @@ using "file.rav"
 
 ```
 Error: 未定义的变量 'missing'
-  --> tests/152_error_report.rav:4:29
+  --> tests/diag/152_error_report.rav:4:29
   4 | helper := (n: int) => { n + missing; }
     |                             ^
   调用栈 (2 层):
-    在 tests/152_error_report.rav:4:20
-    在 tests/152_error_report.rav:1:1
+    在 tests/diag/152_error_report.rav:4:20
+    在 tests/diag/152_error_report.rav:1:1
 ```
 
-（取自 `tests/152_error_report.rav` 的实际输出——它是精确比对用例，所以这段不会漂。）
+（取自 `tests/diag/152_error_report.rav` 的实际输出——它是精确比对用例，所以这段不会漂。）
 
 - **抛出点只管给消息**(和**哪一族**)：180 多处 `throw new RuntimeException("...")` 不用操心位置。
   族 = `ErrorKind`(类型 / 名字 / 成员 / 下标 / 键 / 除零 / 断言 / 访问 / 参数 / 值 / IO / 正则),
@@ -2262,9 +2262,9 @@ Error: 未定义的变量 'missing'
   节点本身只有行列。调用栈里每层用**块**的位置（≈ 函数定义处），
   出错位置则精确到当前求值的节点。
 - 渲染在 `Runtime/ErrorReport.cs`：路径取相对 cwd、分隔符统一 `/`——报告短，
-  且让 `tests/152_error_report.rav` 能精确比对（不是 `# expect-error` 那样只看前缀）。
+  且让 `tests/diag/152_error_report.rav` 能精确比对（不是 `# expect-error` 那样只看前缀）。
 - **语法错误也走这份渲染**（`SyntaxException`，见 `RuntimeValue.cs`）：位置来自 token、
-  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/152_error_report.rav`）。
+  没有调用栈，但同样画 `--> file:line:col` 和插入符（`tests/diag/152_error_report.rav`）。
   它以前是个裸的 `System.Exception`，于是 CLI / 测试运行器分不清「用户代码写错了」
   和「解释器有 bug」——两者都落在同一个 `catch (Exception)` 里。现在三个类型各归各位：
   `RuntimeException`（求值期）/ `SyntaxException`（词法语法期）/ `ExitException`（exit 解栈），
@@ -2304,7 +2304,7 @@ Error: 未定义的变量 'missing'
   "数据值"（bool、类对象），这边排的是"可调用但不是等着实参的东西"；类对象要留着
   （`Point` 光写个名字正是"忘了调用"）。
 
-用例见 `tests/264_warn_forgot_call.rav`（顶上的 `# warn` 是给运行器的标记：把 stderr
+用例见 `tests/diag/264_warn_forgot_call.rav`（顶上的 `# warn` 是给运行器的标记：把 stderr
 一起收进比对里，否则警告一条也钉不住）。
 
 ## 两个「类型说有、值却没有」的坑
@@ -2368,6 +2368,23 @@ ravel test --fast         # 跳过带 `# slow` 的
 挑选词打在**相对路径**上，所以用例按文件夹分好之后 `ravel test http` 挑的就是那一摞 ——
 运行器本来就递归子目录（`SearchOption.AllDirectories`）。一个词都没命中的话它明说
 "没有一条对得上"，不会让人对着"0 passed"发愣。
+
+**按类型分文件夹**（用例本身也照这个摆）：
+
+| 目录 | 装什么 |
+|---|---|
+| `tests/lang/` | 语言本身：语法、类型、控制流、函数、续延、运算符、字符串 |
+| `tests/class/` | 类 / 接口 / 元类 / 属性 / 成员表 |
+| `tests/module/` | 模块与 `using`（含互相 `using` 那几对：129↔130、75→132、95→129） |
+| `tests/diag/` | 报错与诊断长什么样（`# expect-error` / `# warn` 那批） |
+| `tests/lib/` | 标准库（io / regex / json / time / text / 表格 / zip / xml …） |
+| `tests/net/` | 网络：`Http` 客户端 + `Httpd` 服务端 |
+| `tests/task/` | 协作式任务 |
+
+**互相 `using` 的用例必须待在同一个文件夹** —— `ReferencesPath = ["tests/<那个目录>/"]` 指的是
+目录，跨目录就得写两格。搬文件时**顺带要改两样**：`tests/NNN_x.rav` 那类完整路径（全仓库 90 处），
+以及 `ReferencesPath` 里那个 `tests/`；还有几处用例的**期望输出里钉着自己的路径**
+（`--> tests/152_error_report.rav:4:29` 那种，18 个文件），它们跟着同一张改名表走。
 
 `# slow`（和 `# net` / `# warn` 并列，`GoldenTestRunner` 顶上有表）标的是**跑起来费时间**的，
 不是"不重要"：全量照跑，`--fast` 才跳。目前只有 `40_callcc`（近 600 行续延，一条 20 秒，

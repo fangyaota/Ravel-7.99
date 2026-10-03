@@ -1,4 +1,4 @@
-﻿ReferencesPath = ["tests/"]
+﻿ReferencesPath = ["tests/module/"]
 print "A start"
 x: int = 42
 using "130_circ_ref_b.rav"
