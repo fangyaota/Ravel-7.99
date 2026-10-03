@@ -91,10 +91,11 @@ static void RunFile(string path, string[] scriptArgs, bool warn)
         Environment.ExitCode = 1;
         return;
     }
-
+/*
     Console.WriteLine($"── {path} ──");
     Console.WriteLine(source.Trim());
     Console.WriteLine("── Output ──");
+*/
     RunSource(source, path, scriptArgs, warn);
     Console.WriteLine();
 }
