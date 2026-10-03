@@ -104,16 +104,22 @@ IEnumerable ::= interface IMonad {
     }) ((v: function) => { (); })
 
     # 前 n 个(**数够就走** —— 无限流上停得住)
+    # **这一条得自己控 `MoveNext`,不能用 `foreach`。**
+    #
+    # `foreach` 每一步是"**先走一步拿到元素、再跑体**",所以 `i >= n` 判到的时候,那个元素
+    # 已经被取出来了 —— 取出来却没交出去,就是**多吃一个**。而且 `instance` 是个枚举器时,
+    # 它交回的枚举器**就是它自己**(`IEnumerator <: IEnumerable` 那条),那一步直接落在
+    # 调用方身上:实测 `Take 1` 之后调用方少一个。
+    #
+    # (`&&` 是真短路的,所以 `i >= n` 时 `MoveNext` 不会跑 —— 正好取 n 个。)
     by Take := property (() => {
         (n: int) => {
             Generator (y: function) => {
+                e := instance.GetEnumerator ()
                 i := 0
-                callcc (done: function) => {
-                    foreach instance (x: object) => {
-                        (i >= n) { done (); } { 0; }
-                        y x
-                        i += 1
-                    }
+                while { (i < n) && e.MoveNext (); } {
+                    y e.Current
+                    i += 1
                 }
             }
         }

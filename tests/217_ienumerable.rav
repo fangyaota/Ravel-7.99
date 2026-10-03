@@ -320,7 +320,7 @@ print (f.First ())              # 1
 print (f.Current)
 print (Seqs.Gather (f.Take 2))  # 接着往后两个
 print (Seqs.Gather (f.Map ((x: int) => { x + 1; })))
-print (f.ToList ())             # 只剩最后一个
+print (f.ToList ())             # 也被上面那两句走完了
 print (f.IsEmpty ())
 g := Enumerator [7 8 9]
 foreach g (x: int) => { print x; }
@@ -329,8 +329,8 @@ print (g.Count ())              # 0 —— foreach 把它走完了
 G := Generator (y: function) => { y 1; y 2; y 3; }
 c := G.GetEnumerator ()
 print (c is IEnumerable)
-print (Seqs.Gather (c.Take 2))
-print (c.ToList ())
+print (Seqs.Gather (c.Take 2))   # [1 2] —— Take 只取 n 个,**不多走一步**
+print (c.ToList ())              # [3] —— 剩下的照旧
 print "end"
 ravel ""
 # --- expected ---
@@ -468,7 +468,7 @@ ravel ""
 # 1
 # 1
 # [2 3]
-# [6]
+# [5 6]
 # []
 # true
 # 7
@@ -477,5 +477,5 @@ ravel ""
 # 0
 # true
 # [1 2]
-# []
+# [3]
 # end
