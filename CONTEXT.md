@@ -146,7 +146,8 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
                                 (去开头换行 + 剥收尾引号那一行的缩进,对不齐就报错)。
   Parser.cs                     入口 + token 辅助(Peek/Consume/ParseError)
     Parser.Statements.cs        语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
-    Parser.Expressions.cs       优先级链(管道→逻辑→比较→加减→乘除)
+    Parser.Expressions.cs       优先级**爬升**(纯二元全在 `BinOpBp` 那张表里;
+                                赋值 / `??` / `**` / `<|` 各有各的层,见下)
     Parser.Atoms.cs             基本单元 + 括号/块/集合/字典 + `do { … }` 折成 Bind 链
     Parser.Holes.cs             `_` 占位符消糖那趟 AST 改写
                                 `do` 是**纯语法糖**:解析期就地折成 `m.Bind (…)`,
@@ -1355,8 +1356,9 @@ Vec := class {
   但指数本身得装进 32 位：`.NET` 的 `BigInteger.Pow` 只收 `int`，装不下报「指数太大」。
 - 优先级 / 结合性在 `Parser.Expressions.ParsePower` 里，**不是靠优先级表** ——
   是让 `ParseCall` 那个一元分支的**操作数走 `ParsePower`**（而不是它自己），
-  于是"先把整个乘方收完、再套负号"。`ParsePower` 夹在 `ParseFactor`（`* / %`）和
-  `ParseCall`（一元 / 成员链 / 调用）中间。
+  于是"先把整个乘方收完、再套负号"。所以它是**唯一一个不在 `BinOpBp` 表里的纯二元运算符**：
+  表里的 `(Lbp, Rbp)` 表达得了"谁比谁紧"，表达不了"比前缀运算符还紧"。
+  `ParsePower` 下面直接是 `ParseCall`（一元 / 成员链 / 调用），中间没有别的层。
 - `**=`：`Interpreter.Binary` 里那两处把 `"**="` 归约成基础运算符的地方**不能用
   `Op[..1]`**（那会切成 `*`，静默算错）—— 走 `BaseOp ()`，`**` 单独认。
 
@@ -1372,8 +1374,8 @@ Vec := class {
 | `<<<` / `>>>` | **循环**移位：移出去的从另一头回来（32 位转圈） | `(0 - 1) <<< 1` 还是 -1、`5 >>> 1` 是 -2147483646 |
 
 - 优先级**照 C 的脾气**：比加减低、比比较高——`1 + 2 << 3` 是 `(1 + 2) << 3`，
-  `2 << 1 == 4` 是 `(2 << 1) == 4`（`Parser.Expressions.ParseShift`，夹在
-  `ParseComparison` 和 `ParseTerm` 中间）。
+  `2 << 1 == 4` 是 `(2 << 1) == 4`（`Parser.Expressions` 的 `BinOpBp` 表里，
+  移位那条是 `(12, 13)`，夹在比较的 `(10, 11)` 和加减的 `(14, 15)` 中间）。
 - 移位量收成一个**非负的 int**（`ShiftCount`）：负数、装不下的 bigint、别的东西，各报各的。
 - **bigint 没有固定宽度**：`<<` 就是乘 2^k（要多少位有多少位），循环移位对它**不成立**，
   那两条明确报错（而不是偷偷当普通移位）。`>>>` 是**循环**右移，不是"无符号右移"——

@@ -66,7 +66,7 @@ public partial class Parser
     /// 折成的形状:`NilOr (() => { a; }) (() => { b; })`。</summary>
     private Expression ParseNullCoalesce(bool allowCall = true)
     {
-        var left = ParseLogic(allowCall);
+        var left = ParseClimb(allowCall, 0);
         if (!Match(TokenType.Coalesce)) return left;
 
         var op = Previous();
@@ -131,130 +131,73 @@ public partial class Parser
     private static CallExpr Call(Expression fn, Expression arg, Token at)
         => new(fn, arg) { Line = at.Line, Column = at.Column };
 
-    /// <summary>逻辑 ||  （优先级低于 &&）</summary>
-    private Expression ParseLogic(bool allowCall = true)
+    /// <summary>纯二元那八层共用的优先级表:`(左结合度, 右结合度)`。
+    ///
+    /// 左结合写 `(2k, 2k+1)` —— 右结合度比左结合度大一,于是"同级的右边"该不该继续
+    /// 吃下一个同级的运算符,由这一对数说了算:右边那一趟的 `minBp` 正好把同级挡在外面。
+    ///
+    /// **只有纯二元的在表里。** 四个例外各有各的道理,留在自己那层:
+    ///
+    ///   * `**` **比一元还紧**(见 `ParsePower`)—— 优先级表表达不了"比前缀运算符紧";
+    ///   * `??` 是**惰性**的,要脱糖成 `NilOr` 的两个 thunk,不是"求两个值";
+    ///   * `=` 那一族是赋值,右值那边要的是"又一个赋值",不是运算符链;
+    ///   * `<|` **比这一整条链都松**(见 `ParsePipe`)—— 它连赋值都包得住,
+    ///     表里放不下"比最松的还松"。(`|>` 不是运算符,它住在调用那一段。)
+    ///
+    /// 词形运算符 `is` / `isnot` 是**标识符**,进不了按 token 类型查的表,单独认
+    /// (优先级和比较同级)。</summary>
+    private static readonly Dictionary<TokenType, (int Lbp, int Rbp)> BinOpBp = new()
     {
-        var left = ParsePipeOp(allowCall);
+        [TokenType.OrOr] = (2, 3),
+        [TokenType.Pipe] = (4, 5),
+        [TokenType.And] = (6, 7), [TokenType.Caret] = (6, 7),
+        [TokenType.AndAnd] = (8, 9),
+        [TokenType.NotEqual] = (10, 11), [TokenType.EqualEqual] = (10, 11),
+        [TokenType.Less] = (10, 11), [TokenType.Greater] = (10, 11),
+        [TokenType.LessEqual] = (10, 11), [TokenType.GreaterEqual] = (10, 11),
+        [TokenType.Subtype] = (10, 11), [TokenType.Supertype] = (10, 11),
+        [TokenType.ShiftLeft] = (12, 13), [TokenType.ShiftRight] = (12, 13),
+        [TokenType.RotateLeft] = (12, 13), [TokenType.RotateRight] = (12, 13),
+        [TokenType.Plus] = (14, 15), [TokenType.Minus] = (14, 15),
+        [TokenType.Star] = (16, 17), [TokenType.Slash] = (16, 17), [TokenType.Percent] = (16, 17),
+    };
 
-        while (Match(TokenType.OrOr))
-        {
-            var op = Previous().Lexeme;
-            var right = ParsePipeOp(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
+    /// <summary>词形运算符那条(`is` / `isnot`)的优先级 —— 和比较同级。</summary>
+    private static readonly (int Lbp, int Rbp) WordOpBp = (10, 11);
 
-        return left;
-    }
-
-    /// <summary>函数交替 |  （低于 ||，高于 &&... 嗯，| 优先级在 || 和 && 之间）</summary>
-    private Expression ParsePipeOp(bool allowCall = true)
-    {
-        var left = ParseAndBit(allowCall);
-
-        while (Match(TokenType.Pipe))
-        {
-            var op = Previous().Lexeme;
-            var right = ParseAndBit(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
-
-        return left;
-    }
-
-    /// <summary>位/逻辑 & ^</summary>
-    private Expression ParseAndBit(bool allowCall = true)
-    {
-        var left = ParseAnd(allowCall);
-
-        while (Match(TokenType.And) || Match(TokenType.Caret))
-        {
-            var op = Previous().Lexeme;
-            var right = ParseAnd(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
-
-        return left;
-    }
-
-    /// <summary>逻辑 &&</summary>
-    private Expression ParseAnd(bool allowCall = true)
-    {
-        var left = ParseComparison(allowCall);
-
-        while (Match(TokenType.AndAnd))
-        {
-            var op = Previous().Lexeme;
-            var right = ParseComparison(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
-
-        return left;
-    }
-
-    /// <summary>比较 != == &lt; &gt; &lt;= &gt;=,类型判定 `is` / `isnot`
-    /// (`1 is int` —— 词形运算符,优先级和比较一样),以及类型之间的 `&lt;:` / `:>`
-    /// (`int &lt;: object` —— 两边都得是**类型**)</summary>
-    private Expression ParseComparison(bool allowCall = true)
-    {
-        var left = ParseShift(allowCall);
-
-        while (Match(TokenType.NotEqual) || Match(TokenType.EqualEqual) ||
-               Match(TokenType.Less) || Match(TokenType.Greater) ||
-               Match(TokenType.LessEqual) || Match(TokenType.GreaterEqual) ||
-               Match(TokenType.Subtype) || Match(TokenType.Supertype) ||
-               MatchWordOperator())
-        {
-            var op = Previous().Lexeme;
-            var right = ParseShift(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
-
-        return left;
-    }
-
-    /// <summary>移位与循环移位 `&lt;&lt;` / `&gt;&gt;` / `&lt;&lt;&lt;` / `&gt;&gt;&gt;`。
-    /// 优先级照 C 的脾气:**比加减低、比比较高** ——
-    /// `1 + 2 &lt;&lt; 3` 是 `(1 + 2) &lt;&lt; 3`,`x &lt;&lt; 1 == 4` 是 `(x &lt;&lt; 1) == 4`。
-    /// 所以它夹在 <see cref="ParseComparison"/> 和 <see cref="ParseTerm"/> 中间。</summary>
-    private Expression ParseShift(bool allowCall = true)
-    {
-        var left = ParseTerm(allowCall);
-
-        while (Match(TokenType.ShiftLeft) || Match(TokenType.ShiftRight) ||
-               Match(TokenType.RotateLeft) || Match(TokenType.RotateRight))
-        {
-            var op = Previous().Lexeme;
-            var right = ParseTerm(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
-
-        return left;
-    }
-
-    /// <summary>加减 + -</summary>
-    private Expression ParseTerm(bool allowCall = true)
-    {
-        var left = ParseFactor(allowCall);
-
-        while (Match(TokenType.Plus) || Match(TokenType.Minus))
-        {
-            var op = Previous().Lexeme;
-            var right = ParseFactor(allowCall);
-            left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
-        }
-
-        return left;
-    }
-
-    /// <summary>乘除取模 * / %</summary>
-    private Expression ParseFactor(bool allowCall = true)
+    /// <summary>优先级爬升 —— 替掉原来"一个运算符一个函数"的那八层。
+    ///
+    /// 那八层(`ParseLogic` / `ParsePipeOp` / `ParseAndBit` / `ParseAnd` / `ParseComparison` /
+    /// `ParseShift` / `ParseTerm` / `ParseFactor`)除了"认哪个运算符"之外**一模一样** ——
+    /// 加一个运算符得新开一个函数,还得在链上找准位置。现在加一个运算符就是**表里添一行**。
+    ///
+    /// 顺带把调用栈也削平了:从前一层括号要穿过八层才下到 `ParsePower`,现在只穿过一层 ——
+    /// 而这几层本来就是整个解析器里递归最深的一段。
+    ///
+    /// `allowCall` 照旧往下传 —— 实参那一趟(`allowCall: false`)爬的是**同一条链**,只是
+    /// 不吃并列的调用。这正是生成器做不到的那一件(规则不能参数化,只能把整条链抄两遍)。</summary>
+    private Expression ParseClimb(bool allowCall, int minBp)
     {
         var left = ParsePower(allowCall);
 
-        while (Match(TokenType.Star) || Match(TokenType.Slash) || Match(TokenType.Percent))
+        while (true)
         {
-            var op = Previous().Lexeme;
-            var right = ParsePower(allowCall);
+            var t = Peek();
+            int lbp, rbp;
+
+            // 词形运算符看着是标识符,只在运算符位置认(和原来 `MatchWordOperator` 同款:
+            // 后面跟 `.` 的那种是**节**,由 `IsSectionStart` 在别处拦,这里照旧不拦)。
+            if (IsWordOperator(t))
+                (lbp, rbp) = WordOpBp;
+            else if (BinOpBp.TryGetValue(t.Type, out var bp))
+                (lbp, rbp) = bp;
+            else break;
+
+            if (lbp <= minBp) break;
+
+            _pos++;
+            var op = t.Lexeme;
+            var right = ParseClimb(allowCall, rbp);
             left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
         }
 
