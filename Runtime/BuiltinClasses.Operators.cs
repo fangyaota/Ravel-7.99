@@ -317,6 +317,15 @@ internal static partial class BuiltinClasses
                 : RList<RuntimeValue>.Empty.Add(a).Add(b);
             return new ControlFunction(ControlKind.Alternate, 1, branches);
         });
+
+        // 函数组合 `>>` —— **和移位同名,但落在不同的类型上**(`8 >> 1` 还是算术右移,
+        // 走的是 `Integer` 那张表)。这和 `|` 一个路子:整数上是位或、函数上是交替。
+        //
+        // 方向**照着 `|>` 来**:`f >> g` = 先 f 后 g,于是 `x |> (f >> g)` ≡ `x |> f |> g`。
+        // 交回一个控制帧(内置运算符的体是纯 C#,拿不到解释器 —— 要调 Ravel 函数只能这么走),
+        // 语义见 `Interpreter.Control` 的 `StepThen`。
+        DefineOp(Function, ">>", (a, b) =>
+            new ControlFunction(ControlKind.Then, 1, RList<RuntimeValue>.Empty.Add(a).Add(b)));
     }
 
     /// <summary>整除的除数。不查的话 C# 会抛 DivideByZeroException,

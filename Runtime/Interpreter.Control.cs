@@ -18,6 +18,7 @@ public partial class Interpreter
             case ControlKind.ImplMake: StepImplMake(cf); break;
             case ControlKind.SeqOp: StepSeqOp(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
+            case ControlKind.Then: StepThen(cf); break;
             case ControlKind.ClassOp: StepClassOp(cf); break;
             case ControlKind.TraitOp: StepTraitOp(cf); break;
             case ControlKind.CallAssign: StepCallAssign(cf); break;
@@ -505,6 +506,24 @@ public partial class Interpreter
     }
 
     /// <summary>prepend/append 合成:先跑块再调原函数,或先调原函数再跑块</summary>
+    /// <summary>`f >> g`(函数组合):先把实参喂给 f,再把**它的结果**喂给 g。
+    ///
+    /// 形状照着 <see cref="StepCompose"/> 抄 —— 那条是"调它之前/之后插一块代码",
+    /// 这条是"调完它接着调另一个函数",都是**两步调用**。
+    ///
+    /// **收一个实参**(和 `|` 的交替一样):组合出来的一元函数。
+    /// 多参的先部分应用一手(`(+ 1)` 已经是一元的)—— 元数不是一个能静态知道的东西
+    /// (Ravel 的函数都是柯里化的一元嵌套),所以不猜。</summary>
+    private void StepThen(ControlFrame cf)
+    {
+        var f = cf.Arg<RuntimeValue>(0, ">>");
+        var g = cf.Arg<RuntimeValue>(1, ">>");
+        var arg = cf.Arg<RuntimeValue>(2, ">>");
+        if (cf.Count == 0) { CallInto(cf, f, arg); return; }
+        if (cf.Count == 1) { CallInto(cf, g, cf.Result(0)); return; }
+        Return(cf, cf.Result(1));
+    }
+
     private void StepCompose(ControlFrame cf)
     {
         var original = cf.Arg<RuntimeValue>(0, "Compose");
