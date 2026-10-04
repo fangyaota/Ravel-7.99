@@ -9,10 +9,13 @@ using Ravel.Runtime;
 /// a ?? b    →   NilOr (() => { a; }) (() => { b; })
 /// x ??= v   →   NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })
 /// x++       →   x += 1                            (-- 是 -=)
+/// do { … }  →   Bind 链（DoExpr 折完就没）
 /// </code>
 ///
 /// **能放这儿的判据:"未脱糖的形状在 AST 里装得下"。** `BinaryExpr(l, "??", r)`、
-/// `UnaryExpr("++", x)` 都装得下,`or` / `and` 更是本来就长那个样。装不下的就留在解析器里:
+/// `UnaryExpr("++", x)` 都装得下,`or` / `and` 更是本来就长那个样;`do` 本来没地方站,
+/// 给它新开了一个 `DoExpr` —— 和 `BindStatement` 一样是**活不到求值期**的节点,有先例。
+/// 真装不下的就留在解析器里:
 ///
 ///   * `?.` —— 折的是"接收者 **+ 后面整条链**",那半截是解析期接着读出来的(要占位符代入),
 ///     不是局部改写;
@@ -49,7 +52,7 @@ public sealed class Lowering
     public static Program Apply(Program p) => new Lowering(p.Source).Run(p);
 
     /// <summary>单个表达式那一路 —— 插值字符串的片段(`"${…}"`)走这条。</summary>
-    public static Expression Apply(Expression e) => new Lowering(null).Lower(e);
+    public static Expression Apply(Expression e, string? source = null) => new Lowering(source).Lower(e);
 
     private Program Run(Program p) => p with { Statements = p.Statements.Select(Statement).ToList() };
 
@@ -96,6 +99,9 @@ public sealed class Lowering
         // 折成 `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`:读一点、
         // 写一点、后备一块,三样分开交给库,「空不空」由它判。
         BinaryExpr { Op: "??=" } b => CoalesceAssign(b),
+
+        // ── `do { … }` ──
+        DoExpr d => Do(d),
 
         // ── `x++` / `x--` ──
         // 折出来的就是一条 `BinaryExpr(x, "+=", 1)`,和手写的 `x += 1` 走**同一条路**
@@ -206,6 +212,50 @@ public sealed class Lowering
         }
     }
 
+    /// <summary>`do { … }` → `Bind` 链:每遇到一条 `名字 :&lt; 表达式`,就把它**后面剩下的全部**
+    /// 包成 lambda 交给 `Bind`;普通语句搁在同一个 lambda 体里,它前面。最后一条语句
+    /// (不许是 `:<`)的值就是整块的值 —— 也就是最内层那个 lambda 体的值。
+    ///
+    /// <code>
+    /// do { x :< m1; y :< m2; Some (x + y); }
+    /// ≡  m1.Bind ((x: object) =&gt; { m2.Bind ((y: object) =&gt; { Some (x + y); }); })
+    /// </code>
+    ///
+    /// 绑定出来的变量标 `object`(最宽的那个)—— 这儿对拿到什么一无所知,而 lambda 的参数
+    /// 也只知道"有东西来了"。想要具体类型就在块里自己过一手(`n: int = x`)。
+    ///
+    /// 块里的语句**先各自降一遍**再折(`or` / `??` 那些可能就在里面),于是折出来的
+    /// 那棵树里不再有糖。</summary>
+    private Expression Do(DoExpr d)
+    {
+        var stmts = d.Statements.Select(Statement).ToList();
+
+        // 从最后一条往前折:`rest` 始终是"后面那些语句"折出来的那段
+        Expression rest = Block([stmts[^1]], d);
+        for (var i = stmts.Count - 2; i >= 0; i--)
+        {
+            if (stmts[i] is not BindStatement bind)
+            {
+                // 普通语句就搁在折好的那段前面,它于是落在同一个 lambda 体里
+                rest = Prepend(stmts[i], rest, d);
+                continue;
+            }
+
+            var lam = new LambdaExpr(new Parameter(bind.Name, Ident("object", d)), AsBlock(rest, d))
+                { Line = d.Line, Column = d.Column };
+            rest = new CallExpr(new MemberAccess(bind.Monad, "Bind") { Line = bind.Line, Column = bind.Column },
+                lam) { Line = d.Line, Column = d.Column };
+        }
+
+        return rest;
+    }
+
+    /// <summary>把一条语句搁到已经折好的那段**前面**(`do` 里那些不是 `:<` 的语句)。</summary>
+    private Expression Prepend(Statement s, Expression rest, AstNode at)
+        => rest is BlockExpr b
+            ? b with { Statements = [s, .. b.Statements] }
+            : Block([s, new ExpressionStatement(rest) { Line = rest.Line, Column = rest.Column }], at);
+
     /// <summary>`x++` → `x += 1`(`--` 是 `-=`)。目标的形状同样在解析器里查过。</summary>
     private BinaryExpr IncDec(UnaryExpr u)
         => new(Lower(u.Operand), u.Op == "++" ? "+=" : "-=",
@@ -214,15 +264,18 @@ public sealed class Lowering
 
     /// <summary>把一条表达式包成"要用才跑"的块 `() => { expr; }`。参数名是 `_`(void),
     /// 和 `() => …` 的 AST 写法一致(见 `Parser.Atoms.ParseParen`)。</summary>
-    private static LambdaExpr Thunk(Expression e, AstNode at)
+    private LambdaExpr Thunk(Expression e, AstNode at)
         => new(new Parameter("_", new IdentifierExpr("void") { Line = at.Line, Column = at.Column }), AsBlock(e, at))
             { Line = at.Line, Column = at.Column, Sugar = true };
 
     /// <summary>折出来的那段要当 lambda 的体,得是个块:已经是就原样,不是就包一层。</summary>
-    private static BlockExpr AsBlock(Expression e, AstNode at)
-        => e is BlockExpr b ? b : Block([new ExpressionStatement(e) { Line = at.Line, Column = at.Column }]);
+    private BlockExpr AsBlock(Expression e, AstNode at)
+        => e is BlockExpr b ? b : Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
 
-    private static BlockExpr Block(List<Statement> stmts) => new(stmts);
+    /// <summary>造一块。`Source` 得跟着走 —— 报错和调用栈沿帧链找的就是它
+    /// (从前在解析器里折时,用的也是解析器记的那个 `source`)。</summary>
+    private BlockExpr Block(List<Statement> stmts, AstNode at)
+        => new(stmts) { Line = at.Line, Column = at.Column, Source = _source };
 
     private static CallExpr Call(Expression f, Expression arg)
         => new(f, arg) { Line = f.Line, Column = f.Column };

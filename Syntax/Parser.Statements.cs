@@ -175,8 +175,8 @@ public partial class Parser
         => IsDefinitionOp(NextType()) || CheckNext(TokenType.Equal)
            || CheckNext(TokenType.Dot) || CheckNext(TokenType.QuestionDot);
 
-    /// <summary>这个位置是 `名字 =&lt;` 吗?只在**语句开头**问,所以别处出现 `=&lt;`
-    /// 只是个普通的语法错误("需要表达式，但得到 '=&lt;'")。</summary>
+    /// <summary>这个位置是 `名字 :&lt;` 吗?只在**语句开头**问,所以别处出现 `:<`
+    /// 只是个普通的语法错误("需要表达式，但得到 '&lt;'")。</summary>
     private bool IsBindStart() => Check(TokenType.Identifier) && CheckNext(TokenType.BindArrow);
 
     private Statement ParseStatement()

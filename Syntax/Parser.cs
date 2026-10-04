@@ -84,8 +84,9 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
                 t.Line == 1 ? t.Column + col - 1 : t.Column, t.Length) { Parts = t.Parts };
         }
 
-        // 片段也要过脱糖那趟:插值里写 `(${a or b})` 一样得折成谓词
-        return Lowering.Apply(new Parser(toks, file).ParseExpression());
+        // 片段也要过脱糖那趟:插值里写 `(${a or b})` 一样得折成谓词。
+        // 文件名传进去 —— 折出来的块得带上它,报错和调用栈要沿帧链找。
+        return Lowering.Apply(new Parser(toks, file).ParseExpression(), file);
     }
 
     /// <summary>把整份源码读成一棵树。

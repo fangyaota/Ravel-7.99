@@ -32,6 +32,11 @@ public partial class Parser
         // 「无法求值的节点类型: HoleExpr」(`_ ?? 1` 就是这么坏的)。
         // 用户写的 lambda 照旧是边界,一个都不钻。
         LambdaExpr { Sugar: true } l when l.Body.Statements is [ExpressionStatement es] => [es.Expr],
+        // **叶子**(`do` 块):里面**每条语句各自已经消过洞了** —— 它们都是走 `ParseStatement`
+        // 读的,那一条末尾就带消糖。所以这儿的答案恒为"没有洞",不必也不能钻进去
+        // (硬钻的话外层那趟会把内层的洞再收一遍,编号和参数全对不上)。
+        // 摆成一条显式分支而不是落进 `_ => []`,是**故意让下一个人看见**这条规矩。
+        DoExpr => [],
         _ => [],
     };
 

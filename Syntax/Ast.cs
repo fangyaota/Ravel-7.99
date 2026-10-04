@@ -70,13 +70,24 @@ public record Assignment(string Name, Expression Value) : Statement;
 public record SlotAssign(Expression Path, Expression Value, bool Define = false) : Statement;
 public record ExpressionStatement(Expression Expr) : Statement;
 
-/// <summary>`名字 =&lt; 表达式`:do 块里的"从这个 Monad 里取值"。
+/// <summary>`名字 :&lt; 表达式`:do 块里的"从这个 Monad 里取值"。
 ///
 /// **只在 `do { … }` 里认**(解析器按 do 的深度放行),而且它不活到求值期 ——
-/// `ParseDo` 把整个块折成一串 `Bind` 之后就没它的事了。单独执行它没有语义:
+/// `Lowering` 把整个块折成一串 `Bind` 之后就没它的事了。单独执行它没有语义:
 /// 值取出来给谁、后面那些语句跑不跑,全看它在链上的位置。
 /// (所以 `AstPrinter` 里没有它的分支:打印函数时看到的是**脱糖后**的 Bind 链。)</summary>
 public record BindStatement(string Name, Expression Monad) : Statement;
+
+/// <summary>`do { … }` —— 一串"从 Monad 里取值"的语句(`名字 :&lt; 表达式`)。
+///
+/// **它活不过 `Lowering`**:那一趟把整个块折成 `Bind` 链
+/// (`m1.Bind ((x: object) => { m2.Bind (…) })`),所以求值器、`AstPrinter` 都见不到它
+/// —— 和 <see cref="BindStatement"/> 一个性质,只是那个要更早一点(它在同一趟里被吃掉)。
+///
+/// 为什么不照老样子让**解析器当场折**:那一段(从最后一条往前,一条条包 lambda)
+/// 造的是**意思**,不是语法 —— 和 `or` / `and` 是同一个病。解析器只管把这个块读出来,
+/// 折法归 `Syntax/Lowering.cs`。</summary>
+public record DoExpr(List<Statement> Statements) : Expression;
 
 // --- 表达式 ---
 public abstract record Expression : AstNode;

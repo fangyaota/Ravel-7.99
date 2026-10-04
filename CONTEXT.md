@@ -156,15 +156,18 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
     Parser.Expressions.cs       优先级**爬升**(纯二元全在 `BinOpBp` 那张表里;
                                 赋值 / `??` / `**` / `<|` 各有各的层,见下;
                                 `or` / `and` 是**词形运算符**,按词认,见 `WordOpBp`)
-    Parser.Atoms.cs             基本单元 + 括号/块/集合/字典 + `do { … }` 折成 Bind 链
+    Parser.Atoms.cs             基本单元 + 括号/块/集合/字典 + `do { … }`(只读成 `DoExpr`,
+                                折 Bind 链归 Lowering)
     Parser.Holes.cs             `_` 占位符消糖那趟 AST 改写
                                 `do` 是**纯语法糖**:解析期就地折成 `m.Bind (…)`,
                                 运行时不为它添任何东西(`BindStatement` 活不到求值期)
-  Lowering.cs                   **解析之后**那一趟降阶(脱糖)。四条:谓词级的 `or` / `and`
+  Lowering.cs                   **解析之后**那一趟降阶(脱糖)。五条:谓词级的 `or` / `and`
                                 → `(x) => { (f x) || (g x); }`;`??` → `NilOr` 两个 thunk;
-                                `??=` → `NilFill` 那三块;`x++` / `x--` → `x += 1` / `x -= 1`。
-                                能放这儿的判据是**"未脱糖的形状在 AST 里装得下"**:
-                                `BinaryExpr(l,"??",r)` / `UnaryExpr("++",x)` 都装得下。
+                                `??=` → `NilFill` 那三块;`x++` / `x--` → `x += 1` / `x -= 1`;
+                                `do { … }` → `Bind` 链(`DoExpr` / `BindStatement` 都活不过这一趟)。
+                                判据是**"未脱糖的形状在 AST 里装得下"**:`BinaryExpr(l,"??",r)` /
+                                `UnaryExpr("++",x)` 装得下,`do` 给它新开了一个 `DoExpr`
+                                (和 `BindStatement` 一样是"活不到求值期"的节点,有先例)。
                                 `?.` / `_` / `break` / `return` / 多参 lambda 装不下(见下),
                                 就留在解析器里。入口挂在 `Parser.Parse` / `ParseExpression`
                                 上(唯一出口)。将来模式匹配 / 解构也放这儿。
@@ -1799,7 +1802,7 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
 所以 `ParseParen` 在括号内就地收口。）
 
 消糖那趟把 **lambda / 块当闭包边界**：里面的 `_` 归内层，不往外收。**唯一钻进去的是
-语法糖生成的那些 lambda**（`LambdaExpr.Sugar`，`.?` / `??` / `??=` 脱糖时那几枚）——
+语法糖生成的那些 lambda**（`LambdaExpr.Sugar`，**解析期**那些糖造的 —— `?.` 和守卫）——
 它们只是把表达式挪个地方，不引入自己的 `_` 作用域，所以 `_ ?? 1` 里那个 `_` 照旧是
 外层语句的洞（不钻的话会一路带到求值器报「无法求值的节点类型: HoleExpr」）。
 
