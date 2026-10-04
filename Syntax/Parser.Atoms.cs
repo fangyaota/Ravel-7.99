@@ -233,7 +233,8 @@ public partial class Parser
     private BlockExpr ParseUserLambdaBody(string what, Token at)
     {
         _returnUsed.Add(false);
-        var body = ParseMandatoryBlock(what);
+        // `=>` 后面见 `{` 就走老路(块 / 集合那条判据);别的都是**单行简写**。
+        var body = Check(TokenType.LeftBrace) ? ParseMandatoryBlock(what) : ParseShorthandBody(at);
         var used = _returnUsed[^1];
         _returnUsed.RemoveAt(_returnUsed.Count - 1);
         if (!used) return body;
@@ -470,12 +471,34 @@ public partial class Parser
     /// 它才是「这是块」的标记。这条规则对 lambda 体同样成立:`=> { x }` 是错的,
     /// `=> { x; }` 才对。(曾经去掉过这里的检查,以为 `=>` 后面块是强制的、
     /// 没有歧义——语言规则不该按解析器好不好写来定。)</summary>
+    /// <summary>**单行 lambda 的简写**:`(x: int) => x + 1` —— 体就是**一条表达式语句**,
+    /// 交回的值就是那个表达式的值(块的值也 = 最后一条语句的值,两边一脉相承)。
+    ///
+    /// 和 `{ … }` 那条的分岔**只有一个:`=>` 后面见不见 `{`**:
+    ///   * `(x) => { x; }` 照旧是"体是一块"(老写法,一个字没变);
+    ///   * `(x) => { x }` 照旧报「lambda 体需要代码块」—— 单行花括号是**集合**,不是简写。
+    ///     **这个糖交不回一个块**,那是它的边界(也就没有"简写里再写语句"这回事)。
+    ///
+    /// 想交回集合/字典,用括号把它跟 `=>` 隔开:`() => ({1 2 3})` / `() => ({"a" -> 1})`。
+    ///
+    /// 体到哪儿为止交给 <see cref="ParseExpression"/> —— 和语句那条路一个口径
+    /// (换行 / 收尾符为止)。所以 `f := (x) => x + 1` 读到行尾,
+    /// 而 `xs.Map ((x) => x * 2)` 读到那个 `)`。</summary>
+    private BlockExpr ParseShorthandBody(Token at)
+    {
+        _holeCount = 0;
+        var e = ParseExpression();
+        if (HasHoles(e)) e = DesugarHoles(e);
+        return Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
+    }
+
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
         Consume(TokenType.LeftBrace, $"{context}需要 '{{' 开头");
         if (!HasNewlineBeforeClose(TokenType.RightBrace))
-            throw ParseError($"{context}需要代码块（单行要用 ';' 收尾，多行要换行）");
+            throw ParseError($"{context}需要代码块（单行要用 ';' 收尾，多行要换行）"
+                           + "——只想交回一个值就直接写 `(x) => 表达式`，不用花括号");
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }

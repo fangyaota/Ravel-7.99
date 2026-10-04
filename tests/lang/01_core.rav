@@ -98,7 +98,8 @@ print ({ 1 2 })
 ravel ""
 
 # ═══ 190_lambda_body_needs_semicolon(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "# `=> { x }` 是错的,`=> { x; }` 才对\n# 单行块靠 `;`(= Newline token)和集合/字典区分开,这条规则不看位置。\nx := 1\nf := () => { x }"; } (e: Exception) => { print ("190_lambda_body_needs_semicolon: " + string e); }
+try { eval "# `=> { x }` 是错的,`=> { x; }` 才对\n# 单行块靠 `;`(= Newline token)和集合/字典区分开,这条规则不看位置。
+# (只想交回一个值就直接写 `() => x` —— 那是另一条路,不经过这里)\nx := 1\nf := () => { x }"; } (e: Exception) => { print ("190_lambda_body_needs_semicolon: " + string e); }
 
 # ═══ 192_no_class_type(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
 try { eval "# System 模块里不再有 Class 这个名字 —— 它作为类型已经删掉了,class 只是 type 的别名\nprint (System.Class)"; } (e: Exception) => { print ("192_no_class_type: " + string e); }
@@ -304,7 +305,7 @@ ravel ""
 # 42
 # hi
 # {1 2}
-# 190_lambda_body_needs_semicolon: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）
+# 190_lambda_body_needs_semicolon: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号
 # 192_no_class_type: 模块 'System' 没有方法 'Class'
 # 3
 # 1
