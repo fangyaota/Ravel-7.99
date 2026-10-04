@@ -21,6 +21,9 @@
 
   <ItemGroup>
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
+    <!-- 命令行的骨架(见 `Cli/Program.cs`)。和上面那件**同版本** —— 它们本来就是一套,
+         版本错开会拖来两份 Spectre.Console。 -->
+    <PackageReference Include="Spectre.Console.Cli" Version="0.57.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <!-- GBK / Big5 那批老编码:`Encoding.GetEncoding("gbk")` 要 `CodePagesEncodingProvider`
          注册过才认(注册那一下在 `SysNet` 的静态构造里)。中文网页常见,不注册的话

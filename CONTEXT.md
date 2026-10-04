@@ -22,7 +22,14 @@ dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
 dotnet out/ravel.dll path/file.rav      # 单文件
 dotnet out/ravel.dll path/file.rav a b  # 脚本名之后那些进 System.Args ();见「System 模块」
 dotnet out/ravel.dll                    # REPL
+dotnet out/ravel.dll --help             # 用法、每个模式的开关(和 `--version`)是白送的
 ```
+
+**命令行怎么切**:`ravel` 自己认的开关只到**脚本名为止** —— 它之后的一个字不动,原样进
+`System.Args ()`。所以 `ravel --warn x.rav --warn` 里**前一个**是给解释器的、**后一个**是给脚本的。
+`test` / `strip` 是子命令,不是脚本,没有这一刀(它们后面全是自己的实参)。
+骨架上 `Spectre.Console.Cli`(见 `Cli/Program.cs`),但这一刀是手切的:框架在**整行**认开关,
+不认识的还会静默吞掉 —— 不切的话 `ravel x.rav --foo` 里那 `--foo` 就没了。
 
 **退出码**:测试用例有 FAIL、脚本报错、解释器自己有 bug —— 三种都是 1
 (报错那条本来就打一行 `Error:`;说没说话和退出码走同一条线,所以 `Test.Report ()`
@@ -161,8 +168,14 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
                                 再词一遍,和原文的 token 逐个比(种类/文本/**列**/跨度;
                                 行不比 —— 空行收掉了,行号本来就往前挪,列才是不动的那个)
 Cli/                            **引擎外面那个程序**:三种跑法 + 测试运行器
-  Program.cs                    CLI 入口(REPL / test / 单文件 / strip);`RunRepl` 就两行 ——
-                                `using "repl.rav"` + `Repl.Run ()`,REPL 本体在库里
+  Program.cs                    CLI 入口(REPL / test / 单文件 / strip)。骨架是
+                                `Spectre.Console.Cli` 的 `CommandApp`(照老 Ravel 那份
+                                `Program.cs`):一个模式一个 `Command` 类,`--help` /
+                                `--version` / 用法 / 开关说明全是声明式的。**但命令行得自己
+                                切一刀** —— 脚本名之后的一个字不动(`System.Args ()`),
+                                框架会在整行认开关,所以 `Split` 先把后半段摘出来;见那儿。
+                                `RunRepl` 就两行 —— `using "repl.rav"` + `Repl.Run ()`,
+                                REPL 本体在库里
   Strip.cs                      `ravel strip <文件或目录>` —— 就地剥注释(发布时用),
                                 **不进解释器**:这是源码加工,不跑代码
   Testing/GoldenTestRunner.cs   golden test 运行器(解析/执行/比对/汇报)
