@@ -256,6 +256,11 @@ public partial class Parser
             attrs.Add(kw);
         }
 
+        // **解构定义**:`[x _ z ..rest] : T = e` / `{x y z} : U = e`。
+        // 摆在修饰符那一段之后、`by` 那几条之前 —— `private [x y] : T = e` 也走这儿。
+        if (LooksLikePatternDestructure())
+            return ParseDestructure(attrs);
+
         if (attrs.Count > 0)
         {
             // `by a = X` / `by a.x = X`:换掉槽里的那份 property(见 SlotAssign)。
@@ -418,6 +423,137 @@ public partial class Parser
 
         SkipNewlines();
         return new ExpressionStatement(inc) { Line = inc.Line, Column = inc.Column };
+    }
+
+    /// <summary>语句开头这一格是不是**解构定义**:`[…]` / `{…}` 配对之后跟着 `:=`,
+    /// 或者 `: 类型 =`。
+    ///
+    /// **必须是只看 token 的前瞻,不能"先试着解析一遍、不成再退"** —— 那就是
+    /// `((((…))))` 那类指数(见 `Parser.Atoms` 里那条注释):`[` / `{` 每一层都会翻一倍。
+    /// 这儿只配对括号 + 看一眼后面跟什么,一层的代价是 O(那一格的长度)。
+    ///
+    /// 判据里**要求有个 `=`**(`: T` 后面那个也算)是故意的:`[1 2] : List` 是一条
+    /// 普通的类型判断语句,不能被当成"空注解的解构"。注解可省,但省了就得写 `:=`。</summary>
+    private bool LooksLikePatternDestructure()
+    {
+        if (Peek().Type is not (TokenType.LeftBracket or TokenType.LeftBrace)) return false;
+
+        var off = SkipBalanced(0);
+        if (off < 0) return false;                          // 括号没闭上
+        if (TypeAt(off) == TokenType.ColonEqual) return true;
+
+        if (TypeAt(off) != TokenType.Colon) return false;
+        var after = SkipTypeAnnotation(off + 1);
+        return after >= 0 && TypeAt(after) == TokenType.Equal;
+    }
+
+    /// <summary>从 off 那一格的 `[` / `{` 跳到配对的收尾符后面那一格;配不上给 -1。
+    /// 三种括号**一起数** —— `[{a b}]` 这样的嵌套也要配对得对。</summary>
+    private int SkipBalanced(int off)
+    {
+        var depth = 0;
+        while (true)
+        {
+            switch (TypeAt(off))
+            {
+                case TokenType.EndOfFile: return -1;
+                case TokenType.LeftParen:
+                case TokenType.LeftBracket:
+                case TokenType.LeftBrace:
+                    depth++;
+                    break;
+                case TokenType.RightParen:
+                case TokenType.RightBracket:
+                case TokenType.RightBrace:
+                    if (--depth == 0) return off + 1;
+                    break;
+            }
+            off++;
+        }
+    }
+
+    /// <summary>`[x _ z ..rest] : T = e` / `{x y z} : U = e`。
+    ///
+    /// 解析器只把这个形状读出来(一枚 <see cref="Destructure"/>)—— **怎么拆是
+    /// `Lowering.Destructure` 的事**(和 `do` / `??` 一个规矩:造意思的活儿不留在这一层)。</summary>
+    private Statement ParseDestructure(List<string> attrs)
+    {
+        var at = Peek();
+
+        // `by` 是"换掉一份槽",解构拆出来的是一串**新名字** —— 两件事凑不到一起,
+        // 混着写会在别处报一句看不懂的。这儿说清。
+        if (attrs.Contains(Attr.By))
+            throw ParseError("解构定义不能用 'by' —— 它拆出来的是一串新名字，不是槽");
+
+        var pattern = ParsePattern();
+
+        Expression? type = null;
+        if (Match(TokenType.Colon)) type = ParseTypeAnnotation();
+
+        if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
+            throw ParseError("解构定义需要 '=' 或 ':='（`[x y] : T = e` / `[x y] := e`）");
+
+        _holeCount = 0;
+        var value = ParseExpression();
+        SkipNewlines();
+        if (HasHoles(value)) value = DesugarHoles(value);
+
+        return new Destructure(attrs, pattern, type, value) { Line = at.Line, Column = at.Column };
+    }
+
+    /// <summary>读一格模式。四种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}`。</summary>
+    private Pattern ParsePattern()
+    {
+        var at = Peek();
+
+        if (Match(TokenType.LeftBracket))
+        {
+            var parts = new List<Pattern>();
+            while (!Check(TokenType.RightBracket) && !IsAtEnd())
+            {
+                parts.Add(ParsePattern());
+                SkipNewlines();
+            }
+            Consume(TokenType.RightBracket, "列表模式末尾需要 ']'");
+            if (parts.Count == 0) throw ParseError("列表模式里得有一格（`[]` 没东西可解）");
+            EnsureRestIsLast(parts);
+            return new ListPattern(parts) { Line = at.Line, Column = at.Column };
+        }
+
+        if (Match(TokenType.LeftBrace))
+        {
+            var names = new List<string>();
+            while (!Check(TokenType.RightBrace) && !IsAtEnd())
+            {
+                var n = Consume(TokenType.Identifier, "对象模式里要写成员名（`{x y}`）");
+                if (n.Lexeme == "_") throw ParseError("对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行");
+                names.Add(n.Lexeme);
+                SkipNewlines();
+            }
+            Consume(TokenType.RightBrace, "对象模式末尾需要 '}'");
+            if (names.Count == 0) throw ParseError("对象模式里得写成员名（`{x y}`）");
+            return new MemberPattern(names) { Line = at.Line, Column = at.Column };
+        }
+
+        if (Match(TokenType.DotDot))
+        {
+            var n = Consume(TokenType.Identifier, "'..' 后面要跟个名字（`..rest`）");
+            return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
+        }
+
+        var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、还是 `..名字`");
+        if (name.Lexeme == "_") return new SkipPattern { Line = at.Line, Column = at.Column };
+        return new NamePattern(name.Lexeme) { Line = at.Line, Column = at.Column };
+    }
+
+    /// <summary>`..rest` 只能写最后一项 —— 它把后面都吃了,写在中间后面的格子永远取不到
+    /// (静默地永远不跑,正是这门语言最恨的那种)。</summary>
+    private void EnsureRestIsLast(List<Pattern> parts)
+    {
+        for (var i = 0; i < parts.Count - 1; i++)
+            if (parts[i] is RestPattern)
+                throw new SyntaxException("'..rest' 只能写在模式的最后一项 —— 它把后面都吃了",
+                    new SourceSpot(source, parts[i].Line, parts[i].Column));
     }
 
     /// <summary>`.` 后面那一段:普通成员名,或运算符符号(`2.+` / `"a".==`)</summary>

@@ -79,6 +79,78 @@ d.Has "a"          # true
 
 **dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` / `Remove k` / `Keys ()` / `Values ()`。
 
+## 6.4.1 解构：一次绑好几个名字
+
+右边是什么形状，左边就照着写，一次把名字全绑出来：
+
+```ravel
+[x y] := [10 20]
+print (x + y)
+
+[ka _ kc ..krest] := [1 2 3 4 5]
+print ka
+print kc
+print (krest.ToList ())
+```
+
+执行以上程序会输出如下结果：
+
+```
+30
+1
+3
+[4 5]
+```
+
+`[… ]` 按**位置**取，`{…}` 从对象上取**同名成员**：
+
+```ravel
+Point ::= class { px: int = 0; py: int = 0 }
+p := Point ()
+p.px = 3
+p.py = 4
+{px py} := p
+print (px + py)
+```
+
+执行以上程序会输出如下结果：
+
+```
+7
+```
+
+两边能嵌套，凡是能 `foreach` 的都能解（list / set / dict / 字符串 / `Generator` / Option 都行）：
+
+```ravel
+[v0 v1 ..tail] := "abcdef"
+print v0
+print ((tail.ToList ()).Join "")
+
+[[m n] [q]] := [[1 2] [3]]
+print (m + n + q)
+```
+
+执行以上程序会输出如下结果：
+
+```
+a
+cdef
+6
+```
+
+三条和别处**不一样**的：
+
+- **落点是「定义」** —— `[x y] := e` 绑的是**新名字**。光一个 `=`（`[x y] = e`）**不认**：
+  那和 `x = v`（赋值给已经有的变量）撞，得自己说清是哪一个。注解可省，写法跟着
+  `x : T = v` 走：`[x y] : list = e`。
+- **`_` 在这儿是「跳过」**，不是 5.3 那个占位符洞；而且**跳过 ≠ 不取**，游标照样走一格。
+  `..rest` 把剩下的全给它（一个 `IEnumerable`），只能写最后一项。
+- **注解管的是右边那个值**（当场验）；前缀修饰符跟着**每个**拆出来的名字走 ——
+  `private [a b] := e` 写在类体里就是两个私有成员。
+
+右边那个值**只求一次**（`{a b} := f ()` 不会把 `f` 跑两遍）。序列比模式短会报越界
+（`list.At 的索引 2 越界`），不静默给 `None`。
+
 ## 6.5 集合的相等性是「同一个对象」
 
 `int` / `string` / `bool` / `float` / `bigint` / `fraction` 比的是**值本身**，所以 `{1 2 2}` 只有 2 个元素。但 `list` / `set` / `dict` 比的是**身份**。

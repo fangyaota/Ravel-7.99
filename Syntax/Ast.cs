@@ -89,6 +89,47 @@ public record BindStatement(string Name, Expression Monad) : Statement;
 /// 折法归 `Syntax/Lowering.cs`。</summary>
 public record DoExpr(List<Statement> Statements) : Expression;
 
+/// <summary>一条**解构定义**:`[x _ z ..rest] : T = e` / `{x y z} : U = e`。
+///
+/// **它活不过 `Lowering`** —— 那一趟按 <see cref="Pattern"/> 拆成一串普通的 `:=`
+/// (见 `Lowering.Destructure`)。所以求值器和 `AstPrinter` 都见不到它
+/// (和 <see cref="DoExpr"/> 一个待遇)。
+///
+/// `Attrs` 是前面那圈修饰符(`private` / `readonly` …),**每个拆出来的绑定都带一份**
+/// —— `private [x y] : T = e` 拆出来的是两个私有成员。
+/// `TypeAnnotation` 管的是**右边那个值**(和 `x : T = v` 一个意思),可省。</summary>
+public record Destructure(List<string> Attrs, Pattern Pattern, Expression? TypeAnnotation, Expression Value) : Statement
+{
+    /// <summary>有没有写修饰符(拆的中间量要不要跟着带一份)。</summary>
+    public bool HasAttrs => Attrs.Count > 0;
+}
+
+/// <summary>解构模式的**一格**。纯语法,没有求值语义 —— 只活在 `Destructure` 里。</summary>
+public abstract record Pattern
+{
+    public int Line { get; init; }
+    public int Column { get; init; }
+}
+
+/// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
+public record NamePattern(string Name) : Pattern;
+
+/// <summary>`_` —— **跳过**这一格。不绑东西,但游标**照走**(跳过 ≠ 不取)。
+///
+/// 和别处的 `_`(占位符洞,`HoleExpr`)**不是一回事**:那个要交给 `Parser.Holes` 收成
+/// lambda 参数,这个在解析模式时就被吃掉,一辈子到不了 `HasHoles`。</summary>
+public record SkipPattern : Pattern;
+
+/// <summary>`..rest` —— 剩下的全给它(一个 `IEnumerable`)。**只能写最后一项**
+/// (它把后面都吃了,写在中间没有意义)。</summary>
+public record RestPattern(string Name) : Pattern;
+
+/// <summary>`[p0 p1 …]` —— **按位置**取:挨个 `MoveNext` + `Current`。</summary>
+public record ListPattern(List<Pattern> Parts) : Pattern;
+
+/// <summary>`{x y z}` —— 从**对象**上取同名成员(`x := obj.x`)。</summary>
+public record MemberPattern(List<string> Names) : Pattern;
+
 // --- 表达式 ---
 public abstract record Expression : AstNode;
 

@@ -54,7 +54,14 @@ public sealed class Lowering
     /// <summary>单个表达式那一路 —— 插值字符串的片段(`"${…}"`)走这条。</summary>
     public static Expression Apply(Expression e, string? source = null) => new Lowering(source).Lower(e);
 
-    private Program Run(Program p) => p with { Statements = p.Statements.Select(Statement).ToList() };
+    private Program Run(Program p) => p with { Statements = Stmts(p.Statements) };
+
+    /// <summary>降一串语句。**一进一出的那些直接过 `Statement`;只有解构那条会一条变好几条**
+    /// (所以这儿是 `SelectMany`,不是 `Select`)。</summary>
+    private List<Statement> Stmts(List<Statement> xs) => xs.SelectMany(Expand).ToList();
+
+    private IEnumerable<Statement> Expand(Statement s)
+        => s is Destructure d ? Unpack(d) : [Statement(s)];
 
     // ========================================
     //  语句
@@ -130,7 +137,7 @@ public sealed class Lowering
             Param = l.Param with { Type = Lower(l.Param.Type) },
             Body = (BlockExpr)Lower(l.Body),
         },
-        BlockExpr bl => bl with { Statements = bl.Statements.Select(Statement).ToList() },
+        BlockExpr bl => bl with { Statements = Stmts(bl.Statements) },
 
         // ── 叶子:没有能装表达式的格子 ──
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr
@@ -255,6 +262,134 @@ public sealed class Lowering
         => rest is BlockExpr b
             ? b with { Statements = [s, .. b.Statements] }
             : Block([s, new ExpressionStatement(rest) { Line = rest.Line, Column = rest.Column }], at);
+
+    /// <summary>解构:按模式把右边那个值拆成一串普通的 `:=`。
+    ///
+    /// <code>
+    /// [x _ z ..rest] : T = e
+    /// ≡  __d0 : T = e                     ← 有注解、或对象模式,才落地(见下)
+    ///    __g0 := __d0.GetEnumerator ()
+    ///    __g0.MoveNext ()   x := __g0.Current
+    ///    __g0.MoveNext ()                 ← `_` 也要走一步:跳过 ≠ 不取
+    ///    __g0.MoveNext ()   z := __g0.Current
+    ///    rest := Generator (y: function) => { while { __g0.MoveNext (); } { y (__g0.Current); } }
+    ///
+    /// {x y z} : U = e
+    /// ≡  __d0 : U = e ; x := __d0.x ; y := __d0.y ; z := __d0.z
+    /// </code>
+    ///
+    /// **游标顺序照 `lib/iterator.rav` 那条**:`GetEnumerator` → **先 `MoveNext`** → 再 `Current`
+    /// (`foreach` 就是这个白描,`Take` 自己控 `MoveNext` 时也是这个次序)。`..rest` 交回的
+    /// 是"从这儿往后的那一串"—— 拿同一枚游标包一个 `Generator`,所以它和游标一样是**一次性的**。
+    ///
+    /// **中间量什么时候落地**(`__d{n}`):写了 `: T` 就一定落 —— 那条注解管的是**右边那个值**,
+    /// 得有地方挂它;对象模式一个值要取好几个成员,不落地的话 `{x y} := f ()` 会把 `f` 跑两遍
+    /// (`??=` 的成员那条同理,见 `CoalesceAssign`)。列表模式取一次就够(`.GetEnumerator ()`),
+    /// 右边本来就是现成的名字时也不落。
+    ///
+    /// `Attrs`(修饰符)跟着每一个拆出来的定义走 —— 包括中间量:`private [x y] : T = e` 在类体里
+    /// 拆出来的是两个私有成员,那两个中间量也不该露出去。</summary>
+    private List<Statement> Unpack(Destructure d)
+    {
+        var outs = new List<Statement>();
+        List<string>? attrs = d.HasAttrs ? d.Attrs : null;
+        var value = Lower(d.Value);
+        var type = d.TypeAnnotation is null ? null : Lower(d.TypeAnnotation);
+
+        var needTemp = type is not null || (d.Pattern is MemberPattern && value is not IdentifierExpr);
+        var source = value;
+        if (needTemp)
+        {
+            var t = Fresh("__d");
+            outs.Add(Define(t, type, value, attrs, d));
+            source = Ident(t, d);
+        }
+
+        Bind(d.Pattern, source, attrs, outs, d);
+        return outs;
+    }
+
+    /// <summary>按模式往 <paramref name="outs"/> 里补语句。嵌套的那几格递归进来。</summary>
+    private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs, Destructure at)
+    {
+        switch (p)
+        {
+            case NamePattern n:
+                outs.Add(Define(n.Name, null, source, attrs, at));
+                return;
+
+            case RestPattern r:
+                // 剩下的 = 同一枚游标继续走到底。包成 `Generator` 才是个 `IEnumerable`
+                // (`y` 是"往外送一个"的那个函数,和 `lib/generator.rav` 里各处一个写法)。
+                var y = Fresh("__y");
+                var yid = Ident(y, at);
+                var drain = Call(Ident("while", at),
+                    Block([ExprStmt(Call0(Member(source, "MoveNext")), at)], at));
+                drain = Call(drain, Block([ExprStmt(Call(yid, Member(source, "Current")), at)], at));
+                var gen = new LambdaExpr(new Parameter(y, Ident("function", at)), AsBlock(drain, at))
+                    { Line = at.Line, Column = at.Column, Sugar = true };
+                outs.Add(Define(r.Name, null, Call(Ident("Generator", at), gen), attrs, at));
+                return;
+
+            case MemberPattern m:
+                foreach (var name in m.Names)
+                    outs.Add(Define(name, null, Member(source, name), attrs, at));
+                return;
+
+            case ListPattern l:
+            {
+                var g = Fresh("__g");
+                var gid = Ident(g, at);
+                outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), attrs, at));
+
+                foreach (var part in l.Parts)
+                {
+                    if (part is RestPattern) { Bind(part, gid, attrs, outs, at); continue; }
+
+                    // **先走一步再取** —— 游标站在"还没读的那个"前面(见 `lib/iterator.rav`)
+                    outs.Add(ExprStmt(Call0(Member(gid, "MoveNext")), at));
+
+                    switch (part)
+                    {
+                        case SkipPattern:
+                            break;                       // 走了这一步就是"跳过",没有别的
+                        case NamePattern n:
+                            outs.Add(Define(n.Name, null, Member(gid, "Current"), attrs, at));
+                            break;
+                        default:
+                        {
+                            // 嵌套:先落到一个中间量上,再拿它当下一次解构的源
+                            var t = Fresh("__d");
+                            outs.Add(Define(t, null, Member(gid, "Current"), attrs, at));
+                            Bind(part, Ident(t, at), attrs, outs, at);
+                            break;
+                        }
+                    }
+                }
+
+                return;
+            }
+        }
+
+        throw Error(at, "Lowering 没认这个模式");
+    }
+
+    // ── 造节点的几个小帮手(解构这摊用得多,单拎出来)──
+
+    private string Fresh(string prefix) => prefix + _born++;
+
+    private MemberAccess Member(Expression obj, string name)
+        => new(obj, name) { Line = obj.Line, Column = obj.Column };
+
+    /// <summary>零参调用:`x.MoveNext ()` —— 实参是 `()`(Void)。</summary>
+    private static CallExpr Call0(Expression f)
+        => Call(f, new VoidLiteral { Line = f.Line, Column = f.Column });
+
+    private static Statement Define(string name, Expression? type, Expression value, List<string>? attrs, AstNode at)
+        => new VarDefinition(name, type, value, attrs) { Line = at.Line, Column = at.Column };
+
+    private static Statement ExprStmt(Expression e, AstNode at)
+        => new ExpressionStatement(e) { Line = at.Line, Column = at.Column };
 
     /// <summary>`x++` → `x += 1`(`--` 是 `-=`)。目标的形状同样在解析器里查过。</summary>
     private BinaryExpr IncDec(UnaryExpr u)
