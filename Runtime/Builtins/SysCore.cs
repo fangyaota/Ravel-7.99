@@ -65,6 +65,13 @@ internal static class SysCore
         return VoidVal.Instance;
     }
 
+    /// <summary>`|` 的交替里"这一支不收这个参数" —— 抛一枚 <see cref="RejectedException"/>。
+    /// 参数守卫是解析器生成的调用打到这儿;手写也可以用(`reject "…"`)。
+    /// **`try` 接不住它**(拒收是控制流,不是错误),只有交替接。</summary>
+    [Sys("Reject")]
+    public static RuntimeValue Reject(Interpreter self, RuntimeValue msg)
+        => throw new RejectedException(BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
+
     /// <summary>库在"没人接"时调它 —— 把引擎这次交出去的那个异常**原样**抛出</summary>
     [Sys("Unhandled")]
     public static RuntimeValue HandBack(Interpreter self, RuntimeValue e) => self.Unhandled(e);

@@ -104,6 +104,16 @@ public class RuntimeException(string message, ErrorKind kind = ErrorKind.Error) 
 /// (交给用户看的只有没被任何分支/`try` 接住的那些)。</summary>
 public sealed class TypeMismatchException(string message) : RuntimeException(message, ErrorKind.Type);
 
+/// <summary>`|` 的交替里**"这一支不收这个参数"** —— 参数守卫(`System.Reject`)抛的就是它。
+///
+/// 和 `TypeMismatchException`(参数**类型**对不上,在 `CallInto` 里同步抛)是**同一个意思**,
+/// 交替一视同仁;差别只在来的路:那枚是静态的、同步的,这枚从**体里**来、是异步的 ——
+/// 所以要单独一个类,由交替在错误冒泡那条路上接(见 `Interpreter.Stack` 的 StepOnce)。
+///
+/// **它不该被 `try` 接住**:拒收是控制流(和 `return` 一个道理),不是"出事了"。
+/// `StepOnce` 里它排在交给 Ravel 错误钩子**之前**,就是这个意思。</summary>
+public sealed class RejectedException(string message) : RuntimeException(message, ErrorKind.Type);
+
 /// <summary>exit 专用异常——不被 EvalCall 捕获，直接向上抛出</summary>
 public class ExitException(string message) : Exception(message);
 

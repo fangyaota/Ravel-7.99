@@ -199,6 +199,62 @@ public partial class Parser
         }
     }
 
+    /// <summary>`(` 后面这一段,配对的 `)` 后面紧跟 `=>` 吗 —— 认**带守卫**的参数表用。
+    ///
+    /// 正常的参数表由 <see cref="LooksLikeLambdaParams"/> 认;那条路认不出 `(v == s)`,
+    /// 因为 `v` 后面跟的不是 `:` 也不是 `)`。守卫那条只能靠"`(...)` 后面是不是 `=>`"来认。</summary>
+    private bool IsLambdaAfterParen()
+    {
+        var off = 0;
+        var depth = 1;      // **从 1 起**:那个开括号还没配上(从 0 起的话 `((x: object) => …)`
+                            // 这种**分组**会在内层那个 `)` 上就判成"参数表",把括号吃错)
+        while (true)
+        {
+            var t = TypeAt(off);
+            if (t == TokenType.EndOfFile) return false;
+            if (t == TokenType.LeftParen) depth++;
+            else if (t == TokenType.RightParen && --depth == 0) return TypeAt(off + 1) == TokenType.Arrow;
+            off++;
+        }
+    }
+
+    /// <summary>往后看一层:这一对括号里**顶层**有没有 `or` / `and` 那个词 —— 有才值得试着
+    /// 合谓词。嵌套的 `(` / `[` / `{` 里的不算(那儿的由它自己那一层认)。
+    ///
+    /// 只翻 token,不求值、不建树,所以便宜;**必须**便宜 —— 它的全部意义就是替掉
+    /// "先试一次、不成再重读一遍"那种翻倍(`((((…))))` 会变 2^n)。</summary>
+    private bool HasTopLevelOrAnd()
+    {
+        var off = 0;
+        var depth = 0;
+        while (true)
+        {
+            switch (TypeAt(off))
+            {
+                case TokenType.EndOfFile:
+                    return false;
+                case TokenType.LeftParen:
+                case TokenType.LeftBracket:
+                case TokenType.LeftBrace:
+                    depth++;
+                    break;
+                case TokenType.RightParen:
+                    if (depth == 0) return false;   // 走到配对的 ')' 了,顶层一个都没见着
+                    depth--;
+                    break;
+                case TokenType.RightBracket:
+                case TokenType.RightBrace:
+                    depth--;
+                    break;
+                case TokenType.Identifier:
+                    if (depth == 0 && _pos + off < tokens.Count
+                        && tokens[_pos + off].Lexeme is "or" or "and") return true;
+                    break;
+            }
+            off++;
+        }
+    }
+
     /// <summary>从 off 跳过一段类型注解,返回它后面那格的偏移;读不动给 -1。
     /// 两种写法:`名字(.名字)*`,或者括号里的任意表达式(`(pick ())` —— 见 ParseTypeAnnotation)。</summary>
     private int SkipTypeAnnotation(int off)
@@ -300,25 +356,56 @@ public partial class Parser
             return new VoidLiteral { Line = line, Column = col };
         }
 
-        // 尝试 lambda:  (IDENT [: 类型] [IDENT [: 类型]]*) =>
-        if (LooksLikeLambdaParams())
+        // 尝试 lambda:  (IDENT [: 类型] [IDENT [: 类型]]*) 或者最后一项写**守卫**
+        if (LooksLikeLambdaParams() || IsLambdaAfterParen())
         {
             var @params = new List<Parameter>();
+            Expression? guard = null;
             while (true)
             {
+                var at = Peek();
+                var saveAt = _pos;
                 var pName = Consume(TokenType.Identifier, "lambda 参数需要一个名字（`(x: int) => …`）");
-                // **注解可省**:省了就按 `object` 收(谁都收得下)。和 `do` 的绑定、占位符消糖
-                // 一个待遇 —— 那些地方也只知道"有东西来了",标不出更细的类型。
-                // 要更细就在体里自己过一手:`n: int = x`。
-                var pType = Match(TokenType.Colon) ? ParseTypeAnnotation() : ObjectType(pName);
-                @params.Add(new Parameter(pName.Lexeme, pType));
+                if (Match(TokenType.Colon))
+                {
+                    @params.Add(new Parameter(pName.Lexeme, ParseTypeAnnotation()));
+                }
+                else if (Check(TokenType.Identifier) || Check(TokenType.RightParen))
+                {
+                    // **注解可省**:省了就按 `object` 收(谁都收得下)。和 `do` 的绑定、占位符消糖
+                    // 一个待遇 —— 那些地方也只知道"有东西来了",标不出更细的类型。
+                    // 要更细就在体里自己过一手:`n: int = x`。
+                    @params.Add(new Parameter(pName.Lexeme, ObjectType(pName)));
+                }
+                else
+                {
+                    // **守卫**:这一项整个是一条表达式(`v == s` / `v |> IsPrime`)。
+                    // 退回去整条重读一遍,参数名取它**最左边那个标识符**(草稿那句"只看最左边的")。
+                    _pos = saveAt;
+                    guard = ParseExpression();
+                    // **名字按 token 顺序取最左边那个标识符** —— 不走 AST:`v |> IsPrime`
+                    // 在 AST 里是 `CallExpr(IsPrime, v)`(`|>` 解析期就折成调用了),
+                    // 按树取"最左"会取到 IsPrime。草稿那句"只看最左边的"说的就是源码顺序。
+                    var nm = FirstIdentName(saveAt, _pos)
+                        ?? throw ParseError("守卫里得有个参数名 —— 它最左边那个标识符就是");
+                    // 这个名字前面**已经声明过**就只挂守卫,别再声明一个 ——
+                    // 不然 `(x: int x > 10)` 会变成两个参数,后一个还是 `object`,把类型注解盖掉。
+                    if (!@params.Any(q => q.Name == nm))
+                        @params.Add(new Parameter(nm, ObjectType(at)));
+                    if (!Check(TokenType.RightParen))
+                        throw ParseError("守卫要写在参数表的**最后一项** —— 它是一条表达式,"
+                                       + "会把后面那一项吞进去（`(x: int v == 1)` 这么写）");
+                    break;
+                }
                 SkipNewlines();
                 if (!Check(TokenType.Identifier)) break;      // 到 ')' 了
             }
 
             Consume(TokenType.RightParen, "lambda 参数后需要 ')'");
             Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
-            var body = ParseUserLambdaBody("lambda 体", Previous());
+            var arrow = Previous();
+            var body = ParseUserLambdaBody("lambda 体", arrow);
+            if (guard is not null) body = PrependGuard(body, guard, @params[^1].Name, arrow);
 
             // 单参数：直接返回（兼容原有行为）
             if (@params.Count == 1)
@@ -339,6 +426,29 @@ public partial class Parser
             }
 
             return result;
+        }
+
+        // `(f or g)` / `(f and g)` —— 谓词级的与/或。排在 lambda 判定之后、区间之前,
+        // 不成的话退回来照原路走(和下面 TryParseRange 一样:存 `_pos`、不成再退)。
+        //
+        // **进这一支之前先做一次便宜的 token 前瞻**(`HasTopLevelOrAnd`)。这一步不能省:
+        // 试一次要把括号里那条表达式**真读一遍**,不成再退;而底下"普通括号分组"还要
+        // 照原样再读一遍 —— 于是每层括号都翻一倍,`((((…))))` 是 2 的层数次方。
+        // `tests/diag/171_nesting_depth.rav` 那条 1000 层括号就是钉这个的(以前这里是**卡住**,
+        // 不是报错,所以连 expect-error 都等不到)。
+        if (HasTopLevelOrAnd())
+        {
+            var saveCombine = _pos;
+            try
+            {
+                if (TryParsePredicateCombine() is { } combined)
+                {
+                    Consume(TokenType.RightParen, "表达式后需要 ')'");
+                    return combined;
+                }
+            }
+            catch (SyntaxException) { /* 形状不对就当没这回事,原路报错 */ }
+            _pos = saveCombine;
         }
 
         // `(3..5)` 是**区间**(两端都不含)。排在 lambda 判定**之后**:那一段本来就不是 lambda
@@ -514,6 +624,101 @@ public partial class Parser
         var body = ParseUserLambdaBody("lambda 体", Previous());
         return new LambdaExpr(new Parameter(name.Lexeme, ObjectType(name)), body)
             { Line = name.Line, Column = name.Column };
+    }
+
+    /// <summary>`(f or g)` / `(f and g)` —— 两个谓词合成一个:**`x => (f x) || (g x)`**
+    /// (`and` 是 `&&`)。短路,和运算符那边一个脾气。
+    ///
+    /// **只在括号里认**,而且只在形状**正好**是 `表达式 or/and 表达式` 时 ——
+    /// 不成的话调用方把 `_pos` 退回去照原路走。`or` / `and` 不是关键字,
+    /// 别处照旧是普通名字。
+    ///
+    /// 两边的表达式按**实参那一档**收(`ParseCall(allowCall: false)`)—— 于是
+    /// `(isPos or (x => x == 0))` 这种要自己加括号,和调用链那边的口径一致。</summary>
+    private Expression? TryParsePredicateCombine()
+    {
+        var left = ParseCall(allowCall: false);
+        if (!Check(TokenType.Identifier) || Peek().Lexeme is not ("or" or "and")) return null;
+
+        // 串着写就**左结合**地一层层合:`a and b and c` = `(a and b) and c`。
+        // **or / and 之间不分优先级** —— 混着写要哪个先合,自己加括号:`(a or (b and c))`。
+        while (Check(TokenType.Identifier) && Peek().Lexeme is "or" or "and")
+        {
+            var op = Peek();
+            _pos++;
+            var right = ParseCall(allowCall: false);
+            left = Combine(left, op, right);
+        }
+        if (!Check(TokenType.RightParen)) return null;
+        return left;
+    }
+
+    /// <summary>把两个谓词合成一个:`x => (f x) || (g x)`(`and` 是 `&&`)。</summary>
+    private LambdaExpr Combine(Expression f, Token op, Expression g)
+    {
+        var pName = "_" + op.Lexeme + _combineCount++;
+        var p = new IdentifierExpr(pName) { Line = op.Line, Column = op.Column };
+        var both = new BinaryExpr(Call(f, p, op), op.Lexeme == "or" ? "||" : "&&", Call(g, p, op))
+            { Line = op.Line, Column = op.Column };
+        return new LambdaExpr(new Parameter(pName, ObjectType(op)), AsBlock(both, op))
+            { Line = op.Line, Column = op.Column, Sugar = true };
+    }
+
+    /// <summary>`(f or g)` 每合成一个就取一个新参数名 —— 嵌套着写也不会撞。</summary>
+    private int _combineCount;
+
+    /// <summary>`[from, to)` 里**最左边那个标识符** —— 守卫项的参数名就是它
+    /// (`(v == s)` → `v`,`(v |> IsPrime)` → `v`)。</summary>
+    private string? FirstIdentName(int from, int to)
+    {
+        for (var i = from; i < to && i < tokens.Count; i++)
+            if (tokens[i].Type == TokenType.Identifier)
+                return tokens[i].Lexeme;
+        return null;
+    }
+
+    /// <summary>把参数表的**守卫**折成体的第一句:
+    ///
+    ///     if { try { 守卫; } (e: TypeError) => { false; }; } { 0; } { reject "…"; }
+    ///
+    /// 两层意思:
+    ///   * **守卫不成立** → `reject`(抛一枚 `RejectedException`)—— `|` 的交替接住它、试下一支。
+    ///     所以守卫 + 多子句 = 多子句函数;
+    ///   * 求值期间冒出来的 **TypeError** 也算"这一支不收" —— 那正是"类型/形状对不上"的统一说法
+    ///     (`v == 1` 里 v 是个字符串、`v |> IsPrime` 里 IsPrime 不收这个实参,都是这一类)。
+    ///     用的是现成的 `try`(lib/exceptions.rav),**引擎那一侧一个字都不用添**。
+    ///
+    /// 代价:每次调用都要过一次 `try`(一次 callcc + 压一个 handler)。守卫是拿便利换的,
+    /// 热路径上宁可直接写 `if`。</summary>
+    private BlockExpr PrependGuard(BlockExpr body, Expression guard, string param, Token at)
+    {
+        // 处理体:`(e: Exception) => { if { e: TypeError; } { false; } { System.Unhandled e; } }`
+        //
+        // **只把 TypeError 当"不收"**,别的错照旧往上走 —— 守卫里把名字打错(`IsPrime` 没定义)
+        // 是**笔误**,不该静默变成"这一支不匹配"。重抛走 `System.Unhandled`:它把引擎这次
+        // 交出去的那枚 C# 异常**原样**再抛出(位置和调用栈都还在),所以报出来的是原来那句。
+        // (直接用 handler 参数类型 `(e: TypeError)` 收最省事,但非 TypeError 会让库的
+        //  handler 自己报「参数 'e' 需要 TypeError，得到 NameError」—— 指进库内部,难看。)
+        var isTypeError = new BinaryExpr(Ident("e", at), ":", Ident("TypeError", at))
+            { Line = at.Line, Column = at.Column };
+        var rethrow = Call(new MemberAccess(Ident("System", at), "Unhandled")
+            { Line = at.Line, Column = at.Column }, Ident("e", at), at);
+        var handlerBody = Call(Call(Call(Ident("if", at), AsBlock(isTypeError, at), at),
+                                    AsBlock(Ident("false", at), at), at),
+                               AsBlock(rethrow, at), at);
+        var caught = new LambdaExpr(new Parameter("e", Ident("Exception", at)),
+                                    AsBlock(handlerBody, at))
+            { Line = at.Line, Column = at.Column, Sugar = true };
+        var checkedOk = Call(Call(Ident("try", at), AsBlock(guard, at), at), caught, at);
+        var rejected = Call(Ident("reject", at),
+                            new StringLiteral($"实参不满足 '{param}' 的守卫"), at);
+        var gated = Call(Call(Call(Ident("if", at), AsBlock(checkedOk, at), at),
+                              AsBlock(new NumberLiteral("0") { Line = at.Line, Column = at.Column }, at), at),
+                         AsBlock(rejected, at), at);
+
+        var stmts = new List<Statement> { new ExpressionStatement(gated) { Line = at.Line, Column = at.Column } };
+        stmts.AddRange(body.Statements);
+        return Block(stmts, at);
     }
 
     private BlockExpr ParseShorthandBody(Token at)

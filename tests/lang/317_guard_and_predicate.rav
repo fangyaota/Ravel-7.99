@@ -1,0 +1,85 @@
+#
+# 两条糖,都是给**谓词/分派**用的:
+#
+# ① **参数守卫**:参数表最后一项写成一条表达式(`v == 1` / `v |> IsPrime`),
+#    它就是这一支的准入条件。守卫不成立 → `reject`(抛一枚拒收信号)→ `|` 的交替
+#    接住它、试下一支。于是**守卫 + 多子句 = 多子句函数**。
+#    参数名取守卫里**最左边那个标识符**(草稿那句"只看最左边的")。
+#
+#    守卫**求值期间冒出来的 TypeError 也算"这一支不收"** —— 那正是"类型/形状对不上"
+#    的统一说法(`v == 1` 里 v 是个字符串、`v |> IsPrime` 里 IsPrime 不收这个实参)。
+#    别的错(名字打错之类)照旧当场报出来,不会静默变成"不匹配"。
+#
+# ② **`(f or g)` / `(f and g)`**:两个谓词合成一个 —— `x => (f x) || (g x)`(`and` 是 `&&`)。
+#    只在括号里认,只在形状正好是那个样子时认;`or` / `and` 别处照旧是普通名字。
+
+isPos := _ > 0
+isEven := (x: int) => (x % 2) == 0
+IsPrime := (n: int) => {
+    r := n > 1
+    i := 2
+    while { (i * i) <= n; } {
+        if { (n % i) == 0; } { r = false; } { 0; }
+        i += 1
+    }
+    r
+}
+
+# ── ① 守卫:多子句分派 ──
+f := (v == 1) => { "一"; } | (v == 2) => { "二"; } | (_) => { "别"; }
+print (f 1)
+print (f 2)
+print (f 9)
+
+# 守卫里调函数(`|>` 那条路)
+g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
+print (g 7)
+print (g 8)
+print (g "字符串")          # IsPrime 不收字符串 → TypeError → 当"这一支不收"
+
+# 守卫 + 类型注解(守卫写最后;名字前面声明过就只挂守卫)
+h := (x: int x > 10) => { "大"; } | (x: int) => { "小"; }
+print (h 20)
+print (h 3)
+
+# 比值也行(`==` 撞上不同类型照样当"不收")
+k := (v == "a") => { "是 a"; } | (_) => { "不是"; }
+print (k "a")
+print (k 1)
+
+# ── ② 谓词级的与 / 或 ──
+print ((isPos and isEven) 4)
+print ((isPos and isEven) 3)
+print ((isPos or isEven) (0 - 3))
+print ((isPos or isEven) 4)
+print (([1 2 3 4].Where (isPos and isEven)).ToList ())
+print (([1 2 3 4].Where (isPos or isEven)).ToList ())
+
+# 串着写:左结合(`or` / `and` 之间不分优先级)
+print ((isPos and isEven and (_ > 2)) 6)
+
+# ── 一支都不收:报的是"都不收 + 最后试的那条说了什么" ──
+# (只有一支、守卫不成立时,拒收没地方去 —— 直接当错报出来)
+print ((try { f true; } (e: Exception) => { "1: " + e.Message; }))
+only := (v == 1) => { "一"; }
+print ((try { only 2; } (e: Exception) => { "2: " + e.Message; }))
+# --- expected ---
+# 一
+# 二
+# 别
+# 素数
+# 不是
+# 不是
+# 大
+# 小
+# 是 a
+# 不是
+# true
+# false
+# false
+# true
+# [2 4]
+# [1 2 3 4]
+# true
+# 别
+# 2: 这一支不收这个参数

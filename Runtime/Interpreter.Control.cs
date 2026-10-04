@@ -155,23 +155,34 @@ public partial class Interpreter
 
         var arg = cf.Args.Last;
         var n = cf.Args.Count - 1;          // 前面全是候选分支
-        TypeMismatchException? last = null;
+        // **从第几支接着试**:参数类型对不上是**同步**抛的,一趟 for 就试完了;
+        // 但**守卫**(`(v == T) => …`)是在**体里**拒收的,那是异步的 —— 错误冒泡时
+        // `StepOnce` 把 `_top` 挪回这一帧(见 ResumeAlternate),于是从下一支接着走。
+        // 走到第几支记在 `State` 上:帧是不可变的,推分支时顺手带上(见下面那个 `next`)。
+        var start = cf.State is IntVal iv ? iv.Value : 0;
+        string? last = _rejectMessage;
+        _rejectMessage = null;
 
-        for (var i = 0; i < n; i++)
+        for (var i = start; i < n; i++)
         {
+            var next = cf with { State = IntVal.Of(i + 1) };
             try
             {
                 // 参数类型对不上会在 CallInto 里**同步**抛出,于是就地接着试下一支
-                CallInto(cf, cf.Args.At(i), arg);
+                CallInto(next, next.Args.At(i), arg);
                 return;
             }
             catch (TypeMismatchException ex)
             {
-                last = ex;
+                last = ex.Message;
+            }
+            catch (RejectedException ex)
+            {
+                last = ex.Message;
             }
         }
 
-        throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last?.Message}）");
+        throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last ?? "（没有可说的）"}）");
     }
 
     /// <summary>跑**这一层**类体时用哪个作用域。

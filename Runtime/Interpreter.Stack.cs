@@ -93,6 +93,9 @@ public partial class Interpreter
             if (ex.Located) throw;
 
             Locate(ex, _top);
+            // **拒收排在交给 Ravel 钩子之前**:它是控制流(和 `return` 一个道理),不是"出事了",
+            // 所以 `try` 接不住它 —— 只有 `|` 的交替接(见 ResumeAlternate)。
+            if (ex is RejectedException rej && ResumeAlternate(rej)) return;
             if (HandToRavelHandler(ex)) return;   // 交给 Ravel 的 handler,异常到此为止
             throw;                                // 没人接 → 冒泡给 CLI 打报告
         }
@@ -168,6 +171,29 @@ public partial class Interpreter
     /// <summary>这一次交给钩子的那个异常:库"没人接"时调 `System.Unhandled`,由这里**原样**再抛出去
     /// (位置与调用栈都保持一模一样 —— `Located` 已经是真,不会再被覆盖成库里的位置)。</summary>
     private RuntimeException? _handed;
+
+    /// <summary>交替接到的最后一次拒收说了什么 —— `StepAlternate` 用它拼"都不收"那句,
+    /// 拿完就清(见那儿)。</summary>
+    private string? _rejectMessage;
+
+    /// <summary>把一次**拒收**送回**最近的**外层交替帧,让它接着试下一支。
+    ///
+    /// "最近"就是沿 Parent 往上头一个 —— 交替可以嵌套,内层先接。
+    /// 找不到就返回 false,那它就退化成普通错误继续冒泡(比如 `reject` 写在交替外面)。
+    /// </summary>
+    private bool ResumeAlternate(RejectedException ex)
+    {
+        for (var f = _top; f is not null; f = f.Parent)
+        {
+            if (f is ControlFrame { Kind: ControlKind.Alternate } alt)
+            {
+                _rejectMessage = ex.Message;
+                _top = alt;
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// <summary>把冒泡上来的错误交给库注册的钩子。没注册钩子就返回 false(照旧冒泡给 CLI 打报告)。</summary>
     private bool HandToRavelHandler(RuntimeException ex)
