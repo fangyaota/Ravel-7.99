@@ -379,8 +379,9 @@ public partial class Parser
         return new ExpressionStatement(expr) { Line = expr.Line, Column = expr.Column };
     }
 
-    /// <summary>`x++` / `x--` —— 折成 `x += 1` / `x -= 1`。**只在语句位置认**
-    /// (上面那条分支),所以它是这条语言的语法糖里最薄的一枚。
+    /// <summary>`x++` / `x--` —— **只在语句位置认**(上面那条分支),所以它是这条语言的
+    /// 语法糖里最薄的一枚。解析器只造一枚 `UnaryExpr(op, target)`,**折成 `x += 1` /
+    /// `x -= 1`** 是 <see cref="Lowering"/> 那趟的事。
     ///
     /// **它不交回值**,这是故意的: `y := x++` 是语法错误。C 里 `y = x++` 拿旧值、
     /// `y = ++x` 拿新值 —— "看符号写在哪边猜拿到哪个值"是那门语言最经典的一个坑,
@@ -389,11 +390,7 @@ public partial class Parser
     ///
     /// 目标只能是**变量或字段**(和 `+=` 同一类),别的形状在这儿就报 —— 等到求值期
     /// 才报「复合赋值目标必须是变量」的话,插入符指着的是那个 `+=`,看不出是 `++` 用错了地方。
-    ///
-    /// 折出来的就是一条 `BinaryExpr(x, "+=", 1)`,和手写 `x += 1` 走**同一条路**
-    /// (变量一条、字段一条,见 `Interpreter.Binary` 的 StepCompoundAssign*)——
-    /// 所以 `by` 属性那种槽、只读字段那些规矩,一个都不用在这儿重说一遍。
-    /// </summary>
+    /// (同理,"后面得收尾"那条也是**语法**规则,留在这儿。)</summary>
     private Statement ParseIncDec(Expression target)
     {
         var op = Peek();
@@ -405,9 +402,7 @@ public partial class Parser
                 + $"（`x{op.Lexeme}` / `a.b{op.Lexeme}`）—— 它是 `x += 1` 的简写，不交回值",
                 new SourceSpot(source, op.Line, op.Column));
 
-        var one = new NumberLiteral("1") { Line = op.Line, Column = op.Column };
-        var compound = op.Type == TokenType.PlusPlus ? "+=" : "-=";
-        var bin = new BinaryExpr(target, compound, one) { Line = target.Line, Column = target.Column };
+        var inc = new UnaryExpr(op.Lexeme, target) { Line = target.Line, Column = target.Column };
 
         // **后面得收尾**。这条不是洁癖:`a--b` 会**安安静静**读成 `a--` 和 `b` 两条语句
         // (Ravel 靠换行分句,所以同一条语句里再冒出个 `b` 本来就说不通)——
@@ -422,7 +417,7 @@ public partial class Parser
                 new SourceSpot(source, Peek().Line, Peek().Column));
 
         SkipNewlines();
-        return new ExpressionStatement(bin) { Line = bin.Line, Column = bin.Column };
+        return new ExpressionStatement(inc) { Line = inc.Line, Column = inc.Column };
     }
 
     /// <summary>`.` 后面那一段:普通成员名,或运算符符号(`2.+` / `"a".==`)</summary>

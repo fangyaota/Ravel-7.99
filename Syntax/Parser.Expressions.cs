@@ -37,12 +37,16 @@ public partial class Parser
         var left = ParseNullCoalesce(allowCall);
 
         // `??=` 单独一条:它**不能**走下面"把左值先求出来"那条路 ——
-        // 「不空就一个字符都不碰」(成员那条连 setter 都不该调)得靠"读、写分开"才做得到。
+        // 「不空就一个字符都不碰」(成员那条连 setter 都不该调)得靠"读、写分开"才做得到,
+        // 那是 `Lowering` 折 `NilFill` 时的事。这儿只管形状:`??=` 的左边得是变量或成员
+        // (和 `=` 一样),不是就当场报 —— 插入符指着 `??=`,比指着整条语句准。
         if (Match(TokenType.CoalesceEqual))
         {
             var op = Previous();
+            if (left is not (IdentifierExpr or MemberAccess))
+                throw ParseError("'??=' 的左边得是变量或成员（就像 '=' 那样）");
             var right = ParseAssignment(allowCall);
-            return CoalesceAssign(left, right, op);
+            return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
         }
 
         if (Match(TokenType.Equal) || Match(TokenType.ColonEqual) || Match(TokenType.PlusEqual) ||
@@ -59,11 +63,8 @@ public partial class Parser
 
     /// <summary>空值合并 `a ?? b` —— 右结合,比 `||` 低、比赋值高。
     ///
-    /// **惰性**:右边只在左边是空的时候才求值。做法是把两边各包成一块交给库里的
-    /// `NilOr`(见 `lib/predefined.rav`),右边那块该不该跑由它说了算 ——
-    /// 和 `if` / `do` 一个路子:引擎只管脱糖,语义在库里。
-    ///
-    /// 折成的形状:`NilOr (() => { a; }) (() => { b; })`。</summary>
+    /// 解析器只造 `BinaryExpr(a, "??", b)`;**折成 `NilOr` 两个 thunk** 是
+    /// <see cref="Lowering"/> 那趟的事(右边惰性的那些语义在 `lib/predefined.rav`)。</summary>
     private Expression ParseNullCoalesce(bool allowCall = true)
     {
         var left = ParseClimb(allowCall, 0);
@@ -71,57 +72,13 @@ public partial class Parser
 
         var op = Previous();
         var right = ParseNullCoalesce(allowCall);          // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`
-        return Call(Call(Ident("NilOr", op), Thunk(left, op), op), Thunk(right, op), op);
-    }
-
-    /// <summary>`x ??= v` / `a.b ??= v` —— **空才写**(不空一个字符都不碰:连 setter 都不调)。
-    ///
-    /// 折成 `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`:读一点、写一点、
-    /// 后备一块,三样分开交给库(见 `lib/predefined.rav`),「空不空」由它判。
-    ///
-    /// 成员那条把**接收者先求一次**再包进闭包(`((r) => { … }) (a)`)——
-    /// 否则 `f ().b ??= v` 会把 `f` 跑两遍。</summary>
-    private Expression CoalesceAssign(Expression left, Expression right, Token op)
-    {
-        var fallback = Thunk(right, op);
-
-        Expression FillWith(Expression target)
-            => Call(Call(Call(Ident("NilFill", op), Thunk(target, op), op), Setter(target, op), op),
-                    fallback, op);
-
-        switch (left)
-        {
-            case IdentifierExpr id:
-                return FillWith(id);
-
-            case MemberAccess ma:
-            {
-                var recv = "_nil" + _nilCount++;
-                var rid = new IdentifierExpr(recv) { Line = op.Line, Column = op.Column };
-                var target = new MemberAccess(rid, ma.Member) { Line = op.Line, Column = op.Column };
-                var lam = new LambdaExpr(new Parameter(recv, ObjectType(op)), AsBlock(FillWith(target), op))
-                    { Line = op.Line, Column = op.Column, Sugar = true };
-                return Call(lam, ma.Object, op);
-            }
-
-            default:
-                throw ParseError("'??=' 的左边得是变量或成员（就像 '=' 那样）");
-        }
-
-        // 写回去那一条:`((w) => { target = w; })`。赋值表达式本身交出写进去的那个值,
-        // 所以库里 `NilFill` 交回来的也就是它。
-        LambdaExpr Setter(Expression target, Token at)
-        {
-            var w = "_nil" + _nilCount++;
-            var wid = new IdentifierExpr(w) { Line = at.Line, Column = at.Column };
-            var assign = new BinaryExpr(target, "=", wid) { Line = at.Line, Column = at.Column };
-            return new LambdaExpr(new Parameter(w, ObjectType(at)), AsBlock(assign, at))
-                { Line = at.Line, Column = at.Column, Sugar = true };
-        }
+        return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
     }
 
     /// <summary>把一条表达式包成"要用才跑"的块 `() => { expr; }`。参数名是 `_`(void),
-    /// 和 `() => …` 的 AST 写法一致(见 `ParseParen`)。</summary>
+    /// 和 `() => …` 的 AST 写法一致(见 `ParseParen`)。
+    ///
+    /// 只剩 `?.` 在用了 —— `??` / `??=` 那两处已经搬到 `Lowering` 去折。</summary>
     private LambdaExpr Thunk(Expression e, Token at)
         => new(new Parameter("_", new IdentifierExpr("void") { Line = at.Line, Column = at.Column }), AsBlock(e, at))
             { Line = at.Line, Column = at.Column, Sugar = true };
