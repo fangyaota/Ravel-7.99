@@ -1,0 +1,67 @@
+# `singleton` —— 单例元类(见 lib/singleton.rav)。**要显式引用**。
+#
+# 它建出来的类,**每次实例化都交回同一枚值**。
+using "singleton.rav"
+
+Config ::= singleton {
+    init = () => { name = "默认"; this; }
+    name: string = ""
+}
+
+# ── 每次都是同一枚 ──
+a := Config ()
+b := Config ()
+print (a == b)
+print (a is Config)           # 类型还是这个类本身,不是别的什么
+print ((Config ()) == a)      # 括号不能省:`Config () == a` 会被读成 `Config (() == a)`
+
+# ── 改一处处处都改(本来就是同一枚) ──
+a.name = "改了"
+print (b.name)
+
+# ── 没写 `init` 也行(那份默认构造器照样被包住) ──
+NoInit ::= singleton {
+    n: int = 1
+}
+print ((NoInit ()) == (NoInit ()))
+print ((NoInit ()).n)
+
+# ── 类体**每次实例化都会跑**,所以第 N 次也照造一枚、只是被扔掉 ──
+Runs := []
+Counted ::= singleton {
+    init = () => { 0; this; }
+    mark := (Runs.Add "跑了一次")
+}
+Counted ()
+Counted ()
+Counted ()
+print (Runs.Count ())
+
+# ── 也能从普通类继承过来(父类那支) ──
+Base ::= class {
+    init = () => { 0; this; }
+    tag: string = "基类"
+}
+Sub ::= singleton Base {
+    init = () => { tag = "子类单例"; this; }
+}
+s1 := Sub ()
+s2 := Sub ()
+print (s1 == s2)
+print s1.tag
+print (s1 is Base)
+
+# ── `init` 带参数:第一次就**报清楚**,不静默拿 `()` 去凑 ──
+print ((try { eval "Arg ::= singleton {\n    init = (x: int) => { v = x; this; }\n    v: int = 0\n}\nArg ()"; } (e: Exception) => { "1: " + (string e); }))
+# --- expected ---
+# true
+# true
+# true
+# 改了
+# true
+# 1
+# 3
+# true
+# 子类单例
+# true
+# 1: 参数 'x' 需要 Integer，得到 Void

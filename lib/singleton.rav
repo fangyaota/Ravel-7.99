@@ -1,0 +1,67 @@
+# `singleton` —— **单例**:它建出来的类,**每次实例化都交回同一枚值**。
+#
+#     using "singleton.rav"
+#
+#     Config ::= singleton {
+#         init = () => { name = "默认"; this; }
+#         name: string = ""
+#     }
+#
+#     a := Config ()
+#     b := Config ()
+#     a == b              # true —— 是同一枚
+#     a.name = "改了"
+#     b.name              # "改了"
+#
+# 它是个**元类**(`class type`),和 `dataclass` / `enum` / `flags` 一个路子。
+#
+# ── 怎么做到的 ──
+#
+# **不去改类对象上的 `init`** —— 那条路不通:引擎用的是**建类时**装好的那个类体,事后往类
+# 对象上挂只会进"类自己那张表",而实例化那条路根本不看它(实测:改完照样每次新造一枚)。
+#
+# 走的是类体自己那条:**类体每次实例化都会跑**,里面谁最后定义了 `init`,谁就说了算。
+#
+#     parentInit object {
+#         with this vars      # 用户那份跑在**正在建的这枚实例**上(`with` 不推层)
+#         base := init        # 他写的那个构造器(没写就是默认那条)
+#         init = () => { … }  # 盖掉它:第一次真造,以后交回存着的那枚
+#     }
+#
+# "存"的地方是**闭包里的一张表**(`slot`)—— 每个类一份,不进任何成员表。类体那个块捕获的
+# 就是这层作用域,于是同一份 `slot` 被这个类的每次实例化共用。
+#
+# ── 两条要知道的 ──
+#
+#   * **`init` 不收参数。** 只在第一次用得上,而"第一次是谁"本来就没有意义。真写成带参数的,
+#     会在第一次实例化时报「'x' 需要 Integer，得到 Void」—— 报得清楚,不是静默出岔子。
+#
+#   * **第一次之外,那枚实例照造不误,只是被扔掉。** 引擎每次实例化都是"先造一枚实例、再跑
+#     `init`",而 `init` 交回别的值是允许的(教程 7.3) —— 所以第 N 次的开销和第 1 次一样,
+#     连类体里那些**字段初始值也会一次次重算**。单例那几行通常无所谓;要在意的话,别把有副作
+#     用的活儿写在字段初始值里。
+singleton ::= class type {
+    private parentInit := init
+
+    # `mk` 收一个"类体"、交回建好的类 —— 两个分支唯一的差别就是它(照 `enum` 那个形状,
+    # 免得到处抄一份同样的体)。
+    private Build := (vars: function mk: function) => {
+        slot := []
+        mk {
+            with this vars
+            base := init
+            init = () => {
+                if { (slot.Count ()) == 0; } { slot.Add (base ()); } { 0; }
+                slot.At 0
+            }
+        }
+    }
+
+    # 分支的先后**照 `type` / `enum` 那份**(父类那支在前)—— 派发是按元数挑的,顺序换了
+    # `singleton 某个类 { … }` 会被当成"只给一个实参"。
+    init = (parent: type vars: function) => {
+        Build vars ((body: object) => { parentInit parent body; });
+    } | (vars: function) => {
+        Build vars ((body: object) => { parentInit object body; });
+    }
+}
