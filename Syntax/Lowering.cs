@@ -469,7 +469,7 @@ public sealed class Lowering
     /// 所以要用**同一枚拒收信号**(参数守卫用的也是它):先给最近的交替接,没人接才落到 `try`。
     /// 消息可以是拼出来的(不是序列那一条要带上实际类型)。</summary>
     private static Expression Reject(Expression message, AstNode at)
-        => Call(Ident("reject", at), message);
+        => Call(Ident("reject", at), Call(Ident("TypeError", at), message));
 
     private static StringLiteral Str(string v) => new(v);
 

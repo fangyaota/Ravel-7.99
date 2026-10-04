@@ -619,7 +619,9 @@ public partial class Parser
             { Line = at.Line, Column = at.Column, Sugar = true };
         var checkedOk = Call(Call(Ident("try", at), AsBlock(guard, at), at), caught, at);
         var rejected = Call(Ident("reject", at),
-                            new StringLiteral($"实参不满足 '{param}' 的守卫"), at);
+                            Call(Ident("TypeError", at),
+                                 new StringLiteral($"实参不满足 '{param}' 的守卫") { Line = at.Line, Column = at.Column },
+                                 at), at);
         var gated = Call(Call(Call(Ident("if", at), AsBlock(checkedOk, at), at),
                               AsBlock(new NumberLiteral("0") { Line = at.Line, Column = at.Column }, at), at),
                          AsBlock(rejected, at), at);

@@ -66,18 +66,26 @@ internal static class SysCore
     }
 
     /// <summary>`|` 的交替里"这一支不收这个参数" —— 抛一枚 <see cref="RejectedException"/>。
-    /// 参数守卫是解析器生成的调用打到这儿;手写也可以用(`reject "…"`)。
+    /// 参数守卫和**解构的形状检查**都是解析器生成的调用打到这儿;手写也可以。
     ///
-    /// **两种实参都收**:一句现成的字符串,或者一个 `Exception`(`reject (TypeError "…")`,
-    /// 消息从它的 `.Message` 上取)。
-    /// **从前只认后者** —— 传字符串会**静默**回落到那句通用的「这一支不收这个参数」,
-    /// 写的那句话一个字都到不了用户眼前(守卫生成的正是字符串,所以守卫的消息
-    /// 一直是丢的)。</summary>
+    /// **只要一个 `TypeError`**(`reject (TypeError "…")`),消息从它的 `.Message` 上取 ——
+    /// 和 `throw`(要一个 `Exception`)一个口径,只是更窄。别的实参当场报错,
+    /// **不回落到通用那句话**:那会让写错的人以为自己的话被采纳了。</summary>
     [Sys("Reject")]
     public static RuntimeValue Reject(Interpreter self, RuntimeValue msg)
-        => throw new RejectedException(
-               msg is StringVal s ? s.Value
-               : BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
+    {
+        // **只要 `TypeError`** —— 和 `throw`(要一个 `Exception`)一个口径,只是更窄:
+        // "这一支不收这个参数"就是**类型/形状对不上**那一类(引擎那边 `|` 的交替接的
+        // 也正是 `ErrorKind.Type`,两者是同一件事)。
+        //
+        // 收字符串 / 收随便什么的话,写错的人只会看到那句通用的「这一支不收这个参数」——
+        // 他要说的那句话被**静默**吞掉(守卫生成的就是字符串,消息一直是丢的)。
+        if (msg is not ObjectVal { IsClass: false } o || !o.ClassType.IsAssignableTo(BuiltinClasses.TypeError))
+            throw new RuntimeException(
+                $"reject 要一个 TypeError（`reject (TypeError \"…\")`），得到 {msg.Type}", ErrorKind.Argument);
+
+        throw new RejectedException(BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
+    }
 
     /// <summary>库在"没人接"时调它 —— 把引擎这次交出去的那个异常**原样**抛出</summary>
     [Sys("Unhandled")]
