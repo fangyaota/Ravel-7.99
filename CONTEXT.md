@@ -154,11 +154,18 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
   Parser.cs                     入口 + token 辅助(Peek/Consume/ParseError)
     Parser.Statements.cs        语句:定义/赋值/运算符定义/`x :< m`(只在 do 里放行)
     Parser.Expressions.cs       优先级**爬升**(纯二元全在 `BinOpBp` 那张表里;
-                                赋值 / `??` / `**` / `<|` 各有各的层,见下)
+                                赋值 / `??` / `**` / `<|` 各有各的层,见下;
+                                `or` / `and` 是**词形运算符**,按词认,见 `WordOpBp`)
     Parser.Atoms.cs             基本单元 + 括号/块/集合/字典 + `do { … }` 折成 Bind 链
     Parser.Holes.cs             `_` 占位符消糖那趟 AST 改写
                                 `do` 是**纯语法糖**:解析期就地折成 `m.Bind (…)`,
                                 运行时不为它添任何东西(`BindStatement` 活不到求值期)
+  Lowering.cs                   **解析之后**那一趟降阶(脱糖)。现在只有一条:谓词级的
+                                `or` / `and` → `(x) => { (f x) || (g x); }`。为什么它不
+                                就地折:它是**运算符**,解析器只管把它读成普通的二元运算
+                                —— 而"试读一遍、不成再退"那种回退正是指数的温床。
+                                入口挂在 `Parser.Parse` / `ParseExpression` 上(唯一出口)。
+                                将来模式匹配 / 解构也放这儿。
   CommentStripper.cs            剥注释**再收空行** —— **发布产物里的标准库用它**(见 `Cli/Strip.cs`
                                 与 Ravel.csproj 的 `StripLibComments`)。**问词法器要区间**
                                 (`Lexer.Comments`),不拿正则扫:字符串、原始字符串、字符
@@ -1901,10 +1908,25 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
   —— **只把 TypeError 当"不收"**,别的错(名字打错)原样重抛。
   代价:每次调用过一次 `try`(一次 callcc + 压一个 handler)。
 
-**`(f or g)` / `(f and g)`** 折成 `x => (f x) || (g x)`(`and` 是 `&&`),短路。
-只在**括号里**、只在形状正好是 `表达式 or/and 表达式` 时认(不成退回原路);
-串着写**左结合**、`or` 与 `and` 之间**不分优先级**(要哪个先合自己括)。
-两边按实参那一档收(`ParseCall(allowCall: false)`)。`or` / `and` 别处照旧是普通名字。
+**`f or g` / `f and g`** —— 谓词级的与 / 或,折成 `(x) => { (f x) || (g x); }`(`and` 是 `&&`)。
+两边拿**同一个实参**喂,和 `|` 的交替、`>>` 的组合一个口径;短路照旧短路。
+
+它们是**中缀运算符**,所以**括号不是必须的**:
+
+```ravel
+[1 2 3 4].Where (isPos and isEven)     # 括号里
+[1 2 3 4].Where isPos and isEven       # 一样 —— 实参本来就吃运算符
+```
+
+- **优先级照着 `||` / `&&`**:`and` 紧、`or` 松 → `a or b and c` 是 `a or (b and c)`;同级左结合。
+- **只有中缀那个位置**才是运算符 —— `or := 42` / `o.or` / `(or: int) => …` 一概照旧。
+  代价(就一条):**它当不了裸实参**了,想传一个叫 `or` 的值得写 `f (or)`
+  (实参循环在 `Parser.Expressions.ParsePostfixRest` 里遇到这两个词就停,让 `ParseClimb` 去收)。
+  顺手给这种笔误说了句准话:`print or` 报「'or' 是中缀运算符，后面得跟个操作数…」。
+- **折成谓词不是解析器干的** —— 解析器只造 `BinaryExpr(l, "or", r)`,换形状是**解析之后
+  另开的**那一趟:`Syntax/Lowering.cs`。这条糖是全项目**唯一**不就地折的,理由是将来
+  **模式匹配 / 解构**那种"把一大坨语法折成现有构造"的活也要放进那一趟。
+  `Parser.Parse` 是唯一出口,脱糖挂在那儿(模块体、`eval`、插值片段都过得到)。
 
 ### 拒收:`RejectedException` 与交替那条路
 

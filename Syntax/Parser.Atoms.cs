@@ -218,43 +218,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>往后看一层:这一对括号里**顶层**有没有 `or` / `and` 那个词 —— 有才值得试着
-    /// 合谓词。嵌套的 `(` / `[` / `{` 里的不算(那儿的由它自己那一层认)。
-    ///
-    /// 只翻 token,不求值、不建树,所以便宜;**必须**便宜 —— 它的全部意义就是替掉
-    /// "先试一次、不成再重读一遍"那种翻倍(`((((…))))` 会变 2^n)。</summary>
-    private bool HasTopLevelOrAnd()
-    {
-        var off = 0;
-        var depth = 0;
-        while (true)
-        {
-            switch (TypeAt(off))
-            {
-                case TokenType.EndOfFile:
-                    return false;
-                case TokenType.LeftParen:
-                case TokenType.LeftBracket:
-                case TokenType.LeftBrace:
-                    depth++;
-                    break;
-                case TokenType.RightParen:
-                    if (depth == 0) return false;   // 走到配对的 ')' 了,顶层一个都没见着
-                    depth--;
-                    break;
-                case TokenType.RightBracket:
-                case TokenType.RightBrace:
-                    depth--;
-                    break;
-                case TokenType.Identifier:
-                    if (depth == 0 && _pos + off < tokens.Count
-                        && tokens[_pos + off].Lexeme is "or" or "and") return true;
-                    break;
-            }
-            off++;
-        }
-    }
-
     /// <summary>从 off 跳过一段类型注解,返回它后面那格的偏移;读不动给 -1。
     /// 两种写法:`名字(.名字)*`,或者括号里的任意表达式(`(pick ())` —— 见 ParseTypeAnnotation)。</summary>
     private int SkipTypeAnnotation(int off)
@@ -426,29 +389,6 @@ public partial class Parser
             }
 
             return result;
-        }
-
-        // `(f or g)` / `(f and g)` —— 谓词级的与/或。排在 lambda 判定之后、区间之前,
-        // 不成的话退回来照原路走(和下面 TryParseRange 一样:存 `_pos`、不成再退)。
-        //
-        // **进这一支之前先做一次便宜的 token 前瞻**(`HasTopLevelOrAnd`)。这一步不能省:
-        // 试一次要把括号里那条表达式**真读一遍**,不成再退;而底下"普通括号分组"还要
-        // 照原样再读一遍 —— 于是每层括号都翻一倍,`((((…))))` 是 2 的层数次方。
-        // `tests/diag/171_nesting_depth.rav` 那条 1000 层括号就是钉这个的(以前这里是**卡住**,
-        // 不是报错,所以连 expect-error 都等不到)。
-        if (HasTopLevelOrAnd())
-        {
-            var saveCombine = _pos;
-            try
-            {
-                if (TryParsePredicateCombine() is { } combined)
-                {
-                    Consume(TokenType.RightParen, "表达式后需要 ')'");
-                    return combined;
-                }
-            }
-            catch (SyntaxException) { /* 形状不对就当没这回事,原路报错 */ }
-            _pos = saveCombine;
         }
 
         // `(3..5)` 是**区间**(两端都不含)。排在 lambda 判定**之后**:那一段本来就不是 lambda
@@ -625,47 +565,6 @@ public partial class Parser
         return new LambdaExpr(new Parameter(name.Lexeme, ObjectType(name)), body)
             { Line = name.Line, Column = name.Column };
     }
-
-    /// <summary>`(f or g)` / `(f and g)` —— 两个谓词合成一个:**`x => (f x) || (g x)`**
-    /// (`and` 是 `&&`)。短路,和运算符那边一个脾气。
-    ///
-    /// **只在括号里认**,而且只在形状**正好**是 `表达式 or/and 表达式` 时 ——
-    /// 不成的话调用方把 `_pos` 退回去照原路走。`or` / `and` 不是关键字,
-    /// 别处照旧是普通名字。
-    ///
-    /// 两边的表达式按**实参那一档**收(`ParseCall(allowCall: false)`)—— 于是
-    /// `(isPos or (x => x == 0))` 这种要自己加括号,和调用链那边的口径一致。</summary>
-    private Expression? TryParsePredicateCombine()
-    {
-        var left = ParseCall(allowCall: false);
-        if (!Check(TokenType.Identifier) || Peek().Lexeme is not ("or" or "and")) return null;
-
-        // 串着写就**左结合**地一层层合:`a and b and c` = `(a and b) and c`。
-        // **or / and 之间不分优先级** —— 混着写要哪个先合,自己加括号:`(a or (b and c))`。
-        while (Check(TokenType.Identifier) && Peek().Lexeme is "or" or "and")
-        {
-            var op = Peek();
-            _pos++;
-            var right = ParseCall(allowCall: false);
-            left = Combine(left, op, right);
-        }
-        if (!Check(TokenType.RightParen)) return null;
-        return left;
-    }
-
-    /// <summary>把两个谓词合成一个:`x => (f x) || (g x)`(`and` 是 `&&`)。</summary>
-    private LambdaExpr Combine(Expression f, Token op, Expression g)
-    {
-        var pName = "_" + op.Lexeme + _combineCount++;
-        var p = new IdentifierExpr(pName) { Line = op.Line, Column = op.Column };
-        var both = new BinaryExpr(Call(f, p, op), op.Lexeme == "or" ? "||" : "&&", Call(g, p, op))
-            { Line = op.Line, Column = op.Column };
-        return new LambdaExpr(new Parameter(pName, ObjectType(op)), AsBlock(both, op))
-            { Line = op.Line, Column = op.Column, Sugar = true };
-    }
-
-    /// <summary>`(f or g)` 每合成一个就取一个新参数名 —— 嵌套着写也不会撞。</summary>
-    private int _combineCount;
 
     /// <summary>`[from, to)` 里**最左边那个标识符** —— 守卫项的参数名就是它
     /// (`(v == s)` → `v`,`(v |> IsPrime)` → `v`)。</summary>

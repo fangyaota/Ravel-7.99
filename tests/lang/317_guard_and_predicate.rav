@@ -10,8 +10,15 @@
 #    的统一说法(`v == 1` 里 v 是个字符串、`v |> IsPrime` 里 IsPrime 不收这个实参)。
 #    别的错(名字打错之类)照旧当场报出来,不会静默变成"不匹配"。
 #
-# ② **`(f or g)` / `(f and g)`**:两个谓词合成一个 —— `x => (f x) || (g x)`(`and` 是 `&&`)。
-#    只在括号里认,只在形状正好是那个样子时认;`or` / `and` 别处照旧是普通名字。
+# ② **`f or g` / `f and g`**:两个谓词合成一个 —— `x => (f x) || (g x)`(`and` 是 `&&`)。
+#    它们是**运算符**(和 `||` / `&&` 同一个脾气,只是收的是函数不是布尔),
+#    所以**括号不是必须的**:`Where isPos and isEven` 也成立(实参本来就吃运算符)。
+#    优先级照着 `||` / `&&`:`and` 高、`or` 低。
+#    `or` / `and` **只有在中缀那个位置**才是运算符,别处照旧是普通名字(`or := 42` 行);
+#    代价是它们**当不了裸实参**了 —— 想传一个叫 `or` 的值得写 `f (or)`。
+#
+#    解析器只负责把它们读成普通的二元运算;折成谓词是**解析之后另开的一趟**
+#    (`Syntax/Lowering.cs`),和别的糖不一样 —— 那儿不再有"试读一遍不成再退"的回退。
 
 isPos := _ > 0
 isEven := (x: int) => (x % 2) == 0
@@ -47,7 +54,7 @@ k := (v == "a") => { "是 a"; } | (_) => { "不是"; }
 print (k "a")
 print (k 1)
 
-# ── ② 谓词级的与 / 或 ──
+# ── ② 谓词级的与 / 或:它们是运算符,括号不是必须的 ──
 print ((isPos and isEven) 4)
 print ((isPos and isEven) 3)
 print ((isPos or isEven) (0 - 3))
@@ -55,8 +62,30 @@ print ((isPos or isEven) 4)
 print (([1 2 3 4].Where (isPos and isEven)).ToList ())
 print (([1 2 3 4].Where (isPos or isEven)).ToList ())
 
-# 串着写:左结合(`or` / `and` 之间不分优先级)
+# **不带括号也成立** —— 实参本来就吃运算符,`and` 归实参那条算式
+print (([1 2 3 4].Where isPos and isEven).ToList ())
+
+# 拿到的就是一元的谓词(和 `|` 的交替、`>>` 的组合一个口径)
+nand := isPos and isEven
+print (typeof nand)
+
+# 优先级照着 `&&` / `||`:`and` 紧、`or` 松 → `a or b and c` 是 `a or (b and c)`。
+# (这两行挑得让两种读法**答得不一样**:`yes or (no and no)` 是 true,
+#  要是同级左结合成 `(yes or no) and no` 就成了 false)
+yes := x => true
+no := x => false
+print ((yes or no and no) 0)
+
+# 串着写:同级左结合
 print ((isPos and isEven and (_ > 2)) 6)
+
+# **`or` / `and` 还是普通名字**:只有中缀那个位置才当运算符
+or := 42
+print (or + 1)
+print ((or))
+# 代价:它当不了**裸实参**了(实参那儿它被当成运算符)——
+# 想传这个值得加括号:`print (or)` 行,`print or` 不行。
+print ((try { eval "print or"; } (e: Exception) => { "3: " + e.Message; }))
 
 # ── 一支都不收:报的是"都不收 + 最后试的那条说了什么" ──
 # (只有一支、守卫不成立时,拒收没地方去 —— 直接当错报出来)
@@ -80,6 +109,12 @@ print ((try { only 2; } (e: Exception) => { "2: " + e.Message; }))
 # true
 # [2 4]
 # [1 2 3 4]
+# [2 4]
+# Function
 # true
+# true
+# 43
+# 42
+# 3: 'or' 是中缀运算符，后面得跟个操作数（想传一个叫 `or` 的值就加括号：`(or)`）
 # 别
 # 2: 这一支不收这个参数

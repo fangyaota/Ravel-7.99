@@ -84,9 +84,14 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
                 t.Line == 1 ? t.Column + col - 1 : t.Column, t.Length) { Parts = t.Parts };
         }
 
-        return new Parser(toks, file).ParseExpression();
+        // 片段也要过脱糖那趟:插值里写 `(${a or b})` 一样得折成谓词
+        return Lowering.Apply(new Parser(toks, file).ParseExpression());
     }
 
+    /// <summary>把整份源码读成一棵树。
+    ///
+    /// **这是唯一的出口** —— `ParseSource` / `ParseBlock`(模块体、`eval`)都走它,
+    /// 所以脱糖那趟(<see cref="Lowering"/>)挂在这儿就够了,单独调用点不必各自记得。</summary>
     public Program Parse()
     {
         var statements = new List<Statement>();
@@ -98,20 +103,20 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
             statements.Add(ParseStatement());
         }
 
-        return new Program(statements) { Source = source };
+        return Lowering.Apply(new Program(statements) { Source = source });
     }
 
     // ========================================
     //  辅助
     // ========================================
 
-    private bool StartsPrimary()
-    {
-        if (IsAtEnd()) return false;
-        return Peek().Type is TokenType.Number or TokenType.String or TokenType.Char or TokenType.Identifier
+    private bool StartsPrimary() => StartsPrimaryAt(0);
+
+    /// <summary>往前数第 off 个 token 能不能**起一个操作数**(实参循环和"运算符后面跟什么"都用它)。</summary>
+    private bool StartsPrimaryAt(int off)
+        => TypeAt(off) is TokenType.Number or TokenType.String or TokenType.Char or TokenType.Identifier
             or TokenType.LeftParen or TokenType.LeftBracket
             or TokenType.LeftBrace;
-    }
 
     /// <summary>把 token 说成人话,给报错用。
     /// `Token.ToString()` 是 `EndOfFile() at 1:4` 那种调试格式(类型名 + 行列),

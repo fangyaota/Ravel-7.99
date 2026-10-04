@@ -144,8 +144,8 @@ public partial class Parser
     ///   * `<|` **比这一整条链都松**(见 `ParsePipe`)—— 它连赋值都包得住,
     ///     表里放不下"比最松的还松"。(`|>` 不是运算符,它住在调用那一段。)
     ///
-    /// 词形运算符 `is` / `isnot` 是**标识符**,进不了按 token 类型查的表,单独认
-    /// (优先级和比较同级)。</summary>
+    /// **词形运算符**(`or` / `and`)是**标识符**,进不了按 token 类型查的表 —— 单独一张
+    /// (见 <see cref="WordOpBp"/>)。</summary>
     private static readonly Dictionary<TokenType, (int Lbp, int Rbp)> BinOpBp = new()
     {
         [TokenType.OrOr] = (2, 3),
@@ -162,6 +162,30 @@ public partial class Parser
         [TokenType.Plus] = (14, 15), [TokenType.Minus] = (14, 15),
         [TokenType.Star] = (16, 17), [TokenType.Slash] = (16, 17), [TokenType.Percent] = (16, 17),
     };
+
+    /// <summary>**词形运算符**:看着是标识符,但在中缀位置是运算符 —— 现在只有 `or` / `and`
+    /// (谓词级的与 / 或)。
+    ///
+    /// 它们比不了 `<:` 那种"生来就是标点"的:进不了按 TokenType 查的 <see cref="BinOpBp"/>,
+    /// 得按**词**认,而且只有两个词、只在**中缀位置**认。代价说清楚:
+    /// **在实参那个位置它们不再是名字** —— `f or g` 合成谓词,想传一个叫 `or` 的值得写 `f (or)`
+    /// (括号里它照旧是普通标识符)。定义位置(`or := 42`)、参数位置、成员位置(`o.or`)、
+    /// 字典键一概不受影响。语料里没有把 `or` / `and` 当裸实参传的地方。
+    ///
+    /// 优先级**照着 `||` / `&&`**:`or` 那一档、`and` 高两档 —— 于是 `a or b and c` 是
+    /// `a or (b and c)`,和布尔那边读法一致。
+    ///
+    /// 折成谓词那一步**不在这儿** —— 解析器只造 `BinaryExpr(l, "or", r)`,换形状是
+    /// <see cref="Lowering"/> 那趟的事。</summary>
+    private static readonly Dictionary<string, (int Lbp, int Rbp)> WordOpBp = new()
+    {
+        ["or"] = (2, 3),
+        ["and"] = (8, 9),
+    };
+
+    /// <summary>这一枚是不是**中缀位置**的词形运算符(`or` / `and`)。</summary>
+    private static bool IsInfixWordOperator(Token t)
+        => t.Type == TokenType.Identifier && WordOpBp.ContainsKey(t.Lexeme);
 
     /// <summary>优先级爬升 —— 替掉原来"一个运算符一个函数"的那八层。
     ///
@@ -185,6 +209,17 @@ public partial class Parser
 
             if (BinOpBp.TryGetValue(t.Type, out var bp))
                 (lbp, rbp) = bp;
+            else if (IsInfixWordOperator(t))
+            {
+                // 运算符后面总得跟个操作数。`print or` 是最常见的那一脚 —— 从前它报
+                // 「未定义的名字 'or'」(那时 `or` 还是实参),现在得说准话:它成了运算符,
+                // 想传这个值就加括号。(不然报的是"需要表达式,但得到 表达式结束",
+                // 一个字的线索都没有,还指着语句开头。)
+                if (!StartsPrimaryAt(1) && !IsOperatorToken(TypeAt(1)))
+                    throw ParseError($"'{t.Lexeme}' 是中缀运算符，后面得跟个操作数"
+                                   + $"（想传一个叫 `{t.Lexeme}` 的值就加括号：`({t.Lexeme})`）");
+                (lbp, rbp) = WordOpBp[t.Lexeme];
+            }
             else break;
 
             if (lbp <= minBp) break;
@@ -258,8 +293,10 @@ public partial class Parser
         LoopCtx? loop = null;
 
         // f a b c  →  ((f a) b) c  柯里化。
-        // 词形运算符在这儿要停:它看着像个 primary,但 `1 is int` 里那个 `is` 是中缀
-        // (节形式的 `f is.int` 除外,那是参数)。
+        // **词形运算符在这儿要停**(`or` / `and`):它们看着像个 primary —— 本来就是标识符
+        // —— 但 `f a or g` 里那个 `or` 是中缀:`a` 当实参,`or` 归上面 `ParseClimb` 的循环。
+        // (不停的话 `f or g` 就成了"把 `or` 和 `g` 当实参传给 f" —— 而这门语言里
+        //  实参本来就吃运算符,不拦一手,运算符永远轮不到。)
         while (true)
         {
             // `|>` —— **把左边交给右边**。右边是什么,决定了交法:
@@ -298,7 +335,7 @@ public partial class Parser
                 continue;
             }
 
-            if (!StartsPrimary()) break;
+            if (!StartsPrimary() || IsInfixWordOperator(Peek())) break;
 
             // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
             // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。
