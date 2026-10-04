@@ -231,6 +231,18 @@ public partial class Parser
                 return ParseOperatorDefinition();
         }
 
+        // `++` / `--` 落在语句**开头**,只有两种来路:上一条没把它收走(`y := x++`),
+        // 或者写了前缀(`++x`)。**两种都不认** —— 它只跟在变量/字段后面、自己单独成句。
+        // 不专门拦的话会落进 `ParsePrimary`,报「需要表达式，但得到 '++'」,
+        // 看不出是这两件事里的一件。
+        if (Check(TokenType.PlusPlus) || Check(TokenType.MinusMinus))
+        {
+            var inc = Peek();
+            throw ParseError($"'{inc.Lexeme}' 只能跟在变量或字段后面、自己单独成句（`x{inc.Lexeme}`）——"
+                           + "它是 `x += 1` 的简写，不交回值，所以写不进表达式里（前缀 `"
+                           + inc.Lexeme + "x` 也不认）");
+        }
+
         // 旧写法 operator+ add := ... 已废弃。不拦的话会被当表达式 `operator + add` 求值,
         // 报的却是「未定义的变量 'operator'」,看不出所以然。
         if (Check(TokenType.Identifier) && Peek().Lexeme == "operator" &&
@@ -364,9 +376,61 @@ public partial class Parser
         // 独立的表达式语句
         _holeCount = 0;
         var expr = ParseExpression();
+
+        // `x++` / `x--`。**紧贴着**刚算完的表达式看,不跨换行 —— `x` 一行、`++` 一行
+        // 那是两条语句,不是自增(第二条到语句开头会被上面那条拦下来)。
+        if (Check(TokenType.PlusPlus) || Check(TokenType.MinusMinus))
+            return ParseIncDec(expr);
+
         SkipNewlines();
         if (HasHoles(expr)) expr = DesugarHoles(expr);
         return new ExpressionStatement(expr) { Line = expr.Line, Column = expr.Column };
+    }
+
+    /// <summary>`x++` / `x--` —— 折成 `x += 1` / `x -= 1`。**只在语句位置认**
+    /// (上面那条分支),所以它是这条语言的语法糖里最薄的一枚。
+    ///
+    /// **它不交回值**,这是故意的: `y := x++` 是语法错误。C 里 `y = x++` 拿旧值、
+    /// `y = ++x` 拿新值 —— "看符号写在哪边猜拿到哪个值"是那门语言最经典的一个坑,
+    /// 而这两样在这儿一个都没有:当语句用的时候,`x++` 和 `x += 1` 一模一样。
+    /// (要值就明写:`y := x; x += 1`。)
+    ///
+    /// 目标只能是**变量或字段**(和 `+=` 同一类),别的形状在这儿就报 —— 等到求值期
+    /// 才报「复合赋值目标必须是变量」的话,插入符指着的是那个 `+=`,看不出是 `++` 用错了地方。
+    ///
+    /// 折出来的就是一条 `BinaryExpr(x, "+=", 1)`,和手写 `x += 1` 走**同一条路**
+    /// (变量一条、字段一条,见 `Interpreter.Binary` 的 StepCompoundAssign*)——
+    /// 所以 `by` 属性那种槽、只读字段那些规矩,一个都不用在这儿重说一遍。
+    /// </summary>
+    private Statement ParseIncDec(Expression target)
+    {
+        var op = Peek();
+        _pos++;
+
+        if (target is not (IdentifierExpr or MemberAccess))
+            throw new SyntaxException(
+                $"'{op.Lexeme}' 只能跟在变量或字段后面，而且得自己单独成句"
+                + $"（`x{op.Lexeme}` / `a.b{op.Lexeme}`）—— 它是 `x += 1` 的简写，不交回值",
+                new SourceSpot(source, op.Line, op.Column));
+
+        var one = new NumberLiteral("1") { Line = op.Line, Column = op.Column };
+        var compound = op.Type == TokenType.PlusPlus ? "+=" : "-=";
+        var bin = new BinaryExpr(target, compound, one) { Line = target.Line, Column = target.Column };
+
+        // **后面得收尾**。这条不是洁癖:`a--b` 会**安安静静**读成 `a--` 和 `b` 两条语句
+        // (Ravel 靠换行分句,所以同一条语句里再冒出个 `b` 本来就说不通)——
+        // 而写它的人十有八九是想要 `a - (-b)`。静默地做成另一件事,比报错难查得多。
+        // `;` 在词法那一步就变成换行了,所以这儿只管换行/收尾两种。
+        if (!Check(TokenType.Newline) && !Check(TokenType.RightBrace) && !IsAtEnd())
+            throw new SyntaxException(
+                $"'{op.Lexeme}' 后面得收尾 —— `a{op.Lexeme}b` 会被读成 `a{op.Lexeme}` 和 `b` 两条语句"
+                + (op.Type == TokenType.MinusMinus
+                    ? "（连着写两个负号的话，中间那个空格不能省：`a - -b`）"
+                    : ""),
+                new SourceSpot(source, Peek().Line, Peek().Column));
+
+        SkipNewlines();
+        return new ExpressionStatement(bin) { Line = bin.Line, Column = bin.Column };
     }
 
     /// <summary>`.` 后面那一段:普通成员名,或运算符符号(`2.+` / `"a".==`)</summary>

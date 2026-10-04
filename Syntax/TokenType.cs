@@ -54,6 +54,8 @@ public enum TokenType
     // 算术
     Plus,          // +
     Minus,         // -
+    PlusPlus,      // ++  自增**语句**的糖,不是运算符(见 Parser.Statements 的 ParseIncDec)
+    MinusMinus,    // --  自减同上
     Star,          // *
     Slash,         // /
     Percent,       // %

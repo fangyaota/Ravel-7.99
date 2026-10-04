@@ -231,6 +231,11 @@ public class Lexer(string source, string? file = null)
         (">=", TokenType.GreaterEqual),
         ("&&", TokenType.AndAnd),
         ("||", TokenType.OrOr),
+        // `++` / `--` —— 语句级的糖(见 Parser.Statements 的 ParseIncDec)。
+        // **代价写在文档里**:`a - -b` 不写空格就成了 `a--` `b`,所以连着写两个负号时
+        // 中间那个空格不能省(C 也是一样)。
+        ("++", TokenType.PlusPlus),
+        ("--", TokenType.MinusMinus),
         ("+=", TokenType.PlusEqual),
         ("-=", TokenType.MinusEqual),
         // `**=` 得排在 `**` 前面(前缀相同的,长的先试)—— 和 `??=` 先于 `??` 一个道理
