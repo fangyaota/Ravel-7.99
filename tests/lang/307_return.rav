@@ -1,0 +1,82 @@
+# `return` —— 函数里提前交回一个值。
+#
+# 它是**上下文关键字**:只在**语句开头**认,别处照旧是普通名字(`return := 5` 还是定义,
+# `x.return` 还是成员)。
+#
+# 脱糖成对 `__return` 的一次调用,那枚 `__return` 由**最近一层用户写的 lambda 体**包出来的
+# `callcc` 绑住。于是有两条:
+#
+#   * **内部消糖造的 lambda 不算一层** —— `do` / `?.` / 占位符 / 运算符节那几个都由 Parser
+#     自己造 lambda,`return` 不该被它们截住;
+#   * 嵌套靠**词法遮蔽**自己分开:内层只是"绑得近",用不着为每层起新名字。
+
+f := (n: int) => {
+    if { n < 0; } { return 0; } { 0; }
+    n * 2
+}
+print (f 5)
+print (f (-3))
+
+# 裸 `return` —— 交回 `()`
+b := (n: int) => {
+    if { n > 0; } { return; } { 0; }
+    "没提前走"
+}
+print (b 1)
+print (b (-1))
+
+# 嵌套:内层 `return` 只出内层(`g` 拿到 99,不是被它直接顶出去)
+g := (n: int) => {
+    h := (m: int) => {
+        if { m > 10; } { return 99; } { 0; }
+        m
+    }
+    r := h n
+    if { r == 99; } { return -1; } { 0; }
+    r
+}
+print (g 5)
+print (g 50)
+
+# `do` 块的体里 —— `do` 会折出一串 lambda,那些**不算一层**
+dd := (n: int) => {
+    z := do {
+        a :< Some n
+        if { a > 3; } { return -7; } { 0; }
+        a
+    }
+    z
+}
+print (dd 1)
+print (dd 5)
+
+# `foreach` 的体是**用户写的** lambda —— 所以那儿写 `return` 出的是**那一层**,不是整个循环
+# (要跳出循环得用 `break`,那是另一条)
+foreach [1 2 3] (x: int) => {
+    q := (y: int) => {
+        if { y == 2; } { return "中"; } { 0; }
+        "没中"
+    }
+    print (q x)
+}
+
+# 名字照旧能用
+return := 5
+print (return + 1)
+
+# 顶层没有可返回的那个函数 —— 当场说清楚
+print ((try { eval "return 1"; } (e: Exception) => { "1: " + (string e); }))
+# --- expected ---
+# 10
+# 0
+# ()
+# 没提前走
+# 5
+# -1
+# 1
+# -7
+# 没中
+# 中
+# 没中
+# 6
+# 1: 'return' 得写在函数体里 —— 顶层没有可返回的那个函数

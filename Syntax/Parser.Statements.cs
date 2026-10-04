@@ -68,6 +68,18 @@ public partial class Parser
     /// 外层 do 的 `:<` 不该漏进一个 lambda 的体里。</summary>
     private int _doDepth;
 
+    /// <summary>"这层 lambda 体里出现过 `return` 吗" —— 每进一个**用户写的** lambda 体压一层
+    /// (见 <see cref="ParseUserLambdaBody"/>),出来按需把那层体包成 `callcc`。
+    /// 空 = 不在函数体里(那儿写 `return` 当场报错)。</summary>
+    private readonly List<bool> _returnUsed = [];
+
+    /// <summary>`return` 后面跟着的是"这名字"的用法而不是关键字吗 —— 判据就一条:
+    /// 接下来那个 token 是不是定义/赋值/取成员。`return := 5` / `return = 5` / `x.return`
+    /// 都照旧当普通名字走。</summary>
+    private bool LooksLikeUseOfTheName()
+        => IsDefinitionOp(NextType()) || CheckNext(TokenType.Equal)
+           || CheckNext(TokenType.Dot) || CheckNext(TokenType.QuestionDot);
+
     /// <summary>这个位置是 `名字 =&lt;` 吗?只在**语句开头**问,所以别处出现 `=&lt;`
     /// 只是个普通的语法错误("需要表达式，但得到 '=&lt;'")。</summary>
     private bool IsBindStart() => Check(TokenType.Identifier) && CheckNext(TokenType.BindArrow);
@@ -157,6 +169,31 @@ public partial class Parser
             if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))
                 return ParseDefinition(attrs);
             throw ParseError("修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）");
+        }
+
+        // `return v` —— **上下文关键字**:只在语句开头认,别处照旧是普通名字
+        // (`return := 5` 还是定义,`x.return` 还是成员)。脱糖成对 `__return` 的一次调用;
+        // 那枚 `__return` 由最近一层**用户写的** lambda 体包出来的 `callcc` 绑住
+        // (见 `ParseUserLambdaBody`)。
+        if (Check(TokenType.Identifier) && Peek().Lexeme == "return" && !LooksLikeUseOfTheName())
+        {
+            if (_returnUsed.Count == 0)
+                throw ParseError("'return' 得写在函数体里 —— 顶层没有可返回的那个函数");
+
+            var kw = Peek();
+            _pos++;
+            _holeCount = 0;
+            Expression? value = null;
+            if (!Check(TokenType.Newline) && !Check(TokenType.RightBrace) && !IsAtEnd())
+                value = ParseExpression();
+            SkipNewlines();
+            if (value is not null && HasHoles(value)) value = DesugarHoles(value);
+            _returnUsed[^1] = true;
+
+            var fn = new IdentifierExpr("__return") { Line = kw.Line, Column = kw.Column };
+            var arg = value ?? new VoidLiteral { Line = kw.Line, Column = kw.Column };
+            var call = new CallExpr(fn, arg) { Line = kw.Line, Column = kw.Column };
+            return new ExpressionStatement(call) { Line = kw.Line, Column = kw.Column };
         }
 
         // 普通定义：IDENT := expr 或 IDENT : type = expr

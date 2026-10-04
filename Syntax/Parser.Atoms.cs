@@ -212,6 +212,31 @@ public partial class Parser
     private BlockExpr Block(List<Statement> stmts, Token at)
         => new(stmts) { Line = at.Line, Column = at.Column, Source = source };
 
+    /// <summary>**用户写的** lambda 体。和 <see cref="ParseMandatoryBlock"/> 只差一件事:
+    /// 进去压一层"这段里出现过 `return` 吗",出来按需把体包成
+    /// `callcc ((__return: object) => { … })`。
+    ///
+    /// **只有用户写的 `=>` 才算一层** —— `do` / `?.` / 占位符 / 运算符节那些**内部消糖**造的
+    /// lambda 不走这儿。于是体里写 `return`,绑到的是外面那个真函数,不会被中间那些生成的
+    /// lambda 截住(它们在外层 `callcc` 的作用域里,照样跳得出去)。
+    ///
+    /// 名字**固定**成 `__return`:嵌套靠词法遮蔽自己就分开了(内层那枚绑内层的),
+    /// 用不着为每层起个新名字。</summary>
+    private BlockExpr ParseUserLambdaBody(string what, Token at)
+    {
+        _returnUsed.Add(false);
+        var body = ParseMandatoryBlock(what);
+        var used = _returnUsed[^1];
+        _returnUsed.RemoveAt(_returnUsed.Count - 1);
+        if (!used) return body;
+
+        var param = new Parameter("__return", ObjectType(at));
+        var lam = new LambdaExpr(param, body) { Line = at.Line, Column = at.Column };
+        var call = new CallExpr(new IdentifierExpr("callcc") { Line = at.Line, Column = at.Column }, lam)
+            { Line = at.Line, Column = at.Column };
+        return Block([new ExpressionStatement(call) { Line = at.Line, Column = at.Column }], at);
+    }
+
     /// <summary>折出来的那段要当 lambda 的体,得是个块:已经是就原样,不是就包一层。</summary>
     private BlockExpr AsBlock(Expression e, Token at)
         => e is BlockExpr b ? b : Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
@@ -254,7 +279,7 @@ public partial class Parser
             if (Match(TokenType.Arrow))
             {
                 // () => {...}  语法糖 →  (_:void) => {...}
-                var body = ParseMandatoryBlock("lambda 体");
+                var body = ParseUserLambdaBody("lambda 体", Previous());
                 return new LambdaExpr(new Parameter("_", new IdentifierExpr("void") { Line = line, Column = col }), body) { Line = line, Column = col };
             }
 
@@ -280,7 +305,7 @@ public partial class Parser
 
             Consume(TokenType.RightParen, "lambda 参数后需要 ')'");
             Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
-            var body = ParseMandatoryBlock("lambda 体");
+            var body = ParseUserLambdaBody("lambda 体", Previous());
 
             // 单参数：直接返回（兼容原有行为）
             if (@params.Count == 1)

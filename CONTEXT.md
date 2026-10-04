@@ -522,6 +522,12 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;**交出的是 `init` 的返回值**(约定 `this`),`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂。
   判"还没收齐"那句是 `HalfCtor(...)`(`Interpreter.Control.cs`):`IsClosure` 再排掉**可调用但调用起来不是"接着收参数"**的那几种。除 `Bool`/类对象(`IsClosure` 里已经排掉)之外,**续延也得排** —— 调续延是跳转,不是喂参数;不排的话 `Continuation f` 一造出来就被包成半成品,`typeof` 立刻看不出它是续延。
+- `return v` 是**上下文关键字**(只在语句开头认;`return := 5` / `x.return` 照旧是普通名字),
+  解析期脱糖成"对 `__return` 的一次调用 + 把**用户写的** lambda 体包一层
+  `callcc ((__return: object) => { … })`"。两条:`__return` 名字**固定**,嵌套靠词法遮蔽
+  自己分开(**不再**需要给每层起新名字);只有用户写的 `=>` 才压那一层,**内部消糖**造的
+  lambda(`do` / `?.` / 占位符 / 运算符节)不算 —— 所以 `do` 块里的 `return` 不会被折出来的
+  那串 `Bind` lambda 截住。顶层写 `return` 是解析错。
 - callcc 只有一套语义:续延 = callcc 之后的剩余计算;调用它 = 丢弃当前帧链、从捕获点继续(详见「控制流」)。
   交出去的那枚**类型是 `Continuation`**(`<: Function`,自己也挂 `Function` 下面):库里的 `callcc` 用 `Continuation f` 把"先还原控制状态、再跳"那层也包成续延,所以用户手里那枚类型上就是它(`ContinuationVal` 的两个字段:`Captured` = 引擎交出来的那种,`Jump` = 包出来的那种)。`default` 是**还没到手的那一枚**,一调就报错 —— 它是跳转,没有目的地就该响,不能做成"什么都不做"。
 - 深度递归 20 万层安全(原 CPS ~4k 层爆栈)——但那是 **C# 栈**安全,不是内存安全:
