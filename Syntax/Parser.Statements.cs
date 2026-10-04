@@ -537,7 +537,11 @@ public partial class Parser
 
         if (Match(TokenType.DotDot))
         {
-            var n = Consume(TokenType.Identifier, "'..' 后面要跟个名字（`..rest`）");
+            var n = Consume(TokenType.Identifier, "'..' 后面要跟个名字（`..rest` —— 名字自己起）");
+            // `_` 是丢弃/占位的记号,不是名字 —— 真放过去就悄悄绑出一个叫 `_` 的变量,
+            // 后面 `print _` 又当洞消糖,出一堆看不懂的错。
+            if (n.Lexeme == "_")
+                throw ParseError("'..' 后面要一个真名字 —— `_` 是丢弃/占位的记号，当不了名字");
             return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
         }
 
@@ -546,13 +550,13 @@ public partial class Parser
         return new NamePattern(name.Lexeme) { Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>`..rest` 只能写最后一项 —— 它把后面都吃了,写在中间后面的格子永远取不到
+    /// <summary>`..名字` 只能写最后一项 —— 它把后面都吃了,写在中间后面的格子永远取不到
     /// (静默地永远不跑,正是这门语言最恨的那种)。</summary>
     private void EnsureRestIsLast(List<Pattern> parts)
     {
         for (var i = 0; i < parts.Count - 1; i++)
             if (parts[i] is RestPattern)
-                throw new SyntaxException("'..rest' 只能写在模式的最后一项 —— 它把后面都吃了",
+                throw new SyntaxException("'..名字' 只能写在模式的最后一项 —— 它把后面都吃了",
                     new SourceSpot(source, parts[i].Line, parts[i].Column));
     }
 
