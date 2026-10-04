@@ -147,6 +147,19 @@ public partial class Parser
         return new DoExpr(stmts) { Line = at.Line, Column = at.Column };
     }
 
+    /// <summary>参数表里这一格是不是**开一个模式**(`[…]` / `{…}`)。</summary>
+    private bool StartsParamGroup(int off)
+        => TypeAt(off) is TokenType.LeftBracket or TokenType.LeftBrace;
+
+    /// <summary>参数表还能再收一项吗(名字或模式)。</summary>
+    private bool StartsParam()
+        => Check(TokenType.Identifier) || StartsParamGroup(0);
+
+    /// <summary>模式参数取合成名用(`__p{n}`)。它是 **lambda 的参数**,作用域只在那个
+    /// lambda 里,所以每次解析从 0 数就够 —— 而且它会出现在**打印出来的函数体**里,
+    /// 从 0 数输出才可复现(和 `__g{n}` 那种落在用户作用域里的不一样)。</summary>
+    private int _paramCount;
+
     /// <summary>合成一个 `object` 注解节点 —— 省了注解的参数、`do` 的绑定、占位符消糖
     /// 都用它:那些地方只知道"有东西来了",标不出更细的类型。</summary>
     private static IdentifierExpr ObjectType(Token at) => new("object") { Line = at.Line, Column = at.Column };
@@ -163,16 +176,25 @@ public partial class Parser
         var off = 0;
         while (true)
         {
-            if (TypeAt(off) != TokenType.Identifier) return false;
-            off++;
-            if (TypeAt(off) == TokenType.Colon)
+            if (StartsParamGroup(off))
             {
-                off = SkipTypeAnnotation(off + 1);
-                if (off < 0) return false;               // 类型读不动(括号没闭上之类)
+                // **模式参数**:一整个 `[…]` / `{…}` 算一项,而且**后面不能跟注解**
+                off = SkipBalanced(off);
+                if (off < 0) return false;               // 括号没闭上
             }
+            else if (TypeAt(off) == TokenType.Identifier)
+            {
+                off++;
+                if (TypeAt(off) == TokenType.Colon)
+                {
+                    off = SkipTypeAnnotation(off + 1);
+                    if (off < 0) return false;           // 类型读不动(括号没闭上之类)
+                }
+            }
+            else return false;
 
             if (TypeAt(off) == TokenType.RightParen) return TypeAt(off + 1) == TokenType.Arrow;
-            // 还没到 ')' —— 后面只可能是**下一个参数的名字**(不是就当场判否)
+            // 还没到 ')' —— 后面只可能是**下一个参数**(名字或又一个模式)
         }
     }
 
@@ -299,16 +321,32 @@ public partial class Parser
             {
                 var at = Peek();
                 var saveAt = _pos;
+
+                // **模式参数**:`([x y]) => …` / `({a b}) => …` —— 整个参数按形状拆。
+                // 参数本身没有名字(名字在模式里),所以取一个**合成名**;拆法归 `Lowering`。
+                // **不能带注解** —— 形状本身就是它对实参的要求(要更严就在体里再过一手)。
+                if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
+                {
+                    var pat = ParsePattern();
+                    if (Check(TokenType.Colon))
+                        throw ParseError("模式参数不能再带类型注解 —— 形状本身就是它的要求（`([x y]) => …`）");
+                    @params.Add(new Parameter("__p" + _paramCount++, ObjectType(at), pat));
+                    SkipNewlines();
+                    if (!StartsParam()) break;               // 到 ')' 了
+                    continue;
+                }
+
                 var pName = Consume(TokenType.Identifier, "lambda 参数需要一个名字（`(x: int) => …`）");
                 if (Match(TokenType.Colon))
                 {
                     @params.Add(new Parameter(pName.Lexeme, ParseTypeAnnotation()));
                 }
-                else if (Check(TokenType.Identifier) || Check(TokenType.RightParen))
+                else if (Check(TokenType.Identifier) || Check(TokenType.RightParen) || StartsParamGroup(0))
                 {
                     // **注解可省**:省了就按 `object` 收(谁都收得下)。和 `do` 的绑定、占位符消糖
                     // 一个待遇 —— 那些地方也只知道"有东西来了",标不出更细的类型。
                     // 要更细就在体里自己过一手:`n: int = x`。
+                    // (后面跟 `[…]` / `{…}` 也算"这一项完了"——那是下一个模式参数。)
                     @params.Add(new Parameter(pName.Lexeme, ObjectType(pName)));
                 }
                 else
@@ -332,7 +370,7 @@ public partial class Parser
                     break;
                 }
                 SkipNewlines();
-                if (!Check(TokenType.Identifier)) break;      // 到 ')' 了
+                if (!StartsParam()) break;                    // 到 ')' 了
             }
 
             Consume(TokenType.RightParen, "lambda 参数后需要 ')'");

@@ -104,12 +104,9 @@ public record Destructure(List<string> Attrs, Pattern Pattern, Expression? TypeA
     public bool HasAttrs => Attrs.Count > 0;
 }
 
-/// <summary>解构模式的**一格**。纯语法,没有求值语义 —— 只活在 `Destructure` 里。</summary>
-public abstract record Pattern
-{
-    public int Line { get; init; }
-    public int Column { get; init; }
-}
+/// <summary>解构模式的**一格**。纯语法,没有求值语义 —— 活在 `Destructure` 和
+/// 带模式的参数(<see cref="Parameter.Pattern"/>)里。</summary>
+public abstract record Pattern : AstNode;
 
 /// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
 public record NamePattern(string Name) : Pattern;
@@ -234,8 +231,12 @@ public record BlockExpr(List<Statement> Statements) : Expression
 
 // --- 辅助 ---
 /// <summary>参数。类型是**表达式**(常见是一个名字,也可以是括号里的表达式),
-/// 求值在那个 lambda 被创建时做 —— 见 <see cref="VarDefinition.TypeAnnotation"/>。</summary>
-public record Parameter(string Name, Expression Type);
+/// 求值在那个 lambda 被创建时做 —— 见 <see cref="VarDefinition.TypeAnnotation"/>。
+///
+/// **模式参数**(`([x y]) => …`)走 <see cref="Pattern"/>:`Name` 是个**合成名**
+/// (`__p{n}`,不是用户写的),真正给用户用的名字由模式在体的开头绑出来。
+/// 模式参数**不能带注解** —— 形状本身就是它对实参的要求。</summary>
+public record Parameter(string Name, Expression Type, Pattern? Pattern = null);
 
 // --- 程序根 ---
 public record Program(List<Statement> Statements) : AstNode

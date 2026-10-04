@@ -67,10 +67,17 @@ internal static class SysCore
 
     /// <summary>`|` 的交替里"这一支不收这个参数" —— 抛一枚 <see cref="RejectedException"/>。
     /// 参数守卫是解析器生成的调用打到这儿;手写也可以用(`reject "…"`)。
-    /// **`try` 接不住它**(拒收是控制流,不是错误),只有交替接。</summary>
+    ///
+    /// **两种实参都收**:一句现成的字符串,或者一个 `Exception`(`reject (TypeError "…")`,
+    /// 消息从它的 `.Message` 上取)。
+    /// **从前只认后者** —— 传字符串会**静默**回落到那句通用的「这一支不收这个参数」,
+    /// 写的那句话一个字都到不了用户眼前(守卫生成的正是字符串,所以守卫的消息
+    /// 一直是丢的)。</summary>
     [Sys("Reject")]
     public static RuntimeValue Reject(Interpreter self, RuntimeValue msg)
-        => throw new RejectedException(BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
+        => throw new RejectedException(
+               msg is StringVal s ? s.Value
+               : BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
 
     /// <summary>库在"没人接"时调它 —— 把引擎这次交出去的那个异常**原样**抛出</summary>
     [Sys("Unhandled")]

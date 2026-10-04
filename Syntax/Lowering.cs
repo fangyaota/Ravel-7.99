@@ -148,12 +148,7 @@ public sealed class Lowering
         {
             Entries = d.Entries.Select(x => x with { Key = Lower(x.Key), Value = Lower(x.Value) }).ToList(),
         },
-        LambdaExpr l => l with
-        {
-            // 参数的类型是**表达式**(`(x: 某个类型表达式) => …`),所以也得走一趟
-            Param = l.Param with { Type = Lower(l.Param.Type) },
-            Body = (BlockExpr)Lower(l.Body),
-        },
+        LambdaExpr l => Lambda(l),
         BlockExpr bl => bl with { Statements = Stmts(bl.Statements) },
 
         // ── 叶子:没有能装表达式的格子 ──
@@ -280,6 +275,31 @@ public sealed class Lowering
             ? b with { Statements = [s, .. b.Statements] }
             : Block([s, new ExpressionStatement(rest) { Line = rest.Line, Column = rest.Column }], at);
 
+    /// <summary>`(…) => …` 那一枚 lambda。
+    ///
+    /// **模式参数**(`([x y]) => …`)在这一趟展开成体开头的几句解构 —— 参数本身拿的是
+    /// 合成名(`__p{n}`),真正给用户用的名字由模式绑出来。于是"形状不对"就是一次普通求值
+    /// 错误(`Bind` 报的 `TypeError`),而它发生在**这一支自己那次调用里**(第一格就判),
+    /// 所以 `|` 的交替接得住 —— 多参子句上的守卫做不到这一点(那会儿交替帧早返回了)。
+    ///
+    /// 多参 lambda 是**柯里化**折出来的(`(a b) => …` 是一层层 `LambdaExpr`),所以
+    /// 每一层各自带自己的参数、各自展开自己的模式 —— 这儿不用管层数。</summary>
+    private Expression Lambda(LambdaExpr l)
+    {
+        // 参数的类型是**表达式**(`(x: 某个类型表达式) => …`),所以也得走一趟
+        var body = (BlockExpr)Lower(l.Body);
+        var param = l.Param with { Type = Lower(l.Param.Type), Pattern = null };
+
+        if (l.Param.Pattern is { } p)
+        {
+            var binds = new List<Statement>();
+            Bind(p, Ident(l.Param.Name, l), null, binds);
+            body = body with { Statements = [.. binds, .. body.Statements] };
+        }
+
+        return l with { Param = param, Body = body };
+    }
+
     /// <summary>解构:按模式把右边那个值拆成一串普通的 `:=`。
     ///
     /// <code>
@@ -313,7 +333,12 @@ public sealed class Lowering
         var value = Lower(d.Value);
         var type = d.TypeAnnotation is null ? null : Lower(d.TypeAnnotation);
 
-        var needTemp = type is not null || (d.Pattern is MemberPattern && value is not IdentifierExpr);
+        // 落地条件两条:
+        //   * 写了 `: T` —— 那条注解管的是右边那个值,得有地方挂它;
+        //   * 右边不是现成的名字 —— 拆的时候它要被**读好几遍**(对象模式每个成员读一次;
+        //     列表模式"是不是序列"判一次、`GetEnumerator` 再取一次),不落地的话
+        //     `[x y] := f ()` 会把 `f` 跑几遍。
+        var needTemp = type is not null || value is not IdentifierExpr;
         var source = value;
         if (needTemp)
         {
@@ -322,13 +347,28 @@ public sealed class Lowering
             source = Ident(t, d);
         }
 
-        Bind(d.Pattern, source, attrs, outs, d);
+        Bind(d.Pattern, source, attrs, outs);
         return outs;
     }
 
-    /// <summary>按模式往 <paramref name="outs"/> 里补语句。嵌套的那几格递归进来。</summary>
-    private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs, Destructure at)
+    /// <summary>按模式往 <paramref name="outs"/> 里补语句。嵌套的那几格递归进来。
+    ///
+    /// **拆不成分两种,都报 `TypeError`**(不是引擎内部那种硬错):
+    ///
+    /// * 这一份压根不是"能按顺序取的东西" → 当场说清,`得到 Integer` 那种;
+    /// * 取到一半到底了(`MoveNext` 回 false)→ 说清"要第几格"。
+    ///
+    /// 为什么非得是 `TypeError`:**带模式的参数**就是靠它接住的 —— `([x y]) => … | (_) => …`
+    /// 里第一支形状不对时,拒收要发生在**它自己那次调用里**(第一格就判),`|` 的交替才接得住。
+    /// (多参子句上的守卫做不到这一点:那会儿交替帧早返回了。)
+    ///
+    /// 顺带把原来那两条**看不懂的错**换掉了:
+    /// `[q w] := 5` 从前报「类型 'Integer' 没有方法 'GetEnumerator'」,
+    /// `[q w] := [1]` 报「list.At 的索引 1 越界」—— 都是**脱糖内部**的词。</summary>
+    private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs)
     {
+        var at = p;
+
         switch (p)
         {
             case NamePattern n:
@@ -350,21 +390,44 @@ public sealed class Lowering
 
             case MemberPattern m:
                 foreach (var name in m.Names)
+                {
+                    // 成员不在这一份上 —— 也是"形状对不上",不是引擎的硬错
+                    outs.Add(ExprStmt(If(
+                        Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(name)), at),
+                        Reject(Str($"要求成员 '{name}'，可这一份上没有"), at), at), at));
                     outs.Add(Define(name, null, Member(source, name), attrs, at));
+                }
                 return;
 
             case ListPattern l:
             {
+                // 先确认它**能按顺序取** —— 不然下面那句 `GetEnumerator` 报的是
+                // 「类型 'Integer' 没有方法 'GetEnumerator'」,用户看不出来是自己的模式用错了地方
+                var notSeq = new BinaryExpr(
+                    new StringLiteral("要的是能按顺序取的东西（list / set / dict / 字符串 / Generator…），得到 ")
+                        { Line = at.Line, Column = at.Column },
+                    "+",
+                    Call(Ident("string", at), Call(Ident("typeof", at), source)))
+                    { Line = at.Line, Column = at.Column };
+                outs.Add(ExprStmt(If(
+                    Not(new BinaryExpr(source, ":", Ident("IEnumerable", at)) { Line = at.Line, Column = at.Column }, at),
+                    Reject(notSeq, at), at), at));
+
                 var g = FreshTemp("__g");
                 var gid = Ident(g, at);
                 outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), attrs, at));
 
+                var k = 0;
                 foreach (var part in l.Parts)
                 {
-                    if (part is RestPattern) { Bind(part, gid, attrs, outs, at); continue; }
+                    if (part is RestPattern) { Bind(part, gid, attrs, outs); continue; }
 
-                    // **先走一步再取** —— 游标站在"还没读的那个"前面(见 `lib/iterator.rav`)
-                    outs.Add(ExprStmt(Call0(Member(gid, "MoveNext")), at));
+                    // **先走一步再取** —— 游标站在"还没读的那个"前面(见 `lib/iterator.rav`)。
+                    // 走不动 = 这一串比模式短,同样是"形状对不上"。
+                    k += 1;
+                    outs.Add(ExprStmt(If(
+                        Not(Call0(Member(gid, "MoveNext")), at),
+                        Reject(Str($"要第 {k} 格，可这一串已经到底了"), at), at), at));
 
                     switch (part)
                     {
@@ -378,7 +441,7 @@ public sealed class Lowering
                             // 嵌套:先落到一个中间量上,再拿它当下一次解构的源
                             var t = FreshTemp("__d");
                             outs.Add(Define(t, null, Member(gid, "Current"), attrs, at));
-                            Bind(part, Ident(t, at), attrs, outs, at);
+                            Bind(part, Ident(t, at), attrs, outs);
                             break;
                         }
                     }
@@ -390,6 +453,28 @@ public sealed class Lowering
 
         throw Error(at, "Lowering 没认这个模式");
     }
+
+    /// <summary>取反。**只在布尔上**用(`MoveNext` 的返回值、类型判定)——它就是一元的 `!`。</summary>
+    private static UnaryExpr Not(Expression operand, AstNode at)
+        => new("!", operand) { Line = at.Line, Column = at.Column };
+
+    /// <summary>`if { 条件; } { 这一段; } { 0; }` —— 条件不成立才跑那一段。</summary>
+    private Expression If(Expression cond, Expression then, AstNode at)
+        => Call(Call(Call(Ident("if", at), AsBlock(cond, at)), AsBlock(then, at)), AsBlock(Num("0", at), at));
+
+    /// <summary>**拒收**:`reject "…"`。
+    ///
+    /// 为什么不是 `throw (TypeError "…")`:那条路走的是**异常处理器栈**,`|` 的交替不认它
+    /// (只有 `try` 接得住)。而带模式的参数正是靠 `|` 接住"这一支形状不对"才有用 ——
+    /// 所以要用**同一枚拒收信号**(参数守卫用的也是它):先给最近的交替接,没人接才落到 `try`。
+    /// 消息可以是拼出来的(不是序列那一条要带上实际类型)。</summary>
+    private static Expression Reject(Expression message, AstNode at)
+        => Call(Ident("reject", at), message);
+
+    private static StringLiteral Str(string v) => new(v);
+
+    private static NumberLiteral Num(string v, AstNode at)
+        => new(v) { Line = at.Line, Column = at.Column };
 
     // ── 造节点的几个小帮手(解构这摊用得多,单拎出来)──
 
