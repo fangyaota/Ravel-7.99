@@ -1949,8 +1949,10 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
 
 第二条要 `Interpreter.Stack.StepOnce` 那条总路配合:错误冒泡上来时,`RejectedException`
 排在**交给 Ravel 错误钩子之前** —— 沿着 `Parent` 找**最近的**外层交替帧,把 `_top` 挪回去
-(`ResumeAlternate`),那一帧就从**下一支**接着试。**拒收是控制流,不是错误**,和 `return`
-一个道理,所以 `try` 接不住它。(`StepAlternate` 把"试到第几支"记在帧的 `State` 上 ——
+(`ResumeAlternate`),那一帧就从**下一支**接着试。
+**没有交替可接**才往错误处理器栈走 —— 外面有 `try` 就 `try` 接住,谁都没有就报给用户。
+(别和 `throw` 搞混:`throw` 直接进处理器栈,`|` 根本不认它。)
+(`StepAlternate` 把"试到第几支"记在帧的 `State` 上 ——
 帧是不可变的,推分支时顺手带一份 `next`。)
 
 一支都不收就报 `| 的 N 个分支都不收这个参数（最后试的：…）`,那是 `TypeMismatchException`

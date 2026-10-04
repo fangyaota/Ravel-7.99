@@ -94,7 +94,9 @@ public partial class Interpreter
 
             Locate(ex, _top);
             // **拒收排在交给 Ravel 钩子之前**:它是控制流(和 `return` 一个道理),不是"出事了",
-            // 所以 `try` 接不住它 —— 只有 `|` 的交替接(见 ResumeAlternate)。
+            // 先给**最近的交替帧**接(见 ResumeAlternate);没有交替可接才走到这儿,
+            // 于是外面有 `try` 就 `try` 接住,谁都没有就报给用户。
+            // (别和 `throw` 搞混:`throw` 直接走处理器栈,`|` 不认它。)
             if (ex is RejectedException rej && ResumeAlternate(rej)) return;
             if (HandToRavelHandler(ex)) return;   // 交给 Ravel 的 handler,异常到此为止
             throw;                                // 没人接 → 冒泡给 CLI 打报告
