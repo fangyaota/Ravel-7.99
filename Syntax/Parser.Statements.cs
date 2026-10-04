@@ -68,10 +68,133 @@ public partial class Parser
     /// 外层 do 的 `:<` 不该漏进一个 lambda 的体里。</summary>
     private int _doDepth;
 
+    /// <summary>一层循环(`while` / `foreach`,或带标签的语句)。`break` / `continue` 往
+    /// **最近一层**跳;写了标签就往**那个标签**跳(于是能跳出好几层)。</summary>
+    private sealed class LoopCtx
+    {
+        public string? Label;
+        public string Brk = "";
+        public string Cont = "";
+        public bool BrkUsed;
+        public bool ContUsed;
+        public int BodySeen;          // 走到第几个实参了(第 2 个是体)
+    }
+
+    private readonly List<LoopCtx> _loops = [];
+    private int _loopCount;
+
+    /// <summary>`outer:` 刚读完,等着贴到下面那条语句上(见 ParseStatement 里那段)。</summary>
+    private string? _pendingLabel;
+
+    /// <summary>那个标签的 break 出口叫什么(`__brk_<标签>`)—— 循环认领它,`break 标签` 指它。</summary>
+    private string? _pendingBrk;
+
+    /// <summary>正在解析的那个标签叫**什么**。循环认领会清掉 `_pendingLabel`(免得下一个循环
+    /// 又把它认走),可名字得留着 —— 里面的 `break 标签` 要拿它比,才知道这标签被用过了。</summary>
+    private string? _pendingLabelName;
+
+    /// <summary>这个标签被人 `break` 过吗(没人用过就报错 —— 顺手把 "`x: int` 想写定义却漏了 `=`" 那种笔误也逮住)。</summary>
+    private bool _pendingBrkUsed;
+
     /// <summary>"这层 lambda 体里出现过 `return` 吗" —— 每进一个**用户写的** lambda 体压一层
     /// (见 <see cref="ParseUserLambdaBody"/>),出来按需把那层体包成 `callcc`。
     /// 空 = 不在函数体里(那儿写 `return` 当场报错)。</summary>
     private readonly List<bool> _returnUsed = [];
+
+
+    /// <summary>这儿的 `名字 :` 是**定义**吗 —— 定义必然有 `=`(`x: int = 5`),标签必然没有。
+    /// 只在同一行、括号深度 0 上找,见到 `{` 就停(`outer: while { … }` 里的 `{` 后面不算)。</summary>
+    private bool LooksLikeDefinitionName()
+    {
+        var depth = 0;
+        for (var i = _pos + 1; i < tokens.Count; i++)
+        {
+            switch (tokens[i].Type)
+            {
+                case TokenType.Newline: return false;
+                case TokenType.LeftParen or TokenType.LeftBracket: depth++; break;
+                case TokenType.RightParen or TokenType.RightBracket: depth--; break;
+                case TokenType.LeftBrace: return false;
+                case TokenType.Equal when depth == 0: return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>`break [标签]` / `continue [标签]`。脱糖成对 `__brk<n>` / `__cont<n>` 的一次
+    /// 调用 —— 那两个名字由**循环那一层**包出来的 `callcc` 绑住(见 ParsePostfixRest 里那段)。</summary>
+    private Statement ParseBreakContinue()
+    {
+        var kw = Peek();
+        _pos++;
+        string? label = null;
+        if (Check(TokenType.Identifier) && !CheckNext(TokenType.Equal))
+        {
+            label = Peek().Lexeme;
+            _pos++;
+        }
+
+        var ctx = label is null
+            ? (_loops.Count > 0 ? _loops[^1] : null)
+            : _loops.FindLast(c => c.Label == label);
+
+        if (ctx is null)
+            throw new SyntaxException(
+                label is null
+                    ? "'break' / 'continue' 得写在循环里（`while` / `foreach`，或者带标签的语句）"
+                    : $"找不到标签 '{label}' 标的那个循环",
+                new SourceSpot(source, kw.Line, kw.Column));
+
+        var isBreak = kw.Lexeme == "break";
+        var name = isBreak ? ctx.Brk : ctx.Cont;
+        if (name.Length == 0)
+        {
+            name = (isBreak ? "__brk" : "__cont") + (++_loopCount);
+            if (isBreak) ctx.Brk = name; else ctx.Cont = name;
+        }
+        if (isBreak) ctx.BrkUsed = true; else ctx.ContUsed = true;
+        if (label is not null && label == _pendingLabelName) _pendingBrkUsed = true;
+
+        var fn = new IdentifierExpr(name) { Line = kw.Line, Column = kw.Column };
+        var arg = new VoidLiteral { Line = kw.Line, Column = kw.Column };
+        return new ExpressionStatement(new CallExpr(fn, arg) { Line = kw.Line, Column = kw.Column })
+            { Line = kw.Line, Column = kw.Column };
+    }
+
+    /// <summary>`continue` 的出口:把循环的**体**包一层 `callcc` —— "跳过这一轮"就是跳出
+    /// 这个体。每轮都会新包一次,所以下一个 `continue` 照样管用。
+    ///
+    /// 体可能是**块**(`while` / `foreach` 的裸块),也可能是 **lambda**(`foreach xs (x) => {…}`)
+    /// —— 后者要换的是 **lambda 的体**,不是整个 lambda,不然那个 `x` 就没了。</summary>
+    private Expression WrapLoopBody(Expression body, string cont, Token at)
+        => body is LambdaExpr lam
+            ? lam with { Body = AsBlock(CallCC(cont, AsBlock(lam.Body, at), at), at) }
+            : AsBlock(CallCC(cont, AsBlock(body, at), at), at);
+
+    /// <summary>`break` 的出口(没标签的循环):把**整个循环调用**包一层 `callcc`。</summary>
+    private Expression WrapLoopWhole(Expression loop, string brk, Token at)
+        => CallCC(brk, AsBlock(loop, at), at);
+
+    /// <summary>`callcc ((<名字>) => { <体> })` —— 这三个糖的公共形状。</summary>
+    private Expression CallCC(string name, BlockExpr body, Token at)
+    {
+        var param = new Parameter(name, new IdentifierExpr("object") { Line = at.Line, Column = at.Column });
+        var lam = new LambdaExpr(param, body) { Line = at.Line, Column = at.Column };
+        return new CallExpr(new IdentifierExpr("callcc") { Line = at.Line, Column = at.Column }, lam)
+            { Line = at.Line, Column = at.Column };
+    }
+
+    /// <summary>带标签的那条语句包一层 `callcc` —— `break 标签` 跳到这儿。
+    /// (**循环那层不包 break**:标签认领过的循环把出口留给标签,自己只管 `continue` 那条。)</summary>
+    private Statement WrapLabelStmt(Statement inner, string brk, Token lbl)
+    {
+        var at = new SourceSpot(source, lbl.Line, lbl.Column);
+        var param = new Parameter(brk, new IdentifierExpr("object") { Line = lbl.Line, Column = lbl.Column });
+        var lam = new LambdaExpr(param, Block([inner], lbl)) { Line = lbl.Line, Column = lbl.Column };
+        var call = new CallExpr(new IdentifierExpr("callcc") { Line = lbl.Line, Column = lbl.Column }, lam)
+            { Line = lbl.Line, Column = lbl.Column };
+        return new ExpressionStatement(call) { Line = lbl.Line, Column = lbl.Column };
+    }
 
     /// <summary>`return` 后面跟着的是"这名字"的用法而不是关键字吗 —— 判据就一条:
     /// 接下来那个 token 是不是定义/赋值/取成员。`return := 5` / `return = 5` / `x.return`
@@ -195,6 +318,40 @@ public partial class Parser
             var arg = value ?? new VoidLiteral { Line = kw.Line, Column = kw.Column };
             var call = new CallExpr(fn, arg) { Line = kw.Line, Column = kw.Column };
             return new ExpressionStatement(call) { Line = kw.Line, Column = kw.Column };
+        }
+
+        // `break` / `continue` —— 和 `return` 一样是**上下文关键字**,也归同一个开关。
+        if (moreControlFlow && Check(TokenType.Identifier)
+            && Peek().Lexeme is "break" or "continue" && !LooksLikeUseOfTheName())
+            return ParseBreakContinue();
+
+        // `outer: <语句>` —— 给循环/语句起个名字,好让 `break outer` / `continue outer` 指着它跳。
+        // 和定义的分岔靠**往后找 `=`**:定义必然有(`x: int = 5`),标签必然没有。
+        // 这条只在这个开关开着时才认,免得动到老代码。
+        if (moreControlFlow && Check(TokenType.Identifier) && CheckNext(TokenType.Colon)
+            && !LooksLikeDefinitionName())
+        {
+            var lbl = Peek();
+            var outerLabel = _pendingLabel;
+            var outerLabelName = _pendingLabelName;
+            var outerBrk = _pendingBrk;
+            var outerUsed = _pendingBrkUsed;
+            _pos += 2;                       // 名字 + ':'
+            _pendingLabel = lbl.Lexeme;
+            _pendingLabelName = lbl.Lexeme;
+            _pendingBrk = "__brk_" + lbl.Lexeme;
+            _pendingBrkUsed = false;
+            var inner = ParseStatement();
+            var used = _pendingBrkUsed;
+            _pendingLabel = outerLabel;
+            _pendingLabelName = outerLabelName;
+            _pendingBrk = outerBrk;
+            _pendingBrkUsed = outerUsed;
+            if (!used)
+                throw new SyntaxException(
+                    $"标签 '{lbl.Lexeme}' 没人用（写 `break {lbl.Lexeme}` 或 `continue {lbl.Lexeme}` 才指得上它）",
+                    new SourceSpot(source, lbl.Line, lbl.Column));
+            return WrapLabelStmt(inner, "__brk_" + lbl.Lexeme, lbl);
         }
 
         // 普通定义：IDENT := expr 或 IDENT : type = expr

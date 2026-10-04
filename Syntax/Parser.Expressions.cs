@@ -316,6 +316,10 @@ public partial class Parser
     {
         if (!allowCall) return expr;
 
+        // 这一串里正在开的那个循环。**得跨实参活下来** —— `while` / `foreach` 的体是
+        // **第 2 个**实参,而每一轮循环体都会重新声明局部变量。
+        LoopCtx? loop = null;
+
         // f a b c  →  ((f a) b) c  柯里化。
         // 词形运算符在这儿要停:它看着像个 primary,但 `1 is int` 里那个 `is` 是中缀
         // (节形式的 `f is.int` 除外,那是参数)。
@@ -373,7 +377,39 @@ public partial class Parser
             // 「'<|' 左边必须是函数」,指着一个根本不该当函数用的 `1`,查半天都找不到北。
             // (括号开头的实参照旧:`f (1) + 2` 是 `f ((1) + 2)`。运算符作用在调用**结果**上时
             //  是**调用**那一层的事,自己加括号:`xs.Count () == 0` 要写 `(xs.Count ()) == 0`。)
+            // 循环调用(`while <条件> <体>` / `foreach <序列> <体>`,**体是第 2 个实参**)。
+            // 一进来就把上下文压上 —— 体里写的 `break` / `continue` 才知道往哪跳。
+            if (moreControlFlow && loop is null
+                && expr is IdentifierExpr { Name: "while" or "foreach" })
+            {
+                loop = new LoopCtx { Label = _pendingLabel, Brk = _pendingBrk ?? "" };
+                // 只清"待认领"那个标记(免得**下一个**循环又把它认走);名字留着 ——
+                // 里面的 `break 标签` 要拿它跟自己的出口比,才知道标签被用过了
+                if (_pendingLabel is not null) _pendingLabel = null;
+                _loops.Add(loop);
+            }
+
             var arg = ParseAssignment(allowCall: false);
+
+            var at = Previous();
+
+            // 体到手了:先生 `continue` 的出口,再建这次调用,最后按需包 `break`
+            if (loop is not null && ++loop.BodySeen == 2)
+            {
+                if (loop.ContUsed) arg = WrapLoopBody(arg, loop.Cont, at);
+                expr = new CallExpr(expr, arg)
+                {
+                    Line = expr.Line,
+                    Column = expr.Column,
+                };
+                // 标签认领过的循环**不包 break** —— 出口留给标签那一层(那样 `break 标签`
+                // 跳的是标签,不是循环,标签也能贴在不带循环的语句上)
+                if (loop.BrkUsed && loop.Label is null) expr = WrapLoopWhole(expr, loop.Brk, at);
+                _loops.RemoveAt(_loops.Count - 1);
+                loop = null;
+                continue;
+            }
+
             expr = new CallExpr(expr, arg)
             {
                 Line = expr.Line,

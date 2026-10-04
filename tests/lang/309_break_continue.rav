@@ -1,0 +1,77 @@
+#program --more-control-flow=true
+#
+# `break` / `continue` —— 循环里的两个跳转。和 `return` 一样:上下文关键字(只在语句开头认),
+# 归 `--more-control-flow` 这个开关管(**默认关**,关着的时候就是两个普通名字)。
+#
+# 脱糖成对 `__brk<n>` / `__cont<n>` 的一次调用,那两个名字由循环那一层包出来的 `callcc` 绑住:
+#
+#   * **`break`** 包的是**整个循环调用** —— 跳出循环;
+#   * **`continue`** 包的是**循环的体** —— 跳过这一轮(每轮新包一次,所以下一个照样管用)。
+#
+# `while` / `foreach` 是**库函数**,解析器按名字认它们(这就是它知道"哪个调用算循环"的
+# 唯一依据)。要跳出**几层**,给标签:`outer: while { … }` + `break outer`。
+
+# ── 基本 ──
+i := 0
+while { i < 10; } {
+    i += 1
+    if { i == 3; } { break; } { 0; }
+}
+print i
+
+j := 0
+s := 0
+while { j < 5; } {
+    j += 1
+    if { (j % 2) == 0; } { continue; } { 0; }
+    s += j
+}
+print s
+
+# ── foreach 也一样(它的体是个 lambda,`continue` 包的是**它的体**)──
+tot := 0
+foreach [1 2 3 4 5] (x: int) => {
+    if { x == 4; } { break; } { 0; }
+    tot += x
+}
+print tot
+
+skipped := 0
+foreach [1 2 3 4] (x: int) => {
+    if { x == 2; } { continue; } { 0; }
+    skipped += 1
+}
+print skipped
+
+# ── 标签:跳出好几层 ──
+outer: while { true; } {
+    foreach [1 2 3] (x: int) => {
+        if { x == 2; } { break outer; } { 0; }
+        print x
+    }
+}
+print "跳出来了"
+
+# `continue 标签`:内层循环跳到**外层那一轮**
+hits := 0
+scan: foreach [1 2 3] (a: int) => {
+    foreach [10 20 30] (b: int) => {
+        if { b == 20; } { continue scan; } { 0; }
+        hits += 1
+    }
+}
+print hits
+
+# ── 报错 ──
+print ((try { eval "break"; } (e: Exception) => { "1: " + (string e); }))
+print ((try { eval "x := 1\nbrk: while { x < 2; } {\n    x += 1\n}\nprint x"; } (e: Exception) => { "2: " + (string e); }))
+# --- expected ---
+# 3
+# 9
+# 6
+# 3
+# 1
+# 跳出来了
+# 3
+# 1: 'break' / 'continue' 得写在循环里（`while` / `foreach`，或者带标签的语句）
+# 2: 标签 'brk' 没人用（写 `break brk` 或 `continue brk` 才指得上它）

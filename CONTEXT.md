@@ -526,6 +526,12 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
   就是三个普通名字,老代码一行不用改)。开的两条路:命令行 `ravel --more-control-flow`,
   或文件头 `#program --more-control-flow=true`(逐文件;`#` 是注释,所以是**读源码**那一层
   扫的,见 `Parser.DeclaresMoreControlFlow`)。
+- `break` / `continue` 同属这个开关,也是上下文关键字。脱糖成对 `__brk<n>` / `__cont<n>` 的
+  一次调用:**`break` 包的是整个循环调用**(跳出循环),**`continue` 包的是循环的体**
+  (跳过这一轮;每轮新包一次,所以下一个照样管用)。`while` / `foreach` 是**库函数**,解析器
+  只按**名字**认它们 —— 那是它知道"哪个调用算循环"的唯一依据。标签 `名字: <语句>` 往
+  `_pendingLabel` 上挂一层,循环认领它;`break 标签` 跳到标签那层(所以标签认领过的循环
+  **不自己包 break**),没人指过的标签当场报错。
 - `return v` 是**上下文关键字**(只在语句开头认;`return := 5` / `x.return` 照旧是普通名字),
   解析期脱糖成"对 `__return` 的一次调用 + 把**用户写的** lambda 体包一层
   `callcc ((__return: object) => { … })`"。两条:`__return` 名字**固定**,嵌套靠词法遮蔽
