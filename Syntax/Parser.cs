@@ -5,7 +5,10 @@ using Ravel.Runtime;
 
 /// <summary>递归下降解析器,按优先级链逐层收窄(见 ParseExpression 起的各层)。
 /// `_` 占位符的消糖是独立的一趟 AST 改写,在 Parser.Holes.cs。</summary>
-public partial class Parser(List<Token> tokens, string? source = null)
+/// <summary>`moreControlFlow` —— `--more-control-flow`(命令行)或文件头那条
+/// `#program --more-control-flow=true` 开的那个开关。**默认为关**,关着的时候
+/// `return` / `break` / `continue` 就是三个普通名字,和从前一模一样。</summary>
+public partial class Parser(List<Token> tokens, string? source = null, bool moreControlFlow = false)
 {
     private int _pos;
 
@@ -18,7 +21,15 @@ public partial class Parser(List<Token> tokens, string? source = null)
 
     /// <summary>当前括号/块的嵌套深度(见 Nested)</summary>
     private int _depth;
-    private const int MaxDepth = 400;
+    /// <summary>嵌套上限。**这条线是护栏,不是能力** —— 递归下降靠 C# 调用栈,而
+    /// StackOverflow **捕获不了**:真撞上去,进程直接死,连个语法错误都看不到。
+    ///
+    /// 数字要**按最坏情况**留:解析器不只在顶层跑,它还会在解释器深处被调用
+    /// ( `eval` 里、Ravel 的异常 handler 里)。那儿的 C# 栈已经不浅,余量得按那儿算。
+    /// 从前是 400 —— 那是**空栈上量出来的**(注释里那句"500 层没事、1000 层爆栈"),
+    /// 一进深栈就不够用了:`class` 那批用例跑完再跑 `diag/152`(里面有一条 1000 层括号)
+    /// 必崩,而单独跑那条没事。200 是压着最坏情况取的。</summary>
+    private const int MaxDepth = 200;
 
     // ========================================
     //  入口
@@ -27,13 +38,38 @@ public partial class Parser(List<Token> tokens, string? source = null)
     /// <summary>词法 + 语法一步到位(调用方不必重复 new Lexer/new Parser 两行)。
     /// fileName 会挂到块上,求值器报错时用它指出是哪个文件。</summary>
     public static Program ParseSource(string source, string? fileName = null)
-        => new Parser(new Lexer(source, fileName).Tokenize(), fileName).Parse();
+        => ParseSource(source, fileName, DeclaresMoreControlFlow(source));
+
+    /// <summary>同上,但开关由调用方说了算(命令行那个 `--more-control-flow` 走这条)。</summary>
+    public static Program ParseSource(string source, string? fileName, bool moreControlFlow)
+        => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).Parse();
+
+    /// <summary>读文件头那条 `#program …`。`#` 是**注释**,词法器根本不看它 —— 所以在
+    /// **读源码**这一层扫,只认**代码之前**的那些行(`#` 注释和空行可以夹在中间)。
+    ///
+    ///     #program --more-control-flow=true
+    ///     #program --more-control-flow          (光写名字就是 true)
+    ///
+    /// 和命令行那个开关是**或**的关系:任一边开了就开。</summary>
+    public static bool DeclaresMoreControlFlow(string source)
+    {
+        foreach (var raw in source.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line[0] != '#') return false;                 // 见到代码了,后面不认
+            if (line != "#program" && !line.StartsWith("#program ")) continue;
+            foreach (var part in line[8..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                if (part is "--more-control-flow" or "--more-control-flow=true") return true;
+        }
+        return false;
+    }
 
     /// <summary>同上,但结果作为块(模块体 / eval 代码片段用)。
     /// 位置给 1:1 而不是留 0——帧链里 Line==0 的块会被当成「没有位置」跳过,
     /// 模块体于是不会出现在调用栈里。顶层的根块(RunStack)也是这么标 1:1 的。</summary>
-    public static BlockExpr ParseBlock(string source, string? fileName = null)
-        => new(ParseSource(source, fileName).Statements) { Line = 1, Column = 1, Source = fileName };
+    public static BlockExpr ParseBlock(string source, string? fileName = null, bool moreControlFlow = false)
+        => new(ParseSource(source, fileName, moreControlFlow).Statements) { Line = 1, Column = 1, Source = fileName };
 
     /// <summary>把一段**源码片段**当**表达式**解析 —— 插值字符串用(`"你好 ${name}"` 里那段
     /// `name` 就是)。片段来自字符串字面量内部,所以它的 token 位置是相对的:按它在原文件里的

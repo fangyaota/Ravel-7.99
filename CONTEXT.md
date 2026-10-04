@@ -522,6 +522,10 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 - 控制内建(`with`/`callcc`/`using`/`eval`)= `ControlFunction(Kind, Arity, Args)` 纯数据,收满参数推控制帧。求值器内部还会合成 `Alternate`/`ClassInit`/`Compose`/`ClassOp`/`CallAssign`/`CallReturn`/`CtorApply` 控制帧。`ControlKind` 因此只有 11 个值。
 - **构造器调用与普通函数同一条柯里化路径**:`Point 3 4` ≡ `((Point 3) 4)`。`ClassInit` 建好对象、跑完类体后把参数喂给 `init`;**交出的是 `init` 的返回值**(约定 `this`),`init` 还返回函数(参数没收齐)就交出 `PartialCtor` 半成品,由 `CtorApply` 帧继续喂。
   判"还没收齐"那句是 `HalfCtor(...)`(`Interpreter.Control.cs`):`IsClosure` 再排掉**可调用但调用起来不是"接着收参数"**的那几种。除 `Bool`/类对象(`IsClosure` 里已经排掉)之外,**续延也得排** —— 调续延是跳转,不是喂参数;不排的话 `Continuation f` 一造出来就被包成半成品,`typeof` 立刻看不出它是续延。
+- **`return` / `break` / `continue` 归 `--more-control-flow` 一个开关管,默认关**(关着时它们
+  就是三个普通名字,老代码一行不用改)。开的两条路:命令行 `ravel --more-control-flow`,
+  或文件头 `#program --more-control-flow=true`(逐文件;`#` 是注释,所以是**读源码**那一层
+  扫的,见 `Parser.DeclaresMoreControlFlow`)。
 - `return v` 是**上下文关键字**(只在语句开头认;`return := 5` / `x.return` 照旧是普通名字),
   解析期脱糖成"对 `__return` 的一次调用 + 把**用户写的** lambda 体包一层
   `callcc ((__return: object) => { … })`"。两条:`__return` 名字**固定**,嵌套靠词法遮蔽

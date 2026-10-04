@@ -41,7 +41,7 @@ internal static class GoldenTestRunner
     ///
     /// `warn` 是一次性的总开关(CLI 的 `--warn`):每条用例都带着它跑,
     /// 好把整个用例库当成一份样本,过一遍"是不是忘了调用"的筛子。</summary>
-    public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false)
+    public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false, bool moreControlFlow = false)
     {
         var testDir = FindTestDir();
         if (testDir == null)
@@ -80,7 +80,8 @@ internal static class GoldenTestRunner
 
             // `# warn` 的用例把 stderr 收进比对里;**`--warn` 那一趟只开开关、不动比对** ——
             // 它是"整库过筛子",警告照旧往真 stderr 上冒,不因此让谁红掉
-            var output = CaptureOutput(test.Source, file, captureErr: test.Warn, warn: warn || test.Warn);
+            var output = CaptureOutput(test.Source, file, captureErr: test.Warn,
+                warn: warn || test.Warn, moreControlFlow: moreControlFlow);
             if (IsPassing(test, output))
             {
                 Console.WriteLine(test.ExpectError ? "OK (expected error)" : "OK");
@@ -134,7 +135,8 @@ internal static class GoldenTestRunner
     /// <summary>执行源码,捕获 stdout;异常按 CLI 的约定渲染成 "Error: ..."(运行时错误带位置和调用栈)。
     /// `captureErr` 时把 **stderr 并到同一个缓冲里** —— 同一个 StringWriter,警告就按**真实先后**
     /// 插在正常输出中间(`WriteErr` 那些也一并收进来),而不是被挪到末尾。</summary>
-    private static string CaptureOutput(string source, string? file, bool captureErr, bool warn)
+    private static string CaptureOutput(string source, string? file, bool captureErr, bool warn,
+                                        bool moreControlFlow)
     {
         var oldOut = Console.Out;
         var oldErr = Console.Error;
@@ -144,7 +146,9 @@ internal static class GoldenTestRunner
         try
         {
             // 开关在构造**之后**拨:构造时就跑完 predefined 了,那是库、不是这次要盯的代码
-            new Interpreter { WarnForgotCall = warn }.Interpret(Parser.ParseSource(source, file));
+            var flow = moreControlFlow || Parser.DeclaresMoreControlFlow(source);
+        new Interpreter { WarnForgotCall = warn, MoreControlFlow = flow }
+            .Interpret(Parser.ParseSource(source, file, flow));
         }
         // 语法错误也是「用户代码的问题」,和运行时错误一样算正常的 Error 输出
         catch (Exception ex) when (ex is RuntimeException or SyntaxException)

@@ -175,7 +175,8 @@ public partial class Parser
         // (`return := 5` 还是定义,`x.return` 还是成员)。脱糖成对 `__return` 的一次调用;
         // 那枚 `__return` 由最近一层**用户写的** lambda 体包出来的 `callcc` 绑住
         // (见 `ParseUserLambdaBody`)。
-        if (Check(TokenType.Identifier) && Peek().Lexeme == "return" && !LooksLikeUseOfTheName())
+        if (moreControlFlow && Check(TokenType.Identifier) && Peek().Lexeme == "return"
+            && !LooksLikeUseOfTheName())
         {
             if (_returnUsed.Count == 0)
                 throw ParseError("'return' 得写在函数体里 —— 顶层没有可返回的那个函数");

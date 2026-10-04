@@ -6,12 +6,14 @@ using Ravel.Testing;
 // (`System.Args ()` 交回的就是后者)。所以 `ravel --warn x.rav --warn` 里后面那个
 // `--warn` 是给脚本的,和前面那个不是一回事。
 var warn = false;
+var moreControlFlow = false;
 var first = 0;
 for (; first < args.Length && args[first].StartsWith('-'); first++)
 {
     switch (args[first])
     {
         case "--warn" or "-w": warn = true; break;
+        case "--more-control-flow": moreControlFlow = true; break;
         default:
             Console.WriteLine($"不认识的开关 '{args[first]}'。用法: ravel [--warn] [脚本.rav [参数…]]");
             Environment.ExitCode = 1;
@@ -23,7 +25,7 @@ var rest = args[first..];
 
 if (rest.Length == 0)
 {
-    RunRepl(warn);
+    RunRepl(warn, moreControlFlow);
 }
 else if (rest[0] == "test")
 {
@@ -48,7 +50,7 @@ else if (rest[0] == "test")
         else pick.Add(arg);
     }
 
-    if (!GoldenTestRunner.RunAll(warn, [.. pick], fast)) Environment.ExitCode = 1;
+    if (!GoldenTestRunner.RunAll(warn, [.. pick], fast, moreControlFlow)) Environment.ExitCode = 1;
 }
 else if (rest[0] == "strip")
 {
@@ -60,7 +62,7 @@ else if (rest[0] == "strip")
 else
 {
     // 脚本名之后那些交给 `System.Args ()`(REPL / `ravel test` 没有,它们是空的)
-    RunFile(rest[0], rest[1..], warn);
+    RunFile(rest[0], rest[1..], warn, moreControlFlow);
 }
 
 /// <summary>不带参数 = 进 REPL。**这个 REPL 是 Ravel 自己写的**(`lib/repl.rav`,
@@ -73,10 +75,10 @@ else
 ///
 /// 顺带白拿一条:C# 那版没有"看不见终端"这一路,而 `lib/repl.rav` 有(见它的 `Run`)——
 /// 管道里喂进去的整段会被当成一段程序跑完,于是 `echo 'print 1' | ravel` 现在通。</summary>
-static void RunRepl(bool warn)
-    => RunSource("using \"repl.rav\"\nRepl.Run ()\n", "<repl>", [], warn);
+static void RunRepl(bool warn, bool moreControlFlow)
+    => RunSource("using \"repl.rav\"\nRepl.Run ()\n", "<repl>", [], warn, moreControlFlow);
 
-static void RunFile(string path, string[] scriptArgs, bool warn)
+static void RunFile(string path, string[] scriptArgs, bool warn, bool moreControlFlow)
 {
     string source;
     try
@@ -96,19 +98,22 @@ static void RunFile(string path, string[] scriptArgs, bool warn)
     Console.WriteLine(source.Trim());
     Console.WriteLine("── Output ──");
 */
-    RunSource(source, path, scriptArgs, warn);
+    RunSource(source, path, scriptArgs, warn, moreControlFlow);
     Console.WriteLine();
 }
 
 /// <summary>跑一段源码 —— **单文件和 REPL 入口都走这里**,报错就只写这一套。
 /// 出事把退出码拨成 1(和测试那条线一个规矩:说了话就是出事)。</summary>
-static void RunSource(string source, string path, string[] scriptArgs, bool warn)
+static void RunSource(string source, string path, string[] scriptArgs, bool warn, bool moreControlFlow)
 {
     try
     {
         // 开关在**建完之后**才拨:构造时就把 predefined 跑了,而那是库、不是用户代码 ——
         // 提醒要说的是"你这几行",不该被库里的写法刷屏(`lib/` 里自己开另说)。
-        new Interpreter(scriptArgs) { WarnForgotCall = warn }.Interpret(Parser.ParseSource(source, path));
+        // 文件头那条 `#program --more-control-flow=true` 和命令行开关是**或**的关系
+        var flow = moreControlFlow || Parser.DeclaresMoreControlFlow(source);
+        new Interpreter(scriptArgs) { WarnForgotCall = warn, MoreControlFlow = flow }
+            .Interpret(Parser.ParseSource(source, path, flow));
     }
     // 运行时错误和语法错误渲染同一份报告(位置 + 源码行 + 插入符 + 调用栈),
     // 所以用一条 when 收下来,不必写两遍一模一样的 catch

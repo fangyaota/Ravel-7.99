@@ -247,9 +247,13 @@ print (sign 5)
 
 ### `return`：函数里提前交回一个值
 
-函数里"提前交回"太常见，所以有专门的糖：
+函数里"提前交回"太常见，所以有专门的糖。**它归一个开关管，默认关着**（`break` / `continue` 同理）：
+
+- 命令行：`ravel --more-control-flow 你的脚本.rav`（整次运行都开）
+- 文件头：`#program --more-control-flow=true`（只这个文件开）
 
 ```ravel
+#program --more-control-flow=true
 f := (n: int) => {
     if { n < 0; } { return 0; } { 0; }
     n * 2
@@ -268,6 +272,8 @@ print (f (-3))
 它是**上下文关键字** —— 只在**语句开头**认：`return := 5` 还是定义，`x.return` 还是成员。裸写 `return` 交回 `()`。
 
 出的是**最近一层用户写的函数**。两条推论：`foreach` 的体本身就是一个 lambda，所以在那儿写 `return` 只出那一趟的体；而 `do` / `?.` 那些**内部消糖**造的 lambda 不算一层（它们只是把表达式挪个地方），`return` 不会被截住。
+
+关着的时候，`return` / `break` / `continue` 就是三个**普通名字**（能拿来做变量、做成员），和从前一模一样 —— 加了三个糖，但不动老代码的写法。
 
 它脱糖成对 `__return` 的一次调用 + 在函数体外面包一层 `callcc` —— 也就是下面那个通用做法，只是不用你手写。要跳出循环、或者跳出好几层，还是得自己用 `callcc`。
 

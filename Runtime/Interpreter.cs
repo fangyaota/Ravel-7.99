@@ -34,6 +34,12 @@ public partial class Interpreter
     /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。</summary>
     public bool WarnForgotCall { get; set; }
 
+    /// <summary>`return` / `break` / `continue` 这三个糖的开关(`--more-control-flow`,
+    /// 或脚本头一条 `#program --more-control-flow=true`)。**默认关** —— 关着的时候
+    /// 那三个就是普通名字,和从前一模一样。`eval` 和 `using` 进来的代码跟着它走
+    /// (各自文件头还能自己声明)。</summary>
+    public bool MoreControlFlow { get; set; }
+
     /// <summary>进程级的一次性准备 —— 静态构造,第一次造解释器时跑一遍。
     ///
     /// **把老编码(GBK / GB2312 / Big5…)注册上**。.NET 默认只认 Unicode 那几套,不注册的话

@@ -1,0 +1,33 @@
+# `--more-control-flow` 这个开关**默认是关的** —— 这条钉"关着的时候什么样"。
+#
+# 关着的时候 `return` / `break` / `continue` 就是三个**普通名字**:能拿来做变量、做成员,
+# 当然也不能当关键字用(那条路要 `--more-control-flow`,或者文件头写
+# `#program --more-control-flow=true` —— 见 `307`)。
+#
+# 开的那一侧在 `307` 里钉着。
+
+# ── 当普通名字使,一切照旧 ──
+return := 5
+print (return + 1)
+break := 1
+print (break + 1)
+continue := 2
+print (continue + 1)
+
+D ::= class {
+    return: int = 7
+}
+print ((D ()).return)
+
+# ── 当关键字使 → 它就是个没定义的名字,报在**求值**时(不是解析时) ──
+print ((try { eval "f := () => { return 1; }\nf ()"; } (e: Exception) => { "1: " + (string e); }))
+
+# 函数体里那个 `return` 没被求值就不会响 —— 它是普通名字,不是"少一块"那种解析错
+print ((try { eval "g := () => { return 1; }\n3"; } (e: Exception) => { "2: " + (string e); }))
+# --- expected ---
+# 6
+# 2
+# 3
+# 7
+# 1: 值 5 不是函数，不能调用
+# 3

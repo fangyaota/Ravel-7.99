@@ -130,7 +130,7 @@ public partial class Interpreter
         {
             var code = cf.Arg<StringVal>(0, "eval").Value;
             // 给个合成文件名:不带的话语法错误只能报 `--> 3:1`,不知道那是 eval 出来的
-            _top = new BlockExecFrame(Parser.ParseBlock(code, "<eval>")) { Parent = cf, Scope = cf.Scope };
+            _top = new BlockExecFrame(Parser.ParseBlock(code, "<eval>", MoreControlFlow || Parser.DeclaresMoreControlFlow(code))) { Parent = cf, Scope = cf.Scope };
             return;
         }
 
