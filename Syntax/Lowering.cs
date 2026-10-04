@@ -39,8 +39,25 @@ using Ravel.Runtime;
 /// (`Reject` / 方法名之类**同名不同义的**别往这儿塞:那要类型信息,是求值期的事。)</summary>
 public sealed class Lowering
 {
-    /// <summary>每折一条糖就取一个新参数名 —— 嵌套着写也不会撞。</summary>
+    /// <summary>每次解析从 0 数的序号。给**作用域只在造出来那一小段里**的名字用:
+    /// lambda 参数(`_or{n}` / `_nil{n}` / `__y{n}`)—— 它们天然不会撞,
+    /// 而且 `_or{n}` / `_nil{n}` 会**出现在打印出来的函数体里**,从 0 数输出才可复现。</summary>
     private int _born;
+
+    /// <summary>给**落在用户作用域里的中间量**取名字用的序号(`__g{n}` / `__d{n}`)。
+    ///
+    /// **全进程单调递增,不归零。** 这些是拿 `:=` 定义在**调用方那个作用域**里的,
+    /// 而两次解析完全可能落在同一个作用域 —— `using` 进来的模块和主文件共享顶层作用域,
+    /// `eval` 也一样。归零的话第二个文件里那句就撞上「`__g0` 这个名字已经存在」,
+    /// 而那名字用户根本没写过,看了只会懵。
+    ///
+    /// 用全局序号**不影响输出**:它们从不进打印结果(打印一个 `Generator` 打的是
+    /// `Generator { GetEnumerator = Property {...} }` 这种快照,里面的 lambda 不展开)。
+    /// 会进输出的那几个参数名走 <see cref="_born"/>。</summary>
+    private static int _tempSeq;
+
+    private static string FreshTemp(string prefix)
+        => prefix + Interlocked.Increment(ref _tempSeq);
 
     /// <summary>报错时要写进 `SourceSpot` 的文件名。取不到(插值片段)就 null
     /// —— `ErrorReport` 那边认这个。</summary>
@@ -300,7 +317,7 @@ public sealed class Lowering
         var source = value;
         if (needTemp)
         {
-            var t = Fresh("__d");
+            var t = FreshTemp("__d");
             outs.Add(Define(t, type, value, attrs, d));
             source = Ident(t, d);
         }
@@ -321,7 +338,7 @@ public sealed class Lowering
             case RestPattern r:
                 // 剩下的 = 同一枚游标继续走到底。包成 `Generator` 才是个 `IEnumerable`
                 // (`y` 是"往外送一个"的那个函数,和 `lib/generator.rav` 里各处一个写法)。
-                var y = Fresh("__y");
+                var y = "_y" + _born++;
                 var yid = Ident(y, at);
                 var drain = Call(Ident("while", at),
                     Block([ExprStmt(Call0(Member(source, "MoveNext")), at)], at));
@@ -338,7 +355,7 @@ public sealed class Lowering
 
             case ListPattern l:
             {
-                var g = Fresh("__g");
+                var g = FreshTemp("__g");
                 var gid = Ident(g, at);
                 outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), attrs, at));
 
@@ -359,7 +376,7 @@ public sealed class Lowering
                         default:
                         {
                             // 嵌套:先落到一个中间量上,再拿它当下一次解构的源
-                            var t = Fresh("__d");
+                            var t = FreshTemp("__d");
                             outs.Add(Define(t, null, Member(gid, "Current"), attrs, at));
                             Bind(part, Ident(t, at), attrs, outs, at);
                             break;
@@ -375,8 +392,6 @@ public sealed class Lowering
     }
 
     // ── 造节点的几个小帮手(解构这摊用得多,单拎出来)──
-
-    private string Fresh(string prefix) => prefix + _born++;
 
     private MemberAccess Member(Expression obj, string name)
         => new(obj, name) { Line = obj.Line, Column = obj.Column };
