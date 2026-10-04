@@ -72,6 +72,10 @@ public partial class Parser
             return new CharLiteral(Previous().Lexeme[0])
                 { Line = Previous().Line, Column = Previous().Column };
 
+        // `x => 体` —— **单参 lambda 不写括号**。见 ParseBareLambda 里那两条"故意不收"。
+        if (Check(TokenType.Identifier) && CheckNext(TokenType.Arrow))
+            return ParseBareLambda();
+
         if (Match(TokenType.Identifier))
         {
             var lexeme = Previous().Lexeme;
@@ -484,6 +488,34 @@ public partial class Parser
     /// 体到哪儿为止交给 <see cref="ParseExpression"/> —— 和语句那条路一个口径
     /// (换行 / 收尾符为止)。所以 `f := (x) => x + 1` 读到行尾,
     /// 而 `xs.Map ((x) => x * 2)` 读到那个 `)`。</summary>
+    /// <summary>`x => 体` —— 单参 lambda 的**无括号**写法。折出来和 `(x) => 体` 一模一样
+    /// (参数按 `object` 收,体走 <see cref="ParseUserLambdaBody"/> 那条路)。
+    ///
+    /// 两处**故意不收**,各给一句说清的:
+    ///   * **不收注解** —— `x: int => …` 里那个 `x: int` 首先是**类型判断**(上一笔刚把
+    ///     `:` 统一成这个读法),两种读法挤在一行。要带类型就加括号:`(x: int) => …`。
+    ///   * **`_` 不当参数名** —— `_` 是占位符/丢弃的记号(`_ := v` 是丢掉),拿它当参数名
+    ///     那个名字根本引不到。想写"一个参数"用 `x => 体`;想用洞就直接写 `_ + 1`。
+    ///
+    /// 识别口子只有一个:**光一个标识符 + `=>`**。所以
+    ///   * `f x => e` 是 `f (x => e)`(从前的报错位,现在有了读法);
+    ///   * `a.b => e` **不是** lambda —— `b` 走的是成员链那条路,参数不能是成员。
+    /// </summary>
+    private Expression ParseBareLambda()
+    {
+        var name = Peek();
+        if (name.Lexeme == "_")
+            throw ParseError("`_` 不能当参数名（它是占位符/丢弃的记号）—— 写 `x => 体`，或者直接把洞写出来：`_ + 1`");
+        if (_pos > 0 && tokens[_pos - 1].Type == TokenType.Colon)
+            throw ParseError("不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。"
+                           + "要带类型就加括号：`(x: int) => …`");
+        _pos++;
+        Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
+        var body = ParseUserLambdaBody("lambda 体", Previous());
+        return new LambdaExpr(new Parameter(name.Lexeme, ObjectType(name)), body)
+            { Line = name.Line, Column = name.Column };
+    }
+
     private BlockExpr ParseShorthandBody(Token at)
     {
         _holeCount = 0;
