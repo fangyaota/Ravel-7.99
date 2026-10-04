@@ -15,7 +15,7 @@ System.WriteText "httpd_pub.txt" "从磁盘来"
 srv := Httpd.Server 0
 srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好"; }
 srv.Route "GET" "/q" (req g) => { Httpd.Text ("收到 " + (req.Param "name")); }
-srv.Route "POST" "/echo" (req g) => { Httpd.Json {"len": ((req.BodyText ()).Length ())}; }
+srv.Route "POST" "/echo" (req g) => { Httpd.Json {"len"-> ((req.BodyText ()).Length ())}; }
 srv.Route "GET" "/nope" (req g) => { Httpd.Text "自定义的没有" |> .With 404; }
 # 两种出错,都该回 500:光抛一句的,和**在 handler 里等 IO 结果那次等砸了的**。
 # 后者尤其要紧:它是 `g.Await` 抛出来的,和同步抛的错是同一回事 —— 从前 handler 交回任务
@@ -39,7 +39,7 @@ Tasks.Cycle [
         print (r2.Text ())
 
         # 交回 JSON 的路由:dict 正文进去,出来的是个真的 JSON 对象
-        r3 := g.Await (Http.PostTask (base + "/echo") {"a": 1 "b": 2})
+        r3 := g.Await (Http.PostTask (base + "/echo") {"a"-> 1 "b"-> 2})
         print (r3.Text ())
 
         # handler 自己给的 404 —— 和"没有路由"那个 404 不是同一句话

@@ -9,12 +9,12 @@ s.Remove 2
 print (s.Count ())
 print (s.Contains 1)
 print (s.Contains 2)
-d := {"a": 1 "b": 2 "c": 3}
+d := {"a"-> 1 "b"-> 2 "c"-> 3}
 print (d.Count ())
 print (typeof d)
 print (d.Has "a")
 print (d.Has "x")
-d = {"x": 10 "y": 20}
+d = {"x"-> 10 "y"-> 20}
 print (d.Get "x")
 print (d.Get "y")
 d.Set "z" 30
@@ -26,7 +26,7 @@ s = {a b a + b}
 print (s.Count ())
 print (s.Contains 1)
 print (s.Contains 3)
-d = {"a": 1 "b": 2}
+d = {"a"-> 1 "b"-> 2}
 ks := d.Keys ()
 vs := d.Values ()
 print (ks.Count ())
@@ -67,7 +67,7 @@ ravel "188_hole_in_containers"
 _ := 0
 f := {_ + 1}
 print (f 40)
-g := {"a": _}
+g := {"a"-> _}
 print (g 7)
 h := [_ 2]
 print (h 1)
@@ -149,7 +149,7 @@ print (s.Max ())
 print (s.Where (x: int) => { x >= 2; })
 
 # ---- 字典:元素是值 ----
-d := {"a": 3 "b": 1 "c": 2}
+d := {"a"-> 3 "b"-> 1 "c"-> 2}
 print (d.Count ())
 print (d.Min ())
 print (d.Max ())

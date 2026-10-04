@@ -292,7 +292,7 @@ false
 #### 实例
 
 ```ravel
-print ((Some 5) is IEnumerable)
+print ((Some 5) : IEnumerable)
 foreach (Some 7) (x: int) => { print x; }
 foreach None (x: int) => { print "不会到这儿"; }
 print (Seqs.Flatten [(Some 1) (None) (Some 3)])
@@ -644,7 +644,7 @@ if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
 #### 实例
 
 ```ravel
-j := Json {"a": [1 2.5 ()] "b": {"c": true}}
+j := Json {"a"-> [1 2.5 ()] "b"-> {"c"-> true}}
 print (j)
 print ((j.Get "a").Count ())
 print (((j.Get "a").At 1).Extract ())

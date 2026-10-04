@@ -8,7 +8,7 @@
 if { x > 0; } { print 1; } { print 0; }   # ✅
 if { x > 0 } { print 1 } { print 0 }       # ❌ → Set
 X := { 1 2 }        # Set（不是块）
-X := { "a": 1 }     # Dict（键是表达式）
+X := { "a"-> 1 }     # Dict（键是表达式）
 ```
 
 **这条规则不看位置，lambda 体一样适用**：

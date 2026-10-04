@@ -316,7 +316,7 @@ IEnumerable ::= interface IMonad {
     # 两种用法共用一个名字(和容器那个 `Any ()` / `Any p` 一个规矩)
     by Any := property (() => {
         (p) => {
-            if { p is function; } {
+            if { p : function; } {
                 o := SeekIn instance p
                 o.IsSome ()
             } {
@@ -452,7 +452,7 @@ impl (IEnumerator Enumerator {
 readonly foreach := (xs: object f: function) => {
     # 那句报错串是 `assert` 的**实参**:写得再好看,`foreach` 每进一次都要先把它拼出来。
     # 所以写成一进一出的 if —— 只在真报错时才拼(和 `Keys` 那条一个道理)。
-    if { xs is IEnumerable; } { 0; } {
+    if { xs : IEnumerable; } { 0; } {
         throw (TypeError ("foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 " + string (typeof xs)))
     }
     e := xs.GetEnumerator ()

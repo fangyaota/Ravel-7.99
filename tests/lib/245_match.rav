@@ -3,10 +3,10 @@
 
 kind := (v: object) => {
     match v [
-        [is.int    {"整数";}]
-        [is.bool   {"布尔";}]
-        [is.string {"字符串";}]
-        [is.list   {"列表";}]
+        [:.int    {"整数";}]
+        [:.bool   {"布尔";}]
+        [:.string {"字符串";}]
+        [:.list   {"列表";}]
     ] {"别的";}
 }
 print (kind 3)
@@ -28,25 +28,25 @@ print (match "hello" [[IsLong {"长";}]] {"短";})
 
 # 块是**延迟**的:没走到的分支根本不跑(写成值就不是了 —— 见最后一段)
 Asked := 0
-print (match 3 [[is.int {"甲";}] [is.string { Asked += 1; "乙"; }]] {"丙";})
+print (match 3 [[:.int {"甲";}] [:.string { Asked += 1; "乙"; }]] {"丙";})
 print Asked
-print (match "s" [[is.int {"甲";}] [is.string { Asked += 1; "乙"; }]] {"丙";})
+print (match "s" [[:.int {"甲";}] [:.string { Asked += 1; "乙"; }]] {"丙";})
 print Asked
 
 # 块的值 = 最后一条语句的值:分支里想干什么都行
-print (match 1 [[is.int { print "命中"; 7; }]] { 0; })
+print (match 1 [[:.int { print "命中"; 7; }]] { 0; })
 
 # 一对都不真 -> 默认那一支(默认也照同一个规矩)
 print (match 1 [] {"默认";})
-print (match 1.5 [[is.int {"整数";}]] {"默认";})
+print (match 1.5 [[:.int {"整数";}]] {"默认";})
 
 # 结果/默认值必须是**可调用的**(推荐写成块):拿普通值糊弄当场报错
-try { match 1 [[is.int 5]] {"默认";} } (e: Exception) => { print ("1: " + string e); }
-try { match 9 [[is.int {"整数";}]] 0; } (e: Exception) => { print ("2: " + string e); }
+try { match 1 [[:.int 5]] {"默认";} } (e: Exception) => { print ("1: " + string e); }
+try { match 9 [[:.int {"整数";}]] 0; } (e: Exception) => { print ("2: " + string e); }
 
 # lambda 也认(它同样可调用),而且一样是延迟的
 Ran := 0
-print (match 1 [[is.int (() => { Ran += 1; "跑过了"; })]] {"默认";})
+print (match 1 [[:.int (() => { Ran += 1; "跑过了"; })]] {"默认";})
 print Ran
 
 # 每对必须正好两项:不是就当场报错(说清是第几对)

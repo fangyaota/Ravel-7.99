@@ -494,7 +494,7 @@ lib/
                           `using "iomonad.rav"` 引入 —— `Action` 也实现了 `IMonad`
                           (它和 `Option` 是**同一个形状的两个实例**:各自那份 Map/Bind 就是形状本身,
                           `impl (IMonad Action { () })` 只是登记一下;`impl` 是全局的,所以
-                          `x is IMonad` 在哪儿都成立)。两者的 `Bind` 各干各的:这边真跑效果,
+                          `x: IMonad` 在哪儿都成立)。两者的 `Bind` 各干各的:这边真跑效果,
                           那边没有值就短路
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
@@ -543,7 +543,7 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 - `break` / `continue` 同属这个开关,也是上下文关键字。脱糖成对 `__brk<n>` / `__cont<n>` 的
   一次调用:**`break` 包的是整个循环调用**(跳出循环),**`continue` 包的是循环的体**
   (跳过这一轮;每轮新包一次,所以下一个照样管用)。`while` / `foreach` 是**库函数**,解析器
-  只按**名字**认它们 —— 那是它知道"哪个调用算循环"的唯一依据。标签 `名字: <语句>` 往
+  只按**名字**认它们 —— 那是它知道"哪个调用算循环"的唯一依据。标签 `@名字 <语句>` 往
   `_pendingLabel` 上挂一层,循环认领它;`break 标签` 跳到标签那层(所以标签认领过的循环
   **不自己包 break**),没人指过的标签当场报错。
 - `return v` 是**上下文关键字**(只在语句开头认;`return := 5` / `x.return` 照旧是普通名字),
@@ -622,7 +622,7 @@ Object (parent=自己)
 ```
 
 **`Ravel` 是个光杆**:它下面不挂东西 —— 模块(`System` / `Math` / 各库的模块)是它的
-**实例**,不是子类(所以 `Math is Ravel` 为真,`Math <: Ravel` 不成立 —— 后者要两边都是类型)。
+**实例**,不是子类(所以 `Math: Ravel` 为真,`Math <: Ravel` 不成立 —— 后者要两边都是类型)。
 从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
 那份类对象只为 `print` / `typeof` 打得出名字,却**不登记进 `AllTypes`** ——
 类型树底下于是挂着一堆看不见的子类,树和现实对不上。现在一个 `Ravel` 就够,
@@ -666,7 +666,7 @@ Object (parent=自己)
 —— 作用域从此和别的表一视同仁。
 
 `Ravel` 是**所有模块的类对象**:模块是它的**实例**不是子类,
-所以"这是不是个模块"就一句 `Math is Ravel`。它和 `Scope` 是树里仅有的两个
+所以"这是不是个模块"就一句 `Math: Ravel`。它和 `Scope` 是树里仅有的两个
 "光杆"(下面什么都不挂)。)
 
 **函数**(和类型一样,这就是**全部**,一个不多一个不少 —— 钉在 tests/271):
@@ -1121,7 +1121,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
     （收的是右操作数、接收者靠捕获的作用域）—— `BindMethod` 会去读它的 `Body`，
     而 `LambdaVal.Body` 是"求值器漏了 case"的哨兵，所以那边必须 `is ISelfBinding` 才绑
     （`ClassOp` 帧里 `CallInto(cf, impl, arg)` 也是这么调的，两边一致）。
-  - **"任何值都有"的那批写在 `object` 上**（`is` / `isnot` / `<:` / `:>` / `==` / `!=`）：
+  - **"任何值都有"的那批写在 `object` 上**（`:` / `<:` / `:>` / `==` / `!=`）：
     往上一层层查，每个类都到 `object`，所以谁都摸得到 —— 自指的 `Every` / `Any` 也一样
     （`MemberView.ClassChain` 里那条"自指的不是 `object` 就接上 `object`"）。就这一条规则，
     **没有第二条链**：类对象是值、它的类是它的元类，从类对象往上查照样是"往上"。
@@ -1346,7 +1346,7 @@ Vec := class {
 
 - `+ := f` **定义**；`+ = f` **覆盖**从父类层继承来的那个（父类自己不受影响）。旧写法 `operator+ add := ...` 已废弃，会报语法错误。
 - `++` / `--` **不是运算符**，是**语句级**的糖（见下面 `### 自增`）—— 所以只动了 `TokenType` 和 `Lexer.MultiCharOps` 两处，`IsOperatorToken` 和 `OperatorSymbols.All` 里**没有**它们：`.++`、`++ := f` 这些写法都不成立。
-- 可用符号见 `Syntax/Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % ** == != < > <= >= & | ^ << >> <<< >>>`，**词形运算符** `is` / `isnot`，以及类型之间的 `<:` / `:>`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||` 是求值器特判的，不能自定义。
+- 可用符号见 `Syntax/Ast.cs` 的 `OperatorSymbols.All`（`+ - * / % ** == != < > <= >= & | ^ << >> <<< >>>`，**类型判断** `:`，以及类型之间的 `<:` / `:>`），与 `BuiltinClasses` 注册的内置一致。一元 `!`、短路 `&&`/`||`，以及类型判断 `:` 是求值器特判的，不能自定义。
   （加一个符号要动四处：`TokenType`、`Lexer.MultiCharOps`、`Parser.Statements.IsOperatorToken`（类体里 `** := f` 这么写要认得出），以及上面这张表。`**` 那次就是四处一起改的。）
 
 ### 自增 `++` / 自减 `--`
@@ -1422,16 +1422,24 @@ obj.n++          # 字段也行，和 `obj.n += 1` 一个待遇
   那两条明确报错（而不是偷偷当普通移位）。`>>>` 是**循环**右移，不是"无符号右移"——
   要逻辑右移（补零）用 `lib/bits.rav` 的 `Shr`。
 - **`<:` / `:>` 是类型之间的关系**：`A <: B`（A 是不是 B 的子类型）/ `A :> B`（父类型），
-  **两边都得是类型对象**（接口也是类型）——值那一边用 `is`。两个都注册在 `Object` 上，
+  **两边都得是类型对象**（接口也是类型）——值那一边用 `:`。两个都注册在 `Object` 上，
   这样 `1 <: int` 报的是「'<:' 的左边得是个类型，得到 Integer 的实例」而不是「类型不支持运算符」。
   判据 = `IsAssignableTo`；接口那半（`myClass <: myTrait`）在求值器里补，见「接口与实现」一节。
-- **`is` / `isnot` 是词形运算符**：不是标点，所以解析器在**运算符位置**按词认
-  （`Parser.IsWordOperator` / `IsInfixWordOperator`），别处照样能当标识符与成员名用 ——
-  于是 `1.is`（等右操作数）和 `is.int`（等左操作数）与 `a.+` / `+.2` 完全对称。
-  实现挂在 `Object` 上（每个类的 parent 链都到它），判据就是 `IsAssignableTo`：
-  `1 is int` ✓、`1 is float` ✗（兄弟）、`1 is object` ✓、`int is type` ✓。
-  节的脱糖必须**就地**做（`ParsePrimary` 里 `DesugarHoles`），否则 `isnot.string "a"`
-  会变成 `(_0) => { (_0 isnot string) "a"; }` —— 把实参也吞进体里，而不是"应用节"。
+- **`:` 是类型判断**：`x: T` —— 左边是**值**，右边是个**类型对象**。判据就是 `IsAssignableTo`：
+  `1: int` ✓、`1: float` ✗（兄弟）、`1: object` ✓、`int: type` ✓。取反写 `!(x: T)`。
+  **和类型注解是同一个读法**：`x: int = 5` 是"绑到 x 上去、顺便确认它是 int"，
+  `x: int` 只是少了"绑"那一半（见下面「内置成员速查」里那条注解说明）。
+  - 它**不是**普通运算符：和 `!` / `&&` / `||` 一样归"求值器特判、不支持自定义"那一档
+    （`OperatorSymbols.All` 里没有它，`ParseOperatorDefinition` 也拦了一道）。
+  - 但它在 `Object` 上**注册了名字**（`DefineOp(Object, ":")`）—— `BindOperator` 在求值器
+    那条特判**之前**就查表，表里没名字会当场报「运算符 ':' 不支持 X 操作数」。
+    真正算的还是求值器那一支（它还要看接口实现 `HasTrait`）。
+  - 三种写法都和 `+` 对称：中缀 `1 : int`、等右操作数 `1.:`、等左操作数 `:.int`。
+    节的脱糖必须**就地**做（`ParsePrimary` 里 `DesugarHoles`），否则 `:.string "a"`
+    会变成 `(_0) => { (_0 : string) "a"; }` —— 把实参也吞进体里，而不是"应用节"。
+  - **它顶掉了从前的词形运算符 `is` / `isnot`**（`is` 是"看着像标识符、只在运算符位置认"，
+    那整套机器 `IsWordOperator` / `IsInfixWordOperator` 已经拆掉）。代价是 `1.is` 那条
+    取成员的路没了；取反也没有专门的符号，写 `!(x: T)`。
 - 分派是**两跳**：`a + b` 先在**类型**那张表里找（`a.Type.MemberScope`）；类运算符那格装的是 `ClassOperatorFactory`，绑完得 `BoundClassOp`，于是推 `ClassOp` 帧到**实例作用域**里按符号名找实现（各层类体平铺在同一 scope、子类覆盖父类，所以只有一个）。
 - 成员访问同构：`a.+` 取到绑好 self 的函数，`1.+` 取内置的。
 
@@ -1545,7 +1553,7 @@ IEnumerator ::= interface { by MoveNext : function = default
 三种容器各 `impl` 一遍(只填 `GetEnumerator`,其余走默认实现)
 (用 `impl` 而不是 `use`:全局登记,库加载时就生效),于是:
 
-- `[1 2 3] is IEnumerable` / `{1 2 3} is IEnumerable` / `{"a": 1} is IEnumerable` 都成立;
+- `[1 2 3]: IEnumerable` / `{1 2 3}: IEnumerable` / `{"a": 1}: IEnumerable` 都成立;
 - `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
 - **`foreach` 改走这条接口**:`e := xs.GetEnumerator ()` + `while { e.MoveNext (); } { f e.Current }`
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
@@ -1554,13 +1562,13 @@ IEnumerator ::= interface { by MoveNext : function = default
 - **接口继承一个接口,外加一串要求**:
 
   ```ravel
-  supTrait    ::= interface myTrait { by c : int = default }   # 一个父(继承)
+  supTrait    ::= interface myTrait { by c -> int = default }   # 一个父(继承)
   masterTrait ::= interface supTrait [IEnumerable] { () }      # 父 + 要求
   ```
 
   **父是继承**:槽取并集(父的 + 自己的;同名以自己写的为准),`<:` 沿着继承走
   (`masterTrait <: myTrait` 成立),而**实现了子接口就等于实现了它的父接口**:
-  `u is supTrait` / 注解 / `foreach` / 两个查询全认。
+  `u: supTrait` / 注解 / `foreach` / 两个查询全认。
   **要求是前置条件**:实现这个接口的类必须**已经**有那些接口的实现 —— 槽**不并**进来、
   `<:` 也**不**成立(`masterTrait <: IEnumerable` 是 false),只在造实现那一步查有没有
   (`StepImplMake`,报「`masterTrait` 要求 C 已经实现了 IEnumerable（先给它 impl/use 一条）」)。
@@ -1576,12 +1584,12 @@ IEnumerator ::= interface { by MoveNext : function = default
 - **两个方向的查询**(都在 `Type` 上,所以任何类型对象、接口对象都有):
   - `T.GetImplements ()` —— 这个类型**现在**实现了哪些接口(接口对象组成的 list);
   - `I.GetImplementors ()` —— **现在**哪些类型实现了这个接口(目标类组成的 list);
-  - 都是"当下"的快照:沿当前作用域找生效中的实现,判据同 `u is I`(目标收得下 `T` /
+  - 都是"当下"的快照:沿当前作用域找生效中的实现,判据同 `u: I`(目标收得下 `T` /
     trait 就是 `I`),所以出了作用域 / `Dispose` 之后就列不出来。`GetImplements` 里子类算
     (实例收得下目标);`GetImplementors` 里普通类是空的(接口槽是"实现"挂上去的,
     而实现的 trait 只能是接口)—— **只有 `object` 例外**:判据是"`impl.Type` 收得下 trait 吗",
     而谁都收得下 `object`,于是它会把**所有**实现者倒出来(实测 19 条,`type` 是 0 条)。
-    真要问"谁实现了这个接口"得先自己问一句 `x is interface`(`Types.PrintTree` 里那道闸
+    真要问"谁实现了这个接口"得先自己问一句 `x: interface`(`Types.PrintTree` 里那道闸
     就是干这个的)。同一项只列一次;顺序照查找来(由内到外、后 `use` 的先),
     所以 `GetImplements` 打头的是**当下生效**的那个。
   - 入口在 `CallInto` 的 `BoundTraitQuery` 一格 —— 这活儿要当前作用域,而内置方法的体
@@ -1595,7 +1603,7 @@ IEnumerator ::= interface { by MoveNext : function = default
 **`Interface` 自己不是接口** —— 它是**接口的工厂**(元类,和 `type` 之于类同一个位置):
 `typeof 某接口` 就是它,而 `interface { … }` 那下是在**调它**造一个新接口。
 接口对象的 parent 挂 `BaseInterface` —— 而 `BaseInterface` **自己就是个接口**
-(`BaseInterface is interface` 成立),它是接口那一支的**根**,子接口从它往下继承。
+(`BaseInterface: interface` 成立),它是接口那一支的**根**,子接口从它往下继承。
 
 **两份 `init`,各干各的**(挂在不同类体上,所以**不用**判「谁在造」):
 
@@ -1654,7 +1662,7 @@ myImplement.Dispose ()   # 提前取消
 
 机制全在 `Runtime/BuiltinClasses.Interfaces.cs`,**求值器只多了一个控制帧**:
 
-- `interface` 是内置类对象、`parent` 是 `type`(`Link(Interface, Type, Type)`)⇒ `interface is type`,
+- `interface` 是内置类对象、`parent` 是 `type`(`Link(Interface, Type, Type)`)⇒ `interface: type`,
   而 `interface { … }` 造出来的是**类对象** `myTrait`(元类是 `Interface`)。它的**类体**就是接口的
   "形"(那批 `by a : int = default`)。`Interface.ClassBody` 的 `init` 是 `Alternate(twoArg, oneArg)`,
   **twoArg 必须排在前面**:`ClassVal : FunctionVal` 且 `Type <: Function`,反了的话
@@ -1696,11 +1704,11 @@ myImplement.Dispose ()   # 提前取消
   表里每条是 `[实现, 登记时代号]`;实现的成员 `generation` 每 `Dispose` 一次 +1,于是"取消"是
   O(1) 的作废(老条目全失效),之后在哪 `use` 就在哪重新登记一条(那个作用域又活了)—— 不用记
   (实现 × 作用域) 那笔账,也就不怕在循环里 `use`。
-- `x is myTrait` 的兜底是 `BuiltinClasses.HasTrait`,同一个判据。它挂在 `StepBinaryOp` 里而**不是**
+- `x: myTrait` 的兜底是 `BuiltinClasses.HasTrait`,同一个判据。它挂在 `StepBinaryOp` 里而**不是**
   运算符的 C# 体里 —— 内置运算符的体是纯 C#,拿不到解释器也就拿不到当前作用域;只接**内置**那一支,
-  类里写过 `is := f` 的照旧走自己的实现。
+  类里写过 `<: := f` 的照旧走自己的实现。
 - **接口也算类型,判定与类型检查同一个判据**(`BuiltinClasses.HasTrait`:当前作用域里有生效中的
-  实现、目标类收得下这个值)。挂点四处:读写成员的兜底 `TraitSlot`;`is`/`isnot`(在
+  实现、目标类收得下这个值)。挂点四处:读写成员的兜底 `TraitSlot`;`:`(在
   `StepBinaryOp` 里 —— 内置运算符的体是纯 C#,拿不到解释器);**注解**与**参数**
   (解释器的 `Accepts`,落在 `StepVarDef` / `CallInto` 两处);**写入口**
   (`ViaTrait` 当 `Variable.CheckAssignable` / `Assign` / `Scope.Assign` 的补充判据)。
@@ -1709,7 +1717,7 @@ myImplement.Dispose ()   # 提前取消
   这**不动 `IsAssignableTo`**(纯函数,拿不到解释器也就拿不到当前作用域)。
   **`myClass <: myTrait`(类型那一侧)也认**:同一个 `HasTrait`,判据是"这个类的实例在作用域里
   都算那个接口";`(typeof x) <: myTrait` 就够不着了(类型推断不出是哪个实例),
-  那一侧用 `x is myTrait`。
+  那一侧用 `x: myTrait`。
 - 接口里 `= default` 的槽,实现没填就是那个"什么都不做"的默认属性(读 `()`、写丢掉)—— 和 `default`
   本来的语义一致。
 - **槽里能放运算符**:`by + := property g s`。那一格的**值是 property**,所以用它是**两级**
@@ -1870,16 +1878,25 @@ add.name   # "add"
 
 ```ravel
 {1 2 3}          # Set  (无换行)
-{"a": 1 "b": 2}  # Dict (无换行 + 第一个元素后面跟 `:`)
+{"a"-> 1 "b"-> 2}  # Dict (无换行 + 第一个元素后面跟 `->`)
 {}               # 空字典(单行;空块本来就禁止,所以没有歧义)
 {a; b;}          # Block (有分号/换行)
 ```
 
-**字典的键是表达式**(从前那条"标识符即字符串"的糖已经去掉,别写成 `{a: 1}` ——
-那个 `a` 是**变量**):字符串键要写引号,`{1: "x"}`、`{k: v}`、`{"a" + "b": 1}` 都行,
-键求出来不是**值类型**就报「字典的键得是值类型（数 / 字符串），得到 A」。
-判据在 `ParseBrace`:**先读第一个元素,看它后面跟的是不是 `:`**(那一次解析的结果
-字典、集合两条路共用 —— `_` 的序号是单调计数器,读两遍会让洞的编号对不上)。
+**分隔符是 `->`**(从前是 `:`,`:` 整个让给了类型判断)。**字典的键是表达式**(从前那条
+"标识符即字符串"的糖已经去掉,别写成 `{a -> 1}` —— 那个 `a` 是**变量**):字符串键要写引号,
+`{1 -> "x"}`、`{k -> v}`、`{"a" + "b" -> 1}` 都行,键求出来不是**值类型**就报
+「字典的键得是值类型（数 / 字符串），得到 A」。
+
+判据在 `ParseBrace`,**三步**:
+1. `{}` 空的是空字典(空块本来就禁止);
+2. `{` 和配对的 `}` 之间**只要有一个换行/分号就是代码块** —— 字典只能是**单行**;
+3. 剩下的,先读第一个元素,看它后面跟的是不是 `->`。
+那一次解析的结果字典、集合两条路共用 —— `_` 的序号是单调计数器,读两遍会让洞的编号对不上。
+
+(换成 `->` 顺带拆掉一个分岔:从前那条判据得额外排除 `{x: int = 5}` 这种"看着像字典
+其实是带注解的块",现在花括号里见 `->` 才是字典,没这回事了。而 `{ x: int }` 现在
+读成**集合**——里面装一个类型判断。)
 
 **字典键的相等性**:进表的键**只有值类型**(`d.Set` 会先把键规范一道,"见键与查找"),
 所以比的就是值自己 —— `1` / `"1"` / `1.0` 是**三个**格子(`d.Keys ()` 交回它们本身;
@@ -1963,7 +1980,7 @@ C# 调用** —— 它们不收用户函数,所以不走 `SeqMethod` 那套控�
 - `int 'A'` → 65(码位)· `char 97` / `char "x"` → 字符 · `'A'.Code ()` 同上
 - 字符自己那几个:`IsDigit` / `IsLetter` / `IsUpper` / `IsLower` / `IsSpace` / `ToString ()`
 
-**字符串是可枚举的**:`"ab" is IEnumerable` 成立,`foreach "abc" (c: char) => …` 直接能跑
+**字符串是可枚举的**:`"ab": IEnumerable` 成立,`foreach "abc" (c: char) => …` 直接能跑
 (`lib/iterator.rav` 里登记的一条 `impl`,元素是**字符**)。
 
 ⚠️ 这一条是**后来才通的**:接口槽从前只服务 `ObjectVal`,而字符串和数一样是**标量**
@@ -1990,7 +2007,7 @@ Rec ::= class {
 impl (IComparable Rec { () })
 ```
 
-`impl` 是"**这个类型自己讲了怎么比**"这个类型层面的事实：登记之后 `x is IComparable`、
+`impl` 是"**这个类型自己讲了怎么比**"这个类型层面的事实：登记之后 `x: IComparable`、
 注解 `(x: IComparable)`、`GetImplementors ()` 全认（和 `INumber` 一个规矩；六种内建标量
 也空登记了一遍）。**现装那条路（`by CompareTo = property …`）在这儿用不了**：这个名字
 `Object` 上已经有了，而成员查找是**类链先说话**、槽还没轮到 —— 和 `IFile` 那种"类里本来
@@ -2015,7 +2032,7 @@ impl (IComparable Rec { () })
 写法、键的顺序都不用在解析那一刻被迫选一次。
 
 ```ravel
-j := Json {"a": [1 2.5 ()] "b": {"c": true}}
+j := Json {"a"-> [1 2.5 ()] "b"-> {"c"-> true}}
 print (j)                                  # {"a":[1,2.5,null],"b":{"c":true}}（print 就是紧凑 JSON）
 print ((j.Get "a").Count ())               # 3
 print (((j.Get "a").At 1).Extract ())      # 2.5（float）
@@ -2337,7 +2354,7 @@ d.SysGet (Rec 1 "甲")          # 报「dict.SysGet 的键得是值类型」—�
 
 **`IDict`** 就是那五条槽的形状（`Get` / `Set` / `Has` / `Remove` / `GetOr`）：普通 `dict` 靠**注入**
 满足它（`impl (IDict dict { by Get = property … })`），`Keyed` 靠**自己的成员**满足它。
-于是 `(d: IDict)` 这样的注解、`x is IDict`、对着接口写的通用代码，两种表都吃得住。
+于是 `(d: IDict)` 这样的注解、`x: IDict`、对着接口写的通用代码，两种表都吃得住。
 注意**不往里加** `Keys` / `Values` / `Count` / `Clear`：那些名字还在类链上，
 按 `TraitSlot` 的规矩，类链上有名字时接口槽够不着而且**静默** —— 加了也只是死槽。
 
@@ -2380,7 +2397,7 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 int.name          # "Integer"
 int.parent        # ValueType
 int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
-1 is ValueType    # true(值的说法;`isnot` 取反,`1.is` / `is.int` 也行)
+1 : ValueType    # true(值的说法;取反写 `!(1 : int)`,`1.:` / `:.int` 也行)
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
 I.GetImplementors () # 反过来:**现在**哪些类型实现了这个接口
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
@@ -2392,7 +2409,9 @@ obj.Copy ()       # 浅拷贝
 f.Body ()         # 函数/类的体(Block);没有体的给**空块** —— 类型恒定,不用 `()` 顶替
 f.Scope ()        # 捕获作用域(Scope);类对象没有,同样给空 Scope
 obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改已存在的
-# 类型注解是个表达式(求值在定义处/参数创建处):
+# 类型注解是个表达式(求值在定义处/参数创建处)。
+# **它和类型判断 `x: T` 是同一个读法** —— 注解那一条多的是"绑到 x 上"。
+# `x: int` 单独写成一句 = 只判断、什么都不绑(要定义就把 = 补上;漏了会有 --warn 提醒)。
 #   `x: int = v`            一个名字(可带 . 成员访问)
 #   `x: (pick ()) = v`      括号里的任意表达式 —— 括号必需,否则 `f ()` 会和下一个参数撞
 #   `x: int = default`      **按注解变成本类型的那个空值**(0/""/空表/空函数/空续延…)。

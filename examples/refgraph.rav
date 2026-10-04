@@ -35,7 +35,7 @@ Walk Repl
 print "── 每个模块直接引了谁 ──"
 rows := []
 foreach (g.Vertices ()) (v: object) => {
-    rows.Add {"模块": v "引了": ((g.Neighbors v).Join " ")}
+    rows.Add {"模块"-> v "引了"-> ((g.Neighbors v).Join " ")}
 }
 print (Table.Render rows)
 

@@ -177,14 +177,16 @@ public partial class Interpreter
 
         // 判定类运算符的接口兜底:实现住在**当前作用域**里,而内置运算符的体是纯 C#(拿不到解释器),
         // 所以这一半只能挂在这儿 —— 判据本身在 BuiltinClasses.HasTrait,和实现那条查找共用一份。
-        // 只接**内置**那一支:类里写过 `is := f` / `<: := f` 的照旧走它自己的实现(ClassOp 帧)。
-        // `is` / `isnot` 看**值**,`<:` / `:>` 看**类型**(两边都得是类型对象)。
+        // 只接**内置**那一支:类里写过 `<: := f` 的照旧走它自己的实现(ClassOp 帧)。
+        // `:` 看**值**,`<:` / `:>` 看**类型**(两边都得是类型对象)。
+        //
+        // `:` 不给自定义(不在 `OperatorSymbols.All` 里),所以这一支只有内置这一种来路 ——
+        // 要取反就写 `!(x: T)`(从前有个专门的 `isnot`)。
         if (builtin && right is ObjectVal rt)
         {
-            if (bin.Op is "is" or "isnot")
+            if (bin.Op == ":")
             {
-                var hit = left.Type.IsAssignableTo(rt) || BuiltinClasses.HasTrait(this, left.Type, rt);
-                Return(nf, new BoolVal(bin.Op == "is" ? hit : !hit));
+                Return(nf, new BoolVal(left.Type.IsAssignableTo(rt) || BuiltinClasses.HasTrait(this, left.Type, rt)));
                 return;
             }
 

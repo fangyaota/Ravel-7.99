@@ -120,11 +120,11 @@ readonly New := (opts: object) => { Logger opts; }
 #
 # 用一张 dict 当盒子而不是直接存一个变量:**模块里没有"先声明后赋值"的写法**,
 # `readonly X := …` 一写就定了,而这一台要能被 `Log.SetLevel` 换掉。
-readonly Holder := {"lg": ()}
+readonly Holder := {"lg"-> ()}
 
 readonly Default := () => {
-    if { (Holder.Get "lg") is Logger; } { Holder.Get "lg"; } {
-        lg := Logger {"level": (System.EnvOr "RAVEL_LOG" "info")}
+    if { (Holder.Get "lg") : Logger; } { Holder.Get "lg"; } {
+        lg := Logger {"level"-> (System.EnvOr "RAVEL_LOG" "info")}
         Holder.Set "lg" lg
         lg
     }

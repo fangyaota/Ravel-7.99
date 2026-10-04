@@ -15,22 +15,22 @@
 # ---- 它是什么 ----
 print (IEnumerable.parent)            # 序列这一族也是 monad,父接口是 IMonad(见 lib/monad.rav)
 print ((IEnumerable.parent).parent)   # IMonad 的父是 BaseInterface(所有接口的根)
-print ((IEnumerable.parent) is type)
+print ((IEnumerable.parent) : type)
 print (typeof IEnumerable)
-print (IEnumerable is interface)
-print ([1 2 3] is IEnumerable)
-print ("abc" is IEnumerable)     # 字符串也认(标量一样能挂接口槽;元素是字符)
+print (IEnumerable : interface)
+print ([1 2 3] : IEnumerable)
+print ("abc" : IEnumerable)     # 字符串也认(标量一样能挂接口槽;元素是字符)
 
 # ---- 枚举器本身,和 C# 一个用法 ----
 e := [4 5].GetEnumerator ()
-print (e is IEnumerator)
+print (e : IEnumerator)
 while { e.MoveNext (); } { print (e.Current); }
 print (e.MoveNext ())          # 走完了再问就是 false
-print (([9].GetEnumerator ()) is IEnumerator)   # 每次都新开一个,互不打扰
+print (([9].GetEnumerator ()) : IEnumerator)   # 每次都新开一个,互不打扰
 
 # ---- foreach 就是照这个形状写的 ----
 foreach [1 2 3] (x: int) => { print ("list " + string x); }
-foreach {"a": 7 "b": 8} (v: int) => { print ("dict " + string v); }
+foreach {"a"-> 7 "b"-> 8} (v: int) => { print ("dict " + string v); }
 foreach [1 2] (x: int) => { foreach [10 20] (y: int) => { print ((string (x)) + "-" + (string y)); } }
 
 # ---- 注解、参数也认接口,通用函数写得出来 ----
@@ -43,7 +43,7 @@ total := (xs: IEnumerable) => {
 }
 print (total [1 2 3])
 print (total {4 5})
-print (total {"a": 1 "b": 2})
+print (total {"a"-> 1 "b"-> 2})
 
 # ---- 自己的类实现它 ----
 Seq ::= class {
@@ -56,7 +56,7 @@ seqImpl := use (IEnumerable Seq {
     by GetEnumerator = property (() => { () => { Enumerator [instance.n (instance.n + 1) (instance.n + 2)]; }; }) ((v: function) => { (); })
 })
 s := Seq 7
-print (s is IEnumerable)
+print (s : IEnumerable)
 print (total s)
 foreach s (x: int) => { print ("mine " + string x); }
 
@@ -94,14 +94,14 @@ ravel "220_inumber"
 using "math.rav"
 
 # ---- 谁算数 ----
-print (5 is INumber)
-print (2.5 is INumber)
-print ((bigint 5) is INumber)
-print ((fraction 1 3) is INumber)
-print ((bigfraction 1 3) is INumber)
-print ("a" is INumber)
-print (true is INumber)
-print ([1] is INumber)
+print (5 : INumber)
+print (2.5 : INumber)
+print ((bigint 5) : INumber)
+print ((fraction 1 3) : INumber)
+print ((bigfraction 1 3) : INumber)
+print ("a" : INumber)
+print (true : INumber)
+print ([1] : INumber)
 print ((typeof 5) <: INumber)          # 类型那一侧也认(和 `is` 同一个判据)
 
 # ---- 两个查询都看得见它 ----
@@ -144,9 +144,9 @@ print ((2.5).CompareTo 1.5)
 print ((bigint 5).CompareTo (bigint 7))
 
 # ② 登记 = "这个类型自己讲了怎么比"这个类型层面的事实(内建那几个也登记过)
-print (3 is IComparable)
-print ("a" is IComparable)
-print ([1 2] is IComparable)
+print (3 : IComparable)
+print ("a" : IComparable)
+print ([1 2] : IComparable)
 
 # ③ 库里那些通用件:对着 `CompareTo` 写,所以内建 / 自写两边都吃
 print (Sorting.Compare 3 5)
@@ -226,26 +226,26 @@ print (d.Get "1")
 print (d.Get 1.0)
 print (d.Has 2)
 print (d.Keys ())
-print ({1: "a"}.Get 1)
-print (d is IDict)
+print ({1-> "a"}.Get 1)
+print (d : IDict)
 try { d.Set ([1 2]) "x"; } (e: Exception) => { print ("2: " + string e); }
 try { print (d.Get 999); } (e: Exception) => { print ("3: " + string e); }
 
 # ③ 字面量的键是**表达式**:`{"a": 1}` 而不是 `{a: 1}`(那个 `a` 是变量)
-print {"a": 1}
-print {1: 2}
+print {"a"-> 1}
+print {1-> 2}
 print {1 2}
 k := "kk"
-print {k: 1}
+print {k-> 1}
 n := 7
-print {n: 1}
-print {"a" + "b": 1}
-try { print {zz: 1}; } (e: Exception) => { print ("4: " + string e); }
+print {n-> 1}
+print {"a" + "b"-> 1}
+try { print {zz-> 1}; } (e: Exception) => { print ("4: " + string e); }
 
 # ④ 登记 = "这个类型自己讲了怎么当键"这个类型层面的事实(内建那几个值类型也登记过)
-print (5 is IKey)
-print ("a" is IKey)
-print ([1 2] is IKey)
+print (5 : IKey)
+print ("a" : IKey)
+print ([1 2] : IKey)
 
 # ⑤ 值语义:类里写一条 `Key`(它盖掉 `Object` 那条),再 impl 登记
 Rec ::= class {
@@ -257,7 +257,7 @@ Rec ::= class {
 impl (IKey Rec {
     ()
 })
-print ((Rec 1 "a") is IKey)
+print ((Rec 1 "a") : IKey)
 print (Keys.Of (Rec 7 "x"))
 
 d2 := {}
@@ -293,7 +293,7 @@ try { Keys.Of (C 1); } (e: Exception) => { print ("7: " + string e); }
 t := Keyed ()
 t.Set (Rec 1 "甲") "one"
 t.Set (Rec 2 "乙") "two"
-print (t is IDict)
+print (t : IDict)
 print (t.Get (Rec 1 "丙"))
 print (t.Has (Rec 2 "丁"))
 print (t.Count ())
@@ -310,9 +310,9 @@ print (t.Count ())
 # 它自己就是自己的枚举器,所以整套方法白拿、也能直接 foreach。
 # 两条语义(单遍的东西本来就这样):遍历的是**还没走完的那一段**;走一遍就**消耗掉**。
 e := Enumerator [1 2 3]
-print (e is IEnumerator)
-print (e is IEnumerable)
-print (e is IMonad)
+print (e : IEnumerator)
+print (e : IEnumerable)
+print (e : IMonad)
 print (e.Count ())              # 3
 print (e.Count ())              # 0 —— 上一句把它走完了
 f := Enumerator [1 2 3 4 5]
@@ -328,7 +328,7 @@ print (g.Count ())              # 0 —— foreach 把它走完了
 # `Generator` 的光标也一样:能拿它当一串用(比如"先看几个,剩下的照旧")
 G := Generator (y: function) => { y 1; y 2; y 3; }
 c := G.GetEnumerator ()
-print (c is IEnumerable)
+print (c : IEnumerable)
 print (Seqs.Gather (c.Take 2))   # [1 2] —— Take 只取 n 个,**不多走一步**
 print (c.ToList ())              # [3] —— 剩下的照旧
 print "end"

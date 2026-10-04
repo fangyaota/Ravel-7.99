@@ -9,23 +9,23 @@ print (Table.Width "abc")
 print (Table.Width "。")          # 全角标点也是两格
 
 # ── 一串 dict:表头就是键 ──
-print (Table.Render [{"名字": "张三" "年龄": 30} {"名字": "李四" "年龄": 7}])
+print (Table.Render [{"名字"-> "张三" "年龄"-> 30} {"名字"-> "李四" "年龄"-> 7}])
 
 # 数字那一列自动**右对齐**,字那一列左对齐 —— 一列里混着字和数就不硬凑,整列左对齐
-print (Table.Render [{"项目": "苹果" "数量": 3} {"项目": "香蕉" "数量": 120} {"项目": "合计" "数量": 123}])
+print (Table.Render [{"项目"-> "苹果" "数量"-> 3} {"项目"-> "香蕉" "数量"-> 120} {"项目"-> "合计" "数量"-> 123}])
 
 # ── 一串 list:没有表头,按下标对 ──
 print (Table.Render [[1 2] [30 4]])
 
 # ── 选项 ──
 # 光板(不要框线):进了终端粘出来还是干净的
-print (Table.RenderWith [{"名字": "张三" "年龄": 30} {"名字": "李四" "年龄": 7}] {"style": "plain"})
+print (Table.RenderWith [{"名字"-> "张三" "年龄"-> 30} {"名字"-> "李四" "年龄"-> 7}] {"style"-> "plain"})
 # 挑列、不要表头、指定对齐
-print (Table.RenderWith [{"a": 1 "b": "x" "c": true}] {"cols": ["b" "a"] "header": false "align": {"b": "right"}})
-print (Table.RenderWith [{"名字": "张三"}] {"header": false "style": "plain"})
+print (Table.RenderWith [{"a"-> 1 "b"-> "x" "c"-> true}] {"cols"-> ["b" "a"] "header"-> false "align"-> {"b"-> "right"}})
+print (Table.RenderWith [{"名字"-> "张三"}] {"header"-> false "style"-> "plain"})
 
 # 缺格子当空串(表里缺一格比整张表打不出来有用),而且列的并集看的是**所有行**
-print (Table.Render [{"a": 1} {"b": 2}])
+print (Table.Render [{"a"-> 1} {"b"-> 2}])
 
 # 空的一串:交回空串,不是一坨框
 print ("[" + (Table.Render []) + "]")

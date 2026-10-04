@@ -86,7 +86,7 @@ readonly AllNum := (rows: list c: object) => {
         v := At r c
         if { (typeof v) != string; } {
             seen += 1
-            if { v is INumber; } { 0; } { ok = false; }
+            if { v : INumber; } { 0; } { ok = false; }
         } { 0; }
     }
     ok && (seen > 0)

@@ -93,9 +93,9 @@ readonly BodyOf := (body: object) => {
     # 条件**整个**括起来:不括的话 `string { … }` 会被读成"拿这个块当实参调 string"
     # (实参吃到运算符为止 —— 见教程「常见陷阱」那条)
     ((typeof body) == string) {
-        {"bytes": (Encoding.Utf8 body) "contentType": ""};
+        {"bytes"-> (Encoding.Utf8 body) "contentType"-> ""};
     } {
-        {"bytes": (Encoding.Utf8 ((Json body).Text ())) "contentType": "application/json"};
+        {"bytes"-> (Encoding.Utf8 ((Json body).Text ())) "contentType"-> "application/json"};
     }
 }
 
@@ -141,9 +141,9 @@ readonly Send := (url: string method: string opts: dict) => {
 
 # ── 动词那几个 ──
 readonly Get := (url: string) => { Send url "GET" {}; }
-readonly Post := (url: string body: object) => { Send url "POST" {"body": body}; }
-readonly Put := (url: string body: object) => { Send url "PUT" {"body": body}; }
-readonly Patch := (url: string body: object) => { Send url "PATCH" {"body": body}; }
+readonly Post := (url: string body: object) => { Send url "POST" {"body"-> body}; }
+readonly Put := (url: string body: object) => { Send url "PUT" {"body"-> body}; }
+readonly Patch := (url: string body: object) => { Send url "PATCH" {"body"-> body}; }
 readonly Delete := (url: string) => { Send url "DELETE" {}; }
 readonly Head := (url: string) => { Send url "HEAD" {}; }
 
@@ -162,16 +162,16 @@ readonly PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
 # 下载到文件:正文**边收边写**,不进内存(几百 MB 也不怕)。交回的 Response 里
 # `size` 是写了多少字节,`body` 是空的。
 readonly Download := (url: string path: object) => {
-    Response (Native.HttpDownload {"url": url "path": (PathOr path)});
+    Response (Native.HttpDownload {"url"-> url "path"-> (PathOr path)});
 }
 
 # multipart 上传(表单里一个文件,字段名默认 `file`)。要改字段名用 `UploadTo`。
 readonly Upload := (url: string path: object) => {
-    Response (Native.HttpUpload {"url": url "path": (PathOr path)});
+    Response (Native.HttpUpload {"url"-> url "path"-> (PathOr path)});
 }
 
 readonly UploadTo := (url: string path: object field: string) => {
-    Response (Native.HttpUpload {"url": url "path": (PathOr path) "field": field});
+    Response (Native.HttpUpload {"url"-> url "path"-> (PathOr path) "field"-> field});
 }
 
 # ── 交回任务的版本:同名 + `Task` 后缀 ──
@@ -223,28 +223,28 @@ readonly RequestTask := (spec: dict) => {
 readonly SendTask := (url: string method: string opts: dict) => { RequestTask (Spec url method opts); }
 
 readonly GetTask := (url: string) => { SendTask url "GET" {}; }
-readonly PostTask := (url: string body: object) => { SendTask url "POST" {"body": body}; }
-readonly PutTask := (url: string body: object) => { SendTask url "PUT" {"body": body}; }
-readonly PatchTask := (url: string body: object) => { SendTask url "PATCH" {"body": body}; }
+readonly PostTask := (url: string body: object) => { SendTask url "POST" {"body"-> body}; }
+readonly PutTask := (url: string body: object) => { SendTask url "PUT" {"body"-> body}; }
+readonly PatchTask := (url: string body: object) => { SendTask url "PATCH" {"body"-> body}; }
 readonly DeleteTask := (url: string) => { SendTask url "DELETE" {}; }
 readonly HeadTask := (url: string) => { SendTask url "HEAD" {}; }
 
 # 下载 / 上传:底下那两条原语本来就是"边收边写、不进内存",交回任务的版本一样。
 readonly DownloadTask := (url: string path: object) => {
     Tasks.Task (g: Tasks.TaskGroup) => {
-        Response (g.Await (Tasks.Of (Native.HttpDownloadTask {"url": url "path": (PathOr path)})));
+        Response (g.Await (Tasks.Of (Native.HttpDownloadTask {"url"-> url "path"-> (PathOr path)})));
     }
 }
 
 readonly UploadTask := (url: string path: object) => {
     Tasks.Task (g: Tasks.TaskGroup) => {
-        Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url": url "path": (PathOr path)})));
+        Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url"-> url "path"-> (PathOr path)})));
     }
 }
 
 readonly UploadToTask := (url: string path: object field: string) => {
     Tasks.Task (g: Tasks.TaskGroup) => {
-        Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url": url "path": (PathOr path) "field": field})));
+        Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url"-> url "path"-> (PathOr path) "field"-> field})));
     }
 }
 
@@ -313,7 +313,7 @@ Url ::= class {
     }
 
     Read := () => { (Http.Get Link).Text (); }
-    Write := (text: string) => { Send Link "PUT" {"body": text}; (); }
+    Write := (text: string) => { Send Link "PUT" {"body"-> text}; (); }
     Delete := () => { Send Link "DELETE" {}; (); }
     Append := (text: string) => { throw (Exception ("网络文件没得追写（HTTP 里没有这回事）：" + Link)); }
 

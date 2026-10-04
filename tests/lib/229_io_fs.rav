@@ -29,11 +29,11 @@ print ((root.Files ()).Keys ())
 print ((root.Dirs ()).Keys ())
 
 # 接口：实现了 IFile 也就算 IEntry（接口继承兜着，登记时只写了 IFile 那一条）
-print (f is IFile)
-print (f is IEntry)
-print (sub is IDir)
-print (sub is IEntry)
-print (f is IDir)
+print (f : IFile)
+print (f : IEntry)
+print (sub : IDir)
+print (sub : IEntry)
+print (f : IDir)
 
 # 复制 / 移动 / 改名
 g := f.CopyTo ".io-test/copy.txt"
@@ -243,11 +243,11 @@ top.Add m
 top.Add sub
 
 # 形状认得出来（实现了 IFile 也就算 IEntry）
-print (m is IFile)
-print (m is IEntry)
-print (top is IDir)
-print (top is IEntry)
-print (m is IDir)
+print (m : IFile)
+print (m : IEntry)
+print (top : IDir)
+print (top : IEntry)
+print (m : IDir)
 
 # 对着接口写的函数：注解 (f: IFile) 收得下内存实现
 describe := (f: IFile) => { (f.Name ()) + " = " + (f.Read ()); }
@@ -293,10 +293,10 @@ ravel "232_io_console"
 # 只查它认不认这个形状。
 using "io.rav"
 
-print (Terminal.Stdout is IFile)
-print (Terminal.Stdout is IEntry)
-print (Terminal.Stderr is IFile)
-print (Terminal.Stdin is IFile)
+print (Terminal.Stdout : IFile)
+print (Terminal.Stdout : IEntry)
+print (Terminal.Stderr : IFile)
+print (Terminal.Stdin : IFile)
 print (Terminal.Stdout.Name ())
 print (Terminal.Stderr.Name ())
 print (Terminal.Stdin.Name ())

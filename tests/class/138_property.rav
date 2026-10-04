@@ -316,7 +316,7 @@ ravel ""
 # 500
 # 700
 # 换之后 旧 1 新 1
-# [init _n n swap is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init _n n swap : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 8: 'plain' 不是 by 属性（`by` 取/换的是槽里的 property）
 # 9: 未定义的变量 'nope'
 # <property>
@@ -333,7 +333,7 @@ ravel ""
 # 12: '_q' 不是 by 属性（`by` 取/换的是槽里的 property）
 # 13: 对象没有字段 'nope'
 # 42
-# [init added is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init added : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # <property>
 # 43
 # 1
@@ -364,7 +364,7 @@ ravel ""
 # ()
 # ()
 # ()
-# [init a b is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init a b : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 100
 # 装了 setter: 5
 # 42

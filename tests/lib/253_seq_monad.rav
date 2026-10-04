@@ -7,14 +7,14 @@
 # "一串值"。桥有两座 —— `Option.ToList ()`(往序列走)与 `xs.TryFirst ()` / `TryFind p`(往 Option 走)。
 
 # ---- 凡是实现了 IEnumerable 的,都在这族里 ----
-print ([1 2] is IMonad)
-print ({1 2} is IMonad)
-print ({"a": 1} is IMonad)
-print ("ab" is IMonad)
+print ([1 2] : IMonad)
+print ({1 2} : IMonad)
+print ({"a"-> 1} : IMonad)
+print ("ab" : IMonad)
 G := Generator (y: function) => { y 1; y 2; }
-print (G is IMonad)
-print ((Some 5) is IMonad)
-print ([1 2] is IEnumerable)
+print (G : IMonad)
+print ((Some 5) : IMonad)
+print ([1 2] : IEnumerable)
 
 # ---- do 块 = 列表推导 ----
 xs := [1 2]
@@ -74,8 +74,8 @@ print (((None).Bind half).IsNone ())
 # (`impl (IEnumerable Option …)`,见 lib/iterator.rav)于是整串方法白拿;
 # 而 `Map` / `Bind` / `Where` 仍是 **Option 自己那份**(类链先命中)—— 取出来还是 Option,
 # 不会跑偏成一串。
-print ((Some 5) is IEnumerable)
-print (None is IEnumerable)
+print ((Some 5) : IEnumerable)
+print (None : IEnumerable)
 print ((Some 5).Count ())
 print ((None).Count ())
 print ((Some 5).ToList ())

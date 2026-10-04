@@ -23,7 +23,7 @@ use two
 c := C ()
 print c.a
 print c.z
-print (c is T)
+print (c : T)
 
 # 摘掉后一个:回到前一个;z 那条落回 one 摆的默认槽(什么都不做)
 two.Dispose ()
@@ -55,7 +55,7 @@ Sub ::= class C {
 use one
 s := Sub ()
 print s.a
-print (s is T)
+print (s : T)
 
 # 实现的副本:`Dispose` 读出来时才绑接收者,所以绑的是**副本自己**,不误伤原件
 copy := one.Copy ()

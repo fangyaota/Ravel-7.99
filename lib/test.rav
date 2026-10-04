@@ -27,7 +27,7 @@ FailCount: int = 0
 
 # 记一条。**先打再记** —— 断言当场就看得见,不用等汇总(跑到一半崩了也知道走到哪了)
 readonly Record := (name: string ok: bool msg: string) => {
-    Results.Add {"name": name "ok": ok "msg": msg}
+    Results.Add {"name"-> name "ok"-> ok "msg"-> msg}
     if { ok; } { PassCount += 1; } { FailCount += 1; }
     if { ok; } { print ("ok ${Results.Count ()} - ${name}"); } { print ("not ok ${Results.Count ()} - ${name}"); }
     # 过了的那些不该带消息;带了多半是写的时候忘了 —— 顺手打出来,别让它悄悄丢

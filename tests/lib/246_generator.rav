@@ -64,14 +64,14 @@ foreach Twice (x: int) => { print x; }
 foreach Twice (x: int) => { print x; }
 
 # ⑦ 类型关系:is IEnumerable / is IEnumerator
-print (Twice is IEnumerable)
-print ((Twice.GetEnumerator ()) is IEnumerator)
-print (Twice is IEnumerator)
+print (Twice : IEnumerable)
+print ((Twice.GetEnumerator ()) : IEnumerator)
+print (Twice : IEnumerator)
 
 # ⑧ 交给别的库:`match` 当谓词表(生成器照旧是 IEnumerable)
 Tag := Generator (y: function) => { y 1; y "x"; y true; }
 foreach Tag (v: object) => {
-    print (match v [[is.int {"整数";}] [is.string {"字符串";}]] {"别的";})
+    print (match v [[:.int {"整数";}] [:.string {"字符串";}]] {"别的";})
 }
 print "end"
 # --- expected ---

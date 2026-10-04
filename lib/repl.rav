@@ -106,7 +106,7 @@ readonly Segments := (text: string) => {
             }
         }
         piece := text.Slice [i..j)                 # 先落成变量:字典值里直接写区间字面量,
-        out.Add {"kind": kind "text": piece}       # 解析器会把 `[i..j]` 后面那个 `}` 当成新的键
+        out.Add {"kind"-> kind "text"-> piece}       # 解析器会把 `[i..j]` 后面那个 `}` 当成新的键
         i = j
     }
     out

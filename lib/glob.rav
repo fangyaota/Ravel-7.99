@@ -117,7 +117,7 @@ readonly Split := (pat: string names: list) => {
     hit := []
     miss := []
     foreach names (n: object) => { if { Match pat (string n); } { hit.Add n; } { miss.Add n; } }
-    {"hit": hit "miss": miss}
+    {"hit"-> hit "miss"-> miss}
 }
 
 # ── 找文件 ──

@@ -10,17 +10,17 @@ print (db.Where ())
 print (db.Exec "create table t (id integer primary key, name text, score real, ok bool, blob blob)" {})
 
 # 参数按**名字**绑(`@n` 对键 `n`;键写不写 `@` 都行)
-print (db.Exec "insert into t (name, score, ok, blob) values (@n, @s, @o, @b)" {"n": "ada" "s": 9.5 "o": true "b": [1 2 255]})
-print (db.Exec "insert into t (name) values (@n)" {"@n": "bob"})
+print (db.Exec "insert into t (name, score, ok, blob) values (@n, @s, @o, @b)" {"n"-> "ada" "s"-> 9.5 "o"-> true "b"-> [1 2 255]})
+print (db.Exec "insert into t (name) values (@n)" {"@n"-> "bob"})
 print (db.LastId ())
 print (typeof (db.LastId ()))               # rowid 可以是 64 位
 
 # ── 读:一行一个 dict(列名当键) ──
 print (db.All "select * from t" {})
 print (db.All "select name from t order by name" {})
-print (db.One "select * from t where name = @n" {"n": "bob"})
+print (db.One "select * from t where name = @n" {"n"-> "bob"})
 print (db.Value "select count(*) from t" {})
-print (db.One "select * from t where name = @n" {"n": "nobody"})    # 没有 → ()
+print (db.One "select * from t where name = @n" {"n"-> "nobody"})    # 没有 → ()
 print (db.Value "select 1 where 0" {})                              # 没有 → ()
 
 # ── 类型来回 ──
@@ -30,25 +30,25 @@ print (db.Value "select 99999999999999" {})
 print (typeof (db.Value "select 99999999999999" {}))
 print (db.Value "select null" {})
 print (db.One "select blob from t where id = 1" {})
-try { db.Exec "insert into t (name) values (@n)" {"n": {"a": 1}}; } (e: Exception) => { print ("1: " + string e); }
+try { db.Exec "insert into t (name) values (@n)" {"n"-> {"a"-> 1}}; } (e: Exception) => { print ("1: " + string e); }
 
 # ── 逐行:结果大也不必先铺开 ──
 db.Each "select name from t order by name" {} (row: dict) => { print ("行: " + (row.Get "name")); }
 
 # ── 改 / 删:交回影响了几行 ──
-print (db.Exec "update t set score = @s where name = @n" {"s": 1.5 "n": "bob"})
-print (db.Exec "delete from t where name = @n" {"n": "nobody"})
-print (db.Value "select score from t where name = @n" {"n": "bob"})
+print (db.Exec "update t set score = @s where name = @n" {"s"-> 1.5 "n"-> "bob"})
+print (db.Exec "delete from t where name = @n" {"n"-> "nobody"})
+print (db.Value "select score from t where name = @n" {"n"-> "bob"})
 
 # ── 事务:全成、或者全不成 ──
 db.Tx {
-    db.Exec "insert into t (name) values (@n)" {"n": "c"}
-    db.Exec "insert into t (name) values (@n)" {"n": "d"}
+    db.Exec "insert into t (name) values (@n)" {"n"-> "c"}
+    db.Exec "insert into t (name) values (@n)" {"n"-> "d"}
 }
 print (db.Value "select count(*) from t" {})
 try {
     db.Tx {
-        db.Exec "insert into t (name) values (@n)" {"n": "e"}
+        db.Exec "insert into t (name) values (@n)" {"n"-> "e"}
         db.Exec "insert into nope values (1)" {}        # 这张表不存在
     }
 } (e: Exception) => { print "2: 事务整个回滚了"; }
@@ -66,7 +66,7 @@ try { db.All "select 1" {}; } (e: Exception) => { print ("6: " + string e); }
 System.CreateDir ".io-test"
 f := Sqlite.Open ".io-test/app.db"
 f.Exec "create table k (v text)" {}
-f.Exec "insert into k (v) values (@v)" {"v": "落盘了"}
+f.Exec "insert into k (v) values (@v)" {"v"-> "落盘了"}
 print ((System.PathSize ".io-test/app.db") > 0)
 f.Close ()
 back := Sqlite.Open (Io.File ".io-test/app.db")     # 条目也收(和 CopyTo dest 一个待遇)

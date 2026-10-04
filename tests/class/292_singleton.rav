@@ -12,7 +12,7 @@ Config ::= singleton {
 a := Config ()
 b := Config ()
 print (a == b)
-print (a is Config)           # 类型还是这个类本身,不是别的什么
+print (a : Config)           # 类型还是这个类本身,不是别的什么
 print ((Config ()) == a)      # 括号不能省:`Config () == a` 会被读成 `Config (() == a)`
 
 # ── 改一处处处都改(本来就是同一枚) ──
@@ -49,7 +49,7 @@ s1 := Sub ()
 s2 := Sub ()
 print (s1 == s2)
 print s1.tag
-print (s1 is Base)
+print (s1 : Base)
 
 # ── `init` 带参数:第一次就**报清楚**,不静默拿 `()` 去凑 ──
 print ((try { eval "Arg ::= singleton {\n    init = (x: int) => { v = x; this; }\n    v: int = 0\n}\nArg ()"; } (e: Exception) => { "1: " + (string e); }))

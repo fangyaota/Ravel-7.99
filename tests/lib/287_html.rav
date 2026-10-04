@@ -7,7 +7,7 @@ using "html.rav"
 # ── 文本:转义默认开 ──
 print (Html.Render (Html.El "p" {} ["a < b & c"]))
 print (Html.Render (Html.El "p" {} [(Html.Text "\"引\"")]))     # 文本:引号是普通字符,不转
-print (Html.Render (Html.El "p" {"title": "\"引\""} []))        # 属性:引号得转,不然属性提前收尾
+print (Html.Render (Html.El "p" {"title"-> "\"引\""} []))        # 属性:引号得转,不然属性提前收尾
 print (Html.Render (Html.El "p" {} [(Html.Raw "<i>原样</i>")]))
 
 # 孩子里**直接写的东西**:字符串、数、bool… 一律转义后当文本(`None` 当没有)
@@ -22,23 +22,23 @@ print (Html.Render (Html.El "hr" {} None))      # `None` 当没有孩子
 print ((try { Html.El "br" {} ["x"]; } (e: Exception) => { "报错: " + (string e); }))
 
 # ── 属性:None 不写、true 光写名字、false 当没写、list 按空格拼、别的转义 ──
-print (Html.Render (Html.El "a" {"href": "/x?a=1&b=2" "target": None} ["点"]))
-print (Html.Render (Html.El "input" {"type": "text" "disabled": true "checked": false "class": ["a" "b"]} []))
-print (Html.Render (Html.El "div" {"data-n": 5} []))
-print (Html.Render (Html.El "div" {"a": "1" "b": "2"} []))   # 先后照写的先后
+print (Html.Render (Html.El "a" {"href"-> "/x?a=1&b=2" "target"-> None} ["点"]))
+print (Html.Render (Html.El "input" {"type"-> "text" "disabled"-> true "checked"-> false "class"-> ["a" "b"]} []))
+print (Html.Render (Html.El "div" {"data-n"-> 5} []))
+print (Html.Render (Html.El "div" {"a"-> "1" "b"-> "2"} []))   # 先后照写的先后
 
 # ── 嵌套 + 片段 ──
 print (Html.Render (Html.El "ul" {} [(Html.El "li" {} ["一"]) (Html.El "li" {} ["二"])]))
 print (Html.Render (Html.El "div" {} [(Html.Frag [(Html.El "b" {} ["粗"]) "尾"])]))
 
 # ── `Pretty`:孩子里有元素就一层一行,全是文本的收成一行 ──
-print (Html.Pretty (Html.El "div" {"class": "card"} [(Html.El "h2" {} ["标题"]) (Html.El "p" {} ["a < b"])]))
+print (Html.Pretty (Html.El "div" {"class"-> "card"} [(Html.El "h2" {} ["标题"]) (Html.El "p" {} ["a < b"])]))
 
 # ── 整篇:`Doc` 自动把 `<meta charset>` 放在 head 第一个,doctype 自己带一个换行 ──
 print (Html.Pretty (Html.Doc "zh" [(Html.El "title" {} ["页"])] [(Html.El "h1" {} ["你好"])]))
 
 # ── 树是普通数据:手拼一棵照样认 ──
-print (Html.Render ({"kind": "element" "name": "b" "attrs": {} "kids": [{"kind": "text" "text": "<手拼>"}]}))
+print (Html.Render ({"kind"-> "element" "name"-> "b" "attrs"-> {} "kids"-> [{"kind"-> "text" "text"-> "<手拼>"}]}))
 # ── 块级:写文档那一层(列表 / 表格 / 排版) ──
 print (Html.Render (Html.H1 "标题"))
 print (Html.Render (Html.P "a < b"))
@@ -58,7 +58,7 @@ print (Html.Render (Html.CssLink "/a.css"))
 print (Html.Pretty (Html.P ["行内 " (Html.Code "x") " 不拆"]))
 
 # `Page`:head 里自动有 charset 和 title,`css` / 额外的 head 节点从 opts 里拿
-print (Html.Pretty (Html.Page {"title": "页" "css": ["h1 { color: red; }"]} [(Html.H1 "你好")]))
+print (Html.Pretty (Html.Page {"title"-> "页" "css"-> ["h1 { color: red; }"]} [(Html.H1 "你好")]))
 # --- expected ---
 # <p>a &lt; b &amp; c</p>
 # <p>"引"</p>

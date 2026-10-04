@@ -9,7 +9,7 @@
 #   * **`continue`** 包的是**循环的体** —— 跳过这一轮(每轮新包一次,所以下一个照样管用)。
 #
 # `while` / `foreach` 是**库函数**,解析器按名字认它们(这就是它知道"哪个调用算循环"的
-# 唯一依据)。要跳出**几层**,给标签:`outer: while { … }` + `break outer`。
+# 唯一依据)。要跳出**几层**,给标签:`@outer while { … }` + `break outer`。
 
 # ── 基本 ──
 i := 0
@@ -44,7 +44,7 @@ foreach [1 2 3 4] (x: int) => {
 print skipped
 
 # ── 标签:跳出好几层 ──
-outer: while { true; } {
+@outer while { true; } {
     foreach [1 2 3] (x: int) => {
         if { x == 2; } { break outer; } { 0; }
         print x
@@ -54,7 +54,7 @@ print "跳出来了"
 
 # `continue 标签`:内层循环跳到**外层那一轮**
 hits := 0
-scan: foreach [1 2 3] (a: int) => {
+@scan foreach [1 2 3] (a: int) => {
     foreach [10 20 30] (b: int) => {
         if { b == 20; } { continue scan; } { 0; }
         hits += 1
@@ -64,7 +64,7 @@ print hits
 
 # ── 报错 ──
 print ((try { eval "break"; } (e: Exception) => { "1: " + (string e); }))
-print ((try { eval "x := 1\nbrk: while { x < 2; } {\n    x += 1\n}\nprint x"; } (e: Exception) => { "2: " + (string e); }))
+print ((try { eval "x := 1\n@brk while { x < 2; } {\n    x += 1\n}\nprint x"; } (e: Exception) => { "2: " + (string e); }))
 # --- expected ---
 # 3
 # 9

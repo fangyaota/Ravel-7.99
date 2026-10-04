@@ -63,10 +63,10 @@ impl (masterTrait C {
 u := C ()
 u.a = 5
 print u.c
-print (u is masterTrait)
-print (u is supTrait)
-print (u is myTrait)
-print (u is IEnumerable)
+print (u : masterTrait)
+print (u : supTrait)
+print (u : myTrait)
+print (u : IEnumerable)
 foreach u (v: int) => { print ("each " + string v); }
 
 # ---- 同名槽:现在**报错** —— 父接口声明过的槽不能再声明一次(`:=` 是定义不是覆盖;

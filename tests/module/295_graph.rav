@@ -18,8 +18,8 @@ print (g.Edges ())                         # 无向图**每条只出一次**
 print (g.Neighbors "a")
 print (g.Degree "b")
 print (g.Count ())
-print (g is Structures.Graph)
-print (g is Structures.Digraph)            # 三个类**是兄弟**,不是父子
+print (g : Structures.Graph)
+print (g : Structures.Digraph)            # 三个类**是兄弟**,不是父子
 print (typeof g)
 
 # ── 走一遍:访问序 ──
@@ -78,7 +78,7 @@ print (w.Distance "a" "c")
 print (w.Distances "a")
 
 # 有向带权:方向在构造参数里
-wd := Structures.Weighted {"directed": true}
+wd := Structures.Weighted {"directed"-> true}
 wd.AddEdge "a" "b" 3
 print wd
 print (wd.Distance "a" "b")

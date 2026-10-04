@@ -17,7 +17,7 @@ print (probe () => { 1 + "a"; })                    # 运算符不吃这个操�
 print (probe () => { nope; })                       # 未定义的变量
 print (probe () => { (5).没有这个方法 (); })          # 类型上没有这个方法
 print (probe () => { [1 2].At 9; })                 # 下标越界
-print (probe () => { {"a": 1}.Get "b"; })           # 键不存在
+print (probe () => { {"a"-> 1}.Get "b"; })           # 键不存在
 print (probe () => { 1 / 0; })                       # 除零
 print (probe () => { assert false "断言没通过"; })    # assert
 print (probe () => { ((x: int) => { x; }).Prepend 5; })   # 参数形状不对
@@ -45,8 +45,8 @@ print (probe () => { (None.Value ()); })
 
 # ── 那一族都还是 Exception:老的写法一个都没坏 ──
 print (probe () => { 1 + "a"; })                    # 上面已经证明接了
-print ((try { 1 / 0; } (e: Exception) => { e is Exception; }))
-print ((try { 1 / 0; } (e: ZeroDivisionError) => { e is Exception; }))
+print ((try { 1 / 0; } (e: Exception) => { e : Exception; }))
+print ((try { 1 / 0; } (e: ZeroDivisionError) => { e : Exception; }))
 # ── 它们就是普通类:能继承、自己能 throw ──
 MyErr ::= class TypeError { 0; }        # `{ }` 是空字典,类体得写点什么
 print (try { throw (MyErr "自己造的"); } (e: TypeError) => { "接住了: " + e.Message; })

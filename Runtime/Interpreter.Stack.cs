@@ -324,9 +324,32 @@ public partial class Interpreter
     /// 那边排的是"数据值"(bool、类对象),这边排的是"可调用,但不是等着实参的东西" ——
     /// **类对象要留着**(`Point` 光写个名字正是"忘了调用"),而续延是 `callcc` 交出来的
     /// 控制状态本身,调它不是喂参数(见 `Interpreter.Control.cs` 里那段同样的说明)。</summary>
+    /// <summary>`x: int` **单独成句** —— 只判断、什么都没绑。九成是漏写了 `=`。
+    ///
+    /// 从前这条是语法错误(「类型注解后需要 '='」),`:` 改成类型判断之后它有了合法读法,
+    /// 于是"忘写 `=`"变成**静默地丢掉一个 bool** —— 正是这门语言最恨的那种。
+    /// 和 <see cref="WarnIfForgotCall"/> 一样走 `--warn`(默认关)。
+    ///
+    /// **块的最后一条不收**:最后一条的值就是块的值,`if { x: int; } { … } { … }` 正是靠它。
+    /// </summary>
+    private void WarnIfBareTypeTest(BlockExecFrame bf)
+    {
+        if (!WarnForgotCall) return;
+        if (bf.Index - 1 >= bf.Block.Statements.Count - 1) return;   // 最后一条的值有用
+        var stmt = bf.Block.Statements[bf.Index - 1];
+        if (stmt is not ExpressionStatement { Expr: BinaryExpr { Op: ":" } }) return;
+
+        var spot = new SourceSpot(bf.Block.Source, stmt.Line, stmt.Column);
+        if (!_warnedForgotCall.Add((spot.File, spot.Line, spot.Column))) return;
+
+        Console.Error.WriteLine(ErrorReport.Warning(
+            "这一句只是个类型判断，什么都没绑 —— 想定义是不是漏了 '='？", spot));
+    }
+
     private void WarnIfForgotCall(BlockExecFrame bf)
     {
         if (!WarnForgotCall) return;
+        WarnIfBareTypeTest(bf);
 
         var stmt = bf.Block.Statements[bf.Index - 1];
         if (stmt is not ExpressionStatement es) return;

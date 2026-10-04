@@ -23,8 +23,8 @@ print ((j.Get "s").Extract ())
 
 # ── POST / PUT:服务器把收到的"方法|正文|自定义头"原样吐回来 ──
 print ((Http.Post (base + "/echo") "你好").Text ())
-print ((Http.Post (base + "/echo") {"a": 1}).Text ())            # dict → 自动 JSON
-print ((Http.Request {"url": base + "/echo" "method": "PUT" "body": "x" "headers": {"x-test": "42"}}).Text ())
+print ((Http.Post (base + "/echo") {"a"-> 1}).Text ())            # dict → 自动 JSON
+print ((Http.Request {"url"-> base + "/echo" "method"-> "PUT" "body"-> "x" "headers"-> {"x-test"-> "42"}}).Text ())
 
 # ── 4xx 不是错误 —— 那是响应,自己看状态码 ──
 nf := Http.Get (base + "/notfound")
@@ -35,20 +35,20 @@ print (nf.Text ())
 # ── 重定向:默认跟到底;`follow: false` 就停在 302 上 ──
 print ((Http.Get (base + "/redirect")).status)
 print ((Http.Get (base + "/redirect")).Text ())
-print ((Http.Request {"url": base + "/redirect" "follow": false}).status)
+print ((Http.Request {"url"-> base + "/redirect" "follow"-> false}).status)
 
 # ── 老编码:响应头里写着 charset=gbk,`Text ()` 按它解 ──
 print ((Http.Get (base + "/gbk")).Text ())
 
 # ── 重试:头两次 500,第三次才成(`retries` 是**额外**次数)──
-print ((Http.Request {"url": base + "/flaky" "retries": 2}).status)
-print ((Http.Request {"url": base + "/flaky" "retries": 2}).Text ())
+print ((Http.Request {"url"-> base + "/flaky" "retries"-> 2}).status)
+print ((Http.Request {"url"-> base + "/flaky" "retries"-> 2}).Text ())
 
 # ── 超时(服务器睡 1.5 秒,这边只等 300 毫秒)──
-print (try { Http.Request {"url": base + "/slow" "timeout": 300}; false; } (e: Exception) => { true; })
+print (try { Http.Request {"url"-> base + "/slow" "timeout"-> 300}; false; } (e: Exception) => { true; })
 
 # ── 正文封顶:超了当场报错,消息指向 Http.Download ──
-big := try { Http.Request {"url": base + "/big" "max": 1000}; ""; } (e: Exception) => { string e; }
+big := try { Http.Request {"url"-> base + "/big" "max"-> 1000}; ""; } (e: Exception) => { string e; }
 print ((big.Split "：").At 0)      # 后半截带 URL(端口每次都变),只钉前半截
 
 # ── 下载 / 上传:正文不进内存,字节数对得上就行(都写 `.io-test/`,结尾删干净)──
@@ -70,7 +70,7 @@ print (u.IsDir ())
 print (u.Exists ())
 print ((Http.Url (base + "/notfound")).Exists ())     # 404 → 就是"没有"
 print (u.Size ())                                     # 走 HEAD,不下载正文
-print ((Http.Request {"url": base + "/echo" "method": "DELETE"}).Text ())   # DELETE 发得出去
+print ((Http.Request {"url"-> base + "/echo" "method"-> "DELETE"}).Text ())   # DELETE 发得出去
 u.Write "PUT 上来的"                                   # `IFile.Write` 交回 () ,发的是 PUT
 u.Delete ()                                           # 同上,发的是 DELETE
 print "写和删都过了（不报错就是成）"

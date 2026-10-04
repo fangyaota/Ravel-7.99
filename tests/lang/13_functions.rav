@@ -288,7 +288,7 @@ try { Cached 0 add; } (e: Exception) => { print ("E: " + string e); }
 # `Cached count f` 是个**函数** —— 直接交出那个包装函数,拿到手就能直接调。
 print (typeof (Cached 1 slow))
 print (Cached.name)           # `::=` 给它起了名
-print (Cached is type)        # false:它是函数,不是类型
+print (Cached : type)        # false:它是函数,不是类型
 # 每个 Cached 是**独立的一份缓存**:包同一个函数互不干扰
 TwoCalls := 0
 two := (x: int) => { TwoCalls += 1; x; }

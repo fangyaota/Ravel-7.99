@@ -152,6 +152,7 @@ public partial class Parser
         [TokenType.Pipe] = (4, 5),
         [TokenType.And] = (6, 7), [TokenType.Caret] = (6, 7),
         [TokenType.AndAnd] = (8, 9),
+        [TokenType.Colon] = (10, 11),
         [TokenType.NotEqual] = (10, 11), [TokenType.EqualEqual] = (10, 11),
         [TokenType.Less] = (10, 11), [TokenType.Greater] = (10, 11),
         [TokenType.LessEqual] = (10, 11), [TokenType.GreaterEqual] = (10, 11),
@@ -161,9 +162,6 @@ public partial class Parser
         [TokenType.Plus] = (14, 15), [TokenType.Minus] = (14, 15),
         [TokenType.Star] = (16, 17), [TokenType.Slash] = (16, 17), [TokenType.Percent] = (16, 17),
     };
-
-    /// <summary>词形运算符那条(`is` / `isnot`)的优先级 —— 和比较同级。</summary>
-    private static readonly (int Lbp, int Rbp) WordOpBp = (10, 11);
 
     /// <summary>优先级爬升 —— 替掉原来"一个运算符一个函数"的那八层。
     ///
@@ -185,11 +183,7 @@ public partial class Parser
             var t = Peek();
             int lbp, rbp;
 
-            // 词形运算符看着是标识符,只在运算符位置认(和原来 `MatchWordOperator` 同款:
-            // 后面跟 `.` 的那种是**节**,由 `IsSectionStart` 在别处拦,这里照旧不拦)。
-            if (IsWordOperator(t))
-                (lbp, rbp) = WordOpBp;
-            else if (BinOpBp.TryGetValue(t.Type, out var bp))
+            if (BinOpBp.TryGetValue(t.Type, out var bp))
                 (lbp, rbp) = bp;
             else break;
 
@@ -304,7 +298,7 @@ public partial class Parser
                 continue;
             }
 
-            if (!StartsPrimary() || IsInfixWordOperator()) break;
+            if (!StartsPrimary()) break;
 
             // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
             // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。

@@ -255,19 +255,23 @@ internal static partial class BuiltinClasses
         DefineOp(String, ">", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, ">").Value) > 0));
         DefineOp(String, "<=", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, "<=").Value) <= 0));
         DefineOp(String, ">=", (a, b) => new BoolVal(string.CompareOrdinal(((StringVal)a).Value, Operand<StringVal>(b, ">=").Value) >= 0));
-        // 类型判定 `is` / `isnot` —— 注册在 Object 上,于是**任何值**都有
-        // (每个类的 parent 链都到 Object)。判据就是类型树上的 `IsAssignableTo`:
-        //   `1 is int`     Integer <: Integer          ✓
-        //   `1 is float`   Integer 与 Float 是兄弟       ✗
-        //   `1 is object`  Integer <: ValueType <: Object ✓
-        //   `int is type`  类对象是 type 的实例           ✓
-        //   `default is int`  Every(底类型)特判           ✓
+        // 类型判定 `x: T`。**得注册**(`BindOperator` 在求值器那条特判**之前**就查表了,
+        // 表里没有就当场报「运算符 ':' 不支持 X 操作数」)—— 但注册的只是"表里有这个名字",
+        // 真正算的是 `Interpreter.Binary` 那一支(它还要看接口实现 `HasTrait`)。
+        // **不给自定义**:`OperatorSymbols.All` 里没有它,`ParseOperatorDefinition` 也拦了一道。
+        //
+        // 判据是类型树上的 `IsAssignableTo`(帮手 `IsA` 还在,那条特判用的就是它):
+        //   `1: int`     Integer <: Integer          ✓
+        //   `1: float`   Integer 与 Float 是兄弟       ✗
+        //   `1: object`  Integer <: ValueType <: Object ✓
+        //   `int: type`  类对象是 type 的实例           ✓
+        //   `default: int`  Every(底类型)特判           ✓
         // 右边必须是个类型对象,否则报 Ravel 错误(不是 InvalidCastException)。
-        // 挂 Object 上,**任何值**都查得到 —— 值读成员是"自己那层 + 沿 `parent` 往上",
-        // 而每个类的 `parent` 链都到 `object`(自指的 `Every`/`Any` 在
-        // `MemberView.ClassChain` 里接上 `object`,所以它们也照样够得着)。
-        DefineOp(Object, "is", (a, b) => new BoolVal(IsA(a, b, "is")));
-        DefineOp(Object, "isnot", (a, b) => new BoolVal(!IsA(a, b, "isnot")));
+        //
+        // **从前这里挂着 `is` / `isnot` 两个成员**(那时它们是词形运算符,于是 `1.is` /
+        // `is.int` 两种节形式和 `a.+` 完全对称)。`:` 是标点,取成员那条路就没了 ——
+        // 要当函数用写节:`:.int`。
+        DefineOp(Object, ":", (a, b) => new BoolVal(IsA(a, b, ":")));
         DefineOp(Object, "==", (a, b) => new BoolVal(SameValue(a, b, "==")));
         DefineOp(Object, "!=", (a, b) => new BoolVal(!SameValue(a, b, "!=")));
 

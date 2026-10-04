@@ -5,7 +5,7 @@
 using "log.rav"
 
 # ── 四个级别:比当前级别松的不落笔 ──
-lg := Log.New {"stamp": false}
+lg := Log.New {"stamp"-> false}
 lg.Debug "看不见"
 lg.Info "启动"
 lg.Warn "磁盘快满了"
@@ -18,7 +18,7 @@ lg.SetLevel "debug"
 lg.Debug "这下看得见了"
 
 # ── 标签:多打一段,一眼知道是谁说的 ──
-db := Log.New {"level": "debug" "stamp": false "tag": "db"}
+db := Log.New {"level"-> "debug" "stamp"-> false "tag"-> "db"}
 db.Debug "连接池开了 4 条"
 
 # ── 时间戳:只钉"有 19 个字符那么长的一段",不钉它是几号几点 ──
@@ -36,7 +36,7 @@ Log.SetLevel "info"
 
 # ── 落盘的落点(`RAVEL_LOG` 那个环境变量也认,见 lib/log.rav)──
 System.CreateDir ".io-test"
-f := Log.New {"file": ".io-test/log.txt" "stamp": false "tag": "job"}
+f := Log.New {"file"-> ".io-test/log.txt" "stamp"-> false "tag"-> "job"}
 f.Info "写到文件"
 f.Warn "也写"
 f.Debug "不写(级别不够)"
@@ -46,7 +46,7 @@ System.DeletePath ".io-test"
 print (System.FileExists ".io-test")
 
 # ── 报错的几种 ──
-try { Log.New {"level": "verbose"}; } (e: Exception) => { print ("1: " + string e); }
+try { Log.New {"level"-> "verbose"}; } (e: Exception) => { print ("1: " + string e); }
 try { (Log.New ()).SetLevel "nope"; } (e: Exception) => { print ("2: " + string e); }
 
 # --- expected ---

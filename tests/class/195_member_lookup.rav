@@ -74,44 +74,43 @@ ravel ""
 
 # ═══ 197_is_operator(并入) ═══
 ravel "197_is_operator"
-# `is` / `isnot`:类型判定。判据就是类型树上那条 `A <: B`(`ObjectVal.IsAssignableTo`)。
+# `:` 类型判定。判据就是类型树上那条 `A <: B`(`ObjectVal.IsAssignableTo`)。
 #
-# 它们是**词形运算符**(不是标点),所以三种写法都有,和 `+` 完全对称:
-#   中缀      `1 is int`
-#   等右操作数 `1.is`      ← 和 `2.+` 对称
-#   等左操作数 `is.int`    ← 和 `+.2` 对称
+# 它**是标点**(从前是个词形运算符 `is`,已经撤了),所以三种写法都有,和 `+` 完全对称:
+#   中缀      `1 : int`
+#   等右操作数 `1.:`       ← 和 `2.+` 对称
+#   等左操作数 `:.int`     ← 和 `+.2` 对称
+# 取反没有专门的符号:`!(1 : int)`。
 
 # ---- 中缀 ----
-print (1 is int)
-print (1 is float)          # Integer 与 Float 是兄弟,不是子类型
-print ("a" is ValueType)
-print (1 is object)         # Integer <: ValueType <: Object
-print (1 is Any)            # 顶类型:什么都是它的子类
-print (1 is Every)          # 底类型:Every 是所有人的子类,反过来不成立
-print (default is int)      # default 的类型就是 Every
-print ([1] is list)
+print (1 : int)
+print (1 : float)          # Integer 与 Float 是兄弟,不是子类型
+print ("a" : ValueType)
+print (1 : object)         # Integer <: ValueType <: Object
+print (1 : Any)            # 顶类型:什么都是它的子类
+print (1 : Every)          # 底类型:Every 是所有人的子类,反过来不成立
+print (default : int)      # default 的类型就是 Every
+print ([1] : list)
 
 # ---- 等右操作数:和 `2.+` 对称 ----
-bound := 1.is
+bound := 1.:
 print (bound int)
-print (2.isnot int)
-print ((1.is) int)          # 也可以直接接上去写
+print (!(2.: int))
+print ((1.:) int)           # 也可以直接接上去写
 
 # ---- 等左操作数:和 `+.2` 对称(节)。括号界定节的范围 ----
-isInt := is.int
+isInt := :.int
 print (isInt 1)
-print (is.ValueType "a")
-print (isnot.string "a")
-print ((isnot.string) "a")  # 和上一行同一个意思:节是 lambda,接上实参就是应用
+print (:.ValueType "a")
 
 # ---- 类对象也是值:它是 `type` 的实例,不是它自己表示的那个类型 ----
-print (int is type)
-print ((typeof 1) is type)
-print ((typeof 1) is int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
+print (int : type)
+print ((typeof 1) : type)
+print ((typeof 1) : int)     # `typeof 1` 求出来的是类对象 Integer,它不是 int 值
 print ((typeof 1) <: int)   # 想比"是不是这个类型"用 `<:`(类型之间)
 
 # ---- `<:` / `:>`:**类型之间**的关系(A 是不是 B 的子类型 / 父类型)----
-# 和 `is` 分工:`is` 左边是**值**,这一对两边都得是**类型对象**。
+# 和 `:` 分工:`:` 左边是**值**,这一对两边都得是**类型对象**。
 print (int <: object)
 print (object :> int)
 print (int <: int)
@@ -133,7 +132,7 @@ print (superOf int)
 print (int.<: object)
 
 # ---- 右边得是个类型 ----
-try { 1 is 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
+try { 1 : 5; } (e: Exception) => { print ("右边不是类型: " + string e); }
 print "done"
 ravel ""
 
@@ -244,8 +243,11 @@ print (typeof n)
 try { z: (1 + 1) = 0; } (e: Exception) => { print ("1: " + string e); }
 # 注解里的名字不存在 → 在**求值**那一步就报
 try { w: (nope ()) = 0; } (e: Exception) => { print ("2: " + string e); }
-# 括号不能省:`a: pick true = 5` 会把它当成字段名,报语法错
-try { eval "q: pick true = 5"; } (e: Exception) => { print ("3: " + string e); }
+# 括号不能省:注解只认「名字(.名字)*」或者一个括号里的表达式。
+# `q: pick true` 里那个 `pick true` 不是注解,于是整行读成**判断** `q : (pick true)` ——
+# 右边不是类型,当场报。要定义就得把类型括起来:`q: (pick true) = 5`。
+q := 1
+try { eval "q: pick true"; } (e: Exception) => { print ("3: " + string e); }
 print "done"
 ravel ""
 
@@ -299,7 +301,7 @@ print (c.Fields ())
 print ((1).Fields ())
 ravel ""
 # --- expected ---
-# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]
+# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString : <: :> Copy Fields MemberScope CompareTo Key]
 # 3
 # 4
 # true
@@ -337,8 +339,6 @@ ravel ""
 # true
 # true
 # true
-# false
-# false
 # true
 # true
 # false
@@ -356,7 +356,7 @@ ravel ""
 # false
 # true
 # true
-# 右边不是类型: 'is' 的右边要是一个类型，得到 Integer
+# 右边不是类型: ':' 的右边要是一个类型，得到 Integer
 # done
 # 1: 'y' 的类型注解要是个类型，得到 Integer
 # 2: 类型不匹配: 无法将 Integer 赋值给 C — 无法将 Integer 转换为 C
@@ -381,7 +381,6 @@ ravel ""
 # Integer
 # 1: 'z' 的类型注解要是个类型，得到 Integer
 # 2: 未定义的变量 'nope'
-# 3: 类型注解后需要 '='
 # done
 # true
 # false
@@ -397,5 +396,5 @@ ravel ""
 # false
 # 1: 运算符 '==' 不支持 Integer 操作数
 # 2: 运算符 '==' 不支持 Void 操作数
-# [init x s m is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
-# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString is isnot <: :> Copy Fields MemberScope CompareTo Key]
+# [init x s m : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString : <: :> Copy Fields MemberScope CompareTo Key]

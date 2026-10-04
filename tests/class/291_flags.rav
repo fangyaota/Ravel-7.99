@@ -49,7 +49,7 @@ ext ::= flags perms {
 }
 print ((ext.Read | ext.Link).Text ())
 print ((ext.Values ()).Count ())            # 父类那几枚迁过来了
-print (ext.Read is ext)                     # 迁过来的是**这个**的
+print (ext.Read : ext)                     # 迁过来的是**这个**的
 print (ext.Read == perms.Read)              # 同名不同枚 —— `enum` 那条规矩照旧
 
 # ── 报错:另一边不是同一个 flags、也不是整数 ──

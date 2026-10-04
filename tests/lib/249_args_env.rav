@@ -36,8 +36,8 @@ try { System.UnsetEnv ""; } (e: Exception) => { print ("5: " + string e); }
 
 # 交回的东西的类型。那层额外的括号不能省:实参位置只吃"主表达式 + 取成员",
 # `print (X () is T)` 会被读成 `(print (X ())) is T`(和列表元素那边一个坑,见 lib/seqs.rav)
-print ((System.EnvAll ()) is dict)
-print ((System.Args ()) is list)
+print ((System.EnvAll ()) : dict)
+print ((System.Args ()) : list)
 print "end"
 # --- expected ---
 # []

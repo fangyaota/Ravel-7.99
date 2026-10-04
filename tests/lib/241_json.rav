@@ -7,7 +7,7 @@
 # 留着那棵树的好处:JSON 的 null、整数与小数的写法、键的顺序都还在,想问就问
 # (Kind / IsNull / Get / At / Count / Keys),想转再转。写回去用 `j.Text ()`(紧凑)或 `j.Text n`。
 
-j := Json {"a": [1 2.5 ()] "b": {"c": true} "s": "你好"}
+j := Json {"a"-> [1 2.5 ()] "b"-> {"c"-> true} "s"-> "你好"}
 print (typeof j)
 print (j)                                   # print 直接给紧凑 JSON
 print (j.Kind ())
@@ -39,7 +39,7 @@ print ((Json 3.5).Extract ())
 
 # 写回文本:紧凑 / 缩进 n 格
 print ((Json [1 2 3]).Text ())
-print ((Json {"a": 1 "b": [2 3]}).Text 2)
+print ((Json {"a"-> 1 "b"-> [2 3]}).Text 2)
 
 # 解析:空白无所谓,数字按"装得下 int 就 int、太大退 bigint、带小数/指数是 float"
 print (Json.FromString "{\"x\": 1}")
@@ -57,13 +57,13 @@ print (Json.FromString "\"2020-01-01\"")
 print (typeof ((Json.FromString "\"2020-01-01\"").Extract ()))
 
 # 注解是 Json 时,原生值直接转换过去
-x: Json = {"k": true}
+x: Json = {"k"-> true}
 print (x)
 
 # 坏输入说人话(带行列)
 try { print (Json.FromString "{bad}"); } (e: Exception) => { print ("1: " + string e); }
 try { print (Json.FromString "1 2"); } (e: Exception) => { print ("2: " + string e); }
-try { print ((Json {"d": 1}).Get "zz"); } (e: Exception) => { print ("3: " + string e); }
+try { print ((Json {"d"-> 1}).Get "zz"); } (e: Exception) => { print ("3: " + string e); }
 try { print ((Json [1]).At 5); } (e: Exception) => { print ("4: " + string e); }
 
 # JSON 里没有的类型:当场报错,不悄悄降级
@@ -78,7 +78,7 @@ try { print (Json (fraction 1 2)); } (e: Exception) => { print ("6: " + string e
 m := Json.FromString "{\"a\": 1, \"b\": [1,2,3]}"
 m.Set "c" "新加的"                  # 加一个键
 print (m.Text ())
-m.Set "a" {"x": true}               # 换一个值(原生值行,另一个 Json 也行)
+m.Set "a" {"x"-> true}               # 换一个值(原生值行,另一个 Json 也行)
 print (m.Text ())
 print (m.Remove "c")                # 交回"有没有删掉"(和 dict.Remove 一个口径)
 print (m.Remove "nope")
@@ -111,7 +111,7 @@ try { print (j.tag); } (e: Exception) => { print ("8: " + string e); }
 c := j.Copy ()
 print (c)
 print ((c.Extract ()).Get "a")
-print (c is Json)
+print (c : Json)
 print "end"
 # --- expected ---
 # Json
@@ -174,7 +174,7 @@ print "end"
 # 12: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 7: 类型 'Type' 没有方法 'Kind'
 # number
-# [name parent FromString block Default GetImplements GetImplementors Subtypes | Name Scope Body SetScope Prepend Append is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [name parent FromString block Default GetImplements GetImplementors Subtypes | Name Scope Body SetScope Prepend Append : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 99
 # 8: 类型 'Json' 没有方法 'tag'
 # {"a":[1,2.5,null],"b":{"c":true},"s":"你好"}

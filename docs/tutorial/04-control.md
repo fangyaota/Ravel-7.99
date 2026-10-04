@@ -202,9 +202,9 @@ print five
 ```ravel
 kind := (v: object) => {
     match v [
-        [is.int    {"整数";}]
-        [is.bool   {"布尔";}]
-        [is.string {"字符串";}]
+        [:.int    {"整数";}]
+        [:.bool   {"布尔";}]
+        [:.string {"字符串";}]
     ] {"别的";}
 }
 print (kind 3)
@@ -305,11 +305,11 @@ print s
 9
 ```
 
-**要跳出好几层就给标签** —— `标签: <语句>`，然后 `break 标签` / `continue 标签`：
+**要跳出好几层就给标签** —— `@标签 <语句>`，然后 `break 标签` / `continue 标签`：
 
 ```ravel
 #program --more-control-flow=true
-outer: while { true; } {
+@outer while { true; } {
     foreach [1 2 3] (x: int) => {
         if { x == 2; } { break outer; } { 0; }
         print x
@@ -327,7 +327,7 @@ print "跳出来了"
 
 注意：**`while` / `foreach` 是库函数，所以解析器只按名字认它们** —— 它知道"哪个调用算循环"的**唯一依据**就是这两个名字。自己写的循环函数（比如 `Repeat n { … }`）不在内，那种要用标签指。
 
-注意：`continue 标签` 跳的是**那个循环的这一轮**，`break 标签` 跳的是**整个那条语句**。标签没人指会当场报错（顺手把 `x: int` 漏写 `=` 那种笔误也逮住 —— 它会被当成标签）。
+注意：`continue 标签` 跳的是**那个循环的这一轮**，`break 标签` 跳的是**整个那条语句**。标签没人指会当场报错。
 
 注意：`foreach` 的体是个 lambda，所以在那儿写 `return` 出的是**那一趟的体**，`continue` 才是"跳过这一轮"。
 
@@ -365,9 +365,9 @@ esc: Continuation = default
 print (typeof esc)
 callcc (k: function) => { esc = k; "先给个值"; }
 print (typeof esc)
-print (esc is Continuation)
+print (esc : Continuation)
 print ((typeof esc) == function)
-print (esc is function)
+print (esc : function)
 ```
 
 执行以上程序会输出如下结果：

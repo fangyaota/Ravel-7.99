@@ -42,7 +42,7 @@ System.DeletePath ".io-test"
 # ── 5. 发 JSON(dict / list 自动当 JSON;4xx 不是错误,是响应)──
 # **网络对面说不准**:公共接口偶尔慢、偶尔抽风,真要拿去用就包一层 try(这里也是给你看这个写法)
 try {
-    echoed := (Http.Post "https://httpbin.org/post" {"name": "Ravel" "n": 42}).Json ()
+    echoed := (Http.Post "https://httpbin.org/post" {"name"-> "Ravel" "n"-> 42}).Json ()
     print ("发出去的: " + ((echoed.Get "json").Text ()))
 } (e: Exception) => { print ("httpbin 这次没搭理我们: " + string e); }
 

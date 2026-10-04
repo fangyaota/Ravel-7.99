@@ -32,7 +32,7 @@ print (t == (TimeFrom "2026-10-01 12:34:56" IsoFormat))
 print (t != u)
 print (t.CompareTo u)
 print (t.CompareTo (TimeFrom "2026-10-01 12:34:56" IsoFormat))
-print (t is IComparable)
+print (t : IComparable)
 
 # Sorting 直接吃它
 print (Sorting.Sort [u t (t.AddDays (0 - 2))] |> .At 0 |> .Text ())
@@ -48,7 +48,7 @@ print ((Now ()) > (TimeFrom "2020-01-01 00:00:00" IsoFormat))
 
 # 读不动 / 拼不出:当场报错
 try { TimeFrom "不是时间" "yyyy-MM-dd"; } (e: Exception) => { print ("1: " + string e); }
-try { System.MakeTime {"year": 2026 "month": 13 "day": 1}; } (e: Exception) => { print ("2: " + string e); }
+try { System.MakeTime {"year"-> 2026 "month"-> 13 "day"-> 1}; } (e: Exception) => { print ("2: " + string e); }
 print "end"
 # --- expected ---
 # 2026-10-01 12:34:56

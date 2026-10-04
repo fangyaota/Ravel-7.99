@@ -234,7 +234,7 @@ print (c.Fields ())
 ```
 6
 7
-[init n is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+[init n : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 ```
 
 注意：类体里写的字段 / 方法在实例化时落进**每个实例自己的表**；而事后往**类对象**上挂的只进类自己那张表。原因是一个类对象**有两张表**：一张"类自己的"（`name` / `parent` / `block` / 用户挂上去的），一张"**给实例的**"（内置方法、类运算符、序列方法）。实例读的是后者。
@@ -438,7 +438,7 @@ u := myClass ()
 u.a = 1
 print u.x
 u.b ()
-print (u is myTrait)
+print (u : myTrait)
 ```
 
 执行以上程序会输出如下结果：

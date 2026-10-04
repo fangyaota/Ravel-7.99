@@ -29,6 +29,14 @@ public partial class Parser
         // 运算符节 `+.2` / `is.int` —— 左操作数留空,等价于 `_ + 2` / `_ is int`
         // (脱糖成同一个 lambda)。右操作数只吃一个 primary(含成员访问),
         // 所以 `+.2 + 3` 是 `(+.2) + 3`。
+        // `@` 落到"要表达式"的位置 = 两种情形之一:
+        //   * 想给循环起名字 —— 那是**语句开头**的写法(`@outer while { … }`),得开 `--more-control-flow`;
+        //   * 还是从前那个"把左边封口"的运算符 —— 它早改成 `|>` 了。
+        // 直说清楚,比"需要表达式，但得到 '@'"有用。
+        if (Check(TokenType.At))
+            throw ParseError("'@' 是**标签**的前缀，写在语句开头（`@outer while { … }`，要开 `--more-control-flow`）；"
+                           + "从前那个封口的运算符已经改成 '|>' 了");
+
         if (IsSectionStart())
         {
             var sym = Peek();
@@ -362,16 +370,17 @@ public partial class Parser
         }
 
         // 单行无换行：**先当表达式把第一个元素读出来**,看它后面跟的是不是 `:` —— 是就是字典。
-        // 键从"标识符即字符串"改成了**表达式**(`{"a": 1}` / `{1: "x"}` / `{k: v}`),
-        // 判据不能再靠前瞻,得真读一次。`x:: …` / `x: = …` 是**定义符**不是键值对,排除。
+        // 键从"标识符即字符串"改成了**表达式**(`{"a" -> 1}` / `{1 -> "x"}` / `{k -> v}`),
+        // 判据不能再靠前瞻,得真读一次。
+        //
+        // **分隔符是 `->`**(从前是 `:`)—— 于是 `:` 整个让给了类型判断,这一族也不再有
+        // "`x: int = 5` 到底算字典还是算块"那条特判:花括号里见 `->` 才是字典。
         //
         // 这一次解析的**结果两条路都用**(字典那条当第一个键、集合那条当第一个元素),
         // 不走"读完退回去再读一遍":`_` 的序号是个单调计数器(见 `_holeCount`),
         // 读两遍会让洞的编号和消糖时按顺序发的参数对不上(`{_ + 1}` 直接报「未定义的变量 '_1'」)。
         var first = ParseExpression(allowCall: false);
-        var isDict = Check(TokenType.Colon)
-                     && TypeAt(1) is not (TokenType.Colon or TokenType.Equal);
-        return isDict ? ParseDict(line, col, first) : ParseSet(line, col, first);
+        return Check(TokenType.DictArrow) ? ParseDict(line, col, first) : ParseSet(line, col, first);
     }
 
     /// <summary>前瞻：在匹配 closing 之前是否遇到 Newline</summary>
@@ -445,7 +454,7 @@ public partial class Parser
         var key = first;
         while (true)
         {
-            Consume(TokenType.Colon, "字典键后需要 ':'");
+            Consume(TokenType.DictArrow, "字典键后需要 '->'");
             var value = ParseExpression(allowCall: false);
             entries.Add(new DictEntry(key, value));
             if (Check(TokenType.RightBrace) || IsAtEnd()) break;

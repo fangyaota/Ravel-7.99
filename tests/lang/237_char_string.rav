@@ -9,7 +9,7 @@
 c := 'a'
 print c
 print (typeof c)
-print (c is ValueType)
+print (c : ValueType)
 print ('\n' == '\n')
 print ('\t' == '\t')
 print ('\\')
@@ -76,9 +76,9 @@ try { print (s.Slice [0..99]); } (e: Exception) => { print ("7: " + string e); }
 try { print ("a".Split ""); } (e: Exception) => { print ("8: " + string e); }
 
 # ── 和库搭台:字符当键、当排序元素、进 foreach ──
-print ('c' is IComparable)
-print ('c' is IKey)
-print ("ab" is IEnumerable)          # 字符串**可枚举**:元素是字符(lib/iterator.rav 里登记的一条 impl)
+print ('c' : IComparable)
+print ('c' : IKey)
+print ("ab" : IEnumerable)          # 字符串**可枚举**:元素是字符(lib/iterator.rav 里登记的一条 impl)
 foreach ("abc".Chars ()) (ch: char) => { print ch; }
 d := {}
 d.Set 'a' 1

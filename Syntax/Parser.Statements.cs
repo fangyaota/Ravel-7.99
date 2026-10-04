@@ -17,32 +17,22 @@ public partial class Parser
 
     /// <summary>能作为运算符定义的符号 token(`+ := f` / `a.+`)。一元 `!` 和短路 `&&`/`||` 不在内——
     /// 它们是求值器特判的,不支持自定义。</summary>
-    /// <summary>词形运算符:`is` / `isnot` 不是标点,只能按词认。
-    /// **只在运算符位置认**(中缀、节首),所以它们同时还能当普通标识符/成员名用 ——
-    /// `1.is` 要能走成员访问那条路。</summary>
-    private bool IsWordOperator(Token t) => t.Type == TokenType.Identifier && t.Lexeme is "is" or "isnot";
-
-    /// <summary>吃掉一个词形运算符(是的话)。</summary>
-    private bool MatchWordOperator()
-    {
-        if (!IsWordOperator(Peek())) return false;
-        _pos++;
-        return true;
-    }
-
-    /// <summary>运算符节的开头:`+.2` / `is.int` —— 运算符(标点或词形)后面紧跟 `.`。
-    /// 节是"左操作数留空"的写法,`ParsePrimary` 认它。</summary>
+    /// <summary>运算符节的开头:`+.2` / `:.int` —— 运算符后面紧跟 `.`。
+    /// 节是"左操作数留空"的写法,`ParsePrimary` 认它。
+    ///
+    /// (从前这儿还认**词形**运算符 `is` / `isnot` —— 它们是"看着像标识符、只在运算符位置认"
+    ///  的。`is` 换成 `:` 之后那整套机器拆掉了,节也只剩标点这一路。)</summary>
     private bool IsSectionStart()
-        => (IsOperatorToken(Peek().Type) || IsWordOperator(Peek()))
+        => IsOperatorToken(Peek().Type)
            && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot;
-
-    /// <summary>这个位置上的词形运算符**是中缀**(`x is int`),不是节的开头(`is.int`)。
-    /// 相邻调用的参数扫描要在这儿停 —— 否则 `1 is int` 会被吃成 `1(is, int)`。</summary>
-    private bool IsInfixWordOperator() => IsWordOperator(Peek()) && !IsSectionStart();
 
     private static bool IsOperatorToken(TokenType t) => t switch
     {
-        TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.StarStar or TokenType.Slash or TokenType.Percent
+        // `:` 在内:它是**类型判断**(`x: int`),要能当节首(`:.int`)、当成员名(`2.:`)。
+        // 但它**不在** `OperatorSymbols.All` 里 —— 和 `!` / `&&` / `||` 一样归"求值器特判、
+        // 不支持自定义"那一档(见 `ParseOperatorDefinition` 开头那道拦截)。
+        TokenType.Colon
+            or TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.StarStar or TokenType.Slash or TokenType.Percent
             or TokenType.EqualEqual or TokenType.NotEqual
             or TokenType.Less or TokenType.Greater or TokenType.LessEqual or TokenType.GreaterEqual
             or TokenType.Subtype or TokenType.Supertype
@@ -102,24 +92,6 @@ public partial class Parser
     private readonly List<bool> _returnUsed = [];
 
 
-    /// <summary>这儿的 `名字 :` 是**定义**吗 —— 定义必然有 `=`(`x: int = 5`),标签必然没有。
-    /// 只在同一行、括号深度 0 上找,见到 `{` 就停(`outer: while { … }` 里的 `{` 后面不算)。</summary>
-    private bool LooksLikeDefinitionName()
-    {
-        var depth = 0;
-        for (var i = _pos + 1; i < tokens.Count; i++)
-        {
-            switch (tokens[i].Type)
-            {
-                case TokenType.Newline: return false;
-                case TokenType.LeftParen or TokenType.LeftBracket: depth++; break;
-                case TokenType.RightParen or TokenType.RightBracket: depth--; break;
-                case TokenType.LeftBrace: return false;
-                case TokenType.Equal when depth == 0: return true;
-            }
-        }
-        return false;
-    }
 
     /// <summary>`break [标签]` / `continue [标签]`。脱糖成对 `__brk<n>` / `__cont<n>` 的一次
     /// 调用 —— 那两个名字由**循环那一层**包出来的 `callcc` 绑住(见 ParsePostfixRest 里那段)。</summary>
@@ -337,18 +309,21 @@ public partial class Parser
             && Peek().Lexeme is "break" or "continue" && !LooksLikeUseOfTheName())
             return ParseBreakContinue();
 
-        // `outer: <语句>` —— 给循环/语句起个名字,好让 `break outer` / `continue outer` 指着它跳。
-        // 和定义的分岔靠**往后找 `=`**:定义必然有(`x: int = 5`),标签必然没有。
+        // `@outer <语句>` —— 给循环/语句起个名字,好让 `break outer` / `continue outer` 指着它跳。
+        //
+        // **前缀是 `@`**。从前这条写 `outer: <语句>`,和定义(`x: int = 5`)靠"往后找 `=`"分家;
+        // `:` 改成类型判断之后分不了了(`outer: while …` 会读成判断),所以换个不撞任何东西的符号。
+        // `@` 今天是词法错误,一分钱的兼容账都没有。
+        //
         // 这条只在这个开关开着时才认,免得动到老代码。
-        if (moreControlFlow && Check(TokenType.Identifier) && CheckNext(TokenType.Colon)
-            && !LooksLikeDefinitionName())
+        if (moreControlFlow && Check(TokenType.At))
         {
-            var lbl = Peek();
+            _pos++;                          // 吃掉 '@'
+            var lbl = Consume(TokenType.Identifier, "'@' 后面需要标签名");
             var outerLabel = _pendingLabel;
             var outerLabelName = _pendingLabelName;
             var outerBrk = _pendingBrk;
             var outerUsed = _pendingBrkUsed;
-            _pos += 2;                       // 名字 + ':'
             _pendingLabel = lbl.Lexeme;
             _pendingLabelName = lbl.Lexeme;
             _pendingBrk = "__brk_" + lbl.Lexeme;
@@ -367,8 +342,25 @@ public partial class Parser
         }
 
         // 普通定义：IDENT := expr 或 IDENT : type = expr
-        if (Check(TokenType.Identifier) && IsDefinitionOp(NextType()))
+        //
+        // **`:` 这一支要看一眼前头再定**。`:` 现在是**类型判断**(`x: int`),而它同时还是
+        // 定义的注解符 —— 两种读法的分岔只有一个:**注解后面跟不跟 `=`**。
+        // 跟了就是定义(名字 + 注解 + 值),没跟就是一个光秃秃的判断,照表达式语句走。
+        // (从前这里不用看:那会儿 `x: int` 单独写就是「类型注解后需要 '='」,没有第二种读法。)
+        //
+        // `:=` / `::=` / `::` 三条不在此列 —— 它们只可能是定义。
+        if (Check(TokenType.Identifier) && NextType() == TokenType.Colon)
+        {
+            // `SkipTypeAnnotation` 收的是**相对 `_pos`** 的偏移(`TypeAt` 就是 `_pos + off`),
+            // 注解从名字后面第 2 个 token 开始。
+            var afterType = SkipTypeAnnotation(2);
+            if (afterType >= 0 && TypeAt(afterType) == TokenType.Equal)
+                return ParseDefinition();
+        }
+        else if (Check(TokenType.Identifier) && IsDefinitionOp(NextType()))
+        {
             return ParseDefinition();
+        }
         // IDENT = expr → 赋值
         if (Check(TokenType.Identifier) && CheckNext(TokenType.Equal))
             return ParseAssignment();
@@ -451,6 +443,10 @@ public partial class Parser
     private Statement ParseOperatorDefinition()
     {
         var sym = Peek();
+        // `:` 在 `IsOperatorToken` 里(要当节首 `:.int`、当成员名 `2.:`),但它**不给定义** ——
+        // 和 `!` / `&&` / `||` 一样是求值器特判的。不拦的话 `: := f` 会建出一个没人查的成员。
+        if (sym.Type == TokenType.Colon)
+            throw ParseError("':' 不支持自定义 —— 它是内建的类型判断（`x: T`），和 `!` / `&&` / `||` 一样");
         _pos++;
         if (Match(TokenType.ColonEqual))
             return new VarDefinition(sym.Lexeme, null, ParseExpression()) { Line = sym.Line, Column = sym.Column };

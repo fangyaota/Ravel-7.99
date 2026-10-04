@@ -52,8 +52,8 @@ using "Ravel.Extensions"  # ≡ using "plugins/Ravel.Extensions.dll"
 
 ```ravel
 using "math.rav"
-print (Math is Ravel)
-print (5 is Ravel)
+print (Math : Ravel)
+print (5 : Ravel)
 ```
 
 执行以上程序会输出如下结果：

@@ -62,7 +62,7 @@ IRandom ::= interface {
     # 连续的东西没有"取到端点"这回事,所以统一当 **`[lo, hi)`** 看(端点用哪个括号都行)。
     by Float := property (() => {
         (p) => {
-            if { p is Range; } {
+            if { p : Range; } {
                 lo := float (p.Start ())
                 hi := float (p.End ())
                 assert (lo <= hi) ("Random.Float: " + (p.Text ()) + " 的起点在终点后面")

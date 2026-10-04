@@ -93,7 +93,7 @@ enum ::= class type {
             pf := parent.MemberScope ()
             foreach ((pf.Variables ()).Keys ()) (n: string) => {
                 v := (pf.Lookup n).Get ()
-                if { v is parent; } {
+                if { v : parent; } {
                     names.Add v.Name
                     vals.Add v.Value
                 } { 0; }
@@ -187,7 +187,7 @@ flags ::= class enum {
 
         # 位运算另一边那个数:同一个 flags 的值,或者直接是整数
         Bits := (o: object) => {
-            if { o is int; } { o; } {
+            if { o : int; } { o; } {
                 if { (typeof o) == (typeof this); } { o.Value; } {
                     throw (Exception ("flags: 位运算两边得是同一个 flags 的值或整数（那边是 " + (string (typeof o)) + "）"))
                 }

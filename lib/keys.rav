@@ -70,7 +70,7 @@ ravel "Keys"
 # 用 assert 的话每次调用都要拼一遍(而这是 `d.Get` / `d.Set` 的必经之路)。
 readonly Of := (k: object) => {
     c := k.Key ()
-    if { c is ValueType; } { c; } {
+    if { c : ValueType; } { c; } {
         throw (Exception ("`Key` 要交回一个值类型的键（数 / 字符串），得到 " + (string (typeof c))))
     }
 }

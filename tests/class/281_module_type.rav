@@ -12,15 +12,15 @@ print ((typeof (Math)) == (typeof (System)))
 print (Math)                           # 名字还在(`print` 走 ModuleVal 自己那个字段)
 print (System)
 # 模块**是对象**、不是类型 —— `<:` 那种用法得留在类对象上
-print (Math is object)
-print (Math is System.Function)
+print (Math : object)
+print (Math : System.Function)
 
 # `Ravel` 是个**能叫得出的名字**:所有模块共用这一个类对象,所以"这是不是个模块"
 # 就是一句 `is Ravel`(`object` 太宽 —— 数字也是)
-print (Math is Ravel)
-print (System is Ravel)
-print (5 is Ravel)
-print ("x" is Ravel)
+print (Math : Ravel)
+print (System : Ravel)
+print (5 : Ravel)
+print ("x" : Ravel)
 print (Math.Square 6)                  # 成员照旧
 print ((Math.Fields ()).Count ())
 
@@ -49,7 +49,7 @@ print (Mine)
 # false
 # false
 # 36
-# 55
+# 54
 # 1: 模块 'System' 没有方法 'Class'
 # 2: 模块 'Math' 没有方法 'Nope'
 # 3: '<:' 的左边得是个类型，得到模块 'Math'

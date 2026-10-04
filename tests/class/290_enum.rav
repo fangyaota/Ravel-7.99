@@ -45,9 +45,9 @@ sub ::= enum base {
 }
 print (sub.A.Value)              # 父类那枚迁过来了
 print (sub.X.Value)              # 这一层块里写的
-print (sub.A is sub)             # 迁过来的是**这个枚举的**值,不是父类那一枚
+print (sub.A : sub)             # 迁过来的是**这个枚举的**值,不是父类那一枚
 print (sub.A == base.A)          # 所以两边同名不同枚
-print ((sub ()) is base)         # 但 sub 的实例仍是 base(类链那条)
+print ((sub ()) : base)         # 但 sub 的实例仍是 base(类链那条)
                                  # (括号不能省:实参吃到运算符为止,`sub () is base` 会读成 `sub (() is base)`)
 foreach (sub.Values ()) (e: object) => { print (e.Name); }   # 父类的在前
 print ((sub.Of 2).Name)

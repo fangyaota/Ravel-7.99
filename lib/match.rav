@@ -53,7 +53,7 @@ readonly match ::= (v: object cases: list dflt: object) => {
     # 形状当场查:每一支结果、以及默认值,都得**可调用**。查的是"能不能调",不是"是块"——
     # 块和 lambda 都行(块 `is function` 成立),普通值不成立。
     checkArm := (arm: object what: string) => {
-        if { !(arm is function); } {
+        if { !(arm : function); } {
             throw (Exception "${what}要写成块（块里最后一条语句的值就是它的值）")
         } { 0; }
     }

@@ -7,9 +7,9 @@ using "encoding.rav"
 
 # ── 查询串:值做百分号转义;URL 里已经有 `?` 就用 `&` 接 ──
 print (Http.Query "http://x/y" {})
-print (Http.Query "http://x/y" {"a": 1})
-print (Http.Query "http://x/y" {"a": 1 "b": "x y&z"})
-print (Http.Query "http://x/y?z=1" {"a": 1})
+print (Http.Query "http://x/y" {"a"-> 1})
+print (Http.Query "http://x/y" {"a"-> 1 "b"-> "x y&z"})
+print (Http.Query "http://x/y?z=1" {"a"-> 1})
 
 # ── 网址不对 / 连不上:当场说人话 ──
 # (不能用 .NET 自己那句:它跟着系统语言变,而这几行是要被钉住的)
@@ -18,7 +18,7 @@ try { Http.Get "ftp://x/"; } (e: Exception) => { print ("2: " + string e); }
 try { Http.Get "http://127.0.0.1:1/"; } (e: Exception) => { print ("3: " + string e); }
 
 # ── 响应对象:手搓一个,只看那几个纯函数 ──
-r := Response {"status": 404 "reason": "Not Found" "headers": {"content-type": "text/plain; charset=utf-8" "x-n": "1"} "body": (Encoding.Utf8 "没有这一页") "url": "http://x/nope"}
+r := Response {"status"-> 404 "reason"-> "Not Found" "headers"-> {"content-type"-> "text/plain; charset=utf-8" "x-n"-> "1"} "body"-> (Encoding.Utf8 "没有这一页") "url"-> "http://x/nope"}
 print (r.status)
 print (r.reason)
 print (r.Ok ())
@@ -33,11 +33,11 @@ print (r.Header "x-N")             # 名字不区分大小写(引擎那边一律
 try { Http.Expect r; } (e: Exception) => { print ("4: " + string e); }
 
 # 2xx 原样交回
-ok := Response {"status": 201 "reason": "Created" "headers": {} "body": [] "url": "http://x"}
+ok := Response {"status"-> 201 "reason"-> "Created" "headers"-> {} "body"-> [] "url"-> "http://x"}
 print ((Http.Expect ok).status)
 
 # 非 ASCII 的值走 UTF-8 的百分号编码(和浏览器地址栏一致)
-print (Http.Query "http://x/y" {"q": "中文"})
+print (Http.Query "http://x/y" {"q"-> "中文"})
 # --- expected ---
 # http://x/y
 # http://x/y?a=1

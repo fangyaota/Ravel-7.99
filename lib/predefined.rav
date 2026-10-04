@@ -157,7 +157,7 @@ readonly throw := Ex.Throw
 #     Cache ??= Some (算一次 ())
 
 readonly IsNothing := (v: object) => {
-    (v is Option) && (v.IsNone ())
+    (v : Option) && (v.IsNone ())
 }
 
 # `a?.b c` → `NilChain (() => { a; }) (v) => { v.b c; }`
@@ -168,7 +168,7 @@ readonly IsNothing := (v: object) => {
 # 「类型 Void 没有方法 x」,不会被悄悄吞掉。
 readonly NilChain := (get: function step: function) => {
     v := get ()
-    if { (IsNothing v); } { v; } { if { v is Option; } { Some (step (v.Value ())); } { step v; } }
+    if { (IsNothing v); } { v; } { if { v : Option; } { Some (step (v.Value ())); } { step v; } }
 }
 
 # `a ?? b` → `NilOr (() => { a; }) (() => { b; })` —— 惰性:右边要用才跑
@@ -176,7 +176,7 @@ readonly NilChain := (get: function step: function) => {
 # 空就给后备,否则把值交出来(`Some x` 交 `x`,普通值交自己 —— `()` 也照交,它不是空)。
 readonly NilOr := (get: function fallback: function) => {
     v := get ()
-    if { (IsNothing v); } { fallback (); } { if { v is Option; } { v.Value (); } { v; } }
+    if { (IsNothing v); } { fallback (); } { if { v : Option; } { v.Value (); } { v; } }
 }
 
 # `x ??= v` → `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`

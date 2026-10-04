@@ -33,8 +33,8 @@ readonly Parse := (text: string) => { XmlNode (Native.XmlParse text) (); }
 readonly Render := (n: object) => { Native.XmlRender (TreeOf n); }
 
 # 造新节点(要自己拼一棵的时候用)
-readonly Element := (name: string) => { XmlNode {"kind": "element" "name": name "attrs": {} "kids": []} (); }
-readonly Text := (s: string) => { XmlNode {"kind": "text" "text": s} (); }
+readonly Element := (name: string) => { XmlNode {"kind"-> "element" "name"-> name "attrs"-> {} "kids"-> []} (); }
+readonly Text := (s: string) => { XmlNode {"kind"-> "text" "text"-> s} (); }
 
 # 节点或者那棵裸树都收
 readonly TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; } { n; } }

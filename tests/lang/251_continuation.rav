@@ -19,9 +19,9 @@ r := callcc (k: function) => { esc = k; "先给个值"; }
 print r
 print (typeof esc)
 print esc
-print (esc is Continuation)
-print (esc is function)
-print (esc is System.Function)
+print (esc : Continuation)
+print (esc : function)
+print (esc : System.Function)
 
 # 调它:丢弃当前帧链、跳回捕获点(callcc 之后那段会重跑 —— 见 tests/40 那一整篇)
 seen := 0
@@ -33,7 +33,7 @@ print seen
 # ── 类型关系 ──
 print (Continuation <: System.Function)
 print (Continuation.parent)
-print (esc is object)
+print (esc : object)
 print (Continuation.name)
 
 # ── default:那枚"还没到手"的 ──
@@ -44,7 +44,7 @@ blank: Continuation = default
 print (typeof blank)
 print (blank == d)                       # 全语言就那一枚
 print ((Continuation default) == d)      # 走构造器那条路也是它（那层括号不能省：实参只吃主表达式）
-print (d is Continuation)
+print (d : Continuation)
 print (d == esc)
 try { d (); } (e: Exception) => { print ("1: " + string e); }
 
@@ -57,7 +57,7 @@ try { other: Continuation = (x: int) => { x; }; } (e: Exception) => { print ("3:
 called: list = []
 wrapped := Continuation ((x: object) => { called.Add x; x; })
 print (typeof wrapped)
-print (wrapped is Continuation)
+print (wrapped : Continuation)
 print (wrapped 7)
 print called
 print ((Continuation wrapped) == wrapped)   # 已经是续延,原样(包两层没意义)
@@ -71,7 +71,7 @@ G := Generator (y: function) => { y 1; y 2; }
 print (Seqs.Gather G)
 cur := GeneratorCursor (() => { (); })
 print cur.NextFromProducer
-print ((cur.NextFromProducer) is Continuation)
+print ((cur.NextFromProducer) : Continuation)
 print "end"
 # --- expected ---
 # Continuation

@@ -84,7 +84,7 @@ using "http.rav"
 srv := Httpd.Server 0
 srv.Route "GET" "/t" (req g) => { Httpd.Text "文本"; }
 srv.Route "GET" "/h" (req g) => { Httpd.Html "<b>粗</b>"; }
-srv.Route "GET" "/j" (req g) => { Httpd.Json {"n": 1}; }
+srv.Route "GET" "/j" (req g) => { Httpd.Json {"n"-> 1}; }
 srv.Route "GET" "/e" (req g) => { Httpd.Text 404 "自定义的没有"; }
 srv.Route "GET" "/r" (req g) => { Httpd.Redirect "/t"; }
 base := "http://127.0.0.1:" + (string (srv.Port))
@@ -140,7 +140,7 @@ using "http.rav"
 
 srv := Httpd.Server 0
 srv.Route "POST" "/in" (req g) => {
-    Httpd.Json {"路径": req.Path "方法": req.Method "参数": (req.Param "q") "内容": (req.BodyText ())};
+    Httpd.Json {"路径"-> req.Path "方法"-> req.Method "参数"-> (req.Param "q") "内容"-> (req.BodyText ())};
 }
 base := "http://127.0.0.1:" + (string (srv.Port))
 
@@ -265,7 +265,7 @@ Tasks.Cycle [
 `max` 是一次请求正文的**上限**,默认 16 MB(和客户端那条一个数)。超了的请求**正文一个字都不读**,直接回 413 再断。
 
 ```ravel
-srv := Httpd.Server {"port": 8080 "max": 65536}
+srv := Httpd.Server {"port"-> 8080 "max"-> 65536}
 ```
 
 #### 实例
@@ -275,7 +275,7 @@ using "httpd.rav"
 using "tasks.rav"
 using "http.rav"
 
-srv := Httpd.Server {"port": 0 "max": 1024}
+srv := Httpd.Server {"port"-> 0 "max"-> 1024}
 srv.Route "POST" "/in" (req g) => { Httpd.Text ("收到 " + (string ((req.Body).Count ()))); }
 base := "http://127.0.0.1:" + (string (srv.Port))
 
@@ -314,8 +314,8 @@ Tasks.Cycle [
 自签一张(`Native.HttpMakeCert`,**只为本地试一把**):
 
 ```ravel
-Native.HttpMakeCert {"path": "local.pfx" "password": "pw" "days": 30}
-srv := Httpd.Server {"port": 0 "cert": "local.pfx" "password": "pw"}
+Native.HttpMakeCert {"path"-> "local.pfx" "password"-> "pw" "days"-> 30}
+srv := Httpd.Server {"port"-> 0 "cert"-> "local.pfx" "password"-> "pw"}
 ```
 
 #### 实例
@@ -325,20 +325,20 @@ using "httpd.rav"
 using "tasks.rav"
 using "http.rav"
 
-Native.HttpMakeCert {"path": "tut_local.pfx" "password": "pw" "days": 30}
-srv := Httpd.Server {"port": 0 "cert": "tut_local.pfx" "password": "pw"}
+Native.HttpMakeCert {"path"-> "tut_local.pfx" "password"-> "pw" "days"-> 30}
+srv := Httpd.Server {"port"-> 0 "cert"-> "tut_local.pfx" "password"-> "pw"}
 srv.Route "GET" "/tls" (req g) => { Httpd.Text "加密的你好"; }
 base := "https://127.0.0.1:" + (string (srv.Port))
 
 Tasks.Cycle [
     (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
     (Tasks.Task (g: Tasks.TaskGroup) => {
-        r := g.Await (Http.RequestTask {"url": (base + "/tls") "insecure": true})
+        r := g.Await (Http.RequestTask {"url"-> (base + "/tls") "insecure"-> true})
         print ((string (r.status)) + " " + (r.Text ()))
 
         # 不带 `insecure` 的照样校验证书 —— 自签的那张谁都不信
         refused := false
-        try { g.Await (Http.RequestTask {"url": (base + "/tls")}); } (e: Exception) => { refused = true; }
+        try { g.Await (Http.RequestTask {"url"-> (base + "/tls")}); } (e: Exception) => { refused = true; }
         print refused
 
         srv.Stop ()

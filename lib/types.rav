@@ -39,7 +39,7 @@ readonly PrintTree := (root: object) => {
     # 直接子类。顺序照 `Subtypes ()` 给的来,不重排 —— 输出才稳定。
     children := (t: object) => {
         # 「实现 ← …」那一句挂成**字符串**(不是类型),它没有子节点 —— 见下。
-        (t is string) { []; } {
+        (t : string) { []; } {
             subs := t.Subtypes ()
             kids := []
             i := 0
@@ -54,7 +54,7 @@ readonly PrintTree := (root: object) => {
             # 都能走到 `object`,于是 `object.GetImplementors ()` 会把所有实现者全倒出来 ——
             # 那不是"接口的实现者",是"全世界"。只有真的接口才配这一行。
             # (`interface` 小写是那个全局别名 —— 元类印出来叫 `Interface`,见 predefined.rav。)
-            imps := (t is interface) { t.GetImplementors (); } { []; }
+            imps := (t : interface) { t.GetImplementors (); } { []; }
             if { (imps.Count ()) > 0; } {
                 names := []
                 j := 0
@@ -70,7 +70,7 @@ readonly PrintTree := (root: object) => {
 
     # 每一行:`类型名 [它的 typeof]` —— 方括号里是**创建者**(类对象显 `Type`…)。
     # 字符串那一格是上面那句「实现 ← …」,原样打出来。
-    label := (t: object) => { (t is string) { t; } { t.name + " [" + (typeof t).name + "]"; }; }
+    label := (t: object) => { (t : string) { t; } { t.name + " [" + (typeof t).name + "]"; }; }
 
     print (Text.Tree root children label)
 }

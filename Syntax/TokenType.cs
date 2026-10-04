@@ -23,7 +23,9 @@ public enum TokenType
     RightBrace,
 
     // 运算符 / 标点
-    Colon,         // :
+    Colon,         // :   **类型判断**（`x: int`）—— 也是定义/参数的类型注解,见 Parser.Statements
+    At,            // @   标签（`@outer while { … } { … }`）
+    DictArrow,     // ->  字典的键值分隔符（`{"a" -> 1}`）
     ColonEqual,    // :=
     ColonColon,    // ::
     ColonColonEqual, // ::=

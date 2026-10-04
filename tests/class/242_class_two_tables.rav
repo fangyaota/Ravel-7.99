@@ -45,15 +45,15 @@ print (Json.FromString "{\"a\":1}")
 try { print (Json.Kind); } (e: Exception) => { print ("5: " + string e); }
 
 # ⑤ 运算符也在②里(以左值为身份的那张表)—— 连值类型的:
-#    元类链那一半保证挂在 `object` 上的 `is`/`isnot`/`<:`/`:>` 任何值都摸得到,
+#    元类链那一半保证挂在 `object` 上的 `:`/`<:`/`:>` 任何值都摸得到,
 #    自指的 `Every`(`parent` 是自己)也算
 print (1 + 2)
 print (1 == 2)
-print (5.is int)
-print (default is int)
+print (5.: int)
+print (default : int)
 
 # ⑥ 值**自己**那层照旧留给用户挂的东西:只影响那一个值
-j := Json {"a": 1}
+j := Json {"a"-> 1}
 j.tag := 1
 print j.tag
 try { print (Json 2).tag; } (e: Exception) => { print ("6: " + string e); }
@@ -173,7 +173,7 @@ ravel ""
 # 3
 # 3: 类型 'Type' 没有方法 'Count'
 # 4: 类型 'Type' 没有方法 'Add'
-# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Each Map Where All Any Find SortBy Fold is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Each Map Where All Any Find SortBy Fold : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # false
 # {"a":1}
 # 5: 类型 'Type' 没有方法 'Kind'

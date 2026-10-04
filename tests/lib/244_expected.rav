@@ -27,7 +27,7 @@ print ((Expect 1 boom 5).Message ())
 print (((safeAdd 2 3).Map ((n: int) => { n * 10; })).Value ())
 print (((safeAdd 1 "x").Map ((n: int) => { n * 10; })).IsErr ())
 print (((safeAdd 2 3).Bind ((n: int) => { safeAdd n 100; })).Value ())
-print (safeAdd 1 2 is IMonad)
+print (safeAdd 1 2 : IMonad)
 
 # 多参照旧(柯里化一层层喂)
 sum3 := (a: int b: int c: int) => { a + b + c; }

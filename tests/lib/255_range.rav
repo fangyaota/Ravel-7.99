@@ -84,8 +84,8 @@ print ((5..6).ToList ())
 
 # ---- 值语义:类型、按内容比 ----
 print (typeof lo)
-print (lo is Range)
-print (lo is ValueType)
+print (lo : Range)
+print (lo : ValueType)
 print (lo == [1..3])
 print (lo == [1..4])
 print (lo != allOpen)

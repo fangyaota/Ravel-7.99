@@ -141,12 +141,12 @@ Response ::= class {
     # 给 `Native.HttpAnswer` 的那一份。`conn` 由 `Serve` 补(那是每条连接自己的事),
     # 响应本身不该知道自己在哪条连接上。
     Wire := (close: bool) => {
-        {"status": Status "headers": Headers "body": Body "close": close};
+        {"status"-> Status "headers"-> Headers "body"-> Body "close"-> close};
     }
 }
 
 readonly Build := (status: int type: string body: list) => {
-    Response status {"content-type": type} body;
+    Response status {"content-type"-> type} body;
 }
 
 # 文本。两种写法:`Httpd.Text "你好"`,或者带状态码的 `Httpd.Text 404 "没有"`
@@ -169,7 +169,7 @@ readonly Bytes := (type: string body: list) => { Build 200 type body; }
 # 直接造 `Response` 而不是走 `Build` —— `Build` 的第二个参数是**类型字符串**,
 # 而重定向要带的是一对具体的头(`location`),没有 content-type 可给。
 readonly Redirect := (to: string) => {
-    Response 302 {"location": to "content-length": "0"} [];
+    Response 302 {"location"-> to "content-length"-> "0"} [];
 }
 
 readonly NoContent := () => { Build 204 {} []; }
@@ -250,7 +250,7 @@ Server ::= class {
     # 两种起法:`Httpd.Server 8080`,或者一张配置
     # `Httpd.Server {"port": 8443 "cert": "s.crt" "key": "s.key"}`(HTTPS 见 `Native.HttpListen`)。
     init = (port: int) => {
-        info := Native.HttpListen {"port": port}
+        info := Native.HttpListen {"port"-> port}
         Handle = info.Get "handle"
         Port = info.Get "port"
         Idle = DefaultIdle
@@ -266,14 +266,14 @@ Server ::= class {
     # 加一条路由。`method` 大小写无所谓(`"get"` 也认),`path` 要**整条相等**才命中
     # (`"/hi"` 不匹配 `"/hi/x"`)。
     Route := (method: string path: string handler: function) => {
-        Routes.Add {"method": (method.ToUpper ()) "path": path "handler": handler}
+        Routes.Add {"method"-> (method.ToUpper ()) "path"-> path "handler"-> handler}
         this;
     }
 
     # 把磁盘上一个目录挂在 `prefix` 底下:`srv.Static "/pub" "public"` 之后,
     # `/pub/a.css` 给的是 `public/a.css`。命中不了就交给 `NotFound`。
     Static := (prefix: string dir: string) => {
-        Statics.Add {"prefix": prefix "dir": dir}
+        Statics.Add {"prefix"-> prefix "dir"-> dir}
         this;
     }
 

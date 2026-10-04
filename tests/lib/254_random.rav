@@ -13,14 +13,14 @@ using "random.rav"
 
 # ── 三台都在,都实现 IRandom ──
 r := Random.Make 42
-print (r is IRandom)
+print (r : IRandom)
 print (r.Kind)
 shared := Random.Shared ()
 print (shared.Kind)
 crypto := Random.Crypto ()
 print (crypto.Kind)
 print (typeof r)
-print (r is IEnumerable)          # 枚举器那一族的待遇它没有 —— 这里只是问一句
+print (r : IEnumerable)          # 枚举器那一族的待遇它没有 —— 这里只是问一句
 
 # ── 可复现:同种子同序列,换种子就换一串 ──
 draw := (rng: IRandom) => {
@@ -71,7 +71,7 @@ print ((ck >= 0) && (ck <= 999))
 x1 := Random.Xoshiro 42
 x2 := Random.Xoshiro 42
 print (x1.Kind)
-print (x1 is IRandom)
+print (x1 : IRandom)
 x := []
 x.Add (x1.Below 1000000)
 x.Add (x1.Below 1000000)

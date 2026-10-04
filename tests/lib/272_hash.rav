@@ -46,7 +46,7 @@ print (Hash.Equal (Hash.Token 16) (Hash.Token 16))      # 两次不会一样
 
 # ── 不认识的算法 / 不是字节表的东西:当场说人话 ──
 try { Native.HashBytes "sha3" [1]; } (e: Exception) => { print ("1: " + string e); }
-try { Hash.Md5 {"a": 1}; } (e: Exception) => { print ("2: " + string e); }
+try { Hash.Md5 {"a"-> 1}; } (e: Exception) => { print ("2: " + string e); }
 # --- expected ---
 # ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 # a9993e364706816aba3e25717850c26c9cd0d89d

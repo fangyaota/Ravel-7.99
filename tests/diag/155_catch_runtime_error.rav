@@ -57,7 +57,7 @@ ravel "238_exception_class"
 # ① 基本
 e := Exception "boom"
 print (typeof e)
-print (e is Exception)
+print (e : Exception)
 print (e.Message)
 print (string e)                 # 显示成消息本身(不是 `Exception { Message = … }`)
 print (e == e)                   # 对象按身份比
@@ -69,8 +69,8 @@ Plain ::= class Exception {
 }
 p := Plain "hmm"
 print (typeof p)
-print (p is Plain)
-print (p is Exception)
+print (p : Plain)
+print (p : Exception)
 print (p.tag)
 print (p.Message)
 

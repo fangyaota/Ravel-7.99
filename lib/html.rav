@@ -45,13 +45,13 @@ readonly TextEscape := (s: string) => {
     ((s.Replace "&" "&amp;").Replace "<" "&lt;").Replace ">" "&gt;";
 }
 
-readonly TextNode := (s: object) => { {"kind": "text" "text": (string s)}; }
-readonly RawNode := (s: string) => { {"kind": "raw" "text": s}; }
+readonly TextNode := (s: object) => { {"kind"-> "text" "text"-> (string s)}; }
+readonly RawNode := (s: string) => { {"kind"-> "raw" "text"-> s}; }
 
 # 孩子:list 照收;单个(一个节点、一个字符串)包成只有一个元素的 list;`None` 当没有
 readonly KidsOf := (kids: object) => {
     if { (IsNothing kids); } { []; } {
-        if { kids is list; } { kids; } { [kids]; }
+        if { kids : list; } { kids; } { [kids]; }
     }
 }
 
@@ -61,9 +61,9 @@ readonly Build := (name: string attrs: object kids: object) => {
         if { (ks.Count ()) > 0; } {
             throw (Exception ("Html: '" + name + "' 是 void 元素,不写收尾标签,也就不该有孩子 —— 标准里那 14 个是:" + (Voids.Join " ")))
         } { 0; }
-        {"kind": "element" "name": name "attrs": attrs "kids": []};
+        {"kind"-> "element" "name"-> name "attrs"-> attrs "kids"-> []};
     } {
-        {"kind": "element" "name": name "attrs": attrs "kids": ks};
+        {"kind"-> "element" "name"-> name "attrs"-> attrs "kids"-> ks};
     }
 }
 
@@ -88,7 +88,7 @@ readonly Frag := (kids: object) => { KidsOf kids; }
 # 属性的先后**照你写的先后**(dict 是有序的),不重排 —— 输出才稳、diff 才好看。
 
 readonly AttrText := (v: object) => {
-    if { v is list; } { v.Join " "; } { string v; }
+    if { v : list; } { v.Join " "; } { string v; }
 }
 
 readonly AttrsText := (attrs: object) => {
@@ -96,7 +96,7 @@ readonly AttrsText := (attrs: object) => {
     foreach (attrs.Keys ()) (k: string) => {
         v := attrs.GetOr k ""
         if { (IsNothing v); } { 0; } {
-            if { v is bool; } {
+            if { v : bool; } {
                 if { v; } { out += (" " + k); } { 0; }
             } {
                 out += (" " + k + "=\"" + (Encoding.HtmlEscape (AttrText v)) + "\"")
@@ -118,10 +118,10 @@ readonly AttrsText := (attrs: object) => {
 readonly Render := (n: object) => {
     out := ""
     walk := (x: object) => {
-        if { x is list; } {
+        if { x : list; } {
             foreach x (k: object) => { walk k; }
         } {
-            if { x is dict; } {
+            if { x : dict; } {
                 kind := x.GetOr "kind" ""
                 if { kind == "text"; } {
                     out += (TextEscape (x.GetOr "text" ""));
@@ -188,20 +188,20 @@ readonly HasBlockKid := (kids: list) => {
 }
 
 readonly IsBlock := (x: object) => {
-    if { x is list; } {
+    if { x : list; } {
         HasBlockKid x
     } {
-        if { x is dict; } { IsBlockTag (x.GetOr "name" ""); } { false; }
+        if { x : dict; } { IsBlockTag (x.GetOr "name" ""); } { false; }
     }
 }
 
 readonly Pretty := (n: object) => {
     out := ""
     emit := (x: object depth: int) => {
-        if { x is list; } {
+        if { x : list; } {
             foreach x (k: object) => { emit k depth; }
         } {
-            if { x is dict; } {
+            if { x : dict; } {
                 kind := x.GetOr "kind" ""
                 if { kind == "text"; } {
                     out += (TextEscape (x.GetOr "text" ""));
@@ -251,11 +251,11 @@ readonly Pretty := (n: object) => {
 # head / body 收的是**里面的东西**,`<head>` / `<body>` 这两个标签由它加上。
 
 readonly Doc := (lang: string head: object body: object) => {
-    hk := [(El "meta" {"charset": "utf-8"} [])]
+    hk := [(El "meta" {"charset"-> "utf-8"} [])]
     foreach (KidsOf head) (k: object) => { hk.Add k; }
     Frag [
-        {"kind": "raw" "text": (Doctype + "\n")}
-        (El "html" {"lang": lang} [
+        {"kind"-> "raw" "text"-> (Doctype + "\n")}
+        (El "html" {"lang"-> lang} [
             (El "head" {} hk)
             (El "body" {} body)
         ])
@@ -320,8 +320,8 @@ readonly Table := (headers: object rows: object) => {
     }
 }
 
-readonly A := (href: string kids: object) => { El "a" {"href": href} kids; }
-readonly Img := (src: string alt: string) => { El "img" {"src": src "alt": alt} []; }
+readonly A := (href: string kids: object) => { El "a" {"href"-> href} kids; }
+readonly Img := (src: string alt: string) => { El "img" {"src"-> src "alt"-> alt} []; }
 readonly Hr := () => { El "hr" {} []; }
 readonly Br := () => { El "br" {} []; }
 
@@ -330,7 +330,7 @@ readonly Br := () => { El "br" {} []; }
 # `<style>` 里的东西**不能**做 HTML 转义(那两个标签里实体是不解码的,`&gt;` 进去就是
 # 一串错字符),所以它走 `Raw` —— 也就是说,别把用户输入拼进 CSS。
 readonly Style := (css: string) => { El "style" {} [(Raw css)]; }
-readonly CssLink := (href: string) => { El "link" {"rel": "stylesheet" "href": href} []; }
+readonly CssLink := (href: string) => { El "link" {"rel"-> "stylesheet" "href"-> href} []; }
 
 # 一份能看的默认样式(系统字体、正文限宽、表格带框、代码浅底)。
 # `Page` **不会**自动带上它 —— 想要就写 `"css": [Html.BaseCss]`,不要就自己写。

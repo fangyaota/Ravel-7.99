@@ -26,11 +26,11 @@ print (Csv.Parse "")                              # 空文本:没有表头也就
 print (Csv.Parse "只有表头")
 
 # ── 写 ──
-print (Csv.Render [{"name": "ada" "age": 36} {"name": "bob" "age": 41}])
+print (Csv.Render [{"name"-> "ada" "age"-> 36} {"name"-> "bob" "age"-> 41}])
 print (Csv.Render [["a" "b"] [1 2]])              # 交格子也行(不写表头)
-print (Csv.Render [{"x": "带,逗号" "y": "说\"引号\""}])
+print (Csv.Render [{"x"-> "带,逗号" "y"-> "说\"引号\""}])
 print ("[" + (Csv.Render []) + "]")               # 空表:空串
-print (Csv.Render [{"b": 1 "a": 2} {"a": 3}])     # 表头按**第一次出现**的先后
+print (Csv.Render [{"b"-> 1 "a"-> 2} {"a"-> 3}])     # 表头按**第一次出现**的先后
 
 # 单个格子怎么转义
 print (Csv.Quote "普通")

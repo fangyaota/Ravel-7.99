@@ -7,7 +7,7 @@
 #   2) `((Some 5).Map f).Value ()` —— 不给 Map 的结果套括号,`.Value` 会贴到 f 上
 
 # 两种情况的类型相同,`is` 分不出来;问有没有值用 IsSome ()
-print ((Some 5) is Option)
+print ((Some 5) : Option)
 print ((Some 5).IsSome ())
 print (None.IsSome ())
 print ((Some 5).IsNone ())
@@ -195,10 +195,10 @@ print "还没跑那个分支"
 Left.Perform ()
 # 4) IMonad:Option 与 Action 是**同一个形状的两个实例**(见 monad.rav / io.rav)。
 #    形状就是 do 要的那两条槽 Map / Bind;`Return` 那种构造子各归各的(这边 Some,Io 那边 IoMonad.Return)。
-print ((Some 5) is IMonad)
-print ((None) is IMonad)
-print ((IoMonad.PutStrLn "x") is IMonad)
-print (5 is IMonad)
+print ((Some 5) : IMonad)
+print ((None) : IMonad)
+print ((IoMonad.PutStrLn "x") : IMonad)
+print (5 : IMonad)
 
 # 实现是**全局**登记的(用 impl 而不是 use),所以类型层面两个方向都问得出来
 

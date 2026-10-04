@@ -43,13 +43,13 @@ print u.a
 u.b ()
 
 # 接口是"套在实例上的视图":use 之前造的实例照样算;判定也在作用域内为真
-print (u is myTrait)
-print (u is myClass)
-print (myImplement is myTrait)
+print (u : myTrait)
+print (u : myClass)
+print (myImplement : myTrait)
 
 # 注解、参数都认接口
 typed : myTrait = u
-print (typed is myTrait)
+print (typed : myTrait)
 print typed.a
 take := (v: myTrait) => { v.a; }
 print (take u)
@@ -74,7 +74,7 @@ try { u.a = "str"; } (e: Exception) => { print ("5: " + string e); }
 
 myImplement.Dispose ()
 try { print u.a; } (e: Exception) => { print ("6: " + string e); }
-print (u is myTrait)
+print (u : myTrait)
 try { late : myTrait = u; print late; } (e: Exception) => { print ("7: " + string e); }
 
 # 草稿最后那句:`impl` 是**全局**的 use(登记在全局作用域上,所有作用域都算)
@@ -373,7 +373,7 @@ ravel ""
 # 0
 # 3: 参数 'v' 需要 myTrait，得到 Integer
 # 4: 参数 'v' 需要 myTrait，得到 otherClass
-# [init x is isnot == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init x : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
 # 99
 # 7
 # 5: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)

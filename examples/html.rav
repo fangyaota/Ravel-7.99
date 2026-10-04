@@ -14,7 +14,7 @@ using "html.rav"
 # 收几个值、交回一棵节点树。没有什么"模板语法"要学 —— 它就是个普通函数,
 # 直接嵌进别人的孩子里用。
 card := (title: string body: string) => {
-    Html.El "div" {"class": "card"} [
+    Html.El "div" {"class"-> "card"} [
         (Html.El "h2" {} [title])
         (Html.El "p" {} [body])
     ]
@@ -42,7 +42,7 @@ foreach rows (r: list) => {
 #   `true` → 光写名字(布尔属性);`false` 当没写
 #   list   → 按空格拼起来(`class` 最常见)
 #   别的   → `name="值"`,值过转义
-print (Html.Pretty (Html.El "table" {"class": ["data" "striped"] "border": true} [
+print (Html.Pretty (Html.El "table" {"class"-> ["data" "striped"] "border"-> true} [
     (Html.El "tbody" {} body)
 ]))
 
@@ -54,7 +54,7 @@ print (Html.Render (Html.El "div" {} [(Html.Raw "<svg>…</svg>") " 后面这段
 # ── 五、写文档那一层:标题 / 段落 / 列表 / 表格 ──
 #
 # 上面那些是"元素",下面这些是"正文"。交回的**还是同一棵树**,所以两层随便混着写。
-doc := Html.Page {"title": "报表" "css": [Html.BaseCss]} [
+doc := Html.Page {"title"-> "报表" "css"-> [Html.BaseCss]} [
     (Html.H1 "报表")
     (Html.P ["正文里 < 和 & 会转义;行内可以嵌 " (Html.Code "code") " 和 " (Html.A "https://example.com" "链接")])
     (Html.Ul ["第一项" "第二项"])

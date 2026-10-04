@@ -1,0 +1,70 @@
+#
+# `:` —— **类型判断**。它是从前的 `is` / `isnot` 换过来的,顺便和**类型注解**统一了读法:
+#
+#   * 定义位置 `x: int = 5`  —— 绑到 x 上,顺便确认它是 int(这条一个字没变);
+#   * 参数位置 `(a: int) => …` —— 同上,确认的是实参;
+#   * 判断位置 `x: int`      —— **只判断**,不绑任何东西。
+#
+# 所以它三处一个意思("这东西的类型是 T"),差别只在绑定位置多一个"绑"。
+# 取反没有专门的符号(`isnot` 撤了),写 `!(x: T)`。
+#
+# 判据就是类型树上那条 `IsAssignableTo`,和 `<:` / `:>` 是同一棵树 —— 只是 `:` 左边是**值**。
+
+# ── 判断位置 ──
+x := 5
+print (x: int)
+print (x: float)          # Integer 与 Float 是兄弟,不是子类型
+print (x: object)         # Integer <: ValueType <: Object
+print ("a": ValueType)
+print (default: int)      # default 的类型就是 Every(底类型)
+print ([1]: list)
+
+# ── 取反 ──
+print (!(x: int))
+print (!(x: float))
+print (!("a": ValueType))
+
+# ── 当条件用(这就是它"只判断"那一面最常见的用法)──
+if { x: int; } { print "整数"; } { print "别的"; }
+if { x: string; } { print "串"; } { print "不是串"; }
+
+# ── 三种写法都和 `+` 对称 ──
+print (x.: int)           # 等右操作数:和 `2.+` 对称
+f := :.int                # 等左操作数(节):和 `+.2` 对称
+print (f 3)
+print (f "s")
+print ((:.ValueType) "a")
+
+# ── 绑定位置一个字没变 ──
+n: int = 7
+print n
+g := (a: int) => { a + 1; }
+print (g 2)
+
+# ── 定义那一侧照旧会拦 ──
+print ((try { eval "q: int = \"s\""; } (e: Exception) => { "1: " + (string e); }))
+print ((try { eval "q: (1 + 1) = 0"; } (e: Exception) => { "2: " + (string e); }))
+
+# ── 右边得是个类型 ──
+print ((try { 1: 5; } (e: Exception) => { "3: " + (string e); }))
+# --- expected ---
+# true
+# false
+# true
+# true
+# true
+# true
+# false
+# true
+# false
+# 整数
+# 不是串
+# true
+# true
+# false
+# true
+# 7
+# 3
+# 1: 类型不匹配: 无法将 String 赋值给 Integer — 无法将字符串 's' 转换为 int（超出 int 范围或不是数字）
+# 2: 'q' 的类型注解要是个类型，得到 Integer
+# 3: ':' 的右边要是一个类型，得到 Integer

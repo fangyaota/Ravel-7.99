@@ -109,6 +109,7 @@ public class Lexer(string source, string? file = null)
                 '=' => TokenType.Equal,
                 '<' => TokenType.Less,
                 '>' => TokenType.Greater,
+                '@' => TokenType.At,          // 标签
                 '+' => TokenType.Plus,
                 '-' => TokenType.Minus,
                 '*' => TokenType.Star,
@@ -174,10 +175,6 @@ public class Lexer(string source, string? file = null)
                 continue;
             }
 
-            // `@` 落到这儿 = 用**从前的写法**了(`@` 已经改成 `|>`)。
-            if (c == '@')
-                throw new SyntaxException("'@' 不作运算符了（把左边封口请写 '|>'）",
-                    new SourceSpot(file, _line, _col));
 
             // `$` 落到这儿 = 写到**字符串外面**来了。它的地盘只剩插值那一处,
             // 所以直说清楚,顺带把"想封右边该写什么"一并告诉他 —— 比"未预期的字符"有用。
@@ -234,6 +231,9 @@ public class Lexer(string source, string? file = null)
         // `++` / `--` —— 语句级的糖(见 Parser.Statements 的 ParseIncDec)。
         // **代价写在文档里**:`a - -b` 不写空格就成了 `a--` `b`,所以连着写两个负号时
         // 中间那个空格不能省(C 也是一样)。
+        // `->` 字典的键值分隔符。它和 `--` 不前缀冲突(`--` 后面跟的不是 `>`),
+        // 但 **`-->` 会读成 `--` + `>`** —— C 也是这个脾气,连着写时留空格。
+        ("->", TokenType.DictArrow),
         ("++", TokenType.PlusPlus),
         ("--", TokenType.MinusMinus),
         ("+=", TokenType.PlusEqual),

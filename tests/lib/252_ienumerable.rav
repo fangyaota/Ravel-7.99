@@ -10,7 +10,7 @@
 
 # ---- Generator:从前一个方法都没有 ----
 G := Generator (y: function) => { y 1; y 2; y 3; }
-print (G is IEnumerable)
+print (G : IEnumerable)
 print (G.Count ())
 print (G.IsEmpty ())
 print (G.First ())
@@ -81,7 +81,7 @@ impl (IEnumerable Bag {
 })
 b := Bag [1 2 3]
 c := Bag [10 20]
-print (b is IEnumerable)
+print (b : IEnumerable)
 print (b.Count ())
 print (b.Sum ())
 print (c.Count ())
@@ -98,7 +98,7 @@ print (typeof ([1 2 3].Map ((x: int) => { x * 2; })))
 print ([1 2 3].Map ((x: int) => { x * 2; }))
 print ({1 2 3}.Sum ())
 print ({1 2 3}.Any ())
-print ({"a": 1 "b": 2}.Count ())
+print ({"a"-> 1 "b"-> 2}.Count ())
 print "end"
 # --- expected ---
 # true

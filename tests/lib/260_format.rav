@@ -4,7 +4,7 @@ using "format.rav"
 # ── 占位 ──
 print (Format.Fmt "{} 有 {} 个" ["苹果" 3])
 print (Format.Fmt "{0} 与 {1} 与 {0}" ["甲" "乙"])     # 位置能复用
-print (Format.Fmt "{n} 个，{m} 个" {"n": 1 "m": 2})      # 给 dict 就按名字取
+print (Format.Fmt "{n} 个，{m} 个" {"n"-> 1 "m"-> 2})      # 给 dict 就按名字取
 print (Format.Fmt "{{}} 里的 {}" ["X"])                 # `{{` `}}` 是花括号本身
 print (Format.Fmt "没有占位" [])                         # 一个都不给也行
 print (Format.Fmt "{}" [1.5])                           # 值走 `string`
@@ -12,7 +12,7 @@ print (Format.Fmt "{}" [[1 2]])                         # 容器也照 `string` 
 
 # 位置对不上**当场报错**(拼串时最常见的错,静默给空串最难查)
 try { Format.Fmt "{} {}" ["只有一个"]; } (e: Exception) => { print ("1: " + string e); }
-try { Format.Fmt "{nope}" {"n": 1}; } (e: Exception) => { print ("2: " + string e); }
+try { Format.Fmt "{nope}" {"n"-> 1}; } (e: Exception) => { print ("2: " + string e); }
 try { Format.Fmt "没有闭合 {" []; } (e: Exception) => { print ("3: " + string e); }
 
 # ── 对齐 ──

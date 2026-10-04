@@ -22,12 +22,12 @@ srv.Route "GET" "/" (req g) => { Httpd.Html "<h1>你好</h1>"; }
 srv.Route "GET" "/greet" (req g) => { Httpd.Text ("你好," + (req.Param "name")); }
 
 # 交回的 dict 直接当 JSON 发出去
-srv.Route "GET" "/api/now" (req g) => { Httpd.Json {"语言": "Ravel" "版本": 7.99}; }
+srv.Route "GET" "/api/now" (req g) => { Httpd.Json {"语言"-> "Ravel" "版本"-> 7.99}; }
 
 # 正文、方法、请求头 —— `Body` 是**字段**(字节表),别写 `req.Body ()`:
 # 那样成了"调用一个列表",报「值 [...] 不是函数」。
 srv.Route "POST" "/api/echo" (req g) => {
-    Httpd.Json {"方法": req.Method "字节数": ((req.Body).Count ()) "内容": (req.BodyText ())};
+    Httpd.Json {"方法"-> req.Method "字节数"-> ((req.Body).Count ()) "内容"-> (req.BodyText ())};
 }
 
 # 状态码自己说了算(`With` 交回自己,所以能用 `|>` 串)
@@ -76,7 +76,7 @@ Tasks.Cycle [
         print (j.Header "content-type")
         print ((j.Json ()).Text ())
 
-        e := g.Await (Http.PostTask (base + "/api/echo") {"hello": "world"})
+        e := g.Await (Http.PostTask (base + "/api/echo") {"hello"-> "world"})
         print (e.Text ())
 
         print (string ((g.Await (Http.GetTask (base + "/teapot"))).status))

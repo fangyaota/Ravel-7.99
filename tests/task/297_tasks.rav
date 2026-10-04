@@ -198,9 +198,9 @@ Tasks.Cycle [
     })
 ]
 # 三个子类跟着认(那条 `impl` 挂在 `TaskBase` 上),序列那一族本来就认
-print ("  任务 is IMonad:" + (string ((Tasks.After 0) is IMonad)))
-print ("  闸 is IMonad:  " + (string ((Tasks.Signal ()) is IMonad)))
-print ("  序列 is IMonad:" + (string ([1 2] is IMonad)))
+print ("  任务 is IMonad:" + (string ((Tasks.After 0) : IMonad)))
+print ("  闸 is IMonad:  " + (string ((Tasks.Signal ()) : IMonad)))
+print ("  序列 is IMonad:" + (string ([1 2] : IMonad)))
 
 # ⑯ `All` 是**并发**的,`do { }` 是**串行**的 —— 两件事的痕迹
 #

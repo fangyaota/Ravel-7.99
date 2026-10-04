@@ -166,7 +166,7 @@ LinkEnd := (s: string i: int) => {
 
 # 锚点用行号:标题是中文,做不出好看的 slug
 Head := (lvl: int at: int text: string) => {
-    Html.El ("h" + (string lvl)) {"id": ("s" + (string at))} (Inline text);
+    Html.El ("h" + (string lvl)) {"id"-> ("s" + (string at))} (Inline text);
 }
 
 # 一行 `| a | b |` 拆成单元格。
@@ -282,7 +282,7 @@ Md := (text: string) => {
                 # 段落一百多条,全是"这句是旁注"的意思,画成一条竖线读起来才分得清。
                 # `None` 落到 `class` 上就是"不写这个属性",普通段落照旧。
                 cls := if { t.StartsWith "注意："; } { "note"; } { None; }
-                out.Add (Html.El "p" {"class": cls} (Inline t))
+                out.Add (Html.El "p" {"class"-> cls} (Inline t))
                 i += 1
             }
         }
@@ -298,8 +298,8 @@ Toc := (text: string) => {
     while { i < (lines.Count ()); } {
         t := (LineAt lines i).Trim ()
         id := "s" + (string (i + 1))
-        if { t.StartsWith "### "; } { out.Add {"lvl": 3 "id": id "text": (Tail t 4)}; } { 0; }
-        if { t.StartsWith "## "; }  { out.Add {"lvl": 2 "id": id "text": (Tail t 3)}; } { 0; }
+        if { t.StartsWith "### "; } { out.Add {"lvl"-> 3 "id"-> id "text"-> (Tail t 4)}; } { 0; }
+        if { t.StartsWith "## "; }  { out.Add {"lvl"-> 2 "id"-> id "text"-> (Tail t 3)}; } { 0; }
         i += 1
     }
     out;
@@ -311,13 +311,13 @@ Toc := (text: string) => {
 # 现在连那一对 `<a href="…">` 都交给 `Html.A`。
 Page := (title: string nav: object body: object prev: object next: object) => {
     head := [
-        (Html.El "meta" {"name": "viewport" "content": "width=device-width, initial-scale=1"} [])
+        (Html.El "meta" {"name"-> "viewport" "content"-> "width=device-width, initial-scale=1"} [])
         (Html.El "title" {} [title])
         (Html.CssLink "style.css")
     ]
     Html.Doc "zh" head [
         (Html.El "header" {} [(Html.A "index.html" [SITE])])
-        (Html.El "div" {"class": "wrap"} [
+        (Html.El "div" {"class"-> "wrap"} [
             (Html.El "nav" {} nav)
             (Html.El "main" {} body)
         ])
@@ -350,7 +350,7 @@ Nav := (cur: string src: string) => {
     out := []
     foreach Chapters (p: string) => {
         name := (Io.File p).Name ()
-        attrs := if { name == cur; } { {"href": (PageOf name) "class": "on"}; } { {"href": (PageOf name)}; }
+        attrs := if { name == cur; } { {"href"-> (PageOf name) "class"-> "on"}; } { {"href"-> (PageOf name)}; }
         # 标题里也可能带 markdown(教程里一堆 `` `Repl` `` / `` `Tasks` ``)—— 过一遍 `Inline`,
         # 不然导航里就那么连着反引号显示出来。
         out.Add (Html.El "a" attrs (Inline (TitleOf ((Io.File p).Read ()))))
@@ -358,7 +358,7 @@ Nav := (cur: string src: string) => {
             foreach (Toc src) (h: dict) => {
                 if { (h.Get "lvl") == 3; } {
                     href := "#" + (string (h.Get "id"))
-                    out.Add (Html.El "a" {"href": href "class": "sub"} (Inline (string (h.Get "text"))))
+                    out.Add (Html.El "a" {"href"-> href "class"-> "sub"} (Inline (string (h.Get "text"))))
                 } { 0; }
             }
         } { 0; }
@@ -407,9 +407,9 @@ Build := (out: string) => {
     entries := []
     foreach Chapters (p: string) => {
         name := (Io.File p).Name ()
-        entries.Add (Html.El "a" {"href": (PageOf name)} (Inline (TitleOf ((Io.File p).Read ()))))
+        entries.Add (Html.El "a" {"href"-> (PageOf name)} (Inline (TitleOf ((Io.File p).Read ()))))
     }
-    idx := [(Html.H1 SITE) (Html.El "ul" {"class": "chapters"} entries)]
+    idx := [(Html.H1 SITE) (Html.El "ul" {"class"-> "chapters"} entries)]
     Save out "index.html" ((Html.Pretty (Page SITE [] idx None None)) + "\n")
     # 行尾按 `\n` 归一再写出去:不归一的话,检出时是 CRLF 就把 CRLF 一路带进产物 ——
     # 同一份库在两台机器上生成的 `style.css` 会长得不一样(`"""` 那条也是这个道理)。

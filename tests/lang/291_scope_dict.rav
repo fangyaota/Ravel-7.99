@@ -12,8 +12,8 @@ probe := () => {
     b := 2
     s := currentScope ()            # 就是**这一次调用**那一层,小而且定得死
 
-    print (s is IDict)
-    print (s is IEnumerable)
+    print (s : IDict)
+    print (s : IEnumerable)
     print ((typeof s))
 
     print (s.Has "a")               # 在

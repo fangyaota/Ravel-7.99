@@ -120,9 +120,9 @@ print Inf
 print (-Inf)
 print (typeof NaN)
 print (typeof Inf)
-print (NaN is float)
-print (NaN isnot int)
-print (Inf is float)
+print (NaN : float)
+print (!(NaN : int))
+print (Inf : float)
 
 # 打印是 ASCII 的:别交给 double.ToString —— 它的无穷是文化相关的 `∞`
 print (0.0 / 0.0)
@@ -141,7 +141,7 @@ print (Inf - Inf)
 # 进了别的值里也照样
 using "math.rav"
 print ([NaN Inf])
-print ({"a": Inf})
+print ({"a"-> Inf})
 print (string Inf)
 print (string NaN)
 print (Math.Floor NaN)

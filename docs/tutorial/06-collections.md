@@ -37,7 +37,7 @@ s.Contains 3      # true
 ## 6.3 Dict
 
 ```ravel
-d := {"a": 1 "b": 2}      # 键是**表达式**：字符串要写引号
+d := {"a"-> 1 "b"-> 2}      # 键是**表达式**：字符串要写引号
 d.Get "a"          # 1
 d.Set "c" 3
 d.Has "a"          # true
@@ -104,7 +104,7 @@ false
 
 ```ravel
 {1 2 3}              # Set（单行无分号）
-{"a": 1 "b": 2}      # Dict（单行，第一个元素后面跟 `:`）
+{"a"-> 1 "b"-> 2}      # Dict（单行，第一个元素后面跟 `->`）
 { print 1; }         # Block（有分号或换行）
 {
     print 1          # Block（多行）
@@ -709,7 +709,7 @@ Crypto.CheckPassword "hunter2" stored                    # true（常数时间�
 using "html.rav"
 
 card := (title: string body: string) => {
-    Html.El "div" {"class": "card"} [
+    Html.El "div" {"class"-> "card"} [
         (Html.El "h2" {} [title])
         (Html.El "p" {} [body])
     ]
@@ -754,7 +754,7 @@ print (Html.Pretty (card "标题" "a < b"))
 
 ```ravel
 using "html.rav"
-print (Html.Pretty (Html.Page {"title": "报表" "css": ["h1 { color: teal; }"]} [
+print (Html.Pretty (Html.Page {"title"-> "报表" "css"-> ["h1 { color: teal; }"]} [
     (Html.H1 "报表")
     (Html.P "正文里 < 会转义")
     (Html.Ul ["甲" "乙"])

@@ -9,7 +9,7 @@ using "httpd.rav"
 using "tasks.rav"
 using "http.rav"
 
-srv := Httpd.Server {"port": 0 "max": 1024}
+srv := Httpd.Server {"port"-> 0 "max"-> 1024}
 srv.Route "POST" "/in" (req g) => { Httpd.Text ("收到 " + (string ((req.Body).Count ()))); }
 base := "http://127.0.0.1:" + (string (srv.Port))
 

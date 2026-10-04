@@ -98,18 +98,18 @@ false
 
 注意：`(typeof 1) is int` 是 `false` —— `typeof 1` 求出来的是**类对象** `Integer`，不是 int 值。括号不能省：`typeof 1 is int` 会被读成 `typeof (1 is int)`，结果是 `Bool`。
 
-`is` 左边是值（`1 is int`），这一对两边都得是**类型**。
+`:` 左边是值（`1: int`），这一对两边都得是**类型**。
 
 ### 运算符节
 
-`is` / `isnot` 是词形运算符，所以和 `+` 一样，三种写法都成立：
+`:` 是个**标点**运算符，所以和 `+` 一样，三种写法都成立（取反另写 `!`）：
 
 #### 实例
 
 ```ravel
-print (1.is int)
-print (is.int 1)
-print (isnot.string "a")
+print (1.: int)
+print (:.int 1)
+print (!(1.: string))
 ```
 
 执行以上程序会输出如下结果：
@@ -117,7 +117,7 @@ print (isnot.string "a")
 ```
 true
 true
-false
+true
 ```
 
 ## 3.4 逻辑
