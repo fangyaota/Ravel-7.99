@@ -386,9 +386,23 @@ public partial class Parser
                 }
 
                 var pName = Consume(TokenType.Identifier, "lambda 参数需要一个名字（`(x: int) => …`）");
+
+                // **参数名不许重**:`(a a) => …` 从前不报错,后一个悄悄盖掉前一个 ——
+                // 喂 `1 2` 交回 `2`,而写的人多半是手滑。这正是这门语言最恨的那种静默。
+                //
+                // 只在**真声明一个新参数**的两条岔路上查(下面那两条)。守卫那条**不能查**:
+                // `(x: int x < 0)` 走的正是"这个名字声明过 → 只挂守卫、不再声明一个",
+                // 靠"同名"这个信号办事,查了就把教程 5.5 那种写法误杀了。
+                void Declare(Parameter p)
+                {
+                    if (@params.Any(q => q.Name == p.Name))
+                        throw ParseError($"参数名 '{p.Name}' 写了两遍 —— 每个参数一个名字");
+                    @params.Add(p);
+                }
+
                 if (Match(TokenType.Colon))
                 {
-                    @params.Add(new Parameter(pName.Lexeme, ParseTypeAnnotation()));
+                    Declare(new Parameter(pName.Lexeme, ParseTypeAnnotation()));
                 }
                 else if (Check(TokenType.Identifier) || Check(TokenType.RightParen) || StartsParamGroup(0))
                 {
@@ -396,7 +410,7 @@ public partial class Parser
                     // 一个待遇 —— 那些地方也只知道"有东西来了",标不出更细的类型。
                     // 要更细就在体里自己过一手:`n: int = x`。
                     // (后面跟 `[…]` / `{…}` 也算"这一项完了"——那是下一个模式参数。)
-                    @params.Add(new Parameter(pName.Lexeme, ObjectType(pName)));
+                    Declare(new Parameter(pName.Lexeme, ObjectType(pName)));
                 }
                 else
                 {
