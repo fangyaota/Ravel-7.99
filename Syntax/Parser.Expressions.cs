@@ -302,9 +302,27 @@ public partial class Parser
 
                 // 右边整串先收完(`f` / `f 1` / `xs.At 0` / `+.2` / 一个 lambda),
                 // 再把左边当**最后一个**实参喂进去 —— 柯里化的写法得是 `f 1 x`,不是 `f x 1`。
+                //
+                // 右边的**一格**就是这个形状;`|` 那条链也拿它当一格(见下)。
+                Expression Clause()
+                {
+                    var one = ParseMemberChain(ParsePrimary(), allowCall);
+                    return ParsePostfixRest(one, allowCall, guarded: false, stopAtPipe: true);
+                }
+
                 var left = expr;
-                var fn = ParseMemberChain(ParsePrimary(), allowCall);
-                fn = ParsePostfixRest(fn, allowCall, guarded: false, stopAtPipe: true);
+                var fn = Clause();
+
+                // **`|` 比 `|>` 松**:`v |> A | B` 是 `v |> (A | B)`,不是 `(v |> A) | B`。
+                // 理由:`|` 那串本来就是**一整条函数**(分派表的写法),而 `|>` 是"把值喂进去" ——
+                // 值该喂给**整条**,不是喂给第一格。所以右边收完接着把 `|` 链收进来。
+                // (左结合,和 `|` 自己一个规矩;`stopAtPipe` 那层保护不受影响 —— 那只管 `|>`。)
+                while (Match(TokenType.Pipe))
+                {
+                    var bar = Previous();
+                    fn = new BinaryExpr(fn, "|", Clause()) { Line = bar.Line, Column = bar.Column };
+                }
+
                 expr = new CallExpr(fn, left) { Line = left.Line, Column = left.Column };
                 continue;
             }
