@@ -32,6 +32,11 @@ internal static class AstPrinter
     /// <summary>缩进一格几个空格。</summary>
     private const int Step = 4;
 
+    /// <summary>单行块写到多长就不留一行、改成展开。**这是个手感数,不是规矩** ——
+    /// 小了(比如 40)`if { …; } { …; }` 这种到处都在的写法会被撑开;大了(比如 120)
+    /// 长行又回来了。挑 60 是因为 ravel 自己的库正文基本都在这条线以内。</summary>
+    private const int InlineMax = 60;
+
     /// <summary>渲染一个函数的**签名链**:`(a: int) => { … }`。**单行档** —— 显示用。</summary>
     public static string Signature(LambdaVal lam)
     {
@@ -69,15 +74,21 @@ internal static class AstPrinter
 
     /// <summary>块的真身。`indent < 0` 挤成一行,否则**按层展开** —— 见类文档里那两档。
     ///
+    /// 展开档里,**装得下的小块照旧写一行**([`InlineMax`] 以内):`if` / `while` 是**库函数**,
+    /// 所以 `if { 条件; } { A; } { B; }` 在树上是"一次调用三个块",一格格摊开能把三行的东西
+    /// 撑成十几行 —— 比原文还难读。判据就是"把它单行写出来有多长",长度是**递归算出来的**
+    /// (里面的块也先按单行试),所以一个短块里套着长块时,外层自然跟着展开。
+    ///
     /// 每条语句都带分号:单行块在 Ravel 里本来就要写 `;`(见 `Parser.ParseMandatoryBlock`),
     /// 展开档照写也不吃亏(分号本来就是语句分隔符)。</summary>
     private static string BlockInner(BlockExpr b, int indent)
     {
-        if (b.Statements is [])
-            return indent < 0 ? "{ }" : "{\n" + Pad(indent) + "}";
+        if (b.Statements is []) return "{ }";
 
-        if (indent < 0)
-            return "{ " + Join("; ", b.Statements.Select(s => Statement(s, -1))) + "; }";
+        var inline = "{ " + Join("; ", b.Statements.Select(s => Statement(s, -1))) + "; }";
+        // `indent < 0` 是显示那条路,**一律**单行(它自己带截断);
+        // 展开那条路要短才留一行 —— 而且单行写出来的东西里不该有换行(有就说明里头展开了)
+        if (indent < 0 || (inline.Length <= InlineMax && !inline.Contains('\n'))) return inline;
 
         var lines = b.Statements.Select(s => Pad(indent + 1) + Statement(s, indent + 1) + ";");
         return "{\n" + Join("\n", lines) + "\n" + Pad(indent) + "}";
