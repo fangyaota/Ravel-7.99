@@ -258,9 +258,13 @@ public partial class Parser
     /// 闭包管 —— 它在自己的 lambda 体内得再走一趟这段(见 <see cref="GuardedChain"/>)。
     /// `guarded: true` = 已经在一层守卫里了,再撞上 `?.` 就当普通 `.` 使(守卫只包一层)。</summary>
     private Expression ParsePostfixRest(Expression expr, bool allowCall, bool guarded = false,
-                                        bool stopAtPipe = false)
+                                        bool stopAtPipe = false, bool allowPipe = false)
     {
-        if (!allowCall) return expr;
+        // `allowCall: false` 从前是"**什么后缀都不收**"。守卫那儿需要的其实是更窄的一档
+        // (`allowPipe: true`):**不吃并列的实参**(不然 `(x < 0 y: int)` 里那个 `y: int`
+        // 会被当成 `0` 的实参吃进去,"守卫 + 下一个参数"静默变成一个参数的 lambda),
+        // 但 `|>` **照收** —— 它是运算符,不是并列的应用(`(v |> IsPrime)` 靠它)。
+        if (!allowCall && !allowPipe) return expr;
 
         // 这一串里正在开的那个循环。**得跨实参活下来** —— `while` / `foreach` 的体是
         // **第 2 个**实参,而每一轮循环体都会重新声明局部变量。
@@ -327,7 +331,7 @@ public partial class Parser
                 continue;
             }
 
-            if (!StartsPrimary() || IsInfixWordOperator(Peek())) break;
+            if (!allowCall || !StartsPrimary() || IsInfixWordOperator(Peek())) break;
 
             // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
             // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。

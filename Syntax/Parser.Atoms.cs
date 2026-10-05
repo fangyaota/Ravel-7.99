@@ -396,7 +396,8 @@ public partial class Parser
                 void Declare(Parameter p)
                 {
                     if (@params.Any(q => q.Name == p.Name))
-                        throw ParseError($"参数名 '{p.Name}' 写了两遍 —— 每个参数一个名字");
+                        throw ParseError($"参数名 '{p.Name}' 写了两遍 —— 每个参数一个名字"
+                                       + "（要盯**类型**就把守卫写成**谓词**：`(v |> IsPrime)`）");
                     @params.Add(p);
                 }
 
@@ -417,7 +418,13 @@ public partial class Parser
                     // **守卫**:这一项整个是一条表达式(`v == s` / `v |> IsPrime`)。
                     // 退回去整条重读一遍,参数名取它**最左边那个标识符**(草稿那句"只看最左边的")。
                     _pos = saveAt;
-                    guard = ParseExpression();
+                    // **守卫不吃并列的实参** —— 和**模式**那条守卫一个规矩(见 `ParsePatternBare`):
+                    // 不然 `(x < 0 y: int)` 里那个 `y: int` 会被当成 `0` 的实参**吃进去**,
+                    // 于是"守卫 + 下一个参数"静默变成一个参数的 lambda(之后那个 `y: int`
+                    // 轮不到解析器看,重名检查也就看不见它)。`|>` 照收 —— 它是运算符、不是并列,
+                    // 而 `(v |> IsPrime)` 正靠它。
+                    guard = ParsePostfixRest(ParseClimb(allowCall: false, 0),
+                                             allowCall: false, allowPipe: true);
                     // **名字按 token 顺序取最左边那个标识符** —— 不走 AST:`v |> IsPrime`
                     // 在 AST 里是 `CallExpr(IsPrime, v)`(`|>` 解析期就折成调用了),
                     // 按树取"最左"会取到 IsPrime。草稿那句"只看最左边的"说的就是源码顺序。
@@ -433,11 +440,14 @@ public partial class Parser
                     // 代价说清楚:"带类型的参数 + 守卫"因此没了简写,要写就写成谓词那支
                     // (`(v |> IsPrime)` —— 守卫自己命名那个参数)或者传个闭包。
                     if (@params.Any(q => q.Name == nm))
-                        throw ParseError($"参数名 '{nm}' 写了两遍 —— 每个参数一个名字");
+                        throw ParseError($"参数名 '{nm}' 写了两遍 —— 每个参数一个名字"
+                                       + "（要盯**类型**就把守卫写成**谓词**：`(v |> IsPrime)`）");
                     @params.Add(new Parameter(nm, ObjectType(at)));
                     if (!Check(TokenType.RightParen))
                         throw ParseError("守卫要写在参数表的**最后一项** —— 它是一条表达式,"
-                                       + "会把后面那一项吞进去（`(x: int v == 1)` 这么写）");
+                                       + "后面再跟东西会被当成它的实参（`(x < 0 y: int)` 里那个 `y: int` 就是）。"
+                                       + "要盯**类型**就把守卫写成**谓词**：`(v |> IsPrime)` —— "
+                                       + "类型在谓词自己的参数上,名字不用写两遍");
                     break;
                 }
                 SkipNewlines();
