@@ -24,7 +24,23 @@ public partial class Interpreter
                         : $"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
                 var lamScope = lam.CaptureScope.Push();
                 lamScope.Define("self", BuiltinClasses.Function, lam);
-                lamScope.Define(lam.ParamName, lam.ParamType, arg);
+                var paramVar = lamScope.Define(lam.ParamName, lam.ParamType, arg);
+                // 修饰符装到**那个绑定**上 —— 和变量定义一个待遇(`Interpreter.Nodes` 里
+                // VarDefinition 那段)。于是 `readonly` 真有检查:下面体里给这个参数赋值,
+                // 走的是同一个 `CheckWritable`,报「无法给只读变量 'y' 赋值」。
+                if (lam.ParamAttrs != null)
+                    foreach (var a in lam.ParamAttrs)
+                        paramVar.SetAttr(a);
+                // **参数默认是 `private` 的** —— 它是这个函数的私事(普通定义默认 `public`)。
+                // 判据是"用户**没明写**这三个里的任何一个":写了一个(哪怕写的是 `public`)
+                // 就以他写的为准,不是叠上去。
+                //
+                // 这条今天**没有能触发的读点**(`BoxedValue` 那条"模块外面读不到"走的是
+                // **成员查找**,而参数不是成员)—— 留着是为了"和变量定义一个待遇"这条规矩
+                // 一致:将来谁给参数接了那条查找,它自动生效。取舍见 CONTEXT.md。
+                if (lam.ParamAttrs is null
+                    || !lam.ParamAttrs.Any(a => a is Attr.Public or Attr.Private or Attr.Protected))
+                    paramVar.SetAttr(Attr.Private);
                 // 柯里化的体跑完交回的是**内层那个 lambda** —— 那是个半成品(还等着实参),
                 // 收尾时打个标(见 BlockExecFrame.Curried / FunctionVal.IsPartial)
                 _top = new BlockExecFrame(lam.Block) { Parent = sink, Scope = lamScope, Curried = lam.Block.Curried };

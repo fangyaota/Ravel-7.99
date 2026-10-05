@@ -306,8 +306,13 @@ public sealed class Lowering
             var want = OuterWant(p);
             if (want is not null) param = param with { Type = Lower(want) };
 
+            // **修饰符再发一份给模式** —— 模式拆出来的那些名字才是用户看得见、写得动的
+            // (`(readonly [a b]) => …` 里 `a` / `b` 各带一份 `readonly`)。
+            // 参数自己那份**留着**:签名要照着印回人写的样子(`(readonly [a b]) => …`),
+            // 摘掉往返就断了。它调用时落在那个**合成名**(`__p…`)上 —— 用户写不出这个名字,
+            // 所以那份装了也够不着,只是"一个待遇"这条规矩顺带盖到它。
             var binds = new List<Statement>();
-            Bind(p, Ident(l.Param.Name, l), null, binds, outerDone: want is not null);
+            Bind(p, Ident(l.Param.Name, l), l.Param.Attrs, binds, outerDone: want is not null);
             body = body with { Statements = [.. binds, .. body.Statements] };
         }
 

@@ -325,7 +325,25 @@ public record BlockExpr(List<Statement> Statements) : Expression
 /// **模式参数**(`([x y]) => …`)走 <see cref="Pattern"/>:`Name` 是个**合成名**
 /// (`__p{n}`,不是用户写的),真正给用户用的名字由模式在体的开头绑出来。
 /// 模式参数**不能带注解** —— 形状本身就是它对实参的要求。</summary>
-public record Parameter(string Name, Expression Type, Pattern? Pattern = null);
+public record Parameter(string Name, Expression Type, Pattern? Pattern = null)
+{
+    /// <summary>参数前面那圈修饰符(`private x: int` / `readonly [a b]`)—— 和变量定义**同一张
+    /// 表**(<see cref="Runtime.Attr.All"/>)、同一套"算不算修饰符"的判据(看它后面跟不跟得上
+    /// 一个参数:`(private)` 里的 `private` 后面是 `)`,那是**名字**不是修饰符)。
+    ///
+    /// 调用时装到**那个绑定的 attrs** 上(`Interpreter.Call.cs` 的 `CallInto`),和
+    /// `VarDefinition` 一个待遇 —— 于是 `readonly` 那条"不许再赋值"的检查**白拿**
+    /// (`Variable.CheckWritable` 读的就是绑定上的 attrs)。
+    ///
+    /// **参数不是成员**,所以 `private` / `public` 在这儿没有可见性那层意思 —— 顺带
+    /// 参数默认写的就是 `private`(定义默认 `public`),那是"它是这个函数的私事"这条说法,
+    /// 今天没有能触发的读点(`BoxedValue` 那条"模块外面读不到"走的是**成员查找**,
+    /// 参数走不到)。细节与取舍见 `CONTEXT.md` 的「参数上的修饰符」。
+    ///
+    /// **带了模式的参数**,修饰符还要**再发一份**给模式拆出来的那些名字(它们才是用户
+    /// 看得见的那几个)—— 由 `Lowering.Bind` 带上;参数自己这份**留着**,签名要照着印回去。</summary>
+    public List<string>? Attrs { get; init; }
+}
 
 // --- 程序根 ---
 public record Program(List<Statement> Statements) : AstNode

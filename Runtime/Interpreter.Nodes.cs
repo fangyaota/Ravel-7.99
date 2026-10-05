@@ -252,6 +252,7 @@ public partial class Interpreter
         {
             CaptureScope = nf.Scope,
             ParamPattern = lam.Param.Pattern,      // 只为打印:签名印回人写的样子
+            ParamAttrs = lam.Param.Attrs,          // 调用时按变量那一套装到绑定上
         });
     }
 

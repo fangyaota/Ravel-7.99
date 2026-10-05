@@ -40,11 +40,11 @@ internal static class AstPrinter
     /// <summary>渲染一个函数的**签名链**:`(a: int) => { … }`。**单行档** —— 显示用。</summary>
     public static string Signature(LambdaVal lam)
     {
-        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr, lam.ParamPattern, -1) };
+        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr, lam.ParamPattern, -1, lam.ParamAttrs) };
         var body = lam.Block;
         while (Next(body) is { } inner)
         {
-            parts.Add(Param(inner.Param.Name, inner.Param.Type, inner.Param.Pattern, -1));
+            parts.Add(Param(inner.Param.Name, inner.Param.Type, inner.Param.Pattern, -1, inner.Param.Attrs));
             body = inner.Body;
         }
 
@@ -73,10 +73,12 @@ internal static class AstPrinter
     /// **整份源码**那条路(`indent &gt;= 0`)一律印**脱糖之后**的样子:那一路的契约是
     /// "再解析回来得是同一棵树",而树里参数就是 `__p…` 加体开头那串绑定 —— 把模式也印出来
     /// 等于同一件事说两遍,重解析会**又绑一遍**(实测:77 个文件对不上)。</summary>
-    private static string Param(string name, Expression type, Pattern? pattern, int indent)
-        => pattern is null || indent >= 0 ? name + ": " + Annotated(type, indent)
-         : IsUnitPattern(pattern) ? "()"                     // 见下:两种写法一个构造,挑短的印
-         : Pattern(pattern, indent);
+    private static string Param(string name, Expression type, Pattern? pattern, int indent,
+                                List<string>? attrs = null)
+        => Attrs(attrs)
+         + (pattern is null || indent >= 0 ? name + ": " + Annotated(type, indent)
+          : IsUnitPattern(pattern) ? "()"                    // 见下:两种写法一个构造,挑短的印
+          : Pattern(pattern, indent));
 
     /// <summary>是不是"要单位那个值"那一格。**`()` 和 `(())` 解析出来是同一个构造**
     /// (前者是空参数表那条路、后者是参数表里装一个括号分组,现在两条路合流了),
@@ -88,7 +90,8 @@ internal static class AstPrinter
         _ => false,
     };
 
-    private static string Param(Parameter p, int indent) => Param(p.Name, p.Type, p.Pattern, indent);
+    private static string Param(Parameter p, int indent)
+        => Param(p.Name, p.Type, p.Pattern, indent, p.Attrs);
 
     /// <summary>把一个模式印成**人写的样子** —— 给报错用:模式参数取的是**合成名**
     /// (`__p3f9c2_0`),直接印给用户看等于什么都没说;印模式本人(`1` / `([x y])` / `()`)

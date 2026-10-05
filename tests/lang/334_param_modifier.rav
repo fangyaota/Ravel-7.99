@@ -1,0 +1,41 @@
+#
+# **参数前面能写修饰符** —— 和变量定义**同一张表**(`Attr.All`)、同一套判据:
+# 一个词算不算修饰符,看它**后面跟不跟得上一个参数**。`(private)` 里的 `private`
+# 后面是 `)`,那是**名字**不是修饰符(所以 `(private)` 收一个叫 `private` 的参数)。
+#
+# 不加这条的话 `(private x: int)` 会**静默**读成两个参数(一个叫 `private`)——
+# 这门语言最恨的那种静默。
+#
+# 两个和普通定义不一样的地方:
+#
+#   * **参数默认是 `private` 的**(普通定义默认 `public`)—— 它是这个函数的私事;
+#   * `readonly` 在这儿是**真有检查**的:不许给这个参数再赋值。
+
+f := (private x: int) => { x + 1; }
+print (f 41)
+
+g := (readonly y: int) => { y; }
+print (g 7)
+
+# 默认 private 只是"这个绑定是私事"这一条说法 —— 闭包照样读得到,
+# 调用、柯里化一个字没变
+h := (n: int) => { ((k: int) => { n + k; }) 1; }
+print (h 10)
+
+# 模式参数上的修饰符是给**拆出来的那些名字**的(a / b 各带一份)
+m := (readonly [a b]) => { a + b; }
+print (m [1 2])
+
+bad := (readonly [a b]) => { a = 9; a; }
+print (try { bad [1 2]; } (e: Exception) => { e.Message; })
+
+# 签名照写的印(修饰符不丢 —— 往返就靠它)
+print f
+
+# --- expected ---
+# 42
+# 7
+# 11
+# 3
+# 无法给只读变量 'a' 赋值
+# <function (private x: int) => { x + 1; }>

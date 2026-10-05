@@ -15,6 +15,15 @@ public sealed record LambdaVal(string ParamName, Expression ParamTypeExpr, Objec
     /// 需要把它搬进值里。</summary>
     public Pattern? ParamPattern { get; init; }
 
+    /// <summary>参数前面那圈修饰符(`private x: int` / `readonly x: int`)—— 调用时按变量
+    /// 定义那一套 `SetAttr` 装到**那个绑定**上(见 `Interpreter.Call.cs` 的 `CallInto`)。
+    /// 于是 `readonly` 那条"不许再赋值"的检查**白拿**(`Variable.CheckWritable` 读的就是它)。
+    ///
+    /// **带了模式的参数**这儿照样有(签名要印回人写的样子:`(readonly [a b]) => …`),
+    /// 装上去落在那个**合成名**上(`__p…`,用户写不出来)—— 模式拆出来的那几个名字
+    /// 另有一份,由 `Lowering.Bind` 带上。</summary>
+    public List<string>? ParamAttrs { get; init; }
+
     /// <summary>打印成**它的代码** + **柯里化已经收下的实参**:
     ///
     ///     <function (a: int b: int) => { a + b; }>
