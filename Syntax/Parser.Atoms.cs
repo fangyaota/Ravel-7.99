@@ -60,15 +60,18 @@ public partial class Parser
         //     ~5 + 3        ≡  {5;} + 3      （`+` 落在块的值上,不是块里）
         //     x => ~x       ≡  x => {x;}     （体就是那个块,所以**封口** —— 见 ParseUserLambdaBody）
         //
-        // 只吃原子是有意的:`ParsePrimary` 那一条,`.成员` / `()` 调用都不跟 ——
-        // `~x.y` 是 `{x;}.y`,`~f 1` 是 `{f;} 1`。要更大的范围自己加括号(`~(f 1)`)。
+        // 吃的是**一个操作数**:`ParsePrimary` 加它那串 `.成员` / `?.`(那是**一条链**,
+        // `ParseMemberChain` 就是干这个的)—— 所以 `~x.y?.z` 是 `{x.y?.z;}`。
+        //
+        // 到成员链为止,**并列的实参不吃**:`~f 1` 是 `{f;} 1`(调用是**应用**,不是后缀)。
+        // 要更大的范围自己加括号:`~(f 1)`。
         //
         // 和一元的 `!` / `-` 不同层:那两个在 `ParseCall`,所以 `-~x` 读得出来、
         // `~-x` 读不出来(要写 `~(-x)`)—— 一行一格的糖,不值得再多一层。
         if (Match(TokenType.Tilde))
         {
             var tilde = Previous();
-            var atom = ParsePrimary(bareLambda: false);
+            var atom = ParseMemberChain(ParsePrimary(bareLambda: false), allowCall: false);
             return Block([new ExpressionStatement(atom) { Line = tilde.Line, Column = tilde.Column }], tilde);
         }
 
