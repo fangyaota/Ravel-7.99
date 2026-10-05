@@ -12,7 +12,11 @@ public partial class Parser
     //  Primary
     // ========================================
 
-    private Expression ParsePrimary()
+    /// <param name="bareLambda">这一格认不认"裸模式参数"(`1 => …` / `[x y] => …`)。
+    /// 模式**里面**取字面量那一格和取字典键要传 `false` —— 那两处的值不可能是个 lambda;
+    /// 不关掉的话 `1 => …` 会自己套自己(`ParsePrimary` → 裸模式 → `ParsePattern` →
+    /// 又回到 `ParsePrimary`),当场栈溢出。</param>
+    private Expression ParsePrimary(bool bareLambda = true)
     {
         // `do { … }` —— Monad 的串联糖(见 ParseDo)
         if (Check(TokenType.Identifier) && Peek().Lexeme == "do" && NextType() == TokenType.LeftBrace)
@@ -51,6 +55,16 @@ public partial class Parser
             return DesugarHoles(body);
         }
 
+        // **裸模式参数**:`1 => …` / `"yes" => …` / `[x y] => …` / `{"a" -> v} => …` ——
+        // 单参 lambda 那一格**直接写模式**,不套括号。就是一格模式,和 `(模式) => …` 等价。
+        //
+        // `() => …` **故意不在这条里**:那是**空参数表**(老写法,一个字不能动)。
+        // 想写"参数必须是单位那个值"就套一层 —— `(()) => …`。
+        // `true` / `false` 特意收进来:在这一格它们是**字面量**(和 `(true) => …` 一个意思),
+        // 不是"叫 `true` 的参数"。光杆名字仍旧走下面那条 `ParseBareLambda`。
+        if (bareLambda && BarePatternLambdaAhead())
+            return ParseBarePatternLambda();
+
         if (Match(TokenType.Number))
         {
             var lexeme = Previous().Lexeme;
@@ -73,7 +87,9 @@ public partial class Parser
                 { Line = Previous().Line, Column = Previous().Column };
 
         // `x => 体` —— **单参 lambda 不写括号**。见 ParseBareLambda 里那两条"故意不收"。
-        if (Check(TokenType.Identifier) && CheckNext(TokenType.Arrow))
+        // 和上面那道一样要过 `bareLambda` 口子:模式里取字面量那一格时 `true` 是**字面量**,
+        // 不关掉的话它会被当成"叫 `true` 的参数",顺手把 `=>` 和整个体都吃进去。
+        if (bareLambda && Check(TokenType.Identifier) && CheckNext(TokenType.Arrow))
             return ParseBareLambda();
 
         if (Match(TokenType.Identifier))
@@ -151,9 +167,10 @@ public partial class Parser
     private bool StartsParamGroup(int off)
         => TypeAt(off) is TokenType.LeftBracket or TokenType.LeftBrace;
 
-    /// <summary>参数表还能再收一项吗(名字 / 模式 / 字面量)。</summary>
+    /// <summary>参数表还能再收一项吗(名字 / 模式 / 字面量 / 带括号的模式)。</summary>
     private bool StartsParam()
-        => Check(TokenType.Identifier) || StartsParamGroup(0) || IsLiteralStart();
+        => Check(TokenType.Identifier) || StartsParamGroup(0) || IsLiteralStart()
+        || Check(TokenType.LeftParen);
 
     /// <summary>模式参数取合成名用(`__p{n}`)。它是 **lambda 的参数**,作用域只在那个
     /// lambda 里,所以每次解析从 0 数就够 —— 而且它会出现在**打印出来的函数体**里,
@@ -330,7 +347,10 @@ public partial class Parser
                 // **`() => {…}` 不受影响** —— 空参数表在 `ParseParen` 最开头就返回了,
                 // 根本走不到这儿(`()` 当字面量只在**模式里**)。
                 // **不能带注解** —— 形状本身就是它对实参的要求(要更严就在体里再过一手)。
-                if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace) || IsLiteralStart())
+                // 加括号的那几样(`(…)`)也算一格模式 —— 括号**只是分组**,里面还是模式
+                // (`(((x:(int)))) => x`)。`()` 走不到这儿:空参数表在 ParseParen 开头就返回了。
+                if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace) || IsLiteralStart()
+                    || Check(TokenType.LeftParen))
                 {
                     // 类型写在模式**自己那一格**上(`([x y] : list) => …` 里那个 `:` 挂最外那格),
                     // 由 `ParsePattern` 吃 —— 这儿不用另立一条。
@@ -564,6 +584,48 @@ public partial class Parser
     ///   * `f x => e` 是 `f (x => e)`(从前的报错位,现在有了读法);
     ///   * `a.b => e` **不是** lambda —— `b` 走的是成员链那条路,参数不能是成员。
     /// </summary>
+    /// <summary>`1 => …` / `"yes" => …` / `[x y] => …` / `{"a" -> v} => …` —— "裸一格模式
+    /// 直接接 `=>`"的判据。
+    ///
+    /// 括号那两样用现成的 <see cref="SkipBalanced"/> 跳过去,看收尾符后面是不是 `=>` ——
+    /// **只看这一处**,不往回退着重读整项,所以不会翻倍。
+    ///
+    /// `()` 不算:那是**空参数表**,`ParseParen` 最开头就接走了(这儿也拦一道,免得
+    /// "单位那个值"和"没有参数"两件事在同一个写法上撞)。
+    /// `_` 也不算:它在**位置那一格**是洞(`x => 体` 除外),`(_) => …` 才当通配写。</summary>
+    private bool BarePatternLambdaAhead(int off = 0)
+    {
+        switch (TypeAt(off))
+        {
+            case TokenType.Number or TokenType.String:
+                return TypeAt(off + 1) == TokenType.Arrow;
+            case TokenType.Minus:                                  // `-1 => …`
+                return TypeAt(off + 1) == TokenType.Number && TypeAt(off + 2) == TokenType.Arrow;
+            case TokenType.Identifier:
+                return tokens[_pos + off].Lexeme is "true" or "false" && TypeAt(off + 1) == TokenType.Arrow;
+            case TokenType.LeftBracket or TokenType.LeftBrace:
+            {
+                var end = SkipBalanced(off);
+                return end >= 0 && TypeAt(end) == TokenType.Arrow;
+            }
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>读一个"裸模式参数"的 lambda。合成名(`__p{n}`)和括号那条一个规矩,
+    /// 拆法照旧归 `Lowering`。</summary>
+    private Expression ParseBarePatternLambda()
+    {
+        var at = Peek();
+        var pattern = ParsePattern();
+        Consume(TokenType.Arrow, "模式后需要 '=>'");
+        var arrow = Previous();
+        var body = ParseUserLambdaBody("lambda 体", arrow);
+        return new LambdaExpr(new Parameter("__p" + _paramCount++, ObjectType(at), pattern), body)
+            { Line = at.Line, Column = at.Column };
+    }
+
     private Expression ParseBareLambda()
     {
         var name = Peek();

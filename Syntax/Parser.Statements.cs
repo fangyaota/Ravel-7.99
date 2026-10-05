@@ -541,6 +541,8 @@ public partial class Parser
         => Check(TokenType.Colon) || Check(TokenType.Identifier) || Check(TokenType.DotDot)
         || Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace)
         || Check(TokenType.RightBracket) || Check(TokenType.RightBrace)
+        || Check(TokenType.RightParen)             // `(x)` 里那个收尾 —— 也是"这一格完了"
+
         || Check(TokenType.PipeInto)               // `|>` 归 ParsePattern —— 别读进条件里
         || Check(TokenType.Number) || Check(TokenType.String)              // 字面量的下一格
         || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // 只认 `()`,
@@ -569,7 +571,7 @@ public partial class Parser
         var neg = Match(TokenType.Minus);
         var kind = Peek().Type;
         var raw = Peek().Lexeme;
-        var lit = ParsePrimary();
+        var lit = ParsePrimary(bareLambda: false);
 
         var text = kind switch
         {
@@ -618,9 +620,9 @@ public partial class Parser
         var at = Peek();
         Expression key;
         if (Match(TokenType.Minus))
-            key = new UnaryExpr("-", ParsePrimary()) { Line = at.Line, Column = at.Column };
+            key = new UnaryExpr("-", ParsePrimary(bareLambda: false)) { Line = at.Line, Column = at.Column };
         else
-            key = ParsePrimary();
+            key = ParsePrimary(bareLambda: false);
         while (Match(TokenType.Dot))
             key = new MemberAccess(key, ParseMemberName()) { Line = at.Line, Column = at.Column };
         return key;
@@ -714,6 +716,15 @@ public partial class Parser
         // (`[x -1]` 仍旧读成条件 `x - 1` —— 那儿 `-` 在**中间**,是二元,和从前一样。)
         if (IsLiteralStart() || Check(TokenType.Minus))
             return ParseLiteralPattern();
+
+        // `( 模式 )` —— 括号只是**分组**,里面还是同一格模式(`(((x:(int))))` 也认)。
+        // **`()` 走不到这儿**:那是"单位那个值"的字面量,上面那条先接走了。
+        if (Match(TokenType.LeftParen))
+        {
+            var inner = ParsePattern();
+            Consume(TokenType.RightParen, "模式括号没闭上");
+            return inner;
+        }
 
         var saveAt = _pos;
         var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、`..名字`、还是一个字面量（`1` / `\"看\"` / `()` / `true`）");

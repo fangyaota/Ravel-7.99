@@ -224,6 +224,13 @@ public partial class Parser
         //
         // **操作数走 `ParsePower` 而不是本层**:`-2 ** 2` 要读成 `-(2 ** 2)`
         // (`**` 比一元紧)。走本层的话负号先落地,就成了 `(-2) ** 2`。
+        // `-1 => …` —— 负数字面量当**裸模式参数**。负号在**这一层**就被吃了,所以判据得
+        // 先在这儿看一眼:不拦的话读成 `-(1 => …)`,运行期报一句「一元 '-' 不支持 Function」。
+        // 只认 `allowCall` 那一侧:模式内部(守卫、字面量那一格)走的是 `allowCall: false`,
+        // 那儿出现 `-1 => …` 不是 lambda。
+        if (allowCall && Check(TokenType.Minus) && BarePatternLambdaAhead(1))
+            return ParseBarePatternLambda();
+
         if (Match(TokenType.Bang) || Match(TokenType.Minus))
         {
             var op = Previous();
