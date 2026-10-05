@@ -685,9 +685,10 @@ Object (parent=自己)
 **函数**(和类型一样,这就是**全部**,一个不多一个不少 —— 钉在 tests/271):
 
     语言本身   WriteLine Write ReadLine WriteErr WriteLineErr ReadAllInput WriteBytes ReadBytes
-              Assert TypeOf Eval CallCC Exit With RavelMod Using Use Impl Unsafe
+              Assert TypeOf Eval CallCC RejectStop Exit With RavelMod Using Use Impl Unsafe
               Property CurrentScope LoadingState RestoreLoading SetErrorHook WarnForgotCall Unhandled
               FormatError                       ← 把一个异常渲染成 CLI 那份报告
+              RejectStop                        ← 跑一段东西,**拒收到这儿为止**(`try` 拿它套体)
               CaptureStart CaptureEnd           ← 把 stdout 收进字符串的那一对(只有 stdout,
                                                  stderr 不动)。**要成对用**:失败那条路也得收,
                                                  不然 stdout 一直被抓着
@@ -1952,6 +1953,17 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
 (`ResumeAlternate`),那一帧就从**下一支**接着试。
 **没有交替可接**才往错误处理器栈走 —— 外面有 `try` 就 `try` 接住,谁都没有就报给用户。
 (别和 `throw` 搞混:`throw` 直接进处理器栈,`|` 根本不认它。)
+
+**`try` 是一道拒收边界。** `Try` 把体套在 `System.RejectStop` 里(引擎那边一种控制帧),
+`ResumeAlternate` 撞上它就停 —— 于是"体里写的错归这个 `try`"对拒收也成立。
+**任务就是靠这条**:任务体本来就套着 `try`(`lib/tasks.rav` 里那句"体的错在这儿收住"),
+所以任务里写的 `reject` 从前会把**派发它的那一支**顶掉,现在不会(记在任务自己身上)。
+
+**边界之外它是动态的**:沿帧链找最近的交替帧 —— 写在**回调**里的 `reject` 近旁没有 `try`,
+照样会顶掉外面那一支。这一点和 `return` / `break` **不一样**:那几个是 `callcc` 的
+**lambda 参数**、**词法**绑定(写在回调里,出的是那个回调)。生成的那些拒收(守卫、
+参数模式、解构检查)都在**支体开头**,近旁没有 `try`,边界对它们一个字都不影响。
+(钉在 `tests/lang/321_reject_scope.rav`。)
 (`StepAlternate` 把"试到第几支"记在帧的 `State` 上 ——
 帧是不可变的,推分支时顺手带一份 `next`。)
 

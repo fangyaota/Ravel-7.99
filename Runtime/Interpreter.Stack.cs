@@ -187,6 +187,11 @@ public partial class Interpreter
     {
         for (var f = _top; f is not null; f = f.Parent)
         {
+            // **拒收边界**(`try` 套的那一层,见 `System.RejectStop`):到这儿就停,
+            // 不再往外找。再往外就越过了"这段错归谁"——比如**任务**里写的 `reject`
+            // 会一路追到派发它的那一支去,把好端端的一支顶掉(实测过)。
+            if (f is ControlFrame { Kind: ControlKind.RejectStop }) return false;
+
             if (f is ControlFrame { Kind: ControlKind.Alternate } alt)
             {
                 _rejectMessage = ex.Message;

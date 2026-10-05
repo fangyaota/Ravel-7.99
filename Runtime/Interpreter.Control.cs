@@ -24,6 +24,7 @@ public partial class Interpreter
             case ControlKind.CallAssign: StepCallAssign(cf); break;
             case ControlKind.CallReturn: StepCallReturn(cf); break;
             case ControlKind.CtorApply: StepCtorApply(cf); break;
+            case ControlKind.RejectStop: StepRejectStop(cf); break;
         }
     }
 
@@ -525,6 +526,18 @@ public partial class Interpreter
     /// **收一个实参**(和 `|` 的交替一样):组合出来的一元函数。
     /// 多参的先部分应用一手(`(+ 1)` 已经是一元的)—— 元数不是一个能静态知道的东西
     /// (Ravel 的函数都是柯里化的一元嵌套),所以不猜。</summary>
+    /// <summary>`System.RejectStop f` —— 把 `f ()` 跑在一个**拒收边界**里。
+    /// 除了"这枚帧挡拒收"(`ResumeAlternate` 认它),和直接调 `f ()` 没两样。
+    ///
+    /// 谁在用:`lib/exceptions.rav` 的 `Try` —— **`try` 是一道拒收边界**。
+    /// 于是 Task 的 `Start` 里那句"体的错在这儿收住"对拒收也成立了:
+    /// 任务里写的 `reject` 不会再跑去把**派发它的那一支**顶掉。</summary>
+    private void StepRejectStop(ControlFrame cf)
+    {
+        if (cf.Count == 0) { CallInto(cf, cf.Arg<RuntimeValue>(0, "RejectStop"), VoidVal.Instance); return; }
+        Return(cf, cf.Result(0));
+    }
+
     private void StepThen(ControlFrame cf)
     {
         var f = cf.Arg<RuntimeValue>(0, ">>");

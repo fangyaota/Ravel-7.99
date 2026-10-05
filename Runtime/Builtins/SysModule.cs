@@ -100,5 +100,8 @@ internal static class SysModule
         DefControl(scope, "CallCC", ControlKind.CallCC, 1);
         DefControl(scope, "Using", ControlKind.Using, 1);
         DefControl(scope, "Eval", ControlKind.Eval, 1);
+        // **拒收边界**:`try` 拿它把体套一层(见 `lib/exceptions.rav`)—— 里面写的 `reject`
+        // 到这儿为止,不再往帧链外面找 `|` 的交替帧。除了这一条,和直接调 `f ()` 没两样。
+        DefControl(scope, "RejectStop", ControlKind.RejectStop, 1);
     }
 }

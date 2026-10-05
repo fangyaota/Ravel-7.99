@@ -29,7 +29,9 @@ readonly Try := (body: function) => {
                 ok (handler e)
             }
             HandlerStack.Insert 0 mine
-            r := body ()
+            # **体套一层拒收边界**:里面写的 `reject` 属于**这一段**,不该穿出去
+            # 找外面的 `|`(任务体就是这么套着 try 的 —— 它内部拒收从前会把派发它的那一支顶掉)。
+            r := System.RejectStop body
             # **正常收尾要把自己的 handler 摘掉。** 不摘的话它会一直挂在栈上:后面**没人接**的错误
             # 会被它接住,而它的续延停在上面那次 callcc —— 于是程序从「Try 之后」重跑一遍,
             # 报错位置也指到那儿去,原来的错反而看不见了。
