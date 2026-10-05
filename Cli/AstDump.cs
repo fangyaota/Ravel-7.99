@@ -120,9 +120,12 @@ internal static class AstDump
             stdout.Write(sb);
         }
 
+        // **汇总走 stderr,不进 stdout。** stdout 那一份是**产物本身** —— 而且 `--source`
+        // 印出来的要能直接 `> x.rav` 拿去跑:汇总混进去,那文件末尾就多一行不是 Ravel 的字,
+        // 解析器当场报「未预期的字符」。转储那一路同一个道理(它也是给人 `> x.txt` 比的)。
         var tail = failed > 0 ? $",其中 {failed} 个报错" : "";
-        if (source && broken > 0) tail += $",{broken} 个往返后树对不上(见 stderr)";
-        stdout.WriteLine($"\n{(source ? "印出" : "转储")} {files.Count} 个文件{tail}");
+        if (source && broken > 0) tail += $",{broken} 个往返后树对不上";
+        Console.Error.WriteLine($"\n{(source ? "印出" : "转储")} {files.Count} 个文件{tail}");
         stdout.Flush();
         return failed == 0 && broken == 0;
     }
