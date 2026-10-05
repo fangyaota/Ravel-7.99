@@ -397,7 +397,8 @@ public partial class Parser
                 {
                     if (@params.Any(q => q.Name == p.Name))
                         throw ParseError($"参数名 '{p.Name}' 写了两遍 —— 每个参数一个名字"
-                                       + "（要盯**类型**就把守卫写成**谓词**：`(v |> IsPrime)`）");
+                                       + "（要**盯类型**就把整个参数括起来写 `|>` 那条："
+                                       + "`((v: int) |> IsPrime)`）");
                     @params.Add(p);
                 }
 
@@ -441,13 +442,14 @@ public partial class Parser
                     // (`(v |> IsPrime)` —— 守卫自己命名那个参数)或者传个闭包。
                     if (@params.Any(q => q.Name == nm))
                         throw ParseError($"参数名 '{nm}' 写了两遍 —— 每个参数一个名字"
-                                       + "（要盯**类型**就把守卫写成**谓词**：`(v |> IsPrime)`）");
+                                       + "（要**盯类型**就把整个参数括起来写 `|>` 那条："
+                                       + "`((v: int) |> IsPrime)`）");
                     @params.Add(new Parameter(nm, ObjectType(at)));
                     if (!Check(TokenType.RightParen))
                         throw ParseError("守卫要写在参数表的**最后一项** —— 它是一条表达式,"
                                        + "后面再跟东西会被当成它的实参（`(x < 0 y: int)` 里那个 `y: int` 就是）。"
-                                       + "要盯**类型**就把守卫写成**谓词**：`(v |> IsPrime)` —— "
-                                       + "类型在谓词自己的参数上,名字不用写两遍");
+                                       + "要**盯类型**就把整个参数括起来写 `|>` 那条："
+                                       + "`((v: int) |> IsPrime)` —— 类型在那一格上,名字只写一遍");
                     break;
                 }
                 SkipNewlines();

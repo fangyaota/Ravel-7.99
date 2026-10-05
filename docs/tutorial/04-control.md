@@ -232,9 +232,9 @@ print (kind 1.5)
 IsNeg := (n: int) => { n < 0; }
 IsZero := (n: int) => { n == 0; }
 sign := (n: int) => {
-    n |> (x |> IsNeg)  => { "负"; }
-      |  (x |> IsZero) => { "零"; }
-      |  _             => { "正"; }
+    n |> ((x: int) |> IsNeg)  => { "负"; }
+      |  ((x: int) |> IsZero) => { "零"; }
+      |  _                     => { "正"; }
 }
 print (sign (0 - 5))
 print (sign 0)
