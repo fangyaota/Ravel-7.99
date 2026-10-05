@@ -5,16 +5,23 @@ using System.Text;
 /// <summary>把 AST 渲染回 Ravel 源码。同一条渲染路,两个入口:
 ///
 /// * <see cref="Signature"/> —— **显示**用(`print` 一个函数、报错文案里那句"是哪个函数")。
-///   按 <see cref="MaxLength"/> 截断:体可以很长,而调用方只要一个能认出它的线索。
+///   **一条语句一行都铺不开**:它要塞进一句提示里,所以 `Fit` 按 <see cref="MaxLength"/>
+///   截断、块全挤在一行(见 <see cref="Block"/>)。
 /// * <see cref="Program"/> —— **整份源码**(`ravel ast --source`)。**一个字都不截**,
-///   出来的是能再喂回解析器的 `.rav`。
+///   块**按层展开缩进**,出来的是能再喂回解析器的 `.rav`。
+///
+/// 这两档靠一个 `indent` 参数分:
+/// * `indent < 0` —— 单行档(显示走这条):块写成一行的 `{ a := 1; f a; }`。
+/// * `indent >= 0` —— 展开档(整份源码走这条):块写成
+///   `{\n` + 每条语句缩进一层 + `\n` + `}`,**收尾那个 `}` 缩进到 `indent` 那一格**
+///   (所以它跟开头那一行对齐)。传下去的是 `indent + 1`(语句在块里就深一层)。
 ///
 /// 括号按**保守**规则加:实参 / 列表元素那一格只吃"主表达式 + 取成员",别的形状套一层;
 /// 二元运算按优先级判(见 <see cref="BinPrec"/>)。**多了只是难看,少了就是另一个意思** ——
 /// 所以拿不准的一律套。
 ///
 /// 两样东西回不来,别指望:
-/// * **注释和格式** —— AST 里根本没有这两样(要看原文只能读源文件);
+/// * **注释** —— AST 里根本没有(要看原文只能读源文件);
 /// * **用户写下的那个形状** —— 印的是 `Lowering` **之后**的树。`a ?? b` 印出来是
 ///   `NilOr (() => { a; }) (() => { b; })`,模式参数印出来是 `(__p0: object) => { … }`
 ///   加一串判 `__p0 : IEnumerable` 的语句。要"原样"得先有没过 Lowering 的树(没有这条路)。</summary>
@@ -22,68 +29,68 @@ internal static class AstPrinter
 {
     private const int MaxLength = 72;
 
-    /// <summary>渲染一个函数的**签名链**:`(a: int) => { … }`。
-    ///
-    /// 多参数 lambda 在语法上就是"体里只有一层 lambda"套出来的(见 `Parser.Atoms` 的消糖),
-    /// 所以往后走一层就多一个参数、最后一层的体才是真正的函数体 —— 打印时把它还原成
-    /// 一条完整的参数表,而不是露馅成嵌套的 `(a) => { (b) => { … } }`。</summary>
+    /// <summary>缩进一格几个空格。</summary>
+    private const int Step = 4;
+
+    /// <summary>渲染一个函数的**签名链**:`(a: int) => { … }`。**单行档** —— 显示用。</summary>
     public static string Signature(LambdaVal lam)
     {
-        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr) };
+        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr, -1) };
         var body = lam.Block;
         while (Next(body) is { } inner)
         {
-            parts.Add(Param(inner.Param.Name, inner.Param.Type));
+            parts.Add(Param(inner.Param.Name, inner.Param.Type, -1));
             body = inner.Body;
         }
 
         return "(" + string.Join(" ", parts) + ") => " + Block(body);
     }
 
-    /// <summary>整份程序 —— **不截断**,出来的是能再解析回去的源码。每条语句一行
-    /// (块里面仍旧挤在一行里:`{ a := 1; f a; }`,和显示那条路一个写法)。</summary>
-    public static string Program(Program p) => Join("\n", p.Statements.Select(Statement));
+    /// <summary>整份程序 —— **不截断、块按层展开**(每条顶层语句一行,块里的语句各占一行
+    /// 并缩进一层)。出来的是能再解析回去的源码,`ravel ast --source` 用它。</summary>
+    public static string Program(Program p)
+        => Join("\n", p.Statements.Select(s => Statement(s, 0)));
 
     /// <summary>体里只跟着一个 lambda 表达式的话,把那个 lambda 返回出来(多参数 lambda 的消糖形状)。
     /// 多一条语句就不是了 —— 那是"函数体里顺手定义了个函数",不是一条参数链。</summary>
     private static LambdaExpr? Next(BlockExpr body)
         => body.Statements is [ExpressionStatement { Expr: LambdaExpr inner }] ? inner : null;
 
-    /// <summary>注解那一格(`x: 类型` / `(参数: 类型)`)。
-    ///
-    /// **只有"一个词"形状的才裸着写**,别的统统套括号 —— 这一格后面紧跟着的是 `=`
-    /// (定义)或者 `,` / `)` / 函数体,而**调用和运算符都会往右边吃**:`a: pick true = 5`
-    /// 读回去那个 `= 5` 会被 `pick` 的实参吃走,`z: 1 + 1 = v` 也会串(源码里那两处本来
-    /// 就写着括号:`a: (pick true) = 5`)。
-    ///
-    /// 判据用 100(="自身定界"那一档,见 `Prec`):`x: int` / `x: list` / `x: a.b` 照旧
-    /// 裸着,`x: (pick true)` / `x: (1 + 1)` 套上。</summary>
-    private static string Annotated(Expression type) => Paren(type, 100);
-
-    private static string Param(string name, Expression type) => name + ": " + Annotated(type);
+    /// <summary>参数:`名字: 注解`。注解本身是表达式,照源码渲染(常见就是一个名字)。</summary>
+    private static string Param(string name, Expression type, int indent) => name + ": " + Annotated(type, indent);
 
     /// <summary>参数(带模式的那种)。**模式参数活不过 `Lowering`**(它会拆成 `__p{n}` +
     /// 体开头一串绑定),所以这一支正常到不了 —— 留着是为了别掉进看不懂的兜底。</summary>
-    private static string Param(Parameter p)
-        => p.Pattern is { } pat ? Pattern(pat) : p.Name + ": " + Annotated(p.Type);
+    private static string Param(Parameter p, int indent)
+        => p.Pattern is { } pat ? Pattern(pat, indent) : p.Name + ": " + Annotated(p.Type, indent);
 
-    /// <summary>渲染一个块(`{ a := 1; f a; }`)—— **显示那条路**,带截断。
-    /// 每条语句带分号:单行块在 Ravel 里本来就要写 `;`(见 `Parser.ParseMandatoryBlock`),
-    /// 打印出来的东西因此也解析得回去。</summary>
-    public static string Block(BlockExpr b) => Fit(BlockInner(b));
+    /// <summary>渲染一个块 —— **单行档**,带截断。给显示用(`print` / 报错文案)。</summary>
+    public static string Block(BlockExpr b) => Fit(BlockInner(b, -1));
 
-    /// <summary>块的真身 —— **不截断**。整份源码那条路要它(截了就不是源码了),
-    /// 显示那条路只能在<b>最外层</b>截(见 <see cref="Block"/>):里面每一层都截的话,
-    /// 括号对不上,印出来根本没法看。</summary>
-    private static string BlockInner(BlockExpr b)
-        => b.Statements is [] ? "{ }" : "{ " + Join("; ", b.Statements.Select(Statement)) + "; }";
+    /// <summary>块的真身。`indent < 0` 挤成一行,否则**按层展开** —— 见类文档里那两档。
+    ///
+    /// 每条语句都带分号:单行块在 Ravel 里本来就要写 `;`(见 `Parser.ParseMandatoryBlock`),
+    /// 展开档照写也不吃亏(分号本来就是语句分隔符)。</summary>
+    private static string BlockInner(BlockExpr b, int indent)
+    {
+        if (b.Statements is [])
+            return indent < 0 ? "{ }" : "{\n" + Pad(indent) + "}";
+
+        if (indent < 0)
+            return "{ " + Join("; ", b.Statements.Select(s => Statement(s, -1))) + "; }";
+
+        var lines = b.Statements.Select(s => Pad(indent + 1) + Statement(s, indent + 1) + ";");
+        return "{\n" + Join("\n", lines) + "\n" + Pad(indent) + "}";
+    }
+
+    private static string Pad(int indent) => new(' ', indent * Step);
 
     /// <summary>定义前面那圈修饰符(`readonly` / `private` …)。**从前整个丢掉了** ——
     /// `readonly` 是有语义的(赋值会报错),印丢了就不叫渲染回源码了。</summary>
     private static string Attrs(List<string>? attrs)
         => attrs is { Count: > 0 } ? Join(" ", attrs) + " " : "";
 
-    private static string Statement(Statement s) => s switch
+    private static string Statement(Statement s, int indent) => s switch
     {
         // 定义有三种收尾,别混:**注解那条配 `=`**(`x: int = v` —— 解析器
         // `Consume(Equal, "类型注解后需要 '='")` 只认这个,写成 `:=` 是语法错)、
@@ -91,20 +98,21 @@ internal static class AstPrinter
         VarDefinition v =>
             Attrs(v.Attrs)
             + v.Name
-            + (v.TypeAnnotation != null ? ": " + Annotated(v.TypeAnnotation) + " = " : v.Named ? " ::= " : " := ")
-            + Expr(v.Value),
-        Assignment a => a.Name + " = " + Expr(a.Value),
-        SlotAssign sa => "by " + Expr(sa.Path) + (sa.Define ? " := " : " = ") + Expr(sa.Value),
-        ExpressionStatement es => Expr(es.Expr),
+            + (v.TypeAnnotation != null ? ": " + Annotated(v.TypeAnnotation, indent) + " = "
+                                        : v.Named ? " ::= " : " := ")
+            + Expr(v.Value, indent),
+        Assignment a => a.Name + " = " + Expr(a.Value, indent),
+        SlotAssign sa => "by " + Expr(sa.Path, indent) + (sa.Define ? " := " : " = ") + Expr(sa.Value, indent),
+        ExpressionStatement es => Expr(es.Expr, indent),
 
         // 下面这三种**活不过 `Lowering`**(见 `Syntax/Lowering.cs` 抬头),正常到不了这儿。
         // 留着只是"万一"—— 掉进兜底那个 `?` 就更没法查了。
-        BindStatement bd => bd.Name + " :< " + Expr(bd.Monad),
-        Destructure d => Attrs(d.Attrs) + Pattern(d.Pattern) + " = " + Expr(d.Value),
+        BindStatement bd => bd.Name + " :< " + Expr(bd.Monad, indent),
+        Destructure d => Attrs(d.Attrs) + Pattern(d.Pattern, indent) + " = " + Expr(d.Value, indent),
         _ => "?",
     };
 
-    private static string Expr(Expression e) => e switch
+    private static string Expr(Expression e, int indent) => e switch
     {
         NumberLiteral n => n.Lexeme,
         StringLiteral s => StringLiteralText(s.Value),
@@ -112,34 +120,34 @@ internal static class AstPrinter
         IdentifierExpr i => i.Name,
         VoidLiteral => "()",
         HoleExpr h => "_" + h.Index,
-        ListLiteral l => "[" + Join(" ", l.Elements.Select(Arg)) + "]",
-        SetLiteral s => "{" + Join(" ", s.Elements.Select(Arg)) + "}",
+        ListLiteral l => "[" + Join(" ", l.Elements.Select(x => Arg(x, indent))) + "]",
+        SetLiteral s => "{" + Join(" ", s.Elements.Select(x => Arg(x, indent))) + "}",
         // 字典的分隔符是 `->`,不是 `:` —— `:` 早就是"类型判定"了(见 CONTEXT 的语法那一节)。
-        DictLiteral d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key) + " -> " + Expr(x.Value))) + "}",
-        RangeExpr r => (r.StartClosed ? "[" : "(") + Expr(r.Lo) + ".." + Expr(r.Hi) + (r.EndClosed ? "]" : ")"),
+        DictLiteral d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key, indent) + " -> " + Expr(x.Value, indent))) + "}",
+        RangeExpr r => (r.StartClosed ? "[" : "(") + Expr(r.Lo, indent) + ".." + Expr(r.Hi, indent) + (r.EndClosed ? "]" : ")"),
         // 取成员的**接收者**若本身是一次调用,必须套括号:`f a.b` 读起来是 `f (a.b)`
         // (实参位置只吃"主表达式 + 取成员"),而这里要说的是 `(f a).b` —— do 块脱糖出来的
         // `m.Bind (…)` 全是这个形状,不套括号打印出来是另一个意思。
-        MemberAccess m => (m.Object is CallExpr ? "(" + Expr(m.Object) + ")" : Atom(m.Object))
+        MemberAccess m => (m.Object is CallExpr ? "(" + Expr(m.Object, indent) + ")" : Atom(m.Object, indent))
                           + "." + m.Member,
         // 多参调用是"一层层收一个"(`f a b` ≡ `(f a) b`),所以函数那一侧认 CallExpr、
         // 实参那一侧**不认**(见 `Arg`)。
-        CallExpr c => Atom(c.Function) + " " + Arg(c.Argument),
-        BinaryExpr b => Binary(b),
+        CallExpr c => Atom(c.Function, indent) + " " + Arg(c.Argument, indent),
+        BinaryExpr b => Binary(b, indent),
         // 一元运算符的操作数**至少要跟它一样紧**(18 = `**` 那一档)才不用套括号。
         // 这里从前写的是 `Atom`,而 `Atom` **认调用** —— 于是 `!(x.IsEmpty ())` 印成
         // `!x.IsEmpty ()`,读回去 `!` 把那串全吃了(实测:`!a.IsEmpty () || !b.IsEmpty ()`
         // 和 `!(a.IsEmpty ()) || !(b.IsEmpty ())` 是**两棵树**)。前缀运算符后面那串
         // 和实参一样会往右边吃,所以调用在这儿也得套括号。
-        UnaryExpr u => u.Op + Paren(u.Operand, 18),
-        PipeExpr p => Paren(p.Left, 1) + " <| " + Paren(p.Right, 2),
-        LambdaExpr lam => "(" + Param(lam.Param) + ") => " + BlockInner(lam.Body),
-        BlockExpr b => BlockInner(b),
-        // 同上,`do` 块也活不过 `Lowering`(折成一串 `.Bind`)—— 留着是"万一"。
-        DoExpr d => "do " + BlockInner(new BlockExpr(d.Statements)),
-        SlotExpr sl => "by " + Expr(sl.Path),
+        UnaryExpr u => u.Op + Paren(u.Operand, 18, indent),
+        PipeExpr p => Paren(p.Left, 1, indent) + " <| " + Paren(p.Right, 2, indent),
+        LambdaExpr lam => "(" + Param(lam.Param, indent) + ") => " + BlockInner(lam.Body, indent),
+        BlockExpr b => BlockInner(b, indent),
+        SlotExpr sl => "by " + Expr(sl.Path, indent),
         // 内置类的预设类体里是 C# 造好的值,没有源码可还原
         LiteralExpr => "<builtin>",
+        // 同上,`do` 块也活不过 `Lowering`(折成一串 `.Bind`)—— 留着是"万一"。
+        DoExpr d => "do " + BlockInner(new BlockExpr(d.Statements), indent),
         _ => "?",
     };
 
@@ -150,8 +158,7 @@ internal static class AstPrinter
     /// 无非多两个括号;反过来说"`a + b * c` 其实是 `(a + b) * c`",那就印错了。
     ///
     /// 赋值那一类(`=` / `:=` / `+=` …)**不在表里**:它们最低,落在"认不得"那一档,
-    /// 于是当操作数时一律带括号 —— 正合意。`**` 也放表外(它不在 `BinOpBp` 里,是求值器
-    /// 那条路),同样按最低处理。</summary>
+    /// 于是当操作数时一律带括号 —— 正合意。</summary>
     private static readonly Dictionary<string, int> BinPrec = new()
     {
         ["||"] = 2,
@@ -169,20 +176,21 @@ internal static class AstPrinter
         ["**"] = 18,
     };
 
-    private static string Binary(BinaryExpr b)
+    private static string Binary(BinaryExpr b, int indent)
     {
         var p = BinPrec.GetValueOrDefault(b.Op, 0);
         // 操作数给多紧才不用套括号 —— 看**结合性**:
         // 左结合的(`a - b - c` = `(a-b)-c`)左边给 `p`(同级不套)、右边给 `p + 1`
         // (`a - (b - c)` 同级,要套);右结合的(`**`)正好倒过来。
         var right = b.Op == "**";
-        var left = Paren(b.Left, right ? p + 1 : p);
-        var rightOp = Paren(b.Right, right ? p : p + 1);
+        var left = Paren(b.Left, right ? p + 1 : p, indent);
+        var rightOp = Paren(b.Right, right ? p : p + 1, indent);
         return left + " " + b.Op + " " + rightOp;
     }
 
     /// <summary>这一格至少要有多紧,不够紧就套一层括号。</summary>
-    private static string Paren(Expression e, int min) => Prec(e) < min ? "(" + Expr(e) + ")" : Expr(e);
+    private static string Paren(Expression e, int min, int indent)
+        => Prec(e) < min ? "(" + Expr(e, indent) + ")" : Expr(e, indent);
 
     /// <summary>有多紧 —— 只用来判断"当运算符的操作数时要套括号吗"。
     ///
@@ -213,46 +221,57 @@ internal static class AstPrinter
 
     /// <summary>**函数那一侧** / 取成员的接收者:`f` 或 `a.b`。调用也认 ——
     /// `(f a) b` 写成 `f a b` 是一个意思(柯里化:`f a b` ≡ `(f a) b`)。</summary>
-    private static string Atom(Expression e) => e switch
+    private static string Atom(Expression e, int indent) => e switch
     {
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr
-            or LiteralExpr => Expr(e),
-        _ => "(" + Expr(e) + ")",
+            or LiteralExpr => Expr(e, indent),
+        _ => "(" + Expr(e, indent) + ")",
     };
 
     /// <summary>**实参那一格**(调用右边 / 列表与集合的元素)—— 只吃"主表达式 + 取成员",
     /// 和 <see cref="Atom"/> 的分别就在 **`CallExpr` 认不认**:
     /// `f (a b)` 和 `f a b` 是两个东西(后者是 `(f a) b`),这里要说的是前者,
     /// 所以调用落进"套括号"那一支。少了这条,`f (a b)` 会印成 `f a b` —— 意思就变了。</summary>
-    private static string Arg(Expression e) => e switch
+    private static string Arg(Expression e, int indent) => e switch
     {
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess
-            or LiteralExpr => Expr(e),
-        _ => "(" + Expr(e) + ")",
+            or LiteralExpr => Expr(e, indent),
+        _ => "(" + Expr(e, indent) + ")",
     };
+
+    /// <summary>注解那一格(`x: 类型` / `(参数: 类型)`)。
+    ///
+    /// **只有"一个词"形状的才裸着写**,别的统统套括号 —— 这一格后面紧跟着的是 `=`
+    /// (定义)或者 `,` / `)` / 函数体,而**调用和运算符都会往右边吃**:`a: pick true = 5`
+    /// 读回去那个 `= 5` 会被 `pick` 的实参吃走,`z: 1 + 1 = v` 也会串(源码里那两处本来
+    /// 就写着括号:`a: (pick true) = 5`)。
+    ///
+    /// 判据用 100(="自身定界"那一档,见 `Prec`):`x: int` / `x: list` / `x: a.b` 照旧
+    /// 裸着,`x: (pick true)` / `x: (1 + 1)` 套上。</summary>
+    private static string Annotated(Expression type, int indent) => Paren(type, 100, indent);
 
     /// <summary>一格模式。**模式活不过 `Lowering`**(`Destructure` 被拆成一串 `:=`、
     /// 模式参数被拆成 `__p{n}` + 体开头的绑定),所以这一支正常到不了 —— 照源码形状印个大概,
     /// 为的是别掉进看不懂的兜底。</summary>
-    private static string Pattern(Pattern p)
+    private static string Pattern(Pattern p, int indent)
     {
         var text = p switch
         {
             // 带条件的格子:名字取的是条件里最左那个标识符,所以**条件本身就是那个写法**。
-            NamePattern { Guard: { } g } => Expr(g),
+            NamePattern { Guard: { } g } => Expr(g, indent),
             NamePattern n => n.Member is { } m ? n.Name + " = " + m : n.Name,
             SkipPattern => "_",
             RestPattern r => ".." + r.Name,
-            ListPattern l => "[" + Join(" ", l.Parts.Select(Pattern)) + "]",
-            MemberPattern mp => "{" + Join(" ", mp.Names.Select(Pattern)) + "}",
+            ListPattern l => "[" + Join(" ", l.Parts.Select(x => Pattern(x, indent))) + "]",
+            MemberPattern mp => "{" + Join(" ", mp.Names.Select(x => Pattern(x, indent))) + "}",
             LiteralPattern lit => lit.Text,
-            DictPattern d => "{" + Join(" ", d.Entries.Select(e => Expr(e.Key) + " -> " + Pattern(e.Sub))) + "}",
+            DictPattern d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key, indent) + " -> " + Pattern(x.Sub, indent))) + "}",
             _ => "?",
         };
-        if (p is NamePattern { Sub: { } sub }) text += " = " + Pattern(sub);
-        if (p.When is { } when) text += " |> " + Expr(when);
+        if (p is NamePattern { Sub: { } sub }) text += " = " + Pattern(sub, indent);
+        if (p.When is { } when) text += " |> " + Expr(when, indent);
         return text;
     }
 
