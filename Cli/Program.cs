@@ -54,6 +54,8 @@ internal static class Program
             config.AddCommand<TestCommand>("test").WithDescription("跑 golden 用例(不给词就全量)");
             config.AddCommand<StripCommand>("strip").WithDescription("剥掉 .rav 里的注释(就地)")
                 .WithExample("strip", "out/lib");
+            config.AddCommand<AstCommand>("ast").WithDescription("把 AST 转储成文本(结构,给 diff 用)")
+                .WithExample("ast", "lib tests examples");
         });
         return app.Run(head);
     }
@@ -73,6 +75,7 @@ internal static class Program
             Console.WriteLine("用法: ravel [--warn] [--more-control-flow] [脚本.rav [参数…]]");
             Console.WriteLine("      ravel test [词…] [--fast]");
             Console.WriteLine("      ravel strip <文件或目录…>");
+            Console.WriteLine("      ravel ast <文件或目录…>");
             Console.WriteLine("      ravel --help");
             return 1;
         }
@@ -83,8 +86,8 @@ internal static class Program
     ///
     ///     ravel --warn x.rav a --warn   →   前半 [--warn x.rav]   后半 [a --warn]
     ///
-    /// 切点 = 第一个**不以 `-` 开头**的词。它要是子命令(`test` / `strip`)就**不切** ——
-    /// 那两条没有"脚本",整行的实参都是框架的。
+    /// 切点 = 第一个**不以 `-` 开头**的词。它要是子命令(`test` / `strip` / `ast`)就**不切** ——
+    /// 那几条没有"脚本",整行的实参都是框架的。
     ///
     /// 子命令前面那几个开关得**挪到子命令名后面**:框架不认"子命令名之前的开关",
     /// `ravel --warn test` 会被它当成"跑一个叫 test 的脚本"。挪一下对用户无关紧要。</summary>
@@ -94,7 +97,7 @@ internal static class Program
         while (i < args.Length && args[i].StartsWith('-')) i++;
 
         if (i >= args.Length) return (args, []);                   // 全是开关:没有脚本
-        if (args[i] is "test" or "strip")
+        if (args[i] is "test" or "strip" or "ast")
         {
             var leading = args[..i];
             return ([args[i], .. leading, .. args[(i + 1)..]], []);
@@ -264,4 +267,21 @@ internal sealed class StripCommand : Command<StripSettings>
 {
     public override int Execute(CommandContext context, StripSettings settings, CancellationToken cancellation)
         => Strip.Run(settings.Paths) ? 0 : 1;
+}
+
+/// <summary>转储 AST —— 和 `strip` 一样**不进解释器**:它只做"读源码、出一份树"。
+
+/// 用处是**动解析器前后各跑一遍逐字节 diff**(见 `Cli/AstDump.cs` 抬头),所以实参收的是
+/// 一摞路径而不是一个文件:一次把整个语料转出去,重定向到文件再比。</summary>
+internal sealed class AstSettings : CliSettings
+{
+    [CommandArgument(0, "<文件或目录…>")]
+    [Description("目录会递归收 *.rav")]
+    public string[] Paths { get; init; } = [];
+}
+
+internal sealed class AstCommand : Command<AstSettings>
+{
+    public override int Execute(CommandContext context, AstSettings settings, CancellationToken cancellation)
+        => AstDump.Run(settings.Paths) ? 0 : 1;
 }

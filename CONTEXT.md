@@ -27,7 +27,7 @@ dotnet out/ravel.dll --help             # 用法、每个模式的开关(和 `--
 
 **命令行怎么切**:`ravel` 自己认的开关只到**脚本名为止** —— 它之后的一个字不动,原样进
 `System.Args ()`。所以 `ravel --warn x.rav --warn` 里**前一个**是给解释器的、**后一个**是给脚本的。
-`test` / `strip` 是子命令,不是脚本,没有这一刀(它们后面全是自己的实参)。
+`test` / `strip` / `ast` 是子命令,不是脚本,没有这一刀(它们后面全是自己的实参)。
 骨架上 `Spectre.Console.Cli`(见 `Cli/Program.cs`),但这一刀是手切的:框架在**整行**认开关,
 不认识的还会静默吞掉 —— 不切的话 `ravel x.rav --foo` 里那 `--foo` 就没了。
 
@@ -188,7 +188,7 @@ Syntax/                         前端:词法 / 递归下降 / AST。**文件夹
                                 再词一遍,和原文的 token 逐个比(种类/文本/**列**/跨度;
                                 行不比 —— 空行收掉了,行号本来就往前挪,列才是不动的那个)
 Cli/                            **引擎外面那个程序**:三种跑法 + 测试运行器
-  Program.cs                    CLI 入口(REPL / test / 单文件 / strip)。骨架是
+  Program.cs                    CLI 入口(REPL / test / 单文件 / strip / ast)。骨架是
                                 `Spectre.Console.Cli` 的 `CommandApp`(照老 Ravel 那份
                                 `Program.cs`):一个模式一个 `Command` 类,`--help` /
                                 `--version` / 用法 / 开关说明全是声明式的。**但命令行得自己
@@ -198,6 +198,17 @@ Cli/                            **引擎外面那个程序**:三种跑法 + 测�
                                 REPL 本体在库里
   Strip.cs                      `ravel strip <文件或目录>` —— 就地剥注释(发布时用),
                                 **不进解释器**:这是源码加工,不跑代码
+  AstDump.cs                    `ravel ast <文件或目录>` —— 把 AST **结构转储**成文本
+                                (一个节点一行、缩进表层级、深度优先),给"动解析器前后各跑
+                                一遍、逐字节 diff"用。和 `Runtime/AstPrinter.cs` 是两件事:
+                                那个是印给**人**看一个函数长什么样的(会截断、认不得的节点
+                                退化成 `"..."`),这一份是印给 **diff** 看的。所以**走反射** ——
+                                AST 将来加了新节点种类不用回来补分支(`"..."` 那种兜底在验证
+                                用途里是致命的:改的正好是那一块的话,新旧两版印出来一模一样)。
+                                三条要留意的:**印的是 Lowering 之后的树**;golden 用例的
+                                `# --- expected ---` 那段要切掉(那是用例格式不是源码);
+                                输出**钉死 UTF-8**(不然字面量里的 `😀` 会被控制台码页换成
+                                `?`,两个不一样的树印成一样 —— 这个工具的用处就没了)
   Testing/GoldenTestRunner.cs   golden test 运行器(解析/执行/比对/汇报)
   Testing/LoopbackServer.cs     自己拿 `TcpListener` 说 HTTP,给的是**定死的字节**
 
