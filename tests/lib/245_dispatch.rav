@@ -39,17 +39,17 @@ print (paren 3)
 print (paren "看")
 
 # **顺序**:第一个命中的胜出(前面的挡后面的)
-order := (v: object) => { v |> ((x: int) => { "先"; } | (_) => { "后"; }) }
+order := (v: object) => { v |> (x: int) => { "先"; } | (_) => { "后"; } }
 print (order 9)
 
 # **延迟**:没命中的分支不跑
 Ran := 0
-lazy := (v: object) => { v |> ((x: int) => { Ran += 1; "甲"; } | _ => { "乙"; }) }
+lazy := (v: object) => { v |> (x: int) => { Ran += 1; "甲"; } | _ => { "乙"; } }
 print (lazy "看")
 print Ran
 
 # 一支都不中、又没兜底 → 当场说清(不是静默)
-none := (v: object) => { v |> ((x: int) => { "整数"; }) }
+none := (v: object) => { v |> (x: int) => { "整数"; } }
 print ((try { print (none "看"); } (e: Exception) => { "没兜底: " + e.Message; }))
 # --- expected ---
 整数

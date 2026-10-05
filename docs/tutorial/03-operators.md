@@ -335,7 +335,7 @@ x := 1
 print x
 
 g := [1 2 3]
-|> ((xs: list) => { xs.Count (); })
+|> (xs: list) => { xs.Count (); }
 print g
 ```
 

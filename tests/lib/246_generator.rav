@@ -71,7 +71,7 @@ print (Twice : IEnumerator)
 # ⑧ 交给别的库:按**模式**分派(生成器照旧是 IEnumerable)
 Tag := Generator (y: function) => { y 1; y "x"; y true; }
 foreach Tag (v: object) => {
-    print (v |> ((x: int) => { "整数"; } | (x: string) => { "字符串"; } | _ => { "别的"; }))
+    print (v |> (x: int) => { "整数"; } | (x: string) => { "字符串"; } | _ => { "别的"; })
 }
 print "end"
 # --- expected ---

@@ -421,7 +421,7 @@ Editor ::= class {
     # —— 值喂给**整条**函数。
     Jump := (k: string) => {
         Ensure ()                       # 空页先垫一行 —— 这两个入口单独调也要能用
-        k |> ("up"    => { Y -= 1; true; }
+        k |> "up"    => { Y -= 1; true; }
             | "down"  => { Y += 1; true; }
             | "left"  => { X -= 1; true; }
             | "right" => { X += 1; true; }
@@ -429,7 +429,7 @@ Editor ::= class {
             | "end"   => { GoEnd (); true; }
             | "pgup"  => { Z -= 1; X = 0; Y = 0; true; }
             | "pgdn"  => { NextPage (); true; }
-            | _       => { false; })
+            | _       => { false; }
     }
 
     GoEnd := () => { Y = (((Lines ()).Count ()) - 1); X = (Current ()).Length (); (); }
@@ -447,12 +447,12 @@ Editor ::= class {
     Edit1 := (k: string) => {
         Ensure ()                       # 同上
         cur := Current ()
-        k |> ("backspace" => { Backspace cur; true; }
+        k |> "backspace" => { Backspace cur; true; }
             | "delete"    => { DeleteAt cur; true; }
             | "enter"     => { SplitLine cur; true; }
             | "tab"       => { (Lines ()).Set Y (InsertAt cur X "    "); X += 4; true; }
             | "insert"    => { ClearPage (); true; }
-            | _           => { TypeChar k; })
+            | _           => { TypeChar k; }
     }
 
     # 退格。**在行首**就得和上一行接起来(`NeoInteractor` 那个规矩)
@@ -559,7 +559,7 @@ Editor ::= class {
     # 那几支的序号和 `Items ()` **一一对应** —— 加一条菜单项就加一支。
     # (写成嵌套 `if` 时这条对应关系看不出来,漏一支得数到最后才发现)
     Pick := (sel: int) => {
-        sel |> (0 => { Edit (); }
+        sel |> 0 => { Edit (); }
               | 1 => { RunPage (); }
               | 2 => { PlainLoop (); }
               | 3 => { LoadPage (); }
@@ -569,7 +569,7 @@ Editor ::= class {
               | 7 => { SwitchAutoTab (); }
               | 8 => { SwitchResult (); }
               | 9 => { Tutorial (); }           # 教程 —— 见下
-              | _ => { 0; })
+              | _ => { 0; }
         sel != 5;                             # 只有"退出"那一条交回 false,菜单就停了
     }
 

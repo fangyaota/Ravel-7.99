@@ -328,7 +328,7 @@ Io.CopyTo f Terminal.Stdout
 # `Io.Lines` 是**生成器**:边要边给 —— 配"按模式分派"挑行、配 `Expected` 兜"读不到"
 IsBlank := (s: string) => { (s.Trim ()).IsEmpty (); }
 foreach (Io.Lines f) (l: string) => {
-    print (l |> ((s |> IsBlank) => { "空行"; } | _ => { "有字"; }));
+    print (l |> (s |> IsBlank) => { "空行"; } | _ => { "有字"; });
 }
 
 # 读不到的文件:`Expect` 把那次调用兜住,不往外抛
