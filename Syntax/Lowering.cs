@@ -422,6 +422,12 @@ public sealed class Lowering
 
         switch (p)
         {
+            // `_`:不绑东西。**列表**那边轮不到这儿 —— "跳过"在那一串里是**走一步**
+            // (游标得往前挪),那件事只有在列表自己的循环里做得成;到这儿来的 `_`
+            // 都是**按名字取**的位置(字典那一项、对象的成员),没有游标可挪,就是"不绑"。
+            case SkipPattern:
+                return;
+
             // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
             case LiteralPattern lit:
                 var what = Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at));
@@ -464,6 +470,28 @@ public sealed class Lowering
                         Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(item.Name)), at),
                         Reject(Str($"要求成员 '{item.Name}'，可这一份上没有"), at), at), at));
                     Bind(item, Member(source, item.Name), attrs, outs);   // 同上:走那道口子
+                }
+                return;
+
+            // **字典模式**:`{"a" -> v  k -> 1}` —— **按键**取。次序和列表那条一样:
+            // 先说清"这一份得是 `dict`"(不然下面那两句报的是「类型 'Integer' 没有方法
+            // 'Has'」,用户看不出是自己的模式用错了地方),再逐项查键在不在 —— 不在是**拒收**。
+            //
+            // `Has` 查在**前**:`Get` 缺键是会**抛**的,而"抛"会穿掉 `|` 的交替。
+            // 老写法 `{x y}`(成员名)走的是另一条(`MemberPattern`):`Fields ()` + 成员访问。
+            case DictPattern dd:
+                outs.Add(ExprStmt(If(
+                    Not(new BinaryExpr(source, ":", Ident("dict", at)) { Line = at.Line, Column = at.Column }, at),
+                    Reject(Concat(at, Lit("要的是字典（按 `键 -> 模式` 拆的那种），得到 ", at),
+                                 Call(Ident("string", at), Call(Ident("typeof", at), source))), at), at), at));
+                foreach (var e in dd.Entries)
+                {
+                    var key = Lower(e.Key);
+                    var missing = Concat(at, Lit("要键 ", at), Call(Ident("string", at), key),
+                                             Lit("，可这一份上没有", at));
+                    outs.Add(ExprStmt(If(Not(Call(Member(source, "Has"), key), at),
+                        Reject(missing, at), at), at));
+                    Bind(e.Sub, Call(Member(source, "Get"), key), attrs, outs);
                 }
                 return;
 

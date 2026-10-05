@@ -154,6 +154,22 @@ public abstract record Pattern : AstNode
 /// `1.0` —— 判据得和 `==` 的**域**一样宽,不然同一个写法在模式里和在表达式里两个意思。</summary>
 public record LiteralPattern(Expression Value, Expression Domain, string Text) : Pattern;
 
+/// <summary>`{键 -> 模式}` 里的**一项**。
+///
+/// 键是一个**词**(名字 / 串 / 数 / `()` / `-1`)接 `.成员` 链 —— 而且它是**求值的**:
+/// `k -> v` 说的是"键**等于 `k` 那个值**"的那一项,不是"叫 k 的那一项"
+/// (后者是老写法 `{x y}`,那条按**成员名**走)。就差一个 `->`,所以判据也只看它。</summary>
+public record DictPatEntry(Expression Key, Pattern Sub) : AstNode;
+
+/// <summary>**字典模式**:`{"a" -> v  () -> u  k -> 112}` —— **按键**取,不按位置。
+///
+/// 和 <see cref="MemberPattern"/>(老写法 `{x y}`:按**成员名**、走 `Fields ()` + 成员访问)
+/// 是两回事 —— 这边走 `Has` / `Get`。所以一个 `{…}` 里不许混着写(混了报一句说清的)。
+///
+/// 和列表那条一个次序:先说清"这一份得是 `dict`",再逐项查键在不在 —— 不在算**拒收**
+/// (形状对不上),不是引擎硬错。`Get` 缺键是会抛的,所以查在**前**。</summary>
+public record DictPattern(List<DictPatEntry> Entries) : Pattern;
+
 /// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
 public record NamePattern(string Name) : Pattern;
 

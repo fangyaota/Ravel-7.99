@@ -589,6 +589,43 @@ public partial class Parser
             { Line = at.Line, Column = at.Column };
     }
 
+    /// <summary>`{…}` 里这一项是不是 `键 -> 模式`(字典项),而不是老写法的一个成员名。
+    ///
+    /// 只看**这一个键词**后面跟不跟 `->` —— 不往回退着重读整项,所以不会翻倍
+    /// (键是一个**词**再接 `.成员` 链,不会嵌套)。
+    ///
+    /// 光杆名字是两边的**共用**写法:`{x}` 是"成员 x"(老写法),
+    /// `{x -> v}` 是"键**等于 `x` 那个值**的那一项"(`x` 是读出来的,不是名字)——
+    /// 就差那个 `->`,所以判据也只看它。</summary>
+    private bool LooksLikeDictEntry()
+    {
+        var off = 0;
+        switch (TypeAt(off))
+        {
+            case TokenType.String or TokenType.Number or TokenType.Identifier: off++; break;
+            case TokenType.LeftParen when TypeAt(1) == TokenType.RightParen: off += 2; break;   // `()`
+            case TokenType.Minus when TypeAt(1) == TokenType.Number: off += 2; break;           // `-1`
+            default: return false;
+        }
+        while (TypeAt(off) == TokenType.Dot && TypeAt(off + 1) == TokenType.Identifier) off += 2;
+        return TypeAt(off) == TokenType.DictArrow;
+    }
+
+    /// <summary>读一个键:一个词(名字 / 串 / 数 / `()` / `-1`)接 `.成员` 链。
+    /// 它是**求值的** —— `k -> v` 里的 `k` 读的是**变量 `k` 的值**。</summary>
+    private Expression ParseDictKey()
+    {
+        var at = Peek();
+        Expression key;
+        if (Match(TokenType.Minus))
+            key = new UnaryExpr("-", ParsePrimary()) { Line = at.Line, Column = at.Column };
+        else
+            key = ParsePrimary();
+        while (Match(TokenType.Dot))
+            key = new MemberAccess(key, ParseMemberName()) { Line = at.Line, Column = at.Column };
+        return key;
+    }
+
     /// <summary>读一格模式。五种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}` / 字面量。
     ///
     /// **每一格后面可以跟 `: 类型`**(`[x: int y: string]` / `[[a b]: list c]`),嵌套的那几格
@@ -628,18 +665,37 @@ public partial class Parser
 
         if (Match(TokenType.LeftBrace))
         {
+            // `{…}` 里两种项,**不许混**(一个按成员名、一个按键,底下是两套取法):
+            //   成员名:  `{x y}`         —— `Fields ()` + 成员访问
+            //   字典项:  `{"a" -> v}`    —— `Has` / `Get`
             var names = new List<NamePattern>();
+            var entries = new List<DictPatEntry>();
             while (!Check(TokenType.RightBrace) && !IsAtEnd())
             {
-                if (Check(TokenType.Identifier) && Peek().Lexeme == "_")
-                    throw ParseError("对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行");
-                if (ParsePattern() is not NamePattern n)
-                    throw ParseError("对象模式里每一项都是一个成员名（`{x y}`；每一项也能带自己的类型：`{n: int}`）");
-                names.Add(n);
+                if (LooksLikeDictEntry())
+                {
+                    if (names.Count > 0)
+                        throw ParseError("对象成员（`{x y}`）和字典项（`{键 -> 模式}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写");
+                    var key = ParseDictKey();
+                    Consume(TokenType.DictArrow, "字典项的键后面需要 '->'");
+                    entries.Add(new DictPatEntry(key, ParsePattern()) { Line = at.Line, Column = at.Column });
+                }
+                else
+                {
+                    if (entries.Count > 0)
+                        throw ParseError("字典项（`{键 -> 模式}`）和对象成员（`{x y}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写");
+                    if (Check(TokenType.Identifier) && Peek().Lexeme == "_")
+                        throw ParseError("对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行");
+                    if (ParsePattern() is not NamePattern n)
+                        throw ParseError("对象模式里每一项是一个成员名（`{x y}`，能带类型 `{n: int}`），"
+                                       + "要么整项写成字典项（`{键 -> 模式}`）");
+                    names.Add(n);
+                }
                 SkipNewlines();
             }
-            Consume(TokenType.RightBrace, "对象模式末尾需要 '}'");
-            if (names.Count == 0) throw ParseError("对象模式里得写成员名（`{x y}`）");
+            Consume(TokenType.RightBrace, "模式末尾需要 '}'");
+            if (entries.Count > 0) return new DictPattern(entries) { Line = at.Line, Column = at.Column };
+            if (names.Count == 0) throw ParseError("模式里得写点什么（`{x y}` 或 `{键 -> 模式}`）");
             return new MemberPattern(names) { Line = at.Line, Column = at.Column };
         }
 
