@@ -355,10 +355,15 @@ Nav := (cur: string src: string) => {
         # 不然导航里就那么连着反引号显示出来。
         out.Add (Html.El "a" attrs (Inline (TitleOf ((Io.File p).Read ()))))
         if { name == cur; } {
+            # **两层都要收**。`##` 是编号分节(`4.1 if` / `4.2 while` …)、`###` 是它下面
+            # 那种描述性的小节(`实现了 IEnumerable,就白拿一整套`)。从前只收 `###`,`##` 整层
+            # 跳过 —— 导航里就只剩一串没头没尾的括号名,偏巧最像"目录"的那一层一个都不在。
             foreach (Toc src) (h: dict) => {
-                if { (h.Get "lvl") == 3; } {
+                lvl := h.Get "lvl"
+                if { (lvl == 2) || (lvl == 3); } {
                     href := "#" + (string (h.Get "id"))
-                    out.Add (Html.El "a" {"href"-> href "class"-> "sub"} (Inline (string (h.Get "text"))))
+                    cls := if { lvl == 2; } { "sub"; } { "sub2"; }
+                    out.Add (Html.El "a" {"href"-> href "class"-> cls} (Inline (string (h.Get "text"))))
                 } { 0; }
             }
         } { 0; }

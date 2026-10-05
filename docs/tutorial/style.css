@@ -53,8 +53,11 @@ nav a {
 nav a:hover { background:var(--soft); color:var(--fg); }
 nav a.on { background:var(--accent-soft); color:var(--accent);
            font-weight:600; border-left-color:var(--accent); }
+/* 两级小节:`.sub` 是编号分节(x.x)、`.sub2` 是它下面的描述性小节 —— 缩进一档一档走,
+   不然两者并排、看着像同一层的东西。 */
 nav a.sub { padding-left:28px; font-size:13px; }
-nav a.sub:hover { color:var(--fg); }
+nav a.sub2 { padding-left:44px; font-size:12.5px; }
+nav a.sub:hover, nav a.sub2:hover { color:var(--fg); }
 /* 目录里的行内代码别带底色和框 —— 那儿本来就密,一带就成了一个个色块 */
 nav code, ul.chapters code { background:none; border:0; padding:0; font-size:.92em; }
 /* 首页没有侧栏 —— 空的 `<nav>` 不占位,不然左边空出一条、正文还偏在右边 */
@@ -127,7 +130,7 @@ footer a:hover { color:var(--accent); border-color:var(--accent); text-decoratio
         display:flex; gap:6px; overflow-x:auto; max-height:none;
         padding:10px 12px; border-right:0; border-bottom:1px solid var(--line); }
   nav a { flex:0 0 auto; white-space:nowrap; border-left:0; padding:5px 10px; }
-  nav a.sub { display:none; }
+  nav a.sub, nav a.sub2 { display:none; }
   main { padding:20px 18px 64px; max-width:none; }
   header { padding:0 18px; }
   footer { padding:18px; }
