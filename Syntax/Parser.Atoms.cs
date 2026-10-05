@@ -654,8 +654,12 @@ public partial class Parser
     private Expression ParseBareLambda()
     {
         var name = Peek();
-        if (name.Lexeme == "_")
-            throw ParseError("`_` 不能当参数名（它是占位符/丢弃的记号）—— 写 `x => 体`，或者直接把洞写出来：`_ + 1`");
+        // `_ => 体` —— **通配参数**:收什么都行,不绑东西(和 `(_) => 体` 一模一样)。
+        //
+        // 从前这儿是拦住的(「`_` 不能当参数名」),因为怕"悄悄绑出一个叫 `_` 的变量"。
+        // 但**读不到它**:体里那个 `_` 一律当**洞**消糖(见 `ParsePrimary` 里 `_` 那一支),
+        // 所以绑出来也只是个占着名字的槽 —— 不会和洞混起来。既然要的是"这一支什么都收",
+        // 那 `_` 正是该写的记号。
         if (_pos > 0 && tokens[_pos - 1].Type == TokenType.Colon)
             throw ParseError("不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。"
                            + "要带类型就加括号：`(x: int) => …`");

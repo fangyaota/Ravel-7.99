@@ -41,8 +41,15 @@ print (b 5)
 calc := x => (x * 2) + 1
 print (calc 10)
 
-# ── `_` 不当参数名(它有自己的用处)──
-print ((try { eval "f := _ => 1"; } (e: Exception) => { "1: " + e.Message; }))
+# ── `_ => 体` 是**通配参数**(和 `(_) => 体` 一模一样:收什么都行、不绑东西)──
+ignore := _ => 7
+print (ignore 99)
+print (ignore [1 2])
+print (_ => 7)
+
+# 但**体里那个 `_` 仍旧是洞**(它有自己的用处)—— 所以下面这层是隐式 lambda,喂两次才出 7
+hole := _ => _ + 1
+print ((hole 5) 6)
 
 # ── 不带括号就不能带注解 ──
 print ((try { eval "f := x: int => x + 1"; } (e: Exception) => { "2: " + e.Message; }))
@@ -57,5 +64,8 @@ print ((try { eval "f := x: int => x + 1"; } (e: Exception) => { "2: " + e.Messa
 # 15
 # 15
 # 21
-# 1: `_` 不能当参数名（它是占位符/丢弃的记号）—— 写 `x => 体`，或者直接把洞写出来：`_ + 1`
+# 7
+# 7
+# <function (_: object) => { 7; }>
+# 7
 # 2: 不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。要带类型就加括号：`(x: int) => …`
