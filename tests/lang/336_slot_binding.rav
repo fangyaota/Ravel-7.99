@@ -1,0 +1,58 @@
+#
+# **模式/参数上的 `by`** —— 那个名字是**槽**,收的是一份 `property`。
+#
+# `by` 就是变量定义那张表里的一个,别的修饰符怎么摊它就怎么摊(`private [a b] := e` 那条):
+#
+#     [by x] := [p]                 # 一格是槽
+#     by [u v] := [p m]             # 每个名字都是槽(前缀那份摊下来)
+#     (by y: int) => …              # 参数是槽
+#     ([by z]) => …                 # 模式参数里那一格是槽
+#
+# 和 `by a := property …` **一个规矩**(见 `Interpreter.Nodes` 里 VarDefinition 那段):
+# `default` 换成该属性的默认值,别的值原样留着 —— 一读一写就报「标了 by，但它的值不是
+# property」(不静默);**注解管的是写进来的值**,所以对实参本身不判类型
+# (那份 property 当然不是 int)。
+#
+# 中间量(`__d` / `__g`)不吃 `by` —— 它们装的是游标/容器,不是属性
+# (见 `Lowering.TempAttrs`)。
+
+n := 0
+mk := () => { property (() => { n; }) ((v: int) => { n = v; }) }
+
+# 一格是槽:读走 getter、写走 setter
+[by x] := [(mk ())]
+print x
+x = 42
+print "${x} / ${n}"
+
+# 前缀那份摊到每个名字上
+by [u v] := [(mk ()) (mk ())]
+u = 7
+print "${u} / ${n}"
+
+# 参数是槽;注解管的是**写进来的值**
+f := (by y: int) => { y = y + 1; y; }
+print (f (mk ()))
+print n
+
+# 模式参数里那一格
+g := ([by z]) => { z = 100; z; }
+print (g [(mk ())])
+print n
+
+# 不是 property 的:当场报,名字是真名字(不是合成的 `__d…`)
+print (try { [by bad] := [5]; bad; } (e: Exception) => { e.Message; })
+
+# 签名照写的印
+print f
+
+# --- expected ---
+# 0
+# 42 / 42
+# 7 / 7
+# 8
+# 8
+# 100
+# 100
+# 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
+# <function (by y: int) => { y = y + 1; y; }>

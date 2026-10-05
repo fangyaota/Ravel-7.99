@@ -379,7 +379,7 @@ public sealed class Lowering
             // **注解不挂在这儿** —— 类型一律由 `Bind` 入口那道检查管(`:` + 拒收)。
             // 挂成"带注解的定义"的话,顶层和里面那几格会用两套判据、两句报错。
             var t = Fresh("__d");
-            outs.Add(Define(t, null, value, attrs, d));
+            outs.Add(Define(t, null, value, TempAttrs(attrs), d));
             source = Ident(t, d);
         }
 
@@ -585,7 +585,7 @@ public sealed class Lowering
 
                 var g = Fresh("__g");
                 var gid = Ident(g, at);
-                outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), eff, at));
+                outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), TempAttrs(eff), at));
 
                 // **零格**(`[]`):要求它是**空的** —— 走一步还有东西就拒收。
                 // (`Some` / `None` 分派靠这条收尾:`[v]` 认有值那半,`[]` 认空那半。)
@@ -620,7 +620,7 @@ public sealed class Lowering
                         {
                             // 嵌套:先落到一个中间量上,再拿它当下一次解构的源
                             var t = Fresh("__d");
-                            outs.Add(Define(t, null, Member(gid, "Current"), eff, at));
+                            outs.Add(Define(t, null, Member(gid, "Current"), TempAttrs(eff), at));
                             Bind(part, Ident(t, at), eff, outs);
                             break;
                         }
@@ -674,12 +674,41 @@ public sealed class Lowering
     private MemberAccess Member(Expression obj, string name)
         => new(obj, name) { Line = obj.Line, Column = obj.Column };
 
+    /// <summary>造中间量(`__d` / `__g`)时用的 attrs:**把 `by` 摘掉**。
+    ///
+    /// 中间量装的是**游标、容器**那种东西(`GetEnumerator ()` 的结果、右边那个值本身),
+    /// 不是属性 —— 摊上 `by` 就成了"标了 by 却不是 property",一读就报,而且报的名字是
+    /// 合成的 `__d…`(用户压根没写过这个名字)。别的修饰符照旧摊上去(`readonly` 无所谓,
+    /// 没人会给中间量赋值),反正那些名字用户写不出来。
+    ///
+    /// 于是 `by [u v] := [p m]` 成立:`u` / `v` 各是一个槽,中间的游标照旧是普通变量。</summary>
+    private static List<string>? TempAttrs(List<string>? attrs)
+    {
+        if (attrs is null || !attrs.Contains(Attr.By)) return attrs;
+        var rest = attrs.Where(a => a != Attr.By).ToList();
+        // 摘空了要给 `null`,不是空表 —— 转储里两者印出来不一样(`Attrs:` 空着一行),
+        // `ast` 的往返自检当场逮到(实测:原 `Attrs:` / 新没有这行)。
+        return rest.Count > 0 ? rest : null;
+    }
+
     /// <summary>零参调用:`x.MoveNext ()` —— 实参是 `()`(Void)。</summary>
     private static CallExpr Call0(Expression f)
         => Call(f, new VoidLiteral { Line = f.Line, Column = f.Column });
 
+    /// <summary>造一条"绑个名字"的语句。
+    ///
+    /// **光一个 `by` 的走 `SlotAssign`,不走 `VarDefinition`** —— 两者**印出来是同一行**
+    /// (`by x := v`),而解析器把它读成 `SlotAssign`(见 `Parser.Statements` 里那句
+    /// `attrs.Count == 1 && attrs.Contains(Attr.By) && IsSlotAssignStart()`)。不认这一格的话
+    /// 打印出来的源码再解析就是**另一棵树** —— `ast` 的自检当场逮到(`[by x] := …` 实测)。
+    /// 语义也对得上:裸 `by` 就是"建槽"那条路,和手写 `by x := …` 一个意思。
+    ///
+    /// 混着别的修饰符(`readonly by x`)或带注解(`by x: int = v`)时解析器本来就走
+    /// `ParseDefinition`,照旧是 `VarDefinition`。</summary>
     private static Statement Define(string name, Expression? type, Expression value, List<string>? attrs, AstNode at)
-        => new VarDefinition(name, type, value, attrs) { Line = at.Line, Column = at.Column };
+        => attrs is [Attr.By] && type is null
+            ? new SlotAssign(Ident(name, at), value, Define: true) { Line = at.Line, Column = at.Column }
+            : new VarDefinition(name, type, value, attrs) { Line = at.Line, Column = at.Column };
 
     private static Statement ExprStmt(Expression e, AstNode at)
         => new ExpressionStatement(e) { Line = at.Line, Column = at.Column };

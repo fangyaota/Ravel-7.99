@@ -16,7 +16,13 @@ public partial class Interpreter
                     _top = sink.WithResult(cf.Accumulate(arg));
                 break;
             case LambdaVal lam:
-                if (!Accepts(arg, lam.ParamType))
+                // **`by` 参数收的是一份 property**(`(by x) => …`),和变量定义那条路一个规矩
+                // (见 `Interpreter.Nodes` 里 VarDefinition 那段):`default` 换成该属性的默认值、
+                // 别的原样留着(第一次读写时报"值不是属性"),**注解管的是写进来的值** ——
+                // 所以对实参本身不判类型(`by a: int = property …` 里那份 property 当然不是 int)。
+                var isBy = lam.ParamAttrs?.Contains(Attr.By) ?? false;
+                if (isBy) arg = SlotValue(arg);
+                else if (!Accepts(arg, lam.ParamType))
                     // **模式参数按模式说** —— 它的名字是合成的(`__p3f9c2_0`),印出来等于
                     // 什么都没说;印模式本人(`1` / `([x y])`)才说得清是哪个参数。
                     throw new TypeMismatchException(lam.ParamPattern is { } pat

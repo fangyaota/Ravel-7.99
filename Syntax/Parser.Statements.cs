@@ -513,11 +513,11 @@ public partial class Parser
     {
         var at = Peek();
 
-        // `by` 是"换掉一份槽",解构拆出来的是一串**新名字** —— 两件事凑不到一起,
-        // 混着写会在别处报一句看不懂的。这儿说清。
-        if (attrs.Contains(Attr.By))
-            throw ParseError("解构定义不能用 'by' —— 它拆出来的是一串新名字，不是槽");
-
+        // `by` 在这儿和别处一个意思:**那一格的值是一份 property,名字就成了槽**。
+        // (从前这儿拦着"by 是换槽、解构拆的是一串新名字"—— 那句把 `by` 的两个形态
+        //  `by a = X`(**换**槽)和 `by a := X` / `by a: int = X`(**建**槽)混成了一件事;
+        //  解构走的正是建槽那条,和变量定义一个待遇。修饰符照旧摊到每个名字上。)
+        //
         // 类型由 `ParsePattern` 自己吃(写在**模式那一格**上)—— 所以 `[x y] : list` 和
         // `[x: int y: string]` 是同一条路:`:` 挂到哪一格,就是哪一格的事。
         var pattern = ParsePattern();

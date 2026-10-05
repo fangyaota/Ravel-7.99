@@ -117,8 +117,9 @@ print ((try { eval "[] := [1]"; } (e: Exception) => { "3: " + e.Message; }))
 print ((try { eval "{} := 1"; } (e: Exception) => { "4: " + e.Message; }))
 # 对象模式里没有 `_` 这一格(不要的成员别写出来就行)
 print ((try { eval "{_ x} := 1"; } (e: Exception) => { "5: " + e.Message; }))
-# `by` 是换槽的,和解构凑不到一起
-print ((try { eval "by [x y] := [1 2]"; } (e: Exception) => { "6: " + e.Message; }))
+# `by` 就是变量定义那张表里的一个:那一格的值该是**一份 property**,名字才是槽 ——
+# 不是就**当场报**(和 `by bad := 5` 一个口径,不是定义时就拦)
+print ((try { eval "by [x y] := [1 2]\nprint x"; } (e: Exception) => { "6: " + e.Message; }))
 # 序列比模式短:报的是底层那条越界(位置指得到)
 print ((try { [z1 z2 z3] := [1 2]; } (e: Exception) => { "7: " + e.Message; }))
 # `.._` 不行:`_` 是丢弃/占位的记号,不是名字
@@ -163,7 +164,7 @@ print (g1 + h1)"
 # 3: 要的是空的，可这一串还有东西
 # 4: 模式里得写点什么（`{x y}` 或 `{键 -> 模式}`）
 # 5: 对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行
-# 6: 解构定义不能用 'by' —— 它拆出来的是一串新名字，不是槽
+# 6: 'x' 标了 by，但它的值不是 property（Integer 上没有 getter）
 # 7: 要第 3 格，可这一串已经到底了
 # 8: '..' 后面要一个真名字 —— `_` 是丢弃/占位的记号，当不了名字
 # 3

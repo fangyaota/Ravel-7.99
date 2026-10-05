@@ -216,8 +216,10 @@ public partial class Parser
     /// `private` 是**名字**。少了这条判据,`(private x: int)` 会**静默**读成两个参数、
     /// `[private x]` 读成两格 —— 这门语言最恨的那种静默。
     ///
-    /// `by` **不收**:它修饰的是**槽**,而这里声明的是新名字。放过去的话
-    /// `([by x]) => …` 会一路走到 `VarDefinition` 的 `by` 那条路,悄悄把 `x` 变成一个槽。</summary>
+    /// **`by` 也在内**:它就是变量定义那张表里的一个,收的是一份 `property`
+    /// (`by x := property …` 那条路),模式/参数上一样 —— 见 `Interpreter.Call` 的
+    /// `CallInto`(参数那儿现取 `SlotValue`)和 `Lowering.Bind`(拆出来的名字走
+    /// `VarDefinition`,那边本来就认)。</summary>
     private List<string>? CollectModifiers()
     {
         var attrs = new List<string>();
@@ -230,8 +232,6 @@ public partial class Parser
             if (!StartsBindingAt(0)) { _pos = save; break; }
             attrs.Add(word);
         }
-        if (attrs.Contains(Attr.By))
-            throw ParseError("'by' 在这儿没有意思 —— 它修饰的是**槽**，而这里声明的是新名字");
         return attrs.Count > 0 ? attrs : null;
     }
 
