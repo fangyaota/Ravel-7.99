@@ -192,10 +192,10 @@ public partial class Parser
         => Check(TokenType.Identifier) || StartsParamGroup(0) || IsLiteralStart()
         || Check(TokenType.LeftParen);
 
-    /// <summary>模式参数取合成名用(`__p{n}`)。它是 **lambda 的参数**,作用域只在那个
-    /// lambda 里,所以每次解析从 0 数就够 —— 而且它会出现在**打印出来的函数体**里,
-    /// 从 0 数输出才可复现(和 `__g{n}` 那种落在用户作用域里的不一样)。</summary>
-    private int _paramCount;
+    /// <summary>模式参数取合成名(`__p…` —— 形状和理由见 <see cref="TempNames"/>)。
+    /// 它是 **lambda 的参数**,作用域只在那个 lambda 里;不过名字照样掺进文件名标签 ——
+    /// 它会出现在**打印出来的函数体**里,统一一个规矩比"这里特殊"好记。</summary>
+    private string FreshParam() => TempNames.Next("__p", source);
 
     /// <summary>合成一个 `object` 注解节点 —— 省了注解的参数、`do` 的绑定、占位符消糖
     /// 都用它:那些地方只知道"有东西来了",标不出更细的类型。</summary>
@@ -379,7 +379,7 @@ public partial class Parser
                 {
                     // 类型写在模式**自己那一格**上(`([x y] : list) => …` 里那个 `:` 挂最外那格),
                     // 由 `ParsePattern` 吃 —— 这儿不用另立一条。
-                    @params.Add(new Parameter("__p" + _paramCount++, ObjectType(at), ParsePattern()));
+                    @params.Add(new Parameter(FreshParam(), ObjectType(at), ParsePattern()));
                     SkipNewlines();
                     if (!StartsParam()) break;               // 到 ')' 了
                     continue;
@@ -681,7 +681,7 @@ public partial class Parser
         Consume(TokenType.Arrow, "模式后需要 '=>'");
         var arrow = Previous();
         var body = ParseUserLambdaBody("lambda 体", arrow);
-        return new LambdaExpr(new Parameter("__p" + _paramCount++, ObjectType(at), pattern), body)
+        return new LambdaExpr(new Parameter(FreshParam(), ObjectType(at), pattern), body)
             { Line = at.Line, Column = at.Column };
     }
 
