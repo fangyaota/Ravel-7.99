@@ -422,6 +422,21 @@ public sealed class Lowering
 
         switch (p)
         {
+            // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
+            case LiteralPattern lit:
+                var what = Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at));
+                var got = Call(Ident("string", at), source);
+                var sameKind = new BinaryExpr(source, ":", Lower(lit.Domain))
+                    { Line = at.Line, Column = at.Column };
+                outs.Add(ExprStmt(If(Not(sameKind, at),
+                    Reject(Concat(at, what, Lit("，得到 ", at), got,
+                                 Lit("（", at), ValueType(source, at), Lit("）", at)), at), at), at));
+                var eq = new BinaryExpr(source, "==", Lower(lit.Value))
+                    { Line = at.Line, Column = at.Column };
+                outs.Add(ExprStmt(If(Not(eq, at),
+                    Reject(Concat(at, what, Lit("，得到 ", at), got), at), at), at));
+                return;
+
             case NamePattern n:
                 outs.Add(Define(n.Name, null, source, attrs, at));
                 CheckGuard(n, n.Name, Ident(n.Name, at), outs);

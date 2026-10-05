@@ -151,9 +151,9 @@ public partial class Parser
     private bool StartsParamGroup(int off)
         => TypeAt(off) is TokenType.LeftBracket or TokenType.LeftBrace;
 
-    /// <summary>参数表还能再收一项吗(名字或模式)。</summary>
+    /// <summary>参数表还能再收一项吗(名字 / 模式 / 字面量)。</summary>
     private bool StartsParam()
-        => Check(TokenType.Identifier) || StartsParamGroup(0);
+        => Check(TokenType.Identifier) || StartsParamGroup(0) || IsLiteralStart();
 
     /// <summary>模式参数取合成名用(`__p{n}`)。它是 **lambda 的参数**,作用域只在那个
     /// lambda 里,所以每次解析从 0 数就够 —— 而且它会出现在**打印出来的函数体**里,
@@ -322,10 +322,15 @@ public partial class Parser
                 var at = Peek();
                 var saveAt = _pos;
 
-                // **模式参数**:`([x y]) => …` / `({a b}) => …` —— 整个参数按形状拆。
-                // 参数本身没有名字(名字在模式里),所以取一个**合成名**;拆法归 `Lowering`。
+                // **模式参数**:`([x y]) => …` / `({a b}) => …` / `(1) => …` / `(()) => …` ——
+                // 整个参数按形状拆。参数本身没有名字(名字在模式里,字面量那格连名字都没有),
+                // 所以取一个**合成名**;拆法归 `Lowering`。
+                //
+                // 字面量也算进来,于是 `(1) => … | (_) => …` 这种按**值**分派能写。
+                // **`() => {…}` 不受影响** —— 空参数表在 `ParseParen` 最开头就返回了,
+                // 根本走不到这儿(`()` 当字面量只在**模式里**)。
                 // **不能带注解** —— 形状本身就是它对实参的要求(要更严就在体里再过一手)。
-                if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
+                if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace) || IsLiteralStart())
                 {
                     // 类型写在模式**自己那一格**上(`([x y] : list) => …` 里那个 `:` 挂最外那格),
                     // 由 `ParsePattern` 吃 —— 这儿不用另立一条。

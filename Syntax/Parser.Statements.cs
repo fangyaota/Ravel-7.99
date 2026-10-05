@@ -542,9 +542,54 @@ public partial class Parser
         || Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace)
         || Check(TokenType.RightBracket) || Check(TokenType.RightBrace)
         || Check(TokenType.PipeInto)               // `|>` 归 ParsePattern —— 别读进条件里
+        || Check(TokenType.Number) || Check(TokenType.String)              // 字面量的下一格
+        || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // 只认 `()`,
+                                                                               // `(f x)` 还是条件
         || Check(TokenType.Newline) || IsAtEnd();
 
-    /// <summary>读一格模式。四种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}`。
+    /// <summary>这一格是不是**字面量**开头的(`1` / `""` / `()` / `true` / `false`)。
+    ///
+    /// 判据里**不带** `-`:参数表那头不认 `(-1) => …`(`LooksLikeLambdaParams` 拦着),
+    /// 而模式的**一格**开头放不出二元运算符 —— 所以 `-` 由 <see cref="ParsePatternBare"/>
+    /// 自己收,不进这个判据(`StartsParam` 要用它,那儿多半收不得)。</summary>
+    private bool IsLiteralStart()
+        => Check(TokenType.Number) || Check(TokenType.String)
+        || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // `()`,不是 `(f x)`
+        || (Check(TokenType.Identifier) && Peek().Lexeme is "true" or "false");
+
+    /// <summary>读一格字面量。**那一族在解析期就定下来**(<see cref="LiteralPattern.Domain"/>):
+    /// 数字 → `INumber`(五个数字类型共用一套 `==`,`1 == 1.0` 为真)、串 → `string`、
+    /// `()` → `void`、`true` / `false` → `bool`。
+    ///
+    /// 为什么非得在解析期定:降糖要拿它先过一道 `:`,而"这一格是数字吗"在运行期没有
+    /// 现成的名字可问(数字几个类型是**兄弟**,没有共同的类;`INumber` 是那个接口)。</summary>
+    private Pattern ParseLiteralPattern()
+    {
+        var at = Peek();
+        var neg = Match(TokenType.Minus);
+        var kind = Peek().Type;
+        var raw = Peek().Lexeme;
+        var lit = ParsePrimary();
+
+        var text = kind switch
+        {
+            TokenType.LeftParen => "()",
+            TokenType.String => "\"" + raw + "\"",     // 词法存的是**解码后**的值,引号自己补
+            _ => (neg ? "-" : "") + raw,
+        };
+        var domain = kind switch
+        {
+            TokenType.String => "string",
+            TokenType.LeftParen => "void",
+            TokenType.Identifier => "bool",              // `true` / `false`
+            _ => "INumber",
+        };
+        var value = neg ? new UnaryExpr("-", lit) { Line = at.Line, Column = at.Column } : lit;
+        return new LiteralPattern(value, new IdentifierExpr(domain) { Line = at.Line, Column = at.Column }, text)
+            { Line = at.Line, Column = at.Column };
+    }
+
+    /// <summary>读一格模式。五种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}` / 字面量。
     ///
     /// **每一格后面可以跟 `: 类型`**(`[x: int y: string]` / `[[a b]: list c]`),嵌套的那几格
     /// 也能写 —— 判据和 `x : int = v` 是**同一个**,绑的时候当场验,对不上就是 `TypeError`,
@@ -608,8 +653,14 @@ public partial class Parser
             return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
         }
 
+        // **字面量那一格**:`[1 v]` / `["ok" v]` / `[() x]` / `[true x]` —— 要求这一格等于它。
+        // 开头的 `-` 只可能是负号(`[-1 v]`):一格的**开头**放不出二元运算符,没歧义。
+        // (`[x -1]` 仍旧读成条件 `x - 1` —— 那儿 `-` 在**中间**,是二元,和从前一样。)
+        if (IsLiteralStart() || Check(TokenType.Minus))
+            return ParseLiteralPattern();
+
         var saveAt = _pos;
-        var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、还是 `..名字`");
+        var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、`..名字`、还是一个字面量（`1` / `\"看\"` / `()` / `true`）");
         if (name.Lexeme == "_")
         {
             // `_` 什么都不绑,所以它**挂不了任何东西**:`: 类型` 和 `|> 条件` 都是"对着

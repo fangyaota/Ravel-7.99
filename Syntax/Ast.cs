@@ -140,6 +140,20 @@ public abstract record Pattern : AstNode
     public Expression? When { get; init; }
 }
 
+/// <summary>**字面量那一格**:`[1 v]` / `["ok" v]` / `[() x]` / `[true x]` ——
+/// 要求这一格**等于**那个字面量。它不绑名字(没名字可写),所以名字式条件和整体那个 `|>`
+/// 在这儿都用不上,它自己就是全部。
+///
+/// 降糖成**两道**,不是一道:`==` 是**按左操作数分派**的,右边跨了族它是**抛**
+/// (`1 == true` → 「运算符 '==' 不支持 Bool 操作数」),而"抛"会穿掉 `|` 的交替
+/// (那台机器只接拒收)。所以先用 <see cref="Domain"/> 过一道 `:` —— `:` 对不上只回
+/// false,不抛 —— 过了才敢比。<see cref="Text"/> 是写出来的原文(`1` / `"a"` / `()`),
+/// 给报错用。
+///
+/// 数字那一族的判据是 `INumber` 而不是 `int`:`1 == 1.0` 本来就为真,所以 `[1 v]` 收
+/// `1.0` —— 判据得和 `==` 的**域**一样宽,不然同一个写法在模式里和在表达式里两个意思。</summary>
+public record LiteralPattern(Expression Value, Expression Domain, string Text) : Pattern;
+
 /// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
 public record NamePattern(string Name) : Pattern;
 
