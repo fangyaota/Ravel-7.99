@@ -2,7 +2,8 @@
 # Ravel 的构建脚本 —— 把 CONTEXT.md「编译运行」那几步收成一条命令。
 #
 #     bash build.sh              发布到 out/,再跑全量测试
-#     bash build.sh --warn       顺带再跑一遍 `--warn test`(逮"少给一块"那种静默失败)
+#     bash build.sh --warn       测试那趟带 `--warn` 跑(逮"少给一块"那种静默失败;
+#                                **同一套用例**,所以不另跑一趟普通的)
 #     bash build.sh --rebuild    顺带做一次 -t:Rebuild,有 C# 警告就当场红
 #     bash build.sh --no-test    只发布
 #     bash build.sh --release    用 Release 配置(默认 Debug)
@@ -114,13 +115,15 @@ fi
 
 if [ "$run_test" = 1 ]; then
     echo
-    echo "== 全量测试 =="
-    DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll test $test_args
-
+    # `--warn` 那趟是**同一套用例**的超集 —— 只是顺带报"少给一块"那种静默失败
+    # (见 diag/264_warn_forgot_call.rav)。所以开了 `--warn` 就**只跑这一趟**:
+    # 跑两遍要多等整整一轮(125 个用例、光进程启动就 ~44 秒)。
     if [ "$run_warn" = 1 ]; then
-        echo
-        echo '== --warn test(逮「少给一块」那种静默失败) =='
-        DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll --warn test
+        echo '== 全量测试(--warn:顺带逮「少给一块」那种静默失败) =='
+        DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll --warn test $test_args
+    else
+        echo "== 全量测试 =="
+        DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll test $test_args
     fi
 fi
 
