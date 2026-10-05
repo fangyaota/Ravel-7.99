@@ -59,6 +59,26 @@ public sealed class Lowering
     private static string FreshTemp(string prefix)
         => prefix + Interlocked.Increment(ref _tempSeq);
 
+    private static StringLiteral Lit(string s, AstNode at) => new(s) { Line = at.Line, Column = at.Column };
+
+    /// <summary>把几段拼成一串 `+`(字面量和求出来的东西混着接)。</summary>
+    private static Expression Concat(AstNode at, params Expression[] parts)
+    {
+        var e = parts[0];
+        for (var i = 1; i < parts.Length; i++)
+            e = new BinaryExpr(e, "+", parts[i]) { Line = at.Line, Column = at.Column };
+        return e;
+    }
+
+    /// <summary>一个**类型表达式**的名字 —— 报错里说"要的是 List"用。
+    /// 直接 `string` 它(注解求出来就是类型对象;`typeof` 一道反而得到"Type")。</summary>
+    private static Expression TypeName(Expression type, AstNode at)
+        => Call(Ident("string", at), type);
+
+    /// <summary>一个**值**的类型名(`string (typeof v)`)—— 报错里说"得到 Integer"用。</summary>
+    private static Expression ValueType(Expression v, AstNode at)
+        => Call(Ident("string", at), Call(Ident("typeof", at), v));
+
     /// <summary>报错时要写进 `SourceSpot` 的文件名。取不到(插值片段)就 null
     /// —— `ErrorReport` 那边认这个。</summary>
     private readonly string? _source;
@@ -331,23 +351,24 @@ public sealed class Lowering
         var outs = new List<Statement>();
         List<string>? attrs = d.HasAttrs ? d.Attrs : null;
         var value = Lower(d.Value);
-        var type = d.TypeAnnotation is null ? null : Lower(d.TypeAnnotation);
+        var pattern = d.Pattern;
 
-        // 落地条件两条:
-        //   * 写了 `: T` —— 那条注解管的是右边那个值,得有地方挂它;
-        //   * 右边不是现成的名字 —— 拆的时候它要被**读好几遍**(对象模式每个成员读一次;
-        //     列表模式"是不是序列"判一次、`GetEnumerator` 再取一次),不落地的话
-        //     `[x y] := f ()` 会把 `f` 跑几遍。
-        var needTemp = type is not null || value is not IdentifierExpr;
+        // 落地(造一个中间量 `__d{n}`)两个理由:
+        //   * 这一格自己带了类型(`[x y] : list`)—— 那条注解得有地方挂,挂上去就当场验;
+        //   * 右边不是现成的名字 —— 拆的时候它要被**读好几遍**(对象模式每个成员一次;
+        //     列表模式判"是不是序列"一次、`GetEnumerator` 再一次),不落地会把右边跑几遍。
+        var needTemp = pattern.Type is not null || value is not IdentifierExpr;
         var source = value;
         if (needTemp)
         {
+            // **注解不挂在这儿** —— 类型一律由 `Bind` 入口那道检查管(`:` + 拒收)。
+            // 挂成"带注解的定义"的话,顶层和里面那几格会用两套判据、两句报错。
             var t = FreshTemp("__d");
-            outs.Add(Define(t, type, value, attrs, d));
+            outs.Add(Define(t, null, value, attrs, d));
             source = Ident(t, d);
         }
 
-        Bind(d.Pattern, source, attrs, outs);
+        Bind(pattern, source, attrs, outs);
         return outs;
     }
 
@@ -369,6 +390,24 @@ public sealed class Lowering
     {
         var at = p;
 
+        // **这一格自己带了类型**(`[x: int]` / `{n: int}` / `[[a b]: list]`):当场验,不成**拒收**。
+        //
+        // 为什么不是"给它挂个带注解的定义(`x : int = v`)让引擎去验":那条路的错误是
+        // **体里异步**抛出来的,而 `|` 的交替只认**调用那一刻同步**抛的类型错
+        // (`StepAlternate` 的 C# `catch`)+ 异步的 `RejectedException`(`ResumeAlternate`)。
+        // 用拒收就和别的形状检查一条路,`|` 接得住 —— 参数模式当"分派头一格"就靠这条。
+        //
+        // 判据用的是 `:`(不是注解那套"能转就转"):模式说的是**形状**,`[a: float] := [1]`
+        // 该说"不是 float",而不是悄悄转成 1.0。
+        if (p.Type is { } want)
+        {
+            var isType = new BinaryExpr(source, ":", Lower(want)) { Line = at.Line, Column = at.Column };
+            var msg = Concat(at, Lit("这一格要的是 ", at), TypeName(Lower(want), at),
+                                 Lit("，得到 ", at), ValueType(source, at));
+            outs.Add(ExprStmt(If(Not(isType, at), Reject(msg, at), at), at));
+            p = p with { Type = null };                  // 验过了,下面按形状拆
+        }
+
         switch (p)
         {
             case NamePattern n:
@@ -389,13 +428,13 @@ public sealed class Lowering
                 return;
 
             case MemberPattern m:
-                foreach (var name in m.Names)
+                foreach (var item in m.Names)
                 {
                     // 成员不在这一份上 —— 也是"形状对不上",不是引擎的硬错
                     outs.Add(ExprStmt(If(
-                        Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(name)), at),
-                        Reject(Str($"要求成员 '{name}'，可这一份上没有"), at), at), at));
-                    outs.Add(Define(name, null, Member(source, name), attrs, at));
+                        Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(item.Name)), at),
+                        Reject(Str($"要求成员 '{item.Name}'，可这一份上没有"), at), at), at));
+                    Bind(item, Member(source, item.Name), attrs, outs);   // 同上:走那道口子
                 }
                 return;
 
@@ -434,7 +473,8 @@ public sealed class Lowering
                         case SkipPattern:
                             break;                       // 走了这一步就是"跳过",没有别的
                         case NamePattern n:
-                            outs.Add(Define(n.Name, null, Member(gid, "Current"), attrs, at));
+                            // **走 `Bind` 那道口子**(不是就地 Define)—— 类型检查在它的入口
+                            Bind(n, Member(gid, "Current"), attrs, outs);
                             break;
                         default:
                         {

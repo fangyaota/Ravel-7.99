@@ -97,16 +97,27 @@ public record DoExpr(List<Statement> Statements) : Expression;
 ///
 /// `Attrs` 是前面那圈修饰符(`private` / `readonly` …),**每个拆出来的绑定都带一份**
 /// —— `private [x y] : T = e` 拆出来的是两个私有成员。
-/// `TypeAnnotation` 管的是**右边那个值**(和 `x : T = v` 一个意思),可省。</summary>
-public record Destructure(List<string> Attrs, Pattern Pattern, Expression? TypeAnnotation, Expression Value) : Statement
+/// 类型写在**模式自己身上**(见 <see cref="Pattern.Type"/>):`[x y] : T = e` 里那个 `:` 挂的
+/// 就是最外那格 —— 说的还是"右边那个值"。</summary>
+public record Destructure(List<string> Attrs, Pattern Pattern, Expression Value) : Statement
 {
     /// <summary>有没有写修饰符(拆的中间量要不要跟着带一份)。</summary>
     public bool HasAttrs => Attrs.Count > 0;
 }
 
 /// <summary>解构模式的**一格**。纯语法,没有求值语义 —— 活在 `Destructure` 和
-/// 带模式的参数(<see cref="Parameter.Pattern"/>)里。</summary>
-public abstract record Pattern : AstNode;
+/// 带模式的参数(<see cref="Parameter.Pattern"/>)里。
+///
+/// `Type` 是**这一格自己**的类型要求(可省):`[x: int y: string]` / `{n: int}`,
+/// 连嵌套的那几格也能写(`[[a b]: list c]`)。它和 `x : int = v` 是**同一个判据** ——
+/// 绑的时候当场验,对不上就是 `TypeError`,所以 `|` 的交替接得住(和形状检查一条路)。
+///
+/// **一整条一个注解是它顶层的特例**:`[x y] : list = e` 里那个 `:` 挂在最外那格模式上,
+/// 说的还是"右边那个值得是 list"。不再有"另存一处"的说法。</summary>
+public abstract record Pattern : AstNode
+{
+    public Expression? Type { get; init; }
+}
 
 /// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
 public record NamePattern(string Name) : Pattern;
@@ -124,8 +135,9 @@ public record RestPattern(string Name) : Pattern;
 /// <summary>`[p0 p1 …]` —— **按位置**取:挨个 `MoveNext` + `Current`。</summary>
 public record ListPattern(List<Pattern> Parts) : Pattern;
 
-/// <summary>`{x y z}` —— 从**对象**上取同名成员(`x := obj.x`)。</summary>
-public record MemberPattern(List<string> Names) : Pattern;
+/// <summary>`{x y z}` —— 从**对象**上取同名成员(`x := obj.x`)。每一项用 `NamePattern`
+/// 装(这样每一项能各自带 `: 类型`,和列表模式那边对称)。</summary>
+public record MemberPattern(List<NamePattern> Names) : Pattern;
 
 // --- 表达式 ---
 public abstract record Expression : AstNode;

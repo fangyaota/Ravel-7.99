@@ -327,10 +327,9 @@ public partial class Parser
                 // **不能带注解** —— 形状本身就是它对实参的要求(要更严就在体里再过一手)。
                 if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
                 {
-                    var pat = ParsePattern();
-                    if (Check(TokenType.Colon))
-                        throw ParseError("模式参数不能再带类型注解 —— 形状本身就是它的要求（`([x y]) => …`）");
-                    @params.Add(new Parameter("__p" + _paramCount++, ObjectType(at), pat));
+                    // 类型写在模式**自己那一格**上(`([x y] : list) => …` 里那个 `:` 挂最外那格),
+                    // 由 `ParsePattern` 吃 —— 这儿不用另立一条。
+                    @params.Add(new Parameter("__p" + _paramCount++, ObjectType(at), ParsePattern()));
                     SkipNewlines();
                     if (!StartsParam()) break;               // 到 ')' 了
                     continue;

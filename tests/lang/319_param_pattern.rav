@@ -65,8 +65,16 @@ print ((try { f 5; } (e: Exception) => { "1: " + e.Message; }))
 print ((try { f [1]; } (e: Exception) => { "2: " + e.Message; }))
 print ((try { g 5; } (e: Exception) => { "3: " + e.Message; }))
 
-# ── 边界:模式参数不能带注解 ──
-print ((try { eval "z := ([x y] : list) => { x; }"; } (e: Exception) => { "4: " + e.Message; }))
+# ── 参数上也能带类型:它挂在**模式那一格**上,和 `[x: int]` 一条路 ──
+z := ([x y] : list) => { x + y; } | (_) => { "不是一对 list"; }
+print (z [1 2])
+print (z 5)
+print (z "ab")          # 字符串也能解成两格,但 `: list` 挡住 → 下一支
+
+# ── 每一格各自的类型(`: int` 那些也是一样,不成 → 拒收 → 下一支)──
+w := ([x: int y: int]) => { x + y; } | (_) => { "不是两个 int"; }
+print (w [1 2])
+print (w [1 "a"])
 # --- expected ---
 # 7
 # 30
@@ -84,4 +92,8 @@ print ((try { eval "z := ([x y] : list) => { x; }"; } (e: Exception) => { "4: " 
 # 1: 要的是能按顺序取的东西（list / set / dict / 字符串 / Generator…），得到 Integer
 # 2: 要第 2 格，可这一串已经到底了
 # 3: 要求成员 'px'，可这一份上没有
-# 4: 模式参数不能再带类型注解 —— 形状本身就是它的要求（`([x y]) => …`）
+# 3
+# 不是一对 list
+# 不是一对 list
+# 3
+# 不是两个 int

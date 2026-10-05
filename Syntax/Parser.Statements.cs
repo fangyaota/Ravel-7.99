@@ -485,10 +485,9 @@ public partial class Parser
         if (attrs.Contains(Attr.By))
             throw ParseError("解构定义不能用 'by' —— 它拆出来的是一串新名字，不是槽");
 
+        // 类型由 `ParsePattern` 自己吃(写在**模式那一格**上)—— 所以 `[x y] : list` 和
+        // `[x: int y: string]` 是同一条路:`:` 挂到哪一格,就是哪一格的事。
         var pattern = ParsePattern();
-
-        Expression? type = null;
-        if (Match(TokenType.Colon)) type = ParseTypeAnnotation();
 
         if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
             throw ParseError("解构定义需要 '=' 或 ':='（`[x y] : T = e` / `[x y] := e`）");
@@ -498,11 +497,24 @@ public partial class Parser
         SkipNewlines();
         if (HasHoles(value)) value = DesugarHoles(value);
 
-        return new Destructure(attrs, pattern, type, value) { Line = at.Line, Column = at.Column };
+        return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>读一格模式。四种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}`。</summary>
+    /// <summary>读一格模式。四种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}`。
+    ///
+    /// **每一格后面可以跟 `: 类型`**(`[x: int y: string]` / `[[a b]: list c]`),嵌套的那几格
+    /// 也能写 —— 判据和 `x : int = v` 是**同一个**,绑的时候当场验,对不上就是 `TypeError`,
+    /// 所以 `|` 的交替接得住(和解构的形状检查一条路)。</summary>
     private Pattern ParsePattern()
+    {
+        var p = ParsePatternBare();
+        if (Match(TokenType.Colon))
+            p = p with { Type = ParseTypeAnnotation() };
+        return p;
+    }
+
+    /// <summary>不带注解的那一半。</summary>
+    private Pattern ParsePatternBare()
     {
         var at = Peek();
 
@@ -522,12 +534,14 @@ public partial class Parser
 
         if (Match(TokenType.LeftBrace))
         {
-            var names = new List<string>();
+            var names = new List<NamePattern>();
             while (!Check(TokenType.RightBrace) && !IsAtEnd())
             {
-                var n = Consume(TokenType.Identifier, "对象模式里要写成员名（`{x y}`）");
-                if (n.Lexeme == "_") throw ParseError("对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行");
-                names.Add(n.Lexeme);
+                if (Check(TokenType.Identifier) && Peek().Lexeme == "_")
+                    throw ParseError("对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行");
+                if (ParsePattern() is not NamePattern n)
+                    throw ParseError("对象模式里每一项都是一个成员名（`{x y}`；每一项也能带自己的类型：`{n: int}`）");
+                names.Add(n);
                 SkipNewlines();
             }
             Consume(TokenType.RightBrace, "对象模式末尾需要 '}'");
@@ -546,7 +560,12 @@ public partial class Parser
         }
 
         var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、还是 `..名字`");
-        if (name.Lexeme == "_") return new SkipPattern { Line = at.Line, Column = at.Column };
+        if (name.Lexeme == "_")
+        {
+            if (Check(TokenType.Colon))
+                throw ParseError("`_` 不绑东西，挂类型没意义 —— 想验那一格就给它一个名字");
+            return new SkipPattern { Line = at.Line, Column = at.Column };
+        }
         return new NamePattern(name.Lexeme) { Line = at.Line, Column = at.Column };
     }
 
