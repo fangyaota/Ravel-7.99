@@ -280,9 +280,6 @@ lib/
                           + 一个实例 `Option`(Some/None:Has/Inner + IsSome/Value/Bind/Map/Where…)
                           —— 它**也是 `IEnumerable`**(0 个或 1 个的一串,impl 在 iterator.rav 末尾)
                           + 构造子 `Some` / `None`
-  match.rav               `match v [每对 条件/结果] 默认` —— 按顺序试谓词,第一个为真的胜出
-                          (条件多半就是 `is.int` / `<.0` 这种**运算符节**;结果与默认值都得是
-                          **可调用的**——推荐写成块,命中那一支才跑;普通值当场报错)
   expected.rav            同族的另一个实例 `Expected`(Ok/Err:Has/Inner/Err + IsOk/Value/Error/Message
                           + Map/Bind/Exists)+ 构造子 `Ok` / `Err`
                           + `Expect argCount f` —— 把一个函数包成"调用返回 Expected"的那种
@@ -1296,7 +1293,7 @@ using "structures.rav"       # 库里那半边,照旧
 
 ## 控制流
 
-`if`/`while`/`foreach`（还有 `match`）是**库函数**（`lib/predefined.rav` / `lib/match.rav`），不是 C# 内建。它们靠两个机制写出来：
+`if`/`while`/`foreach` 是**库函数**（`lib/predefined.rav`），不是 C# 内建。它们靠两个机制写出来：
 
 - **`Bool <: Function`**：`true {a} {b}` 执行 a 并返回其结果，`false {a} {b}` 执行 b。
   于是 `if {c} {t} {e}` ≡ `c {t} {e}`，`if` 只是 `(c t e) => { (c ()) t e; }`。

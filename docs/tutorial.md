@@ -16,7 +16,7 @@ ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 
 | [一、起步](tutorial/01-start.md) | 定义 / 赋值 / 自动命名 / 注释 / 打印和输入 |
 | [二、类型系统](tutorial/02-types.md) | 内置类型 / 类型名 / 注解 / 反射 / 转换 / 空值 / 类型层次 / 大数 |
 | [三、运算符](tutorial/03-operators.md) | 算术 / 比较 / `:` / 位 / 字符串 / 运算符节 / **调用比运算符松** / `++` `--` |
-| [四、控制流](tutorial/04-control.md) | `if` / `while` / `foreach` / 枚举器 / `Generator` / `match` / 早期退出 |
+| [四、控制流](tutorial/04-control.md) | `if` / `while` / `foreach` / 枚举器 / `Generator` / 按模式分派 / 早期退出 |
 | [五、函数](tutorial/05-functions.md) | 柯里化 / `_` / `<\|` 与 `\|>` / `>>` / 守卫与多子句 / 谓词合成 / `Cached` / `Option` / `do` / `IoMonad` / 文件 / 排序 / JSON / 时间 |
 | [六、集合与标准库](tutorial/06-collections.md) | 三种容器 / **解构** / `Random` / `Range` / `Regex` / `dataclass` / `enum` / `Http` / `Sqlite` / 数据结构 / ZIP / XML / 终端 … |
 | [七、类](tutorial/07-classes.md) | `init` / 继承 / 修饰符 / `by` 属性 / `with` / 元类 / 接口与实现 |
