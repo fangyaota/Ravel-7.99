@@ -170,8 +170,20 @@ public record DictPatEntry(Expression Key, Pattern Sub) : AstNode;
 /// (形状对不上),不是引擎硬错。`Get` 缺键是会抛的,所以查在**前**。</summary>
 public record DictPattern(List<DictPatEntry> Entries) : Pattern;
 
-/// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
-public record NamePattern(string Name) : Pattern;
+/// <summary>`x` —— 绑这个名字(名字就取模式里写的那个)。
+///
+/// 它还能再挂两样:
+/// * <see cref="Sub"/> —— **值和它的拆法都要**(`(myPoint := {x y})` /
+///   `[first : list = [a ..rest] _ ..other]`):先把这一格的值绑给名字,再拿这个名字
+///   当源按子模式拆一遍。类型 / 条件写在**外层**这一个上(`myPoint : Point` ——
+///   草稿那句"这时 `{x y}` 后面不能再更判断,而是放在 `myPoint` 上")。
+/// * <see cref="Member"/> —— **对象模式**里取的是哪个成员(`{myX : int = x}`:取成员
+///   `x`、绑成 `myX`)。省了就是**同名**(`{x}` ≡ `{x = x}`)。</summary>
+public record NamePattern(string Name) : Pattern
+{
+    public Pattern? Sub { get; init; }
+    public string? Member { get; init; }
+}
 
 /// <summary>`_` —— **跳过**这一格。不绑东西,但游标**照走**(跳过 ≠ 不取)。
 ///

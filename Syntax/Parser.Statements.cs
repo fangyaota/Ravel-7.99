@@ -450,8 +450,10 @@ public partial class Parser
     /// 普通的类型判断语句,不能被当成"空注解的解构"。注解可省,但省了就得写 `:=`。</summary>
     private bool LooksLikePatternDestructure()
     {
-        if (Peek().Type is not (TokenType.LeftBracket or TokenType.LeftBrace)) return false;
+        if (Peek().Type is not (TokenType.LeftBracket or TokenType.LeftBrace or TokenType.LeftParen))
+            return false;
 
+        // `(` 开头的:括号只是分组,里面是模式 —— `(myPoint := {x y}) : Point = v`。
         var off = SkipBalanced(0);
         if (off < 0) return false;                          // 括号没闭上
         if (TypeAt(off) == TokenType.ColonEqual) return true;
@@ -519,6 +521,7 @@ public partial class Parser
         // 类型由 `ParsePattern` 自己吃(写在**模式那一格**上)—— 所以 `[x y] : list` 和
         // `[x: int y: string]` 是同一条路:`:` 挂到哪一格,就是哪一格的事。
         var pattern = ParsePattern();
+        RejectBareSub(pattern);
 
         if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
             throw ParseError("解构定义需要 '=' 或 ':='（`[x y] : T = e` / `[x y] := e`）");
@@ -542,7 +545,9 @@ public partial class Parser
         || Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace)
         || Check(TokenType.RightBracket) || Check(TokenType.RightBrace)
         || Check(TokenType.RightParen)             // `(x)` 里那个收尾 —— 也是"这一格完了"
-
+        || Check(TokenType.ColonEqual)             // `p := 子模式` —— 名字自己收尾,别当条件读
+        || Check(TokenType.Equal)                  // `{新名 = 成员名}` / `p = 子模式` 同理
+                                                   // (`==` 是**另一个** token,这边的条件写法不受影响)
         || Check(TokenType.PipeInto)               // `|>` 归 ParsePattern —— 别读进条件里
         || Check(TokenType.Number) || Check(TokenType.String)              // 字面量的下一格
         || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // 只认 `()`,
@@ -613,6 +618,20 @@ public partial class Parser
         return TypeAt(off) == TokenType.DictArrow;
     }
 
+    /// <summary>`名字 … = 子模式` 里,右边**光一个名字**的**不算语法** —— `[a = b]` 只是
+    /// 白绑一个 `b`(还容易看漏),没有任何拆法。
+    ///
+    /// **对象模式**是唯一例外:那儿 `=` 右边就是"取哪个成员"(`{新名 : 类型 = 成员名}`),
+    /// 由 `{…}` 那一支自己调头处理,不走这儿。
+    /// 数字 / 串 / `()` 那些**字面量**右边照收 —— 那是"这一格还得等于它",有话说的。</summary>
+    private void RejectBareSub(Pattern p)
+    {
+        if (p is NamePattern { Sub: NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } })
+            throw ParseError("`=` 右边得是**拆法**（`[a ..rest]` / `{x y}` / `{\"k\" -> v}` 那种，"
+                           + "或者一个字面量）—— 光一个名字没有意义；要**改名**那是对象模式的写法"
+                           + "（`{新名 := 成员名}`，带类型就 `{新名 : 类型 = 成员名}`）");
+    }
+
     /// <summary>读一个键:一个词(名字 / 串 / 数 / `()` / `-1`)接 `.成员` 链。
     /// 它是**求值的** —— `k -> v` 里的 `k` 读的是**变量 `k` 的值**。</summary>
     private Expression ParseDictKey()
@@ -635,6 +654,19 @@ public partial class Parser
     /// 所以 `|` 的交替接得住(和解构的形状检查一条路)。</summary>
     private Pattern ParsePattern()
     {
+        _patternDepth++;
+        try { return ParsePatternHere(); }
+        finally { _patternDepth--; }
+    }
+
+    /// <summary>模式套了几层(`ParsePattern` 进出各记一次)。只有**嵌在里面**的那几层
+    /// 才认"子模式"那个 `=` —— 见 <see cref="ParsePatternHere"/> 末尾。
+    /// 最外层那一层是**语句**那个模式,它后面跟的 `=` 是这一句的**定义号**
+    /// (`[x y] : Point = v` / `{x y} : Point = v`),不是子模式的号。</summary>
+    private int _patternDepth;
+
+    private Pattern ParsePatternHere()
+    {
         var p = ParsePatternBare();
         if (Match(TokenType.Colon))
             p = p with { Type = ParseTypeAnnotation() };
@@ -642,6 +674,18 @@ public partial class Parser
         // 把那一格的值喂给右边那个函数,不成立就拒收。于是每一层、每一格都能写。
         if (Match(TokenType.PipeInto))
             p = p with { When = ParseClimb(allowCall: false, 0) };
+
+        // `名字 [: 类型] [|> 条件] (:= | =) 子模式` —— **值和它的拆法都要**:
+        //   (myPoint := {x y})                 ← 光杆名字那支用 `:=`
+        //   (myPoint |> IsSomeWhere = {x y})   ← 前面带了限制(类型 / 条件)那支用 `=`
+        //   [first : list = [a ..rest] _ ..other]
+        // 两种号的分工和语句级那条一个规矩 —— **约束本身就说明了这是个定义**。
+        if (_patternDepth > 1 && p is NamePattern np
+            && (Check(TokenType.ColonEqual) || Check(TokenType.Equal)))
+        {
+            _pos++;
+            p = np with { Sub = ParsePattern() };
+        }
         return p;
     }
 
@@ -655,7 +699,9 @@ public partial class Parser
             var parts = new List<Pattern>();
             while (!Check(TokenType.RightBracket) && !IsAtEnd())
             {
-                parts.Add(ParsePattern());
+                var part = ParsePattern();
+                RejectBareSub(part);
+                parts.Add(part);
                 SkipNewlines();
             }
             Consume(TokenType.RightBracket, "列表模式末尾需要 ']'");
@@ -680,7 +726,9 @@ public partial class Parser
                         throw ParseError("对象成员（`{x y}`）和字典项（`{键 -> 模式}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写");
                     var key = ParseDictKey();
                     Consume(TokenType.DictArrow, "字典项的键后面需要 '->'");
-                    entries.Add(new DictPatEntry(key, ParsePattern()) { Line = at.Line, Column = at.Column });
+                    var sub = ParsePattern();
+                    RejectBareSub(sub);
+                    entries.Add(new DictPatEntry(key, sub) { Line = at.Line, Column = at.Column });
                 }
                 else
                 {
@@ -691,6 +739,17 @@ public partial class Parser
                     if (ParsePattern() is not NamePattern n)
                         throw ParseError("对象模式里每一项是一个成员名（`{x y}`，能带类型 `{n: int}`），"
                                        + "要么整项写成字典项（`{键 -> 模式}`）");
+
+                    // `{新名 : 类型 = 成员名}` —— `=` 右边是**成员名**,不是子模式。
+                    // 上面那道口子已经把 `= x` 读成 `Sub` 了,这儿搬过来:取成员 `x`、绑成
+                    // `新名`。`{x}` 不带 `=`,就是同名(≡ `{x = x}`)。
+                    if (n.Sub is not null)
+                    {
+                        if (n.Sub is not NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } sel)
+                            throw ParseError("对象模式里 `=` 后面写**成员名**（`{新名 = 成员名}`）—— "
+                                           + "要拆那一项的值,把整项写成列表/字典那边那种模式");
+                        n = n with { Member = sel.Name, Sub = null };
+                    }
                     names.Add(n);
                 }
                 SkipNewlines();

@@ -446,6 +446,9 @@ public sealed class Lowering
             case NamePattern n:
                 outs.Add(Define(n.Name, null, source, attrs, at));
                 CheckGuard(n, n.Name, Ident(n.Name, at), outs);
+                // **值和它的拆法都要**:绑完名字,再拿**这个名字**当源按子模式拆一遍。
+                // 用名字而不是重读 `source` —— 那边可能是一枚游标或一次调用,重读要出事。
+                if (n.Sub is { } sub) Bind(sub, Ident(n.Name, at), attrs, outs);
                 return;
 
             case RestPattern r:
@@ -465,11 +468,13 @@ public sealed class Lowering
             case MemberPattern m:
                 foreach (var item in m.Names)
                 {
+                    // 取哪个成员:`{myX = x}` 里是 `x`,不带 `=` 的就是同名
+                    var mem = item.Member ?? item.Name;
                     // 成员不在这一份上 —— 也是"形状对不上",不是引擎的硬错
                     outs.Add(ExprStmt(If(
-                        Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(item.Name)), at),
-                        Reject(Str($"要求成员 '{item.Name}'，可这一份上没有"), at), at), at));
-                    Bind(item, Member(source, item.Name), attrs, outs);   // 同上:走那道口子
+                        Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(mem)), at),
+                        Reject(Str($"要求成员 '{mem}'，可这一份上没有"), at), at), at));
+                    Bind(item, Member(source, mem), attrs, outs);   // 同上:走那道口子
                 }
                 return;
 
