@@ -162,7 +162,7 @@ foreach (Structures.Graph ["p" "q"]) (v: object) => { print ("顶点 " + (string
 # 1
 # 4: Neighbors: 图里没有顶点 没这个
 # 5: Graph 没有权重 —— 要权重用 Weighted
-# 6: Weighted.AddEdge 的起点得是值类型（数 / 字符串），得到 List
+# 6: Weighted.AddEdge 的起点得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 List
 # 7: Weighted.AddEdge: 权重不能是负数（最短路走 Dijkstra，负权它不管）
 # []
 # 0

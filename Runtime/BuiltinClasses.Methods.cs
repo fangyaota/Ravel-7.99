@@ -74,10 +74,10 @@ internal static partial class BuiltinClasses
         // / `ToString` 一个规矩)。**必须是这一条**(同步、只看类型)才够得着:引擎没有"同步调
         // Ravel 函数"的路,用户那条 `Key` 只能由库(`lib/keys.rav`)在 Ravel 里调。
         Object.DefineMethod("Key", (s, _) =>
-            s.Type.IsAssignableTo(ValueType)
+            CanBeKey(s.Type)
                 ? s
                 : throw new RuntimeException(
-                    $"Key: {s.Type} 没有默认的键（只有值类型有：数、字符串）。"
+                    $"Key: {s.Type} 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。"
                     + "要拿它当键，就在类里写一条 Key，交回一个值类型的键", ErrorKind.Type));
     }
 
@@ -385,15 +385,34 @@ internal static partial class BuiltinClasses
         });
     }
 
-    /// <summary>字典的键**只能是值类型**(数 / 字符串) —— 这里是唯一的把关处。
+    /// <summary>字典的键**只能是值类型** —— 这里是唯一的把关处。
     ///
-    /// 为什么限死在这一支:.NET 的 `Dictionary` 要一个**同步**的比较器,而用户写的 `Key ()`
-    /// 是 Ravel 函数(调它得推帧,`Interpreter.CallInto` 那条路)。要拿对象当键,走
-    /// `lib/keys.rav` 那层(`Keys.Set` / `Keyed`)—— 它先把对象规范成一个值类型再进表。</summary>
+    /// 判据是"挂在 `ValueType` 那一支下"(数 / 串 / 字符 / 区间),**外加 `Bool` / `Void`** ——
+    /// 这两个按值比、当键一样稳,只是**没挂**在那一支下:`true` / `false` 是可调用的,
+    /// 按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下。所以得点名收。
+    ///
+    /// 为什么限死在"按值比"的那些:.NET 的 `Dictionary` 要一个**同步**的比较器
+    /// (`RuntimeValue` 是记录,用的是结构比较),而用户写的 `Key ()` 是 Ravel 函数
+    /// (调它得推帧,`Interpreter.CallInto` 那条路)。对象/列表当键不稳(里面挂着作用域,
+    /// 比的是引用)—— 那要走 `lib/keys.rav` 那层(`Keys.Set` / `Keyed`),先把对象规范成
+    /// 一个值类型再进表。</summary>
+    /// <summary>**能不能当字典的键** —— 判据只有这一处,`KeyArg` 和 `Object` 上那条默认的
+    /// `Key` 都问它。`lib/keys.rav` 的 `Of` 是同一句话在 Ravel 那边,改要一起改。
+    ///
+    /// 能当键的是**按值比**的那些:`ValueType` 那一支(数 / 串 / 字符 / 区间),外加
+    /// `Bool` / `Void` —— 后两个按值比、当键一样稳,只是**没挂**在 `ValueType` 下
+    /// (`true` / `false` 可调用,按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下)。
+    ///
+    /// 对象 / 列表当键不稳:表要的是 .NET 那个**同步**比较器(`RuntimeValue` 是记录,
+    /// 结构比较),而它们里面挂着作用域,比出来的是引用 —— 要当键走 `lib/keys.rav`
+    /// 那层先规范成值类型。</summary>
+    internal static bool CanBeKey(ObjectVal t)
+        => t.IsAssignableTo(ValueType) || t.IsAssignableTo(Bool) || t.IsAssignableTo(Void);
+
     internal static RuntimeValue KeyArg(RuntimeValue a, string what)
-        => a.Type.IsAssignableTo(ValueType)
+        => CanBeKey(a.Type)
             ? a
-            : throw new RuntimeException($"{what}得是值类型（数 / 字符串），得到 {a.Type}", ErrorKind.Type);
+            : throw new RuntimeException($"{what}得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 {a.Type}", ErrorKind.Type);
 
     /// <summary>字典的**底层**操作,名字一律带 `Sys` —— 它们只吃**值类型**键(见 <see cref="KeyArg"/>),
     /// 因为这里是同步的 C#:`Key ()` 是 Ravel 函数,调它要推帧,这儿调不了。

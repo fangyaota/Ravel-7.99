@@ -128,4 +128,4 @@ try { (Structures.SortedDict ()).Set [1] 1; } (e: Exception) => { print ("8: " +
 # 5: SortedSet.Min: 空集合没有最小
 # 6: SortedDict.Get: 键不存在: nope
 # 7: 比不了 String 与 Integer
-# 8: SortedDict.Set 的键得是值类型（数 / 字符串），得到 List
+# 8: SortedDict.Set 的键得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 List

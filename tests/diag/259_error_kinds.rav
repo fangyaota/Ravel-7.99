@@ -66,7 +66,7 @@ print (probe () => { throw (TypeError "手工抛的"); })     # 手工抛的也�
 # AccessError / 无法给只读变量 'r' 赋值
 # ValueError / char: 字符串得正好一个字符，得到 2 个
 # ValueError / s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）
-# TypeError / Key: Object 没有默认的键（只有值类型有：数、字符串）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# TypeError / Key: Object 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
 # ZeroDivisionError / 分数的分母不能为零
 # IndexError / s.At: 索引 9 超出范围（长度 3）
 # KeyError / Json.Get: 没有这个键 'k'（对象里有 0 个键）

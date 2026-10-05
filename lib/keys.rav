@@ -68,10 +68,16 @@ ravel "Keys"
 # 一个值当键时的**规范键**:`k.Key ()` 是引擎/用户那条协议,这里再确认一道。
 # 写成一进一出的 if 而不是 `assert … ("…" + string (typeof c))` —— 那句报错串是**实参**,
 # 用 assert 的话每次调用都要拼一遍(而这是 `d.Get` / `d.Set` 的必经之路)。
+#
+# 判据和引擎那头的 `KeyArg` **一条**(`Runtime/BuiltinClasses.Methods.cs`):能当键的是
+# **按值比**的那些 —— `ValueType` 那一支(数 / 串 / 字符 / 区间),外加 `Bool` / `Void`。
+# 后两个按值比、当键一样稳,只是**没挂**在 `ValueType` 下(`true` / `false` 可调用,
+# 按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下),所以这儿得点名。
+# 两边要一起改 —— 引擎那道先拦,改漏了这边会报得晚一步、话还不一样。
 readonly Of := (k: object) => {
     c := k.Key ()
-    if { c : ValueType; } { c; } {
-        throw (Exception ("`Key` 要交回一个值类型的键（数 / 字符串），得到 " + (string (typeof c))))
+    if { (c : ValueType) || (c : bool) || (c : void); } { c; } {
+        throw (Exception ("`Key` 要交回一个值类型的键（数 / 串 / 字符 / 布尔 / `()`），得到 " + (string (typeof c))))
     }
 }
 

@@ -487,6 +487,25 @@ public sealed class Lowering
                 foreach (var e in dd.Entries)
                 {
                     var key = Lower(e.Key);
+
+                    // 键**当得了键**吗 —— 当不了是**拒收**。这一步非有不可:下一步 `Has` 那头
+                    // 会**抛**(「Key: List 没有默认的键…」),而抛会穿掉 `|` 的交替(那台机器
+                    // 只接拒收)。判据就是字典自己那条 —— 按值比的那些:`ValueType` 那一支,
+                    // 外加 `Bool` / `Void`(见 `BuiltinClasses.CanBeKey`,两处要一起改)。
+                    var keyable =
+                        new BinaryExpr(
+                            new BinaryExpr(
+                                new BinaryExpr(key, ":", Ident("ValueType", at)) { Line = at.Line, Column = at.Column },
+                                "||",
+                                new BinaryExpr(key, ":", Ident("bool", at)) { Line = at.Line, Column = at.Column })
+                            { Line = at.Line, Column = at.Column },
+                            "||",
+                            new BinaryExpr(key, ":", Ident("void", at)) { Line = at.Line, Column = at.Column })
+                        { Line = at.Line, Column = at.Column };
+                    outs.Add(ExprStmt(If(Not(keyable, at),
+                        Reject(Concat(at, Lit("这一项的键当不了键（要按值比的：数 / 串 / 字符 / 布尔 / `()`），得到 ", at),
+                                     Call(Ident("string", at), Call(Ident("typeof", at), key))), at), at), at));
+
                     var missing = Concat(at, Lit("要键 ", at), Call(Ident("string", at), key),
                                              Lit("，可这一份上没有", at));
                     outs.Add(ExprStmt(If(Not(Call(Member(source, "Has"), key), at),
