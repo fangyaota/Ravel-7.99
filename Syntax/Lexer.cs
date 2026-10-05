@@ -105,6 +105,7 @@ public class Lexer(string source, string? file = null)
 
             TokenType? single = c switch
             {
+                '~' => TokenType.Tilde,       // `~x` = `{x;}`（见 ParsePrimary 里那一支）
                 ':' => TokenType.Colon,
                 '=' => TokenType.Equal,
                 '<' => TokenType.Less,

@@ -83,6 +83,7 @@ public enum TokenType
     QuestionDot,   // ?. —— 空值穿透的成员访问(`a?.b c`:空就短路)
 
     // 空值合并(语法糖,见 Parser.Expressions 那三条)
+    Tilde,         // ~   `~x` = `{x;}` 的语法糖（只吃一个原子）
     Coalesce,      // ??  a 空就用 b
     CoalesceEqual, // ??= 空才写
 

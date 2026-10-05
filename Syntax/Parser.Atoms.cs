@@ -55,6 +55,23 @@ public partial class Parser
             return DesugarHoles(body);
         }
 
+        // `~x` —— **`{x;}` 的语法糖**。**只吃一个原子**,吃完交回一个**块**:
+        //
+        //     ~5 + 3        ≡  {5;} + 3      （`+` 落在块的值上,不是块里）
+        //     x => ~x       ≡  x => {x;}     （体就是那个块,所以**封口** —— 见 ParseUserLambdaBody）
+        //
+        // 只吃原子是有意的:`ParsePrimary` 那一条,`.成员` / `()` 调用都不跟 ——
+        // `~x.y` 是 `{x;}.y`,`~f 1` 是 `{f;} 1`。要更大的范围自己加括号(`~(f 1)`)。
+        //
+        // 和一元的 `!` / `-` 不同层:那两个在 `ParseCall`,所以 `-~x` 读得出来、
+        // `~-x` 读不出来(要写 `~(-x)`)—— 一行一格的糖,不值得再多一层。
+        if (Match(TokenType.Tilde))
+        {
+            var tilde = Previous();
+            var atom = ParsePrimary(bareLambda: false);
+            return Block([new ExpressionStatement(atom) { Line = tilde.Line, Column = tilde.Column }], tilde);
+        }
+
         // **裸模式参数**:`1 => …` / `"yes" => …` / `[x y] => …` / `{"a" -> v} => …` ——
         // 单参 lambda 那一格**直接写模式**,不套括号。就是一格模式,和 `(模式) => …` 等价。
         //
@@ -273,7 +290,12 @@ public partial class Parser
     {
         _returnUsed.Add(false);
         // `=>` 后面见 `{` 就走老路(块 / 集合那条判据);别的都是**单行简写**。
-        var body = Check(TokenType.LeftBrace) ? ParseMandatoryBlock(what) : ParseShorthandBody(at);
+        //
+        // `~x` 走**块**那条:它整出来的就是个块,体到那块为止(**封口**)——
+        // 于是 `x => ~x` ≡ `x => {x;}`(而不是 `x => ({x;})`,那种还能往后吃)。
+        var body = Check(TokenType.LeftBrace) ? ParseMandatoryBlock(what)
+                 : Check(TokenType.Tilde) ? (BlockExpr)ParsePrimary()
+                 : ParseShorthandBody(at);
         var used = _returnUsed[^1];
         _returnUsed.RemoveAt(_returnUsed.Count - 1);
         if (!used) return body;

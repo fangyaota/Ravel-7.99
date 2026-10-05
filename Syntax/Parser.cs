@@ -117,7 +117,8 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     private bool StartsPrimaryAt(int off)
         => TypeAt(off) is TokenType.Number or TokenType.String or TokenType.Char or TokenType.Identifier
             or TokenType.LeftParen or TokenType.LeftBracket
-            or TokenType.LeftBrace;
+            or TokenType.LeftBrace
+            or TokenType.Tilde;      // `~x` 是个操作数 —— 于是 `f ~5` 能把块当实参传
 
     /// <summary>把 token 说成人话,给报错用。
     /// `Token.ToString()` 是 `EndOfFile() at 1:4` 那种调试格式(类型名 + 行列),
