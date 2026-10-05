@@ -138,6 +138,19 @@ public abstract record Pattern : AstNode
     /// `|>` 贴的是**刚结束的那一格**:`[u |> IsPrime]` 里喂的是 `u` 那个元素,
     /// `[u == 1 v] |> LongerThanThree` 里喂的是整个列表。</summary>
     public Expression? When { get; init; }
+
+    /// <summary>**这一格自己**的修饰符(`[private x]` / `{"k" -> readonly v}`)——
+    /// 和变量定义、参数**同一张表**(<see cref="Runtime.Attr.All"/>)、同一套"算不算修饰符"
+    /// 的判据(看它后面跟不跟得上一个绑定项:`[private]` 里后面是 `]`,那是**名字**)。
+    ///
+    /// 它说的是**这一格拆出来的那个名字**;写在外层(参数的 `(private [a b])`、解构语句的
+    /// `private [a b] := e`)的那份则**每个名字都摊到**。两份**叠起来**:`(private [readonly a b])`
+    /// 里 `a` 拿到 `private readonly`,而 `b` 只拿到 `private` —— 从外到里按写的次序摞。
+    ///
+    /// **最外那一格自己通常没有这条** —— 语句那层的挂在 <see cref="Destructure.Attrs"/> 上、
+    /// 参数那层的挂在 <see cref="Parameter.Attrs"/> 上(它们要先一步收,好判"是不是解构")。
+    /// 这儿出现的就是**嵌在里面**的那几格。</summary>
+    public List<string>? Attrs { get; init; }
 }
 
 /// <summary>**字面量那一格**:`[1 v]` / `["ok" v]` / `[() x]` / `[true x]` ——

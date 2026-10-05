@@ -1940,10 +1940,11 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
 ## 参数上的修饰符（`(private x: int) => …`）
 
 参数**前面能写修饰符**，和变量定义**同一张表**(`Attr.All`)、同一套判据：一个词算不算修饰符，
-看它**后面跟不跟得上一个参数**(`Parser.Atoms.StartsParamAt`)。于是 `(private)` 是一个**叫
+看它**后面跟不跟得上一个绑定项**(`Parser.Atoms.StartsBindingAt`)。于是 `(private)` 是一个**叫
 `private` 的参数**(后面是 `)`)，`(private x: int)` 是**带修饰符**的 `x`。
 这条判据不能省 —— 少了它 `(private x: int)` 会**静默**读成两个参数(一个叫 `private`)，
-正是这门语言最恨的那种静默。
+正是这门语言最恨的那种静默。**模式里的一格用同一个收集器**(`CollectModifiers`)，
+判据一个字不改：`[private x]` / `{private px public py}` / `{"k" -> readonly v}`。
 
 - **参数默认是 `private` 的**(普通定义默认 `public`)—— 它是这个函数的私事。判据是
   "用户**没明写** `public` / `private` / `protected` 里的任何一个"：写了一个(哪怕写的是
@@ -1956,12 +1957,17 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
   走不到一个参数)，留着是为了规矩一致：将来谁给参数接了那条查找，它就自动生效。
   别拿 `x.Attrs ()` 当读取口 —— 它读的是 `Property`，普通变量的 attrs 在 Ravel 层没有出口。
 - **模式参数上的修饰符跟着拆出来的每个名字走** —— `(readonly [a b]) => …` 拆出来的
-  `a` / `b` 各带一份(和 `private [a b] := e` 一个口径)。
+  `a` / `b` 各带一份(和 `private [a b] := e` 一个口径)。**每一格自己再写一份**也行
+  (`(private [readonly a b]) => …`)—— 两份**叠起来**，从外到里按写的次序摞：
+  `a` 是 `private readonly`，`b` 只有 `private`(见「模式」那一节的同一条)。
+- **`by` 不收**：它修饰的是**槽**，而参数/模式里声明的是新名字。放过去的话
+  `([by x]) => …` 会一路走到 `VarDefinition` 的 `by` 那条路，悄悄把 `x` 变成一个槽 ——
+  解析器当场拒(「'by' 在这儿没有意思」)。
 - **守卫上不能写**：守卫是给**已经声明过的那个参数**加条件，它自己什么都不声明。
   解析器直接拒(「守卫上不能写修饰符 'x' —— 守卫是给已经声明过的那个参数加条件…」)，
   而不是把修饰符静默吞掉。
-- **签名打印不丢修饰符**(`AstPrinter.Param`)，往返就靠它。
-  用例：`tests/lang/334_param_modifier.rav`。
+- **签名打印不丢修饰符**(`AstPrinter.Param` / `AstPrinter.Pattern`)，往返就靠它。
+  用例：`tests/lang/334_param_modifier.rav`、`tests/lang/335_pattern_modifier.rav`。
 
 ## 参数守卫与多子句（`(v == T) => …` / `(f or g)`）
 
@@ -2154,6 +2160,16 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
   **不能挂成"带注解的定义"**:那条路的错是**体里异步**抛的,而 `|` 的交替只认调用那一刻
   **同步**抛的类型错 + 异步的 `RejectedException`(`ResumeAlternate`)—— 挂在定义上接不住。
 - 前缀修饰符跟着**每个**拆出来的名字走 —— `private [a b] := e` 在类体里是两个私有成员。
+  **每一格自己也能带一份**(`[private x]` / `{private px public py}` / `{"k" -> readonly v}`),
+  判据和参数那一圈**同一个收集器**(`Parser.Atoms.CollectModifiers`):这个词后面**跟不跟得上
+  一个绑定项**。所以 `[private]` 是一个**叫 `private` 的元素**,`[private x]` 是"元素 `x`
+  带修饰符"—— 少了这条,后者读成**两格**,静默。两份**叠起来**(从外到里按写的次序摞):
+  `(private [readonly a b])` 里 `a` 拿到 `private readonly`、`b` 只有 `private`
+  (`Lowering.Bind` 开头那个 `eff`)。落在每个名字的 `VarDefinition.Attrs` 上,和变量定义
+  一个待遇,所以 `readonly` 是**真有检查**的(给那一格再赋值报错);`private` / `public`
+  在参数和模式上都**没有能触发的读点**(参数不是成员)。`by` 不收 —— 它修饰的是**槽**,
+  放过去会一路走到 `VarDefinition` 的 `by` 那条路,悄悄把名字变成槽(解析器当场拒)。
+  用例 `tests/lang/335`。(参数自己那一圈见上面「参数上的修饰符」。)
 - **`[ ]` / `{ }` / `( )` 是三对"怎么到这个值"的写法**：`[a b]` 按**位置**下去、`{x y}`
   按**成员**下去、`( … )` **不下去** —— 就是它自己(`WholePattern`)。前两对每写一次都真的
   下沉一层，所以各建一个节点；第三对不下沉，语义上等于它包着的那一格(**不换源**)，建节点

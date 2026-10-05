@@ -406,6 +406,14 @@ public sealed class Lowering
     {
         var at = p;
 
+        // **这一格自己写的那份修饰符**(`[private x]` / `{"k" -> readonly v}`)和外层传下来的
+        // 那份**叠起来** —— 从外到里按写的次序摞:`(private [readonly a b])` 里 `a` 拿到
+        // `private readonly`,而 `b` 只有 `private`。下面**每一处**都用 `eff`,不再碰 `attrs` ——
+        // 中间量(`__g` / `__d`)也跟着走,和原来 `attrs` 的待遇一样(反正那些名字用户写不出来)。
+        var eff = p.Attrs is null ? attrs
+                : attrs is null ? p.Attrs
+                : [.. attrs, .. p.Attrs];
+
         // **这一格自己带了类型**(`[x: int]` / `{n: int}` / `[[a b]: list]`):当场验,不成**拒收**。
         //
         // 为什么不是"给它挂个带注解的定义(`x : int = v`)让引擎去验":那条路的错误是
@@ -456,7 +464,7 @@ public sealed class Lowering
             case WholePattern w:
                 // 提上去的要是**里面那格**的要求(外层自己没要求),就传下去让它别再判一道;
                 // 外层**自己**有要求的话,里面那格的照旧得判(`(x: int) : string` 两个都算数)。
-                Bind(w.Inner, source, attrs, outs, outerDone && ownType is null);
+                Bind(w.Inner, source, eff, outs, outerDone && ownType is null);
                 return;
 
             // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
@@ -486,11 +494,11 @@ public sealed class Lowering
                 return;
 
             case NamePattern n:
-                outs.Add(Define(n.Name, null, source, attrs, at));
+                outs.Add(Define(n.Name, null, source, eff, at));
                 CheckGuard(n, n.Name, Ident(n.Name, at), outs);
                 // **值和它的拆法都要**:绑完名字,再拿**这个名字**当源按子模式拆一遍。
                 // 用名字而不是重读 `source` —— 那边可能是一枚游标或一次调用,重读要出事。
-                if (n.Sub is { } sub) Bind(sub, Ident(n.Name, at), attrs, outs);
+                if (n.Sub is { } sub) Bind(sub, Ident(n.Name, at), eff, outs);
                 return;
 
             case RestPattern r:
@@ -503,7 +511,7 @@ public sealed class Lowering
                 drain = Call(drain, Block([ExprStmt(Call(yid, Member(source, "Current")), at)], at));
                 var gen = new LambdaExpr(new Parameter(y, Ident("function", at)), AsBlock(drain, at))
                     { Line = at.Line, Column = at.Column, Sugar = true };
-                outs.Add(Define(r.Name, null, Call(Ident("Generator", at), gen), attrs, at));
+                outs.Add(Define(r.Name, null, Call(Ident("Generator", at), gen), eff, at));
                 CheckGuard(r, r.Name, Ident(r.Name, at), outs);
                 return;
 
@@ -516,7 +524,7 @@ public sealed class Lowering
                     outs.Add(ExprStmt(If(
                         Not(Call(Member(Call0(Member(source, "Fields")), "Contains"), Str(mem)), at),
                         Reject(Str($"要求成员 '{mem}'，可这一份上没有"), at), at), at));
-                    Bind(item, Member(source, mem), attrs, outs);   // 同上:走那道口子
+                    Bind(item, Member(source, mem), eff, outs);   // 同上:走那道口子
                 }
                 return;
 
@@ -557,7 +565,7 @@ public sealed class Lowering
                                              Lit("，可这一份上没有", at));
                     outs.Add(ExprStmt(If(Not(Call(Member(source, "Has"), key), at),
                         Reject(missing, at), at), at));
-                    Bind(e.Sub, Call(Member(source, "Get"), key), attrs, outs);
+                    Bind(e.Sub, Call(Member(source, "Get"), key), eff, outs);
                 }
                 return;
 
@@ -577,7 +585,7 @@ public sealed class Lowering
 
                 var g = Fresh("__g");
                 var gid = Ident(g, at);
-                outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), attrs, at));
+                outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), eff, at));
 
                 // **零格**(`[]`):要求它是**空的** —— 走一步还有东西就拒收。
                 // (`Some` / `None` 分派靠这条收尾:`[v]` 认有值那半,`[]` 认空那半。)
@@ -591,7 +599,7 @@ public sealed class Lowering
                 var k = 0;
                 foreach (var part in l.Parts)
                 {
-                    if (part is RestPattern) { Bind(part, gid, attrs, outs); continue; }
+                    if (part is RestPattern) { Bind(part, gid, eff, outs); continue; }
 
                     // **先走一步再取** —— 游标站在"还没读的那个"前面(见 `lib/iterator.rav`)。
                     // 走不动 = 这一串比模式短,同样是"形状对不上"。
@@ -606,14 +614,14 @@ public sealed class Lowering
                             break;                       // 走了这一步就是"跳过",没有别的
                         case NamePattern n:
                             // **走 `Bind` 那道口子**(不是就地 Define)—— 类型检查在它的入口
-                            Bind(n, Member(gid, "Current"), attrs, outs);
+                            Bind(n, Member(gid, "Current"), eff, outs);
                             break;
                         default:
                         {
                             // 嵌套:先落到一个中间量上,再拿它当下一次解构的源
                             var t = Fresh("__d");
-                            outs.Add(Define(t, null, Member(gid, "Current"), attrs, at));
-                            Bind(part, Ident(t, at), attrs, outs);
+                            outs.Add(Define(t, null, Member(gid, "Current"), eff, at));
+                            Bind(part, Ident(t, at), eff, outs);
                             break;
                         }
                     }

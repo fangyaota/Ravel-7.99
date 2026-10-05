@@ -667,7 +667,16 @@ public partial class Parser
 
     private Pattern ParsePatternHere()
     {
+        // **每一格前面也能写修饰符**(`[private x]` / `{"k" -> readonly v}`)—— 和参数那一圈
+        // 同一个收集器、同一条判据(见 `CollectModifiers`)。它说的是**这一格拆出来的那个名字**,
+        // 和外层写的那份**叠起来**(见 `Pattern.Attrs`)。
+        //
+        // 最外那一层通常是**空的**:语句那边挂在 `Destructure.Attrs` 上、参数那边挂在
+        // `Parameter.Attrs` 上(它们要先收一步,好判"是不是解构"),轮到这儿已经没有了。
+        var attrs = CollectModifiers();
+
         var p = ParsePatternBare();
+        if (attrs is not null) p = p with { Attrs = attrs };
         if (Match(TokenType.Colon))
             p = p with { Type = ParseTypeAnnotation() };
         // `|>` 贴的是**刚结束的那一格**(不管它是名字、还是整个 `[…]` / `{…}`):
@@ -745,7 +754,10 @@ public partial class Parser
                     // `新名`。`{x}` 不带 `=`,就是同名(≡ `{x = x}`)。
                     if (n.Sub is not null)
                     {
-                        if (n.Sub is not NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } sel)
+                        // `sel.Attrs` 也算:右边是**取哪个成员**的引用,不是声明 —— 挂修饰符没处落,
+                        // 放过去就是**静默丢掉**那个词(这条判断不比配 `Attrs` 的话就漏了)。
+                        if (n.Sub is not NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } sel
+                            || sel.Attrs is not null)
                             throw ParseError("对象模式里 `=` 后面写**成员名**（`{新名 = 成员名}`）—— "
                                            + "要拆那一项的值,把整项写成列表/字典那边那种模式");
                         n = n with { Member = sel.Name, Sub = null };

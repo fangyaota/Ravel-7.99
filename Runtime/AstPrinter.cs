@@ -318,7 +318,10 @@ internal static class AstPrinter
     /// 为的是别掉进看不懂的兜底。</summary>
     private static string Pattern(Pattern p, int indent)
     {
-        var text = p switch
+        // **这一格自己那份修饰符**(`[private x]` / `{"k" -> readonly v}`)印在最前 ——
+        // 和 `Statement` 里 `VarDefinition` / `Destructure` 一个样子。外层那份(参数级的
+        // `Parameter.Attrs`、语句级的 `Destructure.Attrs`)不在 `p` 上、由调用方印,不重不漏。
+        var text = Attrs(p.Attrs) + (p switch
         {
             // 带条件的格子:名字取的是条件里最左那个标识符,所以**条件本身就是那个写法**。
             NamePattern { Guard: { } g } => Expr(g, indent),
@@ -332,7 +335,7 @@ internal static class AstPrinter
             LiteralPattern lit => lit.Text,
             DictPattern d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key, indent) + " -> " + Pattern(x.Sub, indent))) + "}",
             _ => "?",
-        };
+        });
         // 这一格自己的类型要求(`[a b] : list` 那个 `:` 挂最外那格)。**照写** ——
         // 就算它被提上参数签名去了(见 `Lowering.OuterWant`),这儿还是把它印出来:
         // 那才是人写的样子。字面量那格没有 `Type`(它的要求是 `Domain`),所以 `1` 印出来还是 `1`。

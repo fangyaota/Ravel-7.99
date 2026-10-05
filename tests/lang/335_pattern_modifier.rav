@@ -1,0 +1,45 @@
+#
+# **模式里的一格也能带修饰符** —— `[private x]` / `{private px public py}` / `{"k" -> public v}`。
+#
+# 和参数那一圈是**同一个收集器、同一条判据**:这个词后面**跟不跟得上一个绑定项**。
+# 所以 `[private]` 是一个**叫 `private` 的元素**,而 `[private x]` 是"元素 `x` 带修饰符"——
+# 少了这条判据,后者会静默读成**两格**(一个叫 `private`)。
+#
+# 内层和外层那两份**叠起来**(从外到里按写的次序摞):
+#
+#     (private [readonly a b]) => …
+#       a → private readonly        b → private
+#
+# 每个名字落到 `VarDefinition` 的 attrs 上,和变量定义一个待遇 —— 于是 `readonly`
+# 是**真有检查**的(给这个元素再赋值要报错);`private` / `public` 今天没有能触发的
+# 读点(参数不是成员,走不到模块成员查找那一道)。
+#
+# `by` 不收:它修饰的是**槽**,而这里声明的是新名字 —— 放过去会一路走到 `VarDefinition`
+# 的 `by` 那条路,悄悄把名字变成一个槽。
+
+f := ([private x]) => { x; }
+print (f [1 2])
+
+Point ::= class { px: int = 0; py: int = 0 }
+p := Point ()
+p.px = 10
+p.py = 20
+g := ({private px public py}) => { px + py; }
+print (g p)
+
+h := ({"k" -> public v}) => { v; }
+print (h {"k" -> 9})
+
+# 按元素真检查:只读的是 `b`,`a` 照旧能写
+r := ([a readonly b]) => { b = 9; b; }
+print (try { r [1 2]; } (e: Exception) => { e.Message; })
+
+# 签名照写的印回来 —— 那格自己的修饰符不丢
+print r
+
+# --- expected ---
+# 1
+# 30
+# 9
+# 无法给只读变量 'b' 赋值
+# <function ([a readonly b]) => { if ({ !(__p1df677_3 : IEnumerable); }) ({ System.Reject (TypeError...>

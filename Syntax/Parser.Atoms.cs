@@ -192,19 +192,48 @@ public partial class Parser
         => Check(TokenType.Identifier) || StartsParamGroup(0) || IsLiteralStart()
         || Check(TokenType.LeftParen);
 
-    /// <summary>从 <paramref name="off"/> 那一枚开始,是不是一个参数的开头。
-    /// 参数位上"这个词是**修饰符**还是**名字**"就靠它分:`(private x: int)` 里 `private`
-    /// 后面跟着一个参数,所以它是修饰符;`(private)` 里后面是 `)`,所以它是名字
-    /// (和定义那边"下一个 token 是定义符就当名字"同一个办法)。</summary>
-    private bool StartsParamAt(int off) => TypeAt(off) switch
+    /// <summary>从 <paramref name="off"/> 那一枚开始,是不是**一个绑定项**的开头
+    /// (参数表里的一格、模式里的一格 —— 两处是同一个形状)。
+    ///
+    /// "这个词是**修饰符**还是**名字**"就靠它分:`(private x: int)` 里 `private` 后面
+    /// 跟着一个参数,所以它是修饰符;`(private)` 里后面是 `)`,所以它是名字。模式那边
+    /// 一模一样:`[private x]` 是"元素 `x` 带修饰符",`[private]` 是"一个叫 `private`
+    /// 的元素"(和定义那边"下一个 token 是定义符就当名字"同一个办法)。</summary>
+    private bool StartsBindingAt(int off) => TypeAt(off) switch
     {
-        // 名字(`true` / `false` 也是 Identifier)、字面量那一族的开头、模式的两个括号、
-        // 参数那一格的分组括号、负数字面量(`-1 => …` —— 负号在 `ParseCall` 那层就吃了)
+        // 名字(`true` / `false` / `_` 也是 Identifier)、字面量那一族的开头、模式的三对括号、
+        // 负数字面量(`-1 => …` / `[-1 v]` —— 一格**开头**的负号只可能是负号)、`..rest`
         TokenType.Identifier or TokenType.Number or TokenType.String
             or TokenType.LeftBracket or TokenType.LeftBrace or TokenType.LeftParen
-            or TokenType.Minus => true,
+            or TokenType.Minus or TokenType.DotDot => true,
         _ => false,
     };
+
+    /// <summary>收**开头那一圈修饰符**(参数 / 模式的一格,同一个规矩)。收完 `_pos` 停在
+    /// 第一个不是修饰符的地方。
+    ///
+    /// 判据只有一条:**这个词后面跟不跟得上一个绑定项**。所以 `(private)` / `[private]` 里的
+    /// `private` 是**名字**。少了这条判据,`(private x: int)` 会**静默**读成两个参数、
+    /// `[private x]` 读成两格 —— 这门语言最恨的那种静默。
+    ///
+    /// `by` **不收**:它修饰的是**槽**,而这里声明的是新名字。放过去的话
+    /// `([by x]) => …` 会一路走到 `VarDefinition` 的 `by` 那条路,悄悄把 `x` 变成一个槽。</summary>
+    private List<string>? CollectModifiers()
+    {
+        var attrs = new List<string>();
+        while (Check(TokenType.Identifier) && Attr.All.Contains(Peek().Lexeme))
+        {
+            var save = _pos;
+            var word = Peek().Lexeme;
+            _pos++;                       // 先吃下去,再往后看看有没有"绑定项"接着
+            SkipNewlines();
+            if (!StartsBindingAt(0)) { _pos = save; break; }
+            attrs.Add(word);
+        }
+        if (attrs.Contains(Attr.By))
+            throw ParseError("'by' 在这儿没有意思 —— 它修饰的是**槽**，而这里声明的是新名字");
+        return attrs.Count > 0 ? attrs : null;
+    }
 
     /// <summary>模式参数取合成名(`__p…` —— 形状和理由见 <see cref="TempNames"/>)。
     /// 它是 **lambda 的参数**,作用域只在那个 lambda 里;不过名字照样掺进文件名标签 ——
@@ -396,20 +425,8 @@ public partial class Parser
 
                 // **参数前面能写修饰符**(和变量定义**同一张表**:`Attr.All`)——
                 // `(private x: int)` / `(readonly [a b])` / `(outdated v: int)`。
-                // 一个词算不算修饰符,看**它后面跟不跟得上一个参数**:`(private)` 里的
-                // `private` 后面是 `)`,那不是参数的开头 —— 于是它是**名字**(和定义那边
-                // "下一个 token 是定义符就当名字"同一个道理)。
-                //
-                // 不加这条的话 `(private x: int)` 会**静默**读成**两个参数**(一个叫
-                // `private`、一个叫 `x`)—— 这门语言最恨的那种静默。
-                var attrs = new List<string>();
-                while (Check(TokenType.Identifier) && Attr.All.Contains(Peek().Lexeme) && StartsParamAt(1))
-                {
-                    attrs.Add(Peek().Lexeme);
-                    _pos++;
-                    SkipNewlines();
-                }
-                List<string>? AttrList() => attrs.Count > 0 ? attrs : null;
+                // 判据见 `CollectModifiers`。
+                var attrs = CollectModifiers();
 
                 // **模式参数**:`([x y]) => …` / `({a b}) => …` / `(1) => …` / `(()) => …` ——
                 // 整个参数按形状拆。参数本身没有名字(名字在模式里,字面量那格连名字都没有),
@@ -427,7 +444,7 @@ public partial class Parser
                     // 类型写在模式**自己那一格**上(`([x y] : list) => …` 里那个 `:` 挂最外那格),
                     // 由 `ParsePattern` 吃 —— 这儿不用另立一条。
                     @params.Add(new Parameter(FreshParam(), ObjectType(at), ParsePattern())
-                        { Attrs = AttrList() });
+                        { Attrs = attrs });
                     SkipNewlines();
                     if (!StartsParam()) break;               // 到 ')' 了
                     continue;
@@ -452,7 +469,7 @@ public partial class Parser
 
                 if (Match(TokenType.Colon))
                 {
-                    Declare(new Parameter(pName.Lexeme, ParseTypeAnnotation()) { Attrs = AttrList() });
+                    Declare(new Parameter(pName.Lexeme, ParseTypeAnnotation()) { Attrs = attrs });
                 }
                 else if (Check(TokenType.Identifier) || Check(TokenType.RightParen) || StartsParamGroup(0))
                 {
@@ -460,14 +477,14 @@ public partial class Parser
                     // 一个待遇 —— 那些地方也只知道"有东西来了",标不出更细的类型。
                     // 要更细就在体里自己过一手:`n: int = x`。
                     // (后面跟 `[…]` / `{…}` 也算"这一项完了"——那是下一个模式参数。)
-                    Declare(new Parameter(pName.Lexeme, ObjectType(pName)) { Attrs = AttrList() });
+                    Declare(new Parameter(pName.Lexeme, ObjectType(pName)) { Attrs = attrs });
                 }
                 else
                 {
                     // **守卫那一格不接修饰符。** 守卫是"给已经声明过的那个参数加条件",
                     // 它自己**不声明**任何东西 —— 修饰符没处落。不拦的话上面那个收集循环
                     // 会把 `private` 吃掉、这一支再退回去重读,于是参数名**静默**成了 `private`。
-                    if (attrs.Count > 0)
+                    if (attrs is not null)
                         throw ParseError($"守卫上不能写修饰符 '{attrs[0]}' —— 守卫是给已经声明过的"
                                        + "那个参数加条件,它自己什么都不声明");
                     // **守卫**:这一项整个是一条表达式(`v == s` / `v |> IsPrime`)。
