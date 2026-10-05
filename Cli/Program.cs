@@ -56,7 +56,8 @@ internal static class Program
                 .WithExample("strip", "out/lib");
             config.AddCommand<AstCommand>("ast").WithDescription("把 AST 转储成文本(结构,给 diff 用)")
                 .WithExample("ast", "lib tests examples")
-                .WithExample("ast", "--source lib/predefined.rav");
+                .WithExample("ast", "--source lib/predefined.rav")
+                .WithExample("ast", "--out out/ast lib tests examples");
         });
         return app.Run(head);
     }
@@ -283,10 +284,14 @@ internal sealed class AstSettings : CliSettings
     [CommandOption("-s|--source")]
     [Description("印成 .rav 源码(而不是结构转储);出来的是 Lowering 之后的树")]
     public bool Source { get; init; }
+
+    [CommandOption("-o|--out")]
+    [Description("写成文件而不是打到 stdout;每个 .rav 落两份(结构转储 + 还原的源码)")]
+    public string? Out { get; init; }
 }
 
 internal sealed class AstCommand : Command<AstSettings>
 {
     public override int Execute(CommandContext context, AstSettings settings, CancellationToken cancellation)
-        => AstDump.Run(settings.Paths, settings.Source) ? 0 : 1;
+        => AstDump.Run(settings.Paths, settings.Source, settings.Out) ? 0 : 1;
 }

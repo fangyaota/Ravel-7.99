@@ -31,19 +31,27 @@ using Ravel.Testing;
 /// 用例全绿**不等于** AST 没变 —— 绿只说明这套语料没踩到那个差别。</summary>
 internal static class AstDump
 {
-    public static bool Run(IReadOnlyList<string> paths, bool source = false)
+    public static bool Run(IReadOnlyList<string> paths, bool source = false, string? outDir = null)
     {
         if (paths.Count == 0)
         {
-            Console.WriteLine(source ? "用法: ravel ast --source <文件或目录>…" : "用法: ravel ast <文件或目录>…");
+            Console.WriteLine("用法: ravel ast [--source | --out <目录>] <文件或目录>…");
             return false;
         }
 
-        var files = new List<string>();
+        // 每个文件带上它**相对当前目录**的路径 —— `--out` 那趟按这个还原目录结构。
+        //
+        // **不能按"输入的那个根"还原**:`ravel ast --out D lib examples` 里 `lib/html.rav`
+        // 和 `examples/html.rav` 各自相对自己的根都是 `html.rav`,落到 `D/html.*` 上就撞了
+        // (实测撞过五个)。按当前目录走,两条路径天然分得开。
+        // 传进来的东西在当前目录之外(`../x.rav`)才退回光名字 —— 那种情况没法安放那个 `..`。
+        var cwd = Directory.GetCurrentDirectory();
+        var files = new List<(string Path, string Rel)>();
         foreach (var path in paths)
         {
-            if (Directory.Exists(path)) files.AddRange(Directory.GetFiles(path, "*.rav", SearchOption.AllDirectories));
-            else if (File.Exists(path)) files.Add(path);
+            if (Directory.Exists(path))
+                files.AddRange(Directory.GetFiles(path, "*.rav", SearchOption.AllDirectories).Select(Rel));
+            else if (File.Exists(path)) files.Add(Rel(path));
             else
             {
                 Console.WriteLine($"找不到: {path}");
@@ -53,7 +61,13 @@ internal static class AstDump
 
         // **一定要排序**:目录枚举的次序是文件系统说了算的,而这一份的用处是"两次跑逐字节比"。
         // 不排的话 diff 里会冒出一堆纯挪位的噪音,把真正的差别淹掉。
-        files.Sort(StringComparer.Ordinal);
+        files.Sort((a, b) => string.CompareOrdinal(a.Path, b.Path));
+
+        (string Path, string Rel) Rel(string f)
+        {
+            var rel = Path.GetRelativePath(cwd, Path.GetFullPath(f));
+            return (f, rel.StartsWith("..") ? Path.GetFileName(f) : rel);
+        }
 
         // **输出钉死 UTF-8。** `Console` 默认按控制台的 OEM 码页写(中文 Windows 上是 CP936),
         // 而树里带着源文件的**字符串字面量** —— 撞上码页外的字符会被换成 `?`,于是
@@ -69,12 +83,12 @@ internal static class AstDump
 
         var sb = new StringBuilder();
         var failed = 0;    // 解析不了(语料里本来就有 `# expect-error` 那种故意写坏的)
-        var broken = 0;    // 印出来再解析,树对不上(只有 `--source` 那一趟才可能)
-        foreach (var file in files)
+        var broken = 0;    // 印出来再解析,树对不上
+        foreach (var (file, rel) in files)
         {
             // 路径统一成 `/` 分隔:同一个语料在 Windows 和别处跑出来的标题行得一样
             var title = "──── " + file.Replace('\\', '/') + " ────";
-            sb.Clear();
+            string? dump = null, text = null, error = null;
 
             try
             {
@@ -86,48 +100,78 @@ internal static class AstDump
                 var flow = Parser.DeclaresMoreControlFlow(src);
                 var program = Parser.ParseSource(src, file, flow);
 
-                if (source)
+                // `--out` 是"两份都要";不然看开关给哪一份
+                var wantSource = outDir != null || source;
+                if (outDir != null || !source)
                 {
-                    var text = AstPrinter.Program(program);
+                    sb.Clear().Append(title).Append('\n');
+                    Render(sb, program, 0, positions: true, meta: true);
+                    dump = sb.ToString();
+                }
+
+                if (wantSource)
+                {
+                    var printed = AstPrinter.Program(program);
                     // **自验:印出来的东西再解析一遍,得回到同一棵树。** 不比就交出去是
                     // 赌自己没印错,而这个印子的活儿细得很(括号、`=` 还是 `:=`、`->` 还是 `:`)
                     // —— `CommentStripper` 剥完注释也要再比一遍 token,同一个规矩。
                     // 位置不比:行重排过了。
-                    var again = Parser.ParseSource(text, file, flow);
+                    var again = Parser.ParseSource(printed, file, flow);
                     if (Canonical(again) != Canonical(program))
                     {
                         Console.Error.WriteLine($"{file}: 印出来再解析,树对不上");
                         broken++;
                     }
                     // 标题写成注释 —— 这一趟交出去的得**还是能解析的 .rav**
-                    sb.Append(Comment(title)).Append('\n').Append(text).Append('\n');
-                }
-                else
-                {
-                    sb.Append(title).Append('\n');
-                    Render(sb, program, 0, positions: true, meta: true);
+                    text = Comment(title) + "\n" + printed + "\n";
                 }
             }
             // 语料里本来就有 `# expect-error` 那种**故意写坏**的文件 —— 一个文件坏了不该把
             // 整趟搅了。照报(报在它自己那一格,位置一样是可比对的),最后拿退出码说话。
             catch (Exception ex) when (ex is SyntaxException or RuntimeException)
             {
-                var msg = "!! " + ErrorReport.Format(ex);
-                sb.Clear().Append(source ? Comment(title + "\n" + msg) : title + "\n" + msg).Append('\n');
+                error = "!! " + ErrorReport.Format(ex);
                 failed++;
             }
 
-            stdout.Write(sb);
+            if (outDir is null)
+            {
+                // 走 stdout,和从前一样:有错就交那一段,没错就是产出的那一份
+                if (error is not null)
+                    stdout.Write((source ? Comment(title + "\n" + error) : title + "\n" + error) + "\n");
+                else
+                    stdout.Write(dump ?? text);
+                continue;
+            }
+
+            // `--out`:一个输入文件**落两个** —— `<名>.ast.txt`(结构转储)与
+            // `<名>.src.rav`(还原的源码)。子目录按输入根还原(见上面那把 `Rel`)。
+            var stem = Path.Combine(outDir, Path.ChangeExtension(rel, null)!);
+            WriteFile(stem + ".ast.txt", error is not null ? title + "\n" + error + "\n" : dump!);
+            // 解析都过不了的,不落 `.src.rav` —— 那本来就是一句"这不是能跑的东西",
+            // 印成一个空壳反而像是"印出来了"
+            if (text is not null) WriteFile(stem + ".src.rav", text);
         }
 
         // **汇总走 stderr,不进 stdout。** stdout 那一份是**产物本身** —— 而且 `--source`
         // 印出来的要能直接 `> x.rav` 拿去跑:汇总混进去,那文件末尾就多一行不是 Ravel 的字,
         // 解析器当场报「未预期的字符」。转储那一路同一个道理(它也是给人 `> x.txt` 比的)。
         var tail = failed > 0 ? $",其中 {failed} 个报错" : "";
-        if (source && broken > 0) tail += $",{broken} 个往返后树对不上";
-        Console.Error.WriteLine($"\n{(source ? "印出" : "转储")} {files.Count} 个文件{tail}");
+        if (broken > 0) tail += $",{broken} 个往返后树对不上";
+        Console.Error.WriteLine(outDir is null
+            ? $"\n{(source ? "印出" : "转储")} {files.Count} 个文件{tail}"
+            : $"\n{files.Count} 个文件,每个两份 → {outDir.Replace('\\', '/')}{tail}");
         stdout.Flush();
         return failed == 0 && broken == 0;
+    }
+
+    /// <summary>写一份产物:目录没有就建,文件钉死 UTF-8(不带 BOM),写过的名字报到 stderr
+    /// ——stdout 那一格是**产物本身**,这张清单不是产物。</summary>
+    private static void WriteFile(string path, string content)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content, new UTF8Encoding(false));
+        Console.Error.WriteLine("  " + path.Replace('\\', '/'));
     }
 
     /// <summary>整段按注释写出去 —— `--source` 出来的文件得**还是能解析的 `.rav`**,
