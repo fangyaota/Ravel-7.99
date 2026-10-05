@@ -204,9 +204,9 @@ print five
 ```ravel
 kind := (v: object) => {
     v |> (x: int)    => { "整数"; }
-        | (x: bool)   => { "布尔"; }
-        | (x: string) => { "字符串"; }
-        | _           => { "别的"; }
+      |  (x: bool)   => { "布尔"; }
+      |  (x: string) => { "字符串"; }
+      |  _           => { "别的"; }
 }
 print (kind 3)
 print (kind true)
@@ -231,8 +231,8 @@ print (kind 1.5)
 ```ravel
 sign := (n: int) => {
     n |> (x: int x < 0)  => { "负"; }
-        | (x: int x == 0) => { "零"; }
-        | _               => { "正"; }
+      |  (x: int x == 0) => { "零"; }
+      |  _               => { "正"; }
 }
 print (sign (0 - 5))
 print (sign 0)

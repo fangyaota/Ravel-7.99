@@ -15,8 +15,8 @@
 
 kind := (v: object) => {
     v |> (x: int)    => { "整数"; }
-        | (x: string) => { "字符串"; }
-        | _           => { "别的"; }
+      |  (x: string) => { "字符串"; }
+      |  _           => { "别的"; }
 }
 print (kind 1)
 print (kind "看")
@@ -26,8 +26,8 @@ print (kind true)
 # 条件那一格照旧:写成**守卫**(不成立就拒收)
 sign := (n: int) => {
     n |> (x: int x < 0)  => { "负"; }
-        | (x: int x == 0) => { "零"; }
-        | _               => { "正"; }
+      |  (x: int x == 0) => { "零"; }
+      |  _               => { "正"; }
 }
 print (sign (-2))
 print (sign 0)

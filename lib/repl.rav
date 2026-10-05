@@ -422,14 +422,14 @@ Editor ::= class {
     Jump := (k: string) => {
         Ensure ()                       # 空页先垫一行 —— 这两个入口单独调也要能用
         k |> "up"    => { Y -= 1; true; }
-            | "down"  => { Y += 1; true; }
-            | "left"  => { X -= 1; true; }
-            | "right" => { X += 1; true; }
-            | "home"  => { X = 0; Y = 0; true; }
-            | "end"   => { GoEnd (); true; }
-            | "pgup"  => { Z -= 1; X = 0; Y = 0; true; }
-            | "pgdn"  => { NextPage (); true; }
-            | _       => { false; }
+          |  "down"  => { Y += 1; true; }
+          |  "left"  => { X -= 1; true; }
+          |  "right" => { X += 1; true; }
+          |  "home"  => { X = 0; Y = 0; true; }
+          |  "end"   => { GoEnd (); true; }
+          |  "pgup"  => { Z -= 1; X = 0; Y = 0; true; }
+          |  "pgdn"  => { NextPage (); true; }
+          |  _       => { false; }
     }
 
     GoEnd := () => { Y = (((Lines ()).Count ()) - 1); X = (Current ()).Length (); (); }
@@ -448,11 +448,11 @@ Editor ::= class {
         Ensure ()                       # 同上
         cur := Current ()
         k |> "backspace" => { Backspace cur; true; }
-            | "delete"    => { DeleteAt cur; true; }
-            | "enter"     => { SplitLine cur; true; }
-            | "tab"       => { (Lines ()).Set Y (InsertAt cur X "    "); X += 4; true; }
-            | "insert"    => { ClearPage (); true; }
-            | _           => { TypeChar k; }
+          |  "delete"    => { DeleteAt cur; true; }
+          |  "enter"     => { SplitLine cur; true; }
+          |  "tab"       => { (Lines ()).Set Y (InsertAt cur X "    "); X += 4; true; }
+          |  "insert"    => { ClearPage (); true; }
+          |  _           => { TypeChar k; }
     }
 
     # 退格。**在行首**就得和上一行接起来(`NeoInteractor` 那个规矩)
@@ -560,16 +560,16 @@ Editor ::= class {
     # (写成嵌套 `if` 时这条对应关系看不出来,漏一支得数到最后才发现)
     Pick := (sel: int) => {
         sel |> 0 => { Edit (); }
-              | 1 => { RunPage (); }
-              | 2 => { PlainLoop (); }
-              | 3 => { LoadPage (); }
-              | 4 => { SavePage (); }
-              | 5 => { 0; }                     # 退出
-              | 6 => { About (); }              # 作者 —— 就是把那张大图再放一遍
-              | 7 => { SwitchAutoTab (); }
-              | 8 => { SwitchResult (); }
-              | 9 => { Tutorial (); }           # 教程 —— 见下
-              | _ => { 0; }
+            |  1 => { RunPage (); }
+            |  2 => { PlainLoop (); }
+            |  3 => { LoadPage (); }
+            |  4 => { SavePage (); }
+            |  5 => { 0; }                     # 退出
+            |  6 => { About (); }              # 作者 —— 就是把那张大图再放一遍
+            |  7 => { SwitchAutoTab (); }
+            |  8 => { SwitchResult (); }
+            |  9 => { Tutorial (); }           # 教程 —— 见下
+            |  _ => { 0; }
         sel != 5;                             # 只有"退出"那一条交回 false,菜单就停了
     }
 
