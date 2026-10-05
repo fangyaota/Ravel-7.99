@@ -58,7 +58,7 @@ n := () => {
 n ()
 # --- expected ---
 # before
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool := c (); cond t e; } applied c=<block> t…
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool = c (); cond t e; } applied c=<block> t=…
 #   --> tests/diag/264_warn_forgot_call.rav:15:5
 #   15 |     if { true; } { print "这一段静默不跑"; }
 #      |     ^
@@ -68,7 +68,7 @@ n ()
 #   --> tests/diag/264_warn_forgot_call.rav:24:5
 #   24 |     f
 #      |     ^
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool := c (); cond t e; } applied c=<block> t…
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool = c (); cond t e; } applied c=<block> t=…
 #   --> tests/diag/264_warn_forgot_call.rav:33:9
 #   33 |         if { true; } { print "循环里也不跑"; }
 #      |         ^

@@ -31,11 +31,11 @@ using Ravel.Testing;
 /// 用例全绿**不等于** AST 没变 —— 绿只说明这套语料没踩到那个差别。</summary>
 internal static class AstDump
 {
-    public static bool Run(IReadOnlyList<string> paths)
+    public static bool Run(IReadOnlyList<string> paths, bool source = false)
     {
         if (paths.Count == 0)
         {
-            Console.WriteLine("用法: ravel ast <文件或目录>…");
+            Console.WriteLine(source ? "用法: ravel ast --source <文件或目录>…" : "用法: ravel ast <文件或目录>…");
             return false;
         }
 
@@ -68,12 +68,13 @@ internal static class AstDump
         using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
 
         var sb = new StringBuilder();
-        var failed = 0;
+        var failed = 0;    // 解析不了(语料里本来就有 `# expect-error` 那种故意写坏的)
+        var broken = 0;    // 印出来再解析,树对不上(只有 `--source` 那一趟才可能)
         foreach (var file in files)
         {
             // 路径统一成 `/` 分隔:同一个语料在 Windows 和别处跑出来的标题行得一样
-            var title = "──── " + file.Replace('\\', '/') + " ────\n";
-            sb.Clear().Append(title);
+            var title = "──── " + file.Replace('\\', '/') + " ────";
+            sb.Clear();
 
             try
             {
@@ -82,23 +83,70 @@ internal static class AstDump
                 var src = GoldenTestRunner.SourcePart(File.ReadAllText(file));
                 // 和**真正跑它**的时候同一套入口:文件头那条 `#program --more-control-flow`
                 // 也得认,不然 `return` / `break` 那些语句在转储里报语法错、在跑的时候却没事。
-                var program = Parser.ParseSource(src, file, Parser.DeclaresMoreControlFlow(src));
-                Render(sb, program, 0);
+                var flow = Parser.DeclaresMoreControlFlow(src);
+                var program = Parser.ParseSource(src, file, flow);
+
+                if (source)
+                {
+                    var text = AstPrinter.Program(program);
+                    // **自验:印出来的东西再解析一遍,得回到同一棵树。** 不比就交出去是
+                    // 赌自己没印错,而这个印子的活儿细得很(括号、`=` 还是 `:=`、`->` 还是 `:`)
+                    // —— `CommentStripper` 剥完注释也要再比一遍 token,同一个规矩。
+                    // 位置不比:行重排过了。
+                    var again = Parser.ParseSource(text, file, flow);
+                    if (Canonical(again) != Canonical(program))
+                    {
+                        Console.Error.WriteLine($"{file}: 印出来再解析,树对不上");
+                        broken++;
+                    }
+                    // 标题写成注释 —— 这一趟交出去的得**还是能解析的 .rav**
+                    sb.Append(Comment(title)).Append('\n').Append(text).Append('\n');
+                }
+                else
+                {
+                    sb.Append(title).Append('\n');
+                    Render(sb, program, 0, positions: true, meta: true);
+                }
             }
             // 语料里本来就有 `# expect-error` 那种**故意写坏**的文件 —— 一个文件坏了不该把
             // 整趟搅了。照报(报在它自己那一格,位置一样是可比对的),最后拿退出码说话。
             catch (Exception ex) when (ex is SyntaxException or RuntimeException)
             {
-                sb.Clear().Append(title).Append("!! ").Append(ErrorReport.Format(ex)).Append('\n');
+                var msg = "!! " + ErrorReport.Format(ex);
+                sb.Clear().Append(source ? Comment(title + "\n" + msg) : title + "\n" + msg).Append('\n');
                 failed++;
             }
 
             stdout.Write(sb);
         }
 
-        stdout.WriteLine($"\n转储 {files.Count} 个文件" + (failed > 0 ? $",其中 {failed} 个报错" : ""));
+        var tail = failed > 0 ? $",其中 {failed} 个报错" : "";
+        if (source && broken > 0) tail += $",{broken} 个往返后树对不上(见 stderr)";
+        stdout.WriteLine($"\n{(source ? "印出" : "转储")} {files.Count} 个文件{tail}");
         stdout.Flush();
-        return failed == 0;
+        return failed == 0 && broken == 0;
+    }
+
+    /// <summary>整段按注释写出去 —— `--source` 出来的文件得**还是能解析的 `.rav`**,
+    /// 所以标题行、报错都得是 `#` 注释,不然拿它去 `ravel` 会当场报语法错。</summary>
+    private static string Comment(string text)
+        => string.Join("\n", text.Split('\n').Select(line => "# " + line));
+
+    /// <summary>只比较**树本身** —— 位置和"来路"都不进去。
+    ///
+    /// * **位置**(`@行:列`):印出来的源码重排过,行列当然全变。
+    /// * **来路**(`Source` / `Sugar`):源码文本里**根本表达不出来**。
+    ///   `Source` 是"这个块来自哪个文件"(`Lowering` 自己造的那些块没有);
+    ///   `Sugar` 是"这枚 lambda 是语法糖生成的、不是用户写的"—— 印成源码之后,它当然
+    ///   是一枚**写出来的** lambda 了。两个都不影响求值那一侧(`Sugar` 只管解析期
+    ///   收 `_` 洞时的闭包边界),重解析的树自己会把它算对。
+    ///
+    /// 留着它们的唯一后果是**每个文件都"对不上"**,那自验就等于没有。</summary>
+    private static string Canonical(AstNode node)
+    {
+        var sb = new StringBuilder();
+        Render(sb, node, 0, positions: false, meta: false);
+        return sb.ToString();
     }
 
     // ========================================
@@ -112,16 +160,19 @@ internal static class AstDump
     ///
     /// 值为 `null` 的属性**不印**(没那一行 = 是 null)—— 省地方,而且"从无到有"在 diff 里
     /// 表现为**多一行**,看得出是哪儿变的。</summary>
-    private static void Render(StringBuilder sb, object node, int depth)
+    private static void Render(StringBuilder sb, object node, int depth, bool positions, bool meta)
     {
         Indent(sb, depth).Append(node.GetType().Name);
         // 位置只有真节点才有 —— `Parameter` / `DictEntry` 没继承 `AstNode`
-        if (node is AstNode positioned)
+        if (positions && node is AstNode positioned)
             sb.Append(" @").Append(positioned.Line).Append(':').Append(positioned.Column);
         sb.Append('\n');
 
         foreach (var prop in Properties(node.GetType()))
         {
+            // "来路"那两个只在**自验**那一趟排掉(见 `Canonical`);转储是照印的 ——
+            // 那份要的是"一个字段都不少"
+            if (!meta && prop.Name is "Source" or "Sugar") continue;
             var value = prop.GetValue(node);
             if (value is null) continue;
 
@@ -129,7 +180,7 @@ internal static class AstDump
             if (IsNode(value))
             {
                 sb.Append('\n');
-                Render(sb, value, depth + 2);
+                Render(sb, value, depth + 2, positions, meta);
             }
             // 列表(语句 / 元素 / 参数 / 模式的那几格)。`IEnumerable<T>` 是协变的,
             // 所以 `List<Statement>` 也落进这一格。**不带下标** —— 带上"第几项"之后,
@@ -138,7 +189,7 @@ internal static class AstDump
             {
                 sb.Append('\n');
                 foreach (var item in items)
-                    if (IsNode(item)) Render(sb, item, depth + 2);
+                    if (IsNode(item)) Render(sb, item, depth + 2, positions, meta);
                     else Indent(sb, depth + 2).Append(Scalar(item)).Append('\n');
             }
             else
