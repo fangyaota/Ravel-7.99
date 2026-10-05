@@ -56,8 +56,8 @@ print ((Json.FromString "null").Extract ())
 print (Json.FromString "\"2020-01-01\"")
 print (typeof ((Json.FromString "\"2020-01-01\"").Extract ()))
 
-# 注解是 Json 时,原生值直接转换过去
-x: Json = {"k"-> true}
+# 注解只断言不转换 —— 原生值要自己转:`Json {...}`
+x: Json = Json {"k"-> true}
 print (x)
 
 # 坏输入说人话(带行列)

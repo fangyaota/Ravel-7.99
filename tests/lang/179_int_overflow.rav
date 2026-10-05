@@ -13,35 +13,31 @@ print (int 2147483647)
 print (int (bigint 0 - 2147483648))
 print (int (fraction 7 2))
 print (int true)
-# bigint → float 是拓宽,显式隐式都该通
+# **要转就明写。** 注解只**断言**(只认父子),不做转换 —— 而数值那几族彼此是兄弟,
+# 所以 `z: float = bigint 5` 现在当场报「不是父子」,得写 `float (bigint 5)`。
 print (float (bigint 5))
-z: float = bigint 5
+z: float = float (bigint 5)
 print z
-x: int = 3.9
+x: int = int 3.9
 print x
-y: int = bigint 7
+y: int = int (bigint 7)
 print y
 
 # ═══ 159_conversion_consistency(并入) ═══
 ravel "159_conversion_consistency"
-# 隐式与显式的转换表要一致:显式 `bigint "123"` 走得通,
-# 隐式 `x: bigint = "123"` 也该走得通(以前 ConvertDirect 缺 String/Int 分支,
-# 于是同一件事两条路两种结果)
-x: bigint = "123"
-print x
-y: float = "1.5"
-print y
-z: bigint = 5
-print z
+# **转换只有一条路:明写。** 从前那一类"隐式和显式两张表会飘"的毛病因此不存在了
+# —— 显式 `bigint "123"` 走得通、隐式 `x: bigint = "123"` 报错,那种"同一件事两个答案"
+# 是两张表各自演化的结果;现在没有隐式那一张。
 print (bigint "123")
 print (float "1.5")
+print (bigint 5)
 # 隐式/显式之所以一致,是因为转换表**只有一份**(ConvertDirect 按目标类调各类型的 CastToXxx,
 # 不再逐类型各抄一遍)。这两条从前正好是对着来的:
 #   `int (fraction 7 2)` 走得通,`x: int = fraction 7 2` 报「类型不匹配」
 #   `bigint 1.5` 走得通(`(BigInteger)1.5` 截断成 1),`x: bigint = 1.5` 不行
-a: int = fraction 7 2
+a: int = int (fraction 7 2)
 print a
-b: bigint = 1.5
+b: bigint = bigint 1.5
 print b
 ravel ""
 
@@ -242,8 +238,6 @@ ravel ""
 # 123
 # 1.5
 # 5
-# 123
-# 1.5
 # 3
 # 1
 # 160_fraction_zero_den: 分数的分母不能为零

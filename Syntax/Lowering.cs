@@ -458,6 +458,15 @@ public sealed class Lowering
                 var gid = Ident(g, at);
                 outs.Add(Define(g, null, Call0(Member(source, "GetEnumerator")), attrs, at));
 
+                // **零格**(`[]`):要求它是**空的** —— 走一步还有东西就拒收。
+                // (`Some` / `None` 分派靠这条收尾:`[v]` 认有值那半,`[]` 认空那半。)
+                if (l.Parts.Count == 0)
+                {
+                    outs.Add(ExprStmt(If(Call0(Member(gid, "MoveNext")),
+                        Reject(Str("要的是空的，可这一串还有东西"), at), at), at));
+                    return;
+                }
+
                 var k = 0;
                 foreach (var part in l.Parts)
                 {

@@ -47,7 +47,7 @@ f ()
 执行以上程序会输出如下结果：
 
 ```
-Error: 类型不匹配: 无法将 Integer 赋值给 C — 无法将 Integer 转换为 C
+Error: 类型不匹配: 无法将 Integer 赋值给 C（不是父子）—— 要转就明写 `C …`
 ```
 
 遮蔽写在内层作用域里（顶层 `string := C` 报「已经定义过」），之后注解 `z: string` 指的就是 `C`。
@@ -59,7 +59,7 @@ Error: 类型不匹配: 无法将 Integer 赋值给 C — 无法将 Integer 转�
 ```ravel
 pick := (flag: bool) => { if { flag; } { int; } { float; } }
 a: (pick true) = 5
-b: (pick false) = 5
+b: (pick false) = float 5      # 注解只断言不转换 —— 要 float 就自己写出来
 print (typeof a)
 print (typeof b)
 ```
@@ -95,22 +95,54 @@ Float
 
 注意：`bool` 只认 `bool` 和 `default` —— 数字**没有**到 bool 的转换（`bool 0` 报「无法将 Integer 转换为 bool」）。
 
-**标注位置上会隐式转换**：`x: int = <别的类型>` 走的就是 `int <别的类型>`，转得动就转、转不动才报「类型不匹配」。
-
 #### 实例
 
 ```ravel
-x: int = 3.9
-y: bigint = "123"
-z: int = fraction 7 2
-bad: int = NaN
+print (int "42")
+print (string 100)
+print (float 3)
+print (int 3.9)              # 往窄处转要自己说：截断成 3
+print (bigint 1.5)
 ```
 
 执行以上程序会输出如下结果：
 
 ```
-Error: 类型不匹配: 无法将 Float 赋值给 Integer — NaN 不能转换为 int
+42
+100
+3
+3
+1
 ```
+
+**注解是断言，不是转换指令。** `x: T = v` 只在"那个值**本来就属于** `T`"时成立 ——
+判据是继承链（父子）和当前作用域里生效的实现（接口），和 `x: T` 那条判断完全一样。
+
+数值那几族**彼此是兄弟**（`1: float` 是 false），所以下面这几条当场报：
+
+#### 实例
+
+```ravel
+tries := []
+try { eval "x: float = 1"; } (e: Exception) => { tries.Add ("1: " + e.Message); }
+try { eval "y: bigint = 5"; } (e: Exception) => { tries.Add ("2: " + e.Message); }
+try { eval "z: int = 3.9"; } (e: Exception) => { tries.Add ("3: " + e.Message); }
+foreach tries (t: string) => { print t; }
+```
+
+执行以上程序会输出如下结果：
+
+```
+1: 类型不匹配: 无法将 Integer 赋值给 Float（不是父子）—— 要转就明写 `Float …`
+2: 类型不匹配: 无法将 Integer 赋值给 BigInt（不是父子）—— 要转就明写 `BigInt …`
+3: 类型不匹配: 无法将 Float 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
+```
+
+要转就**明写**：`x: float = float 1`。好处是"这里发生了一次转换"永远写在脸上 ——
+而且**转换表只有一张**（隐式那条路没了，就不存在"显式走得通、隐式报错"那种两张表各飘各的）。
+
+参数表和注解一个口径（都只问"本来就属于吗"），`default` 是唯一的例外 ——
+它要的不是转换，是"按注解造一个本类型的空值"：
 
 ## 2.5 空值
 

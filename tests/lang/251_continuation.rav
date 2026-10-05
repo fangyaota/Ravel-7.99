@@ -95,8 +95,8 @@ print "end"
 # true
 # false
 # 1: 这枚续延是 default（还没到手的那一枚），调不了 —— 能跳的续延只有 callcc 交出来的那种
-# 2: 类型不匹配: 无法将 Integer 赋值给 Continuation — 无法将 Integer 转换为 Continuation
-# 3: 类型不匹配: 无法将 Function 赋值给 Continuation — 无法将 Function 转换为 Continuation
+# 2: 类型不匹配: 无法将 Integer 赋值给 Continuation（不是父子）—— 要转就明写 `Continuation …`
+# 3: 类型不匹配: 无法将 Function 赋值给 Continuation（不是父子）—— 要转就明写 `Continuation …`
 # Continuation
 # true
 # 7

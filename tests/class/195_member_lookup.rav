@@ -1,4 +1,4 @@
-﻿# 成员查找只有**一条路**:`Value.MemberScope`,由 MemberView 一次走完两段 ——
+# 成员查找只有**一条路**:`Value.MemberScope`,由 MemberView 一次走完两段 ——
 #   ① 值自己那层(对象是它的实例作用域,扁平)
 #   ② 沿**类对象**的 parent 链兜底(方法住在类那层,`Fields` 在 `object` 上)
 #
@@ -218,9 +218,10 @@ ravel "203_annotation_expr"
 # `(x: int y: int)` 里的 `int y` 会被当成一次调用。
 
 # 算出来的类型:同一个字段,注解不同就装不同的类型
+# (注解只**断言**,不转换 —— 所以 `pick false` 那支的值得自己写成 float)
 pick := (flag: bool) => { if { flag; } { int; } { float; } }
 a: (pick true) = 5
-b: (pick false) = 5
+b: (pick false) = float 5
 print (typeof a)
 print (typeof b)
 
@@ -359,7 +360,7 @@ ravel ""
 # 右边不是类型: ':' 的右边要是一个类型，得到 Integer
 # done
 # 1: 'y' 的类型注解要是个类型，得到 Integer
-# 2: 类型不匹配: 无法将 Integer 赋值给 C — 无法将 Integer 转换为 C
+# 2: 类型不匹配: 无法将 Integer 赋值给 C（不是父子）—— 要转就明写 `C …`
 # 3: 7
 # Block
 # 20

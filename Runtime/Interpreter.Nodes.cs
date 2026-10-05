@@ -298,13 +298,29 @@ public partial class Interpreter
         // 于是上面那条捷径会把它整段放过 —— 结果是 `n: int = default` 把 `default` 原样存下,
         // 之后 `n + 1` 报「Every 不支持 '+'」。它要的是"按注解变成本类型的那个空值"
         // (0 / "" / 空表 / 空函数 / 空续延…),而那正是 ConvertDirect 干的事。
+        // **只认父子,不做隐式转换。**
+        //
+        // `Accepts` 那两条就是"这个值本来就属于这个类型":继承链够得着,或者当前作用域里
+        // 有生效的实现把它接到目标上。**数值/字符串那种"能转就转"没有了** ——
+        // `x: float = 1` 不再悄悄变成 1.0(Integer 和 Float 是兄弟,不是父子);
+        // 要转就明写 `float 1`。
+        //
+        // 参数表一直就是这么判的(`Interpreter.Call`:只问 `Accepts`,不问转换)——
+        // 定义这边从前多一道,两边不一致,现在统一。
+        //
+        // **`default` 是唯一例外**:它要的本来就不是"转换",而是"按注解造一个本类型的空值"
+        // (0 / "" / 空表 / 空函数…),那正是 ConvertDirect 干的事。它的类型是底类型 Every,
+        // 见谁都点头,所以上面那条捷径放它过去会留下一个真的 `default` 值。
         if (!isBy && (val is DefaultVal || !Accepts(val, dt)))
         {
-            var cv = TryConvert(val, dt, out var why);
-            if (cv != null) val = cv;
-            // 用 `—` 而不是括号:why 自己常带括号(「超出 int 范围(大数用 bigint)」),
-            // 套起来会变成双层括号
-            else throw new RuntimeException($"类型不匹配: 无法将 {val.Type} 赋值给 {dt} — {why}", ErrorKind.Type);
+            if (val is DefaultVal)
+            {
+                if (TryConvert(val, dt, out var why) is { } dv) val = dv;
+                else throw new RuntimeException($"类型不匹配: 无法将 default 变成 {dt} — {why}", ErrorKind.Type);
+            }
+            else throw new RuntimeException(
+                $"类型不匹配: 无法将 {val.Type} 赋值给 {dt}（不是父子）—— 要转就明写 `{dt} …`",
+                ErrorKind.Type);
         }
 
         // **`:=` 是定义,不是覆盖** —— 同一个作用域里同名再 `:=` 就报错(`Scope.Define` 本来

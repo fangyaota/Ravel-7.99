@@ -553,7 +553,8 @@ public partial class Parser
                 SkipNewlines();
             }
             Consume(TokenType.RightBracket, "列表模式末尾需要 ']'");
-            if (parts.Count == 0) throw ParseError("列表模式里得有一格（`[]` 没东西可解）");
+            // `[]` 是**零格**:要求它是空的(`None` / 空 list / 空串)。
+            // —— `Some` / `None` 分派就靠它收尾(`[v]` 认有值的那半,`[]` 认空的那半)。
             EnsureRestIsLast(parts);
             return new ListPattern(parts) { Line = at.Line, Column = at.Column };
         }

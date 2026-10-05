@@ -1,4 +1,4 @@
-﻿# 接口(interface)+ 实现 + use。带用法和期望输出的草稿是 myMetaClass.rav。
+# 接口(interface)+ 实现 + use。带用法和期望输出的草稿是 myMetaClass.rav。
 #
 # `myTrait ::= interface { by a : int = default … }` —— interface 内置、继承于 type,
 # 所以造出来的 myTrait 也是个**类对象**(`myTrait is type`),它的类体就是接口的"形"。
@@ -358,7 +358,7 @@ try { im2.instance = 5; } (e: Exception) => { print ("11: " + string e); }
 ravel ""
 # --- expected ---
 # 1: 类型 'myClass' 没有方法 'a'
-# 2: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
+# 2: 类型不匹配: 无法将 myClass 赋值给 myTrait（不是父子）—— 要转就明写 `myTrait …`
 # 0
 # 7
 # 7
@@ -379,7 +379,7 @@ ravel ""
 # 5: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
 # 6: 类型 'myClass' 没有方法 'a'
 # false
-# 7: 类型不匹配: 无法将 myClass 赋值给 myTrait — 无法将 myClass 转换为 myTrait
+# 7: 类型不匹配: 无法将 myClass 赋值给 myTrait（不是父子）—— 要转就明写 `myTrait …`
 # 7
 # 1
 # 2
