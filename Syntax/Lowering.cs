@@ -412,6 +412,7 @@ public sealed class Lowering
         {
             case NamePattern n:
                 outs.Add(Define(n.Name, null, source, attrs, at));
+                CheckGuard(n, n.Name, Ident(n.Name, at), outs);
                 return;
 
             case RestPattern r:
@@ -425,6 +426,7 @@ public sealed class Lowering
                 var gen = new LambdaExpr(new Parameter(y, Ident("function", at)), AsBlock(drain, at))
                     { Line = at.Line, Column = at.Column, Sugar = true };
                 outs.Add(Define(r.Name, null, Call(Ident("Generator", at), gen), attrs, at));
+                CheckGuard(r, r.Name, Ident(r.Name, at), outs);
                 return;
 
             case MemberPattern m:
@@ -497,6 +499,19 @@ public sealed class Lowering
     /// <summary>取反。**只在布尔上**用(`MoveNext` 的返回值、类型判定)——它就是一元的 `!`。</summary>
     private static UnaryExpr Not(Expression operand, AstNode at)
         => new("!", operand) { Line = at.Line, Column = at.Column };
+
+    /// <summary>这一格带了**条件**(`[u == 1]` / `a == 1 = e`):绑完之后验一次,不成**拒收**。
+    ///
+    /// 名字用 <paramref name="bound"/> 那个**已经绑好的**标识符,不重读源 ——
+    /// 所以条件里写的 `u` 就是绑出来的那个 `u`(和参数表里守卫的读法一致)。
+    /// 判据一样走拒收(不是 `throw`):`|` 的交替接得住,参数模式和它一条路。</summary>
+    private void CheckGuard(Pattern p, string name, Expression bound, List<Statement> outs)
+    {
+        if (p.Guard is not { } guard) return;
+        var at = p;
+        outs.Add(ExprStmt(If(Not(guard, at),
+            Reject(Lit($"'{name}' 这一格的条件没过 —— 这一支不收这个值", at), at), at), at));
+    }
 
     /// <summary>`if { 条件; } { 这一段; } { 0; }` —— 条件不成立才跑那一段。</summary>
     private Expression If(Expression cond, Expression then, AstNode at)

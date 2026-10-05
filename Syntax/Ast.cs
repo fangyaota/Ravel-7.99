@@ -117,6 +117,15 @@ public record Destructure(List<string> Attrs, Pattern Pattern, Expression Value)
 public abstract record Pattern : AstNode
 {
     public Expression? Type { get; init; }
+
+    /// <summary>这一格自己的**条件**(可省):`[u == 1 v]` / `a == 1 = e`。
+    ///
+    /// 和参数表里那个守卫**同一套**:表达式里**最左边那个标识符**就是这一格的名字,
+    /// 值绑给它之后才验这条 —— `u == 1` 说的是"绑出来的 `u` 要等于 1"。不成 → **拒收**,
+    /// 和形状检查一条路(`|` 的交替接得住)。
+    ///
+    /// 名字本身也认(`a |> IsPrime`),只要那个标识符是**最左**的就行(`1 == a` 取到的是 `a`)。</summary>
+    public Expression? Guard { get; init; }
 }
 
 /// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>

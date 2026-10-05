@@ -372,7 +372,21 @@ public partial class Parser
 
         // 独立的表达式语句
         _holeCount = 0;
+        var startTok = _pos;
         var expr = ParseExpression();
+
+        // **约束式定义**:`a == 1 = e` / `a |> IsPrime = e` —— `=` 左边不是左值(名字/成员),
+        // 那它是一条**条件**:把右边绑给条件里**最左边那个标识符**,并要求条件成立(不成 → 拒收)。
+        //
+        // 走的是**解构那条路**(一个只有一格的模式,那一格带条件)—— 检查只写在 `Lowering.Bind`
+        // 一处。`=` 而不是 `:=`:约束本身就说明了这是个定义(见 myMetaClass 草稿那句)。
+        if (expr is BinaryExpr { Op: "=", Left: not (IdentifierExpr or MemberAccess) } cd)
+        {
+            var nm = FirstIdentName(startTok, _pos)
+                ?? throw ParseError("'=' 左边不是左值 —— 那它得是条**条件**，而条件里要有个名字");
+            var pat = new NamePattern(nm) { Guard = cd.Left, Line = cd.Left.Line, Column = cd.Left.Column };
+            return new Destructure([], pat, cd.Right) { Line = cd.Line, Column = cd.Column };
+        }
 
         // `x++` / `x--`。**紧贴着**刚算完的表达式看,不跨换行 —— `x` 一行、`++` 一行
         // 那是两条语句,不是自增(第二条到语句开头会被上面那条拦下来)。
@@ -500,6 +514,18 @@ public partial class Parser
         return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column };
     }
 
+    /// <summary>名字后面这一格是不是"这一格完了" —— 是名字**自己**收尾的三种
+    /// (`]` `}` 换行)加"**下一格开始了**"的四种(名字 / 嵌套的 `[…]` `{…}` / `..名字`,
+    /// 还有 `:` 那个注解)。
+    ///
+    /// 这条判据是分岔口:**不是**收尾,那后面就是一格**条件**(`u == 1`)。少列一种就会
+    /// 把下一格一起读进条件里 —— `[x y]` 里的 `y` 会被当成 `x` 的条件(`x y` 是个调用)。</summary>
+    private bool EndsThisPart()
+        => Check(TokenType.Colon) || Check(TokenType.Identifier) || Check(TokenType.DotDot)
+        || Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace)
+        || Check(TokenType.RightBracket) || Check(TokenType.RightBrace)
+        || Check(TokenType.Newline) || IsAtEnd();
+
     /// <summary>读一格模式。四种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}`。
     ///
     /// **每一格后面可以跟 `: 类型`**(`[x: int y: string]` / `[[a b]: list c]`),嵌套的那几格
@@ -559,6 +585,11 @@ public partial class Parser
             return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
         }
 
+        if (Check(TokenType.PipeInto))
+            throw ParseError("模式里没有**整块**的 `|>` 条件 —— 条件写在**那一格自己身上**"
+                           + "（`[u == 1 v]`），整块的用参数模式（`(v |> IsPrime) => …`）");
+
+        var saveAt = _pos;
         var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、还是 `..名字`");
         if (name.Lexeme == "_")
         {
@@ -566,7 +597,19 @@ public partial class Parser
                 throw ParseError("`_` 不绑东西，挂类型没意义 —— 想验那一格就给它一个名字");
             return new SkipPattern { Line = at.Line, Column = at.Column };
         }
-        return new NamePattern(name.Lexeme) { Line = at.Line, Column = at.Column };
+
+        // **带条件的一格**:`u == 1` —— 名字取条件里最左边那个标识符(和参数守卫一个规矩)。
+        // 后面跟的不是"这一格的收尾/下一格的开始",就当条件读。读的时候**不吃并列的实参**
+        // (`allowCall: false`)—— 不然 `[u == 1 v]` 那一格会把后面的 `v` 一起吞了。
+        if (EndsThisPart())
+            return new NamePattern(name.Lexeme) { Line = at.Line, Column = at.Column };
+
+        _pos = saveAt;
+        var from = _pos;
+        var guard = ParseClimb(allowCall: false, 0);
+        if (FirstIdentName(from, _pos) is not { } nm)
+            throw ParseError("这一格的条件里得有个名字 —— 它**最左边**那个标识符就是");
+        return new NamePattern(nm) { Guard = guard, Line = at.Line, Column = at.Column };
     }
 
     /// <summary>`..名字` 只能写最后一项 —— 它把后面都吃了,写在中间后面的格子永远取不到
