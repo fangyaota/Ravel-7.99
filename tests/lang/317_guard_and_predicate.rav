@@ -92,11 +92,10 @@ print ((try { eval "print or"; } (e: Exception) => { "3: " + e.Message; }))
 print ((try { f true; } (e: Exception) => { "1: " + e.Message; }))
 only := (v == 1) => { "一"; }
 print ((try { only 2; } (e: Exception) => { "2: " + e.Message; }))
-# `reject` **只要一个 TypeError**(和 `throw` 要一个 `Exception` 一个口径,只是更窄)。
+# `System.Reject` **只要一个 TypeError**(和 `throw` 要一个 `Exception` 一个口径,只是更窄)。
 # 给别的当场报错 —— 从前收字符串会**静默**换成那句通用的「这一支不收这个参数」,
 # 写的那句话一个字都到不了用户眼前(守卫生成的正是字符串,消息一直是丢的)。
-print ((try { eval "reject \"一句话\""; } (e: Exception) => { "4: " + e.Message; }))
-
+print ((try { eval "System.Reject \"一句话\""; } (e: Exception) => { "4: " + e.Message; }))
 # --- expected ---
 # 一
 # 二
@@ -123,4 +122,4 @@ print ((try { eval "reject \"一句话\""; } (e: Exception) => { "4: " + e.Messa
 # 3: 'or' 是中缀运算符，后面得跟个操作数（想传一个叫 `or` 的值就加括号：`(or)`）
 # 别
 # 2: 实参不满足 'v' 的守卫
-# 4: reject 要一个 TypeError（`reject (TypeError "…")`），得到 String
+# 4: System.Reject 要一个 TypeError（`System.Reject (TypeError "…")`），得到 String

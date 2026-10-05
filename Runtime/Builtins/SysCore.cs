@@ -68,9 +68,15 @@ internal static class SysCore
     /// <summary>`|` 的交替里"这一支不收这个参数" —— 抛一枚 <see cref="RejectedException"/>。
     /// 参数守卫和**解构的形状检查**都是解析器生成的调用打到这儿;手写也可以。
     ///
-    /// **只要一个 `TypeError`**(`reject (TypeError "…")`),消息从它的 `.Message` 上取 ——
+    /// **只要一个 `TypeError`**(`System.Reject (TypeError "…")`),消息从它的 `.Message` 上取 ——
     /// 和 `throw`(要一个 `Exception`)一个口径,只是更窄。别的实参当场报错,
-    /// **不回落到通用那句话**:那会让写错的人以为自己的话被采纳了。</summary>
+    /// **不回落到通用那句话**:那会让写错的人以为自己的话被采纳了。
+    ///
+    /// **不挂小写全局名**(以前 `predefined.rav` 里有一句 `readonly reject := System.Reject`,
+    /// 去掉了):这是**引擎内部的机制** —— 参数守卫、参数模式、解构的形状检查都由解析器
+    /// 生成在**支体的开头**。手写它很容易踩到"沿帧链动态找交替帧"那条(写在回调里,
+    /// 外面那一支会被顶掉),而那不是好用的东西。真要手写,从这儿走就行 —— 长一点,
+    /// 但没人会顺手敲出来。</summary>
     [Sys("Reject")]
     public static RuntimeValue Reject(Interpreter self, RuntimeValue msg)
     {
@@ -82,7 +88,8 @@ internal static class SysCore
         // 他要说的那句话被**静默**吞掉(守卫生成的就是字符串,消息一直是丢的)。
         if (msg is not ObjectVal { IsClass: false } o || !o.ClassType.IsAssignableTo(BuiltinClasses.TypeError))
             throw new RuntimeException(
-                $"reject 要一个 TypeError（`reject (TypeError \"…\")`），得到 {msg.Type}", ErrorKind.Argument);
+                $"System.Reject 要一个 TypeError（`System.Reject (TypeError \"…\")`），得到 {msg.Type}",
+                ErrorKind.Argument);
 
         throw new RejectedException(BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
     }

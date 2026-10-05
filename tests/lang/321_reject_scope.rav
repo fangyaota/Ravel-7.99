@@ -17,13 +17,13 @@
 using "tasks.rav"
 
 # ── ① `try` 是一道边界:体里拒收,本层的 handler 接住(不往外找 `|`)──
-f := (v) => { try { reject (TypeError "体里拒收"); } (e: Exception) => { "内层接了: " + e.Message; }; } | (_) => { "外面那支"; }
+f := (v) => { try { System.Reject (TypeError "体里拒收"); } (e: Exception) => { "内层接了: " + e.Message; }; } | (_) => { "外面那支"; }
 print (f 1)
 
 # ── ② 任务体里拒收:记在任务自己身上,不追到派发它的那一支 ──
 g := (v) => {
     print "  支1 开始"
-    Tasks.Cycle [(Tasks.Task (k: Tasks.TaskGroup) => { reject (TypeError "任务里拒收"); })]
+    Tasks.Cycle [(Tasks.Task (k: Tasks.TaskGroup) => { System.Reject (TypeError "任务里拒收"); })]
     print "  支1 尾巴"
     "支1 的结果"
 } | (_) => { print "  支2 被叫起来"; "支2"; }
@@ -31,7 +31,7 @@ g := (v) => {
 print ((try { g 1; } (e: Exception) => { "兜住: " + ((System.SplitLines e.Message).At 0); }))
 
 # ── ③ 回调里(近旁没有 `try`):还是动态的 —— 外面那一支会被顶掉 ──
-h := (v) => { [1 2].Each (x: object) => { reject (TypeError "回调里拒收"); }; "支1…"; } | (_) => { "支2"; }
+h := (v) => { [1 2].Each (x: object) => { System.Reject (TypeError "回调里拒收"); }; "支1…"; } | (_) => { "支2"; }
 print (h 1)
 
 # ── ④ 本行该干的活没被带歪:守卫 / 参数模式 / 解构照旧 ──

@@ -74,9 +74,6 @@ readonly input := System.ReadLine
 readonly unsafe := System.Unsafe
 readonly currentScope := System.CurrentScope
 readonly property := System.Property
-# `|` 的交替里"这一支不收这个参数"。**参数守卫**是解析器生成的调用打它(见 Parser.Atoms);
-# 手写也行 —— 拒收是控制流(和 `return` 一个道理),`try` **接不住**它,只有交替接。
-readonly reject := System.Reject
 # ── 控制流:用 Ravel 写,不占控制帧 ──
 # 条件当值用:true/false 可调用,收两个块返回选中那个的结果
 readonly if := (c: function t: function e: function) => {
