@@ -54,7 +54,7 @@ ravel --warn x.rav a --warn   →   前半 [--warn x.rav]   后半 [a --warn]
 
 - `lib/args.rav` 要不要留？它是这条规矩唯一的现实用户。
 - 若删，`System.Args ()` 的语义要重写进 `CONTEXT.md`「System 模块」和
-  `docs/tutorial/08-modules.md`，`tests/lib/249_args_env.rav` / `276_args.rav` 也要跟着改。
+  `docs/tutorial/09-modules.md`，`tests/lib/249_args_env.rav` / `276_args.rav` 也要跟着改。
 - 加进 `.scratch` 是不是这个仓库要长期保留的东西？（`.scratch/` 目前是空目录、
   没进 `.gitignore`。）
 
