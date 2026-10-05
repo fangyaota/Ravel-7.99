@@ -13,19 +13,19 @@ ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 
 
 | 章 | |
 |---|---|
-| [一、起步](tutorial/01-start.md) | 定义 / 赋值 / 自动命名 / 注释 / 打印和输入 |
-| [二、类型系统](tutorial/02-types.md) | 内置类型 / 类型名 / 注解 / 反射 / 转换 / 空值 / 类型层次 / 大数 |
-| [三、运算符](tutorial/03-operators.md) | 算术 / 比较 / `:` / 位 / 字符串 / 运算符节 / **调用比运算符松** / `++` `--` |
-| [四、控制流](tutorial/04-control.md) | `if` / `while` / `foreach` / 枚举器 / `Generator` / 按模式分派 / 早期退出 |
-| [五、函数](tutorial/05-functions.md) | 柯里化 / `_` / `<\|` 与 `\|>` / `>>` / 守卫与多子句 / 谓词合成 / `Cached` / `Option` / `do` / `IoMonad` / 文件 / 排序 / JSON / 时间 |
-| [六、集合与标准库](tutorial/06-collections.md) | 三种容器 / **解构** / `Random` / `Range` / `Regex` / `dataclass` / `enum` / `Http` / `Sqlite` / 数据结构 / ZIP / XML / 终端 … |
-| [七、类](tutorial/07-classes.md) | `init` / 继承 / 修饰符 / `by` 属性 / `with` / 元类 / 接口与实现 |
-| [八、模块](tutorial/08-modules.md) | `ravel` / `using` / `System` / `Math` / 命令行与环境变量 / `Test` |
-| [九、异常](tutorial/09-exceptions.md) | `try` / `throw` / 异常那一族 / 报错长什么样 |
-| [十、内置函数速查](tutorial/10-cheatsheet.md) | 一张表 |
-| [十一、常见陷阱](tutorial/11-pitfalls.md) | 十条最容易栽的 |
-| [十二、并发](tutorial/12-tasks.md) | `Tasks`：协作式任务、挂起点、`Signal` / `All` / `Any` / `Chan` |
-| [十三、HTTP 服务端](tutorial/13-server.md) | `Httpd`：路由 / 请求对象 / 响应 / 静态目录 / 一个慢 handler 挡不住别的连接 / keep-alive / 正文上限 / HTTPS |
+| [1、起步](tutorial/01-start.md) | 定义 / 赋值 / 自动命名 / 注释 / 打印和输入 |
+| [2、类型系统](tutorial/02-types.md) | 内置类型 / 类型名 / 注解 / 反射 / 转换 / 空值 / 类型层次 / 大数 |
+| [3、运算符](tutorial/03-operators.md) | 算术 / 比较 / `:` / 位 / 字符串 / 运算符节 / **调用比运算符松** / `++` `--` |
+| [4、控制流](tutorial/04-control.md) | `if` / `while` / `foreach` / 枚举器 / `Generator` / 按模式分派 / 早期退出 |
+| [5、函数](tutorial/05-functions.md) | 柯里化 / `_` / `<\|` 与 `\|>` / `>>` / 守卫与多子句 / 谓词合成 / `Cached` / `Option` / `do` / `IoMonad` / 文件 / 排序 / JSON / 时间 |
+| [6、集合与标准库](tutorial/06-collections.md) | 三种容器 / **解构** / `Random` / `Range` / `Regex` / `dataclass` / `enum` / `Http` / `Sqlite` / 数据结构 / ZIP / XML / 终端 … |
+| [7、类](tutorial/07-classes.md) | `init` / 继承 / 修饰符 / `by` 属性 / `with` / 元类 / 接口与实现 |
+| [8、模块](tutorial/08-modules.md) | `ravel` / `using` / `System` / `Math` / 命令行与环境变量 / `Test` |
+| [9、异常](tutorial/09-exceptions.md) | `try` / `throw` / 异常那一族 / 报错长什么样 |
+| [10、内置函数速查](tutorial/10-cheatsheet.md) | 一张表 |
+| [11、常见陷阱](tutorial/11-pitfalls.md) | 十条最容易栽的 |
+| [12、并发](tutorial/12-tasks.md) | `Tasks`：协作式任务、挂起点、`Signal` / `All` / `Any` / `Chan` |
+| [13、HTTP 服务端](tutorial/13-server.md) | `Httpd`：路由 / 请求对象 / 响应 / 静态目录 / 一个慢 handler 挡不住别的连接 / keep-alive / 正文上限 / HTTPS |
 
 ## 想深挖
 
