@@ -134,8 +134,7 @@ public partial class Interpreter
             return null;
         }
 
-        var text = File.ReadAllText(full);
-        return Parser.ParseBlock(text, full, MoreControlFlow || Parser.DeclaresMoreControlFlow(text));
+        return ParseLibBlock(full, MoreControlFlow);
     }
 
     /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里。

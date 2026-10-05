@@ -118,6 +118,41 @@ public partial class Interpreter
         }
     }
 
+    /// <summary>**同一个进程里,同一个库文件只解析一遍**（`lib/` 那些）。
+    ///
+    /// 为什么值得缓存：每建一个 `Interpreter` 都要把 `predefined.rav` 连同它 `using` 的
+    /// 整个标准库**重新解析**一遍 —— 而测试运行器一个进程里要建一百多个
+    /// (`GoldenTestRunner` 每条用例一个)，光这一项就是十几秒。
+    /// 解析出来的 AST 是**不可变记录**，`Interpret` 只是走它、不改它，所以按文件共享是稳的。
+    ///
+    /// **按路径缓存**，不按内容：一个进程里同一个路径不会中途换内容(库文件没人写)。
+    /// 缓存是 static，进程一退就没了 —— 所以改了库文件不会吃到旧的，重跑一遍就是新的。
+    /// 键里带 `flow`：那个开关会影响解析结果(`DeclaresMoreControlFlow`)，两种都得各留一份。
+    ///
+    /// **只有库文件走这儿** —— 用户脚本仍旧一次一解析。</summary>
+    private static readonly Dictionary<(string Path, bool Flow), Program> _libPrograms = [];
+    private static readonly Dictionary<(string Path, bool Flow), BlockExpr> _libBlocks = [];
+
+    /// <summary>`predefined.rav` 那一趟(和 `Parser.ParseSource(text, path)` 两参重载**等价**:
+    /// 开关只看文件自己声明的)。</summary>
+    private static Program ParseLibSource(string path)
+    {
+        var text = File.ReadAllText(path);
+        var flow = Parser.DeclaresMoreControlFlow(text);
+        if (_libPrograms.TryGetValue((path, flow), out var hit)) return hit;
+        return _libPrograms[(path, flow)] = Parser.ParseSource(text, path, flow);
+    }
+
+    /// <summary>`using "x.rav"` 那一趟:开关是**命令行那个 OR 文件自己声明的**(见 Modules 里
+    /// 原来那句),所以助手把两件事一起做掉。</summary>
+    private static BlockExpr ParseLibBlock(string path, bool commandLineFlow)
+    {
+        var text = File.ReadAllText(path);
+        var flow = commandLineFlow || Parser.DeclaresMoreControlFlow(text);
+        if (_libBlocks.TryGetValue((path, flow), out var hit)) return hit;
+        return _libBlocks[(path, flow)] = Parser.ParseBlock(text, path, flow);
+    }
+
     /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）。
     ///
     /// **找不到就报错**,不静默跳过:别名(`print` / `true` / `int` / …)和控制流全在那个文件里,
@@ -129,7 +164,7 @@ public partial class Interpreter
             var p = Path.Combine(d, "predefined.rav");
             if (File.Exists(p))
             {
-                RunStack(Parser.ParseSource(File.ReadAllText(p), p));
+                RunStack(ParseLibSource(p));
                 return;
             }
         }
