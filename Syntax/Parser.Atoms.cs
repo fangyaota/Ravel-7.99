@@ -423,10 +423,18 @@ public partial class Parser
                     // 按树取"最左"会取到 IsPrime。草稿那句"只看最左边的"说的就是源码顺序。
                     var nm = FirstIdentName(saveAt, _pos)
                         ?? throw ParseError("守卫里得有个参数名 —— 它最左边那个标识符就是");
-                    // 这个名字前面**已经声明过**就只挂守卫,别再声明一个 ——
-                    // 不然 `(x: int x > 10)` 会变成两个参数,后一个还是 `object`,把类型注解盖掉。
-                    if (!@params.Any(q => q.Name == nm))
-                        @params.Add(new Parameter(nm, ObjectType(at)));
+                    // **守卫里那个名字不许是已经声明过的参数**。
+                    //
+                    // 从前是"声明过就只挂守卫、不再声明一个":`(x: int x < 0)` 于是成了
+                    // **一个**参数 + 一个守卫。它**跑得对**,可写出来就是两个 `x` ——
+                    // 读的人当双参、写的人多半也是手滑(想盯哪个参数不写名字,写错了就悄悄
+                    // 多出一个 `object` 参数)。参数表里一个名字出现两遍**就是两遍**,当场报。
+                    //
+                    // 代价说清楚:"带类型的参数 + 守卫"因此没了简写,要写就写成谓词那支
+                    // (`(v |> IsPrime)` —— 守卫自己命名那个参数)或者传个闭包。
+                    if (@params.Any(q => q.Name == nm))
+                        throw ParseError($"参数名 '{nm}' 写了两遍 —— 每个参数一个名字");
+                    @params.Add(new Parameter(nm, ObjectType(at)));
                     if (!Check(TokenType.RightParen))
                         throw ParseError("守卫要写在参数表的**最后一项** —— 它是一条表达式,"
                                        + "会把后面那一项吞进去（`(x: int v == 1)` 这么写）");
