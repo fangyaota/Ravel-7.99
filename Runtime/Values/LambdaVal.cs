@@ -7,6 +7,14 @@ namespace Ravel.Runtime;
 public sealed record LambdaVal(string ParamName, Expression ParamTypeExpr, ObjectVal ParamType, BlockExpr Block)
     : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("LambdaVal"))
 {
+    /// <summary>参数是个**模式**时那一格(`([x y]) => …` / `1 => …` / `() => …`)——
+    /// `Lowering` 拆完**还留着它**,只为打印:签名要印回**人写的样子**
+    /// (`<function () => { 1; }>`),而不是脱糖之后那一串 `__p…` 加拒收检查。
+    ///
+    /// 链外面那几层从 `inner.Param` 上拿(`LambdaExpr` 自己带着),所以只有最外面这一层
+    /// 需要把它搬进值里。</summary>
+    public Pattern? ParamPattern { get; init; }
+
     /// <summary>打印成**它的代码** + **柯里化已经收下的实参**:
     ///
     ///     <function (a: int b: int) => { a + b; }>

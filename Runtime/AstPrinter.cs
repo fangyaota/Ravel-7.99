@@ -40,13 +40,18 @@ internal static class AstPrinter
     /// <summary>渲染一个函数的**签名链**:`(a: int) => { … }`。**单行档** —— 显示用。</summary>
     public static string Signature(LambdaVal lam)
     {
-        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr, -1) };
+        var parts = new List<string> { Param(lam.ParamName, lam.ParamTypeExpr, lam.ParamPattern, -1) };
         var body = lam.Block;
         while (Next(body) is { } inner)
         {
-            parts.Add(Param(inner.Param.Name, inner.Param.Type, -1));
+            parts.Add(Param(inner.Param.Name, inner.Param.Type, inner.Param.Pattern, -1));
             body = inner.Body;
         }
+
+        // **只有一格、而那一格是"要 `()`"** —— 整个签名就印成 `()`。
+        // 外面那层括号是**参数表自己的**,里面那对才是模式 —— 一层就够,别印成 `(())`
+        // (那正是"空参数表"那个读法,也是 `() => …` 写出来时的样子)。
+        if (parts is ["()"]) return "() => " + Block(body);
 
         return "(" + string.Join(" ", parts) + ") => " + Block(body);
     }
@@ -61,13 +66,34 @@ internal static class AstPrinter
     private static LambdaExpr? Next(BlockExpr body)
         => body.Statements is [ExpressionStatement { Expr: LambdaExpr inner }] ? inner : null;
 
-    /// <summary>参数:`名字: 注解`。注解本身是表达式,照源码渲染(常见就是一个名字)。</summary>
-    private static string Param(string name, Expression type, int indent) => name + ": " + Annotated(type, indent);
+    /// <summary>参数。**显示**那条路(`indent &lt; 0`)上,带模式的那几个印**模式** ——
+    /// 印的是人写的那个样子(`() => …` / `1 => …` / `([x y]) => …`),而不是脱糖之后
+    /// 那一串 `__p…` 加体里的拒收检查(那些检查**正是**这个模式的意思,展开只是噪音)。
+    ///
+    /// **整份源码**那条路(`indent &gt;= 0`)一律印**脱糖之后**的样子:那一路的契约是
+    /// "再解析回来得是同一棵树",而树里参数就是 `__p…` 加体开头那串绑定 —— 把模式也印出来
+    /// 等于同一件事说两遍,重解析会**又绑一遍**(实测:77 个文件对不上)。</summary>
+    private static string Param(string name, Expression type, Pattern? pattern, int indent)
+        => pattern is null || indent >= 0 ? name + ": " + Annotated(type, indent)
+         : IsUnitPattern(pattern) ? "()"                     // 见下:两种写法一个构造,挑短的印
+         : Pattern(pattern, indent);
 
-    /// <summary>参数(带模式的那种)。**模式参数活不过 `Lowering`**(它会拆成 `__p{n}` +
-    /// 体开头一串绑定),所以这一支正常到不了 —— 留着是为了别掉进看不懂的兜底。</summary>
-    private static string Param(Parameter p, int indent)
-        => p.Pattern is { } pat ? Pattern(pat, indent) : p.Name + ": " + Annotated(p.Type, indent);
+    /// <summary>是不是"要单位那个值"那一格。**`()` 和 `(())` 解析出来是同一个构造**
+    /// (前者是空参数表那条路、后者是参数表里装一个括号分组,现在两条路合流了),
+    /// 所以只能挑一种印法 —— 挑 `()`,它短,而且是历史上那个写法。</summary>
+    private static bool IsUnitPattern(Pattern p) => p switch
+    {
+        LiteralPattern { Value: VoidLiteral } => true,
+        WholePattern w => IsUnitPattern(w.Inner),
+        _ => false,
+    };
+
+    private static string Param(Parameter p, int indent) => Param(p.Name, p.Type, p.Pattern, indent);
+
+    /// <summary>把一个模式印成**人写的样子** —— 给报错用:模式参数取的是**合成名**
+    /// (`__p3f9c2_0`),直接印给用户看等于什么都没说;印模式本人(`1` / `([x y])` / `()`)
+    /// 才说得出"是哪个参数"。和显示那条路一个写法(见 <see cref="Param(string, Expression, Pattern?, int)"/>)。</summary>
+    public static string Describe(Pattern p) => IsUnitPattern(p) ? "()" : Pattern(p, -1);
 
     /// <summary>渲染一个块 —— **单行档**,带截断。给显示用(`print` / 报错文案)。</summary>
     public static string Block(BlockExpr b) => Fit(BlockInner(b, -1));
@@ -86,9 +112,15 @@ internal static class AstPrinter
         if (b.Statements is []) return "{ }";
 
         var inline = "{ " + Join("; ", b.Statements.Select(s => Statement(s, -1))) + "; }";
-        // `indent < 0` 是显示那条路,**一律**单行(它自己带截断);
-        // 展开那条路要短才留一行 —— 而且单行写出来的东西里不该有换行(有就说明里头展开了)
-        if (indent < 0 || (inline.Length <= InlineMax && !inline.Contains('\n'))) return inline;
+        // `indent < 0` 是显示那条路,**一律**单行(它自己带截断)
+        if (indent < 0) return inline;
+
+        // 展开那条路要短才留一行 —— 而且单行写出来的东西里不该有换行(有就说明里头展开了)。
+        // **量归量、印归印**:上面那句是按**单行档**量的(那是它最短的写法),真印出来得用
+        // **当前这一档**再走一遍 —— 两档印出来的东西**不完全一样**(模式参数:显示档是 `()`、
+        // 源码档是 `__p…: void`),直接复用那个量的结果会把显示档的样子漏进源码里。
+        if (inline.Length <= InlineMax && !inline.Contains('\n'))
+            return "{ " + Join("; ", b.Statements.Select(s => Statement(s, indent))) + "; }";
 
         var lines = b.Statements.Select(s => Pad(indent + 1) + Statement(s, indent + 1) + ";");
         return "{\n" + Join("\n", lines) + "\n" + Pad(indent) + "}";
@@ -298,6 +330,10 @@ internal static class AstPrinter
             DictPattern d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key, indent) + " -> " + Pattern(x.Sub, indent))) + "}",
             _ => "?",
         };
+        // 这一格自己的类型要求(`[a b] : list` 那个 `:` 挂最外那格)。**照写** ——
+        // 就算它被提上参数签名去了(见 `Lowering.OuterWant`),这儿还是把它印出来:
+        // 那才是人写的样子。字面量那格没有 `Type`(它的要求是 `Domain`),所以 `1` 印出来还是 `1`。
+        if (p.Type is { } type) text += ": " + Annotated(type, indent);
         if (p is NamePattern { Sub: { } sub }) text += " = " + Pattern(sub, indent);
         if (p.When is { } when) text += " |> " + Expr(when, indent);
         return text;

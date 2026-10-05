@@ -293,17 +293,42 @@ public sealed class Lowering
     {
         // 参数的类型是**表达式**(`(x: 某个类型表达式) => …`),所以也得走一趟
         var body = (BlockExpr)Lower(l.Body);
-        var param = l.Param with { Type = Lower(l.Param.Type), Pattern = null };
+        // **`Pattern` 留着别扔** —— `AstPrinter` 靠它把签名印回人写的样子
+        // (`([x y]) => …` 印成 `([x y]) => …`,而不是脱糖之后那一坨 `__p…` + 拒收检查)。
+        var param = l.Param with { Type = Lower(l.Param.Type) };
 
         if (l.Param.Pattern is { } p)
         {
+            // **最外那一格对"整个值"的要求 → 提到签名上去。** 引擎在**调用那一刻**就判
+            // (`CallInto` 那条路),体里不必再判一道。要求的**出处**还是模式那一处
+            // (只有一处,不会漂),变的只是**发射点** —— 提前了。
+            // 这就是 `() => …` 能既走"字面量模式"那条路、又印得和从前一样干净的原因。
+            var want = OuterWant(p);
+            if (want is not null) param = param with { Type = Lower(want) };
+
             var binds = new List<Statement>();
-            Bind(p, Ident(l.Param.Name, l), null, binds);
+            Bind(p, Ident(l.Param.Name, l), null, binds, outerDone: want is not null);
             body = body with { Statements = [.. binds, .. body.Statements] };
         }
 
         return l with { Param = param, Body = body };
     }
+
+    /// <summary>**最外那一格对"整个值"的要求**(没有就 `null`)—— 它能提到参数签名上去。
+    ///
+    /// 判据不是"这一格下不下沉",而是"**它在最外面**":模式的 `Type` 说的**永远是它拿到的
+    /// 那个值**,而最外那格拿到的就是整个实参。所以 `([a b] : list)` 能提(`list` 说的是整个
+    /// 参数,提上去照样是"整个参数要 list"),而 `[x: int y]` 里那个 `int` 说的是**元素**,
+    /// 提不上去 —— 参数的注解槽只有一个。
+    ///
+    /// 字面量那格的要求写在 `Domain` 上(它说的是"属于哪一族",不是某个类型名):
+    /// `1` 的域是 `INumber` —— 别收成 `int`,`1 == 1.0` 让 `1 => …` 得收 `1.0`。</summary>
+    private static Expression? OuterWant(Pattern p) => p switch
+    {
+        LiteralPattern lit => lit.Domain,
+        WholePattern w => w.Type ?? OuterWant(w.Inner),
+        _ => p.Type,
+    };
 
     /// <summary>解构:按模式把右边那个值拆成一串普通的 `:=`。
     ///
@@ -371,7 +396,8 @@ public sealed class Lowering
     /// 顺带把原来那两条**看不懂的错**换掉了:
     /// `[q w] := 5` 从前报「类型 'Integer' 没有方法 'GetEnumerator'」,
     /// `[q w] := [1]` 报「list.At 的索引 1 越界」—— 都是**脱糖内部**的词。</summary>
-    private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs)
+    private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs,
+                      bool outerDone = false)
     {
         var at = p;
 
@@ -384,13 +410,19 @@ public sealed class Lowering
         //
         // 判据用的是 `:`(不是注解那套"能转就转"):模式说的是**形状**,`[a: float] := [1]`
         // 该说"不是 float",而不是悄悄转成 1.0。
+        // 提到参数签名上去的那一道(见 `Lambda` 与 `OuterWant`):这一格的要求已经由**注解**
+        // 在**调用那一刻**判过了,体里不必再判 —— 出处还是这一处,只是发射点提前了。
+        var ownType = p.Type;
         if (p.Type is { } want)
         {
-            var isType = new BinaryExpr(source, ":", Lower(want)) { Line = at.Line, Column = at.Column };
-            var msg = Concat(at, Lit("这一格要的是 ", at), TypeName(Lower(want), at),
-                                 Lit("，得到 ", at), ValueType(source, at));
-            outs.Add(ExprStmt(If(Not(isType, at), Reject(msg, at), at), at));
-            p = p with { Type = null };                  // 验过了,下面按形状拆
+            if (!outerDone)
+            {
+                var isType = new BinaryExpr(source, ":", Lower(want)) { Line = at.Line, Column = at.Column };
+                var msg = Concat(at, Lit("这一格要的是 ", at), TypeName(Lower(want), at),
+                                     Lit("，得到 ", at), ValueType(source, at));
+                outs.Add(ExprStmt(If(Not(isType, at), Reject(msg, at), at), at));
+            }
+            p = p with { Type = null };                  // 验过了(或提上去了),下面按形状拆
         }
 
         // **这一格整体**的条件(`|> f`):把这一格的值当实参喂出去,不成拒收。
@@ -417,18 +449,31 @@ public sealed class Lowering
             // 所以 `(p := [a b])` 里 `p` 拿到的就是整块、`[a b]` 拆的也是同一个值。
             // (外层这一个自己的 `Type` / `When` 在上面那两段里已经验过了 —— 那正是"对整块说话"。)
             case WholePattern w:
-                Bind(w.Inner, source, attrs, outs);
+                // 提上去的要是**里面那格**的要求(外层自己没要求),就传下去让它别再判一道;
+                // 外层**自己**有要求的话,里面那格的照旧得判(`(x: int) : string` 两个都算数)。
+                Bind(w.Inner, source, attrs, outs, outerDone && ownType is null);
                 return;
 
             // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
             case LiteralPattern lit:
+                // 域那道提到签名上去了(见 `Lambda`)就不在这儿再判一遍
+                if (!outerDone)
+                {
+                    var sameKind = new BinaryExpr(source, ":", Lower(lit.Domain))
+                        { Line = at.Line, Column = at.Column };
+                    outs.Add(ExprStmt(If(Not(sameKind, at),
+                        Reject(Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at), Lit("，得到 ", at),
+                                     Call(Ident("string", at), source),
+                                     Lit("（", at), ValueType(source, at), Lit("）", at)), at), at), at));
+                }
+
+                // **`void` 只有一个值。** 域验过了(那一格要的是 `()`,而 `()` 是 `void` 唯一
+                // 那个值),`== ()` 就是恒真,省掉。于是 `() => …` 体里**一句检查都不剩** ——
+                // 和它从前那条"空参数表"的糖印出来一模一样。
+                if (outerDone && lit.Value is VoidLiteral) return;
+
                 var what = Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at));
                 var got = Call(Ident("string", at), source);
-                var sameKind = new BinaryExpr(source, ":", Lower(lit.Domain))
-                    { Line = at.Line, Column = at.Column };
-                outs.Add(ExprStmt(If(Not(sameKind, at),
-                    Reject(Concat(at, what, Lit("，得到 ", at), got,
-                                 Lit("（", at), ValueType(source, at), Lit("）", at)), at), at), at));
                 var eq = new BinaryExpr(source, "==", Lower(lit.Value))
                     { Line = at.Line, Column = at.Column };
                 outs.Add(ExprStmt(If(Not(eq, at),

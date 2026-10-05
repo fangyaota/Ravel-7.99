@@ -343,11 +343,27 @@ public partial class Parser
 
         if (Match(TokenType.RightParen))
         {
+            // `() => …` —— **不再是"空参数表"那条糖**。`()` 在这儿就是"单位那个值"的
+            // **字面量模式**,和 `(()) => …` 走**同一条路**(底下那个参数循环也是这么读它的:
+            // `()` 走不到括号那条,字面量那条先接走)。于是 `()` 和 `(())` 在树上**就是一个构造**
+            // —— 一个"要 `()`"的参数。
+            //
+            // 从前那条糖(`(_: void) => …`)和 `(())` 是"碰巧收同一批实参"的两套机制
+            // (那一头是**注解检查**,这一头是**模式拒收**)—— 现在合成一套。
+            // 印出来还是 `() => …`:`AstPrinter` 按模式印签名。
             if (Match(TokenType.Arrow))
             {
-                // () => {...}  语法糖 →  (_:void) => {...}
                 var body = ParseUserLambdaBody("lambda 体", Previous());
-                return new LambdaExpr(new Parameter("_", new IdentifierExpr("void") { Line = line, Column = col }), body) { Line = line, Column = col };
+                var voidLit = new LiteralPattern(
+                    new VoidLiteral { Line = line, Column = col },
+                    new IdentifierExpr("void") { Line = line, Column = col },
+                    "()") { Line = line, Column = col };
+                // **包一层"对象自己"**,和 `(()) => …` 走出来的形状**一模一样** ——
+                // 那一条是"参数表里装着一个括号分组",分组就是这一层。两条路合流成一个构造。
+                var whole = new WholePattern(voidLit) { Line = line, Column = col };
+                var param = new Parameter(FreshParam(),
+                    new IdentifierExpr("object") { Line = line, Column = col }, whole);
+                return new LambdaExpr(param, body) { Line = line, Column = col };
             }
 
             // () 独立 → void 字面量

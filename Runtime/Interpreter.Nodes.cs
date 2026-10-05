@@ -248,7 +248,11 @@ public partial class Interpreter
         }
 
         var pt = AsClass(nf.Result(0), lam.Param.Name);
-        Return(nf, new LambdaVal(lam.Param.Name, lam.Param.Type, pt, lam.Body) { CaptureScope = nf.Scope });
+        Return(nf, new LambdaVal(lam.Param.Name, lam.Param.Type, pt, lam.Body)
+        {
+            CaptureScope = nf.Scope,
+            ParamPattern = lam.Param.Pattern,      // 只为打印:签名印回人写的样子
+        });
     }
 
     /// <summary>注解求出来的值得是个类对象。

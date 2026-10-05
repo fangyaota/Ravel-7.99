@@ -64,7 +64,7 @@ n ()
 #      |     ^
 # after
 # g
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (_: void) => { print "before"; if ({ true; }) ({ print "这一段静默不跑"; }); p…
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function () => { print "before"; if ({ true; }) ({ print "这一段静默不跑"; }); print..…
 #   --> tests/diag/264_warn_forgot_call.rav:24:5
 #   24 |     f
 #      |     ^

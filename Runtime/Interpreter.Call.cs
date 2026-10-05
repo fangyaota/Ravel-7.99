@@ -17,7 +17,11 @@ public partial class Interpreter
                 break;
             case LambdaVal lam:
                 if (!Accepts(arg, lam.ParamType))
-                    throw new TypeMismatchException($"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
+                    // **模式参数按模式说** —— 它的名字是合成的(`__p3f9c2_0`),印出来等于
+                    // 什么都没说;印模式本人(`1` / `([x y])`)才说得清是哪个参数。
+                    throw new TypeMismatchException(lam.ParamPattern is { } pat
+                        ? $"参数 {AstPrinter.Describe(pat)} 需要 {lam.ParamType}，得到 {arg.Type}"
+                        : $"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
                 var lamScope = lam.CaptureScope.Push();
                 lamScope.Define("self", BuiltinClasses.Function, lam);
                 lamScope.Define(lam.ParamName, lam.ParamType, arg);

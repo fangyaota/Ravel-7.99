@@ -122,9 +122,12 @@ internal static class AstDump
                     try
                     {
                         var again = Parser.ParseSource(printed, file, flow);
-                        if (Canonical(again) != Canonical(program))
+                        var was = Canonical(program);
+                        var now = Canonical(again);
+                        if (was != now)
                         {
-                            Console.Error.WriteLine($"{file}: 印出来再解析,树对不上");
+                            // **说清差在哪一行** —— 只说"对不上"等于让人从头 diff
+                            Console.Error.WriteLine($"{file}: 印出来再解析,树对不上 —— {FirstDifference(was, now)}");
                             broken++;
                         }
                     }
@@ -189,6 +192,24 @@ internal static class AstDump
     /// <summary>报错的第一句(它自带"--> 文件:行:列"和插入符那一坨,汇总里只要第一句)。</summary>
     private static string FirstLine(Exception ex) => ErrorReport.Format(ex).Split('\n')[0];
 
+    /// <summary>两棵树从第几行开始不一样,那一行各是什么 —— 只说"对不上"等于让人从头 diff。
+    /// 只报**第一处**(后面多半是它的连锁),各截 60 字免得刷屏。</summary>
+    private static string FirstDifference(string was, string now)
+    {
+        var a = was.Split('\n');
+        var b = now.Split('\n');
+        for (var i = 0; i < Math.Max(a.Length, b.Length); i++)
+        {
+            var x = i < a.Length ? a[i].Trim() : "（没了）";
+            var y = i < b.Length ? b[i].Trim() : "（没了）";
+            if (x == y) continue;
+            return $"第 {i + 1} 行起：原 {Clip(x)} / 新 {Clip(y)}";
+        }
+        return "（逐行相同？）";
+    }
+
+    private static string Clip(string s) => s.Length <= 60 ? s : s[..60] + "…";
+
     /// <summary>整段按注释写出去 —— `--source` 出来的文件得**还是能解析的 `.rav`**,
     /// 所以标题行、报错都得是 `#` 注释,不然拿它去 `ravel` 会当场报语法错。</summary>
     private static string Comment(string text)
@@ -197,7 +218,11 @@ internal static class AstDump
     /// <summary>只比较**树本身** —— 位置和"来路"都不进去。
     ///
     /// * **位置**(`@行:列`):印出来的源码重排过,行列当然全变。
-    /// * **来路**(`Source` / `Sugar`):源码文本里**根本表达不出来**。
+    /// * **来路**(`Source` / `Sugar` / `Pattern`):源码文本里**根本表达不出来**。
+    ///   `Pattern` 是参数上那个"这个参数是模式拆出来的"的备忘(`Parameter.Pattern`),
+    ///   **只为显示**留着(签名印回人写的样子);印出来的源码里它当然不在 —— 那个模式
+    ///   已经拆成**体开头那串绑定**了,而绑定是照常比对的(少一条照样红)。
+    ///
     ///   `Source` 是"这个块来自哪个文件"(`Lowering` 自己造的那些块没有);
     ///   `Sugar` 是"这枚 lambda 是语法糖生成的、不是用户写的"—— 印成源码之后,它当然
     ///   是一枚**写出来的** lambda 了。两个都不影响求值那一侧(`Sugar` 只管解析期
@@ -234,7 +259,7 @@ internal static class AstDump
         {
             // "来路"那两个只在**自验**那一趟排掉(见 `Canonical`);转储是照印的 ——
             // 那份要的是"一个字段都不少"
-            if (!meta && prop.Name is "Source" or "Sugar") continue;
+            if (!meta && prop.Name is "Source" or "Sugar" or "Pattern") continue;
             var value = prop.GetValue(node);
             if (value is null) continue;
 
