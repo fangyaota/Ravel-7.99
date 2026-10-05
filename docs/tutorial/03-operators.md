@@ -78,14 +78,14 @@ false
 
 `NaN` / `Inf` / `-Inf` 按 IEEE 来：`NaN == NaN` 是 `false`，`1 / Inf` 是 `0`，`Inf - Inf` 是 `NaN`。它们打印成 ASCII 的 `NaN` / `Inf` / `-Inf`（不是 `∞`）。
 
-## 3.3 类型判定 is / isnot
+## 3.3 类型判定 `:`
 
 | 写法 | 交回 |
 |------|------|
-| `1 is int` | `true` |
-| `1 is float` | **`false`** —— Integer 和 Float 是兄弟，不是子类型 |
-| `1 is object` | `true` |
-| `1 isnot int` | `false` |
+| `1: int` | `true` |
+| `1: float` | **`false`** —— Integer 和 Float 是兄弟，不是子类型 |
+| `1: object` | `true` |
+| `!(1: int)` | `false` —— 取反另写 `!` |
 
 判据就是类型树上那条 `A <: B`。**类型之间**的关系用 `<:` / `:>`（两边都得是类型对象）：
 
@@ -96,7 +96,7 @@ false
 | `int <: int` | `true` —— 自反 |
 | `Every <: int` | `true` —— 底类型是所有类型的子类 |
 
-注意：`(typeof 1) is int` 是 `false` —— `typeof 1` 求出来的是**类对象** `Integer`，不是 int 值。括号不能省：`typeof 1 is int` 会被读成 `typeof (1 is int)`，结果是 `Bool`。
+注意：`(typeof 1): int` 是 `false` —— `typeof 1` 求出来的是**类对象** `Integer`，不是 int 值。括号不能省：`typeof 1: int` 会被读成 `typeof (1: int)`，结果是 `Bool`。
 
 `:` 左边是值（`1: int`），这一对两边都得是**类型**。
 
@@ -162,7 +162,7 @@ c:\path\file
 
 字符串可以跨行，不需要续行符。
 
-## 3.6.1 原始字符串（`"""…"""`）
+### 原始字符串（`"""…"""`）
 
 连着三个引号开头、连着三个引号收尾，**里面一个字符都不动**。给正则和 Windows 路径用。
 
@@ -281,7 +281,7 @@ false
 | `f 1 + 2` | `f (1 + 2)` |
 | `f (1) + 2` | `f ((1) + 2)` |
 | `f x.y + 1` | `f (x.y + 1)` |
-| `f x is int` | `f (x is int)`（词形运算符一样被吃）|
+| `f x: int` | `f (x: int)`（运算符一样被吃）|
 | `xs.Count () + 1` | `xs.Count (() + 1)` —— 数完再加一要写 `(xs.Count ()) + 1` |
 | `xs.At (0) + 1` | `xs.At ((0) + 1)` —— 取第 0 个要写 `(xs.At (0)) + 1` |
 
@@ -326,6 +326,8 @@ print ("共 " + (string n) + " 个")
 ## 3.10 自增 `++` / 自减 `--`
 
 **语句级的糖**，折成 `x += 1` / `x -= 1` —— 折出来就是那条复合赋值，和手写走同一条路。
+
+#### 实例
 
 ```ravel
 i := 0

@@ -14,6 +14,8 @@ if { x > 0; } {
 
 **它不是内建，是库函数** —— `Bool` 挂在 `Function` 下，`true` / `false` 本身就能选块：
 
+#### 实例
+
 ```ravel
 print (true  { "then"; } { "else"; })
 print (false { "then"; } { "else"; })
@@ -52,9 +54,11 @@ foreach [1 2 3] (x: int) => { print x; }
 |------|----------|
 | `foreach [1 2 3] (x) => { … }` | 元素 |
 | `foreach {1 2 3} (x) => { … }` | 元素（集合）|
-| `foreach {"a": 1} (v) => { … }` | **值**（不是键）|
+| `foreach {"a"->1} (v) => { … }` | **值**（不是键）|
 
 不是 `IEnumerable` 的东西当场报错：
+
+#### 实例
 
 ```ravel
 foreach 5 (x: int) => { print x; }
@@ -252,6 +256,8 @@ print (sign 5)
 - 命令行：`ravel --more-control-flow 你的脚本.rav`（整次运行都开）
 - 文件头：`#program --more-control-flow=true`（只这个文件开）
 
+#### 实例
+
 ```ravel
 #program --more-control-flow=true
 f := (n: int) => {
@@ -281,6 +287,8 @@ print (f (-3))
 
 同一个开关（`--more-control-flow`）下还有这两个。语法是熟的：`break` 跳出循环，`continue` 跳过这一轮。
 
+#### 实例
+
 ```ravel
 #program --more-control-flow=true
 i := 0
@@ -306,6 +314,8 @@ print s
 ```
 
 **要跳出好几层就给标签** —— `@标签 <语句>`，然后 `break 标签` / `continue 标签`：
+
+#### 实例
 
 ```ravel
 #program --more-control-flow=true
@@ -380,7 +390,7 @@ false
 true
 ```
 
-注意：**要和普通函数区分开就 `is Continuation`**；`(typeof k) == function` 在续延上**不成立**了（它现在报 `Continuation`）—— 那种写法要改成 `k is function`。（括号不能省：`typeof k == function` 是 `typeof (k == function)`。）
+注意：**要和普通函数区分开就 `k: Continuation`**；`(typeof k) == function` 在续延上**不成立**了（它现在报 `Continuation`）—— 那种写法要改成 `k: function`。（括号不能省：`typeof k == function` 是 `typeof (k == function)`。）
 
 注意：`default` 那枚是**哨兵** —— 照样能存、能传，一调**当场报错**。做成"什么都不做"不行：那会静默地把控制权留在原地，调用方还以为跳走了。
 

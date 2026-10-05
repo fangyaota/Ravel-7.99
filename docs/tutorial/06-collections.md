@@ -79,9 +79,11 @@ d.Has "a"          # true
 
 **dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` / `Remove k` / `Keys ()` / `Values ()`。
 
-## 6.4.1 解构：一次绑好几个名字
+## 6.5 解构：一次绑好几个名字
 
 右边是什么形状，左边就照着写，一次把名字全绑出来：
+
+#### 实例
 
 ```ravel
 [x y] := [10 20]
@@ -104,6 +106,8 @@ print (剩下.ToList ())
 
 `[… ]` 按**位置**取，`{…}` 从对象上取**同名成员**：
 
+#### 实例
+
 ```ravel
 Point ::= class { px: int = 0; py: int = 0 }
 p := Point ()
@@ -120,6 +124,8 @@ print (px + py)
 ```
 
 两边能嵌套，凡是能 `foreach` 的都能解（list / set / dict / 字符串 / `Generator` / Option 都行）：
+
+#### 实例
 
 ```ravel
 [v0 v1 ..tail] := "abcdef"
@@ -153,6 +159,8 @@ cdef
 
 **函数参数位置也能解构** —— 整个参数按形状拆：
 
+#### 实例
+
 ```ravel
 f := ([x y]) => { x + y; }
 print (f [3 4])
@@ -165,6 +173,8 @@ print (f [3 4])
 ```
 
 拆不成就是**这一支不收这个参数**（不是硬错），所以它能当**分派的头一格**：
+
+#### 实例
 
 ```ravel
 Point ::= class { px: int = 0; py: int = 0 }
@@ -189,7 +199,7 @@ print (k 5)
 拆不成时那几句说得是**人话**（不是「没有方法 'GetEnumerator'」那种脱糖内部的话）：
 不是序列说清"要的是能按顺序取的东西，得到 Integer"，取到底了说清"要第 2 格"。
 
-## 6.5 集合的相等性是「同一个对象」
+## 6.6 集合的相等性是「同一个对象」
 
 `int` / `string` / `bool` / `float` / `bigint` / `fraction` 比的是**值本身**，所以 `{1 2 2}` 只有 2 个元素。但 `list` / `set` / `dict` 比的是**身份**。
 
@@ -210,7 +220,7 @@ false
 
 这也是为什么集合类型**没有** `==` / `!=` 运算符 —— 可变集合上的值相等很难说清。要比内容就自己写循环。
 
-## 6.6 代码块 vs 集合
+## 6.7 代码块 vs 集合
 
 ```ravel
 {1 2 3}              # Set（单行无分号）
@@ -221,7 +231,7 @@ false
 }
 ```
 
-## 6.7 字符与字符串
+## 6.8 字符与字符串
 
 **`char` 是一个字符** —— 精确说是一个 UTF-16 **码元**，和 `s.Length` / `s.At i` 一个口径（`"😀".Length` 是 2，一个 `'…'` 装不下它）。字面量用单引号。
 
@@ -268,7 +278,7 @@ Hello
 
 注意：大小写转换**不跟区域设置走**（invariant）—— 同一段程序换台机器结果一样。
 
-## 6.8 字符串插值
+## 6.9 字符串插值
 
 #### 实例
 
@@ -294,7 +304,7 @@ print "共 ${n} 个,${n * 2} 个才对"
 - 没闭合的 `${` 报「插值没有收尾的 `}`」。
 - **和代码里的 `$` 不冲突** —— 代码里根本没有 `$` 这个运算符（3.9 那个"把右边封口"现在写 `<|`）。
 
-## 6.9 `Seqs`：摊平 / 切块 / 拉链 / 分组 / 计数
+## 6.10 `Seqs`：摊平 / 切块 / 拉链 / 分组 / 计数
 
 全都**对着 `IEnumerable` 写**，交回的是**当场算好的** `list` / `dict`。
 
@@ -320,7 +330,7 @@ print (Seqs.Frequency ["a" "b" "a"])
 - `Chunk` 的每一摞是**各自独立**的 list；`n` 至少是 1。
 - 要**惰性**就用 `Generator`（见 4.3）；这五件都是"一次算完"的。
 
-## 6.10 随机数（`Random`）
+## 6.11 随机数（`Random`）
 
 `using "random.rav"` 之后有四台，**换台子只换一行构造子**：
 
@@ -352,7 +362,7 @@ true
 
 注意：`Int` **收一个区间** —— 开闭全看那对括号，不必再记"上界含不含"。
 
-## 6.11 区间（`Range`）
+## 6.12 区间（`Range`）
 
 一个内置值类型：从 a 到 b 的一串整数。那一对括号**各带一半的意思**。
 
@@ -393,7 +403,7 @@ false
 
 **切一段**给任何一串都用 `Slice`，**收一个区间**：`xs.Slice [1..3]` → `[20 30 40]`（对 `[10 20 30 40 50]`）。
 
-## 6.12 正则（`Regex`）
+## 6.13 正则（`Regex`）
 
 字符串那批只认**字面量**；凡是"形状"就用正则。**要显式引用**。
 
@@ -410,7 +420,7 @@ Regex.Escape "a.b"               # "a\.b"
 
 **选项**：第二个参数（`Regex.With pattern "i"`）或写在模式里（`(?i)abc`）—— `i` 不分大小写、`m` 多行、`s` 让 `.` 也吃换行、`x` 忽略模式里的空白。
 
-## 6.13 格式化 / 文本 / 编码
+## 6.14 格式化 / 文本 / 编码
 
 三件"每天都用、手搓不值当"的事，各自一个模块，**都要显式引用**。
 
@@ -467,7 +477,7 @@ a
 
 注意：`Format.PadL` 这类补出来的空格**在行尾**，写 golden 用例时要套一层方括号才钉得住（跑测试那套会把行尾空白裁掉）。
 
-## 6.14 数据类（`dataclass`）
+## 6.15 数据类（`dataclass`）
 
 一堆字段 +「打印、相等、构造」三件事每次都手写太啰嗦，`dataclass` 一个都不用手写。**要显式引用**。
 
@@ -499,7 +509,7 @@ Point(x=1, y=0)
 
 注意：字段表**到用的时候才算**，所以拿数据类当父类也认得出子类新加的字段。反过来，`{ }` 是**空字典** —— 一个字段都没有的数据类要写 `dataclass { 0; }`。
 
-## 6.14.1 枚举（`enum`）
+### 枚举（`enum`）
 
 一串名字和值，每个名字拿到一枚**这个枚举的**值。
 
@@ -534,9 +544,11 @@ true
 
 注意：**继承时父类必须也是个 enum**（拿普通类当父类当场报错）。父类那几枚会**迁过来**，而且迁过来的是"**这个**枚举的值"：`sub.A == base.A` 是 `false` —— 同名不同枚。
 
-## 6.14.2 按位枚举（`flags`）
+### 按位枚举（`flags`）
 
 `enum` 的**子类**：每枚成员占一位，能拼起来。声明、成员、`Values ()` / `Text ()` 那一套全照 `enum`。
+
+#### 实例
 
 ```ravel
 using "enum.rav"
@@ -580,9 +592,11 @@ Read|Exec
 - **组合值不是成员**：`Read | Exec` 交回的是**新的一枚**（值 5），不在 `Values ()` 里、`Name` 是空的。拼出来正好等于某枚成员时，交回的就是**那一枚**。
 - **`==` 比的是值**（不是身份）—— 不然拼出来的组合每次都是新对象、永远不相等。但两枚还得是**同一个** flags 的：`sub.Read == base.Read` 照旧 `false`（6.14.1 那条「同名不同枚」）。
 
-## 6.14.3 单例（`singleton`）
+### 单例（`singleton`）
 
 它建出来的类，**每次实例化都交回同一枚值**。
+
+#### 实例
 
 ```ravel
 using "singleton.rav"
@@ -604,7 +618,7 @@ true
 改了
 ```
 
-和 `enum` / `flags` 一样是个**元类**（`class type`），所以 `Config` 照旧是个类 —— `a is Config` 成立，成员、继承、运算符一个不少。也能从普通类继承过来：`Sub ::= singleton Base { … }`。
+和 `enum` / `flags` 一样是个**元类**（`class type`），所以 `Config` 照旧是个类 —— `a: Config` 成立，成员、继承、运算符一个不少。也能从普通类继承过来：`Sub ::= singleton Base { … }`。
 
 做法是**在类体里把 `init` 盖掉**（类体每次实例化都会跑，谁最后定义 `init` 谁说了算），存着的那枚值放在闭包的一张表里，每个类一份。
 
@@ -615,7 +629,7 @@ true
 
 注意：`Config () == a` 要写成 `(Config ()) == a` —— 实参吃到运算符为止（3.9）。
 
-## 6.15 位（`Bits`）
+## 6.16 位（`Bits`）
 
 运算符那边已经有 `&` `|` `^` `<<` `>>` `<<<` `>>>`；这个模块补的是它们给不了的。**要显式引用**。
 
@@ -632,7 +646,7 @@ true
 
 注意：位下标一律 **0..31**，**越界当场报错** —— 静默"什么都没做"是最难查的那种。
 
-## 6.16 网络（`Http`）
+## 6.17 网络（`Http`）
 
 #### 实例
 
@@ -659,7 +673,7 @@ true
 | `r.Save "page.html"` | 正文写进文件 |
 | `Http.Post url body` | `body` 给 dict / list 就**自动当 JSON**（连 `content-type` 一起补）|
 | `Http.Request {…}` | 全参数（`headers` / `retries` / `backoff` / `timeout` / `follow`）|
-| `Http.Query url {"q": "中文"} ` | 拼查询串（值先转义）|
+| `Http.Query url {"q"-> "中文"} ` | 拼查询串（值先转义）|
 | `Http.Download url path` | **边收边写**，不进内存 |
 | `Http.Upload url path` | multipart，字段名默认 `file` |
 
@@ -671,7 +685,7 @@ true
 
 **一个 URL 就是一个文件** —— `Http.Url "…"` 交回的东西有 `IFile` 那一套成员，所以**对着接口写的东西直接能用**：`Io.CopyTo (Http.Url "…") (Io.File "a.txt")`。
 
-## 6.17 摘要 / 标识 / 数据库
+## 6.18 摘要 / 标识 / 数据库
 
 **`Hash`**：`Sha256` / `Sha256Bytes` / `Hmac` / `File`（流式，多大都不进内存）/ `Crc32` / `Equal`（常数时间比）/ `Token n`。
 
@@ -682,15 +696,15 @@ true
 ```ravel
 using "sqlite.rav"
 db := Sqlite.Open "app.db"        # 或 Sqlite.Memory ()
-db.Exec "insert into t (name) values (@n)" {"n": "ada"}   # 参数按名字绑
-rows := db.All "select * from t" {}                       # [{id: 1 name: "ada"}]
+db.Exec "insert into t (name) values (@n)" {"n"-> "ada"}  # 参数按名字绑
+rows := db.All "select * from t" {}                       # 打出来是 [{id: 1 name: ada}]
 db.Tx { … }                                               # 事务：出错自己回滚再抛
 db.Close ()
 ```
 
 注意：**参数那格永远要给**（没有参数就写 `{}`）—— Ravel 没有默认参数。存得进的是 数 / 字符串 / 字符 / 布尔 / `()`（就是 NULL）/ 字节表（BLOB）。
 
-## 6.18 数据结构（`Structures`）
+## 6.19 数据结构（`Structures`）
 
 **是个插件**：类和函数在独立项目里（`Ravel.Structures/`），编成 `plugins/Ravel.Structures.dll`。
 
@@ -704,7 +718,7 @@ db.Close ()
 | `Structures.SortedSet [3 1 2]` | 升序、去重 |
 | `Structures.Graph ["a" "b"]` | 无向无权：`AddEdge` / `Bfs` / `Path` |
 | `Structures.Digraph ()` | 有向：`Neighbors` 是出边、`InNeighbors` 是入边 |
-| `Structures.Weighted ()` | 带权（`{"directed": true}` 是有向带权），最短路走 Dijkstra |
+| `Structures.Weighted ()` | 带权（`{"directed"-> true}` 是有向带权），最短路走 Dijkstra |
 
 几条规矩：
 
@@ -712,7 +726,7 @@ db.Close ()
 - **空结构上 `Pop` / `Peek` / `Min` 报错**（不是给 `()` ——「没有」和「是空值」不该长得一样）。
 - 图里顶点是**值类型**；**负权在 `AddEdge` 就挡下**；**不连通当场报错**（要问"通不通"用 `HasPath`）。
 
-## 6.19 官方扩展（`Native`）
+## 6.20 官方扩展（`Native`）
 
 六个库的本机半边**不在引擎里**，在一个官方扩展 dll 里：`Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random`（`Math` 整个模块也在那儿）。
 
@@ -725,7 +739,7 @@ print (Native.HashBytes "sha256" (Encoding.Utf8 "abc"))
 
 平时用不着碰这一层：`Hash.Sha256` / `Http.Get` 那些库面才是给人用的。
 
-## 6.20 ZIP 归档（`Zip`）
+## 6.21 ZIP 归档（`Zip`）
 
 **归档是一个文件系统** —— 这是 `IFile` 那条缝许诺过的那一格：
 
@@ -736,7 +750,7 @@ z.Entry "a/one.txt" |> .Read ()         # 成员是只读的 IFile
 Io.EachDir z (p: string e: object) => { print (e.Name ()); }   # 对着接口写的一律照吃
 ```
 
-## 6.21 通配符（`Glob`）
+## 6.22 通配符（`Glob`）
 
 ```ravel
 using "glob.rav"
@@ -748,7 +762,7 @@ Glob.Find "src/**/*.cs"                  # 递归找，交回相对路径（一�
 
 注意：**按整串比** —— `*.txt` 不配 `sub/a.txt`，要"哪儿都算"就写 `**/*.txt`。
 
-## 6.22 XML（`Xml`）
+## 6.23 XML（`Xml`）
 
 ```ravel
 using "xml.rav"
@@ -760,7 +774,7 @@ Xml.Render x              # 打回文本
 
 注意：`print x` 给的是**字段表** —— 要内容得显式取（`Text ()` / `Xml.Render`）。
 
-## 6.23 终端（`Terminal`）
+## 6.24 终端（`Terminal`）
 
 标记就是 **Spectre.Console 那套**（`[red]…[/]`、`[[` 表示一个方括号），不是新发明的一套。
 
@@ -775,7 +789,7 @@ Xml.Render x              # 打回文本
 
 注意：上色与否看 `Terminal.Tty ()`。要确定性的输出（测试、写文件）用 `Terminal.Plain`，别用 `Render`。
 
-## 6.24 REPL 是用 Ravel 写的（`Repl`）
+## 6.25 REPL 是用 Ravel 写的（`Repl`）
 
 多页缓冲、三维光标、按词上色、按键编辑、主菜单、会话存盘，**全用 Ravel 写**。
 
@@ -792,7 +806,7 @@ Repl.Run ()
 echo 'print 1 + 1' | dotnet out/ravel.dll
 ```
 
-## 6.25 小工具四件
+## 6.26 小工具四件
 
 **`Crypto`** —— 加密与口令。和 `Hash` 是两件事：那边是"防篡改"，这边是"藏起来"。
 
@@ -811,9 +825,11 @@ Crypto.CheckPassword "hunter2" stored                    # true（常数时间�
 
 **`Table`** —— 最要紧的是**宽度**：算的是"终端里占几格"（汉字 2、其余 1），不是 `s.Length ()` —— 拿来对齐中文会歪。
 
-**`Log`** —— 分级日志：`Log.New {"level": "debug" "file": "app.log" "tag": "db"}`，然后 `lg.Info "…"`。
+**`Log`** —— 分级日志：`Log.New {"level"-> "debug" "file"-> "app.log" "tag"-> "db"}`，然后 `lg.Info "…"`。
 
-## 6.26 拼 HTML（`Html`）
+## 6.27 拼 HTML（`Html`）
+
+#### 实例
 
 ```ravel
 using "html.rav"
@@ -847,7 +863,7 @@ print (Html.Pretty (card "标题" "a < b"))
 | `Html.Render n` / `Html.Pretty n` | 紧凑一行 / 缩进 |
 | `Html.Doc lang head body` | 整篇：doctype + `<html lang>` + `<head>`（自动补 `<meta charset="utf-8">`）+ `<body>` |
 
-#### 块级：写正文那一层
+### 块级：写正文那一层
 
 上面那些是"元素"，这一层是"正文" —— 交回的**还是同一棵树**，两层随便混着写。
 
@@ -861,6 +877,8 @@ print (Html.Pretty (card "标题" "a < b"))
 | `Html.Style css` / `CssLink href` | 内联 `<style>` / 外链样式表 |
 | `Html.Page opts body` | 整篇；`opts` 认 `"title"` / `"lang"` / `"css"` / `"head"` |
 | `Html.BaseCss` | 随库带的一份默认样式（系统字体、正文限宽、表格带框、代码浅底）—— **不会自动带上** |
+
+#### 实例
 
 ```ravel
 using "html.rav"

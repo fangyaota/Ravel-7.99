@@ -465,7 +465,7 @@ true
 
 在实现生效期间，接口可以当注解使：`typed : myTrait = u`、`(v: myTrait) => …`。判定和类型检查用的是同一个判据。
 
-注意：`<:` / `:>` 问的是**类型之间**的关系，而"这个类在当前作用域里算不算那个接口"要靠**实例**才能问 —— `(typeof x) <: myTrait` 是 false，而 `x is myTrait` 是 true。
+注意：`<:` / `:>` 问的是**类型之间**的关系，而"这个类在当前作用域里算不算那个接口"要靠**实例**才能问 —— `(typeof x) <: myTrait` 是 false，而 `x: myTrait` 是 true。
 
 ### 接口体里也能写实现（默认实现）
 
@@ -530,4 +530,4 @@ masterTrait ::= interface supTrait [IEnumerable] {
 
 两边都是**当下**的快照 —— 出了那个作用域、或者 `Dispose ()` 之后再问就没了。接口是"在这个作用域里生效"的东西，不是一个烙在类型上的标记。
 
-注意：`GetImplementors` 里普通类是空的 —— **只有 `object` 例外**（谁都收得下 `object`，于是所有实现者都算它的）。要列"谁实现了这个接口"，自己先问一句 `x is interface`。
+注意：`GetImplementors` 里普通类是空的 —— **只有 `object` 例外**（谁都收得下 `object`，于是所有实现者都算它的）。要列"谁实现了这个接口"，自己先问一句 `x: interface`。

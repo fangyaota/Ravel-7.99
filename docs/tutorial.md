@@ -15,10 +15,10 @@ ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 
 |---|---|
 | [一、起步](tutorial/01-start.md) | 定义 / 赋值 / 自动命名 / 注释 / 打印和输入 |
 | [二、类型系统](tutorial/02-types.md) | 内置类型 / 类型名 / 注解 / 反射 / 转换 / 空值 / 类型层次 / 大数 |
-| [三、运算符](tutorial/03-operators.md) | 算术 / 比较 / `is` / 位 / 字符串 / **调用比运算符松** |
+| [三、运算符](tutorial/03-operators.md) | 算术 / 比较 / `:` / 位 / 字符串 / 运算符节 / **调用比运算符松** / `++` `--` |
 | [四、控制流](tutorial/04-control.md) | `if` / `while` / `foreach` / 枚举器 / `Generator` / `match` / 早期退出 |
-| [五、函数](tutorial/05-functions.md) | 柯里化 / `_` / `<\|` 与 `\|>` / `Cached` / `Option` / `do` / `IoMonad` / 文件 / 排序 / JSON / 时间 |
-| [六、集合与标准库](tutorial/06-collections.md) | 三种容器 / `Random` / `Range` / `Regex` / `dataclass` / `enum` / `Http` / `Sqlite` / 数据结构 / ZIP / XML / 终端 … |
+| [五、函数](tutorial/05-functions.md) | 柯里化 / `_` / `<\|` 与 `\|>` / `>>` / 守卫与多子句 / 谓词合成 / `Cached` / `Option` / `do` / `IoMonad` / 文件 / 排序 / JSON / 时间 |
+| [六、集合与标准库](tutorial/06-collections.md) | 三种容器 / **解构** / `Random` / `Range` / `Regex` / `dataclass` / `enum` / `Http` / `Sqlite` / 数据结构 / ZIP / XML / 终端 … |
 | [七、类](tutorial/07-classes.md) | `init` / 继承 / 修饰符 / `by` 属性 / `with` / 元类 / 接口与实现 |
 | [八、模块](tutorial/08-modules.md) | `ravel` / `using` / `System` / `Math` / 命令行与环境变量 / `Test` |
 | [九、异常](tutorial/09-exceptions.md) | `try` / `throw` / 异常那一族 / 报错长什么样 |
@@ -36,4 +36,39 @@ ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 
 
 ## 每一段代码都跑过
 
-教程里带「执行以上程序会输出如下结果：」的段落，输出都是**真跑出来的**。写这版的时候靠这条逮到过好几个错（有文档写错的，也有库本身的）。
+教程里带「执行以上程序会输出如下结果：」的段落，输出都是**真跑出来的** ——
+写这版的时候靠这条逮到过好几个错（有文档写错的，也有库本身的）。
+
+```bash
+bash build.sh --no-test    # 先编一份 Debug(checkdoc 跑的是 bin/Debug 那份)
+python checkdoc.py         # 13 章全查;也可以只给一个文件
+```
+
+## 写这一套的规矩
+
+改教程就照这几条。前两条能机械检查（跑 `checkdoc.py`），后几条照着写就行：
+
+- **一章一个文件**，标题 `# N、名字`（中文数字）；上面那张索引表跟着改。
+- **能跑的例子写成一对**：
+
+  ````
+  #### 实例
+
+  ```ravel
+  …源码…
+  ```
+
+  执行以上程序会输出如下结果：
+
+  ```
+  …输出…
+  ```
+  ````
+
+  那个 `#### 实例` 不是装饰：**一对（源码 + 输出）才是 `checkdoc.py` 校对的单位**，
+  写全了才会被实跑一遍。`####` 只给实例用 —— 别的子节标题一律 `###`。
+- **每一节都编号**：`## N.M 标题`；更细的一层用 `### 标题`，**不编号**
+  （所以没有 `## 6.4.1` 那种三级点号）。
+- **片段不要求能跑**（没跟输出块的块 `checkdoc.py` 会跳过）—— 但也别让它们教过期的语法。
+- **报错只写第一句**：`Error: …`。完整那坨里带着库的绝对路径，钉不住。
+- **代码块标 `ravel`**；输出块、JSON 那种不标。文件是 **UTF-8、不带 BOM**。
