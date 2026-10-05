@@ -144,6 +144,16 @@ public partial class Parser
     private static bool IsInfixWordOperator(Token t)
         => t.Type == TokenType.Identifier && WordOpBp.ContainsKey(t.Lexeme);
 
+    /// <summary>这一枚在**中缀位置**是个二元运算符吗 —— 标点的(见 <see cref="BinOpBp"/>)、
+    /// 词形的(`or` / `and`),再加两个走别的路的(`??` 在 `ParseNullCoalesce`、
+    /// `|>` 在 `ParsePostfixRest`)。
+    ///
+    /// **词法器要用它**:一行要是**以二元运算符打头**,那个换行就不算数,于是"接着上一行写"
+    /// 成立(见 `Lexer.Tokenize` 末尾那一趟)。表在哪儿、判据就在哪儿 —— 别在两处各列一份。</summary>
+    internal static bool IsInfixOperator(Token t)
+        => BinOpBp.ContainsKey(t.Type) || IsInfixWordOperator(t)
+        || t.Type is TokenType.Coalesce or TokenType.PipeInto;
+
     /// <summary>优先级爬升 —— 替掉原来"一个运算符一个函数"的那八层。
     ///
     /// 那八层(`ParseLogic` / `ParsePipeOp` / `ParseAndBit` / `ParseAnd` / `ParseComparison` /

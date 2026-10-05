@@ -191,6 +191,28 @@ public class Lexer(string source, string? file = null)
             throw new SyntaxException($"未预期的字符 '{c}'", new SourceSpot(file, _line, _col));
         }
 
+        // **行首是二元运算符 → 那个换行不算数**(上一句自己接下去)。
+        //
+        // 为什么在这一层、而不是解析器里:换行一旦发出去,表达式就收了尾 —— 再想让
+        // "上一句"接着长,得回退重读一整条语句(那正是这门语言最怕的那种翻倍)。
+        // 在**发 token 之前**抽掉,下游一个字都不用改。
+        //
+        // 只管**真换行**:`;` 是**明写的**分隔符,它后面写运算符是另一回事(照旧报错)。
+        // 括号里的换行本来就不算数(见 `NewlineCounts`),走不到这儿。
+        //
+        // 从后往前走:抽掉一格不会打乱还没看的那几格的编号。
+        // **运算符定义不算**:`< := f` 那种,打头就是运算符,可那是它在**定义**
+        // (见 `ParseOperatorDefinition` 的四种收尾:`:=` / `::=` / `: 注解 =` / `:: 注解 =`)。
+        // 判据往后多看一枚 —— 运算符后面紧跟定义符/注解符的,就是那种,不能接上一行。
+        for (var i = tokens.Count - 1; i > 0; i--)
+            if (tokens[i - 1].Type == TokenType.Newline
+                && tokens[i - 1].Lexeme != ";"
+                && Parser.IsInfixOperator(tokens[i])
+                && (i + 1 >= tokens.Count
+                    || tokens[i + 1].Type is not (TokenType.ColonEqual or TokenType.ColonColonEqual
+                                                or TokenType.Equal or TokenType.Colon)))
+                tokens.RemoveAt(i - 1);
+
         tokens.Add(new Token(TokenType.EndOfFile, "", _line, _col, 0));
         return tokens;
     }
