@@ -408,6 +408,18 @@ public sealed class Lowering
             p = p with { Type = null };                  // 验过了,下面按形状拆
         }
 
+        // **这一格整体**的条件(`|> f`):把这一格的值当实参喂出去,不成拒收。
+        // 用 `source` 而不是绑出来的名字 —— 名字和它本来就是同一个值,而复合的那几格
+        // (列表/对象)压根没绑过名字,`source` 是**唯一**那条路,也是两层共用的那条。
+        if (p.When is { } when)
+        {
+            // 名字那一格喂出去的是**元素**,复合的那几格喂的是**整块** —— 报错分开说。
+            var msg = p is NamePattern { Name: var nm }
+                ? Lit($"'{nm}' 没过 `|>` 后面那个条件", at)
+                : Lit("这一整块没过 `|>` 后面那个条件", at);
+            outs.Add(ExprStmt(If(Not(Call(when, source), at), Reject(msg, at), at), at));
+        }
+
         switch (p)
         {
             case NamePattern n:

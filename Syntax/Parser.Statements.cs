@@ -456,6 +456,23 @@ public partial class Parser
         if (off < 0) return false;                          // 括号没闭上
         if (TypeAt(off) == TokenType.ColonEqual) return true;
 
+        // `[a b] |> f := e` / `[a b] |> f = e` —— 模式后面挂了「整块」条件。
+        // `|>` 后面那条谓词一直到行尾,中间那个 `:=` / `=` 就是"这是个定义"的证据
+        // (`When` 是按 `ParseClimb(allowCall: false, 0)` 读的,**到赋值就停**,所以
+        // 深度 0 上再出现一个 `=` 只可能是这一句自己的定义号)。
+        if (TypeAt(off) == TokenType.PipeInto)
+        {
+            var depth = 0;
+            for (var i = off + 1; ; i++)
+            {
+                var t = TypeAt(i);
+                if (t is TokenType.EndOfFile or TokenType.Newline) return false;
+                if (t is TokenType.LeftParen or TokenType.LeftBracket or TokenType.LeftBrace) depth++;
+                else if (t is TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace) depth--;
+                else if (depth == 0 && t is TokenType.ColonEqual or TokenType.Equal) return true;
+            }
+        }
+
         if (TypeAt(off) != TokenType.Colon) return false;
         var after = SkipTypeAnnotation(off + 1);
         return after >= 0 && TypeAt(after) == TokenType.Equal;
@@ -524,6 +541,7 @@ public partial class Parser
         => Check(TokenType.Colon) || Check(TokenType.Identifier) || Check(TokenType.DotDot)
         || Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace)
         || Check(TokenType.RightBracket) || Check(TokenType.RightBrace)
+        || Check(TokenType.PipeInto)               // `|>` 归 ParsePattern —— 别读进条件里
         || Check(TokenType.Newline) || IsAtEnd();
 
     /// <summary>读一格模式。四种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}`。
@@ -536,6 +554,10 @@ public partial class Parser
         var p = ParsePatternBare();
         if (Match(TokenType.Colon))
             p = p with { Type = ParseTypeAnnotation() };
+        // `|>` 贴的是**刚结束的那一格**(不管它是名字、还是整个 `[…]` / `{…}`):
+        // 把那一格的值喂给右边那个函数,不成立就拒收。于是每一层、每一格都能写。
+        if (Match(TokenType.PipeInto))
+            p = p with { When = ParseClimb(allowCall: false, 0) };
         return p;
     }
 
@@ -586,16 +608,15 @@ public partial class Parser
             return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
         }
 
-        if (Check(TokenType.PipeInto))
-            throw ParseError("模式里没有**整块**的 `|>` 条件 —— 条件写在**那一格自己身上**"
-                           + "（`[u == 1 v]`），整块的用参数模式（`(v |> IsPrime) => …`）");
-
         var saveAt = _pos;
         var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、还是 `..名字`");
         if (name.Lexeme == "_")
         {
-            if (Check(TokenType.Colon))
-                throw ParseError("`_` 不绑东西，挂类型没意义 —— 想验那一格就给它一个名字");
+            // `_` 什么都不绑,所以它**挂不了任何东西**:`: 类型` 和 `|> 条件` 都是"对着
+            // 这个名字说事"。不拦的话 `[_ == 1]` 会一路走到下一格的名字那儿报
+            // 「模式里要写一个名字」—— 指错了地方。
+            if (Check(TokenType.Colon) || Check(TokenType.PipeInto) || !EndsThisPart())
+                throw ParseError("`_` 不绑东西，挂不了 `: 类型` 也挂不了 `|> 条件` —— 想验那一格就给它一个名字");
             return new SkipPattern { Line = at.Line, Column = at.Column };
         }
 

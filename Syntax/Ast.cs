@@ -126,6 +126,18 @@ public abstract record Pattern : AstNode
     ///
     /// 名字本身也认(`a |> IsPrime`),只要那个标识符是**最左**的就行(`1 == a` 取到的是 `a`)。</summary>
     public Expression? Guard { get; init; }
+
+    /// <summary>这一格**整体**的条件:`[u == 1 v] |> LongerThanThree` —— `|>` 后面那个函数
+    /// 拿**整块**当实参喂进去,不成立就拒收。
+    ///
+    /// 和 <see cref="Guard"/> 的分别只在于**东西怎么到手**:
+    /// - `Guard` 是"**用名字写**"的(`u == 1`),名字取表达式里最左那个标识符;
+    /// - `When` 是"**把整块喂出去**"的(`|> LongerThanThree`)—— 复合的那几格
+    ///   (列表/对象)自己没绑过名字,而"整块"在调用点现成有,不必另起一个。
+    ///
+    /// `|>` 贴的是**刚结束的那一格**:`[u |> IsPrime]` 里喂的是 `u` 那个元素,
+    /// `[u == 1 v] |> LongerThanThree` 里喂的是整个列表。</summary>
+    public Expression? When { get; init; }
 }
 
 /// <summary>`x` —— 绑这个名字(名字就取模式里写的那个,这一轮不做重命名)。</summary>
