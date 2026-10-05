@@ -290,6 +290,8 @@ internal static class AstPrinter
             NamePattern n => n.Member is { } m ? n.Name + " = " + m : n.Name,
             SkipPattern => "_",
             RestPattern r => ".." + r.Name,
+            // 三对括号各有其位:按位置下去、按成员下去、**不下去**(对象自己)。
+            WholePattern w => "(" + Pattern(w.Inner, indent) + ")",
             ListPattern l => "[" + Join(" ", l.Parts.Select(x => Pattern(x, indent))) + "]",
             MemberPattern mp => "{" + Join(" ", mp.Names.Select(x => Pattern(x, indent))) + "}",
             LiteralPattern lit => lit.Text,

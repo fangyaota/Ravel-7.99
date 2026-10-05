@@ -202,6 +202,20 @@ public record ListPattern(List<Pattern> Parts) : Pattern;
 /// 装(这样每一项能各自带 `: 类型`,和列表模式那边对称)。</summary>
 public record MemberPattern(List<NamePattern> Names) : Pattern;
 
+/// <summary>`(…)` —— **对象自己**:这一格拿到的就是那个值。
+///
+/// 三对括号是"**怎么到这个值**"的三种说法:`[a b]` 按位置下去、`{x y}` 按成员下去、
+/// `( … )` 不下去 —— 就是它自己。前两对每写一次都**真的下沉一层**,所以各建一个节点;
+/// `( … )` 不下沉,语义上就等于它包着的那一格(**不换源、不换值**),建这个节点只是把
+/// "你写的那对括号"记下来,让三种读法在树上各有其位。
+///
+/// **连套几层折叠成一层**:`(((x)))` 和 `(x)` 是一回事 —— "无限制的 `()` 可以拆"
+/// (见 `Parser.Statements` 解析括号那一格)。
+///
+/// 它也是"**对整块说话**"的落点:`(x: int) : string` 里那个 `:` 挂在**外层**这一个上
+/// (<see cref="Pattern.Type"/> 是它自己的槽),和里面那格的类型各管各的。</summary>
+public record WholePattern(Pattern Inner) : Pattern;
+
 // --- 表达式 ---
 public abstract record Expression : AstNode;
 

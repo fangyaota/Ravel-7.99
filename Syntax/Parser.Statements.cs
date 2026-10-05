@@ -780,9 +780,12 @@ public partial class Parser
         // **`()` 走不到这儿**:那是"单位那个值"的字面量,上面那条先接走了。
         if (Match(TokenType.LeftParen))
         {
+            var open = Previous();
             var inner = ParsePattern();
             Consume(TokenType.RightParen, "模式括号没闭上");
-            return inner;
+            // **连套几层折叠成一层** —— "无限制的 `()` 可以拆":`(((x)))` 和 `(x)` 是一回事。
+            // 不折的话 N 层括号就是 N 个节点,而它们一个意思(见 `WholePattern` 的抬头)。
+            return inner is WholePattern ? inner : new WholePattern(inner) { Line = open.Line, Column = open.Column };
         }
 
         var saveAt = _pos;

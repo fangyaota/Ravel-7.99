@@ -413,6 +413,13 @@ public sealed class Lowering
             case SkipPattern:
                 return;
 
+            // `( … )`:**对象自己** —— 不换源、也不下沉,接着按**同一份 `source`** 拆里面那一格。
+            // 所以 `(p := [a b])` 里 `p` 拿到的就是整块、`[a b]` 拆的也是同一个值。
+            // (外层这一个自己的 `Type` / `When` 在上面那两段里已经验过了 —— 那正是"对整块说话"。)
+            case WholePattern w:
+                Bind(w.Inner, source, attrs, outs);
+                return;
+
             // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
             case LiteralPattern lit:
                 var what = Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at));
