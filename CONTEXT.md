@@ -1950,12 +1950,16 @@ add2 := +.1      # 同上,运算符节写法:符号在前表示左操作数留�
   "用户**没明写** `public` / `private` / `protected` 里的任何一个"：写了一个(哪怕写的是
   `public`)就以他写的为准，不是叠上去。落点是 `Interpreter.Call.cs` 的 `CallInto`，
   和 `VarDefinition` 一个待遇(`SetAttr` 装到那个绑定上)。
-- **这是"一个待遇"，不是一套新的访问控制。** 绑定上的 attrs 全项目只有**两个**读点：
-  `readonly` 走 `Variable.CheckWritable`(写入侧)，`private` 走 `BoxedValue` 的
-  "模块外面读不到"。所以 `(readonly y: int) => { y = 1; }` 报「无法给只读变量 'y' 赋值」
-  —— 真有检查；而参数上的 `private` **今天没有能触发的读点**(模块成员查找那条路
-  走不到一个参数)，留着是为了规矩一致：将来谁给参数接了那条查找，它就自动生效。
-  别拿 `x.Attrs ()` 当读取口 —— 它读的是 `Property`，普通变量的 attrs 在 Ravel 层没有出口。
+- **"一个待遇"是两件事，分开说清。**
+  - **读得到**：`Property.Attrs ()` 就是出口，而**拿到那个 Property 的路是 `Scope.Lookup`**
+    —— `(currentScope ()).Lookup "y"` 交回的正是挂着这个绑定的那枚
+    (`BuiltinClasses.Methods.cs` 的 `Wrap(Variable)`)。实测 `(readonly y: int) => …` 体里
+    读出来是 `[readonly private]`、`(z: int) => …` 是 `[private]`(默认那份也读得到)。
+    所以 `Attr` 抬头那条「这里的每一个都必须有地方读它」是**站得住的**。
+  - **真检查的只有 `readonly`**：`Variable.CheckWritable` 在写入侧拦，于是
+    `(readonly y: int) => { y = 1; }` 报「无法给只读变量 'y' 赋值」。`private` 的**门禁**读点
+    (`BoxedValue` 那条"模块外面读不到")走的是**成员查找**，而参数不是成员 —— 所以参数上的
+    `private` 只是**记下来、读得到**，不拦谁。
 - **模式参数上的修饰符跟着拆出来的每个名字走** —— `(readonly [a b]) => …` 拆出来的
   `a` / `b` 各带一份(和 `private [a b] := e` 一个口径)。**每一格自己再写一份**也行
   (`(private [readonly a b]) => …`)—— 两份**叠起来**，从外到里按写的次序摞：
@@ -2173,7 +2177,9 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
   `(private [readonly a b])` 里 `a` 拿到 `private readonly`、`b` 只有 `private`
   (`Lowering.Bind` 开头那个 `eff`)。落在每个名字的 `VarDefinition.Attrs` 上,和变量定义
   一个待遇,所以 `readonly` 是**真有检查**的(给那一格再赋值报错);`private` / `public`
-  在参数和模式上都**没有能触发的读点**(参数不是成员)。
+  记在那个名字上、**`Scope.Lookup` + `Property.Attrs ()` 读得回来**,但门禁那条
+  (`BoxedValue` 的"模块外面读不到")走的是成员查找,而参数不是成员 —— 不拦谁
+  (见「参数上的修饰符」那一条)。
   **`by` 也在这一张表里** —— 那一格的值该是**一份 property**,名字才是槽
   (`by x := property …` 一个规矩;中间量不吃 `by`,见「参数上的修饰符」那条)。
   用例 `tests/lang/335`、`336`。(参数自己那一圈见上面「参数上的修饰符」。)

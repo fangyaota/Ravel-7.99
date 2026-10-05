@@ -65,6 +65,43 @@ false
 
 那六个库的本机半边（`Hash` / `Crypto` / `Http` / `Regex` / `Sqlite` / `Random`）不在 `System` 里，在官方扩展的 `Native` 模块。
 
+### 作用域（`System.Scope`）
+
+`currentScope ()` 给你**当前这一层作用域**（在顶层就是模块那一层 —— 全库所有全局名都在这层里，所以 `Count ()` 是三位数）。`f.Scope ()` 是函数的捕获作用域，`o.MemberScope ()` 是对象的成员表，都交回同一个 `Scope` 类型。
+
+| 方法 | 交回 |
+|------|------|
+| `s.Push ()` | 往下开一层（新的 `Scope`；`Keys` / `Count` 那些说的都是**这一层**）|
+| `s.Define "n"` | **柯里化**：再喂一个**类型**才落下 —— 本层没这个名字就按这个类型新建，有就改值 |
+| `s.Lookup "n"` | 沿链找那个变量，交回**挂它的那个 property**（读 `.Get ()`、写 `.Set v`、`.Attrs ()` 看修饰符）|
+| `s.Remove "n"` | 删**本层**的名字（找不到不报错）|
+| `s.Keys ()` / `s.Values ()` | 本层的名字 / 值（都是 list）|
+| `s.Count ()` | 本层名字个数 |
+| `s.Variables ()` | 名字 → 值的 **dict**（跳过 `this` / `block`）|
+
+`Scope` 自己**不是** `IDict` / `IEnumerable` —— 那两条 `impl` 写在 `lib/keys.rav` / `lib/iterator.rav` 里，
+所以 `s.Has "n"` / `s.Get "n"` / `foreach s …` / `s.Where …` 要先把它们 `using` 进来
+（枚举出来的是**变量的值**，和 `foreach` 一个 dict 一个口径；要名字用 `Keys ()`）。
+
+#### 实例
+
+```ravel
+using "keys.rav"
+readonly b := 2
+s := currentScope ()
+print ((s.Lookup "b").Attrs ())
+print (s.Has "b")
+print ((s.Count ()) > 100)
+```
+
+执行以上程序会输出如下结果：
+
+```
+[readonly]
+true
+true
+```
+
 ## 9.4 Math 模块
 
 **要显式引用**；`using "math.rav"` 之前 `Math` 不是一个名字（报「未定义的变量 'Math'」）。

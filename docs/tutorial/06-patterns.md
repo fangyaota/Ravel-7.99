@@ -131,7 +131,8 @@ print (try { f [1 2]; } (e: Exception) => { e.Message; })
 
 判据和参数那一圈**同一个** —— 这个词**后面跟不跟得上一个绑定项**。所以 `[private]` 是一个
 **叫 `private` 的元素**，而不是"带修饰符、没写名字的一格"。`readonly` 是这里面**真有检查**
-的那个；`private` / `public` 记在那个名字上，但参数不是成员，今天没有读得到它的地方。
+的那个（再赋值报错）；`private` / `public` 只是**记在那个名字上**，读得到
+（`(currentScope ()).Lookup "a"` 那枚 property 的 `.Attrs ()`），但不拦谁。
 
 **`by` 也在这张表里**：那一格的值该是**一份 property**，名字才是槽（`[by x] := [p]`；
 前缀写在整条上就每个名字都是槽，和别的修饰符一样摊）。规矩和 `by x := property …`

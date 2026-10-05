@@ -41,9 +41,10 @@ public partial class Interpreter
                 // 判据是"用户**没明写**这三个里的任何一个":写了一个(哪怕写的是 `public`)
                 // 就以他写的为准,不是叠上去。
                 //
-                // 这条今天**没有能触发的读点**(`BoxedValue` 那条"模块外面读不到"走的是
-                // **成员查找**,而参数不是成员)—— 留着是为了"和变量定义一个待遇"这条规矩
-                // 一致:将来谁给参数接了那条查找,它自动生效。取舍见 CONTEXT.md。
+                // 这条**读得到**((currentScope ()).Lookup "x" 那枚 property 的 `.Attrs ()`
+                // 就是出口),但**不拦谁** —— `BoxedValue` 那条"模块外面读不到"走的是
+                // **成员查找**,而参数不是成员。"和变量定义一个待遇"这条规矩盖到它,
+                // 于是 `(z: int) => …` 体里读得出 `[private]`。见 CONTEXT.md。
                 if (lam.ParamAttrs is null
                     || !lam.ParamAttrs.Any(a => a is Attr.Public or Attr.Private or Attr.Protected))
                     paramVar.SetAttr(Attr.Private);
