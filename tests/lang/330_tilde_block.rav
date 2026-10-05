@@ -58,21 +58,21 @@ print ((try { f := x => ({x;}) + 1; print (f 5); } (e: Exception) => { "吃尽: 
 run := (b: function) => { b (); }
 print (run ~9)
 # --- expected ---
-<block>
-<block>
-5
-5
-过了
-9
-9
-Q { z = 9 }
-<block>
-<block>
-()
-1 落在块外面: 参数 'n' 需要 Integer，得到 Void
--5
--1
-<function (x: object) => { x; }>
-封口: 类型 Function 不支持运算符 '+'
-吃尽: 类型 Block 不支持运算符 '+'
-9
+# <block>
+# <block>
+# 5
+# 5
+# 过了
+# 9
+# 9
+# Q { z = 9 }
+# <block>
+# <block>
+# ()
+# 1 落在块外面: 参数 'n' 需要 Integer，得到 Void
+# -5
+# -1
+# <function (x: object) => { x; }>
+# 封口: 类型 Function 不支持运算符 '+'
+# 吃尽: 类型 Block 不支持运算符 '+'
+# 9

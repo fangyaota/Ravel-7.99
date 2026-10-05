@@ -134,7 +134,11 @@ internal static class AstPrinter
         ListLiteral l => "[" + Join(" ", l.Elements.Select(x => Arg(x, indent))) + "]",
         SetLiteral s => "{" + Join(" ", s.Elements.Select(x => Arg(x, indent))) + "}",
         // 字典的分隔符是 `->`,不是 `:` —— `:` 早就是"类型判定"了(见 CONTEXT 的语法那一节)。
-        DictLiteral d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key, indent) + " -> " + Expr(x.Value, indent))) + "}",
+        // 键和值都走 `Arg`:它们后面紧跟着 `->` 或 `}`,而**调用会往右边吃** ——
+        // `{"level" -> (System.EnvOr "RAVEL_LOG" "info")}` 不套括号的话,那个 `"RAVEL_LOG"`
+        // 会被当成**下一个键**,回读报「字典键后需要 '->'」(实测踩过)。
+        DictLiteral d => "{" + Join(" ", d.Entries.Select(x =>
+            Arg(x.Key, indent) + " -> " + Arg(x.Value, indent))) + "}",
         RangeExpr r => (r.StartClosed ? "[" : "(") + Expr(r.Lo, indent) + ".." + Expr(r.Hi, indent) + (r.EndClosed ? "]" : ")"),
         // 取成员的**接收者**若本身是一次调用,必须套括号:`f a.b` 读起来是 `f (a.b)`
         // (实参位置只吃"主表达式 + 取成员"),而这里要说的是 `(f a).b` —— do 块脱糖出来的
@@ -226,14 +230,24 @@ internal static class AstPrinter
         // 一元比 `**` 松、比其余运算紧 —— 所以 `(-2) ** 2` 那个左操作数得套括号
         // (不套读回去是 `-(2 ** 2)`,另一个数),而 `a + -b` 不用。
         UnaryExpr => 17,
+        IdentifierExpr i when IsWordOperator(i) => -1,
         CallExpr or LambdaExpr or BlockExpr or SlotExpr or DoExpr or PipeExpr => -1,
         _ => 100,
     };
+
+    /// <summary>`or` / `and` 这两个名字**当普通名字用的时候**(`or := 42` 是合法的 ——
+    /// 它们只在**中缀位置**才是运算符,见 `Parser` 那一节)。
+    ///
+    /// 麻烦就在"中缀位置"是**读出来才算**的:操作数 / 实参 / 字典值这些地方后面跟着的
+    /// 正好是中缀位置,于是 `print (or)` 印成 `print or` 就读不回来了 ——
+    /// 报「'or' 是中缀运算符，后面得跟个操作数」。所以这几处一律套括号。</summary>
+    private static bool IsWordOperator(Expression e) => e is IdentifierExpr { Name: "or" or "and" };
 
     /// <summary>**函数那一侧** / 取成员的接收者:`f` 或 `a.b`。调用也认 ——
     /// `(f a) b` 写成 `f a b` 是一个意思(柯里化:`f a b` ≡ `(f a) b`)。</summary>
     private static string Atom(Expression e, int indent) => e switch
     {
+        IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr
             or LiteralExpr => Expr(e, indent),
@@ -246,6 +260,7 @@ internal static class AstPrinter
     /// 所以调用落进"套括号"那一支。少了这条,`f (a b)` 会印成 `f a b` —— 意思就变了。</summary>
     private static string Arg(Expression e, int indent) => e switch
     {
+        IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess
             or LiteralExpr => Expr(e, indent),

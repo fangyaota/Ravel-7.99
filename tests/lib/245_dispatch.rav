@@ -55,16 +55,16 @@ print Ran
 none := (v: object) => { v |> (x: int) => { "整数"; } }
 print ((try { print (none "看"); } (e: Exception) => { "没兜底: " + e.Message; }))
 # --- expected ---
-整数
-字符串
-别的
-别的
-负
-零
-正
-整数
-别的
-先
-乙
-0
-没兜底: 参数 'x' 需要 Integer，得到 String
+# 整数
+# 字符串
+# 别的
+# 别的
+# 负
+# 零
+# 正
+# 整数
+# 别的
+# 先
+# 乙
+# 0
+# 没兜底: 参数 'x' 需要 Integer，得到 String

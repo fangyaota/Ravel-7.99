@@ -62,12 +62,12 @@ Box ::= class {
 }
 print ((Box ()) < (Box ()))
 # --- expected ---
-3
-50
-<function (b: int) => { a + b; } applied a=3>
-30
-7
-true
-false
-分号不接: 需要表达式，但得到'+'
-42
+# 3
+# 50
+# <function (b: int) => { a + b; } applied a=3>
+# 30
+# 7
+# true
+# false
+# 分号不接: 需要表达式，但得到'+'
+# 42

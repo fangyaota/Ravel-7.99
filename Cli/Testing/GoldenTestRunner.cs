@@ -9,16 +9,6 @@ internal static class GoldenTestRunner
 {
     private const string ExpectedSeparator = "# --- expected ---";
 
-    /// <summary>一个 golden 用例里**真正会被跑的那一半** —— `# --- expected ---` 那行往后是
-    /// 期望输出,不是源码。
-    ///
-    /// `AstDump` 也要这一刀:不切的话它把期望区当代码解析 —— 那边一行 `2` 读得过去,
-    /// 一行中文就报「未预期的字符 '，'」,于是 `tests/` 里一批用例根本转储不出来。
-    /// 判分界的地方**就是 <see cref="Parse"/> 用的那个常量**,别让两边各自理解一遍。</summary>
-    public static string SourcePart(string content)
-        => string.Join("\n", content.Replace("\r\n", "\n").Split('\n')
-            .TakeWhile(line => line.Trim() != ExpectedSeparator));
-
     /// <summary>打开「是不是忘了调用?」并把 **stderr 一起收进输出**:警告写的是 stderr,
     /// 而用例比的是 stdout —— 不收进来就一条也钉不住。
     ///

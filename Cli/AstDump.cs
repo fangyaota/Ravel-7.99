@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using Ravel.Runtime;
-using Ravel.Testing;
 
 /// <summary>把 AST **结构转储**成文本 —— 一个节点一行、缩进表层级、深度优先。
 ///
@@ -92,9 +91,11 @@ internal static class AstDump
 
             try
             {
-                // golden 用例文件后面还跟着 `# --- expected ---` 和一段**裸的期望输出**
-                // (不是注释) —— 那是用例格式,不是源码。切掉它,切法见 `SourcePart`。
-                var src = GoldenTestRunner.SourcePart(File.ReadAllText(file));
+                // 读整个文件。golden 用例的期望区**本来就全是 `#` 注释**(见
+                // `GoldenTestRunner` 抬头那条"写用例时请一律加上 `# `"),所以到这儿
+                // 什么都不用切 —— 从前在这儿切过一刀,那是**遮羞布**:文件没注释的话
+                // 本该报错(那份用例也就能直接跑了),一切反而静默出一个截断的树。
+                var src = File.ReadAllText(file);
                 // 和**真正跑它**的时候同一套入口:文件头那条 `#program --more-control-flow`
                 // 也得认,不然 `return` / `break` 那些语句在转储里报语法错、在跑的时候却没事。
                 var flow = Parser.DeclaresMoreControlFlow(src);
@@ -112,18 +113,29 @@ internal static class AstDump
                 if (wantSource)
                 {
                     var printed = AstPrinter.Program(program);
+                    // 标题写成注释 —— 这一趟交出去的得**还是能解析的 .rav**
+                    text = Comment(title) + "\n" + printed + "\n";
                     // **自验:印出来的东西再解析一遍,得回到同一棵树。** 不比就交出去是
                     // 赌自己没印错,而这个印子的活儿细得很(括号、`=` 还是 `:=`、`->` 还是 `:`)
                     // —— `CommentStripper` 剥完注释也要再比一遍 token,同一个规矩。
-                    // 位置不比:行重排过了。
-                    var again = Parser.ParseSource(printed, file, flow);
-                    if (Canonical(again) != Canonical(program))
+                    // 位置和"来路"不比,见 `Canonical`。
+                    try
                     {
-                        Console.Error.WriteLine($"{file}: 印出来再解析,树对不上");
+                        var again = Parser.ParseSource(printed, file, flow);
+                        if (Canonical(again) != Canonical(program))
+                        {
+                            Console.Error.WriteLine($"{file}: 印出来再解析,树对不上");
+                            broken++;
+                        }
+                    }
+                    // **印出来的东西压根解析不了 —— 那是印子的 bug,不是这个文件的问题。**
+                    // 这一格从前被外面那个 catch 兜走了,于是"印不出来"被报成"原件解析不了",
+                    // 而 `broken` 那一栏永远是 0 —— 自验看着全绿,其实一直在骗人。
+                    catch (Exception ex) when (ex is SyntaxException or RuntimeException)
+                    {
+                        Console.Error.WriteLine($"{file}: 印出来解析不了 —— {FirstLine(ex)}");
                         broken++;
                     }
-                    // 标题写成注释 —— 这一趟交出去的得**还是能解析的 .rav**
-                    text = Comment(title) + "\n" + printed + "\n";
                 }
             }
             // 语料里本来就有 `# expect-error` 那种**故意写坏**的文件 —— 一个文件坏了不该把
@@ -173,6 +185,9 @@ internal static class AstDump
         File.WriteAllText(path, content, new UTF8Encoding(false));
         Console.Error.WriteLine("  " + path.Replace('\\', '/'));
     }
+
+    /// <summary>报错的第一句(它自带"--> 文件:行:列"和插入符那一坨,汇总里只要第一句)。</summary>
+    private static string FirstLine(Exception ex) => ErrorReport.Format(ex).Split('\n')[0];
 
     /// <summary>整段按注释写出去 —— `--source` 出来的文件得**还是能解析的 `.rav`**,
     /// 所以标题行、报错都得是 `#` 注释,不然拿它去 `ravel` 会当场报语法错。</summary>
