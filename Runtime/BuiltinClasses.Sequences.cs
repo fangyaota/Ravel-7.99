@@ -25,53 +25,84 @@ using System.Linq;
 ///   数值之间能混着比、字符串按序比,别的类型**当场报错**,不静默给个 false。
 internal static partial class BuiltinClasses
 {
-    /// <summary>把这一批方法注册到一种容器上。`items` 就是将来 `IEnumerable` 要接口实现
-    /// 回答的那个问题:「按枚举顺序把元素给我」。</summary>
-    private static void RegisterSequenceMethods(ObjectVal type, Func<RuntimeValue, List<RuntimeValue>> items)
+    /// <summary>把这一批方法注册到一种容器上。`elems` 就是将来 `IEnumerable` 要接口实现
+    /// 回答的那个问题:「按枚举顺序把元素给我」。
+    ///
+    /// **借的是容器自己那一份,不拷**(`IReadOnlyCollection`:既有 O(1) 的 `Count`,
+    /// 又是 `IEnumerable`)。从前这儿收的是 `List&lt;RuntimeValue&gt;`,而三个调用点都写成
+    /// `[.. ((ListVal)s).Elements]` —— 于是**每调一次就整张拷一遍**:
+    /// `xs.Count ()` 在 20 万元素的表上要 **434 µs**(100 元素 15 µs —— 和长度成正比,
+    /// 一眼就是 O(n))。换掉之后 `Count` / `IsEmpty` 是 O(1),别的也不再白拷一遍。
+    ///
+    /// `IReadOnlyCollection` 是**只读的承诺,不是只读的实现** —— 下面**不许就地改**
+    /// (从前 `Reverse` 那句 `xs.Reverse ()` 在副本上翻,现在会翻到用户那张表上,
+    /// 所以改成 `Enumerable.Reverse`:惰性、不动原表)。</summary>
+    private static void RegisterSequenceMethods(ObjectVal type,
+                                                Func<RuntimeValue, IReadOnlyCollection<RuntimeValue>> elems)
     {
         // `Count` / `IsEmpty` / `Any` —— 三种容器本来各有一份 `Count`,现在并到这儿
-        type.DefineMethod("Count", (s, _) => IntVal.Of(items(s).Count));
-        type.DefineMethod("IsEmpty", (s, _) => new BoolVal(items(s).Count == 0));
-        type.DefineMethod("First", (s, _) => Nth(items(s), 0, "First"));
-        type.DefineMethod("Last", (s, _) => Nth(items(s), items(s).Count - 1, "Last"));
+        type.DefineMethod("Count", (s, _) => IntVal.Of(elems(s).Count));
+        type.DefineMethod("IsEmpty", (s, _) => new BoolVal(elems(s).Count == 0));
+        type.DefineMethod("First", (s, _) => FirstOf(elems(s), "First"));
+        type.DefineMethod("Last", (s, _) => LastOf(elems(s), "Last"));
         // 元素里有没有它:原子值按值比、容器按身份比(和 Set 本身的判据一致)。
-        // 字典的"元素"是**值**(见 items),按键找用 `Has k`。
-        type.DefineMethod("Contains", (s, a) => new BoolVal(items(s).Contains(a)));
+        // 字典的"元素"是**值**(见 elems),按键找用 `Has k`。
+        type.DefineMethod("Contains", (s, a) => new BoolVal(elems(s).Contains(a)));
 
-        type.DefineMethod("ToList", (s, _) => new ListVal(items(s)));
-        type.DefineMethod("ToSet", (s, _) => new SetVal([.. items(s)]));
+        type.DefineMethod("ToList", (s, _) => new ListVal([.. elems(s)]));
+        type.DefineMethod("ToSet", (s, _) => new SetVal([.. elems(s)]));
         type.DefineMethod("Distinct", (s, _) =>
         {
             var seen = new HashSet<RuntimeValue>();
             var kept = new List<RuntimeValue>();
-            foreach (var x in items(s))
+            foreach (var x in elems(s))
                 if (seen.Add(x))
                     kept.Add(x);
             return new ListVal(kept);
         });
-        type.DefineMethod("Reverse", (s, _) =>
-        {
-            var xs = items(s);
-            xs.Reverse();
-            return new ListVal(xs);
-        });
-        type.DefineMethod("Take", (s, a) => new ListVal(items(s).Take(IntArg(a, "Take")).ToList()));
-        type.DefineMethod("Skip", (s, a) => new ListVal(items(s).Skip(IntArg(a, "Skip")).ToList()));
-        type.DefineMethod("Concat", (s, a) => new ListVal([.. items(s), .. ElementsOf(a, "Concat")]));
+        // **惰性翻,不就地翻** —— "借来的"那张表是用户的(见抬头)
+        type.DefineMethod("Reverse", (s, _) => new ListVal([.. Enumerable.Reverse(elems(s))]));
+        type.DefineMethod("Take", (s, a) => new ListVal([.. Enumerable.Take(elems(s), IntArg(a, "Take"))]));
+        type.DefineMethod("Skip", (s, a) => new ListVal([.. Enumerable.Skip(elems(s), IntArg(a, "Skip"))]));
+        type.DefineMethod("Concat", (s, a) => new ListVal([.. elems(s), .. ElementsOf(a, "Concat")]));
 
         type.DefineMethod("Join", (s, a) =>
         {
             if (a is not StringVal sep) throw new RuntimeException("Join 需要 string 分隔符", ErrorKind.Argument);
-            return new StringVal(string.Join(sep.Value, items(s).Select(x => x.ToString())));
+            return new StringVal(string.Join(sep.Value, elems(s).Select(x => x.ToString())));
         });
         type.DefineMethod("Sum", (s, _) =>
         {
             RuntimeValue acc = IntVal.Of(0);          // 空集合求和给 0(C# 的 Sum() 也是这样)
-            foreach (var x in items(s)) acc = ApplyOp("+", acc, x);
+            foreach (var x in elems(s)) acc = ApplyOp("+", acc, x);
             return acc;
         });
-        type.DefineMethod("Min", (s, _) => Extreme(items(s), "Min", keepLess: true));
-        type.DefineMethod("Max", (s, _) => Extreme(items(s), "Max", keepLess: false));
+        type.DefineMethod("Min", (s, _) => Extreme(elems(s), "Min", keepLess: true));
+        type.DefineMethod("Max", (s, _) => Extreme(elems(s), "Max", keepLess: false));
+    }
+
+    /// <summary>头一个 / 末一个元素。**空集合报的是同一句话** ——
+    /// 从前走 `Nth(xs, 0/-1)` 那条:`Nth` 要按下标取,而借来的表不该要求 `IList`
+    /// (`HashSet` / `Dictionary.Values` 都不是)。措辞一个字没改。</summary>
+    private static RuntimeValue FirstOf(IEnumerable<RuntimeValue> xs, string what)
+    {
+        foreach (var x in xs) return x;
+        throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
+    }
+
+    private static RuntimeValue LastOf(IEnumerable<RuntimeValue> xs, string what)
+    {
+        if (xs is IReadOnlyList<RuntimeValue> list)          // List —— 直取末一个,O(1)
+        {
+            if (list.Count == 0) throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
+            return list[^1];
+        }
+
+        var found = false;
+        RuntimeValue last = VoidVal.Instance;
+        foreach (var x in xs) { last = x; found = true; }
+        if (!found) throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
+        return last;
     }
 
     /// <summary>高阶那批:收 Ravel 函数的那些。它们的成员值不是普通内置方法,而是
@@ -139,11 +170,6 @@ internal static partial class BuiltinClasses
 
     /// <summary>第 n 个元素,越界报错(空的 First/Last 是**错误**,不是 `()` ——
     /// 「没有第一个」和「第一个是空」不该长得一样)。</summary>
-    private static RuntimeValue Nth(List<RuntimeValue> xs, int i, string what)
-        => i >= 0 && i < xs.Count
-            ? xs[i]
-            : throw new RuntimeException($"{what}: 元素不够（一共 {xs.Count} 个）", ErrorKind.Index);
-
     internal static int IntArg(RuntimeValue a, string what)
         => a is IntVal i
             ? i.Value
@@ -177,13 +203,16 @@ internal static partial class BuiltinClasses
     }
 
     /// <summary>最小 / 最大。相等时留**先出现**的那个(稳定)。</summary>
-    private static RuntimeValue Extreme(List<RuntimeValue> xs, string what, bool keepLess)
+    private static RuntimeValue Extreme(IEnumerable<RuntimeValue> xs, string what, bool keepLess)
     {
-        if (xs.Count == 0) throw new RuntimeException($"{what}: 空集合没有{what}", ErrorKind.Index);
-        var best = xs[0];
-        foreach (var x in xs.Skip(1))
-            if (keepLess ? Less(x, best) : Less(best, x))
-                best = x;
+        var have = false;
+        RuntimeValue best = VoidVal.Instance;
+        foreach (var x in xs)
+        {
+            if (!have) { best = x; have = true; continue; }
+            if (keepLess ? Less(x, best) : Less(best, x)) best = x;
+        }
+        if (!have) throw new RuntimeException($"{what}: 空集合没有{what}", ErrorKind.Index);
         return best;
     }
 }

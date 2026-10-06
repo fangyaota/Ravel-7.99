@@ -19,9 +19,10 @@ internal static partial class BuiltinClasses
         RegisterDictMethods();
         // 序列方法:三种容器共用那一份(将来 IEnumerable 的落点)。
         // `items` = 「按枚举顺序取出元素」——字典给的是**值**(按键找用 `Has` / `Keys ()`)
-        RegisterSequenceMethods(List, s => [.. ((ListVal)s).Elements]);
-        RegisterSequenceMethods(Set, s => [.. ((SetVal)s).Elements]);
-        RegisterSequenceMethods(Dict, s => [.. ((DictVal)s).Entries.Values]);
+        // **借容器自己那一份,不拷** —— 见 `RegisterSequenceMethods` 抬头
+        RegisterSequenceMethods(List, s => ((ListVal)s).Elements);
+        RegisterSequenceMethods(Set, s => ((SetVal)s).Elements);
+        RegisterSequenceMethods(Dict, s => ((DictVal)s).Entries.Values);
         RegisterHigherOrderMethods(List);
         RegisterHigherOrderMethods(Set);
         RegisterHigherOrderMethods(Dict);
