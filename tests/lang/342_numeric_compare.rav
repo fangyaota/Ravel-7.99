@@ -1,0 +1,77 @@
+#
+# **精确那一族的比较不过 `double`** —— int / bigint / fraction / bigfraction 之间比大小
+# 走的是通分交叉相乘(bigint,乘不溢),只有掺了 float 才落回 double。
+#
+# 从前六条比较运算符一律 `AsDouble …`,于是:
+#
+#     a := bigint 10^30
+#     b := bigint (10^30 + 1)
+#     a == b   →  true      ← 而 `a - b` 交回 -1
+#
+# 同一个程序**自己跟自己打架** —— 2^53 以上全被抹平。算术一直是对的(`+`/`-` 走 bigint),
+# 错的只有比较那一侧。
+#
+# float 那条路**照旧**:它本来就是近似值,和 bigint 比也只能这样。NaN 也照旧 ——
+# 和谁都没法比(`==` false、`!=` true、四条序全 false,IEEE 那套)。
+
+a := bigint 1000000000000000000000000000000
+b := bigint 1000000000000000000000000000001
+print (a == b)
+print (a < b)
+print (a >= b)
+print (a != b)
+print (a - b)
+
+# 2^53 —— double 能**精确**表示的最大整数 + 1 开始就不行了
+x := bigint 9007199254740992
+y := bigint 9007199254740993
+print (x < y)
+print (x == y)
+
+# 分数:通分之后比,`10^30/1` 和 `(10^30+1)/1` 分得开
+print ((bigfraction b 1) > a)
+print ((fraction 1 3) < (fraction 1 2))
+print ((fraction 1 3) == (fraction 2 6))
+print ((bigfraction 1 3) == (fraction 1 3))
+print ((fraction 2 1) == 2)
+print (1 < (fraction 3 2))
+
+# 掺了 float 就落回 double(近似值,没有"更准"可言)
+print (5 == 5.0)
+print (5 < 5.5)
+print (Inf > 1)
+print (Inf == Inf)
+print (NaN == NaN)
+print (NaN != NaN)
+print (NaN < 1)
+print (NaN <= NaN)
+
+# 区间也跟着:**方向**不再被 2^53 抹平(它问的就是"谁大谁小")
+print ([y..x].Count ())
+print ([x..y].ToList ())
+print ([a..b].Count ())
+# --- expected ---
+# false
+# true
+# false
+# true
+# -1
+# true
+# false
+# true
+# true
+# true
+# true
+# true
+# true
+# true
+# true
+# true
+# true
+# false
+# true
+# false
+# false
+# 2
+# [9007199254740992 9007199254740993]
+# 2

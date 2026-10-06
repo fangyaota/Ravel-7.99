@@ -125,9 +125,11 @@ public static class PluginKit
     /// <summary>参数收束成 **int**(不是数、或者是个装不下的 bigint,都会说人话)</summary>
     public static int Int(RuntimeValue v, string what) => BuiltinClasses.IntArg(v, what);
 
-    /// <summary>数值参数收成 `double` 来算 —— **五种数值类型全吃**(int / float / bigint /
-    /// fraction / bigfraction),和 `<` 那批运算符同一个口径(都是
-    /// `BuiltinClasses.TryAsDouble`)。不这么做的话 `sin 1` 和 `1 &lt; 2` 就成了两套说法。
+    /// <summary>数值参数收成 `double` 来算 —— **五种数值类型全吃**(int / real / bigint /
+    /// fraction / bigfraction)。**这条专门是"近似那一条路"**:`sin` / `sqrt` 那些本来就按
+    /// double 算的。**别拿它去比大小** —— 比较走
+    /// <see cref="BuiltinClasses.CompareNumeric"/>(精确那一族不经过 double —— 2^53 以上的
+    /// 大整数在那儿分得开,用 double 会被抹平)。
     /// 非数值报 `what` 归属的错误 —— 传函数名进来(`Num (a, "Sin")`)。</summary>
     public static double Num(RuntimeValue v, string what)
         => BuiltinClasses.TryAsDouble(v, out var d)

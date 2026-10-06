@@ -799,7 +799,9 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Contains` 按**元素**算（`[1..10].Contains 2.5` 是 false）、`Covers` 按**端点**算
 （`[1..10].Covers 2.5` 是 true；Ruby 的 `include?` / `cover?` 也是这么分的）。
 界一律用 bigint 算（端点可能是 bigint、个数也可能超出 int —— `Count ()` 装不下就给 bigint），
-比较走 `TryAsDouble`（和 `<` 一个口径），NaN 当空区间。
+比较走 `CompareNumeric` —— **精确那一族不经过 double**（`bigint 10^30 == bigint (10^30+1)`
+从前是 `true`，而 `-` 交回 `-1`：自己跟自己打架；2^53 以上全被抹平），掺了 float 才落回
+`TryAsDouble`；NaN 当空区间。
 
 **两头都可以省（`[1..]` / `[..1]`）—— 省的哪一头就是"没有界"。** 求值那一步（`StepRange`）
 把它补成对应的 ±∞（省上界补 `+Inf`、省下界补 `-Inf`），于是 `[1..]` 与 `[1..Inf]` 造出的是

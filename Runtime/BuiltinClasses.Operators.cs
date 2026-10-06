@@ -213,15 +213,17 @@ internal static partial class BuiltinClasses
                     ? throw new RuntimeException("运算符 '%' 的除数为零", ErrorKind.ZeroDivision)
                     : new BigFractionVal(na * db - ((na * db) / (da * nb)) * (nb * da), da * db)));
 
-        // 比较运算符 — 数字
+        // 比较运算符 — 数字。**精确那一族不经过 double**(见 `CompareNumeric`);
+        // `int?` 和 0 比:`NaN` 那条路给 null,于是 `null == 0` 是 false、`null != 0` 是 true、
+        // 四条序全是 false —— 正好是 IEEE 要的那组答案。
         foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })
         {
-            DefineOp(t, "==", (a, b) => new BoolVal(AsDouble(a, "==") == AsDouble(b, "==")));
-            DefineOp(t, "!=", (a, b) => new BoolVal(AsDouble(a, "!=") != AsDouble(b, "!=")));
-            DefineOp(t, "<", (a, b) => new BoolVal(AsDouble(a, "<") < AsDouble(b, "<")));
-            DefineOp(t, ">", (a, b) => new BoolVal(AsDouble(a, ">") > AsDouble(b, ">")));
-            DefineOp(t, "<=", (a, b) => new BoolVal(AsDouble(a, "<=") <= AsDouble(b, "<=")));
-            DefineOp(t, ">=", (a, b) => new BoolVal(AsDouble(a, ">=") >= AsDouble(b, ">=")));
+            DefineOp(t, "==", (a, b) => new BoolVal(CompareNumeric(a, b, "==") == 0));
+            DefineOp(t, "!=", (a, b) => new BoolVal(CompareNumeric(a, b, "!=") != 0));
+            DefineOp(t, "<", (a, b) => new BoolVal(CompareNumeric(a, b, "<") < 0));
+            DefineOp(t, ">", (a, b) => new BoolVal(CompareNumeric(a, b, ">") > 0));
+            DefineOp(t, "<=", (a, b) => new BoolVal(CompareNumeric(a, b, "<=") <= 0));
+            DefineOp(t, ">=", (a, b) => new BoolVal(CompareNumeric(a, b, ">=") >= 0));
         }
 
         // bool 比较
@@ -336,7 +338,9 @@ internal static partial class BuiltinClasses
     private static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
         => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零", ErrorKind.ZeroDivision);
 
-    /// <summary>把数值收成 double(大数/分数也接受 —— 和 `<` 那批运算符同一个口径)。
+    /// <summary>把数值收成 double(大数/分数也接受)。**这是"近似"那条路** ——
+    /// 给那些本来就按 double 算的地方用(`Math.Sin` 之类),**不要拿它去比大小**:
+    /// 2^53 以上会抹平(见 <see cref="CompareNumeric"/>)。
     /// 非数值返回 false,由调用方决定报什么:运算符说"运算符 X 不支持",Math 模块说函数名。</summary>
     internal static bool TryAsDouble(RuntimeValue v, out double d)
     {
@@ -350,6 +354,44 @@ internal static partial class BuiltinClasses
             default: d = 0; return false;
         }
     }
+
+    /// <summary>数值比大小。**精确那一族(int / bigint / fraction / bigfraction)不经过 double** ——
+    /// 两边都通成 `分子/分母`(bigint),交叉相乘再比,乘不溢。
+    ///
+    /// 从前六条比较运算符一律 `AsDouble … `,于是 `bigint 10^30 == bigint (10^30+1)` 交回
+    /// **true**,而 `-` 交回 `-1` —— 同一个程序自己跟自己打架。2^53 以上全被抹平。
+    ///
+    /// **掺了 float 才落回 double**(它本来就是近似值,没有"更准"可言;和 `<bigint>` 比也
+    /// 只能这样)。`NaN` 就和它一个口径:和谁都没法比,交 `null`,六条运算符各自读成
+    /// IEEE 那个答案(`==`→false、`!=`→true、四条序→false)。
+    ///
+    /// 非数值由 <see cref="AsDouble"/> 报「运算符 'X' 不支持 … 操作数」。</summary>
+    internal static int? CompareNumeric(RuntimeValue a, RuntimeValue b, string op)
+    {
+        if (a is IntVal or BigIntVal or FractionVal or BigFractionVal
+            && b is IntVal or BigIntVal or FractionVal or BigFractionVal)
+        {
+            var (na, da) = Ratio(a);
+            var (nb, db) = Ratio(b);
+            return (na * db).CompareTo(nb * da);
+        }
+
+        var x = AsDouble(a, op);
+        var y = AsDouble(b, op);
+        if (double.IsNaN(x) || double.IsNaN(y)) return null;
+        return x.CompareTo(y);
+    }
+
+    /// <summary>把"精确那一族"写成一对 bigint 分子分母(整数就是分母 1)。
+    /// 调用方保证只送那四种进来。</summary>
+    private static (System.Numerics.BigInteger Num, System.Numerics.BigInteger Den) Ratio(RuntimeValue v) => v switch
+    {
+        IntVal i => (i.Value, System.Numerics.BigInteger.One),
+        BigIntVal b => (b.Value, System.Numerics.BigInteger.One),
+        FractionVal f => (f.Num, f.Den),
+        BigFractionVal bf => (bf.Num, bf.Den),
+        _ => throw new RuntimeException($"{v.Type} 不是精确的数", ErrorKind.Type),
+    };
 
     private static double AsDouble(RuntimeValue v, string op)
         => TryAsDouble(v, out var d) ? d : throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type);

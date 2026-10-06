@@ -28,7 +28,8 @@ using System.Numerics;
 /// 打印出来就是写出来那个样子(`ToString` 拼那对括号),所以 `print [1..3]` 交回原文。
 ///
 /// **界**一律用 bigint 算(端点可能是 bigint、个数也可能超出 int);比较走
-/// `TryAsDouble`(和 `<` 那批运算符一个口径)。浮点的 NaN 当**空区间**。
+/// `CompareNumeric`(和 `<` 那批运算符**同一个**口径 —— 精确那一族不经过 double)。
+/// 浮点的 NaN 当**空区间**。
 ///
 /// **±∞ 就是"没有界"的意思** —— `[1..]` / `[..1]` 求值时装的就是它(`+Inf` / `-Inf`,
 /// 见 `Interpreter.StepRange`),于是 `[1..]` 和 `[1..Inf]` 是**同一个值**。
@@ -142,17 +143,17 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     /// 开闭照旧:`[1..10).Covers 10` ✗。**和方向无关**(倒过来写,盖住的还是那一段)。</summary>
     public bool CoversValue(RuntimeValue v)
     {
-        if (!BuiltinClasses.TryAsDouble(v, out var x) || double.IsNaN(x)) return false;
-        if (!BuiltinClasses.TryAsDouble(Start, out var a) || !BuiltinClasses.TryAsDouble(End, out var b))
-            return false;
-        if (double.IsNaN(a) || double.IsNaN(b)) return false;
+        if (!BuiltinClasses.TryAsDouble(v, out _)) return false;     // 不是数,一律不盖(只要那个"是不是数")
+        var dStart = BuiltinClasses.CompareNumeric(v, Start, "<");
+        var dEnd = BuiltinClasses.CompareNumeric(v, End, "<");
+        if (dStart is null || dEnd is null) return false;            // NaN 掺和:谁都盖不住
 
-        // 方向对这个问法没意义:谁大谁小归一成 lo/hi,开闭跟着各自那一端走
-        var (lo, loClosed, hi, hiClosed) = a <= b
-            ? (a, StartClosed, b, EndClosed)
-            : (b, EndClosed, a, StartClosed);
-
-        return (loClosed ? x >= lo : x > lo) && (hiClosed ? x <= hi : x < hi);
+        // 方向对这个问法没意义:谁小谁是下端,开闭跟着各自那一端走
+        // (和**精确**那条路一个口径 —— `bigint` 端点上也不许被抹平)
+        var asc = BuiltinClasses.CompareNumeric(Start, End, "<") is not > 0;
+        var (lo, hi) = asc ? (dStart.Value, dEnd.Value) : (dEnd.Value, dStart.Value);
+        var (loOpen, hiOpen) = asc ? (!StartClosed, !EndClosed) : (!EndClosed, !StartClosed);
+        return (loOpen ? lo > 0 : lo >= 0) && (hiOpen ? hi < 0 : hi <= 0);
     }
 
     /// <summary>这个值算不算区间里的**元素** —— 得是**某个整数**且落在两头之间:
@@ -188,14 +189,14 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     private bool Ascending(out bool up)
     {
         up = true;
-        if (!BuiltinClasses.TryAsDouble(Start, out var a) || !BuiltinClasses.TryAsDouble(End, out var b))
-            return false;
-        if (double.IsNaN(a) || double.IsNaN(b)) return false;
-
         if (Infinite(Start, out var s)) { up = s > 0; return true; }
         if (Infinite(End, out var e)) { up = e > 0; return true; }
 
-        up = a <= b;
+        // 精确那一族不经过 double(`bigint` 端点 2^53 以上会被抹平 —— 见 `CompareNumeric`);
+        // NaN 给 null,当空。端点一定是数(`StepRange` 那头验过),所以这里不报类型错。
+        var c = BuiltinClasses.CompareNumeric(Start, End, "<");
+        if (c is null) return false;
+        up = c <= 0;
         return true;
     }
 
