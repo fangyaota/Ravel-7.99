@@ -168,8 +168,8 @@ public partial class Interpreter
         Return(nf, new RangeVal(lo, hi, rng.StartClosed, rng.EndClosed));
     }
 
-    private static readonly FloatVal PositiveInfinity = new(double.PositiveInfinity);
-    private static readonly FloatVal NegativeInfinity = new(double.NegativeInfinity);
+    private static readonly RealVal PositiveInfinity = new(double.PositiveInfinity);
+    private static readonly RealVal NegativeInfinity = new(double.NegativeInfinity);
 
     private void StepBinaryOp(NodeFrame nf, BinaryExpr bin)
     {

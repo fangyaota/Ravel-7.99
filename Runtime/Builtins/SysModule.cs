@@ -39,7 +39,7 @@ internal static class SysModule
         DefType(scope, "String", BuiltinClasses.String);
         DefType(scope, "Char", BuiltinClasses.Char);
         DefType(scope, "Bool", BuiltinClasses.Bool);
-        DefType(scope, "Float", BuiltinClasses.Float);
+        DefType(scope, "Float", BuiltinClasses.Real);
         DefType(scope, "BigInteger", BuiltinClasses.BigInt);
         DefType(scope, "Fraction", BuiltinClasses.Fraction);
         DefType(scope, "BigFraction", BuiltinClasses.BigFraction);
@@ -86,9 +86,9 @@ internal static class SysModule
         Def(scope, "True", BuiltinClasses.Bool, new BoolVal(true));
         Def(scope, "False", BuiltinClasses.Bool, new BoolVal(false));
         // 特殊浮点值。和 True/False 同款:系统模块里的一个值,`predefined.rav` 给全局别名
-        // (`-Inf` 不用另设,一元 `-` 对 Float 就是取负)
-        Def(scope, "NaN", BuiltinClasses.Float, new FloatVal(double.NaN));
-        Def(scope, "Inf", BuiltinClasses.Float, new FloatVal(double.PositiveInfinity));
+        // (`-Inf` 不用另设,一元 `-` 对 Real 就是取负)
+        Def(scope, "NaN", BuiltinClasses.Real, new RealVal(double.NaN));
+        Def(scope, "Inf", BuiltinClasses.Real, new RealVal(double.PositiveInfinity));
         Def(scope, "Default", BuiltinClasses.Every, DefaultVal.Instance);
     }
 

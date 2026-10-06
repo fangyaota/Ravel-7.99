@@ -38,13 +38,13 @@ public partial class Interpreter
 
         RuntimeValue v = nn.Suffix switch
         {
-            'f' => new FloatVal(double.Parse(text, ci)),
+            'f' => new RealVal(double.Parse(text, ci)),
             'n' when !nn.IsFloat => new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
             'i' when !nn.IsFloat => int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var i)
                 ? IntVal.Of(i)
                 : throw new RuntimeException($"'{text}i' 超出 int 范围（int 是 32 位，要这么大就写 {text}n）", ErrorKind.Value),
             '\0' => nn.IsFloat
-                ? new FloatVal(double.Parse(text, ci))
+                ? new RealVal(double.Parse(text, ci))
                 : int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var d)
                     ? IntVal.Of(d)
                     : new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
@@ -158,13 +158,13 @@ public partial class Interpreter
         CallInto(nf.Parent!, fn, nf.Result(0));
     }
 
-    /// <summary>一元负号。每种数值类型自己翻,不走 `0 - x`——Int 的 '-' 只特判了 Float,
+    /// <summary>一元负号。每种数值类型自己翻,不走 `0 - x`——Int 的 '-' 只特判了 Real,
     /// `0 - bigint` 会撞上「运算符 '-' 不支持 BigInt 操作数」。</summary>
     private static RuntimeValue Negate(RuntimeValue v) => v switch
     {
         // -int.MinValue 翻不过来(2147483648 装不下),别静默回绕成它自己
         IntVal i => BuiltinClasses.Narrow(-(long)i.Value, $"-({i.Value})"),
-        FloatVal f => new FloatVal(-f.Value),
+        RealVal f => new RealVal(-f.Value),
         BigIntVal b => new BigIntVal(-b.Value),
         FractionVal fr => new FractionVal(-fr.Num, fr.Den),
         BigFractionVal bf => new BigFractionVal(-bf.Num, bf.Den),
@@ -307,7 +307,7 @@ public partial class Interpreter
         //
         // `Accepts` 那两条就是"这个值本来就属于这个类型":继承链够得着,或者当前作用域里
         // 有生效的实现把它接到目标上。**数值/字符串那种"能转就转"没有了** ——
-        // `x: float = 1` 不再悄悄变成 1.0(Integer 和 Float 是兄弟,不是父子);
+        // `x: float = 1` 不再悄悄变成 1.0(Integer 和 Real 是兄弟,不是父子);
         // 要转就明写 `float 1`。
         //
         // 参数表一直就是这么判的(`Interpreter.Call`:只问 `Accepts`,不问转换)——

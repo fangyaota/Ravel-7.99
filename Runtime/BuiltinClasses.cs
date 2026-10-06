@@ -7,7 +7,7 @@
 /// 内置类没有用户写的类体，所以 S1 阶段它们的成员靠 <see cref="ObjectVal.DefineMethod"/>
 /// 直接注册进 Scope（S2 会改成"预设类体里定义"，那时"内置类也有类体"就名副其实了）。
 ///
-/// 静态字段名沿用旧 `RuntimeType` 的名字（`Int`/`Float`/…），三个注册文件因此可以原样搬运。
+/// 静态字段名沿用旧 `RuntimeType` 的名字（`Int`/`Real`/…），三个注册文件因此可以原样搬运。
 ///
 /// 建树分两趟：第一趟把所有类对象建出来（`ClassType` 先自指），第二趟回填元类并挂
 /// `parent`/`name` —— 因为建 `Object` 的时候 `Type` 还不存在，而 `Object` 的元类是 `Type`。</summary>
@@ -19,7 +19,7 @@ internal static partial class BuiltinClasses
     // 值类型分支（不可变）
     public static readonly ClassVal ValueType;
     public static readonly ClassVal Int;
-    public static readonly ClassVal Float;
+    public static readonly ClassVal Real;
     public static readonly ClassVal Bool;
     public static readonly ClassVal String;
     public static readonly ClassVal Char;
@@ -112,7 +112,7 @@ internal static partial class BuiltinClasses
         Function = New("Function");
         ValueType = New("ValueType");
         Int = New("Integer");           // 名字是 Integer，字段名沿用旧名 Int
-        Float = New("Float");
+        Real = New("Float");
         Bool = New("Bool");
         String = New("String");
         Char = New("Char");
@@ -158,7 +158,7 @@ internal static partial class BuiltinClasses
 
         // 值类型 —— Bool 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
         Link(Int, ValueType, Type);
-        Link(Float, ValueType, Type);
+        Link(Real, ValueType, Type);
         Link(Bool, Function, Type);
         Link(String, ValueType, Type);
         Link(Char, ValueType, Type);
@@ -219,7 +219,7 @@ internal static partial class BuiltinClasses
         // ---- 收集所有内置类（供 Subtypes 反射） ----
         foreach (var t in new[]
                  {
-                     Object, ValueType, Int, Float, Bool, String, Char, BigInt,
+                     Object, ValueType, Int, Real, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
                      List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface,
                      Ravel, Any, Every, Exception, Json, ScopeType, Property,

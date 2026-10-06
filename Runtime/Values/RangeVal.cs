@@ -203,7 +203,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     /// <summary>这一头是不是 ±∞。`sign` 给正负(不是就给 0)。</summary>
     private static bool Infinite(RuntimeValue v, out int sign)
     {
-        if (v is FloatVal f && double.IsInfinity(f.Value)) { sign = f.Value > 0 ? 1 : -1; return true; }
+        if (v is RealVal f && double.IsInfinity(f.Value)) { sign = f.Value > 0 ? 1 : -1; return true; }
         sign = 0;
         return false;
     }
@@ -236,7 +236,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
             case BigIntVal b:
                 bound = b.Value;
                 return true;
-            case FloatVal f:
+            case RealVal f:
                 if (double.IsNaN(f.Value))
                 {
                     bound = BigInteger.Zero;
@@ -282,7 +282,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
             case BigIntVal b:
                 n = b.Value;
                 return true;
-            case FloatVal f when !double.IsNaN(f.Value) && !double.IsInfinity(f.Value)
+            case RealVal f when !double.IsNaN(f.Value) && !double.IsInfinity(f.Value)
                                  && Math.Floor(f.Value) == f.Value:
                 n = new BigInteger(f.Value);
                 return true;

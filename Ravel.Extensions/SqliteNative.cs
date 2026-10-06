@@ -126,7 +126,7 @@ internal static class SqliteNative
     {
         VoidVal => null,
         IntVal i => i.Value,
-        FloatVal f => f.Value,
+        RealVal f => f.Value,
         StringVal s => s.Value,
         CharVal c => c.Value.ToString(),
         BoolVal b => b.Value ? 1 : 0,
@@ -142,7 +142,7 @@ internal static class SqliteNative
     {
         null or DBNull => Void,
         long l => l is >= int.MinValue and <= int.MaxValue ? IntVal.Of((int)l) : new BigIntVal(l),
-        double d => new FloatVal(d),
+        double d => new RealVal(d),
         string s => new StringVal(s),
         byte[] b => BytesList(b),
         _ => new StringVal(o.ToString() ?? ""),

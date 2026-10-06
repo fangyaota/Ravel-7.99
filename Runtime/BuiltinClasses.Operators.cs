@@ -31,7 +31,7 @@ internal static partial class BuiltinClasses
     };
 
     /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:float > bigint > int——
-    /// 结果类型取较宽的那个。以前只特判了 Float,于是 `1 + bigint 2` 报「运算符 '+' 不支持
+    /// 结果类型取较宽的那个。以前只特判了 Real,于是 `1 + bigint 2` 报「运算符 '+' 不支持
     /// BigInt 操作数」,而反过来的 `bigint 2 + 1` 却正常(AsBigInt 收 int),两边不对称。</summary>
     private static RuntimeValue IntOp(RuntimeValue a, RuntimeValue b, string op,
         Func<int, int, RuntimeValue> ii,
@@ -41,7 +41,7 @@ internal static partial class BuiltinClasses
         var x = ((IntVal)a).Value;
         return b switch
         {
-            FloatVal f => id(x, f.Value),
+            RealVal f => id(x, f.Value),
             BigIntVal g => ib(x, g.Value),
             IntVal i => ii(x, i.Value),
             _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数", ErrorKind.Type),
@@ -114,16 +114,16 @@ internal static partial class BuiltinClasses
         // int 运算符 —— 右操作数按"宽度"升级:float > bigint > int。
         // int×int 一律在 long 里算再收窄,免得 unchecked 静默回绕见 Narrow
         DefineOp(Int, "+", (a, b) => IntOp(a, b, "+",
-            (x, y) => Narrow((long)x + y, $"{x} + {y}"), (x, y) => new FloatVal(x + y), (x, y) => new BigIntVal(x + y)));
+            (x, y) => Narrow((long)x + y, $"{x} + {y}"), (x, y) => new RealVal(x + y), (x, y) => new BigIntVal(x + y)));
         DefineOp(Int, "-", (a, b) => IntOp(a, b, "-",
-            (x, y) => Narrow((long)x - y, $"{x} - {y}"), (x, y) => new FloatVal(x - y), (x, y) => new BigIntVal(x - y)));
+            (x, y) => Narrow((long)x - y, $"{x} - {y}"), (x, y) => new RealVal(x - y), (x, y) => new BigIntVal(x - y)));
         DefineOp(Int, "*", (a, b) => IntOp(a, b, "*",
-            (x, y) => Narrow((long)x * y, $"{x} * {y}"), (x, y) => new FloatVal(x * y), (x, y) => new BigIntVal(x * y)));
+            (x, y) => Narrow((long)x * y, $"{x} * {y}"), (x, y) => new RealVal(x * y), (x, y) => new BigIntVal(x * y)));
         DefineOp(Int, "/", (a, b) => IntOp(a, b, "/",
-            (x, y) => Narrow((long)x / NonZero(y, "/"), $"{x} / {y}"), (x, y) => new FloatVal(x / y),
+            (x, y) => Narrow((long)x / NonZero(y, "/"), $"{x} / {y}"), (x, y) => new RealVal(x / y),
             (x, y) => new BigIntVal(x / NonZero(y, "/"))));
         DefineOp(Int, "%", (a, b) => IntOp(a, b, "%",
-            (x, y) => Narrow((long)x % NonZero(y, "%"), $"{x} % {y}"), (x, y) => new FloatVal(x % y),
+            (x, y) => Narrow((long)x % NonZero(y, "%"), $"{x} % {y}"), (x, y) => new RealVal(x % y),
             (x, y) => new BigIntVal(x % NonZero(y, "%"))));
 
         // 移位 / 循环移位(四条,`int` 上;语义见上面那一段)。
@@ -134,15 +134,15 @@ internal static partial class BuiltinClasses
         DefineOp(Int, ">>>", (a, b) => IntVal.Of(RotateDown(((IntVal)a).Value, ShiftCount(b, ">>>"))));
 
         // float 运算符 —— **全程 double**。
-        // 曾经这里走 `AsFloat`(转成 32 位 float 再算),于是 `Math.pi * 180` 得
+        // 曾经这里走 `AsReal`(转成 32 位 float 再算),于是 `Math.pi * 180` 得
         // 565.4866943359375(float32 的 π 乘出来的),而 `180 * Math.pi` 得
         // 565.4866776461628 —— 同一个数换个顺序两个答案,还和比较运算符
         // (那边一直是 double)也对不上。float 值本身就是 double,没必要经过 32 位。
-        DefineOp(Float, "+", (a, b) => new FloatVal(AsDouble(a, "+") + AsDouble(b, "+")));
-        DefineOp(Float, "-", (a, b) => new FloatVal(AsDouble(a, "-") - AsDouble(b, "-")));
-        DefineOp(Float, "*", (a, b) => new FloatVal(AsDouble(a, "*") * AsDouble(b, "*")));
-        DefineOp(Float, "/", (a, b) => new FloatVal(AsDouble(a, "/") / AsDouble(b, "/")));
-        DefineOp(Float, "%", (a, b) => new FloatVal(AsDouble(a, "%") % AsDouble(b, "%")));
+        DefineOp(Real, "+", (a, b) => new RealVal(AsDouble(a, "+") + AsDouble(b, "+")));
+        DefineOp(Real, "-", (a, b) => new RealVal(AsDouble(a, "-") - AsDouble(b, "-")));
+        DefineOp(Real, "*", (a, b) => new RealVal(AsDouble(a, "*") * AsDouble(b, "*")));
+        DefineOp(Real, "/", (a, b) => new RealVal(AsDouble(a, "/") / AsDouble(b, "/")));
+        DefineOp(Real, "%", (a, b) => new RealVal(AsDouble(a, "%") % AsDouble(b, "%")));
 
         // ── 乘方 `**` ──
         //
@@ -157,7 +157,7 @@ internal static partial class BuiltinClasses
         // 优先级和结合性在解析器那头(`Parser.Expressions` 的 `ParsePower`):右结合、
         // 而且比一元负号紧 —— `-2 ** 2` 是 `-(2 ** 2)` = -4。
         DefineOp(Int, "**", (a, b) => IntPow(((IntVal)a).Value, b));
-        DefineOp(Float, "**", (a, b) => new FloatVal(Math.Pow(AsDouble(a, "**"), AsDouble(b, "**"))));
+        DefineOp(Real, "**", (a, b) => new RealVal(Math.Pow(AsDouble(a, "**"), AsDouble(b, "**"))));
         DefineOp(BigInt, "**", (a, b) => BigIntPow(AsBigInt(a, "**"), b));
         DefineOp(Fraction, "**", (a, b) => FractionPow(Operand<FractionVal>(a, "**"), b));
         DefineOp(BigFraction, "**", (a, b) => BigFractionPow(Operand<BigFractionVal>(a, "**"), b));
@@ -216,7 +216,7 @@ internal static partial class BuiltinClasses
         // 比较运算符 — 数字。**精确那一族不经过 double**(见 `CompareNumeric`);
         // `int?` 和 0 比:`NaN` 那条路给 null,于是 `null == 0` 是 false、`null != 0` 是 true、
         // 四条序全是 false —— 正好是 IEEE 要的那组答案。
-        foreach (var t in new[] { Int, Float, BigInt, Fraction, BigFraction })
+        foreach (var t in new[] { Int, Real, BigInt, Fraction, BigFraction })
         {
             DefineOp(t, "==", (a, b) => new BoolVal(CompareNumeric(a, b, "==") == 0));
             DefineOp(t, "!=", (a, b) => new BoolVal(CompareNumeric(a, b, "!=") != 0));
@@ -264,7 +264,7 @@ internal static partial class BuiltinClasses
         //
         // 判据是类型树上的 `IsAssignableTo`(帮手 `IsA` 还在,那条特判用的就是它):
         //   `1: int`     Integer <: Integer          ✓
-        //   `1: float`   Integer 与 Float 是兄弟       ✗
+        //   `1: float`   Integer 与 Real 是兄弟       ✗
         //   `1: object`  Integer <: ValueType <: Object ✓
         //   `int: type`  类对象是 type 的实例           ✓
         //   `default: int`  Every(底类型)特判           ✓
@@ -347,7 +347,7 @@ internal static partial class BuiltinClasses
         switch (v)
         {
             case IntVal i: d = i.Value; return true;
-            case FloatVal f: d = f.Value; return true;
+            case RealVal f: d = f.Value; return true;
             case BigIntVal bi: d = (double)bi.Value; return true;
             case FractionVal fr: d = (double)fr.Num / fr.Den; return true;
             case BigFractionVal bf: d = (double)bf.Num / (double)bf.Den; return true;
@@ -491,7 +491,7 @@ internal static partial class BuiltinClasses
                 if (g.Value > int.MaxValue) throw PowExponentTooBig(g.Value);
                 return NarrowIntPow(x, (int)g.Value);
             default:
-                return new FloatVal(Math.Pow(x, AsDouble(b, "**")));
+                return new RealVal(Math.Pow(x, AsDouble(b, "**")));
         }
     }
 
@@ -527,7 +527,7 @@ internal static partial class BuiltinClasses
                 if (g.Value > int.MaxValue) throw PowExponentTooBig(g.Value);
                 return new BigIntVal(System.Numerics.BigInteger.Pow(x, (int)g.Value));
             default:
-                return new FloatVal(Math.Pow((double)x, AsDouble(b, "**")));
+                return new RealVal(Math.Pow((double)x, AsDouble(b, "**")));
         }
     }
 
@@ -539,7 +539,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue FractionPow(FractionVal x, RuntimeValue b)
     {
         if (PowCount(b) is not { } k)
-            return new FloatVal(Math.Pow((double)x.Num / x.Den, AsDouble(b, "**")));
+            return new RealVal(Math.Pow((double)x.Num / x.Den, AsDouble(b, "**")));
         if (k < 0 && x.Num == 0)
             throw new RuntimeException("运算符 '**' 的除数为零（0 的负数次幂）", ErrorKind.ZeroDivision);
         // 装不下就报(和别的分数运算一个口径)。**先拦一道**:`|分子|` 或 `|分母|` 过了 2,
@@ -557,7 +557,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue BigFractionPow(BigFractionVal x, RuntimeValue b)
     {
         if (PowCount(b) is not { } k)
-            return new FloatVal(Math.Pow((double)x.Num / (double)x.Den, AsDouble(b, "**")));
+            return new RealVal(Math.Pow((double)x.Num / (double)x.Den, AsDouble(b, "**")));
         if (k < 0 && x.Num.IsZero)
             throw new RuntimeException("运算符 '**' 的除数为零（0 的负数次幂）", ErrorKind.ZeroDivision);
 

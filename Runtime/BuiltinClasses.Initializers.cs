@@ -26,7 +26,7 @@ internal static partial class BuiltinClasses
         // 它跑在 object 之后,所以 `MyList default` 走的还是 List 那一份。
         Object.ClassBody = PresetCtor(DefaultCtor());
         Int.ClassBody = PresetCtor(MakeCaster(CastToInt));
-        Float.ClassBody = PresetCtor(MakeCaster(CastToFloat));
+        Real.ClassBody = PresetCtor(MakeCaster(CastToFloat));
         Bool.ClassBody = PresetCtor(MakeCaster(CastToBool));
         String.ClassBody = PresetCtor(MakeCaster(CastToString));
         Char.ClassBody = PresetCtor(MakeCaster(CastToChar));
@@ -104,8 +104,8 @@ internal static partial class BuiltinClasses
     {
         if (double.IsNaN(v)) throw new RuntimeException("NaN 不能转换为 int", ErrorKind.Value);
         if (v < int.MinValue || v > int.MaxValue)
-            // 插值用 FloatVal 而不是裸 double:后者的无穷是"∞",值的形式该是 ASCII
-            throw new RuntimeException($"数值 {new FloatVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
+            // 插值用 RealVal 而不是裸 double:后者的无穷是"∞",值的形式该是 ASCII
+            throw new RuntimeException($"数值 {new RealVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
         return IntVal.Of((int)v);
     }
 
@@ -122,7 +122,7 @@ internal static partial class BuiltinClasses
         }
 
         if (val is BoolVal b) return IntVal.Of(b.Value ? 1 : 0);
-        if (val is FloatVal f) return FromDouble(f.Value);
+        if (val is RealVal f) return FromDouble(f.Value);
         if (val is BigIntVal bi) return FromBig(bi.Value);
         // 分数先在 BigInteger 里除，免得 int 除法自己先溢出（MinValue / -1）
         if (val is FractionVal fr) return FromBig((System.Numerics.BigInteger)fr.Num / fr.Den);
@@ -132,15 +132,15 @@ internal static partial class BuiltinClasses
 
     private static RuntimeValue CastToFloat(RuntimeValue val)
     {
-        if (val is DefaultVal) return new FloatVal(0);
-        if (val is IntVal i) return new FloatVal(i.Value);
-        if (val is FloatVal f) return f;
+        if (val is DefaultVal) return new RealVal(0);
+        if (val is IntVal i) return new RealVal(i.Value);
+        if (val is RealVal f) return f;
         // bigint → float 是拓宽,顺手接上(以前 `float (bigint 5)` 报「无法转换为 float」,
         // 而 `bigint 5 + 1.0` 却算得出来,两边对不上)
-        if (val is BigIntVal bi) return new FloatVal((double)bi.Value);
+        if (val is BigIntVal bi) return new RealVal((double)bi.Value);
         if (val is StringVal s)
         {
-            if (double.TryParse(s.Value, out var n)) return new FloatVal(n);
+            if (double.TryParse(s.Value, out var n)) return new RealVal(n);
             throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 float", ErrorKind.Value);
         }
 
@@ -184,7 +184,7 @@ internal static partial class BuiltinClasses
             throw new RuntimeException("无法将字符串转换为 bigint", ErrorKind.Value);
         }
 
-        if (val is FloatVal f)
+        if (val is RealVal f)
             // `(BigInteger)double` 对 NaN/Inf 抛的是 C# 的 OverflowException ——
             // 它不是 RuntimeException,Ravel 的 try 接不住,会一路把程序打掉。
             return double.IsNaN(f.Value) || double.IsInfinity(f.Value)
@@ -288,7 +288,7 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue ConvertDirect(ObjectVal target, RuntimeValue val)
     {
         if (target == Int) return CastToInt(val);
-        if (target == Float) return CastToFloat(val);
+        if (target == Real) return CastToFloat(val);
         if (target == Bool) return CastToBool(val);
         if (target == String) return CastToString(val);
         if (target == Json) return CastToJson(val);      // `x: Json = …` 的隐式转换

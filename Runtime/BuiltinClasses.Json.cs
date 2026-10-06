@@ -32,7 +32,7 @@ internal static partial class BuiltinClasses
             ListVal l => new JArray(l.Elements.Select(x => ToJson(x, depth + 1))),
             SetVal s => new JArray(s.Elements.Select(x => ToJson(x, depth + 1))),
             IntVal i => new JValue(i.Value),
-            FloatVal f => new JValue(f.Value),
+            RealVal f => new JValue(f.Value),
             BigIntVal b => new JValue(b.Value),          // 原样写数字,不经 double、不丢精度
             StringVal s => new JValue(s.Value),
             CharVal c => new JValue(c.Value.ToString()),
@@ -59,7 +59,7 @@ internal static partial class BuiltinClasses
         JValue v => v.Type switch
         {
             JTokenType.Integer => AsInt(v.Value),
-            JTokenType.Float => new FloatVal(Convert.ToDouble(v.Value)),
+            JTokenType.Float => new RealVal(Convert.ToDouble(v.Value)),
             JTokenType.String => new StringVal(v.Value as string ?? ""),
             JTokenType.Boolean => new BoolVal(v.Value is true),
             JTokenType.Null or JTokenType.Undefined => VoidVal.Instance,

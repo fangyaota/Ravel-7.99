@@ -166,7 +166,7 @@ public record GraphVal : ObjectVal
     public static RuntimeValue Number(double d)
         => d == Math.Floor(d) && !double.IsInfinity(d) && Math.Abs(d) < 9e15
             ? PluginKit.Narrow((long)d, "图的权重")
-            : new FloatVal(d);
+            : new RealVal(d);
 
     /// <summary>有向图才有的那几条(拓扑排序)先问一句</summary>
     public void RequireDirected(string what)
