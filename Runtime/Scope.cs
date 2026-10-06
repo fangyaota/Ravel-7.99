@@ -2,7 +2,15 @@
 
 public class Scope(Scope? parent = null)
 {
-    private readonly Dictionary<string, Variable> _vars = [];
+    /// <summary>本层的变量表。**懒建** —— 没往这一层装过东西就一直是 null。
+    ///
+    /// 为什么值得懒:作用域**大多数是空的**。刚量过一台裸 `while` 循环:每轮 8 层,
+    /// 其中 4 层是 `PartialBool` 白送的(`ObjectVal.Scope` 已经改成懒建,那 4 层没了),
+    /// 剩下 4 层里也有一多半一个变量都不装 —— 而每个 `Dictionary` 就是个对象,
+    /// 无条件建的话一张空表也照样进 GC。见 CONTEXT「性能:时间花在哪儿」。
+    ///
+    /// 于是本文件里每一处访问都得带判空 —— 一共八九处,都得记着。</summary>
+    private Dictionary<string, Variable>? _vars;
     public Scope? Parent { get; private set; } = parent;
 
     /// <summary>换掉词法父 —— **只给"造实现"那一处用**(见 `StepImplMake`)。
@@ -36,7 +44,7 @@ public class Scope(Scope? parent = null)
     /// 它的回答是"先看看实例表本层有没有"。**只问那一层**(`LookupField`,不走它的词法父):
     /// 实例表的词法父是"最具体那个类的写法处",那正是 <see cref="BodyScope"/> 要绕开的东西。</summary>
     protected virtual Variable? LookupHere(string name)
-        => _vars.TryGetValue(name, out var v) ? v : null;
+        => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
 
     /// <summary>这一层**是谁私有的成员表** —— 模块就是这样的:它的作用域**就是**成员表
     /// (见 <see cref="ModuleVal.WithOwnTable"/>)。普通作用域是普通作用域,这里是 null。
@@ -63,7 +71,7 @@ public class Scope(Scope? parent = null)
         // 一遍,`while` 就是拿 callcc 写的)与"同一个块被反复执行"。那两条路落下来的
         // `Site` 是同一个节点,于是认出"这是重跑"而不是"又来一条定义"。
         // `site` 为 null 的是引擎内部直接调的那些(装类、绑 `this`…),按老规矩覆盖。
-        if (_vars.TryGetValue(name, out var existing)
+        if (_vars is { } had && had.TryGetValue(name, out var existing)
             && !(site != null && ReferenceEquals(existing.Site, site)))
             throw new RuntimeException(
                 $"'{name}' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）");
@@ -76,14 +84,14 @@ public class Scope(Scope? parent = null)
         // 类体那边同一条规矩由"各层类体**平铺进同一个实例作用域**"实现(见 `StepClassInit`):
         // 继承来的 `init` 就摆在本层,再 `:=` 自然撞上。模块的成员是**动态往下查**的
         // (`MemberView`),平铺不了,所以在这儿补一道。
-        // (`!_vars.ContainsKey` 那半是给**上面那条**让路的:同一个节点重跑时本层已经有它了,
+        // (`_vars?.ContainsKey` 那半是给**上面那条**让路的:同一个节点重跑时本层已经有它了,
         //  那是放行的情形,不该再拿去撞类链 —— 撞的是同一个自己。)
-        if (TableOf is { } owner && !_vars.ContainsKey(name)
+        if (TableOf is { } owner && _vars?.ContainsKey(name) != true
             && owner.MemberScope.LookupField(name) is not null)
             throw new RuntimeException(
                 $"'{name}' 是 {owner.Type} 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）");
         var v = new Variable(name, typeConstraint, initialValue) { Site = site };
-        _vars[name] = v;
+        (_vars ??= [])[name] = v;
         return v;
     }
 
@@ -94,10 +102,10 @@ public class Scope(Scope? parent = null)
         //     true = 1        → 无法给只读变量 'true' 赋值      ✓ 拦住了
         //     true := 1       → 从前静默成功,而且 readonly 就此消失
         // 只查**本层**:在外层作用域里 `x := 1` 是新开一个局部变量(遮蔽),不是重新定义。
-        if (_vars.TryGetValue(name, out var old) && old.HasAttr(Attr.Readonly))
+        if (_vars is { } had && had.TryGetValue(name, out var old) && old.HasAttr(Attr.Readonly))
             throw new RuntimeException($"无法重新定义只读变量 '{name}'", ErrorKind.Access);
         var v = new Variable(name, typeConstraint, initialValue);
-        _vars[name] = v;
+        (_vars ??= [])[name] = v;
         return v;
     }
 
@@ -106,7 +114,7 @@ public class Scope(Scope? parent = null)
     ///
     /// 只删**本层**:外层同名的那个不受影响(它本来就是另一格);和 `Define` 一样,
     /// 作用域是棵树,别处不该被牵连。</summary>
-    public void RemoveHere(string name) => _vars.Remove(name);
+    public void RemoveHere(string name) => _vars?.Remove(name);
 
     public Variable Lookup(string name)
         => Find(name) ?? throw new RuntimeException($"未定义的变量 '{name}'", ErrorKind.Name);
@@ -133,7 +141,7 @@ public class Scope(Scope? parent = null)
         if (TableOf is { } owner && owner.MemberScope.LookupField(name) is { } inherited)
         {
             inherited.CheckAssignable(value, alsoAccepts);   // 类型约束照旧
-            _vars[name] = new Variable(name, inherited.TypeConstraint, value);
+            (_vars ??= [])[name] = new Variable(name, inherited.TypeConstraint, value);
             return;
         }
 
@@ -141,12 +149,13 @@ public class Scope(Scope? parent = null)
     }
 
     public Scope Push() => new(this);
-    public bool Contains(string name) => _vars.ContainsKey(name);
-    public IEnumerable<KeyValuePair<string, Variable>> Variables => _vars;
+    public bool Contains(string name) => _vars?.ContainsKey(name) ?? false;
+    public IEnumerable<KeyValuePair<string, Variable>> Variables
+        => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
 
     /// <summary>这一层里**有哪些成员名**。取值的成员清单要走 <see cref="MemberView"/>
     /// (它在本层之外还并上类链的方法);这里只是"本层登记了哪些名字"。</summary>
-    public virtual IEnumerable<string> MemberNames => _vars.Keys;
+    public virtual IEnumerable<string> MemberNames => _vars?.Keys ?? Enumerable.Empty<string>();
 
     /// <summary>查找字段：只看本 scope 自己的变量，不走词法链、不走链式继承。
     /// 继承来的字段在实例化时就已平铺进同一个实例 scope，所以一层就够；
@@ -156,7 +165,7 @@ public class Scope(Scope? parent = null)
     /// 这个名字保留"只查一层"的语义,给那些**必须**看本层的调用点用:
     /// 找构造器(`init`)、找类运算符、取 `parent`/`block`/`name` 这些类自己的数据。</summary>
     public virtual Variable? LookupField(string name)
-        => _vars.TryGetValue(name, out var v) ? v : null;
+        => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
 
     /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>
     public Variable? LookupVar(string name)
