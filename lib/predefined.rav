@@ -125,13 +125,17 @@ using "expected.rav"   # `Expected` / `Expect`(Option 的兄弟:失败那半是�
 # 它写在子模块**之后**:要用 `Ex.HandlerStack`,而 `Ex` 在 exceptions.rav 里。
 readonly callcc := (f: function) => {
     System.CallCC (k: function) => {
-        hs := Ex.HandlerStack.Copy ()
+        # ① **不用 `Copy ()`** —— `HandlerStack` 立了"只整表替换"的规矩(见 exceptions.rav),
+        # 所以此刻这一枚 list 往后不会再变,本身就是一张安全的快照。
+        # (从前两边各 `Copy ()` 一次;还原那次是**每次调用续延**都跑的 —— 循环里就是每轮,
+        #  实测占一轮 `while` 的 10%。)
+        hs := Ex.HandlerStack
         ms := System.LoadingState ()
         # 交给用户的那枚用 `Continuation` 包一下 —— 类型上它就是**续延**(typeof 给
         # `Continuation`,能注解成 `Continuation` 的字段),而不是一个说不清的 lambda。
         # 调的走法没变:先进这枚 lambda(还原控制状态),再 `k x` 跳回捕获点。
         f (Continuation ((x: object) => {
-            Ex.HandlerStack = hs.Copy ()
+            Ex.HandlerStack = hs
             System.RestoreLoading ms
             k x
         }))

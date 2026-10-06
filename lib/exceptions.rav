@@ -10,6 +10,14 @@
 # (见教程的模块一节;末尾那句不能省,不然这之后的定义会落进 Ex)。
 ravel "Ex"
 
+# **这个栈只许整表替换,不许就地改**(`Insert` / `Remove` / `Set` 一律不准)。
+#
+# 为什么:`callcc` 捕获时**直接把这一枚 list 记下来**(不再 `Copy ()`) —— 于是"那一刻的表"
+# 就是往后要继续用的快照。就地改会把快照一起改掉;整表替换则是"老表留着、新表换上去",
+# 快照天然安全,多发射也天然安全。见 predefined.rav 里 `callcc` 那段。
+#
+# 代价是压/弹各多分配一个表(原来就地改)—— 那是**每次 try / 每次 throw** 一次,
+# 而还原是**每次调用续延**一次(循环里就是每轮),这笔账划得来。
 HandlerStack: list = []
 
 # throw / try 标 readonly(HandlerStack 是**状态**,故意留可写):
@@ -18,7 +26,11 @@ readonly Throw := (e: Exception) => {
     if { (HandlerStack.Count ()) == 0; } {
         exit (e.ToString ())
     } {
-        HandlerStack.Remove 0 e
+        # 弹掉栈顶**再**拿它调 e —— 顺序和从前那条 `HandlerStack.Remove 0 e` 一个样
+        # (那条就是"摘下来的那枚"被后面的 `e` 接着调)。只整表替换,见上面。
+        top := HandlerStack.At 0
+        HandlerStack = HandlerStack.Skip 1
+        top e
     }
 }
 
@@ -28,7 +40,7 @@ readonly Try := (body: function) => {
             mine := (e: Exception) => {
                 ok (handler e)
             }
-            HandlerStack.Insert 0 mine
+            HandlerStack = [mine].Concat HandlerStack
             # **体套一层拒收边界**:里面写的 `reject` 属于**这一段**,不该穿出去
             # 找外面的 `|`(任务体就是这么套着 try 的 —— 它内部拒收从前会把派发它的那一支顶掉)。
             r := System.RejectStop body
@@ -38,7 +50,7 @@ readonly Try := (body: function) => {
             # (出错那条路由求值器先摘过一次,这里只管正常收尾;摘之前对一下身份,
             #  免得摘掉别人新压上来的那个。)
             if { (HandlerStack.Count ()) == 0; } { 0; } {
-                if { (HandlerStack.At 0) == mine; } { HandlerStack.Remove 0; } { 0; }
+                if { (HandlerStack.At 0) == mine; } { HandlerStack = HandlerStack.Skip 1; } { 0; }
             }
             ok r
         }
@@ -58,7 +70,10 @@ ravel ""
 # 非函数的栈顶(手写 `Ex.HandlerStack = [1]` 那种)也当"没人接",不弹它 —— 和从前一致。
 readonly onError := (e: Exception) => {
     if { (Ex.HandlerStack.Count ()) > 0 && (typeof (Ex.HandlerStack.At 0)) == function; } {
-        (Ex.HandlerStack.Remove 0) e
+        # 弹掉栈顶再调它(只整表替换,见 `HandlerStack` 那段)
+        top := Ex.HandlerStack.At 0
+        Ex.HandlerStack = Ex.HandlerStack.Skip 1
+        top e
     } {
         System.Unhandled e
     }
