@@ -67,12 +67,54 @@ public partial class Parser
     /// <see cref="Lowering"/> 那趟的事(右边惰性的那些语义在 `lib/predefined.rav`)。</summary>
     private Expression ParseNullCoalesce(bool allowCall = true)
     {
-        var left = ParseClimb(allowCall, 0);
+        var left = ParseBlockArgs(allowCall);
         if (!Match(TokenType.Coalesce)) return left;
 
         var op = Previous();
         var right = ParseNullCoalesce(allowCall);          // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`
         return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
+    }
+
+    /// <summary>块字面量当实参时**绑到整个左边的表达式**上 —— 它比运算符松,比 `??` / `=` 紧。
+    ///
+    ///     x > 0 { A; } { B; }        ≡  (x > 0) { A; } { B; }
+    ///
+    /// **为什么单拎一层**:`{ … }` 从前是在 `ParsePostfixRest`(最里层)当并列实参收的,
+    /// 那儿只看得见**紧挨着的那个操作数** —— `x > 0 { … }` 于是成了 `x > (0 { … })`,
+    /// 块挂在了 `0` 上。`true` / `false` 可调用(收两个块)是这门语言的条件,
+    /// 而"整条条件式"才是那个 bool,所以块必须挂到 `x > 0` 上。
+    ///
+    /// **别的一概不动**:
+    /// <list type="bullet">
+    /// <item>`f { A } { B }`(callee 本来就是个值)照旧;</item>
+    /// <item>`f { A } 1` 照旧 —— 接完块接着走一遍 `ParsePostfixRest` 接普通的并列实参;</item>
+    /// <item>`x > f (1)` 照旧 —— `(1)` 是**括号组**不是块字面量,它仍在里层当实参收,
+    ///   所以 `f () == x` ≡ `f (() == x)` 那条"实参吃运算符"的规矩不受影响。</item>
+    /// </list>
+    ///
+    /// **影响面量过**:语料(203 个 `.rav`)里未加括号的「`运算符 值 {块}`」**一处都没有** ——
+    /// 这一层落地后全语料的 AST 逐字节不变(改之前先把整份语料的 `ravel ast` 存下来比过)。
+    /// `allowCall: false`(实参位置)整层跳过:实参里不接块,和从前一致。</summary>
+    private Expression ParseBlockArgs(bool allowCall)
+    {
+        var e = ParseClimb(allowCall, 0);
+        if (!allowCall) return e;
+
+        // `while` / `foreach` 的块**仍归原来那套**(在 `ParsePostfixRest` 里)——
+        // 它们的条件和体之间**没有运算符**,所以"块挂到整条表达式上"这条对它们不适用;
+        // 而循环上下文(压 `LoopCtx`、体的 `break` / `continue` 出口)全在那儿。
+        if (moreControlFlow && e is IdentifierExpr { Name: "while" or "foreach" })
+            return ParsePostfixRest(e, allowCall, allowBlock: true);
+
+        while (Check(TokenType.LeftBrace))
+        {
+            // 位置照**被调用那一侧**记(和 `ParsePostfixRest` 里那条一个规矩:
+            // 报错要指回"这个调用写在哪",而块写在右边)。
+            e = new CallExpr(e, ParsePrimary()) { Line = e.Line, Column = e.Column };
+            e = ParsePostfixRest(e, allowCall);      // 块后面还能接普通的并列实参
+        }
+
+        return e;
     }
 
     /// <summary>把一条表达式包成"要用才跑"的块 `() => { expr; }`。参数名是 `_`(void),
@@ -258,7 +300,8 @@ public partial class Parser
     /// 闭包管 —— 它在自己的 lambda 体内得再走一趟这段(见 <see cref="GuardedChain"/>)。
     /// `guarded: true` = 已经在一层守卫里了,再撞上 `?.` 就当普通 `.` 使(守卫只包一层)。</summary>
     private Expression ParsePostfixRest(Expression expr, bool allowCall, bool guarded = false,
-                                        bool stopAtPipe = false, bool allowPipe = false)
+                                        bool stopAtPipe = false, bool allowPipe = false,
+                                        bool allowBlock = false)
     {
         // `allowCall: false` 从前是"**什么后缀都不收**"。守卫那儿需要的其实是更窄的一档
         // (`allowPipe: true`):**不吃并列的实参**(不然 `(x < 0 y: int)` 里那个 `y: int`
@@ -331,7 +374,11 @@ public partial class Parser
                 continue;
             }
 
-            if (!allowCall || !StartsPrimary() || IsInfixWordOperator(Peek())) break;
+            // **块字面量不在这儿收** —— 它比运算符松,归上面那层 `ParseBlockArgs`
+            // (`x > 0 { A } { B }` 要挂到整条 `x > 0` 上,不是挂到 `0` 上)。
+            // 不退出去的话,循环回到这儿会把它当"紧挨着那个操作数"的并列实参吃掉。
+            if (!allowCall || !StartsPrimary() || IsInfixWordOperator(Peek())
+                || (!allowBlock && Check(TokenType.LeftBrace))) break;
 
             // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
             // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。
