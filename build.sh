@@ -6,13 +6,19 @@
 #                                **同一套用例**,所以不另跑一趟普通的)
 #     bash build.sh --rebuild    顺带做一次 -t:Rebuild,有 C# 警告就当场红
 #     bash build.sh --no-test    只发布
-#     bash build.sh --release    用 Release 配置(默认 Debug)
+#     bash build.sh --debug      用 Debug 配置(**默认 Release**,见下)
 #     bash build.sh --fast       测试那一趟跳过带 `# slow` 的
 #     bash build.sh --pick=http  测试只跑相对路径里带 `http` 的那些(可给多个 --pick=)
 #
 # 两条讲究都在 CONTEXT.md 里写着,别改:
 #   * **先删 out/**:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论;
 #   * **`DOTNET_GCHeapHardLimit`**:压住 GC 堆,和平时跑法一致(不然行为会飘)。
+#
+# **默认 Release**:解释器是个把每一次求值都走一遍状态机的东西,Release 的 JIT 优化
+# 在这儿不是几个百分点 —— 基准脚本(`fib 22` + 30 万轮 `while` + 20 万次 `foreach`)
+# 实测 Debug 27.0s、Release 7.0s,**3.9 倍**。发布出去的那一份(以及 `ravel` 的日常跑法)
+# 不该是没开优化的。Debug 只在"要调引擎自己"时才要(`--debug`),那时构建快一点。
+# 这一条不影响语义:全量用例两边都 131 通过,代码里没有一处 `#if DEBUG`。
 #
 # 找不到 dotnet?脚本自己翻(`$DOTNET` → PATH → 几个常见装法),翻不到就把怎么修说全;
 # 换个终端(WSL、没继承系统 PATH 的 git-bash)时值在这 —— 别指望 `dotnet` 一定在 PATH 上。
@@ -70,7 +76,7 @@ win_path() {
     esac
 }
 
-CONF=Debug
+CONF=Release
 GC=0x10000000
 run_warn=0
 run_rebuild=0
@@ -82,6 +88,7 @@ for arg in "$@"; do
         --warn)    run_warn=1 ;;
         --rebuild) run_rebuild=1 ;;
         --no-test) run_test=0 ;;
+        --debug)   CONF=Debug ;;
         --release) CONF=Release ;;
         # 透给 `ravel test`:`--fast` 跳过带 `# slow` 的,`--pick=词` 只跑沾那个词的
         --fast)      test_args="$test_args --fast" ;;
