@@ -2984,10 +2984,15 @@ Error: 未定义的变量 'missing'
 
 | 量 | 数 |
 |---|---|
-| 一次 `StepOnce`(含帧分配) | ~0.24 µs |
-| `xs.Each (…)` 走 2 万个元素(`List`,`SeqMethod` 那条引擎路径) | ~14 µs/元素 ≈ 60 步 |
-| `[1..N].Each (…)`(`Range` 走 `IEnumerable` 的**库**实现:foreach + Generator 光标) | ~175 µs/元素 ≈ **754 步** |
-| `while { i < N; } { sum = sum + 1; i += 1; }` 一轮 | ~45 µs ≈ **190 步** |
+| 一次 `StepOnce`(含帧分配) | Release **77 ns**、Debug 0.29 µs |
+| `while { i < N; } { sum += 1; i += 1; }` 一轮 | **~76 步** |
+| `xs.Each (…)`(`List`,引擎的 `SeqMethod` 那条路) | ~**8.8 µs**/元素 |
+| `foreach xs (…)`(库那条:`MoveNext` / `Current` 协议) | ~**32 µs**/元素 |
+| `[1..N].Each (…)` / `foreach [1..N] (…)`(`Range` 的 `GetEnumerator` 走 `Generator`) | ~**94 µs**/元素 |
+
+(2026-10-06 在 **Release** 构建上量的;噪声约 ±10%,别拿它比几个百分点的改动。
+`fib 22` + 30 万轮 `while` + 20 万次 `foreach` 那套基准,脚本在 `.scratch` 之外没留 ——
+要复现就照上表那几行写。)
 
 所以引擎本身没有"慢函数"可抠(步进循环就是个 switch + 一次帧拷贝),**开销都在
 "一个动作要跑多少步"上** —— 而步数来自库:控制流(`if`/`while`/`foreach`)、
@@ -2995,16 +3000,20 @@ Error: 未定义的变量 'missing'
 
 于是优化只有两个方向,都得先想清楚语义:
 
-1. **少跑几步**(库那一侧):`while` 每轮都要拼一遍 `"while 的条件必须是 bool，得到 " + string (typeof cond)`
-   这条消息(字符串拼接在热路径上);把它改成"只在失败时才拼"能省掉约 15% 的循环时间。
-   `Range` 的 `GetEnumerator` 走 `Generator`,而 `Generator` 是续延实现的光标 ——
-   给它一个引擎原生的枚举器能把 `Range` 那条路拉近 `List` 那条(差 12 倍)。
-   两条都改的是**可观察的行为边界**(错误消息的构造时机 / `GetEnumerator ()` 交回什么),
-   所以没做 —— 要做先想清楚值不值。
-2. **每步更便宜**:帧是**不可变**的(`callcc` 要能把帧链整个拍下来),所以每步一次 record 拷贝 +
-   一个 `RList` 节点,这部分动不了(除非改成"可变帧 + 捕获时快照",那是个大改)。
-   已经抠掉的是这几处:取成员的类链缓存(`MemberView.ClassChain`)、
-   字面量只解析一次、`BoxedValue` 改结构体、运算符不预先绑 `self`。
+1. **少跑几步**(库那一侧)。表里那两行差得最刺眼,根子都是"本来引擎有更短的路":
+   `foreach` 走的是库写的 `MoveNext` / `Current` 协议,而 `.Each` 走引擎的 `SeqMethod` ——
+   同一个 List,**3.6 倍**;`Range` 的 `GetEnumerator` 交回的是 Ravel 写的 `Generator`
+   (续延光标),和 `List` 那条比是 **10.6 倍**。给 `Range` 一个引擎原生的枚举器、
+   让 `foreach` 也走引擎那条,都能拉近 —— 但两条都改的是**可观察的行为边界**
+   (`GetEnumerator ()` 交回什么、`foreach` 是不是"只是个库函数"),所以没做:
+   要做先想清楚值不值。
+2. **每步更便宜**:帧是**不可变**的(`callcc` 要能把帧链整个拍下来、好多次发射),
+   所以每步一次 record 拷贝 + 一个 `RList` 节点 —— **这部分动不了**,除非改成
+   "可变帧 + 捕获时快照",那是个大改(而且恢复点不止 callcc 一处:`try` 的 handler、
+   `ResumeAlternate` 的交替、任务挂起……漏一处就是静默错值)。
+   每步 **135 字节**的分配就是这么来的,也是 Release 与 Debug 差 3.9 倍之外唯一还压着的成本。
+   已经抠掉的:取成员的类链缓存(`MemberView.ClassChain`)、字面量只解析一次、
+   `BoxedValue` 改结构体、运算符不预先绑 `self`、整数池(`IntVal.Of`)。
 
 ## 测试
 
