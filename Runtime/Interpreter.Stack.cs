@@ -307,9 +307,32 @@ public partial class Interpreter
     {
         _top = f.Parent == null ? null! : f.Parent.WithResult(v);
         _result = f.Parent == null ? v : _result;
+        // 节点帧一 `Return` 就**没人要了**:只有 `_top` 指着它(链上每个帧只有一个孩子),
+        // 没被续延拎走过就原样收回 —— 每一步都要一个,而它占步数的 ~79%。
+        if (f is NodeFrame nf) Recycle(nf);
     }
 
-    private void PushChild(Frame parent, AstNode child) => _top = new NodeFrame(child) { Parent = parent, Scope = parent.Scope };
+    /// <summary>节点帧的池子。**每个解释器一份**,不是静态的(一个进程里跑多个解释器是常态)。
+    ///
+    /// 收回时**先断链**(`Parent = null`):不断的话池子会拎着一整条死链不放,那是**泄漏**,
+    /// 而且哪天被重新发出去还会把旧链带回来。
+    ///
+    /// **`Captured` 那一格是唯一不能省的闸门** —— 续延手里的那条链还在用它
+    /// (见 `Frame.Captured`)。</summary>
+    private readonly Stack<NodeFrame> _nodePool = [];
+
+    private void Recycle(NodeFrame nf)
+    {
+        if (nf.Captured) return;
+        nf.Parent = null;
+        _nodePool.Push(nf);
+    }
+
+    /// <summary>要一个节点帧:池子里有就拿现成的(整份重设),没有才新建。</summary>
+    private NodeFrame RentNode(AstNode node, Frame parent)
+        => _nodePool.Count > 0 ? _nodePool.Pop().Rent(node, parent) : new NodeFrame(node) { Parent = parent, Scope = parent.Scope };
+
+    private void PushChild(Frame parent, AstNode child) => _top = RentNode(child, parent);
 
     // ======================== 块执行 ========================
 
@@ -328,14 +351,10 @@ public partial class Interpreter
             // 位置没丢:解析器建这个壳时写的就是里层那个表达式的行列(`Parser.Atoms.cs` 三处、
             // `Parser.Holes.cs` 一处),报错指的仍是同一处。
             var stmt = bf.Block.Statements[bf.Index];
-            _top = new NodeFrame(stmt is ExpressionStatement es ? es.Expr : stmt)
-            {
-                // **游标在这一步推进**(而不是"结果表又长了一格"):推出去的父帧已经是"下一条"了,
-                // 这句跑完 `Return` 把值追加到它身上,回到这儿时 `Index` 就是下一条。
-                // 没被续延拎走过就**原地推进**(见 `BlockExecFrame.Advance`)。
-                Parent = bf.Advance(),
-                Scope = bf.Scope
-            };
+            // **游标在这一步推进**(而不是"结果表又长了一格"):推出去的父帧已经是"下一条"了,
+            // 这句跑完 `Return` 把值追加到它身上,回到这儿时 `Index` 就是下一条。
+            // 没被续延拎走过就**原地推进**(见 `BlockExecFrame.Advance`);帧本身也走池子。
+            _top = RentNode(stmt is ExpressionStatement es ? es.Expr : stmt, bf.Advance());
             return;
         }
 

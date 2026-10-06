@@ -3,11 +3,15 @@
 /// <summary>显式调用栈帧——Parent/Results 不可变(持久化,供 callcc 捕获还原),Scope 可变(ravel 模块切换)</summary>
 public abstract record Frame
 {
-    public Frame? Parent { get; init; }
+    /// <summary>`set` 而不是 `init`:`NodeFrame` 是**池化**的,从池子里取出来要整份重设
+    /// (见 <see cref="NodeFrame.Rent"/>)。别的帧照旧只读。</summary>
+    public Frame? Parent { get; internal set; }
 
     /// <summary>发起这个帧的那个 AST 节点。控制帧自己没有位置(它代表"一次内建调用"),
     /// 报错时靠它指回源码里的调用点 —— 否则 `fraction 1 0` 这类错只能报到最外层的块。</summary>
-    public AstNode? CallSite { get; init; }
+    /// <summary>`set` 的理由同 <see cref="Parent"/>:池化的节点帧要能整份重设。
+    /// 只有控制帧会写它(`CallInto` 里那几处 `CallSite = (_top as NodeFrame)?.Node`)。</summary>
+    public AstNode? CallSite { get; internal set; }
     public Scope Scope { get; set; } = null!;
     public RList<RuntimeValue> Results { get; internal set; } = RList<RuntimeValue>.Empty;
     public int Count => Results.Count;
@@ -38,8 +42,33 @@ public abstract record Frame
     }
 }
 
-/// <summary>求值一个 AST 节点(语句/表达式)</summary>
-public record NodeFrame(AstNode Node) : Frame;
+/// <summary>求值一个 AST 节点(语句/表达式)。**这一种帧是池化的** —— 它占步数的 79%
+/// (量过:空循环一轮 58 步,其中 46 步是节点帧),而它一 `Return` 就没人要了:
+/// 只有 `_top` 指着它,没被续延拎走过就能原样收回再用(见 `Interpreter.Stack` 的池子)。
+///
+/// **`Rent` 必须把每一格都重设** —— 漏一格就是把上一趟的值带过来,而那是**静默**的:
+/// `StepNode` 会照着上一个节点往下跑。`CallSite` 这一族从来不给节点帧赋值(只有控制帧用),
+/// 所以不用动它。</summary>
+public record NodeFrame : Frame
+{
+    public AstNode Node { get; internal set; }
+
+    public NodeFrame(AstNode node) => Node = node;
+
+    /// <summary>从池子里取出来时**整份重设** —— 把 `Frame` 上所有可写的格子都写一遍,
+    /// 包括这一族用不到的 `CallSite`(留个 `null` 是防守:哪天节点帧也开始写它,
+    /// 忘了在这儿清就是把上一个节点的位置带给下一个)。</summary>
+    internal NodeFrame Rent(AstNode node, Frame parent)
+    {
+        Node = node;
+        Parent = parent;
+        Scope = parent.Scope;
+        Results = RList<RuntimeValue>.Empty;
+        CallSite = null;
+        Captured = false;
+        return this;
+    }
+}
 
 /// <summary>执行一个代码块:逐语句求值,**`Index` = 下一条要跑的那句**(0 基);`Results` 只存
 /// 跑完的那些值(最后一条就是块的值)。
