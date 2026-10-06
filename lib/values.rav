@@ -1,0 +1,57 @@
+# **`IValue`** —— "这个类型是个**值**":不可变、按 `==` 比**内容**、能当字典的键。
+#
+# **接口本身是内置的**(`System.IValue`,见 `BuiltinClasses.IValue`);这个文件只有
+# "谁实现了它"那批 `impl`。内置而不是在这儿 `IValue ::= interface { … }`,是因为
+# 引擎要拿它做**引用比较**(`RegisterUse` 每次登记都要认一句"这条是不是 IValue")。
+#
+# ── 它从前是类型树上的一支(`ValueType` 那个**类**)──
+#
+# 改接口是因为:**「按值比」是个性质,不是一种"类"。** 塞进单继承链就摆不平 ——
+# `bool` 的爹必须是 `Function`(`true {a} {b}` 要能选块),`()` 挂在 `Object` 下,
+# 它俩**按值比、当键一样稳**,可就是**挂不进**那一支。于是 `CanBeKey` 里多了一句
+# 手写的 `|| Bool || Void`,`lib/keys.rav` 那边也得跟着点名收。
+# 接口没这个问题:谁按值比谁就来 `impl` 一条 —— 下面 `bool` / `void` 两条就是它们。
+#
+# **和 `INumber` 一个形状**:空槽接口(只说"这个类型是值",没有别的要求),
+# 所以每个实现体都是个空块(`{ () }`:`{}` 单行是空字典,多行空块本来就禁止)。
+#
+# ── 两条得知道的 ──
+#
+#   * **接口不在继承链上** —— `int.parent` 从 `ValueType` 变成了 `Object`(类型树平了
+#     一层)。信息没丢:`Types.PrintTree` 会把接口那一支列出来
+#     (`IValue [Interface]` + `实现 ← Void Bool Range Char String …`)。
+#   * 引擎里 **`ClassVal.IsValueLike`** 是这一支的**物化索引**:`RegisterUse` 见到
+#     `impl (IValue X …)` 就把 X 标上,`Dispose` 作废时清掉。为什么要索引 —— 那句
+#     "能不能当键"要跑在 `dict.SysGet` 那些**同步 C#** 操作里,那儿**拿不到解释器**,
+#     问不了 `HasTrait`。**两处说的是同一件事,别只改一边。**
+impl (IValue int {
+    ()
+})
+impl (IValue real {
+    ()
+})
+impl (IValue bigint {
+    ()
+})
+impl (IValue fraction {
+    ()
+})
+impl (IValue bigfraction {
+    ()
+})
+impl (IValue string {
+    ()
+})
+impl (IValue char {
+    ()
+})
+impl (IValue Range {
+    ()
+})
+# 这两条是把 `ValueType` 改成接口的**全部理由** —— 从前它们挤不进那一支。
+impl (IValue bool {
+    ()
+})
+impl (IValue void {
+    ()
+})

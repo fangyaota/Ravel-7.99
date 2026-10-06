@@ -6,7 +6,7 @@
 #     Types.PrintTree object
 #
 #     Object [Type]
-#     ├── ValueType [Type]
+#     ├── IValue [Type]
 #     │   ├── Integer [Type]
 #     │   └── …
 #     └── Ravel [Type]

@@ -37,13 +37,13 @@ public record CasExprVal : RuntimeValue
 /// 每一条都**交回一个新的 `CasExpr`**(`Eval` 交 `real`、`Latex` / `Text` 交字符串)——
 /// 于是能一路点下去:`(Cas.Expr "x^2 - 1").Factor ().Solve "x"`。
 ///
-/// **`Parent` 必须写 `"ValueType"`** —— 别省。`[RavelClass]` 那个默认值是 `"Object"`,
-/// 而"是不是值类型"在 Ravel 里**是有后果的**:字典的键、`Key ()`、去重那一套判据
-/// 就是"在不在 `ValueType` 那一支下"(`BuiltinClasses.Methods.cs` 的 `Key` 那条)。
-/// 挂在 `Object` 下的话,`{ e -> 1 }` 会报「字典的键得是值类型…得到 Expr」——
-/// 一个不可变、按值比的东西当不了键,而 `Range` 能。**插件做值类型时这一条最容易漏。**</summary>
+/// **`Implements = "IValue"` 别省** —— 它说的是"这个类的实例是**值**"(不可变、按值比、
+/// 能当字典的键)。漏了的话 `{ e -> 1 }` 报「字典的键得是值类型…得到 Expr」——
+/// 一个不可变、按值比的东西当不了键,而 `Range` 能。**插件做值类型时这一条最容易漏。**
+/// (从前这一格写的是 `Parent = "ValueType"` —— 那是个类;2026-10-06 起改成了接口 `IValue`,
+/// 见 `lib/values.rav`。)</summary>
 [RavelModule("Cas")]
-[RavelClass("Expr", Parent = "ValueType")]
+[RavelClass("Expr", Implements = "IValue")]
 internal static class CasExprClass
 {
     [ClassCtor]

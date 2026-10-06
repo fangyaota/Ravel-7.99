@@ -25,7 +25,7 @@ IKey ::= interface {
 }
 
 # 内建那几个**值类型**也登记一遍(空实现体:槽不用现装,它们本来就有 `Object` 那条)。
-# `Bool` 不在 `ValueType` 那一支,所以不登记 —— 它本来也当不了键。
+# `Bool` 不在 `IValue` 那一支,所以不登记 —— 它本来也当不了键。
 impl (IKey int {
     ()
 })
@@ -70,13 +70,13 @@ ravel "Keys"
 # 用 assert 的话每次调用都要拼一遍(而这是 `d.Get` / `d.Set` 的必经之路)。
 #
 # 判据和引擎那头的 `KeyArg` **一条**(`Runtime/BuiltinClasses.Methods.cs`):能当键的是
-# **按值比**的那些 —— `ValueType` 那一支(数 / 串 / 字符 / 区间),外加 `Bool` / `Void`。
-# 后两个按值比、当键一样稳,只是**没挂**在 `ValueType` 下(`true` / `false` 可调用,
+# **按值比**的那些 —— `IValue` 那一支(数 / 串 / 字符 / 区间),外加 `Bool` / `Void`。
+# 后两个按值比、当键一样稳,只是**没挂**在 `IValue` 下(`true` / `false` 可调用,
 # 按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下),所以这儿得点名。
 # 两边要一起改 —— 引擎那道先拦,改漏了这边会报得晚一步、话还不一样。
 readonly Of := (k: object) => {
     c := k.Key ()
-    if { (c : ValueType) || (c : bool) || (c : void); } { c; } {
+    if { c : IValue; } { c; } {
         throw (Exception ("`Key` 要交回一个值类型的键（数 / 串 / 字符 / 布尔 / `()`），得到 " + (string (typeof c))))
     }
 }

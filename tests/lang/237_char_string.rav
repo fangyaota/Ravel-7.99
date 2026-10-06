@@ -1,6 +1,6 @@
 # `char` 类型 + 字符串那一套操作。
 #
-# `char` 是**值类型**(`Char <: ValueType`):能比大小、能当字典的键、能进集合去重、
+# `char` 是**值类型**(`Char <: IValue`):能比大小、能当字典的键、能进集合去重、
 # `IComparable` / `IKey` 都认它 —— 和数、字符串一个待遇。
 # 口径是 **UTF-16 码元**(和 `string.Length` / `s.At i` 一致):`"😀".Length` 是 2,
 # 一个 `'…'` 装不下它。
@@ -9,7 +9,7 @@
 c := 'a'
 print c
 print (typeof c)
-print (c : ValueType)
+print (c : IValue)
 print ('\n' == '\n')
 print ('\t' == '\t')
 print ('\\')

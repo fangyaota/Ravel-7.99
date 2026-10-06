@@ -17,7 +17,6 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Object;
 
     // 值类型分支（不可变）
-    public static readonly ClassVal ValueType;
     public static readonly ClassVal Int;
     public static readonly ClassVal Real;
     public static readonly ClassVal Bool;
@@ -27,7 +26,8 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Fraction;
     public static readonly ClassVal BigFraction;
     /// <summary>区间(`[1..3]` / `(3..5)` …)—— `RangeVal`。
-    /// 它是**值类型**(不可变、按值比),所以挂在 `ValueType` 那一支下。</summary>
+    /// 它是**值类型**(不可变、按值比)—— 所以 `impl (IValue Range { … })`
+    /// (见 `lib/values.rav`),直挂 `Object` 下。</summary>
     public static readonly ClassVal Range;
 
     // 引用类型分支（可变/有行为）
@@ -98,6 +98,11 @@ internal static partial class BuiltinClasses
     /// **烤进一份** `init`。多一层基类之后那份烤就不用了 —— 一处默认,
     /// 所有接口共用(而且实现 scope 里也不再莫名多出一个没人看的 `init`)。</summary>
     public static readonly ClassVal BaseInterface;
+    /// <summary>`IValue` —— "这个类型是个**值**"那个接口(见 `lib/values.rav` 的实现在哪儿)。
+    /// **内置**而不是让 Ravel 侧建:引擎要拿它做**引用比较** —— `RegisterUse` 每次登记
+    /// 都要认一句"这条是不是 `impl (IValue …)`",按名字比(`DisplayName == "IValue"`)
+    /// 能跑但脆(名字被别人用了就误判),有个句柄就干净了。</summary>
+    public static readonly ClassVal IValue;
 
     /// <summary>所有已注册的类对象（内置 + 用户定义），供 Subtypes 反射</summary>
     internal static readonly List<ClassVal> AllTypes = [];
@@ -110,7 +115,6 @@ internal static partial class BuiltinClasses
         // ---- 第一趟：建出所有类对象，ClassType 先自指 ----
         Object = New("Object");
         Function = New("Function");
-        ValueType = New("ValueType");
         Int = New("Integer");           // 名字是 Integer，字段名沿用旧名 Int
         Real = New("Real");
         Bool = New("Bool");
@@ -133,6 +137,7 @@ internal static partial class BuiltinClasses
         Property = New("Property");
         Interface = New("Interface");
         BaseInterface = New("BaseInterface");
+        IValue = New("IValue");
         Exception = New("Exception");
         TypeError = New("TypeError");
         NameError = New("NameError");
@@ -154,18 +159,18 @@ internal static partial class BuiltinClasses
         // Function 必须早于 Bool / Block（它们的父类）
         Link(Object, Object, Type);         // parent 自引用(链到头);元类是 type
         Link(Function, Object, Type);
-        Link(ValueType, Object, Type);
 
-        // 值类型 —— Bool 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
-        Link(Int, ValueType, Type);
-        Link(Real, ValueType, Type);
+        // 值类型直挂 `Object`(**不在** `ValueType` 那一支了 —— 那一支改成了接口 `IValue`,
+        // 见 `lib/values.rav`)。`bool` 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
+        Link(Int, Object, Type);
+        Link(Real, Object, Type);
         Link(Bool, Function, Type);
-        Link(String, ValueType, Type);
-        Link(Char, ValueType, Type);
-        Link(BigInt, ValueType, Type);
-        Link(Fraction, ValueType, Type);
-        Link(BigFraction, ValueType, Type);
-        Link(Range, ValueType, Type);
+        Link(String, Object, Type);
+        Link(Char, Object, Type);
+        Link(BigInt, Object, Type);
+        Link(Fraction, Object, Type);
+        Link(BigFraction, Object, Type);
+        Link(Range, Object, Type);
 
         // 引用类型
         Link(Block, Function, Type);
@@ -200,6 +205,9 @@ internal static partial class BuiltinClasses
         Link(Json, Object, Type);
         // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
         Link(BaseInterface, Object, Interface);   // 它自己就是个接口(所有接口的根)
+        // `IValue` 是**内置的接口**:和平常的接口一样 —— 元类是 `Interface`、
+        // parent 是 `BaseInterface`(`BuildInterface` 给无父接口挂的也是它)。
+        Link(IValue, BaseInterface, Interface);
         Link(Interface, Type, Type);
         // 底类型/顶类型：parent 自引用（链到自己就停）
         Link(Every, Every, Type);
@@ -219,9 +227,9 @@ internal static partial class BuiltinClasses
         // ---- 收集所有内置类（供 Subtypes 反射） ----
         foreach (var t in new[]
                  {
-                     Object, ValueType, Int, Real, Bool, String, Char, BigInt,
+                     Object, Int, Real, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
-                     List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface,
+                     List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface, IValue,
                      Ravel, Any, Every, Exception, Json, ScopeType, Property,
                      TypeError, NameError, AttributeError, IndexError, KeyError,
                      ZeroDivisionError, AssertionError, AccessError, ArgumentError, ValueError,

@@ -11,7 +11,7 @@ print (list default)
 print (set default)
 print (real default)
 print (int.name)
-print (int <: ValueType)
+print (int <: IValue)
 print (int <: object)
 print (bool <: string)
 print (int.parent)
@@ -369,7 +369,7 @@ ravel ""
 # true
 # true
 # false
-# ValueType
+# Object
 # 0
 
 # --- System 模块 ---

@@ -238,7 +238,7 @@ internal static partial class BuiltinClasses
         DefineOp(String, "*", (a, b) => new StringVal(string.Concat(
             Enumerable.Repeat(((StringVal)a).Value, Math.Max(0, Operand<IntVal>(b, "*").Value)))));
 
-        // ══ 字符 ══(`Char <: ValueType`,和数、字符串一个待遇:能比、能拼、能重复)
+        // ══ 字符 ══(`Char <: IValue`,和数、字符串一个待遇:能比、能拼、能重复)
         DefineOp(Char, "==", (a, b) => new BoolVal(((CharVal)a).Value == Operand<CharVal>(b, "==").Value));
         DefineOp(Char, "!=", (a, b) => new BoolVal(((CharVal)a).Value != Operand<CharVal>(b, "!=").Value));
         DefineOp(Char, "<", (a, b) => new BoolVal(((CharVal)a).Value < Operand<CharVal>(b, "<").Value));
@@ -265,7 +265,7 @@ internal static partial class BuiltinClasses
         // 判据是类型树上的 `IsAssignableTo`(帮手 `IsA` 还在,那条特判用的就是它):
         //   `1: int`     Integer <: Integer          ✓
         //   `1: real`   Integer 与 Real 是兄弟       ✗
-        //   `1: object`  Integer <: ValueType <: Object ✓
+        //   `1: object`  Integer <: IValue <: Object ✓
         //   `int: type`  类对象是 type 的实例           ✓
         //   `default: int`  Every(底类型)特判           ✓
         // 右边必须是个类型对象,否则报 Ravel 错误(不是 InvalidCastException)。

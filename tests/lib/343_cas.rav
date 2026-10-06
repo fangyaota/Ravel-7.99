@@ -82,12 +82,12 @@ print ((x + 1) == (Cas.Expr "x + 1"))
 print ((x + 1) != x)
 print (((x + 1) * (x - 1)).Expand ())
 
-# ── 它是个**值类型**(`Expr <: ValueType`)—— 所以当得了字典的键 ──
+# ── 它是个**值类型**(`Expr <: IValue`)—— 所以当得了字典的键 ──
 # `[RavelClass]` 那个 `Parent` **默认是 `Object`**,省了的话"值"就挂错了支:
-# 字典的键 / `Key ()` / 去重那一套判据都是"在不在 `ValueType` 那一支下"。
+# 字典的键 / `Key ()` / 去重那一套判据都是"在不在 `IValue` 那一支下"。
 # 结构相同的两棵树 → **同一个键**(`==` 是结构比较)。
-print (Cas.Expr <: ValueType)
-print (x : ValueType)
+print (Cas.Expr <: IValue)
+print (x : IValue)
 k1 := Cas.Expr "x"
 k2 := Cas.Expr "x"
 k3 := Cas.Expr "x^2"

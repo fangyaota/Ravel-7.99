@@ -141,6 +141,16 @@ internal static partial class BuiltinClasses
             + $"得到 {v.Type}", ErrorKind.Argument));
 
         BaseInterface.ClassBody = PresetCtor(Alternate(implOf, implJunk));
+
+        // `IValue` 是内置接口、**没走 `Install`**,所以类体不会从 `BaseInterface` 那儿
+        // 继承过来(继承发生在 `Install` 那一趟)—— 直接借它那份。
+        // 没有它,`impl (IValue int { … })` 会报「类型 IValue 不能作为构造器调用」。
+        IValue.ClassBody = BaseInterface.ClassBody;
+
+        // `IValue` 是**内置接口**:它不在 `BuildInterface` 那条路上走,所以那条
+        // "接口都带一个 `Dispose`"的收尾得在这儿补一次 —— `impl (IValue int { … })`
+        // 造出来的实现对象要靠它(`i.Dispose ()`)。
+        IValue.DefineMethod(DisposeMember, (self, _) => DisposeImplementation((ObjectVal)self));
     }
 
     /// <summary>要求表(`[A B]`)的每一项都得是个**接口**;空表就是不要求。</summary>
@@ -278,13 +288,27 @@ internal static partial class BuiltinClasses
         reg.Elements.Add(new ListVal([impl, IntVal.Of(Generation(impl))]));
 
         BumpRegistry();              // 登记变了 → 缓存的答案可能就变了
+
+        // `impl (IValue X …)` —— 顺手把 X 那格**物化索引**标上(见 `ClassVal.IsValueLike`)。
+        // 为什么要索引:那句"能不能当字典的键"要跑在 `dict.SysGet` 那些**同步 C#** 操作里,
+        // 那儿拿不到解释器、问不了 `HasTrait`。
+        if (ReferenceEquals(impl.Type, IValue)
+            && impl.Scope.LookupField(TargetMember)?.Value is ClassVal target)
+            target.IsValueLike = true;
     }
+
 
     /// <summary>`Dispose ()`:把实现加一岁,已经登记过的那些条目统统作废。O(1)、幂等、
     /// 在哪个作用域调都一样 —— 取消的是这个实现。</summary>
     private static RuntimeValue DisposeImplementation(ObjectVal impl)
     {
         BumpRegistry();              // 作废一条 → 缓存的答案可能就变了
+
+        // `IValue` 那条索引跟着撤掉 —— 作废了就不该再算值类型(那边 `IsValueLike` 有说明)
+        if (ReferenceEquals(impl.Type, IValue)
+            && impl.Scope.LookupField(TargetMember)?.Value is ClassVal target)
+            target.IsValueLike = false;
+
         if (impl.Scope.LookupField(GenerationMember) is { } gen)
             gen.Assign(IntVal.Of(((IntVal)gen.Value).Value + 1));
         return VoidVal.Instance;
@@ -526,6 +550,12 @@ internal static partial class BuiltinClasses
 
     internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
+        // `IValue` 是**内置接口**,它的"谁实现了"就是 `ClassVal.IsValueLike` 那格**索引** ——
+        // Ravel 侧的 `impl (IValue X { … })` 和插件的 `[RavelClass(Implements = "IValue")]`
+        // **都往那一格写**,所以那儿是唯一的真相。走索引有两个好处:O(1),
+        // 而且 `dict.SysGet` 那条**没有解释器**的路问得了同一个答案(见 `CanBeKey`)。
+        if (ReferenceEquals(trait, IValue)) return cls is ClassVal c && c.IsValueLike;
+
         // **只在链上没有作用域级登记时才敢缓存** —— 那时答案只由全局那批 `impl` 决定,
         // 而 `impl` 是稳定的(改不了,除非再来一条,那会动版本号)。
         // 有过一次 `use` 就整个关掉(见 `Interpreter.SawScopedUse`):`use` 的可见性随作用域走,

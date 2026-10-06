@@ -57,20 +57,23 @@ public sealed class RavelClassAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 
-    /// <summary>父类叫什么(默认 `object`;名字在已有的类里找,包括别的插件带来的)。
-    ///
-    /// **实例做成了"值"的,这一格要写 `"ValueType"`** —— 别省。
-    /// "是不是值类型"在这门语言里**有后果**:能不能当**字典的键**、
-    /// `Key ()` 有没有默认实现、去重那一套,判据都是"在不在 `ValueType` 那一支下"
-    /// (`BuiltinClasses.Methods.cs` 的 `Key` 那条)。
-    ///
-    /// 漏了的话症状是运行期的一句「字典的键得是值类型（数 / 串 / 字符 / 布尔 / `()`），
-    /// 得到 X」—— 一个**不可变、按值比**的东西当不了键,而内置的 `Range` 能。
-    /// (实测踩过:插件的值类型挂在默认的 `Object` 下,`{ e -> 1 }` 当场被拒。)
-    ///
-    /// 反过来,**有状态、按身份认**的那些(`Ravel.Structures` 的 `Stack` / `Heap` …)
-    /// 就照默认挂在 `Object` 下。</summary>
+    /// <summary>父类叫什么(默认 `object`;名字在已有的类里找,包括别的插件带来的)。</summary>
     public string Parent { get; init; } = "Object";
+
+    /// <summary>**这个类的实例是不是"值"** —— 写 `"IValue"`(`lib/values.rav` 那个接口)。
+    ///
+    /// 别省。这门语言里"是不是值"**有后果**:能不能当**字典的键**、`Key ()` 有没有默认实现、
+    /// 去重那一套,判据都是它。漏了的话症状是运行期一句「字典的键得是值类型…得到 X」——
+    /// 一个**不可变、按值比**的东西当不了键,而内置的 `Range` 能(实测踩过)。
+    ///
+    /// **有状态、按身份认**的那些(`Ravel.Structures` 的 `Stack` / `Heap`…)不写这一格 ——
+    /// 它们本来就不该当键。
+    ///
+    /// 实现上它落的不是 `impl` 那条路,而是 `ClassVal.IsValueLike` 那格**物化索引** ——
+    /// 因为那个判据要跑在 `dict.SysGet` 那些**同步 C#** 操作里,那儿拿不到解释器。
+    /// 两处说的是同一件事:能 `impl` 的(Ravel 侧)走 `lib/values.rav`,建不了 `impl` 的
+    /// (插件建的类)走这儿。</summary>
+    public string? Implements { get; init; }
 }
 
 /// <summary>插件作者要用的几件小工具 —— 引擎里都有(而且**同一套脾气**),只是那些是 `internal`。
@@ -264,6 +267,18 @@ internal static class PluginLoader
             var klass = BuiltinClasses.New(cls.Name);
             BuiltinClasses.Link(klass, BuiltinClasses.ClassOf(cls.Parent, $"类 {cls.Name} 的父类"), BuiltinClasses.Type);
             BuiltinClasses.AddType(klass);
+
+            // **"这个类是值类型"** —— 插件建不了 Ravel 的 `impl`,所以直接落那格索引
+            // (见 `Implements` 与 `ClassVal.IsValueLike`)。名字写错当场报:
+            // 留到运行期就成了"当键时才说不认识",够不着还难查。
+            if (cls.Implements is { } impl)
+            {
+                if (impl != "IValue")
+                    throw new InvalidOperationException(
+                        $"类 {cls.Name} 写了 Implements = \"{impl}\" —— 这一格现在只认 \"IValue\""
+                        + "(其它的接口请用 Ravel 侧的 `impl (某接口 类 { … })`)");
+                klass.IsValueLike = true;
+            }
 
             // **`FlattenHierarchy` 不能省**:没有它反射**不返回基类上的 static** —— 于是
             // "几个类共用一套方法、方法写在基类上、壳只各自声明 `[ClassCtor]`"就落空了

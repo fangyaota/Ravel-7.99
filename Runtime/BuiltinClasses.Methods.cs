@@ -399,29 +399,26 @@ internal static partial class BuiltinClasses
         });
     }
 
-    /// <summary>字典的键**只能是值类型** —— 这里是唯一的把关处。
+    /// <summary>**能不能当字典的键** —— 判据只有这一处,`KeyArg` 和 `Object` 上那条默认的
+    /// `Key` 都问它;`lib/keys.rav` 的 `Of` 是同一句话在 Ravel 那边,改要一起改。
+    /// 语法层还有一处**生成**这句判断的(`Syntax/Lowering.cs`,字典模式的"当得了键吗"),
+    /// 那儿发的是 `key : IValue` —— 三处说的是同一件事。
     ///
-    /// 判据是"挂在 `ValueType` 那一支下"(数 / 串 / 字符 / 区间),**外加 `Bool` / `Void`** ——
-    /// 这两个按值比、当键一样稳,只是**没挂**在那一支下:`true` / `false` 是可调用的,
-    /// 按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下。所以得点名收。
+    /// 判据是 **`ClassVal.IsValueLike`** 那格索引,也就是"它实现了 `IValue` 吗"
+    /// (见 `lib/values.rav` / `[RavelClass(Implements = "IValue")]`)。
+    ///
+    /// **为什么读索引而不是问 `HasTrait`**:这条路跑在 `dict.SysGet` / `SysSet` 那些
+    /// **同步 C#** 操作里,那儿**拿不到解释器**。而且 `bool` / `()` 从前进不来
+    /// (`true` / `false` 可调用、按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下)——
+    /// 单继承链放不下"按值比"和"挂在谁下面"两个正交的分类。改成接口 + 索引之后,
+    /// 那句手写的 `|| Bool || Void` 没了。
     ///
     /// 为什么限死在"按值比"的那些:.NET 的 `Dictionary` 要一个**同步**的比较器
     /// (`RuntimeValue` 是记录,用的是结构比较),而用户写的 `Key ()` 是 Ravel 函数
     /// (调它得推帧,`Interpreter.CallInto` 那条路)。对象/列表当键不稳(里面挂着作用域,
-    /// 比的是引用)—— 那要走 `lib/keys.rav` 那层(`Keys.Set` / `Keyed`),先把对象规范成
-    /// 一个值类型再进表。</summary>
-    /// <summary>**能不能当字典的键** —— 判据只有这一处,`KeyArg` 和 `Object` 上那条默认的
-    /// `Key` 都问它。`lib/keys.rav` 的 `Of` 是同一句话在 Ravel 那边,改要一起改。
-    ///
-    /// 能当键的是**按值比**的那些:`ValueType` 那一支(数 / 串 / 字符 / 区间),外加
-    /// `Bool` / `Void` —— 后两个按值比、当键一样稳,只是**没挂**在 `ValueType` 下
-    /// (`true` / `false` 可调用,按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下)。
-    ///
-    /// 对象 / 列表当键不稳:表要的是 .NET 那个**同步**比较器(`RuntimeValue` 是记录,
-    /// 结构比较),而它们里面挂着作用域,比出来的是引用 —— 要当键走 `lib/keys.rav`
-    /// 那层先规范成值类型。</summary>
-    internal static bool CanBeKey(ObjectVal t)
-        => t.IsAssignableTo(ValueType) || t.IsAssignableTo(Bool) || t.IsAssignableTo(Void);
+    /// 比的是引用)—— 那要走 `lib/keys.rav` 那层(`Keys.Set` / `Keyed`),
+    /// 先把对象规范成一个值类型再进表。</summary>
+    internal static bool CanBeKey(ObjectVal t) => t is ClassVal c && c.IsValueLike;
 
     internal static RuntimeValue KeyArg(RuntimeValue a, string what)
         => CanBeKey(a.Type)

@@ -10,7 +10,7 @@
 #       Cas.Diff "x^3" "x"                       # 随手传字符串
 #       (Cas.Expr "x^3").Diff "x"                # 先攥成值再点下去
 #
-# **表达式是个真的 Ravel 值**(`CasExprVal`,继承 `RuntimeValue`,且 `Cas.Expr <: ValueType`
+# **表达式是个真的 Ravel 值**(`CasExprVal`,继承 `RuntimeValue`,且 `Cas.Expr <: IValue`
 # —— 和 `Range` / `real` 一个待遇):**能当字典的键**(结构相同的两棵树就是同一个键),
 # 方法**交回一个新的 CasExpr**,所以能一路点下去:
 #

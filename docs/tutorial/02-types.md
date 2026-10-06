@@ -79,8 +79,8 @@ Real
 
 | 写法 | 交回 |
 |------|------|
-| `int.parent` | 父类型 `ValueType` |
-| `int <: ValueType` | `true` |
+| `int.parent` | 父类型 `Object`（`IValue` 是**接口**，不在继承链上）|
+| `int <: IValue` | `true` |
 | `object :> int` | `true` |
 | `int.Subtypes ()` | `[Every]` |
 | `int.Default ()` | `0` |
@@ -222,7 +222,7 @@ Option { Has = true, Inner = 2 }
 
 ```
 Object (parent = 自身)
-├── ValueType → Integer Real String BigInt Fraction BigFraction Range   (并列)
+├── Integer  Real  String  BigInt  Fraction  BigFraction  Range     (并列,全是值类型)
 ├── Function → Bool  Block  Type
 ├── List  Set  Dict
 ├── Void  Exception  Ravel(模块)  Scope  Property

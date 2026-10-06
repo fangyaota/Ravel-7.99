@@ -46,6 +46,20 @@ public record ClassVal : FunctionVal
     /// (类对象走 `CopyValue` 的恒等分支,按身份拷)。</summary>
     public Scope InstanceTable { get; } = new();
 
+    /// <summary>这个类型的值**是不是"值类型"**(不可变、按值比、能当字典的键)。
+    ///
+    /// **它是接口 `IValue` 那支的物化索引**,不是另立一套:`RegisterUse` 见到
+    /// `impl (IValue X …)` 登记就把 X 标上,`Dispose` 作废时清掉(见 `BuiltinClasses`)。
+    ///
+    /// 为什么要有这么一格:判据那条路(`CanBeKey`)跑在 `dict.SysGet` / `SysSet` 那些
+    /// **同步 C#** 操作里,那儿**拿不到解释器**,问不了 `HasTrait` —— 而为了问一句
+    /// 就得把解释器一路传进字典底层,不值当。索引 O(1)、不吃解释器。
+    ///
+    /// **它和接口必须一起对**:改 `lib/values.rav` 里那批 `impl` 就得想到这儿。
+    /// (从前这是类型树上 `ValueType` 那一支,靠 `IsAssignableTo` 问 —— 那也正是
+    /// `bool` / `()` 进不来的原因:单继承链放不下两个正交的分类。)</summary>
+    internal bool IsValueLike;
+
     /// <summary>这张表里**有哪些方法名**(给 `Fields ()` 和类链查找共用同一份判据)。
     ///
     /// 机制名照旧排掉(`IsMethodName`):这张表里理论上不会有它们,留着这条是保险

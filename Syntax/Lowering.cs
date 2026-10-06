@@ -550,12 +550,12 @@ public sealed class Lowering
 
                     // 键**当得了键**吗 —— 当不了是**拒收**。这一步非有不可:下一步 `Has` 那头
                     // 会**抛**(「Key: List 没有默认的键…」),而抛会穿掉 `|` 的交替(那台机器
-                    // 只接拒收)。判据就是字典自己那条 —— 按值比的那些:`ValueType` 那一支,
-                    // 外加 `Bool` / `Void`(见 `BuiltinClasses.CanBeKey`,两处要一起改)。
+                    // 只接拒收)。判据就是字典自己那条 —— **按值比的那些**,现在是接口
+                    // `IValue`(`lib/values.rav`;见 `BuiltinClasses.CanBeKey`,两处要一起改)。
                     var keyable =
                         new BinaryExpr(
                             new BinaryExpr(
-                                new BinaryExpr(key, ":", Ident("ValueType", at)) { Line = at.Line, Column = at.Column },
+                                new BinaryExpr(key, ":", Ident("IValue", at)) { Line = at.Line, Column = at.Column },
                                 "||",
                                 new BinaryExpr(key, ":", Ident("bool", at)) { Line = at.Line, Column = at.Column })
                             { Line = at.Line, Column = at.Column },

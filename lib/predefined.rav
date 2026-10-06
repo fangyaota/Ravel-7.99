@@ -24,6 +24,7 @@ readonly object := System.Object
 readonly Ravel := System.Ravel   # 模块的类对象(`Math is Ravel`)—— 所有模块共用一个
 readonly class := System.Type  # 别名:没有单独的 Class 类型
 readonly interface := System.Interface  # 接口 —— 继承于 type,造出来的也是类对象
+readonly IValue := System.IValue  # "这个类型是个值"那个接口(内置;实现见 lib/values.rav)
 readonly function := System.Function
 readonly Continuation := System.Continuation   # callcc 交出来的续延(是个函数的子类型)
 readonly type := System.Type
@@ -45,7 +46,6 @@ readonly ArgumentError := System.ArgumentError
 readonly ValueError := System.ValueError
 readonly IoError := System.IoError
 readonly RegexError := System.RegexError
-readonly ValueType := System.ValueType
 readonly BaseInterface := System.BaseInterface   # 所有接口的基类(`interface { … }` 的 parent)
 readonly Json := System.Json          # JSON 值(包住一棵树,Extract () 才转原生)
 
@@ -94,6 +94,8 @@ readonly while := (c: function body: function) => {
     cond { body (); again 0; } { 0; }
 }
 # ── 标准库:各自一个文件 ──
+using "values.rav"   # `IValue` —— "这个类型是个值"(从前是类型树上的 `ValueType` 那一支)。
+# **排在其它库前面**:下面那些 impl 里的 IValue 实现要靠它先建出来(见 `ValueTrait`)
 using "numbers.rav"
 # monad 排在 iterator **前面**:`IEnumerable ::= interface IMonad { … }`(序列这一族也是 monad)
 # 要在接口那一句上读到 IMonad,而它自己谁也不依赖。

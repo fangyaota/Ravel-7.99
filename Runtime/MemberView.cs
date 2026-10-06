@@ -8,7 +8,7 @@ namespace Ravel.Runtime;
 ///    这正是"伪 Scope":它不落地成字段,所以 `IntVal(1) == IntVal(1)` 依旧成立。
 /// 2. 沿**类对象的 parent 链**兜底,读每一层的 <see cref="ClassVal.InstanceTable"/>:
 ///    给实例的成员住在那一张("以我为类型的那些值读得到的"),`1.Fields ()` 的 `Fields`
-///    就在 `Integer → ValueType → Object` 链上 `Object` 的实例表里。
+///    就在 `Integer → IValue → Object` 链上 `Object` 的实例表里。
 ///
 /// 第 2 段读的是**实例表**而不是类自己那张,所以"类上挂的东西实例看不到"是**结构**决定的
 /// (`C.func := …` 落在 `C.Scope` 里,链上没人读它);反过来 `list.Add` 从类那一侧也读不到

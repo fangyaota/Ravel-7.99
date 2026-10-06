@@ -4,7 +4,7 @@ namespace Ravel.Runtime;
 /// 和 `string.Length` / `s.At i` 的口径一致(`"😀".Length` 是 2,`"😀".At 0` 拿到的是那个
 /// 代理对的前一半)。要在"一个用户眼里的字符"上做文章,得先自己把码位切出来。
 ///
-/// 它和数、字符串一样是**值类型**(`Char <: ValueType`):能当字典的键、能比大小、
+/// 它和数、字符串一样是**值类型**(`Char <: IValue`):能当字典的键、能比大小、
 /// 能进集合去重、`IComparable` / `IKey` 都认它。</summary>
 public record CharVal(char Value) : RuntimeValue
 {

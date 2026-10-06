@@ -14,15 +14,15 @@
 x := 5
 print (x: int)
 print (x: real)          # Integer 与 Real 是兄弟,不是子类型
-print (x: object)         # Integer <: ValueType <: Object
-print ("a": ValueType)
+print (x: object)         # Integer <: Object(接口 IValue 不在继承链上)
+print ("a": IValue)
 print (default: int)      # default 的类型就是 Every(底类型)
 print ([1]: list)
 
 # ── 取反 ──
 print (!(x: int))
 print (!(x: real))
-print (!("a": ValueType))
+print (!("a": IValue))
 
 # ── 当条件用(这就是它"只判断"那一面最常见的用法)──
 if { x: int; } { print "整数"; } { print "别的"; }
@@ -33,7 +33,7 @@ print (x.: int)           # 等右操作数:和 `2.+` 对称
 f := :.int                # 等左操作数(节):和 `+.2` 对称
 print (f 3)
 print (f "s")
-print ((:.ValueType) "a")
+print ((:.IValue) "a")
 
 # ── 绑定位置一个字没变 ──
 n: int = 7

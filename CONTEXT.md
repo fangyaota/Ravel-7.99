@@ -642,9 +642,11 @@ Int 与右操作数的二元运算按宽度升级（`IntOp`）：`real > bigint 
 
 ```
 Object (parent=自己)
-├── ValueType
-│   ├── Integer / Real / String / Char / BigInt / Fraction / BigFraction   (并列,不是链)
-│   └── Range         ← 区间(`[1..3]`)：不可变、按值比,自己不吃糖也在这一支下
+├── Integer / Real / String / Char / BigInt / Fraction / BigFraction / Range
+│                     ← 值类型(不可变、按值比)。**直挂 `Object`** —— 从前它们是
+│                       `ValueType` 那一支下的,2026-10-06 起那一支改成了**接口 `IValue`**
+│                       (见「类型与对象」那节的 `IValue`),接口不在继承链上,所以平了一层。
+│                       信息没丢:下面 `BaseInterface` 那一支会列出 `IValue ← …`。
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
 │   ├── Block         ← 没有 Ravel 别名(block 在 ReservedWords 里)
@@ -690,7 +692,7 @@ Object (parent=自己)
 
 **类型**: Integer String Char Bool Real BigInteger Fraction BigFraction Scope Range
         List Set Dict **Waitable** Object **Ravel** Void Function Continuation Type Interface
-        BaseInterface Any Every Exception ValueType Json
+        Interface IValue BaseInterface Any Every Exception Json
 
 (`Waitable` 是"一个还在做的本机活儿"那个句柄类型 —— `System.Sleepable` 交回它,
 `WaitAny` 收它。它自己不带调度策略:怎么排队全在 `lib/tasks.rav`。)
@@ -914,14 +916,14 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 **表达式是个真的 Ravel 值** —— AngouriMath 的 `Entity` 包成了 `CasExprVal`
 (`Ravel.Extensions/CasExpr.cs`,**继承 `RuntimeValue`** 而不是 `ObjectVal`:它是**值**,
 `==` 比内容 —— 和 `Range` / `real` 一个待遇;`StackVal` 那几个容器正好相反)。
-类型对象由 `[RavelClass("Expr", Parent = "ValueType")]` **配同一个类上的
+类型对象由 `[RavelClass("Expr", Implements = "IValue")]` **配同一个类上的
 `[RavelModule("Cas")]`** 落到 `Cas.Expr`(`InstallClass` 见模块就把类名登记进那个模块);
 构造就是把它当构造器调,方法由 `[ClassMethod]` 挂上去 —— 就是插件定义类那套
 (`StackClass` 一个路子)。
 
 **`Parent` 那一格是必须写的**,不是装饰:`[RavelClass]` 的默认值是 `"Object"`,
 而"是不是值类型"在这门语言里**有后果** —— 能不能当**字典的键**、`Key ()` 有没有默认实现、
-去重那一套,判据都是"在不在 `ValueType` 那一支下"(`BuiltinClasses.Methods.cs` 的 `Key`)。
+去重那一套,判据都是"实现了 `IValue` 吗"(`ClassVal.IsValueLike`,见 `BuiltinClasses.Methods.cs` 的 `Key`)。
 漏了的话 `{ e -> 1 }` 报「字典的键得是值类型…得到 Expr」:一个不可变、按值比的东西
 当不了键,而 `Range` 能。**插件做值类型时这是最容易漏的一格**(实测踩过),所以
 `RavelClassAttribute.Parent` 那段注释里写死了;反过来"有状态、按身份认"的
@@ -1097,7 +1099,7 @@ RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
 
 第 ② 段**只认方法名**、且只收 `FunctionVal`：类对象的成员表里还躺着
 `parent`/`block`/`name`/`this`/`init`，那些是**类自己的数据**，不是"这个值的成员"。
-不挡的话 `(5).parent` 会从报错变成返回 `ValueType`。
+不挡的话 `(5).parent` 会从报错变成返回 `Object`。
 
 ⚠️ **运算符是个例外：它问的是"类型"那张表**（`值.Type.MemberScope`）。
 运算符的语义是「这个**类型**怎么把两个操作数合起来」，和"这个值有哪些成员"不是同一个问题 ——
@@ -1226,7 +1228,7 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
   清掉上一个留下的——否则上一个建过的类会出现在下一个的 `Subtypes ()` 里。
 - **`parent` / `block` / `name` / `init` / `this` 是机制成员**。注意两个问题它们是两个答案：
   - **查找**时它们**不沿类链继承**（`ObjectVal.IsMethodName`）：不挡的话 `(5).parent` 会从报错
-    变成返回 `ValueType`。
+    变成返回 `Object`。
   - **`Fields ()`** 不按名字挡 —— 它列的就是"这个 Scope 里的成员",`init` / `parent` / `block`
     都在里面。唯一排掉的是 `this`：它不是成员，是**这个值自己**的别名。
   - **`parent` / `block` 是 `readonly`**（装它们的三个地方 —— `Install` / `Link` /
@@ -2310,7 +2312,7 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
   (按**成员名**,`Fields ()` + 成员访问)是两条路,所以一个 `{…}` 里**不许混**(报一句说清的)。
   次序照列表那条:先确认 `source : dict`,再逐项 `Has` 查 —— 不在是**拒收**;
   `Get` 缺键会**抛**,而抛会穿掉 `|` 的交替,所以查在**前**。
-  键的允许范围跟着字典:`KeyArg`(唯一把关处)收的是**按值比**的那些 —— `ValueType`
+  键的允许范围跟着字典:`KeyArg`(唯一把关处)收的是**按值比**的那些 —— `IValue`
   那一支(数 / 串 / 字符 / 区间)外加 `Bool` / `Void`(那俩**没挂**在那一支下:`true`/`false`
   可调用、按 lisp 那套挂 `Function`;`()` 挂 `Object`,所以得点名收,判据收在
   `BuiltinClasses.CanBeKey` 一处,`lib/keys.rav` 的 `Of` 是它在 Ravel 那边的同一句话)。
@@ -2962,12 +2964,12 @@ print c.secret       # 现在照样报「字段 'secret' 是核心字段，需�
 ```ravel
 # 类型反射
 int.name          # "Integer"
-int.parent        # ValueType
-int <: ValueType  # true(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
-1 : ValueType    # true(值的说法;取反写 `!(1 : int)`,`1.:` / `:.int` 也行)
+int.parent        # Object(从前是 ValueType;接口不在继承链上)
+int <: IValue  # true(接口 —— 不在 `parent` 链上,靠 `HasTrait`)(类型之间:`<:` 子类型 / `:>` 父类型,两边都得是类型)
+1 : IValue    # true(值的说法;取反写 `!(1 : int)`,`1.:` / `:.int` 也行)
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
 I.GetImplementors () # 反过来:**现在**哪些类型实现了这个接口
-int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 ValueType.Subtypes ())
+int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 IValue.Subtypes ())
 
 # 对象
 obj.Fields ()     # **这个值有哪些成员**:自己那层照单全收(字段和方法一视同仁),

@@ -18,7 +18,7 @@ print ({1 2 1}.Count ())
 # 运算符当成员读也走②(问的是**类型**那张表):`(5).+` 就是 Integer 的 `+`
 print ((5).+ 2)
 # 机制名是**类对象自己身上的数据**,不沿链"继承" —— 报"没有方法",不是"读得到但不对"。
-# 不挡的话 `(5).parent` 会拿到 `ValueType`,`(5).block` 会拿到 Integer 的类体。
+# 不挡的话 `(5).parent` 会拿到 `Object`,`(5).block` 会拿到 Integer 的类体。
 try { (5).parent; } (e: Exception) => { print ("(5).parent: " + string e); }
 try { (5).block; } (e: Exception) => { print ("(5).block: " + string e); }
 try { (5).init; } (e: Exception) => { print ("(5).init: " + string e); }
@@ -85,8 +85,8 @@ ravel "197_is_operator"
 # ---- 中缀 ----
 print (1 : int)
 print (1 : real)          # Integer 与 Real 是兄弟,不是子类型
-print ("a" : ValueType)
-print (1 : object)         # Integer <: ValueType <: Object
+print ("a" : IValue)
+print (1 : object)         # Integer <: Object(接口 IValue **不在**继承链上,见 lib/values.rav)
 print (1 : Any)            # 顶类型:什么都是它的子类
 print (1 : Every)          # 底类型:Every 是所有人的子类,反过来不成立
 print (default : int)      # default 的类型就是 Every
@@ -101,7 +101,7 @@ print ((1.:) int)           # 也可以直接接上去写
 # ---- 等左操作数:和 `+.2` 对称(节)。括号界定节的范围 ----
 isInt := :.int
 print (isInt 1)
-print (:.ValueType "a")
+print (:.IValue "a")
 
 # ---- 类对象也是值:它是 `type` 的实例,不是它自己表示的那个类型 ----
 print (int : type)

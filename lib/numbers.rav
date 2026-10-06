@@ -2,7 +2,7 @@
 # 每个实现体都是个空块。由 predefined.rav 加载(名字落在全局作用域)。
 
 # 五种数值类型都实现了它,于是 `(x: INumber)` 收得下 `int 5`、也收得下 `real 5.0`。
-# 从前这种地方标的是 `ValueType` —— 那个连 String 都收(`String <: ValueType`),
+# 从前这种地方标的是 `IValue` —— 那个连 String 都收(`String <: IValue`),
 # 而字符串乘不起来;标 `real` 又只收 real(参数注解不做隐式转换)。
 #
 # 它是个**空槽接口**:只说"这个类型是数",没有别的要求 —— 所以接口体和每个实现体

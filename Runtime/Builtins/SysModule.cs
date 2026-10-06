@@ -59,8 +59,8 @@ internal static class SysModule
         DefType(scope, "Void", BuiltinClasses.Void);
         DefType(scope, "Type", BuiltinClasses.Type);
         DefType(scope, "Interface", BuiltinClasses.Interface);
+        DefType(scope, "IValue", BuiltinClasses.IValue);
         DefType(scope, "BaseInterface", BuiltinClasses.BaseInterface);   // 所有接口的基类
-        DefType(scope, "ValueType", BuiltinClasses.ValueType);
         DefType(scope, "Any", BuiltinClasses.Any);
         DefType(scope, "Every", BuiltinClasses.Every);
         DefType(scope, "Exception", BuiltinClasses.Exception);
