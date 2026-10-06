@@ -41,21 +41,28 @@ internal static class CasNative
     /// **别图省事用那个隐式转换**(`(Entity)parsed`):它拆失败时抛的是
     /// `InvalidCastException`,消息是英文的 "Specified cast is not valid" ——
     /// 用户看到那句话完全不知道是自己式子写错了。</summary>
-    internal static Entity Parse(RuntimeValue v, string what)
-    {
-        var src = Str(v, what);
-        return MathS.Parse(src).Switch(
+    internal static Entity Parse(RuntimeValue v, string what) => ParseText(Str(v, what));
+
+    /// <summary>剥字符串 → 表达式(按那套语法)。失败时把**原话**给出来 —— 见上。</summary>
+    internal static Entity ParseText(string src)
+        => MathS.Parse(src).Switch(
             e => e,
             f => throw Fail($"Cas: 解析不了 {src} —— {f}"));
-    }
 
     internal static Entity.Variable Var(RuntimeValue v, string what) => MathS.Var(Str(v, what));
 
-    /// <summary>从 Ravel 值里取出表达式。**两种都收**:`CasExpr`(值那一份)和字符串
-    /// (顺手写那一种)—— 于是 `e.Diff "x"` 和 `Cas.Diff e "x"` 都说得通。</summary>
+    /// <summary>从 Ravel 值里取出表达式。**三种都收**:
+    ///
+    /// - `CasExpr` —— 已经是个式子,直接用;
+    /// - **数**(`int` / `real` / `bigint` / `fraction` / `bigfraction`)—— 转成它那套写法
+    ///   再解析(`3` → `"3"`、`1/3` → `"1/3"`),于是 `Cas.Expr "x" + 1` 说得通;
+    /// - 字符串 —— 按那套语法解析(顺手写那一种)。
+    ///
+    /// 于是 `e.Diff "x"`、`Cas.Diff e "x"`、`Cas.Expr "x" + 1` 三条都成立。</summary>
     internal static Entity Get(RuntimeValue v, string what) => v switch
     {
         CasExprVal e => e.E,
+        IntVal or RealVal or BigIntVal or FractionVal or BigFractionVal => ParseText(Show(v)),
         _ => Parse(v, what),
     };
 

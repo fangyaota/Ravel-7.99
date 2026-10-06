@@ -18,6 +18,24 @@ public sealed class ClassMethodAttribute(string name) : Attribute
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class ClassCtorAttribute : Attribute;
 
+/// <summary>这个类的一个**运算符** —— `a + b` / `a == b` 走的就是它。
+///
+/// 签名和 <see cref="ClassMethodAttribute"/> **同一个形状**:`(RuntimeValue a, RuntimeValue b)`,
+/// 两个操作数都递进来。区别在**认不认接收者**:普通方法第一个参数是"谁在调",
+/// 运算符没有"谁" —— 两边地位一样(`Interpreter.BindOperator` 查的也是
+/// `left.MemberScope`,查到了直接 `Impl(left, right)`,不绑 self)。
+///
+/// 名字得在 `OperatorSymbols.All` 里(`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=`
+/// `&` `|` `^` `<<` `>>` `<<<` `>>>` …)—— **装的时候就查**,
+/// 写错了当场报,不留到运行期(`a <> b` 那种根本解析不出来)。
+///
+/// `:` / `!` / `&&` / `||` **不在**那一档:它们归求值器特判,类型这一层插不了手。</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ClassOpAttribute(string op) : Attribute
+{
+    public string Op { get; } = op;
+}
+
 /// <summary>类的**绑定**那一格:把 `[ClassMethod]` / `[ClassCtor]` 的方法变成 Ravel 认的东西
 /// (实例成员 / 预设类体),外加两件反射的杂活。
 ///

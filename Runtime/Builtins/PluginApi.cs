@@ -262,6 +262,17 @@ internal static class PluginLoader
             {
                 if (m.GetCustomAttribute<ClassMethodAttribute>() is { } method)
                     BuiltinClasses.EngineMember(klass, method.Name, ClassRegistry.Bind(klass, m, method.Name));
+                else if (m.GetCustomAttribute<ClassOpAttribute>() is { } oper)
+                {
+                    // **装的时候就查符号** —— 不在 `OperatorSymbols.All` 里的,
+                    // 用户根本写不出来(`a <> b` 解析就错),留到运行期就成了个够不着的成员
+                    if (!OperatorSymbols.IsSymbol(oper.Op))
+                        throw new InvalidOperationException(
+                            $"类 {cls.Name} 的运算符 '{oper.Op}' 不认 —— 得是 Ravel 那批里的一个"
+                            + "（`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=` `&` `|` `^` "
+                            + "`<<` `>>` `<<<` `>>>` / `is` `isnot` / `<:` `:>`）");
+                    BuiltinClasses.EngineMember(klass, oper.Op, ClassRegistry.Bind(klass, m, oper.Op));
+                }
                 else if (m.GetCustomAttribute<ClassCtorAttribute>() is not null)
                     BuiltinClasses.SetCtor(klass, m);
             }

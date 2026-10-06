@@ -69,6 +69,19 @@ print ((Cas.Expr "x^2 / 3").Latex ())
 print ((Cas.Expr "x^2").Text ())
 # **字符串那一份交回的也是它** —— 所以随手写的也能接着点
 print ((Cas.Diff "x^3" "x").Text ())
+# ── 运算符:插件也能给自己那个类挂一条(`ClassOpAttribute`)──
+# 两边**谁都能是数**、也能是字符串(走 `CasNative.Get` 那条"三种都收")。
+# 注意 Ravel 那条"实参吃到运算符为止":`Cas.Expr "a" + Cas.Expr "b"` 里那个 `+`
+# 会被吃进实参位置 —— **调用式要加括号**,绑成变量就不必。
+x := Cas.Expr "x"
+print (x + 1)
+print (x * 2)
+print (x ** 3)
+print ((Cas.Expr "x^2") / x)
+print ((x + 1) == (Cas.Expr "x + 1"))
+print ((x + 1) != x)
+print (((x + 1) * (x - 1)).Expand ())
+
 # --- expected ---
 # 1
 # 1 + 3 * x + 3 * x ^ 2 + x ^ 3
@@ -97,3 +110,10 @@ print ((Cas.Diff "x^3" "x").Text ())
 # \frac{{x}^{2}}{3}
 # x ^ 2
 # 3 * x ^ 2
+# x + 1
+# x * 2
+# x ^ 3
+# x ^ 2 / x
+# true
+# true
+# x ^ 2 + -1

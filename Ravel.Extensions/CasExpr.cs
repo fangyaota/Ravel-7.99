@@ -43,6 +43,39 @@ internal static class CasExprClass
     [ClassCtor]
     public static RuntimeValue New(RuntimeValue src) => CasNative.Wrap(CasNative.Parse(src, "Cas.Expr"));
 
+    // ---- 运算符:把两个式子接起来 ----
+    //
+    // `Cas.Expr "x" + Cas.Expr "1"` → `x + 1`。两边**谁都能是数** (`Cas.Expr "x" + 1`),
+    // 也能是字符串 —— 走的是 `CasNative.Get` 那条"三种都收"(`CasExpr` / 数 / 字符串)。
+    //
+    // 这几个是**新式运算符**(`+ - * /`)—— 从前 `a + b` 只认内置那几种数,
+    // 现在插件也能给自己那个类挂一条(见 `ClassOpAttribute`)。
+
+    [ClassOp("+")] public static RuntimeValue Add(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => CasNative.Wrap(CasNative.Get(a, "+") + CasNative.Get(b, "+")));
+
+    [ClassOp("-")] public static RuntimeValue Sub(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => CasNative.Wrap(CasNative.Get(a, "-") - CasNative.Get(b, "-")));
+
+    [ClassOp("*")] public static RuntimeValue Mul(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => CasNative.Wrap(CasNative.Get(a, "*") * CasNative.Get(b, "*")));
+
+    [ClassOp("/")] public static RuntimeValue Div(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => CasNative.Wrap(CasNative.Get(a, "/") / CasNative.Get(b, "/")));
+
+    /// <summary>`**` 是乘方(`Entity` 没有那个运算符重载,走 `MathS.Pow`)。</summary>
+    [ClassOp("**")] public static RuntimeValue Pow(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => CasNative.Wrap(MathS.Pow(CasNative.Get(a, "**"), CasNative.Get(b, "**"))));
+
+    /// <summary>`==` **覆盖掉基类那条**:`object` 上那个比的是身份/`Equals`,
+    /// 而式子的"相等"该是 AngouriMath 的**结构比较** —— 内容一样就是同一个式子
+    /// (`x^2 - 1` 与 `(x-1)*(x+1)` **不**相等:没化简过就是两棵树)。</summary>
+    [ClassOp("==")] public static RuntimeValue Eq(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => new BoolVal(CasNative.Get(a, "==").Equals(CasNative.Get(b, "=="))));
+
+    [ClassOp("!=")] public static RuntimeValue Ne(RuntimeValue a, RuntimeValue b)
+        => CasNative.Guard(() => new BoolVal(!CasNative.Get(a, "!=").Equals(CasNative.Get(b, "!="))));
+
     // ---- 化简 / 变形 ----
     [ClassMethod("Simplify")] public static RuntimeValue Simplify(RuntimeValue self)
         => CasNative.Guard(() => CasNative.Wrap(CasNative.Get(self, "Simplify").Simplify()));

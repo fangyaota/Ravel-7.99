@@ -942,8 +942,13 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
   库自己那几句英文**照原样透出去**(只加 `Cas: ` 前缀)—— 翻译别人库的报错不是个能兜住的事,
   所以几条常见的(比如 `Solve` 要方程)在 `lib/cas.rav` 里先写明。
 
-**还没有的**:`+` / `-` / `*` / `/` 那几个**运算符** —— 插件那条 API 没露出来
-(`PluginKit` 里没有 `DefineOp`),要拼式子就在字符串里写。
+**运算符**:`+ - * / **` 和 `== !=`,两边谁都能是数、也能是字符串(`CasNative.Get`
+三种都收)。它们是**插件定义运算符**那套的第一批用户 —— `ClassOpAttribute`
+(`Runtime/Builtins/ClassRegistry.cs`),`InstallClass` 里和 `[ClassMethod]` / `[ClassCtor]`
+并排扫。签名和 `[ClassMethod]` 同一个形状 `(a, b)`,区别只是**不绑接收者**:
+运算符两边地位一样(`Interpreter.BindOperator` 查到就是 `Impl(left, right)`)。
+符号**装的时候就查** `OperatorSymbols.IsSymbol` —— 不在那批里的当场报,
+不留到运行期。`:` / `!` / `&&` / `||` 那一档**插不了手**(求值器特判)。
 
 **依赖代价**:它拖来 4 件 —— `Antlr4.Runtime.Standard`(它自己的解析器)、`GenericTensor` /
 `HonkSharp` / `PeterO.Numbers`(程序集名叫 `Numbers.dll`),**共 2.1 MB**,
