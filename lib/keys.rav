@@ -55,11 +55,11 @@ impl (IKey string {
 # 注意**不往里加** `Keys` / `Values` / `Count` / `Clear`:那些不吃键、名字也还在类链上,
 # 而按 `TraitSlot` 的规矩,类链上有名字时接口槽是**够不着且静默**的 —— 加了也只是死槽。
 IDict ::= interface {
-    by Get : function = default
-    by Set : function = default
-    by Has : function = default
-    by Remove : function = default
-    by GetOr : function = default
+    internal Get : function = default
+    internal Set : function = default
+    internal Has : function = default
+    internal Remove : function = default
+    internal GetOr : function = default
 }
 
 
@@ -85,32 +85,23 @@ readonly Of := (k: object) => {
 # (`Runtime/BuiltinClasses/Methods.cs`),名字腾出来了,接口槽才轮得到 ——
 # 类链上还占着这个名字的话,槽是够不着且**静默**的。
 #
-# 形状照 `lib/iterator.rav` 那三条 `impl (IEnumerable list/set/dict …)`:
-# `property` 的 getter 里读 `instance` = "这一次的接收者"。`Set` / `GetOr` 是柯里化的,
-# 所以返回"收一个、再收一个"的函数(`d.Set k v` 在求值器里就是 `((d.Set k) v)`)。
+# 形状照 `lib/iterator.rav` 那几条 `impl (IEnumerable …)`:这几条是 `internal` 普通成员,
+# 体里读 `instance` = "这一次的接收者"(函数成员交出去之前会绑一次,见 `BindPlain`)。
+# `Set` / `GetOr` 是柯里化的,所以返回"收一个、再收一个"的函数
+# (`d.Set k v` 在求值器里就是 `((d.Set k) v)`)。
 #
 # 用 `impl` 而不是 `use`:实现要登记到**全局**,而 `use` 只登记进当前作用域
 # (这里是 `Keys` 模块),`TraitSlot` 从调用点往上走根本走不到。
 impl (IDict dict {
-    by Get = property (() => {
-        (k: object) => { instance.SysGet (Of k); }
-    }) ((v: function) => { (); })
-    by Set = property (() => {
-        (k: object) => {
-            (v: object) => { instance.SysSet (Of k) v; }
-        }
-    }) ((v: function) => { (); })
-    by Has = property (() => {
-        (k: object) => { instance.SysHas (Of k); }
-    }) ((v: function) => { (); })
-    by Remove = property (() => {
-        (k: object) => { instance.SysRemove (Of k); }
-    }) ((v: function) => { (); })
-    by GetOr = property (() => {
-        (k: object) => {
-            (dflt: object) => { (instance.SysGetOr (Of k)) dflt; }
-        }
-    }) ((v: function) => { (); })
+    Get = (k: object) => { instance.SysGet (Of k); }
+    Set = (k: object) => {
+        (v: object) => { instance.SysSet (Of k) v; }
+    }
+    Has = (k: object) => { instance.SysHas (Of k); }
+    Remove = (k: object) => { instance.SysRemove (Of k); }
+    GetOr = (k: object) => {
+        (dflt: object) => { (instance.SysGetOr (Of k)) dflt; }
+    }
 })
 
 # **作用域也是一张表**:名字 → 变量。`Variables ()` 一直就在(交回一个 dict),
@@ -120,34 +111,24 @@ impl (IDict dict {
 # 键**只能是字符串**(作用域里的名字就是字符串);走 `Of` 过一道,别的东西当键会在那儿报错。
 # 写名字用 `Define`(它要一个类型):名字在就改值,**不在**就按这次写进来的值的类型新开一格。
 impl (IDict System.Scope {
-    by Get = property (() => {
-        (k: object) => { ((instance.Lookup (Of k)).Get ()); }
-    }) ((v: function) => { (); })
-    by Set = property (() => {
-        (k: object) => {
-            (v: object) => {
-                n := Of k
-                inThere := try { (instance.Lookup n); true; } (e: Exception) => { false; }
-                # `Define n` 本来就交回"还等着一个类型"的那个函数 —— 再喂 `typeof v` 就落下了
-                if { inThere; } { 0; } { instance.Define n (typeof v); }
-                ((instance.Lookup n).Set v)
-                ()
-            }
+    Get = (k: object) => { ((instance.Lookup (Of k)).Get ()); }
+    Set = (k: object) => {
+        (v: object) => {
+            n := Of k
+            inThere := try { (instance.Lookup n); true; } (e: Exception) => { false; }
+            # `Define n` 本来就交回"还等着一个类型"的那个函数 —— 再喂 `typeof v` 就落下了
+            if { inThere; } { 0; } { instance.Define n (typeof v); }
+            ((instance.Lookup n).Set v)
+            ()
         }
-    }) ((v: function) => { (); })
-    by Has = property (() => {
-        (k: object) => { try { (instance.Lookup (Of k)); true; } (e: Exception) => { false; } }
-    }) ((v: function) => { (); })
-    by Remove = property (() => {
-        (k: object) => { instance.Remove (Of k); }
-    }) ((v: function) => { (); })
-    by GetOr = property (() => {
-        (k: object) => {
-            (dflt: object) => {
-                try { (instance.Lookup (Of k)).Get (); } (e: Exception) => { dflt; }
-            }
+    }
+    Has = (k: object) => { try { (instance.Lookup (Of k)); true; } (e: Exception) => { false; } }
+    Remove = (k: object) => { instance.Remove (Of k); }
+    GetOr = (k: object) => {
+        (dflt: object) => {
+            try { (instance.Lookup (Of k)).Get (); } (e: Exception) => { dflt; }
         }
-    }) ((v: function) => { (); })
+    }
 })
 
 # 以**任意值**为键的表:规范键和原键都记着,所以 `Keys ()` 交回的是你原来放进去的那些对象

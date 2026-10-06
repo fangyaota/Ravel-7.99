@@ -34,148 +34,126 @@ using "math.rav"
 # `Next ()` 交回 0 .. 2^30-1 的整数(各家实现自己保证这个范围);下面那一整套是默认实现,
 # 只依赖 `Next` —— 所以换台子只需要换"取数的源头"。
 IRandom ::= interface {
-    by Next : function = default
+    internal Next : function = default
 
     # 收一个**区间**:`r.Int [1..6]` 就是掷骰子,`r.Int [0..10)` 是 0..9 —— 开闭全由
     # 那对括号说了算(不必再记"上界含不含"这种规矩)。
     #
     # `%` 映射在个数不整除 2^30 时有极轻微的偏差 —— 掷骰子、洗牌这种用途不必计较;
     # 要严格均匀就自己拿 `Next ()` 做拒绝采样。
-    by Int := property (() => {
-        (rng: Range) => {
-            n := rng.Count ()
-            assert (n >= 1) ("Random.Int: " + (rng.Text ()) + " 里没有可取的数")
-            (rng.First ()) + (instance.Below n)
-        }
-    }) ((v: function) => { (); })
+    internal Int := (rng: Range) => {
+        n := rng.Count ()
+        assert (n >= 1) ("Random.Int: " + (rng.Text ()) + " 里没有可取的数")
+        (rng.First ()) + (instance.Below n)
+    }
 
-    by Below := property (() => {
-        (n: int) => {
-            assert (n >= 1) ("Random.Below 的上界至少是 1，得到 " + (string n))
-            (instance.Next ()) % n
-        }
-    }) ((v: function) => { (); })
+    internal Below := (n: int) => {
+        assert (n >= 1) ("Random.Below 的上界至少是 1，得到 " + (string n))
+        (instance.Next ()) % n
+    }
 
     # 收一个**小数区间**:`r.Float (0.0..1.0)` / `r.Float [-1.0..1.0)`。
     # **不收区间时**就是老样子 —— 均匀的 [0, 1)(两种用法共用一个名字,和容器那个
     # `Any ()` / `Any p` 一个规矩:给个区间就走区间那支)。
     # 连续的东西没有"取到端点"这回事,所以统一当 **`[lo, hi)`** 看(端点用哪个括号都行)。
-    by Float := property (() => {
-        (p) => {
-            if { p : Range; } {
-                lo := float (p.Start ())
-                hi := float (p.End ())
-                assert (lo <= hi) ("Random.Float: " + (p.Text ()) + " 的起点在终点后面")
-                lo + ((instance.Float ()) * (hi - lo))
-            } {
-                (instance.Next ()) / 1073741824.0;
-            }
+    internal Float := (p) => {
+        if { p : Range; } {
+            lo := float (p.Start ())
+            hi := float (p.End ())
+            assert (lo <= hi) ("Random.Float: " + (p.Text ()) + " 的起点在终点后面")
+            lo + ((instance.Float ()) * (hi - lo))
+        } {
+            (instance.Next ()) / 1073741824.0;
         }
-    }) ((v: function) => { (); })
+    }
 
     # 正态(高斯)分布:均值 `mu`、标准差 `sigma`。**箱–穆勒** —— 两个独立的 [0,1) 均匀数
     # 换一个标准正态,再伸缩。`u1` 取 `1 - Float ()` 是为了躲开 0(`log 0` 是负无穷)。
-    by Normal := property (() => {
-        (mu: object sigma: object) => {
-            s := float sigma
-            assert (s >= 0.0) ("Random.Normal: 标准差不能是负的，得到 " + (string sigma))
-            u1 := 1.0 - (instance.Float ())
-            u2 := instance.Float ()
-            z := (Math.Sqrt ((0.0 - 2.0) * (Math.Log u1))) * (Math.Cos ((2.0 * Math.Pi) * u2))
-            (float mu) + (s * z)
-        }
-    }) ((v: function) => { (); })
+    internal Normal := (mu: object sigma: object) => {
+        s := float sigma
+        assert (s >= 0.0) ("Random.Normal: 标准差不能是负的，得到 " + (string sigma))
+        u1 := 1.0 - (instance.Float ())
+        u2 := instance.Float ()
+        z := (Math.Sqrt ((0.0 - 2.0) * (Math.Log u1))) * (Math.Cos ((2.0 * Math.Pi) * u2))
+        (float mu) + (s * z)
+    }
 
     # 按**权重**挑一个:`r.Weighted xs ws` —— 抽一个 [0, 权重和),看落在谁的段里。
     # 权重是任何数值(收小数);个数得对得上,不能有负的,加起来得大于 0。
-    by Weighted := property (() => {
-        (xs: IEnumerable ws: IEnumerable) => {
-            items := xs.ToList ()
-            weights := ws.ToList ()
-            # 消息得和 `assert (…)` 写在**一行**:换行会把这条调用断开,消息变成另一条
-            # 语句(空跑掉),断言就成了没消息的那个 —— 实测踩过
-            assert ((items.Count ()) == (weights.Count ())) ("Random.Weighted: 值的个数 " + (string (items.Count ())) + " 和权重的个数 " + (string (weights.Count ())) + " 对不上")
-            assert ((items.Count ()) > 0) "Random.Weighted: 空的一串里挑不出东西"
+    internal Weighted := (xs: IEnumerable ws: IEnumerable) => {
+        items := xs.ToList ()
+        weights := ws.ToList ()
+        # 消息得和 `assert (…)` 写在**一行**:换行会把这条调用断开,消息变成另一条
+        # 语句(空跑掉),断言就成了没消息的那个 —— 实测踩过
+        assert ((items.Count ()) == (weights.Count ())) ("Random.Weighted: 值的个数 " + (string (items.Count ())) + " 和权重的个数 " + (string (weights.Count ())) + " 对不上")
+        assert ((items.Count ()) > 0) "Random.Weighted: 空的一串里挑不出东西"
 
-            total := 0.0
-            foreach weights (w: object) => {
-                assert ((float w) >= 0.0) ("Random.Weighted: 权重不能是负的（得到 " + (string w) + "）")
-                total += float w
-            }
-            assert (total > 0.0) "Random.Weighted: 权重加起来得大于 0"
-
-            pick := (instance.Float ()) * total
-            acc := 0.0
-            hit := 0
-            found := false
-            i := 0
-            while { (i < (items.Count ())) && (!found); } {
-                acc += float (weights.At i)
-                if { pick < acc; } { hit = i; found = true; } { i += 1; }
-            }
-            items.At hit
+        total := 0.0
+        foreach weights (w: object) => {
+            assert ((float w) >= 0.0) ("Random.Weighted: 权重不能是负的（得到 " + (string w) + "）")
+            total += float w
         }
-    }) ((v: function) => { (); })
+        assert (total > 0.0) "Random.Weighted: 权重加起来得大于 0"
+
+        pick := (instance.Float ()) * total
+        acc := 0.0
+        hit := 0
+        found := false
+        i := 0
+        while { (i < (items.Count ())) && (!found); } {
+            acc += float (weights.At i)
+            if { pick < acc; } { hit = i; found = true; } { i += 1; }
+        }
+        items.At hit
+    }
 
     # **有放回**抽 n 个(允许重复)—— 和 `Sample`(无放回)配成一对。来的是新 list。
-    by Choices := property (() => {
-        (n: int xs: IEnumerable) => {
-            pool := xs.ToList ()
-            assert ((pool.Count ()) > 0) "Random.Choices: 空的一串里挑不出东西"
-            assert (n >= 0) ("Random.Choices: 个数不能是负的，得到 " + (string n))
-            out := []
-            i := 0
-            while { i < n; } { out.Add (pool.At (instance.Below (pool.Count ()))); i += 1; }
-            out
-        }
-    }) ((v: function) => { (); })
+    internal Choices := (n: int xs: IEnumerable) => {
+        pool := xs.ToList ()
+        assert ((pool.Count ()) > 0) "Random.Choices: 空的一串里挑不出东西"
+        assert (n >= 0) ("Random.Choices: 个数不能是负的，得到 " + (string n))
+        out := []
+        i := 0
+        while { i < n; } { out.Add (pool.At (instance.Below (pool.Count ()))); i += 1; }
+        out
+    }
 
     # 随机字节(0..255 的整数)。加密那台用它也就是"从密码学源里抽",一样是均匀的。
-    by Bytes := property (() => {
-        (n: int) => {
-            assert (n >= 0) ("Random.Bytes: 个数不能是负的，得到 " + (string n))
-            out := []
-            i := 0
-            while { i < n; } { out.Add (instance.Below 256); i += 1; }
-            out
-        }
-    }) ((v: function) => { (); })
+    internal Bytes := (n: int) => {
+        assert (n >= 0) ("Random.Bytes: 个数不能是负的，得到 " + (string n))
+        out := []
+        i := 0
+        while { i < n; } { out.Add (instance.Below 256); i += 1; }
+        out
+    }
 
-    by Bool := property (() => {
-        () => { (instance.Below 2) == 1; }
-    }) ((v: function) => { (); })
+    internal Bool := () => { (instance.Below 2) == 1; }
 
-    by Choice := property (() => {
-        (xs: IEnumerable) => {
-            got := xs.ToList ()
-            assert ((got.Count ()) > 0) "Random.Choice: 空的一串里挑不出东西"
-            got.At (instance.Below (got.Count ()))
-        }
-    }) ((v: function) => { (); })
+    internal Choice := (xs: IEnumerable) => {
+        got := xs.ToList ()
+        assert ((got.Count ()) > 0) "Random.Choice: 空的一串里挑不出东西"
+        got.At (instance.Below (got.Count ()))
+    }
 
     # Fisher–Yates:从最后一个往前,每一步和前面某个位置(含它自己)对调
-    by Shuffle := property (() => {
-        (xs: IEnumerable) => {
-            out := xs.ToList ()
-            i := (out.Count ()) - 1
-            while { i > 0; } {
-                j := instance.Below (i + 1)
-                tmp := out.At i
-                out.Set i (out.At j)
-                out.Set j tmp
-                i -= 1
-            }
-            out
+    internal Shuffle := (xs: IEnumerable) => {
+        out := xs.ToList ()
+        i := (out.Count ()) - 1
+        while { i > 0; } {
+            j := instance.Below (i + 1)
+            tmp := out.At i
+            out.Set i (out.At j)
+            out.Set j tmp
+            i -= 1
         }
-    }) ((v: function) => { (); })
+        out
+    }
 
-    by Sample := property (() => {
-        (n: int xs: IEnumerable) => {
-            out := instance.Shuffle xs
-            assert ((n >= 0) && (n <= (out.Count ()))) ("Random.Sample: 要 " + (string n) + " 个，只有 " + (string (out.Count ())) + " 个可取")
-            out.Take n
-        }
-    }) ((v: function) => { (); })
+    internal Sample := (n: int xs: IEnumerable) => {
+        out := instance.Shuffle xs
+        assert ((n >= 0) && (n <= (out.Count ()))) ("Random.Sample: 要 " + (string n) + " 个，只有 " + (string (out.Count ())) + " 个可取")
+        out.Take n
+    }
 }
 
 # ── 一台 = 一个"取数的源头" ──
@@ -187,7 +165,7 @@ RandomSource ::= class {
     init = (kind: string f: function) => { Kind = kind; NextFn = f; this; }
 }
 impl (IRandom RandomSource {
-    by Next = property (() => { () => { instance.NextFn (); }; }) ((v: function) => { (); })
+    Next = () => { instance.NextFn (); }
 })
 
 ravel "Random"

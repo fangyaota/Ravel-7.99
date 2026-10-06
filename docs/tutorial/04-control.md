@@ -158,7 +158,7 @@ print (Seqs.Gather (doubled.Take 3))
 
 ```ravel
 use (IEnumerable MyThing {
-    by GetEnumerator = property (() => { () => { Enumerator [1 2 3]; }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator [1 2 3]; }
 })
 ```
 

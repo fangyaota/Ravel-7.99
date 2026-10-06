@@ -6,7 +6,7 @@
 #
 # Count / Map / Where / Fold / Take / …(名字和口径都照容器上那批:Linq 的译法)。
 # 接口的**类体会在每个实现对象上跑一遍**(造实现那趟),所以写在接口体里的
-# `by X := property …` 就是"实现体不填就用它" —— 于是凡是实现了 `IEnumerable` 的东西
+# `X := () => { … }`(只读的用 `internal`)就是"实现体不填就用它" —— 于是凡是实现了 `IEnumerable` 的东西
 # (`Generator`、字符串、用户自己写的类)都有整套方法,不必各自抄一遍。
 #
 # 两层同名是**有意**的:容器类链上那几个(引擎给的、急切、交回 list)先命中,
@@ -19,10 +19,16 @@
 #         `ToList` `ToSet` `ToGenerator` `Each` `All` `Any` `Find` `Fold` `TryFind` `TryFirst`
 # 无限流上只有惰性那批用得起来(`Take` / `Where` / `Map` 都停得住);急切那批要算完。
 #
-# **写这些默认实现有一条死规矩:函数体要写在 getter 里面。**
-# `Activate`(见 BuiltinClasses.Interfaces.cs)只把**那条 getter 自己**的捕获作用域换成
-# "这一次服务谁"的激活格,所以只有 getter 体内创建的闭包才认得出 `instance`;
-# 把外面造好的函数当参数塞进来是不行的(它捕的是别处的作用域,`instance` 会指错、或者根本没有)。
+# **这些默认实现是普通的 `internal` 成员。**
+# 函数成员交出去之前照样**绑这一次的接收者**(`BuiltinClasses.BindPlain` 复用的就是
+# `Activate` 给 getter 用的那个 `ActivateFn`),所以体里写 `instance` 认得出"这次服务谁"。
+#
+# 从前每一条都得写成 `by X := property (() => { () => { … } }) ((v) => { (); })`:
+# 那层 `property` 只为绑接收者(getter 在**读**的时候跑,所以体里得再裹一个函数交出手),
+# 而 setter 是空的。2026-10-06 起不用了 —— `internal` 管的是"外面写不进去"(只读)。
+#
+# **值 getter 仍是 `by`**(`IEnumerator.Current` 那几条):它交的是**值**不是函数,
+# 普通成员是一次算定的,给不出"每读一次算一遍"。
 #
 # 序列这一族也是 **monad**:`IEnumerable ::= interface IMonad`,那两条槽里
 # `Map` 是逐个映射、`Bind` 是"每个元素交回一串、接起来"(flatMap)——
@@ -66,42 +72,38 @@ readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
 # 前者是同一个机制的白描,后者要多进一次 `if`、还多造一个块。量的数:`if` 版比直调版慢约 30%
 # ——下面凡是"每个元素判一次"的地方都用直写。
 IEnumerable ::= interface IMonad {
-    by GetEnumerator : function = default
+    # `internal`:填进来之后只读(外面 `x.GetEnumerator = …` 写不进去)。
+    # 覆盖它的那几处写 `=`(不是 `:=`)—— `=` 不清 attrs,所以继承得到。
+    internal GetEnumerator : function = default
 
     # ═══ 交回一串的:惰性(交回 `Generator`)═══
 
     # 逐个映射。`Map` / `Bind` 这两条是**覆盖** `IMonad` 里那对槽 ——
     # 用 `=`(赋值/覆盖),不能写 `:=`(定义:同一个名字在同一个作用域里再定义一次会当场报错)。
-    by Map = property (() => {
-        (f: function) => {
-            Generator (y: function) => {
-                foreach instance (x: object) => { y (f x); }
-            }
+    Map = (f: function) => {
+        Generator (y: function) => {
+            foreach instance (x: object) => { y (f x); }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 留下满足 `p` 的
-    by Where := property (() => {
-        (p: function) => {
-            Generator (y: function) => {
-                foreach instance (x: object) => {
-                    (p x) { y x; } { 0; }
-                }
+    internal Where := (p: function) => {
+        Generator (y: function) => {
+            foreach instance (x: object) => {
+                (p x) { y x; } { 0; }
             }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 绑定(= flatMap):每个元素交回**一串**,接起来 —— monad 就是要它,`do { … }` 用的也是它。
     # 交回的不是 `IEnumerable` 就当场报错(`foreach` 那句话),不悄悄当成一个元素。
-    by Bind = property (() => {
-        (f: function) => {
-            Generator (y: function) => {
-                foreach instance (x: object) => {
-                    foreach (f x) (v: object) => { y v; }
-                }
+    Bind = (f: function) => {
+        Generator (y: function) => {
+            foreach instance (x: object) => {
+                foreach (f x) (v: object) => { y v; }
             }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 前 n 个(**数够就走** —— 无限流上停得住)
     # **这一条得自己控 `MoveNext`,不能用 `foreach`。**
@@ -112,237 +114,187 @@ IEnumerable ::= interface IMonad {
     # 调用方身上:实测 `Take 1` 之后调用方少一个。
     #
     # (`&&` 是真短路的,所以 `i >= n` 时 `MoveNext` 不会跑 —— 正好取 n 个。)
-    by Take := property (() => {
-        (n: int) => {
-            Generator (y: function) => {
-                e := instance.GetEnumerator ()
-                i := 0
-                while { (i < n) && e.MoveNext (); } {
-                    y e.Current
-                    i += 1
-                }
+    internal Take := (n: int) => {
+        Generator (y: function) => {
+            e := instance.GetEnumerator ()
+            i := 0
+            while { (i < n) && e.MoveNext (); } {
+                y e.Current
+                i += 1
             }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 跳过前 n 个
-    by Skip := property (() => {
-        (n: int) => {
-            Generator (y: function) => {
-                i := 0
-                foreach instance (x: object) => {
-                    (i >= n) { y x; } { 0; }
-                    i += 1
-                }
+    internal Skip := (n: int) => {
+        Generator (y: function) => {
+            i := 0
+            foreach instance (x: object) => {
+                (i >= n) { y x; } { 0; }
+                i += 1
             }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 切一段:`xs.Slice [1..3)` —— 跳过前头、再取几个,开闭看区间。**惰性**
     # (Skip + Take 串起来的,都在惰性那半)。越界不报错:一串到底就没了,和 `Take` / `Skip`
     # 一个脾气 —— 字符串上那条 `Slice` 是另一码事(它越界当场报错,和它的两个数字写法一致)。
-    by Slice := property (() => {
-        (rng: Range) => {
-            n := rng.Count ()
-            # 空区间**不去问 `First ()`** —— 它在空的区间上会报错;跳过 0 个再取 0 个,
-            # 拿到的就是空的一段(而且容器交回的仍是它自己那种)
-            if { n <= 0; } { (instance.Skip 0).Take 0; } {
-                a := rng.First ()
-                b := rng.Last ()
-                # 起点永远取**小的那个下标**(切片是按位置数下去的),个数是 n;
-                # 区间反过来写(`[4..0]`)时,交出去之前翻个个儿 —— 那才是"倒着切"
-                lo := if { a <= b; } { a; } { b; }
-                kept := (instance.Skip lo).Take n
-                if { a > b; } { kept.Reverse (); } { kept; }
-            }
+    internal Slice := (rng: Range) => {
+        n := rng.Count ()
+        # 空区间**不去问 `First ()`** —— 它在空的区间上会报错;跳过 0 个再取 0 个,
+        # 拿到的就是空的一段(而且容器交回的仍是它自己那种)
+        if { n <= 0; } { (instance.Skip 0).Take 0; } {
+            a := rng.First ()
+            b := rng.Last ()
+            # 起点永远取**小的那个下标**(切片是按位置数下去的),个数是 n;
+            # 区间反过来写(`[4..0]`)时,交出去之前翻个个儿 —— 那才是"倒着切"
+            lo := if { a <= b; } { a; } { b; }
+            kept := (instance.Skip lo).Take n
+            if { a > b; } { kept.Reverse (); } { kept; }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 接在后面。参数**注解不成** `IEnumerable` —— 写这个接口体的时候这个名字还没定义出来
     # (和 `Concat` 要用的 `Generator` 一样,都是**调用时**才去解析,那时它们在作用域里了)
-    by Concat := property (() => {
-        (xs) => {
-            Generator (y: function) => {
-                foreach instance (x: object) => { y x; }
-                foreach xs (x: object) => { y x; }
-            }
+    internal Concat := (xs) => {
+        Generator (y: function) => {
+            foreach instance (x: object) => { y x; }
+            foreach xs (x: object) => { y x; }
         }
-    }) ((v: function) => { (); })
+    }
 
     # 下面三件得**记住**东西,所以是"先收全、再算、再逐个吐";对调用方仍然是惰性的
-    by Distinct := property (() => {
-        () => {
-            Generator (y: function) => {
-                xs := instance.ToList ()
-                foreach (xs.Distinct ()) (x: object) => { y x; }
-            }
+    internal Distinct := () => {
+        Generator (y: function) => {
+            xs := instance.ToList ()
+            foreach (xs.Distinct ()) (x: object) => { y x; }
         }
-    }) ((v: function) => { (); })
+    }
 
-    by Reverse := property (() => {
-        () => {
-            Generator (y: function) => {
-                xs := instance.ToList ()
-                foreach (xs.Reverse ()) (x: object) => { y x; }
-            }
+    internal Reverse := () => {
+        Generator (y: function) => {
+            xs := instance.ToList ()
+            foreach (xs.Reverse ()) (x: object) => { y x; }
         }
-    }) ((v: function) => { (); })
+    }
 
-    by SortBy := property (() => {
-        (key: function) => {
-            Generator (y: function) => {
-                xs := instance.ToList ()
-                foreach (Sorting.SortBy xs key) (x: object) => { y x; }
-            }
+    internal SortBy := (key: function) => {
+        Generator (y: function) => {
+            xs := instance.ToList ()
+            foreach (Sorting.SortBy xs key) (x: object) => { y x; }
         }
-    }) ((v: function) => { (); })
+    }
 
     # ═══ 要一个值 / 容器的:当场算 ═══
 
-    by Count := property (() => {
-        () => {
-            n := 0
-            foreach instance (x: object) => { n += 1; }
-            n
-        }
-    }) ((v: function) => { (); })
+    internal Count := () => {
+        n := 0
+        foreach instance (x: object) => { n += 1; }
+        n
+    }
 
-    by IsEmpty := property (() => {
-        () => {
-            e := instance.GetEnumerator ()
-            !(e.MoveNext ())
-        }
-    }) ((v: function) => { (); })
+    internal IsEmpty := () => {
+        e := instance.GetEnumerator ()
+        !(e.MoveNext ())
+    }
 
-    by ToList := property (() => {
-        () => {
-            out := []
-            foreach instance (x: object) => { out.Add x; }
-            out
-        }
-    }) ((v: function) => { (); })
+    internal ToList := () => {
+        out := []
+        foreach instance (x: object) => { out.Add x; }
+        out
+    }
 
     # Set 那个构造器只认 `default`,所以先 `ToList` 再过一手容器的那个(判据也就跟着一致)
-    by ToSet := property (() => {
-        () => { (instance.ToList ()).ToSet (); }
-    }) ((v: function) => { (); })
+    internal ToSet := () => { (instance.ToList ()).ToSet (); }
 
     # 反过来那一扇门:要惰性(能无限)就在这儿转一趟
-    by ToGenerator := property (() => {
-        () => {
-            Generator (y: function) => {
-                foreach instance (x: object) => { y x; }
-            }
+    internal ToGenerator := () => {
+        Generator (y: function) => {
+            foreach instance (x: object) => { y x; }
         }
-    }) ((v: function) => { (); })
+    }
 
-    by Each := property (() => {
-        (f: function) => {
-            foreach instance (x: object) => { f x; }
-            ()
-        }
-    }) ((v: function) => { (); })
+    internal Each := (f: function) => {
+        foreach instance (x: object) => { f x; }
+        ()
+    }
 
     # `Fold 初值 函数`:函数是柯里化的 —— 先喂累积值、再喂元素(`f acc x`)
-    by Fold := property (() => {
-        (init: object f: function) => {
-            acc := init
-            foreach instance (x: object) => { acc = (f acc) x; }
-            acc
-        }
-    }) ((v: function) => { (); })
+    internal Fold := (init: object f: function) => {
+        acc := init
+        foreach instance (x: object) => { acc = (f acc) x; }
+        acc
+    }
 
-    by Sum := property (() => {
-        () => {
-            acc := 0
-            foreach instance (x: object) => { acc = acc + x; }
-            acc
-        }
-    }) ((v: function) => { (); })
+    internal Sum := () => {
+        acc := 0
+        foreach instance (x: object) => { acc = acc + x; }
+        acc
+    }
 
-    by Min := property (() => { () => { ExtremeOf instance "Min" true; } }) ((v: function) => { (); })
-    by Max := property (() => { () => { ExtremeOf instance "Max" false; } }) ((v: function) => { (); })
+    internal Min := () => { ExtremeOf instance "Min" true; }
+    internal Max := () => { ExtremeOf instance "Max" false; }
 
-    by Join := property (() => {
-        (sep: string) => {
-            out := ""
-            first := true
-            foreach instance (x: object) => {
-                first { first = false; } { out += sep; }
-                out += string x
-            }
-            out
+    internal Join := (sep: string) => {
+        out := ""
+        first := true
+        foreach instance (x: object) => {
+            first { first = false; } { out += sep; }
+            out += string x
         }
-    }) ((v: function) => { (); })
+        out
+    }
 
-    by First := property (() => {
-        () => {
-            o := SeekIn instance (x: object) => { true; }
-            if { o.IsSome (); } { 0; } { throw (IndexError "First: 元素不够（一共 0 个）"); }
-            o.Value ()
-        }
-    }) ((v: function) => { (); })
+    internal First := () => {
+        o := SeekIn instance (x: object) => { true; }
+        if { o.IsSome (); } { 0; } { throw (IndexError "First: 元素不够（一共 0 个）"); }
+        o.Value ()
+    }
 
     # 要"可能没有"就用这条(和 `Option` 对上了),别去 `try` 里接 First 那句错
-    by TryFirst := property (() => {
-        () => { SeekIn instance (x: object) => { true; }; }
-    }) ((v: function) => { (); })
+    internal TryFirst := () => { SeekIn instance (x: object) => { true; }; }
 
-    by Last := property (() => {
-        () => {
-            got := false
-            last: object = ()
-            foreach instance (x: object) => { got = true; last = x; }
-            if { got; } { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
-            last
-        }
-    }) ((v: function) => { (); })
+    internal Last := () => {
+        got := false
+        last: object = ()
+        foreach instance (x: object) => { got = true; last = x; }
+        if { got; } { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
+        last
+    }
 
-    by At := property (() => {
-        (n: int) => {
-            i := 0
-            o := SeekIn instance (x: object) => { mine := i; i += 1; mine == n; }
-            if { o.IsSome (); } { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
-        }
-    }) ((v: function) => { (); })
+    internal At := (n: int) => {
+        i := 0
+        o := SeekIn instance (x: object) => { mine := i; i += 1; mine == n; }
+        if { o.IsSome (); } { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
+    }
 
-    by Contains := property (() => {
-        (v: object) => {
-            o := SeekIn instance (x: object) => { x == v; }
-            o.IsSome ()
-        }
-    }) ((v: function) => { (); })
+    internal Contains := (v: object) => {
+        o := SeekIn instance (x: object) => { x == v; }
+        o.IsSome ()
+    }
 
     # 两种用法共用一个名字(和容器那个 `Any ()` / `Any p` 一个规矩)
-    by Any := property (() => {
-        (p) => {
-            if { p : function; } {
-                o := SeekIn instance p
-                o.IsSome ()
-            } {
-                !(instance.IsEmpty ())
-            }
-        }
-    }) ((v: function) => { (); })
-
-    by All := property (() => {
-        (p: function) => {
-            o := SeekIn instance (x: object) => { !(p x); }
-            !(o.IsSome ())
-        }
-    }) ((v: function) => { (); })
-
-    by Find := property (() => {
-        (p: function) => {
+    internal Any := (p) => {
+        if { p : function; } {
             o := SeekIn instance p
-            assert (o.IsSome ()) "Find: 没有满足条件的元素"
-            o.Value ()
+            o.IsSome ()
+        } {
+            !(instance.IsEmpty ())
         }
-    }) ((v: function) => { (); })
+    }
 
-    by TryFind := property (() => {
-        (p: function) => { SeekIn instance p; }
-    }) ((v: function) => { (); })
+    internal All := (p: function) => {
+        o := SeekIn instance (x: object) => { !(p x); }
+        !(o.IsSome ())
+    }
+
+    internal Find := (p: function) => {
+        o := SeekIn instance p
+        assert (o.IsSome ()) "Find: 没有满足条件的元素"
+        o.Value ()
+    }
+
+    internal TryFind := (p: function) => { SeekIn instance p; }
 }
 
 # 枚举器**也是**一串(`IEnumerator <: IEnumerable`):它**自己就是自己的枚举器**。
@@ -354,10 +306,10 @@ IEnumerable ::= interface IMonad {
 #   * 遍历的是**还没走完的那一段**,不是从头;
 #   * 走一遍就把它**消耗掉**了 —— `e.Count ()` / `e.ToList ()` 之后,`e` 也到头了。
 IEnumerator ::= interface IEnumerable {
-    by MoveNext : function = default
+    internal MoveNext : function = default
     by Current : object = default
     # 覆盖父接口那条(`=` 是换槽):交回**自己**,不是"另开一个从头开始"
-    by GetEnumerator = property (() => { () => { instance; }; }) ((v: function) => { (); })
+    GetEnumerator = () => { instance; }
 }
 
 # 通用枚举器:拿一串值 + 记住走到哪了。任何"一次给我一串"的东西都能拿它当枚举器。
@@ -430,25 +382,25 @@ RangeCursor ::= class {
 # 也就是先把 `impl` 用在接口本身上(它没有 `target`,当场报错)。
 # 这几条只填 `GetEnumerator`:别的那一整套走接口体里的**默认实现**。
 impl (IEnumerable list {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
 impl (IEnumerable set {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
 # 字符串也实现它:元素是**字符**(`s.Chars ()` 那一串)。
 # (它和数一样是标量、不是 ObjectVal —— 早先这儿加不上,是因为 `TraitSlot` 的接收者写死成了
 #  `ObjectVal`;现在那条路放宽了,标量一样能挂接口槽。)
 impl (IEnumerable string {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.Chars ()); }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator (instance.Chars ()); }
 })
 impl (IEnumerable dict {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.ToList ()); }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
 # **作用域**也是一串:元素就是 `Variables ()` 那份 dict 的**值**(变量本身,和 `foreach` 一个 dict
 # 交回它的值一个口径)。要**名字**用 `Keys ()`。`System.Scope` 这个名字来自引擎那边新露的一条
 # (`SysModule.Types`)—— 从前这个类型在 Ravel 层叫不出来,所以这两条 `impl` 一直写不出来。
 impl (IEnumerable System.Scope {
-    by GetEnumerator = property (() => { () => { Enumerator ((instance.Variables ()).Values ()); }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator ((instance.Variables ()).Values ()); }
 })
 # `Option` 也是"一串" —— **0 个或 1 个**:`Some x` 走一次、`None` 一次都不走。
 # 于是 `foreach (Some 5) …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法
@@ -461,28 +413,24 @@ impl (IEnumerable System.Scope {
 # `Count` / `Contains` / `ToList` 那几条由引擎那份先命中(它们住在类链上,类链先说话),
 # 语义一样、只是更快。
 impl (IEnumerable Range {
-    by GetEnumerator = property (() => {
-        () => { RangeCursor instance; }
-    }) ((v: function) => { (); })
+    GetEnumerator = () => { RangeCursor instance; }
 })
 impl (IEnumerable Option {
-    by GetEnumerator = property (() => {
-        () => {
-            if { instance.IsSome (); } {
-                # 先取到手里再放进表:列表元素和实参一样只吃"主表达式 + 取成员",
-                # `[instance.Value ()]` 会被读成"两件"(那个函数 + 一个 `()`)
-                v := instance.Value ()
-                Enumerator [v];
-            } {
-                Enumerator [];
-            }
+    GetEnumerator = () => {
+        if { instance.IsSome (); } {
+            # 先取到手里再放进表:列表元素和实参一样只吃"主表达式 + 取成员",
+            # `[instance.Value ()]` 会被读成"两件"(那个函数 + 一个 `()`)
+            v := instance.Value ()
+            Enumerator [v];
+        } {
+            Enumerator [];
         }
-    }) ((v: function) => { (); })
+    }
 })
 
 # 枚举器自己也实现 IEnumerator(这样 `e is IEnumerator` 成立,注解也收得下它)
 impl (IEnumerator Enumerator {
-    by MoveNext = property (() => { () => { instance.MoveNext (); }; }) ((v: function) => { (); })
+    MoveNext = () => { instance.MoveNext (); }
     by Current = property (() => { instance.Current; }) ((v: object) => { (); })
 })
 

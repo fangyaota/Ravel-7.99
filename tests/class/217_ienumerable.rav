@@ -1,7 +1,7 @@
 # `IEnumerable` / `IEnumerator` —— 用 `interface` 写出来的库级接口(predefined.rav),形状照 C#:
 #
-#     IEnumerable ::= interface { by GetEnumerator : function = default }
-#     IEnumerator ::= interface { by MoveNext : function = default
+#     IEnumerable ::= interface { internal GetEnumerator : function = default }
+#     IEnumerator ::= interface { internal MoveNext : function = default
 #                                 by Current    : object   = default }
 #
 # `GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
@@ -53,7 +53,7 @@ Seq ::= class {
 # 交回一个枚举器就行 —— 库里的 `Enumerator` 拿来就能用。
 # (`property g s` 要写在**同一行**:换行就是两条语句,槽里会只剩半截 `property`)
 seqImpl := use (IEnumerable Seq {
-    by GetEnumerator = property (() => { () => { Enumerator [instance.n (instance.n + 1) (instance.n + 2)]; }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator [instance.n (instance.n + 1) (instance.n + 2)]; }
 })
 s := Seq 7
 print (s : IEnumerable)

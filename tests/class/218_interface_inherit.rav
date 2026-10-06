@@ -53,7 +53,7 @@ try {
 
 # ---- 先给它一条 IEnumerable 的实现,再实现 masterTrait ----
 impl (IEnumerable C {
-    by GetEnumerator = property (() => { () => { Enumerator [instance.x]; }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator [instance.x]; }
 })
 impl (masterTrait C {
     by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })

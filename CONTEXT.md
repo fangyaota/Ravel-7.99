@@ -1592,12 +1592,12 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 **`IEnumerable` / `IEnumerator`**(`lib/iterator.rav`)。形状照 C#:
 
 ```ravel
-IEnumerable ::= interface IMonad { by GetEnumerator : function = default; …一整套默认实现… }
-IEnumerator ::= interface { by MoveNext : function = default
+IEnumerable ::= interface IMonad { internal GetEnumerator : function = default; …一整套默认实现… }
+IEnumerator ::= interface { internal MoveNext : function = default
                             by Current  : object   = default }
 ```
 
-**接口体里那一整套 `by X := property …` 是默认实现**(接口的类体会在**每个实现对象上
+**接口体里那一整套默认实现是 `internal` 普通成员**(接口的类体会在**每个实现对象上
 跑一遍**,所以实现体不填就用它):Count / Map / Where / Bind / Fold / Take / First / …。
 名字与口径照容器上那批(Linq 的译法),分界线是"交回**一串**的惰性(交回 `Generator`)、
 要**一个值 / 容器**的当场算"。于是凡是实现了 `IEnumerable` 的东西(`Generator`、字符串、
@@ -1605,17 +1605,27 @@ IEnumerator ::= interface { by MoveNext : function = default
 `BuiltinClasses.Sequences.cs`)。**两层同名是有意的**:容器类链上那几个先命中,
 接口这份只补"本来要报没有方法"的(`TraitSlot` 见到类链上有名字就退回去)。
 
-写默认实现有一条死规矩:**函数体要写在 getter 里面** —— `Activate` 只把那条 getter
-自己的捕获作用域换成"这一次服务谁"的激活格,所以只有 getter 体内创建的闭包才认得出
-`instance`;外面造好的函数塞进来会捕错作用域。
+**2026-10-06 起这些槽不再写成 `by X := property (() => { () => … }) (…)`** ——
+那种写法的 setter 本来就是空的(只读是这里要的),而 `property` 那层壳只为**绑接收者**:
+getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在普通成员**自己也绑**
+(见下),于是一步到位:
+
+    internal Count := () => { …用 instance… }     # 从前:by Count := property (() => { () => { … } }) ((v) => { (); })
+
+`internal` 管的是"外面写不进去"(`readonly` 连裸名字都挡,松一档)。**声明**也照此办:
+必需槽写 `internal Map : function = default`,子接口/实现体用 `=` 覆盖时**继承**这个
+修饰符(`=` 不清 attrs,而修饰符又不许跟在 `=` 前面 —— 「修饰符后需要 ':='」)。
 
 **接口体里也能写普通成员**(不是 `by` 槽)—— 2026-10-06 起它们在**目标值上**也读得到:
 
-- **`by` 槽**是老规矩:交出去之前要**绑到这一次的接收者**上(见 `Activate`)——
-  所以"方法"写成 `by f := property (() => { () => … }) (…)`(函数体写在 getter 里)。
-- **普通成员**(`color := () => …` / `kind: string = "unknown"`)—— 值**就是它自己**,
+- **普通成员**(`Count := () => …` / `kind: string = "unknown"`)—— 值**就是它自己**,
   没有 property 可绑:函数直接调、字段直接读,`a.kind = v` 落到**实现那一格**上
-  (每个实现各一份),`readonly` 照样挡(`Variable.CheckWritable`)。
+  (每个实现各一份),`readonly` / `internal` 照样挡。
+- **函数那一支交出去之前照样绑接收者**(`BuiltinClasses.BindPlain`,复用的就是
+  `Activate` 给 getter 用的那个 `ActivateFn`)—— 所以体里写 `instance` 认得出"这次服务谁",
+  和从前那套 `by` 一个读法,只是少一层间接。
+- **`by` 槽**当然还在(真要 setter 的用它,比如 `IEnumerator.Current` 那种**值**getter),
+  同样的绑定照旧。
 
 两条路的判据就是 `TraitSlot` 那个 `allowPlain`:**成员访问放行普通成员,运算符不放** ——
 运算符的协议是槽的形状(getter 取、setter 写),普通成员给不出,所以
@@ -1656,7 +1666,7 @@ IEnumerator ::= interface { by MoveNext : function = default
 - **`foreach` 改走这条接口**:`e := xs.GetEnumerator ()` + `while { e.MoveNext (); } { f e.Current }`
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
   一样能遍历(字典遍历的是值);**每次进来新开一个枚举器**,所以嵌套遍历同一串值互不打扰;
-- 用户自己的类实现一条 `use (IEnumerable MyClass { by GetEnumerator = property … })` 就能进 `foreach`。
+- 用户自己的类实现一条 `use (IEnumerable MyClass { GetEnumerator = () => { … }; })` 就能进 `foreach`。
 - **接口继承一个接口,外加一串要求**:
 
   ```ravel

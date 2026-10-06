@@ -7,9 +7,12 @@
 #
 # 注意它只管"形状":`Return` 那种东西是**每个 monad 各自的构造子**(这里叫 `Some`,
 # `IoMonad` 那边叫 `IoMonad.Return`),接口表达不了"某个类型有个构造子",也没必要。
+# 形状本身 —— 所以它俩是 `internal`:实现填进来之后,外面**读得到、写不进去**
+# (只读是这里要的:换实现得回类体里改,不该从实例上顺手覆盖掉)。
+# 用 `=` 覆盖它们的子接口 / 实现体**继承**这个修饰符(`=` 不清 attrs),不必再写一遍。
 IMonad ::= interface {
-    by Map : function = default
-    by Bind : function = default
+    internal Map : function = default
+    internal Bind : function = default
 }
 
 

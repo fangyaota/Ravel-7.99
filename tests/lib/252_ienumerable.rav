@@ -77,7 +77,7 @@ Bag ::= class {
     init = (xs: list) => { Items = xs; this; }
 }
 impl (IEnumerable Bag {
-    by GetEnumerator = property (() => { () => { Enumerator (instance.Items); }; }) ((v: function) => { (); })
+    GetEnumerator = () => { Enumerator (instance.Items); }
 })
 b := Bag [1 2 3]
 c := Bag [10 20]

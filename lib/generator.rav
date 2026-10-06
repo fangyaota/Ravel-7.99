@@ -26,7 +26,11 @@ Generator ::= class {
     init = (body: function) => { Body = body; this; }
 
     # 要枚举器:新开一枚光标 —— 所以每遍各自从头
-    by GetEnumerator := property (() => { () => { GeneratorCursor Body; }; }) ((v: function) => { (); })
+    #
+    # **只读的普通成员**(`internal`),不是 `by` 属性:那份 property 的 setter 本来就是空的,
+    # 用它只是为了"外面写不进去"。类体的闭包捕着实例作用域(`Body` 直接可见),
+    # 所以也用不着 `instance` 那一套 —— 直接就是一枚方法。
+    internal GetEnumerator := () => { GeneratorCursor Body; }
 }
 
 # 一枚**光标**:一次遍历的全部状态。它自己就实现 `IEnumerator`(MoveNext + Current)。
