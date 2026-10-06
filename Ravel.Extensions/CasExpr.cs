@@ -35,9 +35,15 @@ public record CasExprVal : RuntimeValue
 /// 多出来的那个参数在 Ravel 那边是柯里化的)。
 ///
 /// 每一条都**交回一个新的 `CasExpr`**(`Eval` 交 `real`、`Latex` / `Text` 交字符串)——
-/// 于是能一路点下去:`(Cas.Expr "x^2 - 1").Factor ().Solve "x"`。</summary>
+/// 于是能一路点下去:`(Cas.Expr "x^2 - 1").Factor ().Solve "x"`。
+///
+/// **`Parent` 必须写 `"ValueType"`** —— 别省。`[RavelClass]` 那个默认值是 `"Object"`,
+/// 而"是不是值类型"在 Ravel 里**是有后果的**:字典的键、`Key ()`、去重那一套判据
+/// 就是"在不在 `ValueType` 那一支下"(`BuiltinClasses.Methods.cs` 的 `Key` 那条)。
+/// 挂在 `Object` 下的话,`{ e -> 1 }` 会报「字典的键得是值类型…得到 Expr」——
+/// 一个不可变、按值比的东西当不了键,而 `Range` 能。**插件做值类型时这一条最容易漏。**</summary>
 [RavelModule("Cas")]
-[RavelClass("Expr")]
+[RavelClass("Expr", Parent = "ValueType")]
 internal static class CasExprClass
 {
     [ClassCtor]

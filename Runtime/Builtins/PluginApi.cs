@@ -57,7 +57,19 @@ public sealed class RavelClassAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 
-    /// <summary>父类叫什么(默认 `object`;名字在已有的类里找,包括别的插件带来的)</summary>
+    /// <summary>父类叫什么(默认 `object`;名字在已有的类里找,包括别的插件带来的)。
+    ///
+    /// **实例做成了"值"的,这一格要写 `"ValueType"`** —— 别省。
+    /// "是不是值类型"在这门语言里**有后果**:能不能当**字典的键**、
+    /// `Key ()` 有没有默认实现、去重那一套,判据都是"在不在 `ValueType` 那一支下"
+    /// (`BuiltinClasses.Methods.cs` 的 `Key` 那条)。
+    ///
+    /// 漏了的话症状是运行期的一句「字典的键得是值类型（数 / 串 / 字符 / 布尔 / `()`），
+    /// 得到 X」—— 一个**不可变、按值比**的东西当不了键,而内置的 `Range` 能。
+    /// (实测踩过:插件的值类型挂在默认的 `Object` 下,`{ e -> 1 }` 当场被拒。)
+    ///
+    /// 反过来,**有状态、按身份认**的那些(`Ravel.Structures` 的 `Stack` / `Heap` …)
+    /// 就照默认挂在 `Object` 下。</summary>
     public string Parent { get; init; } = "Object";
 }
 

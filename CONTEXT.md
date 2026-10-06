@@ -914,9 +914,18 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 **表达式是个真的 Ravel 值** —— AngouriMath 的 `Entity` 包成了 `CasExprVal`
 (`Ravel.Extensions/CasExpr.cs`,**继承 `RuntimeValue`** 而不是 `ObjectVal`:它是**值**,
 `==` 比内容 —— 和 `Range` / `real` 一个待遇;`StackVal` 那几个容器正好相反)。
-类型对象由 `[RavelClass("Expr")]` **配同一个类上的 `[RavelModule("Cas")]`** 落到
-`Cas.Expr`(`InstallClass` 见模块就把类名登记进那个模块);构造就是把它当构造器调,
-方法由 `[ClassMethod]` 挂上去 —— 就是插件定义类那套(`StackClass` 一个路子)。
+类型对象由 `[RavelClass("Expr", Parent = "ValueType")]` **配同一个类上的
+`[RavelModule("Cas")]`** 落到 `Cas.Expr`(`InstallClass` 见模块就把类名登记进那个模块);
+构造就是把它当构造器调,方法由 `[ClassMethod]` 挂上去 —— 就是插件定义类那套
+(`StackClass` 一个路子)。
+
+**`Parent` 那一格是必须写的**,不是装饰:`[RavelClass]` 的默认值是 `"Object"`,
+而"是不是值类型"在这门语言里**有后果** —— 能不能当**字典的键**、`Key ()` 有没有默认实现、
+去重那一套,判据都是"在不在 `ValueType` 那一支下"(`BuiltinClasses.Methods.cs` 的 `Key`)。
+漏了的话 `{ e -> 1 }` 报「字典的键得是值类型…得到 Expr」:一个不可变、按值比的东西
+当不了键,而 `Range` 能。**插件做值类型时这是最容易漏的一格**(实测踩过),所以
+`RavelClassAttribute.Parent` 那段注释里写死了;反过来"有状态、按身份认"的
+(`Stack` / `Heap` 那些)照默认挂 `Object` 下。
 
 于是两份脸、同一份实现:`Cas.Diff "x^3" "x"` 和 `(Cas.Expr "x^3").Diff "x"`,
 而且**字符串那份交回的也是值**,照样能接着点:
