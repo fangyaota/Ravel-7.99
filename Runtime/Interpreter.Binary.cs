@@ -319,11 +319,23 @@ public partial class Interpreter
         Return(nf, nf.Result(3));
     }
 
-    /// <summary>成员写入前的门禁:core 需要 unsafe,private/protected 看访问控制。</summary>
+    /// <summary>成员写入前的门禁:core 需要 unsafe,internal 一律不许走成员写法,
+    /// private/protected 看访问控制。
+    ///
+    /// **这是唯一一处写门禁** —— 三条成员写路(`a.x = v`、`a.x += v`、`by x.a = v`)都从这儿过。
+    /// 裸名字那条(`x = v`)不经这里,**那正是 `internal` 要的**:它比 `readonly` 松一档 ——
+    /// readonly 连裸名字都不许写(`Variable.CheckWritable`),而 internal 只关**成员写法**这道门,
+    /// 于是"类体里直接写 `x = …`"照旧成立。`this.x = …` 也算成员写法,一样挡。
+    ///
+    /// **这是有意的**:判据只看**写法的形状**,不去算"这段代码在不在这个类里" ——
+    /// 前者一眼看得出、也不怕 `CheckFieldAccess` 那条作用域链有什么边角;
+    /// 想改就在自己那份代码里直接写裸名字。</summary>
     private void CheckMemberAccess(Variable field, ObjectVal obj, string member)
     {
         if (field.HasAttr(Attr.Core) && !IsUnsafe)
             throw new RuntimeException($"字段 '{member}' 是核心字段，需要 unsafe", ErrorKind.Access);
+        if (field.HasAttr(Attr.Internal))
+            throw new RuntimeException($"字段 '{member}' 是 internal，不能这样写（只能在它自己的代码里直接写 '{member} = …'）", ErrorKind.Access);
         if (!CheckFieldAccess(field, obj))
             throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}", ErrorKind.Access);
     }

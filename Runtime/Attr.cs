@@ -9,13 +9,27 @@ namespace Ravel.Runtime;
 ///
 /// **这里的每一个都必须有地方读它** —— `override` / `new` 从前也在这张表里,而全库
 /// 没有一处读它们:写上去等于没写,只是一句看着像承诺的注释(已删,连修饰符一起)。
-/// `public` 是唯一的例外,它是**默认**行为,记下来只为念着顺。</summary>
+/// `public` 是唯一的例外,它是**默认**行为,记下来只为念着顺。
+///
+/// 管**写**的三个是三个不同的轴,别按"松紧"混着想:
+///
+/// | | 裸名字 `x = v` | 成员写法 `a.x = v` / `this.x = v` |
+/// |---|---|---|
+/// | (无) | 可 | 可 |
+/// | `internal` | 可 | **不可** |
+/// | `private` / `protected` | 可 | 看"当前作用域在不在这个类里" |
+/// | `readonly` | **不可** | **不可** |
+///
+/// 所以 `internal` 与 `readonly` 不是同一条路上的两档:`internal` 关的是**成员写法**
+/// 那道门(`Interpreter.CheckMemberAccess`),裸名字那条路它压根不管 —— 于是读还有的读,
+/// 写只能由"它自己那份代码"用裸名字写。`private` 管的是**谁能**,`internal` 管的是**怎么写**。</summary>
 public static class Attr
 {
     public const string Readonly = "readonly";
     public const string Public = "public";
     public const string Private = "private";
     public const string Protected = "protected";
+    public const string Internal = "internal";
     public const string Outdated = "outdated";
     public const string Unreadable = "unreadable";
     public const string By = "by";
@@ -24,6 +38,6 @@ public static class Attr
     /// <summary>全部合法修饰符,解析器靠它认出修饰符位置的 token</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>
     {
-        Readonly, Public, Private, Protected, Outdated, Unreadable, By, Core,
+        Readonly, Public, Private, Protected, Internal, Outdated, Unreadable, By, Core,
     };
 }

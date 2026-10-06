@@ -1173,6 +1173,22 @@ MyClass ::= MyMeta { init := () => { 0; this; }; x: int = 42; }
 - **`private` 回到一件事**：实例侧的门禁（"当前作用域在不在这个对象的类里"）。内置方法不带它
   ——它们在实例表里、谁都读得到；借去当"方向"的那套（`MemberView` 的 `classSide` / `ReadOwn`）
   随两张表一起删了。用户写在自己类里的 `private` 字段照旧只认"本对象内部"那条老规矩。
+- **`internal` 管的是写法的形状,不是"谁能"**：`a.x = v` / `this.x = v` / `a.x += v` /
+  `a.x := v` 一律报「字段 'x' 是 internal…」,而**裸名字**那条路(`x = v`,走
+  `Scope.Assign` → `Variable.CheckWritable`)**它压根不管** —— 于是类体(模块体)自己那份代码
+  用裸名字照写,外面读得到、写不进。所以它比 `readonly` 松:readonly 连裸名字都挡。
+  和 `private` 也不是一条路上的两档 —— `private` 问"**你**是谁",`internal` 问"**怎么写的**"。
+  - 门禁只有**一处**:`Interpreter.CheckMemberAccess`。三条成员写路都从那儿过 ——
+    `a.x = v` / `a.x := v`(`StepMemberAssign`)、`a.x += v`(`StepCompoundAssign`)、
+    `by x.a = v` 换槽(`StepSlotAssign`)。挂在那儿而不是挂 `CheckWritable`,正是"只关成员写法"
+    这条的落点:后者是裸名字那条路也要过的闸。
+  - **判据只看写法,不去算"这段代码在不在这个类里"** —— 那要沿作用域链走一趟
+    (`CheckFieldAccess` 那条,`protected` 用的就是它)。所以 `this.x = …` 也挡掉,这是有意的:
+    想改就在自己那份代码里写裸名字,一眼看得出。
+  - 模块成员同一条规矩 —— `ModuleVal : ObjectVal`,写路一个字都没分叉:模块里的 `internal x`,
+    模块体(裸名字)写得进,外面 `M.x = …` 挡。
+  - 用例 `tests/lang/339_internal.rav`(类 / 子类 / 模块三处都钉了,外加与 `readonly`、
+    普通字段的对照)。
 - **自绑定成员**（`ISelfBinding`：`BuiltinMethodVal`、`ClassOperatorFactory`）读出来要先
   绑接收者 —— 漏了的话 `C.Fields ()` 会把未绑定的内置方法当结果返回(`self` 是 `()`)。
   它和"同步快路径"标记（`BuiltinMethodVal`）**不是一回事**：类运算符工厂也要绑，

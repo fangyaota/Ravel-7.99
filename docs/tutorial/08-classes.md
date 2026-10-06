@@ -202,6 +202,7 @@ Al
 | `public` | 外部可访问（默认）|
 | `private` | 仅本对象内部可访问 |
 | `protected` | 类内 + 子类实例可访问 |
+| `internal` | **只能直接写**（`x = v`）—— 成员写法 `c.x = v` / `this.x = v` 一律报错；读不受限 |
 | `readonly` | `=` 和 `:=` **都**报错（块里的 `:=` 是另开局部变量，不受影响）|
 | `unreadable` | 读取时报「变量 'x' 不可读取」|
 | `outdated` | 读取时往 stderr 打一行 `[outdated] 'x' is deprecated` |
@@ -209,6 +210,46 @@ Al
 | `by` | 属性（getter / setter），见 8.7 |
 
 注意：`readonly` 连 `:=` 也挡 —— 因为 `:=` 换掉的是**整个 Variable**，attrs 跟着老的那个一起没。不挡的话 `true = 1` 报错、`true := 1` 静默成功，同一个"只读"两条路两个答案。
+
+`internal` 关的是**写法的形状**，不是"谁能" —— 它和 `readonly` 不是一条路上的两档，和 `private` 也不是：
+
+| | 裸名字 `x = v` | 成员写法 `c.x = v` / `this.x = v` |
+|---|---|---|
+| 无 | 可 | 可 |
+| `internal` | 可 | **不可** |
+| `private` | 可 | 看"当前作用域在不在这个类里" |
+| `readonly` | **不可** | **不可** |
+
+所以 `private` 问的是"**你**是谁"，`internal` 问的是"**怎么写的**"。`this.x = v` 也挡是有意的：判据只看写法的形状，不去算"这段代码在不在这个类里"（那要沿作用域链走一趟）—— 想改就在自己那份代码里写裸名字，一眼看得出。
+
+#### 实例
+
+```ravel
+C ::= class {
+    internal n: int = 0
+    init = () => { this; }
+    Bump := () => {
+        n = n + 1          # 裸名字：写得进
+        n
+    }
+}
+c := C ()
+print (c.Bump ())
+print (c.n)                # 读一侧不挡
+print (try { c.n = 1; } (e: Exception) => { e.Message; })
+print c.n                  # 上面那句没落进去
+```
+
+执行以上程序会输出如下结果：
+
+```
+1
+1
+字段 'n' 是 internal，不能这样写（只能在它自己的代码里直接写 'n = …'）
+1
+```
+
+模块成员同一条规矩：`ravel "M"` 里写 `internal x`，模块体（裸名字）写得进，外面 `M.x = …` 挡。
 
 注意：**`override` / `new` 已删除**，写出来会明确报错（语言里既没有重载也没有重定义检查，它们从前只是被记进 attrs 没人读）。
 

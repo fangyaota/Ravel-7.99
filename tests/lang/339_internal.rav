@@ -1,0 +1,115 @@
+#
+# **`internal`**:成员写法写不进去,只有"它自己那份代码"用**裸名字**能写。
+#
+# 它和 `readonly` **不是一条路上的两档**,别按松紧混着想 —— 判据是两条不同的轴:
+#
+#             裸名字 `x = v`        成员写法 `a.x = v` / `this.x = v`
+#   (无)           可                        可
+#   internal       可                       **不可**
+#   private        可                 看"当前作用域在不在这个类里"
+#   readonly     **不可**                  **不可**
+#
+# 所以 `readonly` 管的是"**谁都不许改**",`internal` 管的是"**哪种写法不许改**" ——
+# 读一侧两条都不管(`a.x` 照旧谁都能看)。`this.x = …` 也挡是有意的:判据只看**写法的形状**,
+# 不去算"这段代码在不在这个类里"(那要沿作用域链走一趟),想改就在自己那份代码里写裸名字。
+
+Counter ::= class {
+    internal n: int = 0
+    plain: int = 0
+    readonly ro: int = 0
+    init = () => { this; }
+
+    # 类自己的代码:裸名字写得进去
+    Bump := () => {
+        n = n + 1
+        n
+    }
+    # 成员写法 —— 哪怕接收者就是 this —— 写不进去
+    BumpViaThis := () => {
+        try { this.n = 99; } (e: Exception) => { e.Message; }
+    }
+    # 对照:没标修饰符的字段,两种写法都行
+    BumpPlain := () => {
+        this.plain = this.plain + 1
+        plain = plain + 1
+        plain
+    }
+    # 对照:readonly 连裸名字都挡(这才是 internal 比它松的那一格)
+    BumpRo := () => {
+        try { ro = 1; } (e: Exception) => { e.Message; }
+    }
+}
+
+c := Counter ()
+
+# ── 读一侧:internal 什么都不挡 ──
+print c.n
+
+# ── 自己那份代码里,裸名字照写 ──
+print (c.Bump ())
+print (c.Bump ())
+print c.n
+
+# ── this.x = … 也是成员写法,一样挡(而且真的没落进去)──
+print (c.BumpViaThis ())
+print c.n
+
+# ── 对照:普通字段两种写法都行 ──
+print (c.BumpPlain ())
+print c.plain
+
+# ── 三条成员写路全挡:赋值 / 复合赋值 / 定义 ──
+print (try { c.n = 1; } (e: Exception) => { "写: " + e.Message; })
+print (try { c.n += 1; } (e: Exception) => { "复合: " + e.Message; })
+print (try { c.n := 1; } (e: Exception) => { "定义: " + e.Message; })
+print c.n
+
+# ── 对照 readonly:连裸名字都挡(内部改不了)—— 所以 internal **比它松** ──
+print (c.BumpRo ())
+print (try { c.ro = 1; } (e: Exception) => { "readonly 成员写法: " + e.Message; })
+
+# ── 子类:继承来的那一格在实例表里,裸名字同样够得着 ──
+Sub ::= class Counter {
+    Double := () => {
+        n = n * 2
+        n
+    }
+}
+s := Sub ()
+print (s.Double ())
+print (try { s.n = 5; } (e: Exception) => { "子类外: " + e.Message; })
+
+# ── 模块成员同一条规矩(模块也是 ObjectVal,写门禁是同一处)──
+# 模块自己那份代码就是模块体,裸名字在那儿写;外面 `M.x = …` 一律挡。
+ravel "MyMod"
+internal hidden: int = 0
+plain: int = 0
+Set := () => { hidden = 7; hidden; }
+ravel ""
+print MyMod.plain
+print (MyMod.Set ())
+print MyMod.hidden
+print (try { MyMod.hidden = 1; } (e: Exception) => { "模块: " + e.Message; })
+print MyMod.hidden
+# --- expected ---
+# 0
+# 1
+# 2
+# 2
+# 字段 'n' 是 internal，不能这样写（只能在它自己的代码里直接写 'n = …'）
+# 2
+# 2
+# 2
+# 写: 字段 'n' 是 internal，不能这样写（只能在它自己的代码里直接写 'n = …'）
+# 复合: 字段 'n' 是 internal，不能这样写（只能在它自己的代码里直接写 'n = …'）
+# 定义: 字段 'n' 是 internal，不能这样写（只能在它自己的代码里直接写 'n = …'）
+# 2
+# 无法给只读变量 'ro' 赋值
+# readonly 成员写法: 无法给只读变量 'ro' 赋值
+# 0
+# 子类外: 字段 'n' 是 internal，不能这样写（只能在它自己的代码里直接写 'n = …'）
+# 0
+# 7
+# 7
+# 模块: 字段 'hidden' 是 internal，不能这样写（只能在它自己的代码里直接写 'hidden = …'）
+# 7
