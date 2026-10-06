@@ -28,7 +28,7 @@ public record JsonVal : ObjectVal
     public JToken Token { get; init; }
 
     public JsonVal(JToken token, Scope? members = null)
-        : base(BuiltinClasses.Json, members ?? new Scope())
+        : base(BuiltinClasses.Json, members)
         => Token = token;
 
     /// <summary>显示成**紧凑的 JSON 文本**(和 `t.Text ()` 一样)——

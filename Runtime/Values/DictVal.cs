@@ -13,7 +13,7 @@ public record DictVal : ObjectVal
     public Dictionary<RuntimeValue, RuntimeValue> Entries { get; init; }
 
     public DictVal(Dictionary<RuntimeValue, RuntimeValue> entries, Scope? members = null)
-        : base(BuiltinClasses.Dict, members ?? new Scope())
+        : base(BuiltinClasses.Dict, members)
         => Entries = entries;
 
     public override string ToString() => ShowDepth.Guard(() =>

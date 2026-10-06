@@ -49,9 +49,11 @@ public record FunctionVal : ObjectVal
     public bool IsPartial { get; set; }
 
     /// <summary>需要捕获作用域时用(captureScope 参与签名,Body 里可读 CaptureScope)。
-    /// `members` 只有 <see cref="ClassVal"/> 用得上 —— 类对象的成员表由调用方备好(实例作用域)。</summary>
+    /// `members` 只有 <see cref="ClassVal"/> 用得上 —— 类对象的成员表由调用方备好(实例作用域)。
+    /// 别的函数**不传**就行:成员表是**懒建**的,而绝大多数函数(尤其
+    /// `PartialBool` 这种求值中间值)从来没人读它 —— 见 `ObjectVal.Scope`。</summary>
     public FunctionVal(Scope captureScope, Func<Scope, RuntimeValue, RuntimeValue> rawBody, Scope? members = null)
-        : base(null!, members ?? new Scope())
+        : base(null!, members)
     {
         // 基类 ctor 的 `?? this` 是给根元类 `type` 留的自指,函数得改回 Function。
         // (ClassVal 的 ctor 随后会把它改成元类。)

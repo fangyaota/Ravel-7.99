@@ -21,12 +21,26 @@ public record ObjectVal : RuntimeValue
     /// 自指只有 <see cref="ClassVal"/> 能表达(它自己就是类),所以那里是 `?? this`。</summary>
     public ClassVal ClassType { get; internal set; }
 
-    public Scope Scope { get; }
+    /// <summary>这个值的成员表。**懒建**:不传就是"这个值没有自己的成员表",等**真有人读**的时候
+    /// 才开一层。
+    ///
+    /// 为什么值得懒 —— 有一大批值**从来没人读它的成员表**,而它照样每个都先建一层:
+    /// 原子值(那些 `members ?? new Scope ()` 的调用点)、以及**每求值一次条件就造一个**的
+    /// `PartialBool`(`true 块1 块2` 的中间值,`CallInto` 那一臂只读它的 `Value` / `Then`)。
+    /// 量过:一台裸 `while` 循环每轮建 8 个作用域,**其中 4 个是 `PartialBool` 白送的**
+    /// (见 CONTEXT「作用域」那节)。
+    ///
+    /// 懒建的代价是这层判空 —— 它落在取成员那条热路上,所以只值一个 `??=`,
+    /// 别在这儿加别的东西。**建出来之后身份就定了**(`??=` 只可能赋一次),
+    /// 于是 `ReferenceEquals` 那些照旧成立。</summary>
+    public Scope Scope => _scope ??= new Scope();
 
-    public ObjectVal(ClassVal? classType, Scope scope)
+    private Scope? _scope;
+
+    public ObjectVal(ClassVal? classType, Scope? scope)
     {
         ClassType = classType!;
-        Scope = scope;
+        _scope = scope;
     }
 
     /// <summary>最多列几个字段,超出用 ... 收尾</summary>

@@ -13,7 +13,7 @@ public record ListVal : ObjectVal
     /// <param name="members">成员表。`with`/`Copy` 要给副本一张**拷好的**表,
     /// 否则块里 `tag = …` 那种赋值找不到成员(成员表是空的)。</param>
     public ListVal(List<RuntimeValue> elements, Scope? members = null)
-        : base(BuiltinClasses.List, members ?? new Scope())
+        : base(BuiltinClasses.List, members)
         => Elements = elements;
 
     public override string ToString() => ShowDepth.Guard(() => "[" + string.Join(" ", Elements) + "]");

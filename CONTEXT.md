@@ -3223,6 +3223,33 @@ Error: 未定义的变量 'missing'
 `fib 22` + 30 万轮 `while` + 20 万次 `foreach` 那套基准,脚本在 `.scratch` 之外没留 ——
 要复现就照上表那几行写。)
 
+**一台循环要建多少个作用域**(2026-10-07 挂 `[CallerMemberName]` 数出来的)。
+Ravel 层的**每一次调用、每一块执行、每一个 `true 块1 块2`** 都要 `CaptureScope.Push ()`
+一层。裸 `while { i < n; } { i = i + 1; }` 每轮 **8 个**:
+
+| 来源 | 每轮 | 是什么 |
+|---|---|---|
+| `PartialBool` | **4** | `FunctionVal` 基类那句 `members ?? new Scope ()` 白送的**空**表 |
+| 执行块体 | 2 | `blk.CaptureScope.Push ()` |
+| 调 lambda | 1 | `lam.CaptureScope.Push ()` |
+| 守卫/子句选中 | 1 | `true 块1 块2` 选中那支跑块体 |
+
+**头 4 个是白送的** —— `PartialBool` 是 `true 块1 块2` 的中间值,`CallInto` 那一臂只读它的
+`Value` / `Then`,那个成员表从头到尾没人碰。`ObjectVal.Scope` 于是改成**懒建**
+(`_scope ??= new Scope ()`):省掉 4 个 Scope + 4 个 Dictionary = **480 字节/轮**,
+gen0 收集 −6%(对照块 50 万轮 3.95 GB → 3.71 GB)。**墙钟没动**(那 4 个本来就不占多少 CPU)——
+这是一笔**分配**的账,不是速度的账。
+
+还没做的两条:
+
+- **`_vars` 懒建**。`Scope` 身上那个 `Dictionary` 是无条件建的(`_vars = []`),而上下两档里
+  绝大多数层**一个变量都不装**。独立成立,约 7 处访问加判空。
+- **复用作用域**。要碰逃逸分析:谁可能把一层作用域拎走 —— 体里造的闭包(`CaptureScope`)、
+  `System.CurrentScope ()`(交出去的是 `ScopeVal`)、`BodyScope.InstanceScope`、
+  以及"子层活着父层就得活着"。漏一条就是**静默**错值。
+  **两处注定不能复用**:`Activation` 那层(它就是要交给读出来的那个函数当捕获作用域)、
+  `instanceScope`(它就是对象本人)。
+
 所以引擎本身没有"慢函数"可抠(步进循环就是个 switch + 一次帧拷贝),**开销都在
 "一个动作要跑多少步"上** —— 而步数来自库:控制流(`if`/`while`/`foreach`)、
 序列默认实现、`Generator` 光标全是 Ravel 写的,每一次都是完整的调用帧。
@@ -3251,7 +3278,8 @@ Error: 未定义的变量 'missing'
    `ResumeAlternate` 的交替、任务挂起……漏一处就是静默错值)。
    每步 **135 字节**的分配就是这么来的,也是 Release 与 Debug 差 3.9 倍之外唯一还压着的成本。
    已经抠掉的:取成员的类链缓存(`MemberView.ClassChain`)、字面量只解析一次、
-   `BoxedValue` 改结构体、运算符不预先绑 `self`、整数池(`IntVal.Of`)。
+   `BoxedValue` 改结构体、运算符不预先绑 `self`、整数池(`IntVal.Of`)、
+   `ObjectVal.Scope` 懒建(上面那张表里那 4 个白送的作用域)。
 
 ## 测试
 

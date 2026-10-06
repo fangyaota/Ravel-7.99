@@ -20,7 +20,7 @@ public record PropertyVal : ObjectVal
     public Variable? Var { get; init; }
 
     public PropertyVal(FunctionVal getter, FunctionVal setter, Variable? var = null, Scope? members = null)
-        : base(BuiltinClasses.Property, members ?? new Scope())
+        : base(BuiltinClasses.Property, members)
     {
         Getter = getter;
         Setter = setter;
