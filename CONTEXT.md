@@ -3004,9 +3004,16 @@ Error: 未定义的变量 'missing'
 1. **少跑几步**(库那一侧)。表里那两行差得最刺眼,根子都是"本来引擎有更短的路":
    `foreach` 走的是库写的 `MoveNext` / `Current` 协议,而 `.Each` 走引擎的 `SeqMethod` ——
    同一个 List,**3.6 倍**;`Range` 的 `GetEnumerator` 交回的是 Ravel 写的 `Generator`
-   (续延光标,**每个元素捕获一次**),和 `List` 那条比是 **8.3 倍**
-   (`Generator` 每个元素都走一趟 `callcc` —— 2026-10-06 那轮 callcc 优化把它从
-  94 µs 拉到 74 µs,但大头还在"每元素一次捕获"这个形状上)。给 `Range` 一个引擎原生的枚举器、
+   (续延光标),和 `List` 那条比是 **8.3 倍**。
+   **但别把这 8.3 倍记到 `Generator` 头上** —— 同一个驱动、同一套 `MoveNext`/`Current`
+   协议量下来,把生成器光标换成纯索引光标只省 **~12 µs/元素**(42.2 → 30.2),
+   占那条路的 **~16%**。`Generator` 每元素两次捕获(`MoveNext` 一枚、`Yield` 一枚)
+   是这个 API 的形状要的,减不掉;能砍的只是捕获的常数(2026-10-06 那轮砍了 21%:
+   94 → 74)。
+   大头在**另一半**:`List` / `Set` / `Dict` 的 `Each` / `Map` / `Where` 是**引擎的
+   `SeqMethod`**(`RegisterHigherOrderMethods`),而 **`Range` 没注册** —— 它走的是
+   **库的 `IEnumerable` 默认实现**(`lib/iterator.rav` 里 `Each` = `foreach` + 每元素一个
+   lambda,而 `foreach` 自己也是库函数)。同样是"遍历一串",一个走引擎、一个走库。给 `Range` 一个引擎原生的枚举器、
    让 `foreach` 也走引擎那条,都能拉近 —— 但两条都改的是**可观察的行为边界**
    (`GetEnumerator ()` 交回什么、`foreach` 是不是"只是个库函数"),所以没做:
    要做先想清楚值不值。
