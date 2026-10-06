@@ -1,23 +1,36 @@
 # Cas 模块 —— **符号计算**(计算机代数)。**要显式引用**:`using "cas.rav"` 之后
 # `Cas.xxx` 才是一个名字(和 `Math` 一个规矩 —— 它俩都拖着一整个库,不该谁都白拿)。
 #
-#       Cas.Simplify "sin(x)^2 + cos(x)^2"     # 1
-#       Cas.Diff "x^3" "x"                     # 3 * x ^ 2
-#       Cas.Solve "x^2 = 4" "x"                # { 2, -2 }
+# **函数体是 C# 造的**(`Ravel.Extensions/CasNative.cs` 与 `CasExpr.cs`,底层是
+# **AngouriMath 2.5.0**,MIT),和 `Hash` / `Math` 那些一样是**官方扩展**里的 `Native` 一族
+# —— 下面那行把它装进来。
 #
-# **函数体是 C# 造的**(`Ravel.Extensions/CasNative.cs`,底层是 **AngouriMath 2.5.0**,MIT),
-# 和 `Hash` / `Math` 那些一样是**官方扩展**里的 `Native` 一族 —— 下面那行把它装进来,
-# 成员落在 `Cas` 模块里。
+# 两份脸,同一份实现:
 #
-# 三条要记的:
+#       Cas.Diff "x^3" "x"                       # 随手传字符串
+#       (Cas.Expr "x^3").Diff "x"                # 先攥成值再点下去
 #
-#   * **入参是字符串,用的是 AngouriMath 那套语法**(`x^2 + 2x + 1` / `sin(x)`),
-#     不是 Ravel 的语法。交回的也是那一套 —— 能再喂回去。
-#   * **`Eval` 是唯一"回到数"的那条**:它交 **real**,别的一律交字符串。
+# **表达式是个真的 Ravel 值**(`CasExprVal`,继承 `RuntimeValue` —— 和 `Range` / `real`
+# 一个待遇):类型对象是 `Cas.Expr`,方法**交回一个新的 CasExpr**,所以能一路点下去:
+#
+#       (Cas.Expr "x^2 - 1").Factor ().Solve "x"
+#       ((Cas.Diff "x^3" "x")).Simplify ()       # 字符串那份交回的**也是值**
+#
+# 几条要记的:
+#
+#   * **入参用 AngouriMath 那套语法**(`x^2 + 2x + 1` / `sin(x)`),不是 Ravel 的。
+#     `print` / `Text ()` 交回的也是那一套,能再喂回去。
+#   * **`Eval` 是唯一"回到数"的那条**:交 **real**;`Latex` / `Text` 交字符串,
+#     别的一律交 `CasExpr`。
+#   * **`Solve` 要一个方程**(`"x^2 = 4"`),第二个参数是**变量名**(`"x"`)——
+#     光给式子它报 "There should be statement to be true"(库里那句是英文的)。
+#   * **`==` 是结构比较**,不是代数相等:`x^2 - 1` 和 `(x-1)*(x+1)` 是两棵树 → false。
+#     要"代数上相等吗"就各自先 `Simplify`。
+#   * **不自动化简**:`Diff` / `DiffN` 交的是库里算出来的原样(`DiffN "x^3" "x" 2` 给
+#     `2 * x * 3`),要整齐再套 `Simplify` —— 贵不贵由调用方说了算。
 #   * 解析不了 / 解不动,报的是 `RuntimeException`(C# 那边的异常被就地翻过一道)——
 #     所以 `try` 接得住,不会把进程打掉。
 #
-# 这一版**表达式不是 Ravel 的值**:`Cas.Diff "x^3" "x"`,不是 `(x^3).Diff x`。
-# 要让它变成值类型,得给 `Entity` 加一个 `RuntimeValue` 子类、再把那几条做成它的成员 ——
-# 那是另一笔。
+# **还没有的**:`+` / `-` / `*` / `/` 那几个**运算符**(插件那条 API 没露出来,
+# 见 `PluginKit`)—— 要拼式子就在字符串里写。
 using "native.rav"

@@ -911,19 +911,39 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
     Cas.Eval s                           # **唯一"回到数"的那条**:交 real
     Cas.Latex s
 
-三条定下来的:
+**表达式是个真的 Ravel 值** —— AngouriMath 的 `Entity` 包成了 `CasExprVal`
+(`Ravel.Extensions/CasExpr.cs`,**继承 `RuntimeValue`** 而不是 `ObjectVal`:它是**值**,
+`==` 比内容 —— 和 `Range` / `real` 一个待遇;`StackVal` 那几个容器正好相反)。
+类型对象由 `[RavelClass("Expr")]` **配同一个类上的 `[RavelModule("Cas")]`** 落到
+`Cas.Expr`(`InstallClass` 见模块就把类名登记进那个模块);构造就是把它当构造器调,
+方法由 `[ClassMethod]` 挂上去 —— 就是插件定义类那套(`StackClass` 一个路子)。
 
-- **入参是字符串,用 AngouriMath 自己的语法**(`x^2 + 2x + 1` / `sin(x)`),不是 Ravel 的;
-  交回的也是那一套(能再喂回去)。**表达式没有变成 Ravel 的值类型** ——
-  所以是 `Cas.Diff "x^3" "x"` 而不是 `(x^3).Diff x`。要那样得给 `Entity` 加一个
-  `RuntimeValue` 子类,是另一笔。
+于是两份脸、同一份实现:`Cas.Diff "x^3" "x"` 和 `(Cas.Expr "x^3").Diff "x"`,
+而且**字符串那份交回的也是值**,照样能接着点:
+
+    (Cas.Expr "x^2 - 1").Factor ().Solve "x"
+    ((Cas.Diff "x^3" "x")).Simplify ()
+
+四条定下来的:
+
+- **入参用 AngouriMath 自己的语法**(`x^2 + 2x + 1` / `sin(x)`),不是 Ravel 的;
+  `print` / `Text ()` 交回的也是那一套(能再喂回去)。
 - **不自动化简**:`Diff` / `DiffN` 交回库里算出来的原样(`DiffN "x^3" "x" 2` 给
   `2 * x * 3`),要整齐再套一层 `Simplify`。这样"贵不贵"由调用方说了算,没有隐藏开销。
+- **`Solve` 要一个方程**(`"x^2 = 4"`),第二个参数是**变量名**。光给式子 AngouriMath
+  报的是英文那句 "There should be statement to be true" —— 见下。
+- **`==` 是结构比较**(record 的 `Equals`,`Entity` 那边也是结构比)—— 所以
+  `x^2 - 1 != (x-1)*(x+1)`(没化简过就是两棵树)。要代数相等先各自 `Simplify`。
 - **异常一律就地翻成 `RuntimeException`**(`CasNative.Guard`):AngouriMath 抛的是
   `ParseException` / `ArgumentException` 那些,而 Ravel 的 `try` **只接得住
   `RuntimeException`** —— 不翻的话用户包不住,进程直接被打掉。另外 `MathS.Parse`
   在 2.5.0 交的是 `Either<Entity, Failure<…>>`(解析**在类型上**就可失败),
   **别用那个隐式拆包** —— 它失败时抛 `InvalidCastException`,消息还是英文的。
+  库自己那几句英文**照原样透出去**(只加 `Cas: ` 前缀)—— 翻译别人库的报错不是个能兜住的事,
+  所以几条常见的(比如 `Solve` 要方程)在 `lib/cas.rav` 里先写明。
+
+**还没有的**:`+` / `-` / `*` / `/` 那几个**运算符** —— 插件那条 API 没露出来
+(`PluginKit` 里没有 `DefineOp`),要拼式子就在字符串里写。
 
 **依赖代价**:它拖来 4 件 —— `Antlr4.Runtime.Standard`(它自己的解析器)、`GenericTensor` /
 `HonkSharp` / `PeterO.Numbers`(程序集名叫 `Numbers.dll`),**共 2.1 MB**,
