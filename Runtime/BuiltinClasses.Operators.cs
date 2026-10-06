@@ -412,12 +412,19 @@ internal static partial class BuiltinClasses
         return f(na, da, nb, db);
     }
 
-    /// <summary>分数运算的结果收窄回 int32。fraction 是 32 位的类型,装不下就明说改用 bigfraction,
-    /// 别静默回绕。</summary>
+    /// <summary>收窄回 int32 时**装不下就明说**改用 bigfraction,别静默回绕。
+    /// 判据和那句话说一份 —— 两个入口(见下)各摊一遍的话,改口径时必漏一处。</summary>
+    private static void FitsFraction(bool tooBig)
+    {
+        if (tooBig)
+            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+    }
+
+    /// <summary>分数运算的结果收窄回 int32。
+    /// **`long` 那条是主力** —— int×int 的积一定装得进它,不必惊动 `BigInteger`。</summary>
     private static RuntimeValue MakeFraction(long num, long den)
     {
-        if (num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue)
-            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+        FitsFraction(num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue);
         return new FractionVal((int)num, (int)den);
     }
 
@@ -425,8 +432,7 @@ internal static partial class BuiltinClasses
     /// (`(fraction 2000000000 1) ** 20` 是个 190 位的数)。</summary>
     private static RuntimeValue MakeFraction(System.Numerics.BigInteger num, System.Numerics.BigInteger den)
     {
-        if (num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue)
-            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+        FitsFraction(num < int.MinValue || num > int.MaxValue || den < int.MinValue || den > int.MaxValue);
         return new FractionVal((int)num, (int)den);
     }
 
