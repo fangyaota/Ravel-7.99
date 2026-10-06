@@ -112,15 +112,18 @@ using "expected.rav"   # `Expected` / `Expect`(Option 的兄弟:失败那半是�
 #
 # 它在把续延交给用户之前先拍两份**控制状态**的快照:
 #   ① 自己的 handler 栈(`Ex.HandlerStack` —— 它是这个库的状态,就在 Ravel 里那个 list 上);
-#   ② 引擎的**模块加载状态**(`System.LoadingState` —— 哪个模块正在加载,那是引擎的家事)。
+#   ② 引擎的**模块加载状态**(哪个模块正在加载)—— 那是**引擎的家事**,所以由**引擎**
+#      在 `System.CallCC` 捕获时拍下来、续延被调时自己盖回去(`ContinuationVal.Loading`)。
+#      这一格**不在这儿**了:从前每次调用续延都得从这儿喊一遍 `System.RestoreLoading`,
+#      一次内置调用 ≈ 0.65 µs —— 循环里就是每轮,占一轮 `while` 的 11%。
 # 用户拿到的续延被调用时,先把这两份还原、再跳。于是:
 #   * 用外层续延从 `try` 体里逃出去,那个 handler 跟着走掉,不会留下僵尸 handler
 #     (僵尸会接住后面**没人接**的错误,而它的续延停在早被丢弃的链上);
 #   * 从模块体里逃出去,这次加载算没发生,之后还能正常 `using` 那个模块。
 # 这两件事从前靠帧的正常收尾来做,而续延一调就把帧链整个丢掉了。
 #
-# 还原那两句必须是**一条内置调用**(复制一份列表、把引擎那份换掉):别在中间用
-# `while` / `foreach` / `try` —— 它们自己都要经过续延,会互相踩(实测死循环)。
+# 还原这**一句**(`Ex.HandlerStack = hs`)是整表替换,不经过 `while` / `foreach` / `try`
+# 这类东西 —— 它们自己都要经过续延,夹在还原中间会互相踩(实测死循环)。改这一段时留意。
 #
 # 它写在子模块**之后**:要用 `Ex.HandlerStack`,而 `Ex` 在 exceptions.rav 里。
 readonly callcc := (f: function) => {
@@ -130,13 +133,11 @@ readonly callcc := (f: function) => {
         # (从前两边各 `Copy ()` 一次;还原那次是**每次调用续延**都跑的 —— 循环里就是每轮,
         #  实测占一轮 `while` 的 10%。)
         hs := Ex.HandlerStack
-        ms := System.LoadingState ()
         # 交给用户的那枚用 `Continuation` 包一下 —— 类型上它就是**续延**(typeof 给
         # `Continuation`,能注解成 `Continuation` 的字段),而不是一个说不清的 lambda。
         # 调的走法没变:先进这枚 lambda(还原控制状态),再 `k x` 跳回捕获点。
         f (Continuation ((x: object) => {
             Ex.HandlerStack = hs
-            System.RestoreLoading ms
             k x
         }))
     }

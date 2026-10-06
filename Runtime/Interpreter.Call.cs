@@ -117,6 +117,9 @@ public partial class Interpreter
                 if (k.Captured is null)
                     throw new RuntimeException("这枚续延是 default（还没到手的那一枚），调不了 —— "
                                              + "能跳的续延只有 callcc 交出来的那种", ErrorKind.Value);
+                // 引擎自己那份控制状态(模块加载栈)盖回捕获那一刻 —— 见 `ContinuationVal.Loading`。
+                // **放在跳之前**:和库里原来那两句的顺序一样(先还原、再 `k x`)。
+                RestoreLoadingIfNeeded(k.Loading);
                 _top = k.Captured.WithResult(arg);
                 break;
             case BoolVal bv:

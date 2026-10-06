@@ -2,9 +2,11 @@ namespace Ravel.Runtime;
 
 /// <summary>callcc 续延:捕获帧链引用,调用时还原并塞结果(持久帧→多发射天然支持)。调用走 CallInto 的 ContinuationVal 分支。
 ///
-/// **控制状态(handler 栈、模块加载栈)不在这里** —— "续延被调时该还原什么"是**策略**,
-/// 由 predefined.rav 里 `callcc` 那层包装定;引擎只提供 `System.ControlState` /
-/// `System.RestoreControl` 两个原语。
+/// **控制状态分两半,归属也分两半**:
+/// * **模块加载栈**是**引擎的家事** —— `System.CallCC` 捕获时拍一份
+///   (<see cref="Loading"/>),续延被调时引擎自己盖回去,库不必管;
+/// * **handler 栈**是**库的状态**(就在 Ravel 里那个 list 上)—— 由 predefined.rav 里
+///   `callcc` 那层包装自己拍自己还原,引擎不掺和。
 ///
 /// 它是**自己的类型**(`Continuation &lt;: Function`)。续延本来就"是个函数" —— 能调、
 /// 能存进字段、能当参数传,所以父类是 `Function`(`is function` 照旧成立)。但 `typeof`
@@ -29,6 +31,20 @@ public sealed record ContinuationVal(Frame? Captured, FunctionVal? Jump = null)
     /// 去的地方。做成"空操作"是不行的 —— 那样控制权静静留在原地、调用方还以为跳过了,
     /// 而这正是它当哨兵用的场合(生成器里"还没起跑")最不该静的地方。</summary>
     public static readonly ContinuationVal Default = new((Frame?)null);
+
+    /// <summary>捕获那一刻**引擎自己那份控制状态**(模块加载栈)的快照。
+    ///
+    /// **由引擎拍、也由引擎还原** —— 续延被调时,`CallInto` 先把它盖回去再跳。
+    /// 从前这是库里 `callcc` 的活(每次调用都喊一遍 `System.LoadingState` / `RestoreLoading`),
+    /// 而那两次喊是**每次调用续延**都跑的:循环里就是每轮,一次内置调用 ≈ 0.65 µs,
+    /// 占一轮 `while` 的 11%。搬进引擎之后那次判断是 C# 里一句比较,不要钱。
+    ///
+    /// **handler 栈不在这儿** —— 那是**库**的状态(就在 Ravel 里那个 list 上),
+    /// 库自己拍、自己还原,引擎照样不掺和(见 `lib/predefined.rav` 的 `callcc`)。
+    ///
+    /// `null` = 这一枚不是 `System.CallCC` 交出来的(`Continuation f` 包出来的那种,
+    /// 它只转发给里面那枚;还有 `Default`),那就没什么可还原的。</summary>
+    public RuntimeValue? Loading { get; init; }
 
     /// <summary>是"还没到手"的那一枚吗</summary>
     public bool IsDefault => Captured is null && Jump is null;

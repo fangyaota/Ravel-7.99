@@ -78,8 +78,11 @@ public partial class Interpreter
     {
         if (cf.Count == 0)
         {
-            // 控制状态的拍 / 还原由**库**决定(见 predefined.rav 里 callcc 的包装),引擎不掺和
-            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"), new ContinuationVal(cf));
+            // **引擎自己那份**控制状态(模块加载栈)在这儿拍下来、跳转时自己盖回去 ——
+            // 它是引擎的家事(见 `ContinuationVal.Loading`)。**handler 栈仍旧不掺和**:
+            // 那是库的状态,库自己拍自己还原(`lib/predefined.rav` 的 `callcc`)。
+            CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"),
+                     new ContinuationVal(cf) { Loading = SnapshotLoading() });
             return;
         }
 
@@ -88,9 +91,9 @@ public partial class Interpreter
 
     /// <summary>using/ravel 的模块加载。模块体执行期间要一直把它记在 `_loading` 里,
     /// 循环引用才检测得到——所以 push 在这里、pop 在块跑完那一步(State 存路径,顺带当已 push 的凭据)。
-    /// pop 依赖帧的正常收尾,而 callcc 逃生会把这条链整个丢掉 —— 所以 `_loading` 也在
-    /// `System.ControlState` 那份快照里,由库里的 `callcc` 包装在续延被调时还原
-    /// (见 `Interpreter.SnapshotControl` / `RestoreControl`)。</summary>
+    /// pop 依赖帧的正常收尾,而 callcc 逃生会把这条链整个丢掉 —— 所以 `_loading` 也跟着
+    /// 续延走:`System.CallCC` 捕获时拍一份(`ContinuationVal.Loading`),续延被调时由引擎
+    /// 自己盖回去(见 `RestoreLoadingIfNeeded`)。</summary>
     private void StepUsing(ControlFrame cf)
     {
         if (cf.Count == 0)

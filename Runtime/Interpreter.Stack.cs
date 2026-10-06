@@ -129,6 +129,22 @@ public partial class Interpreter
     /// 快照只收 `_loading`,**不拷 `_loaded`**:被中断的加载在 <see cref="RestoreLoading"/> 那侧
     /// 按"此刻还在 `_loading` 里、快照里没有"算出来(否则每次 `callcc` 都要拷一遍已加载表)。
     /// 空是常态(绝大多数 `callcc` 都不在模块体里跑),那时给一个共享的空表,不分配。</summary>
+    /// <summary>续延被调时,把**引擎自己那份**控制状态(模块加载栈)盖回捕获那一刻。
+    ///
+    /// **只在这真有事要干时才动** —— 绝大多数续延(循环、生成器)捕获与调用之间根本没人
+    /// 加载模块:那会儿捕获到的就是共用的空表、`_loading` 也是空的,一句比较就过去了。
+    /// 从前这是库每次调用都喊一遍 `System.RestoreLoading`(一次内置调用 ≈ 0.65 µs,
+    /// 占一轮 `while` 的 11%)—— 判断放回引擎之后那一趟是 C# 里的引用比较,不要钱。
+    ///
+    /// `null` = 不是 `System.CallCC` 交出来的那枚(`Continuation f` 包出来的、`default`),
+    /// 没什么可还原。见 <see cref="ContinuationVal.Loading"/>。</summary>
+    private void RestoreLoadingIfNeeded(RuntimeValue? snap)
+    {
+        if (snap is null) return;
+        if (ReferenceEquals(snap, EmptyLoading) && _loading.Count == 0) return;
+        RestoreLoading(snap);
+    }
+
     internal RuntimeValue SnapshotLoading()
     {
         if (_loading.Count == 0) return EmptyLoading;
