@@ -12,7 +12,8 @@
 #
 # **这是例子,不是用例**:放在 `examples/` 里,不进 `tests/` 那套(从前是 tests/125,
 # 每加一个类型都要重钉一遍,而它钉的只是"树长什么样"这一件事)。
-# 下面的 `# --- expected ---
+# 下面这份是 `Types.PrintTree object` 的输出(改过类型树就照实际重打一遍)。
+#
 # Object [Type]
 # ├── Integer [Type]
 # ├── Real [Type]
@@ -35,7 +36,7 @@
 # ├── Void [Type]
 # ├── BaseInterface [Interface]
 # │   ├── IValue [Interface]
-# │   │   └── 实现 ← Void Bool Range Char String BigFraction Fraction BigInt Real Integer
+# │   │   └── 实现 ← Integer Real Bool String Char BigInt Fraction BigFraction Range Void
 # │   ├── INumber [Interface]
 # │   │   └── 实现 ← BigFraction Fraction BigInt Real Integer
 # │   ├── IMonad [Interface]
@@ -50,7 +51,7 @@
 # │   │   └── 实现 ← String Char BigFraction Fraction BigInt Real Integer
 # │   ├── IDict [Interface]
 # │   │   └── 实现 ← Keyed Scope Dict
-# │   └── 实现 ← Expected Keyed Scope Dict String Char BigFraction Fraction BigInt Real Integer Time GeneratorCursor Generator Enumerator Option Range Set List Void Bool
+# │   └── 实现 ← Integer Real Bool String Char BigInt Fraction BigFraction Range Void Expected Keyed Scope Dict Time GeneratorCursor Generator Enumerator Option Set List
 # ├── Ravel [Type]
 # ├── Exception [Type]
 # │   ├── TypeError [Type]
