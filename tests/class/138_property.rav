@@ -217,19 +217,24 @@ D ::= class {
 d := D ()
 print (d.z)
 
-# 内建的构造器比默认那份具体,所以仍然赢:object 的类体先跑,List 的预设类体后跑
-MyInt ::= class int { 0; }
-print (MyInt "42")
-MyList ::= class list { 0; }
-print (MyList default)
-try { MyList (); } (e: Exception) => { print ("1: " + string e); }
+# 内建的构造器比默认那份具体,所以仍然赢:object 的类体先跑,Json 那个转换器后跑。
+# **`Json` 没被 seal**(不是值类型、也不是集合),所以它还能被继承 —— 这条要留着,
+# 它盯的是"祖先链上后跑的那份类体赢",和封不封口无关。
+MyJson ::= class Json { 0; }
+print (MyJson { "a" -> 1 })
+
+# **值类型 / 集合类型封口了** —— 继承不进来了(见 `BuiltinClasses.SealBuiltins`)。
+# 从前这两条是"白拿内建构造器"的用法(`MyInt ::= class int { … }` 之后 `MyInt "42"` 转出个 42),
+# 现在挡在建类那一步;`print (MyInt "42")` 那份能力跟着没了。
+try { MyInt ::= class int { 0; }; } (e: Exception) => { print ("1: " + string e); }
+try { MyList ::= class list { 0; }; } (e: Exception) => { print ("2: " + string e); }
 
 # object 自己现在也能构造了(它的类体就是那份默认构造器)
 print (System.Object ())
 
 # 但**没有自己类体**的类型还是不能当构造器调(护栏在 CallClassInto 上)
-try { System.Void (); } (e: Exception) => { print ("2: " + string e); }
-try { System.Every (); } (e: Exception) => { print ("3: " + string e); }
+try { System.Void (); } (e: Exception) => { print ("3: " + string e); }
+try { System.Every (); } (e: Exception) => { print ("4: " + string e); }
 ravel ""
 
 # ═══ 212_default_property(并入) ═══
@@ -356,12 +361,12 @@ ravel ""
 # 2
 # D.init
 # 3
-# 42
-# []
-# 1: 类型 List 不能作为构造器调用
+# {"a":1}
+# 1: `Integer` 被 seal 了 —— 不能再被继承
+# 2: `List` 被 seal 了 —— 不能再被继承
 # Object {}
-# 2: 类型 Void 不能作为构造器调用
-# 3: 类型 Every 不能作为构造器调用
+# 3: 类型 Void 不能作为构造器调用
+# 4: 类型 Every 不能作为构造器调用
 # <function>
 # 1
 # <function>

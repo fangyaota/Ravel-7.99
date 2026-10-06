@@ -48,14 +48,17 @@ public record ClassVal : FunctionVal
 
     /// <summary>这个类型的值**是不是"值类型"**(不可变、按值比、能当字典的键)。
     ///
-    /// **它是接口 `IValue` 那支的物化索引**,不是另立一套:`RegisterUse` 见到
-    /// `impl (IValue X …)` 登记就把 X 标上,`Dispose` 作废时清掉(见 `BuiltinClasses`)。
+    /// **它是接口 `IValue` 那支的物化索引**,不是另立一套。写这一格的就两处:
+    /// `BuiltinClasses.SealBuiltins`(内置那 10 个值类型)与 `PluginApi`
+    /// (`[RavelClass(Implements = "IValue")]`)。**用户代码写不进来** —— `IValue` 封了
+    /// (见 `SealBuiltins`),`impl` 那条路进不去;从前 `lib/values.rav` 里那批 `impl` 也撤了。
     ///
     /// 为什么要有这么一格:判据那条路(`CanBeKey`)跑在 `dict.SysGet` / `SysSet` 那些
     /// **同步 C#** 操作里,那儿**拿不到解释器**,问不了 `HasTrait` —— 而为了问一句
     /// 就得把解释器一路传进字典底层,不值当。索引 O(1)、不吃解释器。
     ///
-    /// **它和接口必须一起对**:改 `lib/values.rav` 里那批 `impl` 就得想到这儿。
+    /// **它和接口必须一起对**:谁往这一格写,`HasTrait (…, IValue)` /
+    /// `Implements ()` / `Implementors ()` 三处就一起改了口径(都在 `BuiltinClasses.Interfaces.cs`)。
     /// (从前这是类型树上 `ValueType` 那一支,靠 `IsAssignableTo` 问 —— 那也正是
     /// `bool` / `()` 进不来的原因:单继承链放不下两个正交的分类。)</summary>
     internal bool IsValueLike;

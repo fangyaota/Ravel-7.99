@@ -1,0 +1,135 @@
+#
+# **`seal`** —— 密封一个类:此后**不能再被继承**;密封**接口**则是**不能再被实现**。
+#
+#     seal 某个类      # 交回那个类自己(可串),幂等
+#
+# 挡住的两件事走**同一条判据**(`BuiltinClasses.SealedUp` —— 自己**或任一祖先**密封了):
+#
+#   * **建类 / 建接口** —— `class 那个密封的类 { … }`,落在 `Install` 上
+#     (那是**唯一**的建类入口,`interface X 父 { … }` 也走它);
+#   * **造实现** —— `impl (那个密封的接口 某个类 { … })`,落在 `StepImplMake` 上。
+#
+# 判据是"自己**或任一祖先**",不是只看直接那层:密封说的是**这条继承链到此为止**——
+# 已经存在的那层子类下面也不能再长。接口同理:实现了**子接口**照样是在实现它。
+#
+# **密封的是"能不能再往下长",不是"能不能用"**:密封的类照常实例化、照常当注解;
+# 密封的接口照常 `x : I`;**seal 之前已经建好的那些实现也照常生效**(它是关门,不是撤销)。
+
+Base ::= class {
+    init = () => { this; }
+    hi := () => { "hi"; }
+}
+print (seal Base)            # 交回那个类自己
+seal Base                    # 幂等:再来一次不报错
+print Base
+
+# ── 不能再被继承 ──
+print (try { Sub ::= class Base {
+    init = () => { this; }
+}; } (e: Exception) => { "继承: " + e.Message; })
+
+# ── 但**用**它照旧 ──
+b := Base ()
+print (b.hi ())
+print (b : Base)
+print (Base.Subtypes ())
+
+# ── 接口:不能再被实现 ──
+I ::= interface {
+    ()
+}
+C1 ::= class {
+    init = () => { this; }
+}
+impl (I C1 {
+    ()
+})
+c1 := C1 ()
+print (c1 : I)               # seal 之前建好的实现照常
+seal I
+C2 ::= class {
+    init = () => { this; }
+}
+print (try { impl (I C2 {
+    ()
+}); } (e: Exception) => { "实现: " + e.Message; })
+print (try { I2 ::= interface I {
+    ()
+}; } (e: Exception) => { "继承接口: " + e.Message; })
+
+# ── 封的是**祖先**也一样:子类下面也长不出来 ──
+A ::= class {
+    init = () => { this; }
+}
+B ::= class A {
+    init = () => { this; }
+}
+seal A
+print (try { D ::= class B {
+    init = () => { this; }
+}; } (e: Exception) => { "隔一层: " + e.Message; })
+
+# ── 不是类(实例 / 别的值)──
+print (try { seal 5; } (e: Exception) => { "不是类: " + e.Message; })
+
+# ═══ 引擎自己也用它:内置那几支**一建出来就封好了** ═══
+# (见 `BuiltinClasses.SealBuiltins`:10 个值类型 + `List`/`Set`/`Dict` + `IValue`。)
+# 理由:那几支的形状是引擎定死的 —— `int` 的构造器认字符串、`List` 的预设类体、
+# "谁按值比"那份名单,全是 C# 侧装上去的;放进来继承只会长出一个引擎不认的子类型。
+print (try { MyInt ::= class int { 0; }; } (e: Exception) => { "int: " + e.Message; })
+print (try { MyList ::= class list { 0; }; } (e: Exception) => { "list: " + e.Message; })
+print (try { MyDict ::= class dict { 0; }; } (e: Exception) => { "dict: " + e.Message; })
+print (try { MyR ::= class Range { 0; }; } (e: Exception) => { "range: " + e.Message; })
+
+# `IValue` 封得靠前一步:**用户实现不了新的值类型了** —— 名单归引擎/插件
+# (插件那条路是 `[RavelClass(Implements = "IValue")]`,直接写索引,不走 `impl`)。
+print (try { I2 ::= interface IValue { (); }; } (e: Exception) => { "接口: " + e.Message; })
+MyC ::= class {
+    init = () => { this; }
+}
+print (try { impl (IValue MyC { (); }); } (e: Exception) => { "impl: " + e.Message; })
+
+# 但**名单照旧问得出来**:它不在登记表里,在 `ClassVal.IsValueLike` 那格索引里 ——
+# `GetImplements` / `GetImplementors` 那两条查询因此各多认一句。
+print (int.GetImplements ())
+print (bool.GetImplements ())
+
+# 反面那一条也认这本账 —— 不过**插件带来的类也在里头**(谁 `using` 了插件就有,
+# 而那和用例的跑序有关),所以只问"内置那 10 个在不在",不整份打印。
+builtinValues := [int real bigint fraction bigfraction string char Range bool void]
+imps := IValue.GetImplementors ()
+hasValue := (v: object) => {
+    imps.Any (t: object) => { (string t) == (string v); }
+}
+print (builtinValues.All hasValue)
+
+# 而**用**它们一点没变:当字典的键、`x : IValue`、进类型树
+print (1 : IValue)
+print (true : IValue)
+d := {}
+d.Set 1 "一"
+print (d.Get 1)
+# --- expected ---
+# Base
+# Base
+# 继承: `Base` 被 seal 了 —— 不能再被继承
+# hi
+# true
+# [Every]
+# true
+# 实现: `I` 被 seal 了 —— 不能再被实现
+# 继承接口: `I` 被 seal 了 —— 不能再被继承
+# 隔一层: `A` 被 seal 了 —— 不能再被继承（`B` 就在它的链上）
+# 不是类: seal 要一个类（或接口），得到 Integer
+# int: `Integer` 被 seal 了 —— 不能再被继承
+# list: `List` 被 seal 了 —— 不能再被继承
+# dict: `Dict` 被 seal 了 —— 不能再被继承
+# range: `Range` 被 seal 了 —— 不能再被继承
+# 接口: `IValue` 被 seal 了 —— 不能再被继承
+# impl: `IValue` 被 seal 了 —— 不能再被实现
+# [IValue BaseInterface IKey IComparable INumber]
+# [IValue BaseInterface]
+# true
+# true
+# true
+# 一

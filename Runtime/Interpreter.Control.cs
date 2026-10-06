@@ -330,6 +330,13 @@ public partial class Interpreter
             // 生效中的)。放在造实现这一步,是因为"已经实现"是作用域里的事(实现登记在 scope 上),
             // 而这里手里正好有求值器。
             var trait = impl.Type;   // 接口对象(这个实现的类)—— 要求表挂在它那张
+
+            // **密封的接口不能再被实现** —— 判据和建类那条同一个(`BuiltinClasses.SealedUp`):
+            // 自己或任一祖先密封了都挡。走在**要求表**前面:那是前置条件,这是硬门。
+            if (BuiltinClasses.SealedUp(trait))
+                throw new RuntimeException(
+                    $"`{trait.DisplayName}` 被 seal 了 —— 不能再被实现", ErrorKind.Access);
+
             if (trait.Scope.LookupField(ObjectVal.RequiresMember)?.Value is ListVal reqs)
                 foreach (var r in reqs.Elements)
                     if (r is ObjectVal rt && !BuiltinClasses.HasTrait(this, target, rt))

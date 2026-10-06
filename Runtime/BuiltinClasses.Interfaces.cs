@@ -290,6 +290,9 @@ internal static partial class BuiltinClasses
         BumpRegistry();              // 登记变了 → 缓存的答案可能就变了
 
         // `impl (IValue X …)` —— 顺手把 X 那格**物化索引**标上(见 `ClassVal.IsValueLike`)。
+        // **如今这条基本走不到了**:`IValue` 封了(见 `SealBuiltins`),Ravel 侧写不出这句话,
+        // 内置那 10 个直接落格、插件走 `PluginApi`。留着是保险 —— 真有谁还登记得进来,
+        // 索引也得跟着一起对,不然 `CanBeKey` 和 `HasTrait` 会说两样话。
         // 为什么要索引:那句"能不能当字典的键"要跑在 `dict.SysGet` 那些**同步 C#** 操作里,
         // 那儿拿不到解释器、问不了 `HasTrait`。
         if (ReferenceEquals(impl.Type, IValue)
@@ -496,6 +499,13 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Implements(Interpreter interp, ObjectVal cls)
     {
         var found = new List<RuntimeValue>();
+
+        // `IValue` 不走**登记表** —— 它在 `ClassVal.IsValueLike` 那格**索引**里
+        // (见 `BuiltinClasses.SealBuiltins`:它封了,内置那 10 条 `impl` 撤了)。
+        // 不问它一句的话,`int.GetImplements ()` 会把 IValue 漏掉,和 `HasTrait` 说的对不上。
+        if (cls is ClassVal self && self.IsValueLike)
+            found.AddRange(InterfaceClosure(IValue));
+
         foreach (var impl in LiveImplementations(interp))
         {
             if (impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal target) continue;
@@ -536,6 +546,16 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Implementors(Interpreter interp, ObjectVal trait)
     {
         var found = new List<RuntimeValue>();
+
+        // `IValue` 这一支同样走**索引**(和上面 `Implements` 那条对称)。判据用
+        // `IValue.IsAssignableTo (trait)` 而不是 `trait == IValue`:`IValue` 那个实现的 trait
+        // 是 IValue,而它的**闭包**里有 `BaseInterface` —— 照登记表那条路,问
+        // `BaseInterface.GetImplementors ()`(和 `object`)本来也问得出它们,别让索引这一支漏。
+        if (IValue.IsAssignableTo(trait))
+            foreach (var t in AllTypes)
+                if (t.IsValueLike && !found.Any(x => ReferenceEquals(x, t)))
+                    found.Add(t);
+
         foreach (var impl in LiveImplementations(interp))
         {
             // 实现子接口的也算这个接口的实现者(照 C#:`IEnumerable` 的实现者里有谁实现了子接口)
@@ -551,9 +571,10 @@ internal static partial class BuiltinClasses
     internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
         // `IValue` 是**内置接口**,它的"谁实现了"就是 `ClassVal.IsValueLike` 那格**索引** ——
-        // Ravel 侧的 `impl (IValue X { … })` 和插件的 `[RavelClass(Implements = "IValue")]`
-        // **都往那一格写**,所以那儿是唯一的真相。走索引有两个好处:O(1),
-        // 而且 `dict.SysGet` 那条**没有解释器**的路问得了同一个答案(见 `CanBeKey`)。
+        // 写那一格的有两处:引擎给内置那 10 个值类型(`BuiltinClasses.SealBuiltins`),
+        // 和插件的 `[RavelClass(Implements = "IValue")]`(见 `PluginApi`)。
+        // **Ravel 侧那条口子没了** —— IValue 封了,用户 `impl` 不进来(那正是"名单引擎说了算")。
+        // 走索引有两个好处:O(1),而且 `dict.SysGet` 那条**没有解释器**的路问得了同一个答案(见 `CanBeKey`)。
         if (ReferenceEquals(trait, IValue)) return cls is ClassVal c && c.IsValueLike;
 
         // **只在链上没有作用域级登记时才敢缓存** —— 那时答案只由全局那批 `impl` 决定,

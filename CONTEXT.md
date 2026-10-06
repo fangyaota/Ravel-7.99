@@ -668,6 +668,9 @@ Object (parent=自己)
 └── Every (底类型, parent=自己)
 ```
 
+**值类型那一支、`List`/`Set`/`Dict`、以及 `IValue` —— 都封口了**(`seal`,见
+「接口与实现」那节的「密封」一段):建类 / 建接口时被 `BuiltinClasses.SealedUp` 挡下来,
+`class int { … }` 这类写法没了。理由和代价都写在那一段。
 **`Ravel` 是个光杆**:它下面不挂东西 —— 模块(`System` / `Math` / 各库的模块)是它的
 **实例**,不是子类(所以 `Math: Ravel` 为真,`Math <: Ravel` 不成立 —— 后者要两边都是类型)。
 从前每建一个模块就现造一个 `Ravel` 的子类(`NewModuleClass`),
@@ -1990,6 +1993,55 @@ myImplement.Dispose ()   # 提前取消
 examples/type_tree.rav(类型树上多一个 `Interface`;它是**例子不是用例**,不进 `tests/` 那套 ——
 每加一个类型都要重钉,不值当)。
 
+### 密封:`seal`
+
+```
+seal 某个类      # 交回**那个类自己**(可串:`C := seal (class { … })`),幂等
+```
+
+把一条继承链**封口**:此后**不能再被继承**;密封**接口**则是**不能再被实现**。
+
+判据一条(`BuiltinClasses.SealedUp`),问的是"自己**或任一祖先**密封了" ——
+密封说的是**这条链到此为止**,已经存在的那层子类下面也不能再长
+(`C <: B <: A`,A 密封之后 `class C A { … }` 一样进不来)。接口同理:
+实现了**子接口**照样是在实现它(`IEnumerable <: IMonad`,封 `IMonad` 挡得住 `impl (IEnumerable …)`)。
+
+挂点两处,都是**硬门**:
+
+  - **建类 / 建接口** —— `BuiltinClasses.Install`(那是唯一的建类入口,
+    `interface X 父 { … }` 也走它);
+  - **造实现** —— `Interpreter.StepImplMake`,走在**要求表**前面(要求是前置条件,这是硬门)。
+
+**封的是"能不能再往下长",不是"能不能用"**:密封的类照常实例化、照常当类型注解;
+密封的接口照常 `x : I`;**seal 之前已经建好的那些实现也照常生效**(它是关门,不是撤销)。
+
+**内置那几支一建出来就封好了**(`BuiltinClasses.SealBuiltins`,静态构造器最后一步):
+
+  - **10 个值类型**:`int` `real` `bigint` `fraction` `bigfraction` `string` `char` `bool` `void` `Range`;
+  - **集合类型**:`List` / `Set` / `Dict`;
+  - **`IValue`**。
+
+理由:那几支的形状是引擎定死的 —— `int` 的构造器认字符串、`List` 的预设类体、"谁按值比"那份
+名单,全是 C# 侧装上去的;放进来继承只会长出一个引擎不认的子类型(`IsValueLike`、
+按类型找的运算符表、`ConvertDirect` 一个都不认它)。
+
+**`IValue` 封了,那 10 条内置 `impl` 就撤了**(`lib/values.rav` 因此删掉)——
+名单直接落 `ClassVal.IsValueLike` 那格**索引**(见「类型与对象」)。索引本来就是这格的唯一真相
+(`HasTrait` 那条短路):O(1)、不吃解释器,`dict.SysGet` 那些**同步 C#** 里也问得了同一个答案。
+顺带省掉"每个解释器重跑一遍那 10 条 `impl`"。那两条查询跟着补了一句
+(`Implements` 见 `IsValueLike` 就把 `IValue` 记上;`Implementors` 走 `IValue.IsAssignableTo (trait)`
+从 `AllTypes` 里捞)—— 插件带来的类也算在里头。
+
+**插件不受影响**:`[RavelClass(Implements = "IValue")]` 本来就直接写那格索引、不走 `impl`
+(见「插件」一节),所以"往这门语言里加一个新值类型"仍然有出口(插件那一条);
+封的只是**用户代码**这条口子。
+
+代价:`class int { … }` 那个"白拿内建构造器"的写法没了 —— 从前
+`MyInt ::= class int { … }` 之后 `MyInt "42"` 转得出 `42`,现在挡在建类那一步(测试 138 里那一段跟着改了)。
+
+测试 —— 345(`seal` 本身:返回类自己、幂等、挡继承、挡接口继承、挡隔一层的子类、挡 `impl`、
+内置那几支、索引那两条查询仍然对得上),138(内置那条被封的现状)。
+
 ## 多参数 lambda
 
 ```ravel
@@ -2970,6 +3022,8 @@ int <: IValue  # true(接口 —— 不在 `parent` 链上,靠 `HasTrait`)(类�
 T.GetImplements () # 这个类型**现在**实现了哪些接口(见「接口与实现」一节)
 I.GetImplementors () # 反过来:**现在**哪些类型实现了这个接口
 int.Subtypes ()   # [Every]  (Integer 没有自己的子类;子类型看 IValue.Subtypes ())
+seal C            # **封口**这个类(或接口):此后不能再被继承 / 不能再被实现。
+                  # 交回那个类自己(可串),幂等;内置那几支一建出来就封好了(见「密封」)
 
 # 对象
 obj.Fields ()     # **这个值有哪些成员**:自己那层照单全收(字段和方法一视同仁),

@@ -86,7 +86,7 @@ ravel "197_is_operator"
 print (1 : int)
 print (1 : real)          # Integer 与 Real 是兄弟,不是子类型
 print ("a" : IValue)
-print (1 : object)         # Integer <: Object(接口 IValue **不在**继承链上,见 lib/values.rav)
+print (1 : object)         # Integer <: Object(接口 IValue **不在**继承链上,见 BuiltinClasses.SealBuiltins)
 print (1 : Any)            # 顶类型:什么都是它的子类
 print (1 : Every)          # 底类型:Every 是所有人的子类,反过来不成立
 print (default : int)      # default 的类型就是 Every

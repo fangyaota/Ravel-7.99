@@ -24,7 +24,7 @@ readonly object := System.Object
 readonly Ravel := System.Ravel   # 模块的类对象(`Math is Ravel`)—— 所有模块共用一个
 readonly class := System.Type  # 别名:没有单独的 Class 类型
 readonly interface := System.Interface  # 接口 —— 继承于 type,造出来的也是类对象
-readonly IValue := System.IValue  # "这个类型是个值"那个接口(内置;实现见 lib/values.rav)
+readonly IValue := System.IValue  # "这个类型是个值"那个接口(内置;**名单在引擎侧**,见 BuiltinClasses.SealBuiltins)
 readonly function := System.Function
 readonly Continuation := System.Continuation   # callcc 交出来的续延(是个函数的子类型)
 readonly type := System.Type
@@ -72,6 +72,7 @@ readonly impl := System.Impl  # 启用一个接口实现,**全局**(登记在全
 readonly exit := System.Exit
 readonly input := System.ReadLine
 readonly unsafe := System.Unsafe
+readonly seal := System.Seal  # 密封一个类(或接口):不能再被继承 / 不能再被实现
 readonly currentScope := System.CurrentScope
 readonly property := System.Property
 # ── 控制流:用 Ravel 写,不占控制帧 ──
@@ -94,8 +95,9 @@ readonly while := (c: function body: function) => {
     cond { body (); again 0; } { 0; }
 }
 # ── 标准库:各自一个文件 ──
-using "values.rav"   # `IValue` —— "这个类型是个值"(从前是类型树上的 `ValueType` 那一支)。
-# **排在其它库前面**:下面那些 impl 里的 IValue 实现要靠它先建出来(见 `ValueTrait`)
+# (`values.rav` 没了 —— `IValue` 的"谁按值比"那份名单收进引擎了:
+#  它封了、用户 `impl` 不进来,内置那 10 个在 `BuiltinClasses.SealBuiltins` 里直接标。
+#  从前那个文件只有那 10 条 `impl`,搬走之后就没内容了。)
 using "numbers.rav"
 # monad 排在 iterator **前面**:`IEnumerable ::= interface IMonad { … }`(序列这一族也是 monad)
 # 要在接口那一句上读到 IMonad,而它自己谁也不依赖。

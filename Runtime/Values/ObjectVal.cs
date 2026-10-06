@@ -138,6 +138,14 @@ public record ObjectVal : RuntimeValue
     /// 和 <see cref="ClassBody"/> 一样是**建类时一次**的事(那时才写),之后只读着用。</summary>
     internal IReadOnlyList<BlockVal> BodyExtras { get; set; } = [];
 
+    /// <summary>**密封了吗** —— `seal 某个类` 之后为真:此后不能再被继承
+    /// (接口则是**不能再被实现**)。见 `BuiltinClasses.SealedUp` 与 `SysReflection.Seal`。
+    ///
+    /// 判据是"自己**或任一祖先**密封了" —— 密封一个类,意思是**它的继承链到此为止**:
+    /// 已经存在的那层子类下面也不能再长(`C <: B <: A`,A 密封之后 C 一样进不来)——
+    /// 不然密封就成了一句只挡直接子类的话。接口同理:实现了**子接口**照样是在实现它。</summary>
+    internal bool IsSealed;
+
     /// <summary>类名/函数名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)。
     ///
     /// 是成员表里的一个普通成员,所以函数和类对象一视同仁地有它

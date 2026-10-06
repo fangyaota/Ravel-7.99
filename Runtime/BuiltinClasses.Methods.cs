@@ -405,7 +405,7 @@ internal static partial class BuiltinClasses
     /// 那儿发的是 `key : IValue` —— 三处说的是同一件事。
     ///
     /// 判据是 **`ClassVal.IsValueLike`** 那格索引,也就是"它实现了 `IValue` 吗"
-    /// (见 `lib/values.rav` / `[RavelClass(Implements = "IValue")]`)。
+    /// (写它的是 `BuiltinClasses.SealBuiltins` 与 `[RavelClass(Implements = "IValue")]`)。
     ///
     /// **为什么读索引而不是问 `HasTrait`**:这条路跑在 `dict.SysGet` / `SysSet` 那些
     /// **同步 C#** 操作里,那儿**拿不到解释器**。而且 `bool` / `()` 从前进不来

@@ -60,7 +60,7 @@ public sealed class RavelClassAttribute(string name) : Attribute
     /// <summary>父类叫什么(默认 `object`;名字在已有的类里找,包括别的插件带来的)。</summary>
     public string Parent { get; init; } = "Object";
 
-    /// <summary>**这个类的实例是不是"值"** —— 写 `"IValue"`(`lib/values.rav` 那个接口)。
+    /// <summary>**这个类的实例是不是"值"** —— 写 `"IValue"`(`System.IValue` 那个接口)。
     ///
     /// 别省。这门语言里"是不是值"**有后果**:能不能当**字典的键**、`Key ()` 有没有默认实现、
     /// 去重那一套,判据都是它。漏了的话症状是运行期一句「字典的键得是值类型…得到 X」——
@@ -71,8 +71,9 @@ public sealed class RavelClassAttribute(string name) : Attribute
     ///
     /// 实现上它落的不是 `impl` 那条路,而是 `ClassVal.IsValueLike` 那格**物化索引** ——
     /// 因为那个判据要跑在 `dict.SysGet` 那些**同步 C#** 操作里,那儿拿不到解释器。
-    /// 两处说的是同一件事:能 `impl` 的(Ravel 侧)走 `lib/values.rav`,建不了 `impl` 的
-    /// (插件建的类)走这儿。</summary>
+    /// 这一格是**唯一的真相**:内置那 10 个值类型也落在它上面(`BuiltinClasses.SealBuiltins`),
+    /// 而 **Ravel 侧已经写不进来了** —— `IValue` 封了,`impl (IValue 你的类 { … })` 会被挡下。
+    /// 所以要往这门语言里加一个**新的值类型**,出口就是这儿。</summary>
     public string? Implements { get; init; }
 }
 

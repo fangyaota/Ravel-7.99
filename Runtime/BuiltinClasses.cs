@@ -26,8 +26,7 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Fraction;
     public static readonly ClassVal BigFraction;
     /// <summary>区间(`[1..3]` / `(3..5)` …)—— `RangeVal`。
-    /// 它是**值类型**(不可变、按值比)—— 所以 `impl (IValue Range { … })`
-    /// (见 `lib/values.rav`),直挂 `Object` 下。</summary>
+    /// 它是**值类型**(不可变、按值比)—— 名单在 `SealBuiltins` 里,直挂 `Object` 下。</summary>
     public static readonly ClassVal Range;
 
     // 引用类型分支（可变/有行为）
@@ -98,9 +97,13 @@ internal static partial class BuiltinClasses
     /// **烤进一份** `init`。多一层基类之后那份烤就不用了 —— 一处默认,
     /// 所有接口共用(而且实现 scope 里也不再莫名多出一个没人看的 `init`)。</summary>
     public static readonly ClassVal BaseInterface;
-    /// <summary>`IValue` —— "这个类型是个**值**"那个接口(见 `lib/values.rav` 的实现在哪儿)。
-    /// **内置**而不是让 Ravel 侧建:引擎要拿它做**引用比较** —— `RegisterUse` 每次登记
-    /// 都要认一句"这条是不是 `impl (IValue …)`",按名字比(`DisplayName == "IValue"`)
+    /// <summary>`IValue` —— "这个类型是个**值**"那个接口。**内置**,而且**封了**
+    /// (见 `SealBuiltins`):实现者那份名单由引擎说了算 —— 内置那 10 个值类型在
+    /// `SealBuiltins` 里直接标,插件走 `[RavelClass(Implements = "IValue")]`,
+    /// 用户代码 `impl` 不进来。
+    ///
+    /// **内置**而不是让 Ravel 侧建:引擎要拿它做**引用比较** —— 判据要跑在
+    /// `dict.SysGet` 那些**同步 C#** 里,按名字比(`DisplayName == "IValue"`)
     /// 能跑但脆(名字被别人用了就误判),有个句柄就干净了。</summary>
     public static readonly ClassVal IValue;
 
@@ -161,7 +164,7 @@ internal static partial class BuiltinClasses
         Link(Function, Object, Type);
 
         // 值类型直挂 `Object`(**不在** `ValueType` 那一支了 —— 那一支改成了接口 `IValue`,
-        // 见 `lib/values.rav`)。`bool` 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
+        // 名单和封口都在 `SealBuiltins`)。`bool` 是函数:true/false 可调用,收两个块返回选中那个的结果(lisp 式)
         Link(Int, Object, Type);
         Link(Real, Object, Type);
         Link(Bool, Function, Type);
@@ -239,6 +242,56 @@ internal static partial class BuiltinClasses
 
         // 数据类型和插件`using "x.dll"`带来的类都由 `BuiltinClasses.AddType` 自己往前推这个数
         _builtinCount = AllTypes.Count;
+
+        // ---- 收尾:内置那几支**封口**(见 SealBuiltins) ----
+        SealBuiltins();
+    }
+
+    /// <summary>**内置的值类型、集合类型,和 `IValue` —— 到此为止,不能再往下长。**
+    ///
+    /// 理由:这几支的形状是**引擎定死的**那一份 —— `int` 的构造器认字符串、`List` 的预设类体、
+    /// "哪些类型按值比"那张表,全是 C# 侧装上去的。放进来继承只会长出一个半生不熟的子类型:
+    /// 引擎那条判据(`IsValueLike`、按类型找的运算符表、`ConvertDirect`)一个都不认它。
+    ///
+    /// 挡的是两件事(两处都问 <see cref="SealedUp"/>,判据同一份):
+    /// <list type="bullet">
+    /// <item>`class int { … }` / `interface 某接口 IValue { … }` —— 建类那一步(<see cref="Install"/>);</item>
+    /// <item>`impl (IValue 我的类 { … })` —— 造实现那一步(`Interpreter.StepImplMake`)。</item>
+    /// </list>
+    ///
+    /// **`IValue` 封了,那 10 个内置实现就不走 `impl` 了** —— 直接落
+    /// <see cref="ClassVal.IsValueLike"/> 那格**索引**(从前那 10 条 `impl` 在 `lib/values.rav`)。
+    /// 索引本来就是这格的唯一真相(见 `HasTrait` 那条短路):O(1)、不吃解释器 ——
+    /// 于是 `dict.SysGet` 那些**同步 C#** 里也问得了同一个答案。顺带省掉了
+    /// "每个解释器都重跑一遍那 10 条 `impl`"(实现登记在各解释器各自的作用域里,而这是进程级的一份)。
+    ///
+    /// **插件不受影响**:`[RavelClass(Implements = "IValue")]` 本来就是直接写那格索引,
+    /// 不走 Ravel 侧的 `impl`(见 `PluginApi`)。所以"新的值类型"仍由**引擎/插件**说了算 ——
+    /// 封的只是**用户代码**这条口子。
+    ///
+    /// **`class int { … }` 那条也因此没了**:从前靠继承内置类型白拿它的构造器
+    /// (`MyInt ::= class int { … }` 之后 `MyInt "42"` 转出个 42),现在被这条挡下。</summary>
+    private static void SealBuiltins()
+    {
+        // **谁按值比**(`IValue` 的实现者)—— 不可变、`==` 比内容、能当字典的键。
+        // 这份名单从前是 `lib/values.rav` 里那 10 条 `impl`,搬到这儿是因为 IValue 封了、
+        // 而 `impl` 那条口子也一并归引擎。
+        ClassVal[] values =
+        [
+            Int, Real, BigInt, Fraction, BigFraction, String, Char, Bool, Void, Range,
+        ];
+        foreach (var v in values)
+        {
+            v.IsValueLike = true;
+            v.IsSealed = true;
+        }
+
+        // 集合类型 —— `list` / `set` / `dict` 自己那一套(预设类体、内部表示、序列方法)
+        foreach (var c in new[] { List, Set, Dict })
+            c.IsSealed = true;
+
+        // `IValue` 本身:用户不能再 `impl` 它了(那正是"值类型这份名单引擎说了算"那句)
+        IValue.IsSealed = true;
     }
 
     // ============================================================
@@ -333,6 +386,35 @@ internal static partial class BuiltinClasses
         Type.ClassBody = PresetCtor(Alternate(twoArg, oneArg));
     }
 
+    /// <summary>这个类型自己**或它的任一祖先**被 `seal` 了吗。
+    ///
+    /// 两个地方问它:**建类/建接口**(<see cref="Install"/>)和**造实现**(`StepImplMake`)。
+    /// 沿 `parent` 链走而不是只看自己 —— 密封说的是"这条继承链到此为止":已经存在的那层
+    /// 子类下面也不能再长,不然密封就成了一句只挡直接子类的话。</summary>
+    internal static bool SealedUp(ObjectVal t)
+    {
+        for (var cur = t; cur != null; cur = cur.Parent)
+        {
+            if (cur.IsSealed) return true;
+            if (ReferenceEquals(cur.Parent, cur)) break;
+        }
+
+        return false;
+    }
+
+    /// <summary>被密封的那个祖先(报错要用它的名字),没有就 null。
+    /// 和 <see cref="SealedUp"/> 同一趟走法 —— 一个问有没有,一个问是哪一个。</summary>
+    private static ObjectVal? SealedAncestor(ObjectVal t)
+    {
+        for (var cur = t; cur != null; cur = cur.Parent)
+        {
+            if (cur.IsSealed) return cur;
+            if (ReferenceEquals(cur.Parent, cur)) break;
+        }
+
+        return null;
+    }
+
     /// <summary>把 (parent, body) 装到 self 上,self 于是是一个类。返回 self ——
     /// 构造交出 init 的返回值,所以这就是"建出来的那个类"。
     ///
@@ -342,6 +424,13 @@ internal static partial class BuiltinClasses
     /// 第一块是主类体,其余记进 <see cref="ObjectVal.BodyExtras"/>,实例化时接着主块跑。</summary>
     private static ClassVal Install(Scope scope, ObjectVal parent, RuntimeValue body)
     {
+        // **密封的不能再被继承** —— `class 某个密封的类 { … }`(接口同理:`interface 某个密封的接口`),
+        // 都在这一句上挡住。放在这儿是因为**只此一个建类入口**。
+        if (SealedAncestor(parent) is { } seal)
+            throw new RuntimeException(
+                $"`{seal.DisplayName}` 被 seal 了 —— 不能再被继承"
+                + (parent == seal ? "" : $"（`{parent.DisplayName}` 就在它的链上）"), ErrorKind.Access);
+
         var pieces = BodyPieces(body);
         var blk = pieces[0];
 
