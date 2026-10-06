@@ -31,7 +31,12 @@ public partial class Interpreter
     /// 脚本里随时能开 —— `System.WarnForgotCall true`(见 predefined 之外的 System 模块)。
     /// **报过一次的位置不再报**:循环体里那一句一跑就是几千遍,刷屏反而看不见。
     ///
-    /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。</summary>
+    /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。
+    ///
+    /// **这个开关还管着编译期那两条**(见 <see cref="Interpret"/>):命令行 `--warn` 一开,
+    /// 开跑之前先把形状类的那两条说完(`Syntax/CompileWarnings.cs`)。反过来不成立 ——
+    /// 脚本里 `System.WarnForgotCall true` 只管**运行期**这条:它是跑到才生效的,
+    /// 而编译那一趟早过去了(要那两条就得写文件头 `#program --warn`)。</summary>
     public bool WarnForgotCall { get; set; }
 
     /// <summary>`return` / `break` / `continue` 这三个糖的开关(`--more-control-flow`,
@@ -174,8 +179,35 @@ public partial class Interpreter
             + string.Join(" ", ModuleSearchPath.Defaults), ErrorKind.Io);
     }
 
-    /// <summary>执行一个程序的全部语句，返回最后一条语句的值</summary>
-    public RuntimeValue Interpret(Program p) => RunStack(p);
+    /// <summary>执行一个程序的全部语句，返回最后一条语句的值。
+    ///
+    /// **开跑之前先把编译期那几条警告说完** —— 那一趟只看树的形状,不必等某一行走到
+    /// (见 <see cref="CompileWarnings"/>)。开关两个:命令行/REPL 的 `--warn`
+    /// (落到 `WarnForgotCall` 上),以及**文件头**那条 `#program --warn`
+    /// (脚本里那句 `System.WarnForgotCall true` 这时候还没跑到)。
+    ///
+    /// 运行期那条「是不是忘了调用」照旧在跑的时候吭声 —— 它要看值,见 `RunStack`。</summary>
+    public RuntimeValue Interpret(Program p)
+    {
+        if (WarnForgotCall || DeclaresWarnIn(p.Source)) CompileWarnings.Report(p);
+        return RunStack(p);
+    }
+
+    /// <summary>文件头那条 `#program --warn`。**从盘上读一遍** —— 解析那一趟拿到的源码文本
+    /// 没留在 `Program` 上(记着它等于把整份源码钉在树旁边),而文件就在那儿,
+    /// 一个程序读一次不值当为它加字段。
+    ///
+    /// 没有真文件的不算(REPL / `eval` 的 `<eval>`)—— 那两种本来也没有文件头可写。</summary>
+    private static bool DeclaresWarnIn(string? path)
+    {
+        if (path is not { Length: > 0 } || path[0] == '<') return false;
+        try
+        {
+            return File.Exists(path) && Parser.DeclaresWarn(File.ReadAllText(path));
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
 
     /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行。
     ///

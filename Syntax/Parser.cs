@@ -51,7 +51,19 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     ///     #program --more-control-flow          (光写名字就是 true)
     ///
     /// 和命令行那个开关是**或**的关系:任一边开了就开。</summary>
-    public static bool DeclaresMoreControlFlow(string source)
+    public static bool DeclaresMoreControlFlow(string source) => Declares(source, "--more-control-flow");
+
+    /// <summary>文件头那条 `#program --warn` —— **编译期**那几条警告的开关
+    /// (`--warn` 的等价物,见 <see cref="CompileWarnings"/>)。
+    ///
+    /// 非有不可的一条:那几条警告是在**开跑之前**报的,而脚本里那句
+    /// `System.WarnForgotCall true` 要跑到那儿才生效 —— 等它生效,编译那一趟早过去了。
+    /// 所以"这个文件自己要警告"得写在**文件头**,让读源码那一层先看见。
+    ///
+    /// **运行期**那条(「是不是忘了调用」)不看这个 —— 它照旧认 `System.WarnForgotCall`。</summary>
+    public static bool DeclaresWarn(string source) => Declares(source, "--warn");
+
+    private static bool Declares(string source, string name)
     {
         foreach (var raw in source.Split('\n'))
         {
@@ -60,7 +72,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
             if (line[0] != '#') return false;                 // 见到代码了,后面不认
             if (line != "#program" && !line.StartsWith("#program ")) continue;
             foreach (var part in line[8..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                if (part is "--more-control-flow" or "--more-control-flow=true") return true;
+                if (part == name || part == name + "=true") return true;
         }
         return false;
     }

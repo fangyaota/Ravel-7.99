@@ -1,5 +1,7 @@
 # 「是不是忘了调用?」—— 块里**不是最后一条**的语句,值求出来是个函数就在 stderr 上提醒一句。
 #
+# **运行期**的一条 —— 问的是"这个值是不是半成品",那要看值,所以只能在跑的时候吭声
+# (编译期那两条在 `tests/diag/313` / `337`,开关也认文件头那条 `#program --warn`)。
 # 开的方式:命令行 `ravel --warn 脚本.rav`,或脚本里 `System.WarnForgotCall true`。
 # 顶上的 `# warn` 是给**测试运行器**看的标记:警告写的是 stderr,而用例比的是 stdout,
 # 不收进来一条也钉不住(见 GoldenTestRunner)。
@@ -59,22 +61,22 @@ n ()
 # --- expected ---
 # before
 # 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool = c (); cond t e; } applied c=<block> t=…
-#   --> tests/diag/264_warn_forgot_call.rav:15:5
-#   15 |     if { true; } { print "这一段静默不跑"; }
+#   --> tests/diag/264_warn_forgot_call.rav:17:5
+#   17 |     if { true; } { print "这一段静默不跑"; }
 #      |     ^
 # after
 # g
 # 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function () => { print "before"; if ({ true; }) ({ print "这一段静默不跑"; }); print..…
-#   --> tests/diag/264_warn_forgot_call.rav:24:5
-#   24 |     f
+#   --> tests/diag/264_warn_forgot_call.rav:26:5
+#   26 |     f
 #      |     ^
 # 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function (e: function) => { cond: bool = c (); cond t e; } applied c=<block> t=…
-#   --> tests/diag/264_warn_forgot_call.rav:33:9
-#   33 |         if { true; } { print "循环里也不跑"; }
+#   --> tests/diag/264_warn_forgot_call.rav:35:9
+#   35 |         if { true; } { print "循环里也不跑"; }
 #      |         ^
 # 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function Point (y: int) => { this; } applied x=1>
-#   --> tests/diag/264_warn_forgot_call.rav:42:1
-#   42 | Point 1
+#   --> tests/diag/264_warn_forgot_call.rav:44:1
+#   44 | Point 1
 #      | ^
 # true
 # 1

@@ -3,11 +3,15 @@
 # 规矩本身是说好的(实参吃到运算符为止,教程 3.9 / 陷阱 12.2),`f 1 + 2` 那种照旧不响。
 # `()` 特殊在它**是空的参数表**,不像"一个实参"——两种读法看着都通顺,于是就有读岔的余地。
 #
-# 开的方式:命令行 `ravel --warn 脚本.rav`,或脚本里 `System.WarnForgotCall true`。
+# **编译期**的一条 —— 开跑之前一次说完,不必等那一行走到(它要是在没走到的分支里,
+# 从前就永远不吭声)。开关两个:命令行 `ravel --warn 脚本.rav`,或者文件头那条
+# `#program --warn`(脚本里写 `System.WarnForgotCall true` 不管用 —— 编译那一趟
+# 在它生效之前就过去了;那句管的是**运行期**那条「是不是忘了调用」)。
+#
 # 顶上的 `# warn` 是给**测试运行器**看的标记:警告写的是 stderr,而用例比的是 stdout,
 # 不收进来一条也钉不住(见 GoldenTestRunner)。
 # warn
-System.WarnForgotCall true
+#program --warn
 
 xs := [1 2 3]
 show := (b: bool) => { "拿到 " + string b; }
@@ -30,17 +34,16 @@ print (show t)
 #    (`f () == ()` 和 `f (() == ())` 解析出来是**同一棵树**,分得清它们的只有 token 流,
 #     所以这条不靠猜,靠的是解析器当场记下的 `CallExpr.BareUnitArg`。)
 print (show (() == ()))
-
 # --- expected ---
 # 警告: 这一格的 `()` 被后面的运算符吃进**实参**里了（`f () > 1` 读成的是 `f (() > 1)`）—— 要拿调用结果去算就给它加括号：`(f ()) > 1`
-#   --> tests/diag/337_warn_void_arg.rav:16:13
-#   16 | print (show () == ())
+#   --> tests/diag/337_warn_void_arg.rav:20:13
+#   20 | print (show () == ())
 #      |             ^
-# 拿到 true
 # 警告: 这一格的 `()` 被后面的运算符吃进**实参**里了（`f () > 1` 读成的是 `f (() > 1)`）—— 要拿调用结果去算就给它加括号：`(f ()) > 1`
-#   --> tests/diag/337_warn_void_arg.rav:20:23
-#   20 | print (try { xs.Count () > 1; } (e: Exception) => { e.Message; })
+#   --> tests/diag/337_warn_void_arg.rav:24:23
+#   24 | print (try { xs.Count () > 1; } (e: Exception) => { e.Message; })
 #      |                       ^
+# 拿到 true
 # 类型 Void 不支持运算符 '>'
 # true
 # 拿到 true

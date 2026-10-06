@@ -5,8 +5,11 @@
 # 于是"忘写 `=`"变成**静默地丢掉一个 bool** —— 这门语言最恨的那种,所以补了一条警告。
 #
 # 两条边界都在下面钉着:**块的最后一条不收**(`if { x: int; }` 正是靠它当条件)。
+#
+# **编译期**的一条 —— 开跑之前一次说完。开关:命令行 `ravel --warn 脚本.rav`,
+# 或文件头那条 `#program --warn`(`System.WarnForgotCall true` 管的是**运行期**那条)。
 # warn
-System.WarnForgotCall true
+#program --warn
 
 x := 5
 
@@ -27,11 +30,11 @@ print y
 z: int = 9
 print z
 # --- expected ---
-# 1
 # 警告: 这一句只是个类型判断，什么都没绑 —— 想定义是不是漏了 '='？
-#   --> tests/diag/313_warn_bare_type_test.rav:15:1
-#   15 | x: int
+#   --> tests/diag/313_warn_bare_type_test.rav:18:1
+#   18 | x: int
 #      | ^
+# 1
 # 2
 # 3
 # true
