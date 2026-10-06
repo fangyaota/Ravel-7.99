@@ -256,6 +256,9 @@ internal static partial class BuiltinClasses
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
             throw new RuntimeException($"{caller} 要的是「接口 类 实现」造出来的实现，得到 {v.Type.DisplayName}", ErrorKind.Type);
+        // `use` 是**作用域级**的(登记进 `into` = 调用点当前作用域),`impl` 登记进全局 ——
+        // 只有前者会让"当前作用域链"影响答案,于是只有它要关掉缓存
+        if (!ReferenceEquals(into, interp.GlobalScope)) interp.SawScopedUse = true;
         RegisterUse(into, impl);
         return impl;
     }
@@ -273,12 +276,15 @@ internal static partial class BuiltinClasses
 
         reg.Elements.RemoveAll(x => x is ListVal e && e.Elements.Count > 0 && ReferenceEquals(e.Elements[0], impl));
         reg.Elements.Add(new ListVal([impl, IntVal.Of(Generation(impl))]));
+
+        BumpRegistry();              // 登记变了 → 缓存的答案可能就变了
     }
 
     /// <summary>`Dispose ()`:把实现加一岁,已经登记过的那些条目统统作废。O(1)、幂等、
     /// 在哪个作用域调都一样 —— 取消的是这个实现。</summary>
     private static RuntimeValue DisposeImplementation(ObjectVal impl)
     {
+        BumpRegistry();              // 作废一条 → 缓存的答案可能就变了
         if (impl.Scope.LookupField(GenerationMember) is { } gen)
             gen.Assign(IntVal.Of(((IntVal)gen.Value).Value + 1));
         return VoidVal.Instance;
@@ -520,6 +526,32 @@ internal static partial class BuiltinClasses
 
     internal static bool HasTrait(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
+        // **只在链上没有作用域级登记时才敢缓存** —— 那时答案只由全局那批 `impl` 决定,
+        // 而 `impl` 是稳定的(改不了,除非再来一条,那会动版本号)。
+        // 有过一次 `use` 就整个关掉(见 `Interpreter.SawScopedUse`):`use` 的可见性随作用域走,
+        // 要缓存它得先能知道"作用域何时离开",那要动推/弹作用域那条路 —— 不值当。
+        //
+        // 缓存和那个标记都**挂在解释器上**,不是静态的:一个进程里跑多个解释器是常态
+        // (每个用例一个),而 `use` 登记进的是**那个解释器**的作用域 —— 静态的话
+        // A 的答案会漏给 B。
+        if (interp.SawScopedUse) return HasTraitSlow(interp, cls, trait);
+
+        var v = _registryVersion;
+        if (interp.HasTraitMemoVersion != v)
+        {
+            interp.HasTraitMemo.Clear();
+            interp.HasTraitMemoVersion = v;
+        }
+
+        if (interp.HasTraitMemo.TryGetValue((cls, trait), out var hit)) return hit;
+
+        var r = HasTraitSlow(interp, cls, trait);
+        interp.HasTraitMemo[(cls, trait)] = r;
+        return r;
+    }
+
+    private static bool HasTraitSlow(Interpreter interp, ObjectVal cls, ObjectVal trait)
+    {
         foreach (var impl in LiveImplementations(interp))
             // `IsAssignableTo` 而不是 `==`:实现了子接口也就实现了父接口(照 C#)
             if (impl.Type.IsAssignableTo(trait)
@@ -529,6 +561,14 @@ internal static partial class BuiltinClasses
 
         return false;
     }
+
+    /// <summary>接口分发的**版本号**:任何一次登记(`use` / `impl`)或 `Dispose` 都 +1。
+    /// 它是缓存的失效令牌。**静态是对的** —— 多解释器之间多失效几次只是白算一遍,
+    /// 不会算错;反过来(该失效的没失效)才会算错。</summary>
+    private static int _registryVersion;
+
+    /// <summary>登记动过了(给 `RegisterUse` / `Dispose` 用)。</summary>
+    private static void BumpRegistry() => _registryVersion++;
 }
 
 /// <summary>一次接口分发的命中:哪一格、是**哪个实现**身上那一格、这一次服务谁。

@@ -8,6 +8,15 @@ public partial class Interpreter
     /// 于是处处生效),所以给内置那一族开个 `internal` 的口。</summary>
     internal Scope GlobalScope => _global;
 
+    /// <summary>接口分发那条缓存放这儿(**每个解释器一份**,不是静态的)——
+    /// 见 `BuiltinClasses.HasTrait`。`SawScopedUse` 是"这个解释器见过 `use` 吗":
+    /// 见过就整个关掉缓存,因为 `use` 的可见性随作用域走,而作用域是**这个解释器**的事。
+    /// (计数器见 `HasTraitMemoVersion`,它比的是登记表的版本号。)</summary>
+    internal bool SawScopedUse;
+
+    internal int HasTraitMemoVersion = -1;
+    internal readonly Dictionary<(ObjectVal Cls, ObjectVal Trait), bool> HasTraitMemo = [];
+
     private readonly Scope _global;
 
     /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>

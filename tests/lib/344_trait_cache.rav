@@ -1,0 +1,54 @@
+#
+# **接口分发那条缓存**(`BuiltinClasses.HasTrait`)—— 钉的是**失效**,不是速度。
+#
+# 背景:`x : 某接口` 走 `HasTrait`,它是"沿当前作用域链找生效中的实现"。
+# 实测这条比走继承链(`IsAssignableTo`)**贵三到六成**(20 万次:3634 → 2226 ms),
+# 而 `x: int` 那种链上的判据是 2239 —— 也就是说缓存之后接口那条**已经和链打平**。
+#
+# 缓存敢开有个前提:**链上没有作用域级的登记**(没有 `use`)。那时答案只由全局那批
+# `impl` 决定,是稳定的。一旦出现过 `use`,整个关掉 —— `use` 的可见性随作用域走,
+# 而"作用域何时离开"这件事没地方挂钩子。
+#
+# 所以这里要钉的是**什么时候该失效**:
+#
+#   * 先问一句(答案进缓存)→ 再登记 `impl` → 再问,必须是新的答案;
+#   * `Dispose ()` 之后同样;
+#   * 再登记一条,又回来。
+#
+# 用 `impl` 不用 `use`:只有前者走全局、缓存才是开着的 —— 拿 `use` 测等于测"缓存关掉了"。
+
+T ::= interface {
+    by f : function = default
+}
+C ::= class {
+    init = () => { this; }
+}
+c := C ()
+
+# ① 还没登记:问一句(false 进缓存)
+print (c : T)
+
+# ② 登记 —— 版本号该变、缓存该清
+i1 := impl (T C {
+    by f = property (() => { "hi"; }) ((v: function) => { (); })
+})
+print (c : T)
+print (c.f)
+
+# ③ Dispose 之后:该回到 false
+i1.Dispose ()
+print (c : T)
+
+# ④ 再登记一条:又该 true
+i2 := impl (T C {
+    by f = property (() => { "again"; }) ((v: function) => { (); })
+})
+print (c : T)
+print (c.f)
+# --- expected ---
+# false
+# true
+# hi
+# false
+# true
+# again

@@ -1896,6 +1896,21 @@ myImplement.Dispose ()   # 提前取消
   `StepTraitOp` 的第二支;`StepSlot` / `StepSlotAssign` 那两支**只取槽、不绑**(`by` 取的就是槽本身)。
   **`myClass` 这个名字一个字没动**:不建子类、不换绑定、不往它身上加成员
   (所以 `x : myClass = u`、`print u`、`u.Fields ()` 照旧,`Fields ()` 里也**没有** a/b)。
+- **`HasTrait` 挂了一条缓存**(2026-10-06)。它是 `x : 某接口` / 注解 / `Accepts` 的判据,
+  实现是"沿作用域链找生效中的实现"(`LiveImplementations`)—— 实测比走继承链的
+  `IsAssignableTo` **贵三到六成**(20 万次:3634 → 2226 ms;链上那条 2239)。
+  缓存之后接口这条**和链打平**。
+  - **敢开的前提是"链上没有作用域级的登记"**(`use`):那时答案只由全局那批 `impl` 决定,
+    稳定。见过一次 `use` 就整个关掉 —— `use` 的可见性随作用域走,要缓存它得先知道
+    "作用域何时离开",那要动推/弹作用域那条路,不值当。
+    顶层 `use` 等于 `impl`(登记进全局),所以那种不关 —— 判据是
+    `!ReferenceEquals(into, GlobalScope)`(`BuiltinClasses.Use` 里那一次)。
+  - **失效令牌是 `_registryVersion`**:`RegisterUse` 和 `Dispose` 各 `BumpRegistry ()` 一次。
+    它是**静态**的、多解释器之间多失效几次只是白算,不会算错;反过来才会算错。
+  - **缓存和那个标记挂在解释器上**(`Interpreter.HasTraitMemo` / `SawScopedUse`),不是静态 ——
+    一个进程里跑多个解释器是常态(每个用例一个),而 `use` 登记进的是**那个解释器**的作用域。
+  - 用例 `tests/lib/344_trait_cache.rav` 钉的是**失效**(登记 / `Dispose` / 再登记三步),
+    不是速度。`TraitSlot`(成员那条路)**没**挂缓存。
 - **`instance` 是"这一次调用"的事,不是实现身上的一格共享变量**(从前是 —— 于是留存下来的闭包,
   比如 getter 返回的那个,会跟着后一次访问改意思,静默错值)。读它走两层:**先**沿当前调用点作用域链
   找最近的激活格(槽体自己、以及槽体里造的闭包 —— 闭包捕获创建处的 scope,靠这一层记住自己属于谁),
