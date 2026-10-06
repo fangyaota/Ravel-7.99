@@ -57,7 +57,7 @@ IRandom ::= interface {
     # `Any ()` / `Any p` 一个规矩:给个区间就走区间那支)。
     # 连续的东西没有"取到端点"这回事,所以统一当 **`[lo, hi)`** 看(端点用哪个括号都行)。
     internal Real := (p) => {
-        if { p : Range; } {
+        p : Range {
             lo := real (p.Start ())
             hi := real (p.End ())
             assert (lo <= hi) ("Random.Real: " + (p.Text ()) + " 的起点在终点后面")
@@ -102,7 +102,7 @@ IRandom ::= interface {
         i := 0
         while { (i < (items.Count ())) && (!found); } {
             acc += real (weights.At i)
-            if { pick < acc; } { hit = i; found = true; } { i += 1; }
+            pick < acc { hit = i; found = true; } { i += 1; }
         }
         items.At hit
     }

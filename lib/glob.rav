@@ -30,7 +30,7 @@ readonly Meta := ".+(){}^$|\\"
 
 readonly Esc := (c: char) => {
     s := string c
-    if { Meta.Contains s; } { "\\" + s; } { s; }
+    Meta.Contains s { "\\" + s; } { s; }
 }
 
 # 通配符 → 正则(整串比,两头锚死)。
@@ -42,23 +42,23 @@ readonly ToRegex := (pat: string) => {
     n := pat.Length ()
     while { i < n; } {
         c := pat.At i
-        if { c == '*'; } {
-            if { ((i + 1) < n) && ((pat.At (i + 1)) == '*'); } {
+        c == '*' {
+            ((i + 1) < n) && ((pat.At (i + 1)) == '*') {
                 # `**`:跨目录。后面**紧跟着**的 `/` 一起吃进去 ——
                 # 不然 `**/*.txt` 会要求"至少一层目录",而 `a.txt` 也该配得上
                 out += ".*"
                 i += 2
-                if { (i < n) && ((pat.At i) == '/'); } { i += 1; } { 0; }
+                (i < n) && ((pat.At i) == '/') { i += 1; } { 0; }
             } {
                 out += "[^/]*"
                 i += 1
             }
         } {
-            if { c == '?'; } {
+            c == '?' {
                 out += "[^/]"
                 i += 1
             } {
-                if { c == '['; } {
+                c == '[' {
                     piece := CharClass pat i
                     out += (piece.At 0)
                     i = piece.At 1
@@ -82,16 +82,16 @@ readonly CharClass := (pat: string i: int) => {
     j := i + 1
     n := pat.Length ()
     neg := (j < n) && ((pat.At j) == '!')                       # `[!...]` 是取反
-    if { neg; } { j += 1; } { 0; }
+    neg { j += 1; } { 0; }
     k := j
-    if { (k < n) && ((pat.At k) == ']'); } { k += 1; } { 0; }   # 头一个 `]` 是普通字符
+    (k < n) && ((pat.At k) == ']') { k += 1; } { 0; }   # 头一个 `]` 是普通字符
     while { (k < n) && ((pat.At k) != ']'); } { k += 1; }
-    if { k >= n; } { ["\\[" (i + 1)]; } {
-        body := if { neg; } { "^"; } { ""; }
+    k >= n { ["\\[" (i + 1)]; } {
+        body := neg { "^"; } { ""; }
         m := j
         while { m < k; } {
             c := pat.At m
-            if { c == '\\'; } { body += "\\"; } { body += (string c); }   # `-` 留着当区间的棍子
+            c == '\\' { body += "\\"; } { body += (string c); }   # `-` 留着当区间的棍子
             m += 1
         }
         ["[" + body + "]" (k + 1)];
@@ -108,7 +108,7 @@ readonly Slash := (s: string) => { s.Replace "\\" "/"; }
 # 一张表里相符的那些(按原来顺序)
 readonly Filter := (pat: string names: list) => {
     out := []
-    foreach names (n: object) => { if { Match pat (string n); } { out.Add n; } { 0; } }
+    foreach names (n: object) => { Match pat (string n) { out.Add n; } { 0; } }
     out
 }
 
@@ -116,7 +116,7 @@ readonly Filter := (pat: string names: list) => {
 readonly Split := (pat: string names: list) => {
     hit := []
     miss := []
-    foreach names (n: object) => { if { Match pat (string n); } { hit.Add n; } { miss.Add n; } }
+    foreach names (n: object) => { Match pat (string n) { hit.Add n; } { miss.Add n; } }
     {"hit"-> hit "miss"-> miss}
 }
 
@@ -134,7 +134,7 @@ readonly Find := (pat: string) => { FindIn "." pat; }
 readonly FindIn := (under: object pat: string) => {
     out := []
     Io.EachDir (Io.Dir (Io.PathOf under)) (p: string e: object) => {
-        if { Match pat p; } { out.Add (Slash p); } { 0; }
+        Match pat p { out.Add (Slash p); } { 0; }
     }
     (out).Sort ()
 }
@@ -142,5 +142,5 @@ readonly FindIn := (under: object pat: string) => {
 # 把一张相对路径的表拼起来(要自己拼 `**` 那种模式时用得上):
 # `Glob.Under "src" "*.cs"` → `"src/*.cs"`
 readonly Under := (dir: string pat: string) => {
-    if { dir.IsEmpty (); } { pat; } { (Slash dir) + "/" + pat; }
+    dir.IsEmpty () { pat; } { (Slash dir) + "/" + pat; }
 }

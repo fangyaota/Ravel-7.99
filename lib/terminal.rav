@@ -145,10 +145,10 @@ readonly Rule := (n: int) => { ("─").Repeat n; }
 # 要**原地刷新**就自己拿 `\r` 拼 —— 引擎那边不给"刷屏"这种原语,
 # 因为它就是"写一串回车、再写一串"。
 readonly Bar := (done: int total: int width: int) => {
-    w := if { width < 4; } { 4; } { width; }
-    frac := if { total <= 0; } { 0.0; } { (real done) / (real total); }
-    if { frac < 0.0; } { frac = 0.0; } { 0; }
-    if { frac > 1.0; } { frac = 1.0; } { 0; }        # 超额也算满(990% 那种数字没人想看见)
+    w := width < 4 { 4; } { width; }
+    frac := total <= 0 { 0.0; } { (real done) / (real total); }
+    frac < 0.0 { frac = 0.0; } { 0; }
+    frac > 1.0 { frac = 1.0; } { 0; }        # 超额也算满(990% 那种数字没人想看见)
     n := (int (frac * (real w)))
     pct := (int (frac * 100.0))
     ("[" + (("#").Repeat n)) + ((".").Repeat (w - n)) + ("] " + (string pct) + "%");
@@ -178,7 +178,7 @@ ConsoleOut ::= class {
     Read := () => { throw (Exception ("这是只写的（" + Label + "），读不了")); }
     Delete := () => { throw (Exception ("控制台删不掉：" + Label)); }
     Write := (text: string) => {
-        if { ToErr; } { System.WriteErr text; } { System.Write text; }
+        ToErr { System.WriteErr text; } { System.Write text; }
         ();
     }
     Append := (text: string) => { Write text; }

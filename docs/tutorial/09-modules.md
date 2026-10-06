@@ -207,6 +207,6 @@ ok 3 - 除零确实报错
 | `Test.Fails name body` | 反之：必须报错才算过 |
 | `Test.Report ()` | 汇总；**有没过就抛出去** |
 
-注意：报错在这儿是**值**（`Expect argCount f` 把一次调用包成 `Expected`），所以"怎么断言"和"报错怎么办"是同一件事。`Check` 顺便把"过没过"交回，`if` 里能直接用。
+注意：报错在这儿是**值**（`Expect argCount f` 把一次调用包成 `Expected`），所以"怎么断言"和"报错怎么办"是同一件事。`Check` 顺便把"过没过"交回，条件那一格能直接用。
 
 注意：`Report ()` 抛出去 ⟹ CLI 以非零码结束，所以 `dotnet out/ravel.dll mytests.rav` 可以直接当 CI 的一道关卡。每条的记录也留着：`Test.Results` / `Test.PassCount` / `Test.FailCount`。

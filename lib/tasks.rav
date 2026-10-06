@@ -123,14 +123,14 @@ TaskBase ::= class {
     # 一个 by-property 悄悄把当前任务挂起来,读代码的人看不见"这一句会让出";
     # 而"等"是调度的事,该在**调度器那一句**上明写。
     by Value := property (() => {
-        if { Done; } { 0; } {
+        Done { 0; } {
             throw (Exception ("这个任务还没完 —— 要等它就用 `group.Await t`,"
                               + "只想探一下就 `t.IsDone`"))
         }
         # 到这儿才认领:**读到了结果或错**才算"有人接"。上面那句"还没完"不算 ——
         # 它只是探了一下,没接过任何东西。
         Claimed = true
-        if { Ok; } { Val; } { throw Err; }
+        Ok { Val; } { throw Err; }
     }) ((v: object) => { (); })
 
     # ── `IMonad` 那一族的形状:能进 `do { … }` ──
@@ -202,7 +202,7 @@ Task ::= class TaskBase {
     # 已经进过组的不动(`Queued`):那意味着有**别的**组在推它,再塞一份会让它被挑到
     # 两次 —— `Add` 那边会当场拦下来。
     Schedule = (group: TaskGroup) => {
-        if { Queued; } { 0; } { group.Add this; }
+        Queued { 0; } { group.Add this; }
         ();
     }
 
@@ -317,11 +317,11 @@ Chan ::= class {
     # 放一件。有等着的人就叫醒一个 —— **叫醒谁不管**,他醒了自己再看一眼有没有货
     # (可能被别的消费者抢先拿了,那就接着睡)。
     Put := (v: object) => {
-        if { Shut; } {
+        Shut {
             throw (Exception ("这个队列已经关了 —— 放不进去了"))
         } { 0; }
         Items.Add v
-        if { (Waiting.Count ()) > 0; } { (Waiting.Remove 0).Open (); } { 0; }
+        (Waiting.Count ()) > 0 { (Waiting.Remove 0).Open (); } { 0; }
         ();
     }
 
@@ -335,7 +335,7 @@ Chan ::= class {
             Waiting.Add sig
             g.Await sig
         }
-        if { Items.IsEmpty (); } {
+        Items.IsEmpty () {
             throw (Exception ("队列已经关了,没货可取"))
         } { 0; }
         Items.Remove 0;
@@ -391,7 +391,7 @@ Any := (ts: list) => {
         foreach ts (t: ITask) => {
             g.Add (Task (gg: TaskGroup) => {
                 try { gg.Await t; } (e: Exception) => { (); }
-                if { gate.IsDone; } { 0; } { win.Set 0 t; gate.Open (); }
+                gate.IsDone { 0; } { win.Set 0 t; gate.Open (); }
             });
         }
         g.Await gate
@@ -461,10 +461,10 @@ TaskGroup ::= class {
         #   * 已经在组里(还挂着):再加一份会让它被挑到两次,`Step` 也跟着乱。
         # 要同样的活儿再来一遍,就再造一个 `Tasks.Task (…)` —— 任务是**一次性的**,
         # 和 `Generator`(体是配方,每次遍历从头)不是一个东西。
-        if { t.Done; } {
+        t.Done {
             throw (Exception ("这个任务已经跑完了 —— 一个任务只能跑一遍(要再来一次就再造一个)"))
         } { 0; }
-        if { t.Queued; } {
+        t.Queued {
             throw (Exception ("这个任务已经在组里了 —— 别加第二遍"))
         } { 0; }
         t.Queued = true
@@ -488,7 +488,7 @@ TaskGroup ::= class {
         t.Claimed = true
         # **挂起怎么挂,问那个任务自己**(`WaitOn`)—— "两种任务不一样"只在它那里,
         # 这一句里没有"是哪种"这个概念。
-        if { t.Done; } { 0; } { t.WaitOn this; }
+        t.Done { 0; } { t.WaitOn this; }
         # 到这儿它一定完了。**交回它的结果** —— 就是 `Value` 那个"检查过的读":
         # 那边抛了的话,在这一头重抛(谁等它,谁接到那个错)。
         # 于是 `r := g.Await (Http.GetTask url)` 一步到位,不用再 `t.Value` 一下。
@@ -510,7 +510,7 @@ TaskGroup ::= class {
     # 体的错**在这儿收住**(记进任务、不往外冒):一个任务把自己搞砸了,不该把整组带走。
     # 谁 `group.Await` 它 / 谁读它的 `Value`,谁在**那一头**接到这个错。
     Start := (t: Task) => {
-        if { t.Started; } { t.Step (); } {
+        t.Started { t.Step (); } {
             t.Started = true
             try { t.Val = (t.Body this); } (e: Exception) => {
                 t.Ok = false
@@ -546,7 +546,7 @@ TaskGroup ::= class {
     Run := () => {
         callcc (kc: Continuation) => { Back = kc; }
         while { !((Ready.IsEmpty ()) && (Waiting.IsEmpty ())); } {
-            if { Ready.IsEmpty (); } { Poll (); } {
+            Ready.IsEmpty () { Poll (); } {
                 Current = Ready.Remove 0
                 Start Current
             }
@@ -555,7 +555,7 @@ TaskGroup ::= class {
         # 它停在某个 `Await` 上,而没有任何东西能把它叫醒(典型:在等一个没进组、
         # 也不会有人去完成的自创任务)。当场报出来 —— 干等比报错难查得多。
         stuck := All.Where ((t: Task) => { !(t.Done); }) |> .ToList ()
-        if { (stuck.Count ()) == 0; } { (); } {
+        (stuck.Count ()) == 0 { (); } {
             throw (Exception ("死锁:还有 " + (string (stuck.Count ())) + " 个任务没完,"
                               + "但已经没有谁能推进它们了 —— 多半是在互相等,或者在等一件没人会去做的事"))
         }
@@ -563,14 +563,14 @@ TaskGroup ::= class {
         # —— 那个错就烂在它身上,程序照常往下跑。和"没人接的错误"是同一个毛病,
         # 所以照同一个口径:当场报出来。
         dropped := All.Where ((t: Task) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
-        if { (dropped.Count ()) == 0; } { (); } {
+        (dropped.Count ()) == 0 { (); } {
             d := dropped.First ()
             # 那句报告是**多行**的(位置 + 源码那一行 + 插入符 + 调用栈),所以它自己占一段。
             # 万一它空着(理论上不会 —— `Ok = false` 只有一处,那一处必写 `Where`),
             # 退回那句干话,别报出个空段落。
             throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错"
                               + " —— 谁起的任务谁负责等它(`group.Await` / `.Value`)\n\n"
-                              + (if { (d.Where) == ""; } { d.Err.Message; } { d.Where; })))
+                              + ((d.Where) == "" { d.Err.Message; } { d.Where; })))
         }
     }
 }

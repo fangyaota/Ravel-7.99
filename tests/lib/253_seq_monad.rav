@@ -58,7 +58,7 @@ rhs := m.Bind ((x: int) => { (f x).Bind g; })
 print (Seqs.Gather rhs)
 
 # ---- monad 三律:Option(同一个形状,另一族)----
-half := (x: int) => { if { (x % 2) == 0; } { Some (x / 2); } { None; } }
+half := (x: int) => { (x % 2) == 0 { Some (x / 2); } { None; } }
 print (((Some 8).Bind half).Value ())
 l2 := (Some 8).Bind half
 print (Seqs.Gather (l2.ToList ()))

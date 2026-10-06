@@ -26,9 +26,9 @@ readonly Utf8 := (s: string) => {
     while { i < n; } {
         cp := int (s.At i)
         # 高代理后跟低代理 = 一个补充平面的码点
-        if { (cp >= 55296) && (cp <= 56319) && ((i + 1) < n); } {
+        (cp >= 55296) && (cp <= 56319) && ((i + 1) < n) {
             lo := int (s.At (i + 1))
-            if { (lo >= 56320) && (lo <= 57343); } {
+            (lo >= 56320) && (lo <= 57343) {
                 cp = 65536 + (((cp - 55296) * 1024) + (lo - 56320))
                 i += 1
             } { 0; }
@@ -87,7 +87,7 @@ readonly Utf8Text := (bytes: list) => {
                 ((more >= 128) && (more <= 191)) { cp = ((cp * 64) + (more - 128)); } { ok = false; }
                 k += 1
             }
-            if { ok; } {
+            ok {
                 (cp < 65536) {
                     out += (string (char cp))
                 } {
@@ -115,13 +115,13 @@ readonly Base64 := (bytes: list) => {
     n := bytes.Count ()
     while { i < n; } {
         b0 := int (bytes.At i)
-        b1 := if { ((i + 1) < n); } { int (bytes.At (i + 1)); } { 0; }
-        b2 := if { ((i + 2) < n); } { int (bytes.At (i + 2)); } { 0; }
+        b1 := ((i + 1) < n) { int (bytes.At (i + 1)); } { 0; }
+        b2 := ((i + 2) < n) { int (bytes.At (i + 2)); } { 0; }
         left := n - i                          # 这一组还剩几个字节(1 或 2 时补 `=`)
         out += (string (B64Table.At (b0 / 4)))
         out += (string (B64Table.At (((b0 % 4) * 16) + (b1 / 16))))
-        if { left > 1; } { out += (string (B64Table.At (((b1 % 16) * 4) + (b2 / 64)))); } { out += "="; }
-        if { left > 2; } { out += (string (B64Table.At (b2 % 64))); } { out += "="; }
+        left > 1 { out += (string (B64Table.At (((b1 % 16) * 4) + (b2 / 64)))); } { out += "="; }
+        left > 2 { out += (string (B64Table.At (b2 % 64))); } { out += "="; }
         i += 3
     }
     out
@@ -133,21 +133,21 @@ readonly Unbase64 := (s: string) => {
     n := s.Length ()
     while { i < n; } {
         b0 := B64Table.IndexOf (s.At i)
-        b1 := if { ((i + 1) < n) && ((s.At (i + 1)) != '='); } { B64Table.IndexOf (s.At (i + 1)); } { 0 - 1; }
-        b2 := if { ((i + 2) < n) && ((s.At (i + 2)) != '='); } { B64Table.IndexOf (s.At (i + 2)); } { 0 - 1; }
-        b3 := if { ((i + 3) < n) && ((s.At (i + 3)) != '='); } { B64Table.IndexOf (s.At (i + 3)); } { 0 - 1; }
+        b1 := ((i + 1) < n) && ((s.At (i + 1)) != '=') { B64Table.IndexOf (s.At (i + 1)); } { 0 - 1; }
+        b2 := ((i + 2) < n) && ((s.At (i + 2)) != '=') { B64Table.IndexOf (s.At (i + 2)); } { 0 - 1; }
+        b3 := ((i + 3) < n) && ((s.At (i + 3)) != '=') { B64Table.IndexOf (s.At (i + 3)); } { 0 - 1; }
 
         assert (b0 >= 0) ("Encoding.Unbase64: 不是合法的 Base64（'" + (string (s.At i)) + "'）")
-        out.Add (((b0 * 4) + (if { b1 < 0; } { 0; } { b1 / 16; })) % 256)
+        out.Add (((b0 * 4) + (b1 < 0 { 0; } { b1 / 16; })) % 256)
         # 第二个字节在不在,看的是 **b2** 有没有(`=` 出现在第三格 = 这一组只装得下 1 个字节)。
         # 从前这儿写的是 `b1 >= 0` —— 那个条件在"一个字节 + 两个 `=`"时也成立,
         # 于是每次都多吐一个 0: `Unbase64 "AQ=="` 给出 `[1 0]`(该是 `[1]`)。
-        if { b2 >= 0; } {
-            out.Add ((((b1 % 16) * 16) + (if { b2 < 0; } { 0; } { b2 / 4; })) % 256)
+        b2 >= 0 {
+            out.Add ((((b1 % 16) * 16) + (b2 < 0 { 0; } { b2 / 4; })) % 256)
         } { 0; }
         # 第三个字节同理,看的是 **b3**(两个字节 + 一个 `=` 时,b3 是那个 `=`)
-        if { b3 >= 0; } {
-            out.Add ((((b2 % 4) * 64) + (if { b3 < 0; } { 0; } { b3; })) % 256)
+        b3 >= 0 {
+            out.Add ((((b2 % 4) * 64) + (b3 < 0 { 0; } { b3; })) % 256)
         } { 0; }
         i += 4
     }
@@ -168,8 +168,8 @@ readonly HexUpper := "0123456789ABCDEF"
 readonly DigitOf := (c: char) => {
     t := string c
     # `IndexOf` 是"找不到就报"的那个(它不交回 -1),所以先 `Contains` 问一句
-    if { HexDigits.Contains t; } { HexDigits.IndexOf c; } {
-        if { HexUpper.Contains t; } { HexUpper.IndexOf c; } { 0 - 1; }
+    HexDigits.Contains t { HexDigits.IndexOf c; } {
+        HexUpper.Contains t { HexUpper.IndexOf c; } { 0 - 1; }
     }
 }
 

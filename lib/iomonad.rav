@@ -95,7 +95,7 @@ readonly Sequence := (actions: list) => {
 
 # 条件留到**那一刻**再算 —— 所以收的是个函数而不是一个 bool(后者现在就定死了)
 readonly When := (cond: function body: Action) => {
-    Action (() => { if { cond (); } { body.Perform (); } { (); } });
+    Action (() => { cond () { body.Perform (); } { (); } });
 }
 readonly Unless := (cond: function body: Action) => { When (() => { !cond (); }) body; }
 

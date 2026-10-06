@@ -463,7 +463,7 @@ ff
 
 ```ravel
 using "text.rav"
-Kids := (x: string) => { if { x == "a"; } { ["b" "c"]; } { []; } }
+Kids := (x: string) => { x == "a" { ["b" "c"]; } { []; } }
 print (Text.Tree "a" Kids ((x: string) => { x; }))
 ```
 

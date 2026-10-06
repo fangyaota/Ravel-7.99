@@ -32,7 +32,7 @@ readonly Levels := ["debug" "info" "warn" "error"]
 readonly Known := (name: string) => {
     ok := false
     foreach Levels (l: string) => {
-        if { l == name; } { ok = true; } { 0; }
+        l == name { ok = true; } { 0; }
     }
     ok
 }
@@ -43,7 +43,7 @@ readonly Rank := (name: string) => {
     r := 1
     i := 0
     while { i < (Levels.Count ()); } {
-        if { (Levels.At i) == name; } { r = i; } { 0; }
+        (Levels.At i) == name { r = i; } { 0; }
         i += 1
     }
     r
@@ -57,12 +57,12 @@ Logger ::= class {
     Stamp: bool = true
 
     init = (opts: object) => {
-        if { (typeof opts) == dict; } {
-            if { opts.Has "level"; } { SetLevel (opts.Get "level"); } { 0; }
-            if { opts.Has "file"; } { Sink = opts.Get "file"; } { 0; }
-            if { opts.Has "err"; } { ToErr = opts.Get "err"; } { 0; }
-            if { opts.Has "tag"; } { Tag = opts.Get "tag"; } { 0; }
-            if { opts.Has "stamp"; } { Stamp = opts.Get "stamp"; } { 0; }
+        (typeof opts) == dict {
+            opts.Has "level" { SetLevel (opts.Get "level"); } { 0; }
+            opts.Has "file" { Sink = opts.Get "file"; } { 0; }
+            opts.Has "err" { ToErr = opts.Get "err"; } { 0; }
+            opts.Has "tag" { Tag = opts.Get "tag"; } { 0; }
+            opts.Has "stamp" { Stamp = opts.Get "stamp"; } { 0; }
         } { 0; }
         this
     }
@@ -80,27 +80,27 @@ Logger ::= class {
     # 组一行(不写出去)。想自己转手给别人(网络、界面)时用这条。
     Line := (name: string message: object) => {
         out := ""
-        if { Stamp; } { out += ((Now ()).Text ()); out += " "; } { 0; }
+        Stamp { out += ((Now ()).Text ()); out += " "; } { 0; }
         out += "["
         out += (name.ToUpper ())
         out += "] "
-        if { !(Tag.IsEmpty ()); } { out += Tag; out += ": "; } { 0; }
+        !(Tag.IsEmpty ()) { out += Tag; out += ": "; } { 0; }
         out += (string message)
         out
     }
 
     Emit := (text: string) => {
-        if { !(Sink.IsEmpty ()); } {
+        !(Sink.IsEmpty ()) {
             System.AppendText Sink (text + "
 ")
         } {
-            if { ToErr; } { System.WriteLineErr text; } { System.WriteLine text; }
+            ToErr { System.WriteLineErr text; } { System.WriteLine text; }
         }
         ();
     }
 
     Write := (name: string message: object) => {
-        if { Enabled name; } { Emit (Line name message); } { 0; }
+        Enabled name { Emit (Line name message); } { 0; }
         ();
     }
 
@@ -123,7 +123,7 @@ readonly New := (opts: object) => { Logger opts; }
 readonly Holder := {"lg"-> ()}
 
 readonly Default := () => {
-    if { (Holder.Get "lg") : Logger; } { Holder.Get "lg"; } {
+    (Holder.Get "lg") : Logger { Holder.Get "lg"; } {
         lg := Logger {"level"-> (System.EnvOr "RAVEL_LOG" "info")}
         Holder.Set "lg" lg
         lg

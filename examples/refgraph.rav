@@ -27,7 +27,7 @@ Walk := (m: object) => {
     foreach (m.References ()) (r: object) => {
         other := Name r
         g.AddEdge me other
-        if { (seen.Contains other); } { 0; } { Walk r; }
+        (seen.Contains other) { 0; } { Walk r; }
     }
 }
 Walk Repl
@@ -46,7 +46,7 @@ print "── 从 Repl 往下走(引过的标 ←) ──"
 # 所以第一次展开时标不上、第二次指回来才标得上。
 walked := set default
 Kids := (v: string) => {
-    if { (walked.Contains v); } { []; } { walked.Add v; g.Neighbors v; }
+    (walked.Contains v) { []; } { walked.Add v; g.Neighbors v; }
 }
-Show := (v: string) => { if { (walked.Contains v); } { v + "  ←"; } { v; } }
+Show := (v: string) => { (walked.Contains v) { v + "  ←"; } { v; } }
 print (Text.Tree "Repl" Kids Show)

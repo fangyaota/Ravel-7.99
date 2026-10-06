@@ -17,7 +17,7 @@ srv.Route "GET" "/hi" (req g) => { Httpd.Text "hi"; }
 # **`g.Await` 就是那个挂起点** —— 挂着的时候调度器去伺候别的连接。
 srv.Route "GET" "/hold" (req g) => {
     live += 1
-    if { live > peak; } { peak = live; } { 0; }
+    live > peak { peak = live; } { 0; }
     g.Await (Tasks.After 200)
     live -= 1
     Httpd.Text "ok";

@@ -23,7 +23,7 @@ HandlerStack: list = []
 # throw / try 标 readonly(HandlerStack 是**状态**,故意留可写):
 # 它们是这个模块的 API,被覆盖掉异常处理就整个变了样。
 readonly Throw := (e: Exception) => {
-    if { (HandlerStack.Count ()) == 0; } {
+    (HandlerStack.Count ()) == 0 {
         exit (e.ToString ())
     } {
         # 弹掉栈顶**再**拿它调 e —— 顺序和从前那条 `HandlerStack.Remove 0 e` 一个样
@@ -49,8 +49,8 @@ readonly Try := (body: function) => {
             # 报错位置也指到那儿去,原来的错反而看不见了。
             # (出错那条路由求值器先摘过一次,这里只管正常收尾;摘之前对一下身份,
             #  免得摘掉别人新压上来的那个。)
-            if { (HandlerStack.Count ()) == 0; } { 0; } {
-                if { (HandlerStack.At 0) == mine; } { HandlerStack = HandlerStack.Skip 1; } { 0; }
+            (HandlerStack.Count ()) == 0 { 0; } {
+                (HandlerStack.At 0) == mine { HandlerStack = HandlerStack.Skip 1; } { 0; }
             }
             ok r
         }
@@ -69,7 +69,7 @@ ravel ""
 #     位置和调用栈都不变(和从前没这个钩子时一样)。
 # 非函数的栈顶(手写 `Ex.HandlerStack = [1]` 那种)也当"没人接",不弹它 —— 和从前一致。
 readonly onError := (e: Exception) => {
-    if { (Ex.HandlerStack.Count ()) > 0 && (typeof (Ex.HandlerStack.At 0)) == function; } {
+    (Ex.HandlerStack.Count ()) > 0 && (typeof (Ex.HandlerStack.At 0)) == function {
         # 弹掉栈顶再调它(只整表替换,见 `HandlerStack` 那段)
         top := Ex.HandlerStack.At 0
         Ex.HandlerStack = Ex.HandlerStack.Skip 1

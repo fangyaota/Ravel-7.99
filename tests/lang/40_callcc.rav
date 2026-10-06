@@ -13,9 +13,7 @@ result = callcc (k: function) => {
 print result
 F := (x: int) => {
     callcc (return: function) => {
-        if {
-            x < 0
-        } {
+        x < 0 {
             return 0
         } {
             return x
@@ -30,9 +28,7 @@ F = (x: int) => {
         while {
             true
         } {
-            if {
-                i > x
-            } {
+            i > x {
                 exit i
             } {
                 0
@@ -50,9 +46,7 @@ result = callcc (found: function) => {
         i < X.Count ()
     } {
         val := X.At i
-        if {
-            val > 3
-        } {
+        val > 3 {
             found val
         } {
             0
@@ -70,9 +64,7 @@ product := (list: list) => {
             i < list.Count ()
         } {
             val := list.At i
-            if {
-                val == 0
-            } {
+            val == 0 {
                 return 0
             } {
                 0
@@ -95,7 +87,7 @@ n = 1 + callcc (k: function) => {
     0
 }
 trace.Add n
-if { n < 10; } { saved 10; } { 0; }
+n < 10 { saved 10; } { 0; }
 print trace
 
 # 续延可反复调用:每次带新值从捕获点重来(靠守卫终止)
@@ -106,7 +98,7 @@ m = callcc (k: function) => {
     0
 }
 seen.Add m
-if { m < 3; } { saved (m + 1); } { 0; }
+m < 3 { saved (m + 1); } { 0; }
 print seen
 
 # 丢弃当前链 → 续延可以当跳转用,帧链不随迭代增长
@@ -116,7 +108,7 @@ again := (x: int) => { x; }
 callcc (k: function) => { again = k; }
 i += 1
 total += i
-if { i < 5; } { again 0; } { 0; }
+i < 5 { again 0; } { 0; }
 print total
 
 result = 0
@@ -170,13 +162,13 @@ escT: object = 0
 armed := false
 doneT := false
 res := try {
-    k := callcc (k2: function) => { if { !armed; } { armed = true; escT = k2; } { 0; }; k2; };
+    k := callcc (k2: function) => { !armed { armed = true; escT = k2; } { 0; }; k2; };
     # 这里问的是"拿到的还是一枚调用得起来的东西吗"—— 续延现在是**自己的类型**
     # (`typeof k` 报 Continuation,`<: function`),所以判据得用 `is`,不能写 `== function`
-    if { (k : function); } { "armed"; } { throw (Exception "from resumed body"); }
+    (k : function) { "armed"; } { throw (Exception "from resumed body"); }
 } (e: Exception) => { "caught by the same try"; }
 print res
-try { if { !doneT; } { doneT = true; escT (); } { 0; }; } (e: Exception) => { print ("X: " + string e); }
+try { !doneT { doneT = true; escT (); } { 0; }; } (e: Exception) => { print ("X: " + string e); }
 print res                              # 恢复之后重跑：这次是被那个 try 自己接住的
 print (Ex.HandlerStack.Count ())
 
@@ -216,7 +208,7 @@ i := 0
 out := callcc (esc: function) => {
     while { i < 10; } {
         i += 1
-        if { i == 3; } { esc i; } { 0; }
+        i == 3 { esc i; } { 0; }
     }
     999
 }
@@ -228,7 +220,7 @@ seen: list = []
 r1 := callcc (k: function) => {
     foreach [1 2 3 4] (x: int) => {
         seen.Add x
-        if { x == 3; } { k x; } { 0; }
+        x == 3 { k x; } { 0; }
     }
     999
 }
@@ -237,7 +229,7 @@ print seen
 
 done: list = []
 r2 := callcc (k: function) => {
-    [1 2 3 4].Each (x: int) => { done.Add x; if { x == 2; } { k x; } { 0; } }
+    [1 2 3 4].Each (x: int) => { done.Add x; x == 2 { k x; } { 0; } }
     999
 }
 print r2
@@ -248,7 +240,7 @@ stuck := 0
 try {
     foreach [1 2 3] (x: int) => {
         stuck += 1
-        if { x == 2; } { throw (Exception "boom"); } { 0; }
+        x == 2 { throw (Exception "boom"); } { 0; }
     }
 } (e: Exception) => { print ("caught " + string e); }
 print stuck
@@ -260,7 +252,7 @@ n := 0
 r := callcc (k: function) => { escN = k; "first"; }
 print r
 n += 1
-if { n < 3; } { escN ("again " + string n); } { 0; }
+n < 3 { escN ("again " + string n); } { 0; }
 print r
 
 # ---- ④ 可变状态不回滚：Map 攒了一半的结果会接着长 ----
@@ -268,13 +260,13 @@ escM: object = 0
 haveM := false
 doneM := false
 mm := [1 2 3].Map (x: int) => {
-    if { x == 2; } {
-        if { !haveM; } { haveM = true; escM = callcc (k: function) => { k; }; } { 0; }
+    x == 2 {
+        !haveM { haveM = true; escM = callcc (k: function) => { k; }; } { 0; }
     } { 0; }
     x * 10;
 }
 print mm
-try { if { !doneM; } { doneM = true; escM 99; } { 0; }; } (e: Exception) => { print ("M: " + string e); }
+try { !doneM { doneM = true; escM 99; } { 0; }; } (e: Exception) => { print ("M: " + string e); }
 print mm
 print "end"
 ravel ""
@@ -294,9 +286,9 @@ ravel "225_callcc_scopes"
 escE: object = 0
 haveE := false
 doneE := false
-r := eval "callcc (k: function) => { if { !haveE; } { haveE = true; escE = k; } { 0; }; 5; }"
+r := eval "callcc (k: function) => { !haveE { haveE = true; escE = k; } { 0; }; 5; }"
 print r
-try { if { !doneE; } { doneE = true; escE 7; } { 0; }; } (e: Exception) => { print ("E: " + string e); }
+try { !doneE { doneE = true; escE 7; } { 0; }; } (e: Exception) => { print ("E: " + string e); }
 print "after E"
 
 # ---- ② with：不拷，块里改的就是原对象；续延恢复之后接着改的**还是它** ----
@@ -309,13 +301,13 @@ doneW := false
 obj := K ()
 p2 := with obj {
     n = 2
-    got := callcc (k: function) => { if { !haveW; } { haveW = true; escW = k; } { 0; }; () };
-    if { (typeof (got)) == int; } { n = got + 100; } { 0; }
+    got := callcc (k: function) => { !haveW { haveW = true; escW = k; } { 0; }; () };
+    (typeof (got)) == int { n = got + 100; } { 0; }
     n;
 }
 print p2.n
 print obj.n
-try { if { !doneW; } { doneW = true; escW 5; } { 0; }; } (e: Exception) => { print ("W: " + string e); }
+try { !doneW { doneW = true; escW 5; } { 0; }; } (e: Exception) => { print ("W: " + string e); }
 print p2.n
 print obj.n
 
@@ -333,7 +325,7 @@ doneU := false
 seenX: list = []
 impl (T C {
     by f = property (() => {
-        k := callcc (k2: function) => { if { !haveI; } { haveI = true; escI = k2; } { 0; }; k2; };
+        k := callcc (k2: function) => { !haveI { haveI = true; escI = k2; } { 0; }; k2; };
         seenX.Add instance.x
         k;
     }) ((v: function) => { (); })
@@ -346,9 +338,9 @@ ku := u.f
 kw := w.f
 print seenX                # [1 100]：u 那次、w 那次各记一条
 print (typeof ku)          # Continuation：续延是它自己的类型（不是含糊的 Function）
-try { if { !doneW2; } { doneW2 = true; kw (); } { 0; }; } (e: Exception) => { print ("I: " + string e); }
+try { !doneW2 { doneW2 = true; kw (); } { 0; }; } (e: Exception) => { print ("I: " + string e); }
 print seenX                # 恢复 w 那次 → 又记 100
-try { if { !doneU; } { doneU = true; escI (); } { 0; }; } (e: Exception) => { print ("I2: " + string e); }
+try { !doneU { doneU = true; escI (); } { 0; }; } (e: Exception) => { print ("I2: " + string e); }
 print seenX                # 恢复 u 那次 → 该记 1（u），不是 100（w）
 
 # ---- ④ 从槽体里用外层续延逃出去 ----
@@ -418,7 +410,7 @@ started := false
 pull := () => {
     callcc (kc: function) => {
         resumeConsumer = kc
-        if { started; } { resumeProducer (); } { started = true; producerBody (); }
+        started { resumeProducer (); } { started = true; producerBody (); }
     }
 }
 
@@ -451,7 +443,7 @@ escOp: object = 0
 haveOp := false
 impl (T C {
     by + = property (() => {
-        callcc (k: function) => { if { !haveOp; } { haveOp = true; escOp = k; } { 0; }; };
+        callcc (k: function) => { !haveOp { haveOp = true; escOp = k; } { 0; }; };
         (o: object) => { instance.x + 1; };
     }) ((v: function) => { (); })
 })
@@ -475,14 +467,14 @@ doneK := false
 K ::= class {
     n : int = 0
     init = (v: int) => {
-        callcc (k: function) => { if { !haveK; } { haveK = true; escK = k; } { 0; }; };
+        callcc (k: function) => { !haveK { haveK = true; escK = k; } { 0; }; };
         n = v
         this
     }
 }
 kk := K 7
 print kk.n
-try { if { !doneK; } { doneK = true; escK (); } { 0; }; } (e: Exception) => { print ("K: " + string e); }
+try { !doneK { doneK = true; escK (); } { 0; }; } (e: Exception) => { print ("K: " + string e); }
 print kk.n
 
 # ---- ② 柯里化的构造器（两参）：第一段里捕获续延，正常那条路照旧 ----
@@ -492,7 +484,7 @@ P ::= class {
     a : int = 0
     b : int = 0
     init = (x: int) => {
-        callcc (k: function) => { if { !haveP; } { haveP = true; escP = k; } { 0; }; };
+        callcc (k: function) => { !haveP { haveP = true; escP = k; } { 0; }; };
         (y: int) => { a = x; b = y; this; }
     }
 }

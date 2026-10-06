@@ -16,7 +16,7 @@ print ("长度: " + (string (r.Size ())) + " 字节")
 # 正文按响应头里的 charset 解(没写就是 UTF-8)—— 老中文网页写着 gbk 也认
 html := r.Text ()
 found := (Regex.C "<title>(.*?)</title>").TryMatch html
-if { (found.IsSome ()); } { print ("标题: " + ((found.Value ()).Group 1)); } { print "标题: （没找到）"; }
+(found.IsSome ()) { print ("标题: " + ((found.Value ()).Group 1)); } { print "标题: （没找到）"; }
 
 # ── 2. 调一个 JSON 接口(`Json ()` 交回的就是现成那个 `Json`)──
 todo := (Http.Get "https://jsonplaceholder.typicode.com/todos/1").Json ()

@@ -28,8 +28,10 @@ try { print 2.5i; } (e: Exception) => { print ("2: " + string e); }
 try { print 2.5n; } (e: Exception) => { print ("3: " + string e); }
 
 # 后缀**要吞得干净才算**:后面还粘着标识符字符就不是后缀。
-# 所以 `0if` 还是"`0` 和 `if`"两个词(和从前一个字都没差),用的是 `0if true {…} {…}`。
-try { print (0if true { 1; } { 2; }); } (e: Exception) => { print ("4: " + string e); }
+# 所以 `0true` 还是"`0` 和 `true`"两个词(和从前一个字都没差)。
+# (从前这儿用的是 `0if` —— `if` 2026-10-07 删了,换个**还是全局名**的标识符,
+#  这条要的只是"数字后面粘着标识符字符"。)
+try { print (0true { 1; } { 2; }); } (e: Exception) => { print ("4: " + string e); }
 
 # 值本身还是那个值;打印函数时后缀原样还原(`AstPrinter` 打的是源码)
 f := (x: int) => { x + 5n; }

@@ -42,4 +42,4 @@ print r
 # 30
 # 9
 # 无法给只读变量 'b' 赋值
-# <function ([a readonly b]) => { if ({ !(__p1df677_3 : IEnumerable); }) ({ System.Reject (TypeError...>
+# <function ([a readonly b]) => { (!(__p1df677_3 : IEnumerable)) ({ System.Reject (TypeError...>

@@ -656,9 +656,13 @@ public sealed class Lowering
             Reject(Lit($"'{name}' 这一格的条件没过 —— 这一支不收这个值", at), at), at), at));
     }
 
-    /// <summary>`if { 条件; } { 这一段; } { 0; }` —— 条件不成立才跑那一段。</summary>
+    /// <summary>`条件 { 这一段; } { 0; }` —— 条件不成立才跑那一段。
+    ///
+    /// **从前是绕 `if` 走的**(`if { 条件; } { 这一段; } { 0; }`)—— 2026-10-07 把 `if`
+    /// 那个库函数删了,`true` / `false` 直接收两个块。「条件」本来就是**算好的 bool**
+    /// (调用点给的都是 `Not(…)` / `Call(…)` 这种表达式),不是 thunk,所以少一层包装。</summary>
     private Expression If(Expression cond, Expression then, AstNode at)
-        => Call(Call(Call(Ident("if", at), AsBlock(cond, at)), AsBlock(then, at)), AsBlock(Num("0", at), at));
+        => Call(Call(cond, AsBlock(then, at)), AsBlock(Num("0", at), at));
 
     /// <summary>**拒收**:`reject "…"`。
     ///

@@ -33,14 +33,14 @@ readonly Rest := "_"          # 位置参数落在这个键下
 # ── 认不认得出"这是个选项" ──
 # 光看 `-` 开头不够:`-5` 是负数,`-` 常常是"标准输入"。这两样都该当**位置参数**。
 readonly IsOpt := (v: string) => {
-    if { (v.Length ()) < 2; } { false; } {
-        if { !(v.StartsWith "-"); } { false; } { !((v.At 1).IsDigit ()); }
+    (v.Length ()) < 2 { false; } {
+        !(v.StartsWith "-") { false; } { !((v.At 1).IsDigit ()); }
     }
 }
 
 # 剥掉前缀:`--name` / `-n` → `name` / `n`
 readonly Peel := (arg: string) => {
-    if { arg.StartsWith "--"; } { arg.Skip 2; } { arg.Skip 1; }
+    arg.StartsWith "--" { arg.Skip 2; } { arg.Skip 1; }
 }
 
 # ── 解析 ──
@@ -64,29 +64,29 @@ readonly ParseWith := (argv: list spec: object) => {
     # 不这么做的话 `-v a.txt` 里的 `a.txt` 会被 `v` 吃掉 —— 而作者想说的明明是"开关 + 位置参数"。
     # 要带值,要么写 `-v=a`、要么在规格里声明它的类型。
     isFlag := (name: string) => {
-        if { given; } { ((SpecOf spec name) == "flag"); } { true; }
+        given { ((SpecOf spec name) == "flag"); } { true; }
     }
 
     # 收下一对"名字 → 原始值"。认不认识、按什么类型转,都在这儿判。
     put := (name: string raw: object) => {
-        if { given && (!(spec.Has name)); } {
+        given && (!(spec.Has name)) {
             # 拼接前先落成变量:`... .Join " " + "）"` 里的 `" "` 会把后面的 `+ "）"` **一起吃进去**
             # (实参吃到运算符为止),拼出来就少一截。调用接运算符的地方都得这么让一步。
             known := ((spec.Keys ()).Sort ()).Join " "
             throw (Exception ("Args.Parse: 不认识的选项 '" + name + "'（规格里有：" + known + "）"))
         } { 0; }
-        t := if { given; } { SpecOf spec name; } { "string"; }
+        t := given { SpecOf spec name; } { "string"; }
         v := Coerce t name raw
-        if { t == "list"; } {
-            if { out.Has name; } { (out.Get name).Add v; } { out.Set name [v]; }
+        t == "list" {
+            out.Has name { (out.Get name).Add v; } { out.Set name [v]; }
         } { out.Set name v; }
         ();
     }
 
     # 一个不带 `=` 的选项:是开关就当 true,不是就看看下一个实参能不能吃
     take := (name: string) => {
-        if { isFlag name; } { put name true; } {
-            if { (i < n) && (!(IsOpt (argv.At i))); } {
+        isFlag name { put name true; } {
+            (i < n) && (!(IsOpt (argv.At i))) {
                 put name (argv.At i)
                 i += 1
             } { throw (Exception ("Args.Parse: '" + name + "' 缺一个值")); }
@@ -99,7 +99,7 @@ readonly ParseWith := (argv: list spec: object) => {
     merge := (body: string) => {
         foreach (body.Chars ()) (c: object) => {
             nm := string c
-            if { given && (!(isFlag nm)); } {
+            given && (!(isFlag nm)) {
                 throw (Exception ("Args.Parse: 合并的短开关不能带值 —— '-" + body + "' 里的 '" + nm + "' 是带值的，请写 '-" + nm + " 值'"))
             } { 0; }
             put nm true
@@ -109,7 +109,7 @@ readonly ParseWith := (argv: list spec: object) => {
 
     # `名字=值` 这一边(长选项走 `arg.Slice [2..eq)`,短选项同理)
     assign := (name: string raw: string) => {
-        if { name.IsEmpty (); } {
+        name.IsEmpty () {
             throw (Exception ("Args.Parse: 选项名是空的 —— " + raw))
         } { put name raw; }
         ();
@@ -118,20 +118,20 @@ readonly ParseWith := (argv: list spec: object) => {
     while { i < n; } {
         arg := argv.At i
         i += 1
-        if { tail; } { addRest arg; } {
-            if { arg == "--"; } {
+        tail { addRest arg; } {
+            arg == "--" {
                 tail = true
             } {
-                if { IsOpt arg; } {
+                IsOpt arg {
                     body := Peel arg
                     # `Find` 找不到给 **-1**,`IndexOf` 找不到**当场报错** —— 这儿问的就是"有没有"
                     eq := body.Find "="
-                    if { eq >= 0; } {
+                    eq >= 0 {
                         assign (body.Slice [0..eq)) (body.Skip (eq + 1))
                     } {
                         # 合并的开关只看**短选项**:`-abc` 拆成 a b c;
                         # `--abc` 是一个叫 "abc" 的长选项(长名字里的字母不是一个一个开关)
-                        if { (!(arg.StartsWith "--")) && ((body.Length ()) > 1); } {
+                        (!(arg.StartsWith "--")) && ((body.Length ()) > 1) {
                             merge body
                         } { take body; }
                     }
@@ -145,32 +145,32 @@ readonly ParseWith := (argv: list spec: object) => {
 
 # 「这名字该按什么类型收」—— 规格里没写就是 string
 readonly SpecOf := (spec: dict name: string) => {
-    if { spec.Has name; } { spec.Get name; } { "string"; }
+    spec.Has name { spec.Get name; } { "string"; }
 }
 
 # 原始值 → 该有的样子。**转不动就报错,而且要说清是哪个选项** ——
 # "123abc" 是个 int 这件事,不说明白的话用户得自己去数第几个参数。
 readonly Coerce := (t: string name: string v: object) => {
-    if { t == "flag"; } { true; } {
-        if { t == "int"; } { AsInt name v; } {
-            if { t == "real"; } { AsReal name v; } { v; }
+    t == "flag" { true; } {
+        t == "int" { AsInt name v; } {
+            t == "real" { AsReal name v; } { v; }
         }
     }
 }
 
 readonly AsInt := (name: string v: object) => {
-    if { (typeof v) == string; } {
-        s := if { v.StartsWith "-"; } { v.Skip 1; } { v; }
+    (typeof v) == string {
+        s := v.StartsWith "-" { v.Skip 1; } { v; }
         ok := (s.Length ()) > 0
         foreach (s.Chars ()) (c: object) => {
-            if { !(c.IsDigit ()); } { ok = false; } { 0; }
+            !(c.IsDigit ()) { ok = false; } { 0; }
         }
-        if { ok; } { int v; } { throw (Exception ("Args.Parse: '--" + name + "' 要一个整数，得到 '" + v + "'")); }
+        ok { int v; } { throw (Exception ("Args.Parse: '--" + name + "' 要一个整数，得到 '" + v + "'")); }
     } { v; }
 }
 
 readonly AsReal := (name: string v: object) => {
-    if { (typeof v) == string; } {
+    (typeof v) == string {
         try { real v; } (e: Exception) => { throw (Exception ("Args.Parse: '--" + name + "' 要一个数，得到 '" + v + "'")); }
     } { v; }
 }
@@ -180,7 +180,7 @@ readonly AsReal := (name: string v: object) => {
 # 没给就用默认值。**开关的"给没给"要用 `Has` 问** —— `Get a "v" false` 在只给了 `--v` 时
 # 也交回 `true`,而在没给时交回 `false`,两种都说得通,别在这儿绕。
 readonly Get := (a: dict name: string dflt: object) => {
-    if { a.Has name; } { a.Get name; } { dflt; }
+    a.Has name { a.Get name; } { dflt; }
 }
 
 readonly Has := (a: dict name: string) => { a.Has name; }
@@ -192,7 +192,7 @@ readonly Usage := (spec: dict) => {
     parts := []
     foreach ((spec.Keys ()).Sort ()) (k: string) => {
         t := spec.Get k
-        parts.Add (if { t == "flag"; } { "--" + k; } { (("--" + k) + " <") + (t + ">"); })
+        parts.Add (t == "flag" { "--" + k; } { (("--" + k) + " <") + (t + ">"); })
     }
     (parts).Join " "
 }

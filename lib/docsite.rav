@@ -60,14 +60,14 @@ CSS_FILE := SRC + "/style.css"
 # 取子串。**`Slice` 是闭区间**(和 `[1..3]` 那个 Range 一个规矩),差一格的事全收进
 # 这三个里,别在每个调用点各算一遍。
 Sub := (s: string i: int n: int) => {
-    if { n <= 0; } { ""; } { s.Slice [i..((i + n) - 1)]; }
+    n <= 0 { ""; } { s.Slice [i..((i + n) - 1)]; }
 }
 Mid := (s: string i: int j: int) => { Sub s i (j - i); }      # [i, j)
 
 # 第 i 行,越界就是空串。(`&&` 是**真短路**的,所以这不是为了兜它 —— 是为了读起来
 # 不用每处都先想一遍"这个 i 会不会越界"。)
 LineAt := (lines: list i: int) => {
-    if { i < (lines.Count ()); } { lines.At i; } { ""; }
+    i < (lines.Count ()) { lines.At i; } { ""; }
 }
 Tail := (s: string n: int) => { Sub s n ((s.Length ()) - n); }  # 从第 n 个到末尾
 
@@ -78,7 +78,7 @@ Find := (s: string sub: string from: int) => {
     n := s.Length ()
     m := sub.Length ()
     while { ((i + m) <= n) && (at < 0); } {
-        if { (Sub s i m) == sub; } { at = i; } { 0; }
+        (Sub s i m) == sub { at = i; } { 0; }
         i += 1
     }
     at;
@@ -104,18 +104,18 @@ Inline := (s: string) => {
         # `\[` 这种:反斜杠是"下一个字符照字面来",本身不是内容。**这条得排在最前面** ——
         # 不然那个 `[` 会被当成链接的开头,而 `\[…\]` 根本不是链接(教程里写"值 \[…\] 不是函数"
         # 就是这么写的)。末尾孤零零一个 `\` 就当一个普通字符走。
-        if { c == "\\"; } {
-            if { (i + 1) < n; } { out.Add (Html.Text (Mid s (i + 1) (i + 2))); i += 2; } { i += 1; }
+        c == "\\" {
+            (i + 1) < n { out.Add (Html.Text (Mid s (i + 1) (i + 2))); i += 2; } { i += 1; }
         } {
-            if { c == "`"; } {
+            c == "`" {
                 out.Add (Code s i)
                 i = CodeEnd s i
             } {
-                if { c == "*"; } {
+                c == "*" {
                     out.Add (Bold s i)
                     i = BoldEnd s i
                 } {
-                    if { c == "["; } {
+                    c == "[" {
                         out.Add (LinkAt s i)
                         i = LinkEnd s i
                     } {
@@ -131,35 +131,35 @@ Inline := (s: string) => {
 
 Code := (s: string i: int) => {
     j := Find s "`" (i + 1)
-    if { j < 0; } { Html.Text (Mid s i (i + 1)); } { Html.Code (Mid s (i + 1) j); }
+    j < 0 { Html.Text (Mid s i (i + 1)); } { Html.Code (Mid s (i + 1) j); }
 }
 CodeEnd := (s: string i: int) => {
     j := Find s "`" (i + 1)
-    if { j < 0; } { i + 1; } { j + 1; }
+    j < 0 { i + 1; } { j + 1; }
 }
 
 Bold := (s: string i: int) => {
     j := Find s "**" (i + 2)
-    if { j < 0; } { Html.Text (Mid s i (i + 1)); } { Html.El "strong" {} (Inline (Mid s (i + 2) j)); }
+    j < 0 { Html.Text (Mid s i (i + 1)); } { Html.El "strong" {} (Inline (Mid s (i + 2) j)); }
 }
 BoldEnd := (s: string i: int) => {
     j := Find s "**" (i + 2)
-    if { j < 0; } { i + 1; } { j + 2; }
+    j < 0 { i + 1; } { j + 2; }
 }
 
 LinkAt := (s: string i: int) => {
     j := Find s "]" (i + 1)
-    k := if { j < 0; } { -1; } { Find s "(" (j + 1); }
-    e := if { k < 0; } { -1; } { Find s ")" (k + 1); }
-    if { e < 0; } { Html.Text (Mid s i (i + 1)); } {
+    k := j < 0 { -1; } { Find s "(" (j + 1); }
+    e := k < 0 { -1; } { Find s ")" (k + 1); }
+    e < 0 { Html.Text (Mid s i (i + 1)); } {
         Html.A (Mid s (k + 1) e) (Inline (Mid s (i + 1) j));
     }
 }
 LinkEnd := (s: string i: int) => {
     j := Find s "]" (i + 1)
-    k := if { j < 0; } { -1; } { Find s "(" (j + 1); }
-    e := if { k < 0; } { -1; } { Find s ")" (k + 1); }
-    if { e < 0; } { i + 1; } { e + 1; }
+    k := j < 0 { -1; } { Find s "(" (j + 1); }
+    e := k < 0 { -1; } { Find s ")" (k + 1); }
+    e < 0 { i + 1; } { e + 1; }
 }
 
 # ═══ 块级 ═══
@@ -185,14 +185,14 @@ Cells := (line: string) => {
     n := t.Length ()
     while { i < n; } {
         c := Mid t i (i + 1)
-        if { (c == "\\") && ((i + 1) < n); } {
+        (c == "\\") && ((i + 1) < n) {
             # **反斜杠本身不留** —— 它是写给这个拆分器看的,再往下的 `Inline` 不该看见它。
             # (留着的活,`\|>` 会连反斜杠一起进代码段,那一段里 `Inline` 已经不处理转义了,
             #  于是屏幕上就是个 `\|>`。)
             cur += (Mid t (i + 1) (i + 2))
             i += 2
         } {
-            if { c == "|"; } {
+            c == "|" {
                 out.Add (cur.Trim ())
                 cur = ""
                 i += 1
@@ -204,8 +204,8 @@ Cells := (line: string) => {
     }
     out.Add (cur.Trim ())
     # 两头那两个 `|` 各切出一个空格子,去掉
-    if { ((out.Count ()) > 0) && ((out.At 0) == ""); } { out.Remove 0; } { 0; }
-    if { ((out.Count ()) > 0) && ((out.At ((out.Count ()) - 1)) == ""); } { out.Remove ((out.Count ()) - 1); } { 0; }
+    ((out.Count ()) > 0) && ((out.At 0) == "") { out.Remove 0; } { 0; }
+    ((out.Count ()) > 0) && ((out.At ((out.Count ()) - 1)) == "") { out.Remove ((out.Count ()) - 1); } { 0; }
     out;
 }
 
@@ -239,7 +239,7 @@ Md := (text: string) => {
         at := i + 1
         done := false
 
-        if { t.StartsWith "```"; } {
+        t.StartsWith "```" {
             i += 1
             code := []
             while { (i < n) && !(((LineAt lines i).Trim ()).StartsWith "```"); } {
@@ -251,7 +251,7 @@ Md := (text: string) => {
             done = true
         } { 0; }
 
-        if { !done && (t.StartsWith "|"); } {
+        !done && (t.StartsWith "|") {
             rows := []
             while { (i < n) && (((LineAt lines i).Trim ()).StartsWith "|"); } {
                 rows.Add (LineAt lines i)
@@ -261,12 +261,12 @@ Md := (text: string) => {
             done = true
         } { 0; }
 
-        if { !done && (t.StartsWith "#### "); } { out.Add (Head 4 at (Tail t 5)); i += 1; done = true; } { 0; }
-        if { !done && (t.StartsWith "### "); }  { out.Add (Head 3 at (Tail t 4)); i += 1; done = true; } { 0; }
-        if { !done && (t.StartsWith "## "); }   { out.Add (Head 2 at (Tail t 3)); i += 1; done = true; } { 0; }
-        if { !done && (t.StartsWith "# "); }    { out.Add (Head 1 at (Tail t 2)); i += 1; done = true; } { 0; }
+        !done && (t.StartsWith "#### ") { out.Add (Head 4 at (Tail t 5)); i += 1; done = true; } { 0; }
+        !done && (t.StartsWith "### ")  { out.Add (Head 3 at (Tail t 4)); i += 1; done = true; } { 0; }
+        !done && (t.StartsWith "## ")   { out.Add (Head 2 at (Tail t 3)); i += 1; done = true; } { 0; }
+        !done && (t.StartsWith "# ")    { out.Add (Head 1 at (Tail t 2)); i += 1; done = true; } { 0; }
 
-        if { !done && (t.StartsWith "- "); } {
+        !done && (t.StartsWith "- ") {
             items := []
             while { (i < n) && (((LineAt lines i).Trim ()).StartsWith "- "); } {
                 items.Add (Inline (Tail ((LineAt lines i).Trim ()) 2))
@@ -276,12 +276,12 @@ Md := (text: string) => {
             done = true
         } { 0; }
 
-        if { done; } { 0; } {
-            if { t == ""; } { i += 1; } {
+        done { 0; } {
+            t == "" { i += 1; } {
                 # 以「注意：」起头的整段当**提示框**(`p.note`,样式在 CSS 里)—— 教程里这种
                 # 段落一百多条,全是"这句是旁注"的意思,画成一条竖线读起来才分得清。
                 # `None` 落到 `class` 上就是"不写这个属性",普通段落照旧。
-                cls := if { t.StartsWith "注意："; } { "note"; } { None; }
+                cls := t.StartsWith "注意：" { "note"; } { None; }
                 out.Add (Html.El "p" {"class"-> cls} (Inline t))
                 i += 1
             }
@@ -298,8 +298,8 @@ Toc := (text: string) => {
     while { i < (lines.Count ()); } {
         t := (LineAt lines i).Trim ()
         id := "s" + (string (i + 1))
-        if { t.StartsWith "### "; } { out.Add {"lvl"-> 3 "id"-> id "text"-> (Tail t 4)}; } { 0; }
-        if { t.StartsWith "## "; }  { out.Add {"lvl"-> 2 "id"-> id "text"-> (Tail t 3)}; } { 0; }
+        t.StartsWith "### " { out.Add {"lvl"-> 3 "id"-> id "text"-> (Tail t 4)}; } { 0; }
+        t.StartsWith "## "  { out.Add {"lvl"-> 2 "id"-> id "text"-> (Tail t 3)}; } { 0; }
         i += 1
     }
     out;
@@ -336,7 +336,7 @@ Save := (out: string rel: string text: string) => {
 # 一章的标题:头一行 `# …`
 TitleOf := (src: string) => {
     t := (LineAt (System.SplitLines src) 0)
-    if { t.StartsWith "# "; } { Tail t 2; } { t; }
+    t.StartsWith "# " { Tail t 2; } { t; }
 }
 
 # `01-start.md` → `01-start.html`。
@@ -350,19 +350,19 @@ Nav := (cur: string src: string) => {
     out := []
     foreach Chapters (p: string) => {
         name := (Io.File p).Name ()
-        attrs := if { name == cur; } { {"href"-> (PageOf name) "class"-> "on"}; } { {"href"-> (PageOf name)}; }
+        attrs := name == cur { {"href"-> (PageOf name) "class"-> "on"}; } { {"href"-> (PageOf name)}; }
         # 标题里也可能带 markdown(教程里一堆 `` `Repl` `` / `` `Tasks` ``)—— 过一遍 `Inline`,
         # 不然导航里就那么连着反引号显示出来。
         out.Add (Html.El "a" attrs (Inline (TitleOf ((Io.File p).Read ()))))
-        if { name == cur; } {
+        name == cur {
             # **两层都要收**。`##` 是编号分节(`4.1 if` / `4.2 while` …)、`###` 是它下面
             # 那种描述性的小节(`实现了 IEnumerable,就白拿一整套`)。从前只收 `###`,`##` 整层
             # 跳过 —— 导航里就只剩一串没头没尾的括号名,偏巧最像"目录"的那一层一个都不在。
             foreach (Toc src) (h: dict) => {
                 lvl := h.Get "lvl"
-                if { (lvl == 2) || (lvl == 3); } {
+                (lvl == 2) || (lvl == 3) {
                     href := "#" + (string (h.Get "id"))
-                    cls := if { lvl == 2; } { "sub"; } { "sub2"; }
+                    cls := lvl == 2 { "sub"; } { "sub2"; }
                     out.Add (Html.El "a" {"href"-> href "class"-> cls} (Inline (string (h.Get "text"))))
                 } { 0; }
             }
@@ -378,12 +378,12 @@ Build := (out: string) => {
     # **一章都没搜到就别装作成功。** 从前是照样生成一个只有 `index.html` 的空站、还印一句
     # "好了" —— 而原因通常只是**跑错地方了**:`SRC` 是**相对当前目录**的,从 `out/` 跑就得
     # 那儿也有 `docs/`(构建时拷过去了,见 `Ravel.csproj` 的 `CopyDocs`)。
-    if { Chapters.IsEmpty (); } {
+    Chapters.IsEmpty () {
         throw (Exception ("找不到 markdown 源:" + SRC + " —— 在仓库根跑,或者把 docs/ 一起带上"))
     } { 0; }
     # 样式表也**大声要**:少了它照样能生成,但出来的是一团没样子的 HTML —— 那种
     # "看着像好了"比直接报错难查得多(上一格那条 `Chapters.IsEmpty` 是同一个理由)。
-    if { !(System.FileExists CSS_FILE); } {
+    !(System.FileExists CSS_FILE) {
         throw (Exception ("找不到样式表:" + CSS_FILE + " —— 和 markdown 同一处,按当前目录找"))
     } { 0; }
     print ("生成到 " + out + "/");
@@ -398,10 +398,10 @@ Build := (out: string) => {
         # 赋值给 'next'(声明为 Option)"。这两个格子装的是"节点或者没有"。
         prev: object = None
         next: object = None
-        if { i > 0; } {
+        i > 0 {
             prev = Html.A (PageOf ((Io.File (Chapters.At (i - 1))).Name ())) ["← 上一章"]
         } { 0; }
-        if { i < ((Chapters.Count ()) - 1); } {
+        i < ((Chapters.Count ()) - 1) {
             next = Html.A (PageOf ((Io.File (Chapters.At (i + 1))).Name ())) ["下一章 →"]
         } { 0; }
         Save out (PageOf name) ((Html.Pretty (Page (TitleOf src) (Nav name src) (Md src) prev next)) + "\n")

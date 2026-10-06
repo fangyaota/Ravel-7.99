@@ -448,7 +448,7 @@ print Calls
 ```ravel
 FibCalls := 0
 fib: object = 0
-fib = Cached 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { (fib (n - 1)) + (fib (n - 2)); } })
+fib = Cached 1 ((n: int) => { FibCalls += 1; n < 2 { n; } { (fib (n - 1)) + (fib (n - 2)); } })
 print (fib 25)
 print FibCalls
 ```
@@ -502,7 +502,7 @@ false
 #### 实例
 
 ```ravel
-safeDiv := (a: int b: int) => { if { b == 0; } { None; } { Some (a / b); } }
+safeDiv := (a: int b: int) => { b == 0 { None; } { Some (a / b); } }
 ok := (Some 100).Bind (safeDiv 100)
 print ((ok.Bind (safeDiv 10)).Value ())
 print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())
@@ -769,7 +769,7 @@ print (job.Perform ())
 ```ravel
 Rec ::= class {
     K: int = 0
-    CompareTo := (o: Rec) => { if { K < o.K; } { -1; } { if { K > o.K; } { 1; } { 0; } } }
+    CompareTo := (o: Rec) => { K < o.K { -1; } { K > o.K { 1; } { 0; } } }
 }
 impl (IComparable Rec { () })
 ```
@@ -872,7 +872,7 @@ one
 ```ravel
 r := cmd "git status --short"
 print ((r.Get "out").Trim ())
-if { (r.Get "code") != 0; } { print ("失败了:" + (r.Get "err")); }
+(r.Get "code") != 0 { print ("失败了:" + (r.Get "err")); }
 ```
 
 走**系统 shell**（Windows 是 `cmd.exe /c`，别处 `/bin/sh -c`）—— 管道、重定向、通配符都归它管。交回一张 dict：`out` / `err` / `code`。

@@ -56,13 +56,13 @@ XmlNode ::= class {
     IsText := () => { (Kind ()) == "text"; }
 
     # 元素的名字;文本节点没有名字,给空串(不是 `()` —— 那一格永远是字符串)
-    Name := () => { if { IsElement (); } { Tree.Get "name"; } { ""; } }
+    Name := () => { IsElement () { Tree.Get "name"; } { ""; } }
 
     # 直接文本子节点拼起来。元素取它的;文本节点取自己
     Text := () => {
-        if { IsText (); } { Tree.Get "text"; } {
+        IsText () { Tree.Get "text"; } {
             out := ""
-            foreach (Kids ()) (k: XmlNode) => { if { k.IsText (); } { out += (k.Text ()); } { 0; } }
+            foreach (Kids ()) (k: XmlNode) => { k.IsText () { out += (k.Text ()); } { 0; } }
             out
         }
     }
@@ -71,7 +71,7 @@ XmlNode ::= class {
     # 文本节点就是它自己;元素**只把孩子的加起来** —— 别再单独加一次 `Text ()`,
     # 那些直接文本子节点本来就在递归里(加了就每段文本数两遍)
     AllText := () => {
-        if { IsText (); } { Text (); } {
+        IsText () { Text (); } {
             out := ""
             foreach (Kids ()) (k: XmlNode) => { out += (k.AllText ()); }
             out
@@ -83,7 +83,7 @@ XmlNode ::= class {
     Kids := () => {
         out := []
         # 文本节点没有孩子 —— 给空表,不给"键不存在"
-        if { IsText (); } { out; } {
+        IsText () { out; } {
             foreach (Tree.Get "kids") (k: dict) => { out.Add (XmlNode k this); }
             out
         }
@@ -101,17 +101,17 @@ XmlNode ::= class {
     Find := (name: string) => {
         hit := []
         foreach (Kids ()) (k: XmlNode) => {
-            if { (hit.Count ()) == 0; } {
-                if { (k.IsElement ()) && ((k.Name ()) == name); } { hit.Add k; } { 0; }
+            (hit.Count ()) == 0 {
+                (k.IsElement ()) && ((k.Name ()) == name) { hit.Add k; } { 0; }
             } { 0; }
         }
-        if { (hit.Count ()) == 0; } { (); } { hit.At 0; }
+        (hit.Count ()) == 0 { (); } { hit.At 0; }
     }
 
     # 所有叫这个名字的子元素(XML 里同名兄弟是常事)
     All := (name: string) => {
         out := []
-        foreach (Kids ()) (k: XmlNode) => { if { (k.IsElement ()) && ((k.Name ()) == name); } { out.Add k; } { 0; } }
+        foreach (Kids ()) (k: XmlNode) => { (k.IsElement ()) && ((k.Name ()) == name) { out.Add k; } { 0; } }
         out
     }
 
@@ -126,7 +126,7 @@ XmlNode ::= class {
 
     # ── 属性 ──
 
-    Attrs := () => { if { IsElement (); } { Tree.Get "attrs"; } { {}; } }
+    Attrs := () => { IsElement () { Tree.Get "attrs"; } { {}; } }
     Attr := (name: string) => {
         a := Attrs ()
         assert (a.Has name) ("<" + (Name ()) + "> 上没有 '" + name + "' 这个属性")
@@ -134,7 +134,7 @@ XmlNode ::= class {
     }
     AttrOr := (name: string dflt: string) => {
         a := Attrs ()
-        if { a.Has name; } { a.Get name; } { dflt; }
+        a.Has name { a.Get name; } { dflt; }
     }
     HasAttr := (name: string) => { (Attrs ()).Has name; }
 
@@ -177,7 +177,7 @@ XmlNode ::= class {
         i := 0
         found := 0 - 1
         foreach kids (k: dict) => {
-            if { k == tree; } { found = i; } { 0; }
+            k == tree { found = i; } { 0; }
             i += 1
         }
         assert (found >= 0) "要摘的那个孩子不在这棵树上"
@@ -196,11 +196,11 @@ XmlNode ::= class {
     # ── 当作文件 / 目录 ──
 
     # 读出来是**这一段 XML**(文本节点就是它那段文本)
-    Read := () => { if { IsText (); } { Text (); } { Xml.Render this; } }
+    Read := () => { IsText () { Text (); } { Xml.Render this; } }
     Size := () => { (Read ()).Length (); }
     Exists := () => { true; }
     IsDir := () => { IsElement (); }
-    NameOf := () => { if { IsElement (); } { Name (); } { "#text"; } }
+    NameOf := () => { IsElement () { Name (); } { "#text"; } }
 
     # 写回来:交上来的文本**当 XML 解析**,换掉这一棵
     Write := (t: string) => {
@@ -219,9 +219,9 @@ XmlNode ::= class {
         seen := {}
         foreach (Kids ()) (k: XmlNode) => {
             tag := k.NameOf ()
-            n := if { seen.Has tag; } { (seen.Get tag) + 1; } { 1; }
+            n := seen.Has tag { (seen.Get tag) + 1; } { 1; }
             seen.Set tag n
-            out.Set (if { n == 1; } { tag; } { (tag + "[") + (string n) + "]"; }) k
+            out.Set (n == 1 { tag; } { (tag + "[") + (string n) + "]"; }) k
         }
         out
     }

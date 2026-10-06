@@ -29,9 +29,9 @@ readonly Chunk := (xs: IEnumerable) => {
         foreach xs (x: object) => {
             cur.Add x
             # 装满了就换一摞**新的**再往里放 —— 不换的话后面还会往已经交出去的那摞里加
-            if { (cur.Count ()) == n; } { out.Add cur; cur = []; } { 0; }
+            (cur.Count ()) == n { out.Add cur; cur = []; } { 0; }
         }
-        if { (cur.Count ()) > 0; } { out.Add cur; } { 0; }
+        (cur.Count ()) > 0 { out.Add cur; } { 0; }
         out
     }
 }
@@ -41,7 +41,7 @@ readonly Zip := (a: IEnumerable) => {
     (b: IEnumerable) => {
         left := Gather a
         right := Gather b
-        n := if { (left.Count ()) < (right.Count ()); } { left.Count (); } { right.Count (); }
+        n := (left.Count ()) < (right.Count ()) { left.Count (); } { right.Count (); }
         out := []
         i := 0
         # 括号不能省:列表元素和实参一样,只吃"主表达式 + 取成员" ——
@@ -58,7 +58,7 @@ readonly Group := (xs: IEnumerable) => {
         out := {}
         foreach xs (x: object) => {
             k := (key x).Key ()
-            if { out.Has k; } { (out.Get k).Add x; } { out.Set k [x]; }
+            out.Has k { (out.Get k).Add x; } { out.Set k [x]; }
         }
         out
     }
@@ -69,7 +69,7 @@ readonly Frequency := (xs: IEnumerable) => {
     out := {}
     foreach xs (x: object) => {
         k := x.Key ()
-        if { out.Has k; } { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
+        out.Has k { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
     }
     out
 }

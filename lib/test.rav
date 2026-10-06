@@ -28,10 +28,10 @@ FailCount: int = 0
 # 记一条。**先打再记** —— 断言当场就看得见,不用等汇总(跑到一半崩了也知道走到哪了)
 readonly Record := (name: string ok: bool msg: string) => {
     Results.Add {"name"-> name "ok"-> ok "msg"-> msg}
-    if { ok; } { PassCount += 1; } { FailCount += 1; }
-    if { ok; } { print ("ok ${Results.Count ()} - ${name}"); } { print ("not ok ${Results.Count ()} - ${name}"); }
+    ok { PassCount += 1; } { FailCount += 1; }
+    ok { print ("ok ${Results.Count ()} - ${name}"); } { print ("not ok ${Results.Count ()} - ${name}"); }
     # 过了的那些不该带消息;带了多半是写的时候忘了 —— 顺手打出来,别让它悄悄丢
-    if { msg == ""; } { 0; } { print ("    ${msg}"); }
+    msg == "" { 0; } { print ("    ${msg}"); }
     ok
 }
 
@@ -39,7 +39,7 @@ readonly Record := (name: string ok: bool msg: string) => {
 # (块 `{ …; }` 是 0 参函数,`Expect 1` 数的是"喂几口":喂它一口 `()` 就开跑)
 readonly Check := (name: string body: function) => {
     r := (Expect 1 body) ()
-    msg := if { r.IsErr (); } { r.Message (); } { ""; }
+    msg := r.IsErr () { r.Message (); } { ""; }
     Record name (r.IsOk ()) msg
 }
 
@@ -49,14 +49,14 @@ readonly Check := (name: string body: function) => {
 readonly Equal := (name: string actual: object expected: object) => {
     a := "${actual}"
     b := "${expected}"
-    msg := if { a == b; } { ""; } { "期望 ${b}，得到 ${a}"; }
+    msg := a == b { ""; } { "期望 ${b}，得到 ${a}"; }
     Record name (a == b) msg
 }
 
 # 反过来:这段东西**必须报错**才算过(测报错分支就用它)
 readonly Fails := (name: string body: function) => {
     r := (Expect 1 body) ()
-    msg := if { r.IsErr (); } { ""; } { "本该报错，却正常回来了"; }
+    msg := r.IsErr () { ""; } { "本该报错，却正常回来了"; }
     Record name (r.IsErr ()) msg
 }
 
@@ -64,5 +64,5 @@ readonly Fails := (name: string body: function) => {
 # (不想让它抛(比如还想往下跑)就别调它;逐条的输出已经在上面了。)
 readonly Report := () => {
     print ("${PassCount} passed, ${FailCount} failed")
-    if { FailCount > 0; } { throw (Exception "${FailCount} 条断言没过"); } { (); }
+    FailCount > 0 { throw (Exception "${FailCount} 条断言没过"); } { (); }
 }

@@ -48,8 +48,8 @@ ravel "Repl"
 # **高亮只要编辑器的粗细,不必是完整的词法**:所以这儿只认字符串、数字、词、别的,
 # 不去分辨运算符那些 —— 那是解析器的事,而这一层的产出只有颜色。
 readonly ColorOf := (kind: string) => {
-    if { kind == "string"; } { "yellow"; } {
-        if { kind == "number"; } { "lime"; } { if { kind == "word"; } { "cyan"; } { "bold"; } }
+    kind == "string" { "yellow"; } {
+        kind == "number" { "lime"; } { kind == "word" { "cyan"; } { "bold"; } }
     }
 }
 
@@ -57,7 +57,7 @@ readonly ColorOf := (kind: string) => {
 # (Ravel 的标识符可以是中文,`名字 := 1` 是合法的)
 readonly WordChar := (c: char) => {
     code := c.Code ()
-    if { code >= 128; } { true; } {
+    code >= 128 { true; } {
         ((code >= 65) && (code <= 90)) || (((code >= 97) && (code <= 122)) || (code == 95));
     }
 }
@@ -65,7 +65,7 @@ readonly WordChar := (c: char) => {
 # 数字那一截:连着吃数字和 `.`,末尾再吃一个后缀(`n` / `i` / `f`)。
 # `2.0` 是一段、`123n` 是一段;`1 abc` 中间那个空格不在内。
 readonly NumChar := (c: char) => {
-    if { c.IsDigit (); } { true; } { if { c == '.'; } { true; } { "nif".Contains (string c); } }
+    c.IsDigit () { true; } { c == '.' { true; } { "nif".Contains (string c); } }
 }
 
 # 把一行切成若干段,**盖满整行**(词与词之间的空白也算一段,"other")。
@@ -79,26 +79,26 @@ readonly Segments := (text: string) => {
         c := text.At i
         j := i + 1
         kind := "other"
-        if { c == '#'; } {
+        c == '#' {
             j = n                                          # 注释到行尾
         } {
-            if { c == '"'; } {
+            c == '"' {
                 closed := false
                 while { (j < n) && (!(closed)); } {
                     ch := text.At j
-                    if { ch == '\\'; } { j += 2; } {       # 转义:下一个不参与
-                        if { ch == '"'; } { closed = true; } { 0; }
+                    ch == '\\' { j += 2; } {       # 转义:下一个不参与
+                        ch == '"' { closed = true; } { 0; }
                         j += 1
                     }
                 }
-                if { j > n; } { j = n; } { 0; }            # 末尾一个光秃秃的反斜杠
+                j > n { j = n; } { 0; }            # 末尾一个光秃秃的反斜杠
                 kind = "string"
             } {
-                if { c.IsDigit (); } {
+                c.IsDigit () {
                     while { (j < n) && (NumChar (text.At j)); } { j += 1; }
                     kind = "number"
                 } {
-                    if { WordChar c; } {
+                    WordChar c {
                         while { (j < n) && (WordChar (text.At j)); } { j += 1; }
                         kind = "word"
                     } { 0; }
@@ -116,7 +116,7 @@ readonly Segments := (text: string) => {
 # 它是个 object 而不是 int,因为"这里没有光标"得说得出来。
 readonly Tint := (kind: string text: string at: object) => {
     head := "[" + (ColorOf kind) + "]"
-    if { (typeof at) != int; } { head + (Terminal.Escape text) + "[/]"; } {
+    (typeof at) != int { head + (Terminal.Escape text) + "[/]"; } {
         k := at
         # 光标那一格单独裹成下划线红块。**`[/]` 要把外层的颜色收掉再重新打开**:
         # 标记是成对的,套在里头写会把闭合顺序搅乱。
@@ -146,14 +146,14 @@ readonly Row := (n: int text: string cursorX: object) => {
         # "这一格有没有光标"得用**装东西的盒子**兜着:`at := ()` 会把类型钉成 Void,
         # 后面再赋整数就报「无法将 Integer 赋值给 'at'」
         box := []
-        if { (typeof cursorX) == int; } {
-            if { (cursorX >= pos) && (cursorX < (pos + (t.Length ()))); } { box.Add (cursorX - pos); } { 0; }
+        (typeof cursorX) == int {
+            (cursorX >= pos) && (cursorX < (pos + (t.Length ()))) { box.Add (cursorX - pos); } { 0; }
         } { 0; }
-        out += (Tint (s.Get "kind") t (if { (box.Count ()) == 0; } { (); } { box.At 0; }))
+        out += (Tint (s.Get "kind") t ((box.Count ()) == 0 { (); } { box.At 0; }))
         pos += (t.Length ())
     }
-    if { (typeof cursorX) == int; } {
-        if { cursorX >= pos; } { out += "[underline red] [/]"; } { 0; }   # 行尾那个位置
+    (typeof cursorX) == int {
+        cursorX >= pos { out += "[underline red] [/]"; } { 0; }   # 行尾那个位置
     } { 0; }
     out
 }
@@ -161,7 +161,7 @@ readonly Row := (n: int text: string cursorX: object) => {
 # 左边补空格到 `n` 格
 readonly Pad := (s: string n: int) => {
     need := n - (s.Length ())
-    if { need <= 0; } { s; } { ((" ").Repeat need) + s; }
+    need <= 0 { s; } { ((" ").Repeat need) + s; }
 }
 
 # 在 `s` 的第 `i` 格插进 `t` / 挖掉第 `i` 格。
@@ -171,7 +171,7 @@ readonly InsertAt := (s: string i: int t: string) => { (s.Take i) + t + (s.Skip 
 readonly CutAt := (s: string i: int) => { (s.Take i) + (s.Skip (i + 1)); }
 
 readonly ClampTo := (v: int lo: int hi: int) => {
-    if { v < lo; } { lo; } { if { v > hi; } { hi; } { v; } }
+    v < lo { lo; } { v > hi { hi; } { v; } }
 }
 
 # 这一行写完了吗 —— 括号合上、而且不在字符串中间。
@@ -189,7 +189,7 @@ readonly ClampTo := (v: int lo: int hi: int) => {
 readonly IsTriple := (src: string i: int) => {
     n := src.Length ()
     hit := false
-    if { i + 2 < n; } {
+    i + 2 < n {
         a := src.At i
         b := src.At (i + 1)
         d := src.At (i + 2)
@@ -206,23 +206,23 @@ readonly Balanced := (src: string) => {
     n := src.Length ()
     while { i < n; } {
         c := src.At i
-        if { inStr; } {
-            if { inRaw; } {
+        inStr {
+            inRaw {
                 # 原始字符串:**只有连着三个引号能收** —— 里面的 `\` 和 `#` 一律不算
-                if { IsTriple src i; } { inStr = false; inRaw = false; i += 3; } { i += 1; }
+                IsTriple src i { inStr = false; inRaw = false; i += 3; } { i += 1; }
             } {
-                if { c == '\\'; } { i += 2; } {
-                    if { c == '"'; } { inStr = false; } { 0; }
+                c == '\\' { i += 2; } {
+                    c == '"' { inStr = false; } { 0; }
                     i += 1
                 }
             }
         } {
-            if { c == '#'; } { i = n; } {
+            c == '#' { i = n; } {
                 # 原始字符串要排在 `""` 空串前面,不然那两下先把串开开关关一遍
-                if { IsTriple src i; } { inStr = true; inRaw = true; i += 3; } {
-                    if { c == '"'; } { inStr = true; i += 1; } {
-                        if { "([{".Contains (string c); } { depth += 1; } {
-                            if { ")]}".Contains (string c); } { depth -= 1; } { 0; }
+                IsTriple src i { inStr = true; inRaw = true; i += 3; } {
+                    c == '"' { inStr = true; i += 1; } {
+                        "([{".Contains (string c) { depth += 1; } {
+                            ")]}".Contains (string c) { depth -= 1; } { 0; }
                         }
                         i += 1
                     }
@@ -249,9 +249,9 @@ readonly PageOf := (s: string) => {
     n := 0
     ok := (t.Length ()) > 0
     foreach (t.Chars ()) (c: object) => {
-        if { c.IsDigit (); } { n = (n * 10) + ((c.Code ()) - 48); } { ok = false; }
+        c.IsDigit () { n = (n * 10) + ((c.Code ()) - 48); } { ok = false; }
     }
-    if { ok; } { n; } { -1; }
+    ok { n; } { -1; }
 }
 
 # ============================================================
@@ -318,15 +318,15 @@ Editor ::= class {
     # ── 缓冲 ──
 
     Lines := () => { Pages.At Z; }
-    Current := () => { if { ((Lines ()).Count ()) == 0; } { ""; } { (Lines ()).At Y; } }
+    Current := () => { ((Lines ()).Count ()) == 0 { ""; } { (Lines ()).At Y; } }
     Text := () => { (Lines ()).Join "\n"; }
 
     # 空页先垫一行 —— 没有它 `Lines.At Y` 直接越界(`NeoInteractor.EnsureLine` 那条)
-    Ensure := () => { if { ((Lines ()).Count ()) == 0; } { (Lines ()).Add ""; } { 0; }; }
+    Ensure := () => { ((Lines ()).Count ()) == 0 { (Lines ()).Add ""; } { 0; }; }
 
     Clamp := () => {
         Z = ClampTo Z 0 ((Pages.Count ()) - 1)
-        if { ((Lines ()).Count ()) == 0; } { Y = 0; X = 0; } {
+        ((Lines ()).Count ()) == 0 { Y = 0; X = 0; } {
             Y = ClampTo Y 0 (((Lines ()).Count ()) - 1)
             X = ClampTo X 0 ((Current ()).Length ())
         }
@@ -342,12 +342,12 @@ Editor ::= class {
         out := ["[purple]------第" + (string Z) + "页------[/]"]
         rows := 0
         lines := Lines ()
-        if { (lines.Count ()) == 0; } { out.Add "   | <空>"; } {
+        (lines.Count ()) == 0 { out.Add "   | <空>"; } {
             w := Window (lines.Count ()) Y
             i := w.At 0
             while { i < (w.At 1); } {
                 # 行号传的是**下标**(0 起)—— 照 C# 那版 `RenderRow (index, …)`
-                out.Add (Row i (lines.At i) (if { i == Y; } { X; } { (); }))
+                out.Add (Row i (lines.At i) (i == Y { X; } { (); }))
                 i += 1
             }
             rows = (w.At 1) - (w.At 0)
@@ -357,7 +357,7 @@ Editor ::= class {
         # 挂着一个换行,而 `Panel` 把那当成一行空的 —— 框底就多一条空行。
         # **除了"行数不到 8、要垫 `   |`"那一种**:垫出来的那串(`AppendJoin`)末尾不带换行。
         # 空页和行数 ≥ 8 都是这样。照抄,免得两边的框差一行。
-        if { (rows == 0) || (rows >= 8); } { out.Add ""; } { 0; }
+        (rows == 0) || (rows >= 8) { out.Add ""; } { 0; }
         out
     }
 
@@ -398,10 +398,10 @@ Editor ::= class {
         while { running; } {
             DrawEdit ()
             k := System.ReadKey ()
-            if { (typeof k) != string; } { running = false; } {      # 没有输入了(管道)
-                if { k == "esc"; } { running = false; } {
-                    if { Jump k; } { Clamp (); } {
-                        if { Edit1 k; } { Clamp (); } { 0; }
+            (typeof k) != string { running = false; } {      # 没有输入了(管道)
+                k == "esc" { running = false; } {
+                    Jump k { Clamp (); } {
+                        Edit1 k { Clamp (); } { 0; }
                     }
                 }
             }
@@ -436,7 +436,7 @@ Editor ::= class {
 
     # 往后翻一页;已经在最后一页就往后再开一页(和 `NeoInteractor` 一个规矩)
     NextPage := () => {
-        if { (Z == ((Pages.Count ()) - 1)) && (((Lines ()).Count ()) != 0); } { Pages.Add []; } { 0; }
+        (Z == ((Pages.Count ()) - 1)) && (((Lines ()).Count ()) != 0) { Pages.Add []; } { 0; }
         Z += 1
         X = 0
         Y = 0
@@ -457,8 +457,8 @@ Editor ::= class {
 
     # 退格。**在行首**就得和上一行接起来(`NeoInteractor` 那个规矩)
     Backspace := (cur: string) => {
-        if { X == 0; } {
-            if { Y >= 1; } {
+        X == 0 {
+            Y >= 1 {
                 prev := (Lines ()).At (Y - 1)
                 X = prev.Length ()
                 (Lines ()).Set (Y - 1) (prev + cur)
@@ -471,8 +471,8 @@ Editor ::= class {
 
     # 删光标右边那一格。**在行尾**就把下一行接上来
     DeleteAt := (cur: string) => {
-        if { X == (cur.Length ()); } {
-            if { Y < (((Lines ()).Count ()) - 1); } {
+        X == (cur.Length ()) {
+            Y < (((Lines ()).Count ()) - 1) {
                 (Lines ()).Set Y (cur + ((Lines ()).At (Y + 1)))
                 (Lines ()).RemoveAt (Y + 1)
             } { 0; }
@@ -482,7 +482,7 @@ Editor ::= class {
 
     # 回车:断开这一行,新的一行照开头的空格对齐(`AutoTab` 关着就不对齐)
     SplitLine := (cur: string) => {
-        indent := if { AutoTab; } { Lead cur; } { 0; }
+        indent := AutoTab { Lead cur; } { 0; }
         (Lines ()).Set Y (cur.Take X)
         (Lines ()).Insert (Y + 1) (((" ").Repeat indent) + (cur.Skip X))
         Y += 1
@@ -492,7 +492,7 @@ Editor ::= class {
 
     # 打进来的**一个**字符(多字符的都是有名字的键,不归这儿)。交回"这个键我管了"
     TypeChar := (k: string) => {
-        if { (k.Length ()) != 1; } { false; } {
+        (k.Length ()) != 1 { false; } {
             (Lines ()).Set Y (InsertAt (Current ()) X k)
             X += 1
             true
@@ -508,7 +508,7 @@ Editor ::= class {
 
     # `Ins`:清掉这一页;只剩一页、而它又是空的时候,就**删掉这一页**(和 `NeoInteractor` 一个规矩)
     ClearPage := () => {
-        if { (((Lines ()).Count ()) == 0) && ((Pages.Count ()) >= 2); } {
+        (((Lines ()).Count ()) == 0) && ((Pages.Count ()) >= 2) {
             Pages.RemoveAt Z
             Z -= 1
         } { (Lines ()).Clear (); }
@@ -611,14 +611,14 @@ Editor ::= class {
     # 这一条**不暂停**(C# 那边也没停)。
     SwitchAutoTab := () => {
         AutoTab = Terminal.ConfirmDefault "开关自动对齐文本吗？" (!(AutoTab))
-        Terminal.Line (if { AutoTab; } { "已开启自动对齐文本"; } { "已关闭自动对齐文本"; })
+        Terminal.Line (AutoTab { "已开启自动对齐文本"; } { "已关闭自动对齐文本"; })
         ();
     }
 
     # 这一条要停一下(C# 那边是个 `Console.ReadKey (true)`),好让人看见拨到哪儿了
     SwitchResult := () => {
         ShowResult = Terminal.ConfirmDefault "开关显示执行结果吗？" (!(ShowResult))
-        Terminal.Line (if { ShowResult; } { "已开启显示"; } { "已关闭显示"; })
+        Terminal.Line (ShowResult { "已开启显示"; } { "已关闭显示"; })
         Hold ()
         ();
     }
@@ -641,13 +641,13 @@ Editor ::= class {
         try {
             v := eval source
             out := System.CaptureEnd ()
-            if { ShowResult; } {
+            ShowResult {
                 captured := out.Trim ()
                 # **三块都要给** —— 少最后那个 `{ 0; }` 的话这个 `if` 就是个半成品,
                 # 整块**静默不跑**(用户的 `print` 就那么没了)。这条坑 `--warn` 认得出来,
                 # 但得**跑到**这一句才报 —— 所以 `tests/286` 里有一条驱动 `TryEval` 的用例。
-                if { !(captured.IsEmpty ()); } { Terminal.Line (Terminal.Escape captured); } { 0; }
-                if { (typeof v) != void; } {
+                !(captured.IsEmpty ()) { Terminal.Line (Terminal.Escape captured); } { 0; }
+                (typeof v) != void {
                     # `==>` 和结果**紧挨着**,和 C# 一个样
                     Terminal.Line ("[yellow]==>[/]" + (Terminal.Escape (string v)))
                 } { 0; }
@@ -691,19 +691,19 @@ Editor ::= class {
         buffer := ""
         running := true
         while { running; } {
-            System.Write (if { buffer.IsEmpty (); } { ">>> "; } { "... "; })
+            System.Write (buffer.IsEmpty () { ">>> "; } { "... "; })
             line := input ()
             cmd := line.Trim ()
-            if { (buffer.IsEmpty ()) && ((cmd == ":exit") || ((cmd == ":q") || (cmd == ":quit"))); } {
+            (buffer.IsEmpty ()) && ((cmd == ":exit") || ((cmd == ":q") || (cmd == ":quit"))) {
                 running = false
             } {
                 buffer += line + "\n"
-                if { Balanced buffer; } {
+                Balanced buffer {
                     try {
                         v := eval buffer
                         # 交回值就 `==>` 打出来。**不过标记那一层** —— 结果里带个方括号
                         # 是常事(`[1 2]` 这种),渲染一遍就把它读坏了(C# 那边也是裸打)
-                        if { (typeof v) == void; } { 0; } { System.WriteLine ("==> " + (string v)); }
+                        (typeof v) == void { 0; } { System.WriteLine ("==> " + (string v)); }
                     } (e: Exception) => { ShowError e; }
                     buffer = ""
                 } { 0; }
@@ -718,7 +718,7 @@ Editor ::= class {
         System.CursorShow true
         path := Terminal.AskDefault "选择代码文件" "temp.ravel"
         f := Io.File path
-        if { !(f.Exists ()); } {
+        !(f.Exists ()) {
             Terminal.Line ("[red]错误：文件<" + (Terminal.Escape path) + ">不存在[/]")
         } {
             idx := AskPage ()
@@ -744,7 +744,7 @@ Editor ::= class {
         System.CursorShow true
         path := Terminal.AskDefault "选择代码文件" "temp.ravel"
         f := Io.File path
-        if { f.Exists (); } {
+        f.Exists () {
             name := System.PathBase path
             Terminal.Line ("[yellow]警告：文件<" + (Terminal.Escape name) + ">已存在,正在覆盖...[/]")
         } { 0; }
@@ -765,9 +765,9 @@ Editor ::= class {
 
     Restore := () => {
         f := Io.File (SessionFile ())
-        if { f.Exists (); } {
+        f.Exists () {
             raw := f.Read ()
-            if { raw.IsEmpty (); } { 0; } {
+            raw.IsEmpty () { 0; } {
                 Pages = []
                 foreach (raw.Split PageMark) (p: string) => { Pages.Add (System.SplitLines p); }
                 Z = 0
@@ -789,7 +789,7 @@ readonly SessionFile := () => { ".ravel-session"; }
 # 开一个。**看不见终端就不当编辑器** —— 管道里画什么都是白画,那时候把喂进来的
 # 整段当一段程序跑完就走(退得出来,而且有用:`echo 'print 1' | ravel examples/repl.rav`)
 readonly Run := () => {
-    if { Terminal.Tty (); } {
+    Terminal.Tty () {
         e := Editor ()
         e.Restore ()
         e.About ()                       # 启动先把那张大图放一遍(照 C# 的 `Run`)
@@ -806,10 +806,10 @@ readonly Run := () => {
 # 把一段源码跑一遍,交回值就打到 stdout,报错就打那份报告到 stderr
 readonly RunSource := (src: string) => {
     body := src.Trim ()                       # 先落成变量:链式调用得这么写(见教程那条坑)
-    if { body.IsEmpty (); } { (); } {
+    body.IsEmpty () { (); } {
         try {
             v := eval src
-            if { (typeof v) == void; } { 0; } { System.WriteLine (string v); }
+            (typeof v) == void { 0; } { System.WriteLine (string v); }
         } (e: Exception) => { System.WriteErr (System.FormatError e); }
     }
     ();

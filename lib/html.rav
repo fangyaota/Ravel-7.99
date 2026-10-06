@@ -50,15 +50,15 @@ readonly RawNode := (s: string) => { {"kind"-> "raw" "text"-> s}; }
 
 # 孩子:list 照收;单个(一个节点、一个字符串)包成只有一个元素的 list;`None` 当没有
 readonly KidsOf := (kids: object) => {
-    if { (IsNothing kids); } { []; } {
-        if { kids : list; } { kids; } { [kids]; }
+    (IsNothing kids) { []; } {
+        kids : list { kids; } { [kids]; }
     }
 }
 
 readonly Build := (name: string attrs: object kids: object) => {
     ks := KidsOf kids
-    if { IsVoid name; } {
-        if { (ks.Count ()) > 0; } {
+    IsVoid name {
+        (ks.Count ()) > 0 {
             throw (Exception ("Html: '" + name + "' 是 void 元素,不写收尾标签,也就不该有孩子 —— 标准里那 14 个是:" + (Voids.Join " ")))
         } { 0; }
         {"kind"-> "element" "name"-> name "attrs"-> attrs "kids"-> []};
@@ -88,16 +88,16 @@ readonly Frag := (kids: object) => { KidsOf kids; }
 # 属性的先后**照你写的先后**(dict 是有序的),不重排 —— 输出才稳、diff 才好看。
 
 readonly AttrText := (v: object) => {
-    if { v : list; } { v.Join " "; } { string v; }
+    v : list { v.Join " "; } { string v; }
 }
 
 readonly AttrsText := (attrs: object) => {
     out := ""
     foreach (attrs.Keys ()) (k: string) => {
         v := attrs.GetOr k ""
-        if { (IsNothing v); } { 0; } {
-            if { v : bool; } {
-                if { v; } { out += (" " + k); } { 0; }
+        (IsNothing v) { 0; } {
+            v : bool {
+                v { out += (" " + k); } { 0; }
             } {
                 out += (" " + k + "=\"" + (Encoding.HtmlEscape (AttrText v)) + "\"")
             }
@@ -118,20 +118,20 @@ readonly AttrsText := (attrs: object) => {
 readonly Render := (n: object) => {
     out := ""
     walk := (x: object) => {
-        if { x : list; } {
+        x : list {
             foreach x (k: object) => { walk k; }
         } {
-            if { x : dict; } {
+            x : dict {
                 kind := x.GetOr "kind" ""
-                if { kind == "text"; } {
+                kind == "text" {
                     out += (TextEscape (x.GetOr "text" ""));
                 } {
-                    if { kind == "raw"; } {
+                    kind == "raw" {
                         out += (x.GetOr "text" "");
                     } {
                         name := x.GetOr "name" ""
                         out += ("<" + name + (AttrsText (x.GetOr "attrs" {})))
-                        if { IsVoid name; } {
+                        IsVoid name {
                             out += ">"
                         } {
                             out += ">"
@@ -143,7 +143,7 @@ readonly Render := (n: object) => {
             } {
                 # 孩子里直接写的东西:字符串、数、bool… 一律转义后当文本写出去
                 # (最常见的写法是直接给字符串,省掉一层 `Text`);`None` 当没有
-                if { (IsNothing x); } { 0; } {
+                (IsNothing x) { 0; } {
                     out += (TextEscape (string x));
                 }
             }
@@ -188,34 +188,34 @@ readonly HasBlockKid := (kids: list) => {
 }
 
 readonly IsBlock := (x: object) => {
-    if { x : list; } {
+    x : list {
         HasBlockKid x
     } {
-        if { x : dict; } { IsBlockTag (x.GetOr "name" ""); } { false; }
+        x : dict { IsBlockTag (x.GetOr "name" ""); } { false; }
     }
 }
 
 readonly Pretty := (n: object) => {
     out := ""
     emit := (x: object depth: int) => {
-        if { x : list; } {
+        x : list {
             foreach x (k: object) => { emit k depth; }
         } {
-            if { x : dict; } {
+            x : dict {
                 kind := x.GetOr "kind" ""
-                if { kind == "text"; } {
+                kind == "text" {
                     out += (TextEscape (x.GetOr "text" ""));
                 } {
-                    if { kind == "raw"; } {
+                    kind == "raw" {
                         out += (x.GetOr "text" "");
                     } {
                         name := x.GetOr "name" ""
                         open := "<" + name + (AttrsText (x.GetOr "attrs" {}))
                         kids := x.GetOr "kids" []
-                        if { IsVoid name; } {
+                        IsVoid name {
                             out += (open + ">")
                         } {
-                            if { (IsBlockTag name) && (HasBlockKid kids); } {
+                            (IsBlockTag name) && (HasBlockKid kids) {
                                 out += (open + ">")
                                 out += "\n"
                                 foreach kids (k: object) => {
@@ -234,7 +234,7 @@ readonly Pretty := (n: object) => {
                     }
                 }
             } {
-                if { (IsNothing x); } { 0; } {
+                (IsNothing x) { 0; } {
                     out += (TextEscape (string x));
                 }
             }
@@ -308,7 +308,7 @@ readonly Table := (headers: object rows: object) => {
         body.Add (El "tr" {} cells)
     }
     hs := KidsOf headers
-    if { (hs.IsEmpty ()); } {
+    (hs.IsEmpty ()) {
         El "table" {} [(El "tbody" {} body)]
     } {
         hcells := []

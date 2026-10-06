@@ -121,14 +121,14 @@ Folder := class Node {
             i := 0
             while { i < children.Count (); } {
                 ch := children.At i
-                if { (ch.getName ()) == target; } { found ch; } { 0; }
+                (ch.getName ()) == target { found ch; } { 0; }
                 i += 1
             }
             i = 0
             while { i < children.Count (); } {
                 ch2 := children.At i
                 result := ch2.find target
-                if { (result.getName ()) != ""; } { found result; } { 0; }
+                (result.getName ()) != "" { found result; } { 0; }
                 i += 1
             }
             found (File ())

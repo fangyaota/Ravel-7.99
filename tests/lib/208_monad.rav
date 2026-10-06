@@ -34,7 +34,7 @@ print (None.Map bump)
 print ("映射函数被调了 " + (string (MapCalls)) + " 次")
 
 # Bind:把 f 的结果**摊平**接上(f 自己回一个 Option),所以链起来不会套娃
-half := (x: int) => { if { x % 2 == 0; } { Some (x / 2); } { None; } }
+half := (x: int) => { x % 2 == 0 { Some (x / 2); } { None; } }
 print (((Some 8).Bind half).Value ())
 print (((Some 7).Bind half).IsSome ())
 print ((((Some 8).Bind half).Bind half).Value ())
@@ -50,7 +50,7 @@ print ((Some 5).Exists ((x: int) => { x > 30; }))
 print (None.Exists ((x: int) => { true; }))
 
 # 串起来:中间落空一次,后面全短路(那个除法根本不会被求值)
-safeDiv := (a: int b: int) => { if { b == 0; } { None; } { Some (a / b); } }
+safeDiv := (a: int b: int) => { b == 0 { None; } { Some (a / b); } }
 ok := (Some 100).Bind (safeDiv 100)
 print ((ok.Bind (safeDiv 10)).Value ())
 print ((((Some 100).Bind (safeDiv 0)).Bind (safeDiv 10)).IsSome ())
@@ -76,7 +76,7 @@ print (do {
 
 # 中间落空 -> 后面全不算(那些函数一次都不会被调)
 Calls := 0
-counted := (a: int b: int) => { Calls += 1; if { b == 0; } { None; } { Some (a / b); } }
+counted := (a: int b: int) => { Calls += 1; b == 0 { None; } { Some (a / b); } }
 print (do {
     a :< counted 100 10
     b :< counted a 0
@@ -107,7 +107,7 @@ print (do {
 print (do { x :< None; Some (x + 1); } == None)
 
 # 外面套一层:do 只是个表达式,当参数、当返回值都行
-pick := (b: bool) => { if { b; } { do { x :< Some 1; Some x; }; } { None; } }
+pick := (b: bool) => { b { do { x :< Some 1; Some x; }; } { None; } }
 print ((pick true).Value ())
 print ((pick false).IsSome ())
 
@@ -189,7 +189,7 @@ Seq.Perform ()
 print Trace
 
 # 8) 说明书是普通值:一样可以当参数、当返回值、放着不跑
-Build := (b: bool) => { if { b; } { IoMonad.PutStrLn "开了"; } { IoMonad.Return (); } }
+Build := (b: bool) => { b { IoMonad.PutStrLn "开了"; } { IoMonad.Return (); } }
 Left := Build true
 print "还没跑那个分支"
 Left.Perform ()

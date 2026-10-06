@@ -26,7 +26,7 @@ readonly NeedsQuote := (cell: string) => {
 }
 
 readonly Quote := (cell: string) => {
-    if { (NeedsQuote cell); } { "\"" + (cell.Replace "\"" "\"\"") + "\""; } { cell; }
+    (NeedsQuote cell) { "\"" + (cell.Replace "\"" "\"\"") + "\""; } { cell; }
 }
 
 # ── 写 ──
@@ -34,7 +34,7 @@ readonly Quote := (cell: string) => {
 # 或者交**一行行 list**(纯格子,不写表头)。
 readonly Render := (rows: list) => {
     grid := []
-    if { (rows.IsEmpty ()); } { ""; } {
+    (rows.IsEmpty ()) { ""; } {
         ((typeof (rows.At 0)) == dict) {
             # 表头:扫一遍所有行,键按**第一次出现**的先后排 —— 同一份数据每次都写出一模一样的表头
             cols := []
@@ -47,7 +47,7 @@ readonly Render := (rows: list) => {
             foreach rows (row: dict) => {
                 line := []
                 foreach cols (k: object) => {
-                    line.Add (if { (row.Has k); } { string (row.Get k); } { ""; })
+                    line.Add ((row.Has k) { string (row.Get k); } { ""; })
                 }
                 grid.Add line
             }
@@ -82,8 +82,8 @@ readonly Grid := (text: string) => {
 
     while { i < n; } {
         c := text.At i
-        if { inQuote; } {
-            if { c == '"'; } {
+        inQuote {
+            c == '"' {
                 # `""` 是一个引号本身,单个 `"` 是这一段引用的收尾
                 (((i + 1) < n) && ((text.At (i + 1)) == '"')) {
                     cell += "\""
@@ -135,7 +135,7 @@ readonly Grid := (text: string) => {
 # 首行当表头。列数不齐时:少的补空串、多的丢掉(见文件开头那两条)。
 readonly Parse := (text: string) => {
     rows := Grid text
-    if { (rows.IsEmpty ()); } { []; } {
+    (rows.IsEmpty ()) { []; } {
         head := []
         foreach (rows.At 0) (k: string) => { head.Add k; }
         out := []
@@ -145,7 +145,7 @@ readonly Parse := (text: string) => {
             d := {}
             j := 0
             while { j < (head.Count ()); } {
-                d.Set (head.At j) (if { j < (line.Count ()); } { line.At j; } { ""; })
+                d.Set (head.At j) (j < (line.Count ()) { line.At j; } { ""; })
                 j += 1
             }
             out.Add d

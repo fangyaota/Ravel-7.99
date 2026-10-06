@@ -28,14 +28,14 @@ Chan1 ::= class {
     # ↓↓↓ 一:叫醒等在队首的那个人 —— 往**组的就绪队列**里塞一个
     Put := (g: Tasks.TaskGroup v: object) => {
         Items.Add v
-        if { (Waiting.Count ()) > 0; } { g.Ready.Add (Waiting.Remove 0); } { 0; }
+        (Waiting.Count ()) > 0 { g.Ready.Add (Waiting.Remove 0); } { 0; }
         ();
     }
 
     # ↓↓↓ 二:自己睡下 —— 把"我停在哪儿"那一枚续延存进**组里此刻在跑的那个任务**,
     #          再跳回调度器(`g.Back ()`),让它去挑别人
     Take := (g: Tasks.TaskGroup) => {
-        if { Items.IsEmpty (); } {
+        Items.IsEmpty () {
             callcc (kp: Continuation) => {
                 g.Current.Step = kp
                 Waiting.Add g.Current
@@ -102,14 +102,14 @@ Chan2 ::= class {
 
     Put := (v: object) => {
         Items.Add v
-        if { (Waiting.Count ()) > 0; } { (Waiting.Remove 0).Open v; } { 0; }
+        (Waiting.Count ()) > 0 { (Waiting.Remove 0).Open v; } { 0; }
         ();
     }
 
     Take := (g: Tasks.TaskGroup) => {
         # 第三个块不能省:`if { c; } { t; }` 只给两块,交回的是**半成品函数**,
         # 什么都不跑 —— 静默空转。(`--warn` 逮的就是这种"少给一块"。)
-        if { Items.IsEmpty (); } {
+        Items.IsEmpty () {
             sig := Tasks.Signal ()
             Waiting.Add sig
             g.Await sig              # ← 等一只闸,不碰内脏

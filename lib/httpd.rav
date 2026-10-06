@@ -52,11 +52,11 @@ readonly DefaultIdle := 15000;
 # 解码用 `Encoding.UrlDecode`;`Slice` 是**包含式**的,所以右边那个端点要减一。
 readonly ParseQuery := (q: string) => {
     out := {}
-    if { q == ""; } { out; } {
+    q == "" { out; } {
         foreach (q.Split "&") (part: string) => {
-            if { part != ""; } {
+            part != "" {
                 i := part.IndexOf "="
-                if { i < 0; } { out.Set (Encoding.UrlDecode part) ""; } {
+                i < 0 { out.Set (Encoding.UrlDecode part) ""; } {
                     k := part.Slice [0..(i - 1)]
                     v := part.Slice [(i + 1)..((part.Length ()) - 1)]
                     out.Set (Encoding.UrlDecode k) (Encoding.UrlDecode v)
@@ -72,7 +72,7 @@ readonly ParseQuery := (q: string) => {
 # 不如老实说"我不知道这是什么"。
 readonly MimeOf := (path: string) => {
     i := path.LastIndexOf "."
-    if { i < 0; } { "application/octet-stream"; } {
+    i < 0 { "application/octet-stream"; } {
         ext := (path.Slice [(i + 1)..((path.Length ()) - 1)]).ToLower ()
         (MimeTable ()).GetOr ext "application/octet-stream";
     }
@@ -81,7 +81,7 @@ readonly MimeOf := (path: string) => {
 # 造一次就留着 —— 每个静态文件都重建一张表太亏
 MimeCache := {}
 readonly MimeTable := () => {
-    if { MimeCache.IsEmpty (); } {
+    MimeCache.IsEmpty () {
         MimeCache.Set "html" "text/html; charset=utf-8"
         MimeCache.Set "htm" "text/html; charset=utf-8"
         MimeCache.Set "css" "text/css; charset=utf-8"
@@ -179,7 +179,7 @@ readonly NotFound := () => { Text 404 "404 没有这条路由"; }
 # 落盘的一个文件 —— 读盘那条走 `ReadBytesTask`,**不占线程**;文件不在就 404。
 # 查一次 `FileExists` 是值当的:不然"文件不在"会变成任务里的一个异常。
 readonly File := (g: Tasks.TaskGroup path: string) => {
-    if { System.FileExists path; } {
+    System.FileExists path {
         Build 200 (MimeOf path) (g.Await (Tasks.Of (System.ReadBytesTask path)));
     } { NotFound (); }
 }
@@ -213,7 +213,7 @@ Request ::= class {
     # 正文里的 charset(从 `content-type` 里抠;抠不出来就给 utf-8)
     Charset := () => {
         ct := Header "content-type"
-        if { ct.Contains "charset="; } {
+        ct.Contains "charset=" {
             rest := ct.Slice [((ct.IndexOf "charset=") + 8)..((ct.Length ()) - 1)]
             ((rest.Split ";").At 0).Trim ().ToLower ();
         } { "utf-8"; }
@@ -305,7 +305,7 @@ Server ::= class {
             a := g.Await (Tasks.Of (Native.HttpAccept Handle))
             # 退出条件就是**它交回了什么**,不是某个"我喊过停"的标志 —— 监听器因为什么
             # 原因关掉都收得了摊(标志只反映"我主动喊过"那一半)。
-            if { a.IsEmpty (); } { running = false; } {
+            a.IsEmpty () { running = false; } {
                 g.Add (Tasks.Task (gg: Tasks.TaskGroup) => { me.ServeConn gg a; })
             }
         }
@@ -338,7 +338,7 @@ Server ::= class {
         open := true
         while { open; } {
             r := g.Await (Tasks.Of (Native.HttpRead c Idle))
-            if { r.IsEmpty (); } { open = false; } {
+            r.IsEmpty () { open = false; } {
                 # 读到一个请求就数一个 —— **计数挂在这儿而不是 `Dispatch`**:超限那条路
                 # 不走 dispatch,可那个 413 也是答过的
                 Requests += 1
@@ -351,14 +351,14 @@ Server ::= class {
                     req := Request r peer
                     close := !(req.KeepAlive)
                     me.Reply g c (me.Answer g req) close
-                    if { close; } { open = false; } { 0; }
+                    close { open = false; } { 0; }
                 }
             }
         }
         Native.HttpClose c;
         # 键可能已经没了(`Stop ()` 断过一轮,或者这条本来就是关过的)—— 删一个不存在的键
         # 会报错,所以问一句再删
-        if { Open.Has c; } { Open.Remove c; } { 0; }
+        Open.Has c { Open.Remove c; } { 0; }
         ()
     }
 
@@ -387,11 +387,11 @@ Server ::= class {
         me := this
         hit := []
         foreach Routes (r: dict) => {
-            if { (me.Matches (r.Get "method") req.Method) && (me.Matches (r.Get "path") req.Path); } {
+            (me.Matches (r.Get "method") req.Method) && (me.Matches (r.Get "path") req.Path) {
                 hit.Add (r.Get "handler")
             } { 0; }
         }
-        if { !(hit.IsEmpty ()); } { (hit.At 0) req g; } { me.DispatchStatic g req; }
+        !(hit.IsEmpty ()) { (hit.At 0) req g; } { me.DispatchStatic g req; }
     }
 
     # 路由那一格写 `"*"` 就是"什么都收" —— `Serve` 那条糖靠它当万能路由。
@@ -402,9 +402,9 @@ Server ::= class {
         hit := []
         foreach Statics (s: dict) => {
             p := s.Get "prefix"
-            if { (req.Path).StartsWith p; } { hit.Add s; } { 0; }
+            (req.Path).StartsWith p { hit.Add s; } { 0; }
         }
-        if { hit.IsEmpty (); } { NotFound (); } { me.SendFile g req (hit.At 0); }
+        hit.IsEmpty () { NotFound (); } { me.SendFile g req (hit.At 0); }
     }
 
     # 拼出磁盘上那个路径。**`..` 和反斜杠一律不认** —— 不挡的话 `/pub/../../secret`
@@ -417,10 +417,10 @@ Server ::= class {
         # 前缀写 `/`(把整个目录挂上去)时,剩下那段**不带**打头的斜杠 —— 得自己剥掉再拼,
         # 不然 `dir + rest` 会拼成 `siteindex.html`。前缀带名字(`/pub`)时反倒带着,所以
         # 统一剥一次、统一补一次分隔符,两种写法才走到同一个地方。
-        rel := if { rest.StartsWith "/"; } { rest.Slice [1..((rest.Length ()) - 1)]; } { rest; }
+        rel := rest.StartsWith "/" { rest.Slice [1..((rest.Length ()) - 1)]; } { rest; }
         # 两个块**必须写在同一行**(`} {`):换行分开了的话,第二个块会变成一句跟 `if`
         # 无关的空转 —— 于是"挡穿越"那条根本不执行(`if` 缺一块不报错,见教程十一章)。
-        if { (rel.Contains "..") || (rel.Contains "\\"); } { NotFound (); } { File g (dir + "/" + rel); }
+        (rel.Contains "..") || (rel.Contains "\\") { NotFound (); } { File g (dir + "/" + rel); }
     }
 }
 

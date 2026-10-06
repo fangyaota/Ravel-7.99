@@ -45,7 +45,7 @@ readonly PrintTree := (root: object) => {
             i := 0
             while { i < subs.Count (); } {
                 s := subs.At i
-                if { (s.parent).name == t.name && s.name != t.name; } { kids.Add s; } { 0; }
+                (s.parent).name == t.name && s.name != t.name { kids.Add s; } { 0; }
                 i += 1
             }
             # 接口再补一句"谁实现了它"。顺序照 `GetImplementors ()` 给的来,不重排。
@@ -55,7 +55,7 @@ readonly PrintTree := (root: object) => {
             # 那不是"接口的实现者",是"全世界"。只有真的接口才配这一行。
             # (`interface` 小写是那个全局别名 —— 元类印出来叫 `Interface`,见 predefined.rav。)
             imps := (t : interface) { t.GetImplementors (); } { []; }
-            if { (imps.Count ()) > 0; } {
+            (imps.Count ()) > 0 {
                 names := []
                 j := 0
                 while { j < imps.Count (); } {

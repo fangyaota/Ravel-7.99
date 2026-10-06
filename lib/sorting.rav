@@ -68,7 +68,7 @@ readonly MinBy := (xs: list key: function) => { Best xs key false; }
 # 归并排序。`key` 取排序键 —— 自己写的好处就在这儿:比的是**键**。
 readonly SortOn := (xs: list key: function) => {
     n := xs.Count ()
-    if { n < 2; } { xs.Copy (); } {
+    n < 2 { xs.Copy (); } {
         mid := n / 2
         left := []
         right := []
@@ -85,7 +85,7 @@ readonly Merge := (a: list b: list key: function) => {
     i := 0
     j := 0
     while { i < (a.Count ()) && j < (b.Count ()); } {
-        if { (Compare (key (a.At i)) (key (b.At j))) <= 0; } {
+        (Compare (key (a.At i)) (key (b.At j))) <= 0 {
             out.Add (a.At i)
             i += 1
         } {
@@ -105,8 +105,8 @@ readonly Best := (xs: list key: function wantMax: bool) => {
     i := 1
     while { i < (xs.Count ()); } {
         c := Compare (key (xs.At i)) (key best)
-        take := if { wantMax; } { c > 0; } { c < 0; }
-        if { take; } { best = xs.At i; } { 0; }
+        take := wantMax { c > 0; } { c < 0; }
+        take { best = xs.At i; } { 0; }
         i += 1
     }
     best

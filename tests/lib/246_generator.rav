@@ -9,7 +9,7 @@ Nats := Generator (y: function) => {
 callcc (stop: function) => {
     i := 0
     foreach Nats (x: int) => {
-        if { i >= 5; } { stop (); } { 0; }
+        i >= 5 { stop (); } { 0; }
         print x
         i += 1
     }
@@ -24,7 +24,7 @@ Fib := Generator (y: function) => {
 callcc (stop: function) => {
     i := 0
     foreach Fib (x: int) => {
-        if { i >= 8; } { stop (); } { 0; }
+        i >= 8 { stop (); } { 0; }
         print x
         i += 1
     }
@@ -45,7 +45,7 @@ callcc (stop: function) => {
 # ④ 把已有的遍历包成生成器(能 foreach 的东西都能包)
 Odds := (xs: IEnumerable) => {
     Generator (y: function) => {
-        foreach xs (x: int) => { if { (x % 2) != 0; } { y x; } { 0; } }
+        foreach xs (x: int) => { (x % 2) != 0 { y x; } { 0; } }
     }
 }
 foreach (Odds [1 2 3 4 5]) (x: int) => { print x; }

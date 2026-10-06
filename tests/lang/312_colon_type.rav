@@ -25,8 +25,8 @@ print (!(x: real))
 print (!("a": IValue))
 
 # ── 当条件用(这就是它"只判断"那一面最常见的用法)──
-if { x: int; } { print "整数"; } { print "别的"; }
-if { x: string; } { print "串"; } { print "不是串"; }
+x: int { print "整数"; } { print "别的"; }
+x: string { print "串"; } { print "不是串"; }
 
 # ── 三种写法都和 `+` 对称 ──
 print (x.: int)           # 等右操作数:和 `2.+` 对称

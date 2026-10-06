@@ -43,7 +43,7 @@ readonly Create := (p: object) => { Archive (Native.ZipCreate (Io.PathOf p)) (Io
 
 # 去掉末尾那个 `/`(归档里目录的名字带着它,而对人讲的时候就别带了)
 readonly TrimSlash := (s: string) => {
-    if { s.EndsWith "/"; } { s.Slice [0..((s.Length ()) - 1)); } { s; }
+    s.EndsWith "/" { s.Slice [0..((s.Length ()) - 1)); } { s; }
 }
 
 # 把"这一层有哪些名字"从一列**平的**成员名里切出来。
@@ -55,11 +55,11 @@ readonly Here := (all: list prefix: string) => {
     out := {}
     foreach all (e: object) => {
         n := e.Get "name"
-        if { n.StartsWith prefix; } {
+        n.StartsWith prefix {
             rest := n.Skip (prefix.Length ())
-            if { rest.IsEmpty (); } { 0; } {
+            rest.IsEmpty () { 0; } {
                 cut := rest.Find "/"                 # `Find` 找不到给 -1(`IndexOf` 找不到会报错)
-                if { cut < 0; } { out.Set rest n; } { head := rest.Take cut; out.Set head (prefix + head + "/"); }
+                cut < 0 { out.Set rest n; } { head := rest.Take cut; out.Set head (prefix + head + "/"); }
             }
         } { 0; }
     }
@@ -72,7 +72,7 @@ readonly Here := (all: list prefix: string) => {
 readonly HasUnder := (all: dict prefix: string) => {
     hit := false
     foreach (all.Keys ()) (k: object) => {
-        if { k.StartsWith (prefix + "/"); } { hit = true; } { 0; }
+        k.StartsWith (prefix + "/") { hit = true; } { 0; }
     }
     hit
 }
@@ -103,7 +103,7 @@ Archive ::= class {
     }
 
     # 根的名字就是那个档名,子目录就是自己那一段
-    Name := () => { if { Prefix.IsEmpty (); } { Io.BaseName Path; } { TrimSlash Prefix; } }
+    Name := () => { Prefix.IsEmpty () { Io.BaseName Path; } { TrimSlash Prefix; } }
     Exists := () => { true; }
     IsDir := () => { true; }
     Delete := () => { throw (Exception ("归档删不掉：把那个文件删了就行 —— " + Path)); }
@@ -125,7 +125,7 @@ Archive ::= class {
         out := {}
         here := Here (Native.ZipList Handle) Prefix
         foreach ((here.Keys ()).Sort ()) (n: string) => {
-            if { ((here.Get n).EndsWith "/") == wantDir; } { out.Set n (Node n (here.Get n)); } { 0; }
+            ((here.Get n).EndsWith "/") == wantDir { out.Set n (Node n (here.Get n)); } { 0; }
         }
         out
     }
@@ -143,8 +143,8 @@ Archive ::= class {
     # 从前这儿不查,于是 `z.Entry "nope"` 会静默交回一个要到 `Read ()` 才炸的东西。
     FileOf := (name: string) => {
         all := Members Handle
-        cand := if { (all.Has name) || ((all.Has (name + "/")) || (HasUnder all name)); } { name; } { Prefix + name; }
-        if { all.Has cand; } { cand; } {
+        cand := (all.Has name) || ((all.Has (name + "/")) || (HasUnder all name)) { name; } { Prefix + name; }
+        all.Has cand { cand; } {
             assert ((all.Has (cand + "/")) || (HasUnder all cand)) (Path + " 里没有 '" + name + "' 这个成员")
             throw (Exception ("'" + cand + "' 是个目录（往下走用 Sub / Child）"));
         }
@@ -159,7 +159,7 @@ Archive ::= class {
     EntryName := (name: string) => { (Here (Native.ZipList Handle) Prefix).Get name; }
 
     Node := (name: string full: string) => {
-        if { full.EndsWith "/"; } { Archive Handle Path full Writable; } { ZipEntry Handle full; }
+        full.EndsWith "/" { Archive Handle Path full Writable; } { ZipEntry Handle full; }
     }
 
     # ── 写(只有 `Zip.Create` 开出来的能写) ──

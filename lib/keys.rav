@@ -78,7 +78,7 @@ ravel "Keys"
 # 两边要一起改 —— 引擎那道先拦,改漏了这边会报得晚一步、话还不一样。
 readonly Of := (k: object) => {
     c := k.Key ()
-    if { c : IValue; } { c; } {
+    c : IValue { c; } {
         throw (Exception ("`Key` 要交回一个值类型的键（数 / 串 / 字符 / 布尔 / `()`），得到 " + (string (typeof c))))
     }
 }
@@ -119,7 +119,7 @@ impl (IDict System.Scope {
             n := Of k
             inThere := try { (instance.Lookup n); true; } (e: Exception) => { false; }
             # `Define n` 本来就交回"还等着一个类型"的那个函数 —— 再喂 `typeof v` 就落下了
-            if { inThere; } { 0; } { instance.Define n (typeof v); }
+            inThere { 0; } { instance.Define n (typeof v); }
             ((instance.Lookup n).Set v)
             ()
         }

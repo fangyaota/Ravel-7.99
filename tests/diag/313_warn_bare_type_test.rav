@@ -19,7 +19,7 @@ x: int
 print 2
 
 # ── 不响的:块的最后一条(它的值就是块的值)──
-if { x: int; } { print 3; } { print 4; }
+x: int { print 3; } { print 4; }
 
 # ── 不响的:判完就用的(`and` / 传参 / 赋值给别处)──
 print (x: int)

@@ -1,18 +1,19 @@
 # 4、控制流
 
-## 4.1 if
+## 4.1 条件：`bool` 自己收两个块
+
+**没有 `if`** —— `Bool` 挂在 `Function` 下，`true` / `false` 本身就是"收两个块、选中那个"的函数：
 
 ```ravel
-if { x > 0; } {
+x > 0 {
     print "positive";
 } {
     print "non-positive";
 }
 ```
 
-`if` 接受三个块：条件、then、else。
-
-**它不是内建，是库函数** —— `Bool` 挂在 `Function` 下，`true` / `false` 本身就能选块：
+那个 `{ … }` **绑的是整条 `x > 0`**（不是 `0`）—— 块字面量比运算符松，判据在 `Parser.ParseBlockArgs`。
+所以括号可有可无，`(x > 0) { … } { … }` 一样。
 
 #### 实例
 
@@ -30,7 +31,11 @@ else
 yes
 ```
 
-所以 `if { c; } { t; } { e; }` 等价于 `c { t; } { e; }` —— 后者少进一次 `if`、少造一个块，**热路径上写后者**（`while` 和 `foreach` 内部就是直调版）。
+从**条件**那一格拿到的值必须是 `bool` —— 拿别的东西去收块，报的是「值 X 不是函数，不能调用」。
+
+（`if` 那个三参库函数 **2026-10-07 删了**。它把条件包成一个 thunk、自己再多进一次调用：
+同一次条件分派量下来 **111 步 vs 直接写 75 步（贵 48%）**。代价是"条件得是个 bool"
+少了一道**专门的**检查 —— `while` / `foreach` 里那句 `cond : bool = c ()` 还在，报得准。）
 
 ## 4.2 while
 
@@ -177,7 +182,7 @@ five := callcc (stop: function) => {
     i := 0
     out := []
     foreach Nats (x: int) => {
-        if { i >= 5; } { stop out; } { 0; }
+        i >= 5 { stop out; } { 0; }
         out.Add x
         i += 1
     }
@@ -251,7 +256,7 @@ print (sign 5)
 
 三件事记着：
 
-- **结果写成块**（或 `~表达式`）—— 命中那一支才跑，没命中的不跑，和 `if` 一个规矩；
+- **结果写成块**（或 `~表达式`）—— 命中那一支才跑，没命中的不跑（和条件那个 `bool` 收两块一个规矩）；
 - **第一个命中的胜出**，所以顺序有讲究（宽的那支写后面）；
 - **兜底那支写 `_`**。不写也行 —— 那就没有兜底，真都不中会当场报错（`|` 会说
   「N 个分支都不收这个参数」）。
@@ -272,7 +277,7 @@ print (sign 5)
 ```ravel
 #program --more-control-flow=true
 f := (n: int) => {
-    if { n < 0; } { return 0; } { 0; }
+    n < 0 { return 0; } { 0; }
     n * 2
 }
 print (f 5)
@@ -305,13 +310,13 @@ print (f (-3))
 i := 0
 while { i < 10; } {
     i += 1
-    if { i == 3; } { break; } { 0; }
+    i == 3 { break; } { 0; }
 }
 print i
 
 s := 0
 foreach [1 2 3 4 5] (x: int) => {
-    if { (x % 2) == 0; } { continue; } { 0; }
+    (x % 2) == 0 { continue; } { 0; }
     s += x
 }
 print s
@@ -332,7 +337,7 @@ print s
 #program --more-control-flow=true
 @outer while { true; } {
     foreach [1 2 3] (x: int) => {
-        if { x == 2; } { break outer; } { 0; }
+        x == 2 { break outer; } { 0; }
         print x
     }
 }
@@ -362,7 +367,7 @@ print "跳出来了"
 five := callcc (exit: function) => {
     i := 0
     while { true; } {
-        if { i >= 5; } { exit i; } { 0; }
+        i >= 5 { exit i; } { 0; }
         i += 1
     }
 }
@@ -418,7 +423,7 @@ saved := (x: int) => { x; }
 n := 0
 n = 1 + callcc (k: function) => { saved = k; 0; }
 print n
-if { n < 10; } { saved 10; } { 0; }
+n < 10 { saved 10; } { 0; }
 ```
 
 执行以上程序会输出如下结果：

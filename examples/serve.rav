@@ -17,7 +17,7 @@ using "httpd.rav"
 using "docsite.rav"
 
 OUT := "site"
-PORT := if { (System.Args ()).IsEmpty (); } { 8080; } { int ((System.Args ()).At 0); }
+PORT := (System.Args ()).IsEmpty () { 8080; } { int ((System.Args ()).At 0); }
 
 DocSite.Build OUT
 

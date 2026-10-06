@@ -16,7 +16,7 @@ big := 0
 loop := (x: int) => { x; }
 callcc (k: function) => { loop = k; }
 big += 1
-if { big < 500000; } { loop 0; } { 0; }
+big < 500000 { loop 0; } { 0; }
 print big
 # --- expected ---
 # 500000

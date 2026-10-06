@@ -78,14 +78,13 @@ internal static class CompileWarnings
                 if (e is BinaryExpr { Op: ":" })
                     hits.Add(("这一句只是个类型判断，什么都没绑 —— 想定义是不是漏了 '='？", st));
 
-                // `if { c } { t }` —— **少给一块**。这一条形状上就看得见:调用链头是 `if`、
-                // 而实参不足三个(`if` 是**三参**库函数:条件 / 然后 / 否则)。
-                // 别的半成品(`assert 条件` / `true { A }` / `Point 3` / 自定义函数)
-                // **编不出来** —— 那要"这个值是不是函数",只有跑起来才知道,照旧留在运行期。
-                if (Chain(e) is { Head: "if", Depth: < 3 })
-                    hits.Add(("`if` 要三个块（条件 / 然后 / 否则），这一句只给了两个 —— "
-                            + "这一句的值是个**还差第三个块**的函数，被丢掉了：两块都不会跑。"
-                            + "补上否则那一块（不要就写 `{ (); }`）。", st));
+                // **从前这儿还有一条**:`if { c } { t }`(少给一块)。
+                // 2026-10-07 把 `if` 那个三参库函数删了,`true` / `false` 直接收两个块
+                // (`cond { A } { B }`),那条按"调用链头是 `if`"判的警告就没得判了 ——
+                // `c { A }` 的链头是 `c`,可能是任何东西,静态认不出来。
+                // **那个坑没消失,只是移到了运行期**:少给一块的值是个 `PartialBool`,
+                // 而 `WarnIfForgotCall`(`Interpreter.Stack.cs`)判的正是"值是个函数、
+                // 且 `IsPartial`" —— `PartialBool` 构造时 `IsPartial = true` ✓。
             }
 
         return hits.OrderBy(h => h.At.Line).ThenBy(h => h.At.Column);

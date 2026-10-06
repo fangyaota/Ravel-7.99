@@ -12,5 +12,5 @@
 # 把"命令行怎么用"和"页面怎么长"分开 —— 前者会变,后者不该跟着动。
 using "docsite.rav"
 
-OUT := if { (System.Args ()).IsEmpty (); } { "site"; } { (System.Args ()).At 0; }
+OUT := (System.Args ()).IsEmpty () { "site"; } { (System.Args ()).At 0; }
 DocSite.Build OUT

@@ -20,7 +20,7 @@ Expected ::= class {
         Inner
     }
     # 解包,失败就给个默认
-    ValueOr := (d: object) => { if { Has; } { Inner; } { d; } }
+    ValueOr := (d: object) => { Has { Inner; } { d; } }
 
     # 反过来:拿那句报错。成功时用它是**用错了**
     Error := () => {
@@ -31,9 +31,9 @@ Expected ::= class {
     Message := () => { string (Error ()); }
 
     # 映射:成功就包着装换过的值,失败原样(Err 里那个函数根本不会被调)
-    Map := (f: function) => { if { Has; } { Ok (f Inner); } { this; } }
+    Map := (f: function) => { Has { Ok (f Inner); } { this; } }
     # 绑定:成功就把 f 的结果**摊平**接上(f 得自己回一个 Expected),失败原样
-    Bind := (f: function) => { if { Has; } { f Inner; } { this; } }
+    Bind := (f: function) => { Has { f Inner; } { this; } }
     # 成功且满足条件 -> true(过滤那半没意义:失败了本来就没值可滤)
     Exists := (p: function) => { Has && p Inner; }
 
@@ -70,7 +70,7 @@ impl (IMonad Expected {
 readonly Expect := (argCount: int f: function) => {
     Step := (n: int partial: function) => {
         (a: object) => {
-            if { (n + 1) == argCount; } {
+            (n + 1) == argCount {
                 try { Ok (partial a); } (e: Exception) => { Err e; }
             } {
                 try { Step (n + 1) (partial a); } (e: Exception) => { Err e; }

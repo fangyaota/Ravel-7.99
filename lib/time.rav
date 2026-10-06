@@ -31,7 +31,7 @@ Time ::= class {
 
     # `Text ()` 用常见那个格式;`Text "yyyy/MM/dd"` 自己给一个(和 `Json.Text` 一个写法)
     Text := (fmt: object) => {
-        if { fmt : string; } { System.FormatTime Ms fmt; } { System.FormatTime Ms IsoFormat; }
+        fmt : string { System.FormatTime Ms fmt; } { System.FormatTime Ms IsoFormat; }
     }
 
     # 加减:算的是**毫秒**(一天 = 86400000)—— 不跟夏令时那套,简单、可预期
@@ -42,7 +42,7 @@ Time ::= class {
 
     # 「谁大谁小」:比毫秒数(和 C# 的 IComparable 同约定:负/0/正)
     CompareTo := (o: Time) => {
-        if { Ms < o.Ms; } { -1; } { if { Ms > o.Ms; } { 1; } { 0; } }
+        Ms < o.Ms { -1; } { Ms > o.Ms { 1; } { 0; } }
     }
 
     # 运算符照同一个口径(类体里定义的就是**类运算符**)

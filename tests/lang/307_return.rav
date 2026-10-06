@@ -15,7 +15,7 @@
 #   * 嵌套靠**词法遮蔽**自己分开:内层只是"绑得近",用不着为每层起新名字。
 
 f := (n: int) => {
-    if { n < 0; } { return 0; } { 0; }
+    n < 0 { return 0; } { 0; }
     n * 2
 }
 print (f 5)
@@ -23,7 +23,7 @@ print (f (-3))
 
 # 裸 `return` —— 交回 `()`
 b := (n: int) => {
-    if { n > 0; } { return; } { 0; }
+    n > 0 { return; } { 0; }
     "没提前走"
 }
 print (b 1)
@@ -32,11 +32,11 @@ print (b (-1))
 # 嵌套:内层 `return` 只出内层(`g` 拿到 99,不是被它直接顶出去)
 g := (n: int) => {
     h := (m: int) => {
-        if { m > 10; } { return 99; } { 0; }
+        m > 10 { return 99; } { 0; }
         m
     }
     r := h n
-    if { r == 99; } { return -1; } { 0; }
+    r == 99 { return -1; } { 0; }
     r
 }
 print (g 5)
@@ -46,7 +46,7 @@ print (g 50)
 dd := (n: int) => {
     z := do {
         a :< Some n
-        if { a > 3; } { return -7; } { 0; }
+        a > 3 { return -7; } { 0; }
         a
     }
     z
@@ -58,7 +58,7 @@ print (dd 5)
 # (要跳出循环得用 `break`,那是另一条)
 foreach [1 2 3] (x: int) => {
     q := (y: int) => {
-        if { y == 2; } { return "中"; } { 0; }
+        y == 2 { return "中"; } { 0; }
         "没中"
     }
     print (q x)

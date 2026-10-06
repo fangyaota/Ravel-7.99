@@ -219,7 +219,7 @@ ravel "203_annotation_expr"
 
 # 算出来的类型:同一个字段,注解不同就装不同的类型
 # (注解只**断言**,不转换 —— 所以 `pick false` 那支的值得自己写成 real)
-pick := (flag: bool) => { if { flag; } { int; } { real; } }
+pick := (flag: bool) => { flag { int; } { real; } }
 a: (pick true) = 5
 b: (pick false) = real 5
 print (typeof a)

@@ -27,7 +27,7 @@
 
 | 例外 | 例子 | 说明 |
 |------|------|------|
-| 全局别名 | `print`、`true`、`if`、`typeof` | `predefined.rav` 里的名字，像关键词 |
+| 全局别名 | `print`、`true`、`typeof` | `predefined.rav` 里的名字，像关键词 |
 | 机制成员 | `parent`、`block`、`name`、`init`、`this` | 类对象自己那层的数据 |
 
 注意：`parent` / `block` 是**只读**的。`C.parent = int` 之后，`C ()` 会去跑 `Integer` 的构造器。
@@ -57,7 +57,7 @@ Error: 类型不匹配: 无法将 Integer 赋值给 C（不是父子）—— �
 #### 实例
 
 ```ravel
-pick := (flag: bool) => { if { flag; } { int; } { real; } }
+pick := (flag: bool) => { flag { int; } { real; } }
 a: (pick true) = 5
 b: (pick false) = real 5      # 注解只断言不转换 —— 要 real 就自己写出来
 print (typeof a)

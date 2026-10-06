@@ -23,14 +23,14 @@ Latch ::= class {
     init = (n: int) => {
         Left = n
         Gate = Tasks.Signal ()
-        if { n == 0; } { Gate.Open (); } { 0; }     # 一个不用等的闩:当场就是开的
+        n == 0 { Gate.Open (); } { 0; }     # 一个不用等的闩:当场就是开的
         this;
     }
 
     # 报到一件:数到 0 就把闸开了(开过再开没关系 —— 闸一次性的)
     Arrive := () => {
         Left -= 1
-        if { Left <= 0; } { Gate.Open (); } { 0; }
+        Left <= 0 { Gate.Open (); } { 0; }
         ();
     }
 
@@ -59,8 +59,8 @@ Once ::= class {
     init = () => { Gate = Tasks.Signal (); Value = (); Doing = false; this; }
 
     Get := (g: Tasks.TaskGroup f: function) => {
-        if { Gate.IsDone; } { Value; } {                      # 现成的
-            if { Doing; } {
+        Gate.IsDone { Value; } {                      # 现成的
+            Doing {
                 g.Await Gate                                   # 有人在做了 —— 等他
                 Value;
             } {
@@ -104,7 +104,7 @@ Race ::= class {
 
     # 交回"我是不是第一个到的"
     Enter := (v: object) => {
-        if { Gate.IsDone; } { false; } { Gate.Open v; true; }
+        Gate.IsDone { false; } { Gate.Open v; true; }
     }
 
     Winner := (g: Tasks.TaskGroup) => { g.Await Gate; }

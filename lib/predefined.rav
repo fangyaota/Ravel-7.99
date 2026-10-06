@@ -76,11 +76,12 @@ readonly seal := System.Seal  # 密封一个类(或接口):不能再被继承 / 
 readonly currentScope := System.CurrentScope
 readonly property := System.Property
 # ── 控制流:用 Ravel 写,不占控制帧 ──
-# 条件当值用:true/false 可调用,收两个块返回选中那个的结果
-readonly if := (c: function t: function e: function) => {
-    cond : bool = c ()
-    cond t e
-}
+# 条件当值用:**`true` / `false` 自己收两个块** —— `cond { A } { B }` 交出选中那个块的结果。
+#
+# `if` 那个三参库函数 2026-10-07 **删了**。它多两跳:自己一次调用,再加一次调条件 thunk
+# (`c ()`)—— 量过 111 步/次 vs 直接写的 75 步/次,贵 48%。条件本来就该是个算好的 bool,
+# 不该包在 thunk 里。块挂到哪条表达式上由解析器管:`x > 0 { A } { B }` 里那个 `{ A }`
+# 绑的是整条 `x > 0`(见 `ParseBlockArgs`)。
 
 # callcc 写成独立语句:续延被调用时只是「这条语句完成」,不会重跑它,
 # 所以 again 始终是那个续延;again 0 丢弃当前帧链跳回 callcc 之后 → 帧链不随迭代增长。
@@ -176,7 +177,7 @@ readonly IsNothing := (v: object) => {
 # 「类型 Void 没有方法 x」,不会被悄悄吞掉。
 readonly NilChain := (get: function step: function) => {
     v := get ()
-    if { (IsNothing v); } { v; } { if { v : Option; } { Some (step (v.Value ())); } { step v; } }
+    (IsNothing v) { v; } { v : Option { Some (step (v.Value ())); } { step v; } }
 }
 
 # `a ?? b` → `NilOr (() => { a; }) (() => { b; })` —— 惰性:右边要用才跑
@@ -184,7 +185,7 @@ readonly NilChain := (get: function step: function) => {
 # 空就给后备,否则把值交出来(`Some x` 交 `x`,普通值交自己 —— `()` 也照交,它不是空)。
 readonly NilOr := (get: function fallback: function) => {
     v := get ()
-    if { (IsNothing v); } { fallback (); } { if { v : Option; } { v.Value (); } { v; } }
+    (IsNothing v) { fallback (); } { v : Option { v.Value (); } { v; } }
 }
 
 # `x ??= v` → `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`
@@ -193,5 +194,5 @@ readonly NilOr := (get: function fallback: function) => {
 # 只认 `None` —— `x: object = ()` 那种"打底用 ()"的字段**不会**被它当成没设过。
 readonly NilFill := (get: function set: function fallback: function) => {
     v := get ()
-    if { (IsNothing v); } { set (fallback ()); } { v; }
+    (IsNothing v) { set (fallback ()); } { v; }
 }

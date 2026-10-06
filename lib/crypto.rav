@@ -97,9 +97,9 @@ readonly HashPassword := (password: object) => { HashWith password (Salt ()) Rou
 # 认不出的串一律当**不通过**,不报错 —— 别人换过算法、库升级过、存了个空串,
 # 这些都该是"口令不对",不该是程序崩掉。
 readonly CheckPassword := (password: object stored: object) => {
-    if { (typeof stored) == string; } {
+    (typeof stored) == string {
         parts := stored.Split "$"
-        if { ((parts.Count ()) == 5) && (((parts.At 0) == "pbkdf2") && ((parts.At 1) == "sha256")); } {
+        ((parts.Count ()) == 5) && (((parts.At 0) == "pbkdf2") && ((parts.At 1) == "sha256")) {
             rounds := int (parts.At 2)
             salt := Encoding.Unbase64 (parts.At 3)
             want := Encoding.Hex (Encoding.Unbase64 (parts.At 4))

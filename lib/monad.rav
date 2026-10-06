@@ -30,20 +30,20 @@ Option ::= class {
 
     # 解包。没有值就是**用错了**,当场报错,不拿 () 糊弄
     Value := () => {
-        if { Has; } { Inner; } { throw (ValueError "Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）"); }
+        Has { Inner; } { throw (ValueError "Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）"); }
     }
 
     # 解包,没有值就给个默认
-    ValueOr := (d: object) => { if { Has; } { Inner; } { d; } }
+    ValueOr := (d: object) => { Has { Inner; } { d; } }
     # 没有值就换成另一个
-    OrElse := (other: Option) => { if { Has; } { this; } { other; } }
+    OrElse := (other: Option) => { Has { this; } { other; } }
 
     # 映射:有值就包着装换过的值,没值原样(None 里那个函数根本不会被调)
-    Map := (f: function) => { if { Has; } { Some (f Inner); } { this; } }
+    Map := (f: function) => { Has { Some (f Inner); } { this; } }
     # 绑定:有值就把 f 的结果**摊平**接上(f 得自己回一个 Option),没值原样
-    Bind := (f: function) => { if { Has; } { f Inner; } { this; } }
+    Bind := (f: function) => { Has { f Inner; } { this; } }
     # 过滤:不满足条件就变成 None
-    Where := (p: function) => { if { Has && p Inner; } { this; } { None; } }
+    Where := (p: function) => { Has && p Inner { this; } { None; } }
     # 有值且满足条件 -> true
     Exists := (p: function) => { Has && p Inner; }
 

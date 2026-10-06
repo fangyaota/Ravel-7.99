@@ -29,7 +29,7 @@ ravel "Text"
 readonly Lines := (s: string) => {
     out := []
     foreach (s.Split "\n") (line: string) => {
-        out.Add (if { line.EndsWith "\r"; } { line.Slice [0..((line.Length ()) - 1)); } { line; })
+        out.Add (line.EndsWith "\r" { line.Slice [0..((line.Length ()) - 1)); } { line; })
     }
     out
 }
@@ -107,13 +107,13 @@ readonly Dedent := (s: string) => {
         (IsBlank line) { 0; } {
             k := 0
             while { (k < (line.Length ())) && ((string (line.At k)) == " "); } { k += 1; }
-            if { (least < 0) || (k < least); } { least = k; } { 0; }
+            (least < 0) || (k < least) { least = k; } { 0; }
         }
     }
     (least <= 0) { s; } {
         out := []
         foreach lines (line: string) => {
-            if { (line.Length ()) >= least; } { out.Add (line.Skip least); } { out.Add line; }
+            (line.Length ()) >= least { out.Add (line.Skip least); } { out.Add line; }
         }
         out.Join "\n"
     }
@@ -123,7 +123,7 @@ readonly Dedent := (s: string) => {
 # 太长就切掉、缀一个 `…`(`…` 只占一个字符,但看着是一个字)。够短原样。
 readonly Truncate := (s: string n: int) => {
     assert (n >= 1) ("Text.Truncate: 宽度至少是 1，得到 " + (string n))
-    if { (s.Length ()) <= n; } { s; } { (s.Take (n - 1)) + "…"; }
+    (s.Length ()) <= n { s; } { (s.Take (n - 1)) + "…"; }
 }
 
 # ── 引号 ──
@@ -170,7 +170,7 @@ readonly Tree := (root: object children: function label: function) => {
         i := 0
         while { i < (nodes.Count ()); } {
             n := nodes.At i
-            if { i == ((nodes.Count ()) - 1); } {
+            i == ((nodes.Count ()) - 1) {
                 out.Add (prefix + "└── " + (label n))
                 sub (children n) (prefix + "    ")
             } {

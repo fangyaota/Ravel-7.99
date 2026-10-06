@@ -49,13 +49,13 @@ ravel "Io"
 # 路径先规整一下：末尾的分隔符去掉（`Io.Dir "sub/"` 也认），别的一律照给的来、不转绝对路径
 # （转了就变成一长串绝对路径，打印出来没法看；代价是中途 `ChDir` 会让先前造的条目走样）。
 readonly PathOf := (p: object) => {
-    if { (typeof (p)) == string; } { p; } { p.Path; }
+    (typeof (p)) == string { p; } { p.Path; }
 }
 
 # 一个条目该是 File 还是 Dir：拿不准就问磁盘（`ListDir` 给的"是不是目录"带了来，
 # 别的地方就再问一次）。
 readonly EntryAt := (path: string isDir: bool) => {
-    if { isDir; } { Dir path; } { File path; }
+    isDir { Dir path; } { File path; }
 }
 
 File ::= class {
@@ -145,7 +145,7 @@ Dir ::= class {
         all := List ()
         foreach (all.Keys ()) (n: string) => {
             e := all.Get n
-            if { (e.IsDir ()) == wantDir; } { out.Set n e; } { 0; }
+            (e.IsDir ()) == wantDir { out.Set n e; } { 0; }
         }
         out
     }
@@ -375,9 +375,9 @@ readonly EachDir := (d: IDir f: function) => {
         all := dir.List ()
         foreach (all.Keys ()) (name: string) => {
             e := all.Get name
-            here := if { prefix == ""; } { name; } { Join prefix name; }
+            here := prefix == "" { name; } { Join prefix name; }
             f here e
-            if { e.IsDir (); } { walk e here; } { 0; }
+            e.IsDir () { walk e here; } { 0; }
         }
     }
     walk d ""

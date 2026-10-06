@@ -20,11 +20,16 @@ System.WarnForgotCall true
 
 # ── 响的两大类 ──
 
-# ① 半成品:调了,实参没给够。`if` 是三参的,这里只给两块 —— 不报错,
-#    只交回一个"还等着第三个块"的函数,然后被当普通语句丢掉(那一整块静默不跑)。
+# ① 半成品:调了,实参没给够。`true` / `false` 收两个块,这里只给了一块 —— 不报错,
+#    只交回一个"还等着第二个块"的函数,然后被当普通语句丢掉(那一块静默不跑)。
+#
+#    **这条 2026-10-07 从编译期挪到了运行期**:从前 `if` 是个三参库函数,
+#    "调用链头是 `if` 而实参不足三个"在**形状上**就看得见(`CompileWarnings` 里一条)。
+#    `if` 删了之后链头可能是任何东西,静态认不出来 —— 但那个坑没消失:
+#    值是个 `PartialBool`(构造时 `IsPartial = true`),而下面那条运行期警告判的正是它。
 f := () => {
     print "before"
-    if { true; } { print "这一段静默不跑"; }
+    true { print "这一段静默不跑"; }
     print "after"
     0;
 }
@@ -42,7 +47,7 @@ g ()
 h := () => {
     i := 0
     while { i < 3; } {
-        if { true; } { print "循环里也不跑"; }
+        true { print "循环里也不跑"; }
         i += 1
     }
     0;
@@ -72,29 +77,29 @@ n ()
 # 存起来的半成品是**故意的**,两条路都不响(`if { c } { t }` 当值 = 一个还等着
 # 否则那块的小函数);它在块的**最后一条**也一样不响 —— 最后一条的值就是块的值
 partials := (arg: int) => {
-    p := if { arg > 0; } { "正"; }
+    p := arg > 0 { "正"; }
     p
 }
 print (typeof (partials 1))
 # --- expected ---
-# 警告: `if` 要三个块（条件 / 然后 / 否则），这一句只给了两个 —— 这一句的值是个**还差第三个块**的函数，被丢掉了：两块都不会跑。补上否则那一块（不要就写 `{ (); }`）。
-#   --> tests/diag/264_warn_forgot_call.rav:27:5
-#   27 |     if { true; } { print "这一段静默不跑"; }
-#      |     ^
-# 警告: `if` 要三个块（条件 / 然后 / 否则），这一句只给了两个 —— 这一句的值是个**还差第三个块**的函数，被丢掉了：两块都不会跑。补上否则那一块（不要就写 `{ (); }`）。
-#   --> tests/diag/264_warn_forgot_call.rav:45:9
-#   45 |         if { true; } { print "循环里也不跑"; }
-#      |         ^
 # before
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function>
+#   --> tests/diag/264_warn_forgot_call.rav:32:5
+#   32 |     true { print "这一段静默不跑"; }
+#      |     ^
 # after
 # g
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function () => { print "before"; if ({ true; }) ({ print "这一段静默不跑"; }); print..…
-#   --> tests/diag/264_warn_forgot_call.rav:36:5
-#   36 |     f
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function () => { print "before"; true ({ print "这一段静默不跑"; }); print "after"; 0;…
+#   --> tests/diag/264_warn_forgot_call.rav:41:5
+#   41 |     f
 #      |     ^
+# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function>
+#   --> tests/diag/264_warn_forgot_call.rav:50:9
+#   50 |         true { print "循环里也不跑"; }
+#      |         ^
 # 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function Point (y: int) => { this; } applied x=1>
-#   --> tests/diag/264_warn_forgot_call.rav:54:1
-#   54 | Point 1
+#   --> tests/diag/264_warn_forgot_call.rav:59:1
+#   59 | Point 1
 #      | ^
 # true
 # 1

@@ -58,7 +58,7 @@ dataclass ::= class type {
                 out := []
                 foreach (this.Fields ()) (n: string) => {
                     ok := try { (valueOf n); true; } (e: Exception) => { false; }
-                    if { ok && ((typeof (valueOf n)) != function); } { out.Add n; } { 0; }
+                    ok && ((typeof (valueOf n)) != function) { out.Add n; } { 0; }
                 }
                 out
             }
@@ -69,7 +69,7 @@ dataclass ::= class type {
             base := (cs.Lookup "init").Get ()
 
             # ── 值 / 打印 / 相等 ──
-            if { mine "Values"; } { 0; } {
+            mine "Values" { 0; } {
                 this.Values := () => {
                     out := []
                     foreach (fieldsNow ()) (n: string) => { out.Add (valueOf n); }
@@ -77,15 +77,15 @@ dataclass ::= class type {
                 }
             }
 
-            if { mine "Text"; } { 0; } {
+            mine "Text" { 0; } {
                 this.Text := () => {
                     nm := (typeof this).name
-                    if { nm.IsEmpty (); } { nm = "class"; } { 0; }
+                    nm.IsEmpty () { nm = "class"; } { 0; }
                     out := nm + "("
                     i := 0
                     names := fieldsNow ()
                     while { i < (names.Count ()); } {
-                        if { i > 0; } { out = out + ", "; } { 0; }
+                        i > 0 { out = out + ", "; } { 0; }
                         out = out + (names.At i) + "=" + (string (valueOf (names.At i)))
                         i += 1
                     }
@@ -93,16 +93,16 @@ dataclass ::= class type {
                 }
             }
 
-            if { mine "Eq"; } { 0; } {
+            mine "Eq" { 0; } {
                 this.Eq := (o: object) => {
-                    if { (typeof o) != (typeof this); } { false; } {
+                    (typeof o) != (typeof this) { false; } {
                         mine1 := this.Values ()
                         theirs := o.Values ()
-                        if { (mine1.Count ()) != (theirs.Count ()); } { false; } {
+                        (mine1.Count ()) != (theirs.Count ()) { false; } {
                             same := true
                             i := 0
                             while { i < (mine1.Count ()); } {
-                                if { (mine1.At i) != (theirs.At i); } { same = false; } { 0; }
+                                (mine1.At i) != (theirs.At i) { same = false; } { 0; }
                                 i += 1
                             }
                             same
@@ -112,8 +112,8 @@ dataclass ::= class type {
             }
 
             # 运算符:类体里写的那份就是这么落的(实例那层找得到,`BindOperator` 直接调它)
-            if { mine "=="; } { 0; } { this.== := (o: object) => { this.Eq o; }; }
-            if { mine "!="; } { 0; } { this.!= := (o: object) => { !(this.Eq o); }; }
+            mine "==" { 0; } { this.== := (o: object) => { this.Eq o; }; }
+            mine "!=" { 0; } { this.!= := (o: object) => { !(this.Eq o); }; }
 
             # ── 按位置构造 ──
             # 参数是**一个一个**收的(这套语言的调用就是一次收一个),收满字段个数才算完;
@@ -123,7 +123,7 @@ dataclass ::= class type {
                 while { (i < (vals.Count ())) && (i < (names.Count ())); } {
                     v := vals.At i
                     # `()` 当"这一位没给":声明时的默认值留着
-                    if { (typeof v) != void; } { (cs.Lookup (names.At i)).Set v; } { 0; }
+                    (typeof v) != void { (cs.Lookup (names.At i)).Set v; } { 0; }
                     i += 1
                 }
                 this
@@ -132,14 +132,14 @@ dataclass ::= class type {
             take := (names: list i: int vals: list) => {
                 (v) => {
                     vals.Add v          # 就地加(`Add` 交回的是 `()`)
-                    if { (i + 1) >= (names.Count ()); } { apply names vals; } { take names (i + 1) vals; }
+                    (i + 1) >= (names.Count ()) { apply names vals; } { take names (i + 1) vals; }
                 }
             }
 
             # `init` 不让:按位置落字段这件事得由它来收(见文件头那条规矩)
             this.init := (first) => {
                 names := fieldsNow ()
-                if { (typeof first) == void; } { base (); } { take names 0 [] first; }
+                (typeof first) == void { base (); } { take names 0 [] first; }
             }
         }) ()
     }

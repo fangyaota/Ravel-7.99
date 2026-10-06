@@ -57,7 +57,7 @@ enum ::= class type {
     init = (parent: type vars: function) => {
         # 判的是**子类型**不是相等:`flags`(`enum` 的子类)建出来的类也该能当父类。
         # 普通类的 `typeof` 是 `object`,不是 `enum` 的子类型,照旧当场拦下。
-        if { !((typeof parent) <: enum); } {
+        !((typeof parent) <: enum) {
             throw (Exception ("'enum' 的父类得也是一个 enum（得到 " + (string parent) + "）"))
         } { 0; }
         # 类体传**空的** —— `Members` 已经在父类那一层了(父类也是这个元类建的,
@@ -85,7 +85,7 @@ enum ::= class type {
         vals := []
 
         # 同上:认**子类型**。`flags` 建的类也是 enum 一族,父类那几枚得照迁。
-        if { (typeof parent) <: enum; } {
+        (typeof parent) <: enum {
             # 父类表里**是它实例的那些**才是枚举成员 —— 元类自己那几条
             # (`init` / `Collect` / `Members` 那块 / `Values` / `Of` …)都不是实例,自然滤掉,
             # 不必另立一个"哪些是成员"的记号(记号还会撞 `private`:那条门禁看的是
@@ -93,7 +93,7 @@ enum ::= class type {
             pf := parent.MemberScope ()
             foreach ((pf.Variables ()).Keys ()) (n: string) => {
                 v := (pf.Lookup n).Get ()
-                if { v : parent; } {
+                v : parent {
                     names.Add v.Name
                     vals.Add v.Value
                 } { 0; }
@@ -105,7 +105,7 @@ enum ::= class type {
         from := box.MemberScope ()
         foreach ((from.Variables ()).Keys ()) (n: string) => {
             # `object ()` 自己那条默认构造器也在这张表里 —— 它不是枚举成员
-            if { n == "init"; } { 0; } {
+            n == "init" { 0; } {
                 names.Add n
                 vals.Add ((from.Lookup n).Get ())
             }
@@ -130,11 +130,11 @@ enum ::= class type {
         cls.Of := (v: object) => {
             hit := []
             foreach (members) (e: object) => {
-                if { (hit.Count ()) == 0; } {
-                    if { e.Value == v; } { hit.Add e; } { 0; }
+                (hit.Count ()) == 0 {
+                    e.Value == v { hit.Add e; } { 0; }
                 } { 0; }
             }
-            if { (hit.Count ()) == 0; } {
+            (hit.Count ()) == 0 {
                 throw (Exception ("这个枚举里没有值等于 " + (string v) + " 的成员"))
             } { 0; }
             hit.At 0
@@ -187,8 +187,8 @@ flags ::= class enum {
 
         # 位运算另一边那个数:同一个 flags 的值,或者直接是整数
         Bits := (o: object) => {
-            if { o : int; } { o; } {
-                if { (typeof o) == (typeof this); } { o.Value; } {
+            o : int { o; } {
+                (typeof o) == (typeof this) { o.Value; } {
                     throw (Exception ("flags: 位运算两边得是同一个 flags 的值或整数（那边是 " + (string (typeof o)) + "）"))
                 }
             }
@@ -211,8 +211,8 @@ flags ::= class enum {
         Names := () => {
             out := []
             foreach ((typeof this).Values ()) (m: object) => {
-                if { (m.Value) != 0; } {
-                    if { (Value & (m.Value)) == (m.Value); } { out.Add m.Name; } { 0; }
+                (m.Value) != 0 {
+                    (Value & (m.Value)) == (m.Value) { out.Add m.Name; } { 0; }
                 } { 0; }
             }
             out
@@ -222,15 +222,15 @@ flags ::= class enum {
         # 而"这俩掩码一样不一样"是天天要问的。两枚还得是**同一个** flags 的:
         # `sub.Read == base.Read` 照旧 false(`enum` 那条规矩:同名不同枚)。
         == := (o: object) => {
-            if { (typeof o) == (typeof this); } { Value == (o.Value); } { false; }
+            (typeof o) == (typeof this) { Value == (o.Value); } { false; }
         }
         != := (o: object) => { !((this) == o); }
 
         # 打出来是"有的那几枚连起来":单枚就是它自己的名字,组合就是 `Read|Exec`
         Text = () => {
-            if { Name != ""; } { Name; } {
+            Name != "" { Name; } {
                 ns := Names ()
-                if { ns.IsEmpty (); } { "0"; } { ns.Join "|"; }
+                ns.IsEmpty () { "0"; } { ns.Join "|"; }
             }
         }
         ToString = () => { Text (); }
@@ -242,9 +242,9 @@ flags ::= class enum {
         cls.Of := (v: object) => {
             hit := []
             foreach (cls.Values ()) (m: object) => {
-                if { ((hit.Count ()) == 0) && ((m.Value) == v); } { hit.Add m; } { 0; }
+                ((hit.Count ()) == 0) && ((m.Value) == v) { hit.Add m; } { 0; }
             }
-            if { (hit.Count ()) > 0; } { hit.At 0; } {
+            (hit.Count ()) > 0 { hit.At 0; } {
                 r := cls ()
                 r.Value = v
                 r.Name = ""

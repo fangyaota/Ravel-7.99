@@ -46,7 +46,7 @@ readonly SeekIn := (xs: object p: function) => {
             (p x) { found = true; hit = x; done (); } { 0; }
         }
     }
-    if { found; } { Some hit; } { None; }
+    found { Some hit; } { None; }
 }
 
 # 最小的 / 最大的(`keepLess` = true 求最小)。比对走 `<`(和容器那批、`Sorting` 一个口径),
@@ -62,7 +62,7 @@ readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
             keepLess { (x < best) { best = x; } { 0; } } { (best < x) { best = x; } { 0; } }
         }
     }
-    if { got; } { 0; } { throw (IndexError (what + ": 空集合没有" + what)); }
+    got { 0; } { throw (IndexError (what + ": 空集合没有" + what)); }
     best
 }
 
@@ -143,14 +143,14 @@ IEnumerable ::= interface IMonad {
         n := rng.Count ()
         # 空区间**不去问 `First ()`** —— 它在空的区间上会报错;跳过 0 个再取 0 个,
         # 拿到的就是空的一段(而且容器交回的仍是它自己那种)
-        if { n <= 0; } { (instance.Skip 0).Take 0; } {
+        n <= 0 { (instance.Skip 0).Take 0; } {
             a := rng.First ()
             b := rng.Last ()
             # 起点永远取**小的那个下标**(切片是按位置数下去的),个数是 n;
             # 区间反过来写(`[4..0]`)时,交出去之前翻个个儿 —— 那才是"倒着切"
-            lo := if { a <= b; } { a; } { b; }
+            lo := a <= b { a; } { b; }
             kept := (instance.Skip lo).Take n
-            if { a > b; } { kept.Reverse (); } { kept; }
+            a > b { kept.Reverse (); } { kept; }
         }
     }
 
@@ -247,7 +247,7 @@ IEnumerable ::= interface IMonad {
 
     internal First := () => {
         o := SeekIn instance (x: object) => { true; }
-        if { o.IsSome (); } { 0; } { throw (IndexError "First: 元素不够（一共 0 个）"); }
+        o.IsSome () { 0; } { throw (IndexError "First: 元素不够（一共 0 个）"); }
         o.Value ()
     }
 
@@ -258,14 +258,14 @@ IEnumerable ::= interface IMonad {
         got := false
         last: object = ()
         foreach instance (x: object) => { got = true; last = x; }
-        if { got; } { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
+        got { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
         last
     }
 
     internal At := (n: int) => {
         i := 0
         o := SeekIn instance (x: object) => { mine := i; i += 1; mine == n; }
-        if { o.IsSome (); } { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
+        o.IsSome () { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
     }
 
     internal Contains := (v: object) => {
@@ -275,7 +275,7 @@ IEnumerable ::= interface IMonad {
 
     # 两种用法共用一个名字(和容器那个 `Any ()` / `Any p` 一个规矩)
     internal Any := (p) => {
-        if { p : function; } {
+        p : function {
             o := SeekIn instance p
             o.IsSome ()
         } {
@@ -359,21 +359,21 @@ RangeCursor ::= class {
 
     init = (r: Range) => {
         Empty = r.IsEmpty ()
-        if { Empty; } { 0; } {
+        Empty { 0; } {
             # `First` 交回的**就是**第一站那个整数(端点带小数也折算过了),
             # `Step` 是方向 —— 都直接问区间,不自己从两头推:无界的那一头没有"最后"可言。
             Cur = r.First ()
             Step = r.Step ()
             Open = !(r.IsBounded ())
-            if { Open; } { 0; } { Top = r.Last (); }
+            Open { 0; } { Top = r.Last (); }
         }
         this;
     }
 
     MoveNext := () => {
-        if { Empty; } { false; } {
-            if { Started; } { Cur += Step; } { Started = true; }
-            if { Open; } { true; } { if { Step > 0; } { Cur <= Top; } { Cur >= Top; } }
+        Empty { false; } {
+            Started { Cur += Step; } { Started = true; }
+            Open { true; } { Step > 0 { Cur <= Top; } { Cur >= Top; } }
         }
     }
 
@@ -421,7 +421,7 @@ impl (IEnumerable Range {
 })
 impl (IEnumerable Option {
     GetEnumerator = () => {
-        if { instance.IsSome (); } {
+        instance.IsSome () {
             # 先取到手里再放进表:列表元素和实参一样只吃"主表达式 + 取成员",
             # `[instance.Value ()]` 会被读成"两件"(那个函数 + 一个 `()`)
             v := instance.Value ()
@@ -443,7 +443,7 @@ impl (IEnumerator Enumerator {
 readonly foreach := (xs: object f: function) => {
     # 那句报错串是 `assert` 的**实参**:写得再好看,`foreach` 每进一次都要先把它拼出来。
     # 所以写成一进一出的 if —— 只在真报错时才拼(和 `Keys` 那条一个道理)。
-    if { xs : IEnumerable; } { 0; } {
+    xs : IEnumerable { 0; } {
         throw (TypeError ("foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 " + string (typeof xs)))
     }
     e := xs.GetEnumerator ()

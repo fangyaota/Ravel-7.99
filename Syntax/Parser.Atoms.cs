@@ -811,8 +811,7 @@ public partial class Parser
             { Line = at.Line, Column = at.Column };
         var rethrow = Call(new MemberAccess(Ident("System", at), "Unhandled")
             { Line = at.Line, Column = at.Column }, Ident("e", at), at);
-        var handlerBody = Call(Call(Call(Ident("if", at), AsBlock(isTypeError, at), at),
-                                    AsBlock(Ident("false", at), at), at),
+        var handlerBody = Call(Call(isTypeError, AsBlock(Ident("false", at), at), at),
                                AsBlock(rethrow, at), at);
         var caught = new LambdaExpr(new Parameter("e", Ident("Exception", at)),
                                     AsBlock(handlerBody, at))
@@ -823,8 +822,7 @@ public partial class Parser
                             Call(Ident("TypeError", at),
                                  new StringLiteral($"实参不满足 '{param}' 的守卫") { Line = at.Line, Column = at.Column },
                                  at), at);
-        var gated = Call(Call(Call(Ident("if", at), AsBlock(checkedOk, at), at),
-                              AsBlock(new NumberLiteral("0") { Line = at.Line, Column = at.Column }, at), at),
+        var gated = Call(Call(checkedOk, AsBlock(new NumberLiteral("0") { Line = at.Line, Column = at.Column }, at), at),
                          AsBlock(rejected, at), at);
 
         var stmts = new List<Statement> { new ExpressionStatement(gated) { Line = at.Line, Column = at.Column } };

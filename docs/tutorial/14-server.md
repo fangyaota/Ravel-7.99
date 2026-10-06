@@ -220,7 +220,7 @@ peak := 0
 srv := Httpd.Server 0
 srv.Route "GET" "/hold" (req g) => {
     live += 1
-    if { live > peak; } { peak = live; } { 0; }
+    live > peak { peak = live; } { 0; }
     g.Await (Tasks.After 200)
     live -= 1
     Httpd.Text "ok";

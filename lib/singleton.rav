@@ -51,7 +51,7 @@ singleton ::= class type {
             with this vars
             base := init
             init = () => {
-                if { (slot.Count ()) == 0; } { slot.Add (base ()); } { 0; }
+                (slot.Count ()) == 0 { slot.Add (base ()); } { 0; }
                 slot.At 0
             }
         }

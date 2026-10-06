@@ -13,9 +13,7 @@ while {
     X += 1
 }
 X = 10
-if {
-    X > 5
-} {
+X > 5 {
     print X
 } {
     print 0
@@ -45,12 +43,12 @@ while { x < 3; } {
     x += 1
 }
 print x
-# 控制内建柯里化(部分应用):if 三参逐层给
-cond := { 5 > 3; }
-f := if cond
+# 控制内建柯里化(部分应用):`true` / `false` 收两个块,可以**逐层给**
+# (从前这儿写的是 `f := if cond` —— `if` 2026-10-07 删了,直接拿 bool 就好)
+f := true
 g := f { print "yes"; }
 g { print "no"; }
-h := if { false; }
+h := false
 print (h { 1; } { 2; })
 # while 两参部分应用
 i = 0
@@ -62,13 +60,18 @@ fe (x: int) => { print x; }
 
 # ═══ 169_control_flow_args(并入) ═══
 ravel "169_control_flow_args"
-# if/while/foreach 是 Ravel 库函数,参数不对时要自己给出清楚的消息。
-# 以前 if { 1; } 报的是「值 1 不是函数，不能调用」——因为条件是直接当函数调的,
+# while/foreach 是 Ravel 库函数,参数不对时要自己给出清楚的消息。
 # foreach 5 报的是含糊的「类型不匹配」。
 # (lambda 那条含糊的消息已经改成「参数 'x' 需要 list，得到 Integer」了,见 177;
 #  这里仍然在前置 assert 里拦,因为库函数想报的是「foreach 需要 IEnumerable」这个语境。)
 # 这里用 try 逐个测:运行时错误现在也能被接住,所以一个文件就能覆盖三条。
-try { if { 1; } { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
+#
+# **第一条 2026-10-07 变了**:它原先是 `if { 1; } { 2; } { 3; }` —— 而旧 `if` 里那句
+# `cond : bool = c ()` 的**注解**会报「无法将 Integer 赋值给 Bool」,那是"条件得是个 bool"
+# 最准的一条消息。`if` 删了之后 `cond { A } { B }` 里条件就是接收者本身,
+# 非 bool 的接收者一头撞在"不是函数"上(下面钉的就是这个)。所以:
+# **"条件不是 bool" 现在只有 `while` / `foreach` 那条(下面第 2 条)还报得准**。
+try { 1 { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
 try { while { 1; } { 0; } } (e: Exception) => { print ("2: " + string e); }
 try { foreach 5 (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
 print "after"
@@ -117,7 +120,7 @@ ravel ""
 # 2
 # 10
 # 20
-# 1: 类型不匹配: 无法将 Integer 赋值给 Bool（不是父子）—— 要转就明写 `Bool …`
+# 1: 值 1 不是函数，不能调用
 # 2: 类型不匹配: 无法将 Integer 赋值给 Bool（不是父子）—— 要转就明写 `Bool …`
 # 3: foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
 # after

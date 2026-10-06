@@ -50,7 +50,7 @@ inRange := (f: function lo: object hi: object) => {
     i := 0
     while { i < 200; } {
         v := f ()
-        if { (v < lo) || (v > hi); } { good = false; } { 0; }
+        (v < lo) || (v > hi) { good = false; } { 0; }
         i += 1
     }
     good

@@ -166,7 +166,7 @@ Rec ::= class {
     K: int = 0
     N: string = ""
     init = (k: int n: string) => { K = k; N = n; this; }
-    CompareTo := (o: Rec) => { if { K < o.K; } { -1; } { if { K > o.K; } { 1; } { 0; } } }
+    CompareTo := (o: Rec) => { K < o.K { -1; } { K > o.K { 1; } { 0; } } }
 }
 impl (IComparable Rec {
     ()

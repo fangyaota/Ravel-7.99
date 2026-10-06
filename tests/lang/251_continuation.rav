@@ -27,7 +27,7 @@ print (esc : System.Function)
 seen := 0
 callcc (k: function) => { esc = k; 0; }
 seen += 1
-if { seen < 3; } { esc (seen * 10); } { 0; }
+seen < 3 { esc (seen * 10); } { 0; }
 print seen
 
 # ── 类型关系 ──

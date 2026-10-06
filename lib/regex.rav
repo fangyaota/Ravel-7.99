@@ -60,7 +60,7 @@ RegexMatch ::= class {
     # 按号取(`m.Group 1`)或者按名字取(`m.Group "y"`)—— 和 `Real` 那两条一样,
     # 两种用法共用一个名字,按实参是什么分流。
     Group := (k) => {
-        if { (typeof k) == string; } {
+        (typeof k) == string {
             assert (Named.Has k) ("Group: 没有叫 '" + k + "' 的组（命名组要在模式里写成 (?<" + k + ">…)）")
             Named.Get k
         } {
@@ -86,7 +86,7 @@ RegexPattern ::= class {
     # 有没有命中 —— 给的是 `Option`(没有命中不是用错,是**常事**)
     TryMatch := (text: string) => {
         d := Native.RegexMatch Pattern text Flags
-        if { (typeof d) == dict; } { Some (RegexMatch d); } { None; }
+        (typeof d) == dict { Some (RegexMatch d); } { None; }
     }
 
     # 头一段命中的;没有就**当场报错**(和 `Find` 一个脾气 —— 知道该有、结果没有,那是 bug)

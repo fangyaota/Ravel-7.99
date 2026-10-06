@@ -15,9 +15,7 @@ F = (x: int) => {
 }
 print (F 5)
 factorial := (x: int) => {
-    if {
-        x <= 1
-    } {
+    x <= 1 {
         1
     } {
         x * (self (x - 1))
@@ -25,9 +23,7 @@ factorial := (x: int) => {
 }
 print (factorial 5)
 fib := (n: int) => {
-    if {
-        n <= 1
-    } {
+    n <= 1 {
         n
     } {
         (self (n - 1)) + (self (n - 2))
@@ -68,9 +64,7 @@ F = (n: int) => {
 }
 print (F 10)
 isPrime := (n: int) => {
-    if {
-        n < 2
-    } {
+    n < 2 {
         false
     } {
         d := 2
@@ -78,9 +72,7 @@ isPrime := (n: int) => {
         while {
             d * d <= n
         } {
-            if {
-                n % d == 0
-            } {
+            n % d == 0 {
                 result = false
             } {
                 0
@@ -311,7 +303,7 @@ print ("算了几次: " + string NoArgCalls)
 # 所以只要把缓存版的名字给它,递归的每一层都会经过缓存。
 FibCalls := 0
 fib: object = 0
-fib = Cached 1 ((n: int) => { FibCalls += 1; if { n < 2; } { n; } { (fib (n - 1)) + (fib (n - 2)); } })
+fib = Cached 1 ((n: int) => { FibCalls += 1; n < 2 { n; } { (fib (n - 1)) + (fib (n - 2)); } })
 print (fib 25)
 print ("斐波那契算了几次: " + string FibCalls)
 ravel ""
