@@ -2985,12 +2985,13 @@ Error: 未定义的变量 'missing'
 | 量 | 数 |
 |---|---|
 | 一次 `StepOnce`(含帧分配) | Release **77 ns**、Debug 0.29 µs |
-| `while { i < N; } { sum += 1; i += 1; }` 一轮 | **~76 步** |
-| `xs.Each (…)`(`List`,引擎的 `SeqMethod` 那条路) | ~**8.8 µs**/元素 |
+| `while { i < N; } { sum += 1; i += 1; }` 一轮 | **~4.0 µs**(callcc 那一轮优化前是 5.9) |
+| `xs.Each (…)`(`List`,引擎的 `SeqMethod` 那条路) | ~**8.9 µs**/元素 |
 | `foreach xs (…)`(库那条:`MoveNext` / `Current` 协议) | ~**32 µs**/元素 |
-| `[1..N].Each (…)` / `foreach [1..N] (…)`(`Range` 的 `GetEnumerator` 走 `Generator`) | ~**94 µs**/元素 |
+| `[1..N].Each (…)` / `foreach [1..N] (…)`(`Range` 的 `GetEnumerator` 走 `Generator`) | ~**74 µs**/元素 |
 
-(2026-10-06 在 **Release** 构建上量的;噪声约 ±10%,别拿它比几个百分点的改动。
+(2026-10-06 在 **Release** 构建上量的,同日随 callcc 那两笔优化更新过一次;
+噪声约 ±10%,别拿它比几个百分点的改动。
 `fib 22` + 30 万轮 `while` + 20 万次 `foreach` 那套基准,脚本在 `.scratch` 之外没留 ——
 要复现就照上表那几行写。)
 
@@ -3003,7 +3004,9 @@ Error: 未定义的变量 'missing'
 1. **少跑几步**(库那一侧)。表里那两行差得最刺眼,根子都是"本来引擎有更短的路":
    `foreach` 走的是库写的 `MoveNext` / `Current` 协议,而 `.Each` 走引擎的 `SeqMethod` ——
    同一个 List,**3.6 倍**;`Range` 的 `GetEnumerator` 交回的是 Ravel 写的 `Generator`
-   (续延光标),和 `List` 那条比是 **10.6 倍**。给 `Range` 一个引擎原生的枚举器、
+   (续延光标,**每个元素捕获一次**),和 `List` 那条比是 **8.3 倍**
+   (`Generator` 每个元素都走一趟 `callcc` —— 2026-10-06 那轮 callcc 优化把它从
+  94 µs 拉到 74 µs,但大头还在"每元素一次捕获"这个形状上)。给 `Range` 一个引擎原生的枚举器、
    让 `foreach` 也走引擎那条,都能拉近 —— 但两条都改的是**可观察的行为边界**
    (`GetEnumerator ()` 交回什么、`foreach` 是不是"只是个库函数"),所以没做:
    要做先想清楚值不值。
