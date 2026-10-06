@@ -228,6 +228,10 @@ internal static class AstDump
     ///   是一枚**写出来的** lambda 了。两个都不影响求值那一侧(`Sugar` 只管解析期
     ///   收 `_` 洞时的闭包边界),重解析的树自己会把它算对。
     ///
+    ///   `BareUnitArg` 同理,而且是**印出来必然变**的一个:`f () > 1`(空参数表)和
+    ///   `f (() > 1)`(括号组)子树**一模一样**,打印机只会印成后者 —— 重解析回去就是
+    ///   括号组了。它只给 `--warn` 那条提醒用(见 `Interpreter.Stack.WarnIfVoidArg`)。
+    ///
     /// 留着它们的唯一后果是**每个文件都"对不上"**,那自验就等于没有。</summary>
     private static string Canonical(AstNode node)
     {
@@ -259,7 +263,7 @@ internal static class AstDump
         {
             // "来路"那两个只在**自验**那一趟排掉(见 `Canonical`);转储是照印的 ——
             // 那份要的是"一个字段都不少"
-            if (!meta && prop.Name is "Source" or "Sugar" or "Pattern") continue;
+            if (!meta && prop.Name is "Source" or "Sugar" or "Pattern" or "BareUnitArg") continue;
             var value = prop.GetValue(node);
             if (value is null) continue;
 

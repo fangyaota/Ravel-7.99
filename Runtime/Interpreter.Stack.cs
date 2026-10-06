@@ -332,6 +332,49 @@ public partial class Interpreter
     /// 刷屏的警告等于没有警告。(位置 = 文件 + 行列,和报告里印的是同一份。)</summary>
     private readonly HashSet<(string?, int, int)> _warnedForgotCall = [];
 
+    /// <summary>上面那条(零参调用后面跟运算符)的警报过账,规矩同上。</summary>
+    private readonly HashSet<(string?, int, int)> _warnedVoidArg = [];
+
+    /// <summary>`f () > 1` —— **零参调用后面跟运算符**。实参吃到运算符为止(见 CONTEXT
+    /// 「并列的调用比运算符松」),于是那个实参成了一条**以 `()` 开头**的算式,
+    /// 而写的人多半是想要"拿调用结果去算"。
+    ///
+    /// 为什么专挑 `()`:别处 `f 1 + 2` ≡ `f (1 + 2)` 是**说好的**读法(教程 3.9),
+    /// 而 `()` 在 `f ()` 里是**空的参数表**、不像"一个实参" —— 后面跟运算符时两种读法
+    /// 看着都通顺,读错的代价却是一个**换了意思的表达式**(`f () == g ()` 那种连错都不报)。
+    ///
+    /// 判据**只看形状**:实参是一条运算符链,而它**最左端**是 `()` 字面量
+    /// (`f () > 1` / `f () + 2 * 3`)。`f ()` 本身不算 —— 那是最正常的零参调用。
+    ///
+    /// 还得是 <see cref="CallExpr.BareUnitArg"/>:那个 `()` 得是**空参数表**写下来的。
+    /// 少了这一条,`print (() == ())` 这种正经的括号组会一起报 —— 两种写法解析出来的
+    /// 子树**一模一样**,只有 token 流分得清。
+    ///
+    /// 和别的一样走 `--warn`(默认关),同一个位置只报一次。真想传 `() > 1` 这个值,
+    /// 写成括号组 `f (() > 1)` 就不报了 —— **这也正是"我就是要这个整体"该有的写法**。</summary>
+    private void WarnIfVoidArg(CallExpr call)
+    {
+        if (!WarnForgotCall) return;
+        if (!call.BareUnitArg) return;
+        if (call.Argument is not BinaryExpr arg || !StartsAtVoid(arg)) return;
+
+        var spot = new SourceSpot(NearestSource(_top), arg.Line, arg.Column);
+        if (!_warnedVoidArg.Add((spot.File, spot.Line, spot.Column))) return;
+
+        Console.Error.WriteLine(ErrorReport.Warning(
+            "这一格的 `()` 被后面的运算符吃进**实参**里了（`f () > 1` 读成的是 `f (() > 1)`）—— "
+          + "要拿调用结果去算就给它加括号：`(f ()) > 1`", spot));
+    }
+
+    /// <summary>一条算式最左端是不是那个 `()` 字面量。顺着 `Left` 一路下去 ——
+    /// `f () + 2 * 3` 的实参是 `(() + (2 * 3))`,最左那格还是它。</summary>
+    private static bool StartsAtVoid(Expression e) => e switch
+    {
+        VoidLiteral => true,
+        BinaryExpr b => StartsAtVoid(b.Left),
+        _ => false,
+    };
+
     /// <summary>「是不是忘了调用?」—— 上一条语句(下标 `Count-1`)的值被丢掉了,而它是个函数。
     ///
     /// 为什么值得响一声:实参收满才成一次调用,少给一块(`if { c } { t }` 这种,少最后那个 `e`)

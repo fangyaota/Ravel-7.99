@@ -104,6 +104,10 @@ public partial class Interpreter
     {
         if (nf.Count == 0)
         {
+            // `--warn`:实参是"以 `()` 开头的一条算式"就是"零参调用后面跟运算符"读岔了
+            // (`f () > 1` 成了 `f (() > 1)`)—— 见 `WarnIfVoidArg`。**在这儿查**是因为
+            // 这一步已经把实参原样拿在手上了,不必为它再走一遍整棵树。
+            WarnIfVoidArg(call);
             PushChild(nf, call.Function);
             return;
         }

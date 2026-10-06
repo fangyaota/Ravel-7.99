@@ -266,7 +266,21 @@ public record IdentifierExpr(string Name) : Expression;
 /// (见 Parser.Expressions 的 juxtaposition)。从前这里存的是个 List,而它恒有一个元素:
 /// 每个读点都得写 `Arguments[0]`,还得提防"要是空了/多了呢"。
 /// 注解里的多参 lambda(`(a: int b: int) => …`)同样只是"体里再套一层 lambda"的糖。</summary>
-public record CallExpr(Expression Function, Expression Argument) : Expression;
+public record CallExpr(Expression Function, Expression Argument) : Expression
+{
+    /// <summary>实参是**空参数表**那个 `()` 写下来的(`f () > 1` 里那一格),不是括号组。
+    ///
+    /// 两种写法解析出来的**子树一模一样** —— `f () > 1` 和 `f (() > 1)` 都是
+    /// `CallExpr(f, BinaryExpr(VoidLiteral, ">", 1))` —— 只有 **token 流**分得清
+    /// (`(` 紧跟着 `)` 就是空参数表)。所以这个**来路**得记下来,不然 `--warn` 那条
+    /// 「零参调用后面跟运算符」的提醒会连 `print (() == ())` 这种正经写法一起报。
+    ///
+    /// 和 <see cref="LambdaExpr.Sugar"/> 一个性质:印成源码之后表达不出来
+    /// (印出来是 `f (() > 1)`,重解析成了括号组),所以自验那一趟排掉它
+    /// (见 `Cli/AstDump.Canonical`)。**只给那条警告用**,求值一个字不看。
+    /// 只有当实参**确实**长得这样时才置 true。</summary>
+    public bool BareUnitArg { get; init; }
+}
 public record MemberAccess(Expression Object, string Member) : Expression;
 public record BinaryExpr(Expression Left, string Op, Expression Right) : Expression;
 public record UnaryExpr(string Op, Expression Operand) : Expression;

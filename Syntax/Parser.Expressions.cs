@@ -359,6 +359,11 @@ public partial class Parser
                 _loops.Add(loop);
             }
 
+            // 这一格实参是不是**空参数表**那个 `()` 写下来的(`f () > 1`)—— 判据在 token 上:
+            // `(` 紧跟着 `)`。`f (() > 1)` 那种括号组开头是 `(` `(`,不算。
+            // 两种写法解析出来的子树一样,所以这个"来路"得当场记下(见 `CallExpr.BareUnitArg`)。
+            var bareUnit = Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen;
+
             var arg = ParseAssignment(allowCall: false);
 
             var at = Previous();
@@ -384,6 +389,7 @@ public partial class Parser
             {
                 Line = expr.Line,
                 Column = expr.Column,
+                BareUnitArg = bareUnit,
             };
         }
 
