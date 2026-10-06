@@ -96,7 +96,7 @@ try { q4 := C (); print q4.a; } (e: Exception) => { print ("6: " + string e); }
 # 20
 # true
 # 1
-# ()
+# <function>
 # 1
 # 1: 类型 'C' 没有方法 'a'
 # 1

@@ -85,12 +85,13 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
             // **接口里的普通成员**(不是 `by` 槽):它住在实现身上,而值**就是它自己** ——
             // 没有 getter 可走,所以到不了上面 `TryGetByGetter` 那条路。
             // (运算符访问 / `by` 槽那两条都在前面处理过了;这儿只管"读一个普通名字"。)
+            // 是函数的话交出去之前绑一次接收者(`BindPlain`)—— 槽体里的 `instance` 靠那一层激活格。
             if (Value is not ModuleVal
                 && BuiltinClasses.TraitSlot(interp, Value, name, allowPlain: true) is { } plain
                 && !plain.Slot.HasAttr(Attr.By))
             {
                 if (Value is ObjectVal owner) CheckObjectReadAccess(owner, plain.Slot, name);
-                return new BoxedValue(plain.Slot.Value, interp);
+                return new BoxedValue(BuiltinClasses.BindPlain(plain), interp);
             }
 
             throw new RuntimeException($"{Value.KindName} 没有方法 '{name}'", ErrorKind.Attribute);

@@ -301,7 +301,7 @@ internal static partial class BuiltinClasses
             if (target == List) return new ListVal([]);
             if (target == Set) return new SetVal([]);
             if (target == Dict) return new DictVal([]);
-            if (target == Function) return FunctionVal.From(_ => VoidVal.Instance);
+            if (target == Function) return EmptyFunction();
             // 续延的"空值"不是"什么都不做",而是"还没到手的那一枚" —— 它一调就报错
             // (续延调用是跳转,没有目的地就该响;见 ContinuationVal.Default)
             if (target == Continuation) return ContinuationVal.Default;

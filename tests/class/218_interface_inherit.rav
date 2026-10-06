@@ -155,7 +155,11 @@ D ::= class {
 }
 print ((D ()) * 3)
 
-# 只有默认值(`= default`,那对什么都不做的 getter/setter):响亮地报错,不静默
+# 只有默认值(`= default`,那对什么都不做的 getter/setter):getter 交回**空函数**
+# (见 `BuiltinClasses.EmptyFunction`),所以 `+ 1` 调的就是它 —— 得到 `()`。
+# 2026-10-06 之前 getter 交 `()`、`+ 1` 报「值 () 不是函数，不能调用」;改成空函数
+# 是为了让**两条默认值的路一个读法**(`by Map : function = default` 和普通成员写的
+# `Map : function = default` 从前一个报错一个给空函数)。代价写在眼前:这条**静默**了。
 Loose ::= class {
     by + := default
 }
@@ -207,7 +211,7 @@ ravel ""
 # 10
 # 3
 # 10
-# 1: 值 () 不是函数，不能调用
+# ()
 # 2: 类型 Out 不支持运算符 '+'
 # 100
 # 3: 类型 S 不支持运算符 '+'

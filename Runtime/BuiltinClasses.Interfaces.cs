@@ -397,6 +397,22 @@ internal static partial class BuiltinClasses
         };
     }
 
+    /// <summary>**普通成员**(不是 `by` 槽)从接口实现里交出去之前的一个动作:值若是**函数**,
+    /// 照样把它的捕获作用域换到这一次的激活格上 —— 和 <see cref="ActivateFn"/> 干的是同一件事,
+    /// 只是没有 property 可裹:值**就是**那个函数。
+    ///
+    /// 于是这两行读出来是**同一个东西**:
+    ///
+    ///     by X := property (() => { () => { …用 instance… } }) ((v) => { (); })
+    ///     internal X := () => { …用 instance… }
+    ///
+    /// 前者多一层间接 —— getter 在**读**的时候跑,所以体里得再裹一个函数才交得出手。
+    /// 只读(空 setter)的方法槽因此能整个退掉 property 和那层壳。
+    ///
+    /// **非函数原样交回**(字段那种):它没有捕获作用域可言,也没有"这一次调用"。</summary>
+    internal static RuntimeValue BindPlain(in TraitHit hit)
+        => hit.Slot.Value is FunctionVal f ? ActivateFn(f, null, hit) : hit.Slot.Value;
+
     /// <summary>给这个函数体套上这一次的激活格。`shared` 是 getter/setter 共用的那一层(见上);
     /// 函数自己没有捕获作用域(`FunctionVal.From` 造的 native、`property` 拿内置方法当 getter)
     /// 就原样交回 —— 它们的体不看名字,套上去也只是白开一层。</summary>

@@ -1,0 +1,52 @@
+#
+# **接口体里的普通成员也可以是"方法"** —— 值若是函数,交出去之前照样绑这一次的接收者。
+#
+# 从前只有 `by` 槽会被绑(`Activate`:临场开一层激活格,把 getter 的**捕获作用域**
+# 换过去,`instance` 才认得出"这次服务谁");普通成员是原样把值交出去的,里面写
+# `instance` 必然报「此刻没有正在被服务的实例」。现在补上了 —— 复用的就是同一个
+# `ActivateFn`,只是没有 property 可裹:值**就是**那个函数(`BuiltinClasses.BindPlain`)。
+#
+# 于是下面这两行读出来是**同一个东西**:
+#
+#     by X := property (() => { () => { …用 instance… } }) ((v) => { (); })
+#     internal X := () => { …用 instance… }
+#
+# 前者多一层间接 —— getter 在**读**的时候跑,所以体里得再裹一个函数才交得出手。
+# 只读(空 setter)的方法槽因此能整个退掉 property 和那层壳。
+#
+# 后半段钉的是**另一个统一**:`= default` 那对默认 getter/setter,getter 现在交回的
+# 是**空函数**(和 `function default` 那份同一个),不再是 `()` —— 于是"用 `by` 声明"
+# 和"用普通成员声明"这两条路,没实现时读出来一个样。
+
+# ── 普通成员当方法用:认得出这次服务谁 ──
+Method ::= interface {
+    whom := () => { "serving " + (instance.ToString ()); }
+}
+Servant ::= class {
+    init = () => { this; }
+    ToString := () => { "servant"; }
+}
+m := Method Servant {
+    ()
+}
+use m
+sv := Servant ()
+print (sv.whom ())
+
+# ── `= default` 的两条路:没实现时都是"一个能调的空函数" ──
+Proto ::= interface {
+    by a : function = default
+    b : function = default
+}
+P ::= class { init = () => { this; } }
+pa := Proto P {
+    ()
+}
+use pa
+p := P ()
+print (p.a 1)
+print (p.b 1)
+# --- expected ---
+# serving servant
+# ()
+# ()

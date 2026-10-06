@@ -613,18 +613,30 @@ internal static partial class BuiltinClasses
 
     /// <summary>**属性的默认值** —— 一对什么都不做的函数:
     ///
-    ///     Get = () => { (); }
+    ///     Get = () => { 空函数; }
     ///     Set = (_ : object) => { (); }
     ///
     /// 和 `int default` 给 `0`、`function default` 给空函数是同一个道理:
     /// `by a: int = default` 里那个 `default` 就是它 —— 槽里先放一个**能读能写、
-    /// 但什么都不做**的属性(读出来是 `()`、写进去丢掉),之后用 `by a = property g s`
-    /// 把真实现换上。
+    /// 但什么都不做**的属性,之后用 `by a = property g s` 把真实现换上。
+    ///
+    /// **getter 交回的是空函数,不是 `()`** —— 和 `function default` 那份
+    /// (`ConvertDirect` 里那条)共用同一个 <see cref="EmptyFunction"/>。
+    /// 从前交 `()`(顺手在 getter 的返回值上写了个 `()`),于是 `by Map : function = default`
+    /// 没人填时,`x.Map f` 报的是「值 () 不是函数,不能调用」—— 读的人得自己猜到
+    /// "原来这条槽没人填";而**用普通成员声明的同一条槽**(`Map : function = default`)
+    /// 读出来是个能调的空函数,两条路两个读法。现在两条一样了。
     ///
     /// 它**没有状态**,所以 `with` / `Copy ()` 让副本和原件共享同一个也无害
     /// (`CopyScope` 那条复制路不用为它做任何事)。</summary>
     internal static PropertyVal DefaultProperty()
-        => new(FunctionVal.From(_ => VoidVal.Instance), FunctionVal.From(_ => VoidVal.Instance));
+        => new(FunctionVal.From(_ => EmptyFunction()), FunctionVal.From(_ => VoidVal.Instance));
+
+    /// <summary>**空函数**:收什么都行、什么都不做、交回 `()`。
+    ///
+    /// 两处共用:`function default`(见 `ConvertDirect`)和 `by X = default` 那条默认属性的
+    /// getter —— "这条槽还没有实现"读出来就该是个**能调**的东西,不是 `()`。</summary>
+    internal static FunctionVal EmptyFunction() => FunctionVal.From(_ => VoidVal.Instance);
 
     /// <summary>把一个变量包成 property(getter 读、setter 写),attrs 原样带上。
     /// `scope.Lookup` 和 `scope.Variables` 都要这一套 —— 从前各写了一遍。

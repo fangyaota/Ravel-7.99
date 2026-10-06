@@ -1543,9 +1543,16 @@ by age := property (() => { _age; }) ((v: int) => { _age = v; })
 后两条是"属性本身"那半边（绕开 getter/setter），前两条是"属性值"那半边。
 
 **`default` 是"属性的默认值"**（`BuiltinClasses.DefaultProperty`，五个写入点共用
-`Nodes.cs` 的 `SlotValue`）：一对什么都不做的 `FunctionVal` —— `Get = () => { (); }`、
+`Nodes.cs` 的 `SlotValue`）：一对什么都不做的 `FunctionVal` —— **`Get` 交回空函数**
+（`EmptyFunction`，和 `function default` 那份**同一个**，见 `ConvertDirect`）、
 `Set = (_: object) => { (); }`。和 `int default` 给 0、`function default` 给空函数同一个道理。
-所以 `by a: int = default` 的槽里是个**能读能写、都不做事**的属性（读 `()`、写丢掉），
+所以 `by Map : function = default` 的槽里是个**能读能写、都不做事**的属性：
+**读出来是个能调的空函数**（调了给 `()`）、写进去丢掉。
+
+getter 从前交的是 `()`，于是一条没人填的槽 `x.Map f` 报「值 () 不是函数，不能调用」——
+而**用普通成员声明的同一条槽**（`Map : function = default`，走 `ConvertDirect`）读出来
+本来就是空函数，两条路两个读法。现在两条一样（2026-10-06）。
+
 它**没有状态**，因此 `CopyScope` 让副本和原件共享同一个是对的。别的非 `property` 值
 （`by bad := 5`）不在此列 —— 第一次读/写照旧当场报错。
 `SlotExpr` **不能把整条路径当普通表达式求** —— `by c.n` 求 `c.n` 就走 getter 了，
