@@ -39,6 +39,9 @@ internal static class GoldenTestRunner
     /// 子目录名也算在里面 —— 所以用例按文件夹分好之后,`ravel test http` 挑的就是那一摞。
     /// 不给就是全量。`fast` 跳过带 `# slow` 的那些。
     ///
+    /// **没给 `fast` 就先提醒一句**(这一趟会连 `# slow` 一起跑,可能要几分钟)——
+    /// 只提醒、不拦:全量本来就该全都跑,`--fast` 才是"我这会儿只想跑快的"。
+    ///
     /// `warn` 是一次性的总开关(CLI 的 `--warn`):每条用例都带着它跑,
     /// 好把整个用例库当成一份样本,过一遍"是不是忘了调用"的筛子。</summary>
     public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false, bool moreControlFlow = false)
@@ -61,6 +64,15 @@ internal static class GoldenTestRunner
             Console.WriteLine($"没有一条用例对得上:{string.Join(" ", pick!)}");
             return false;
         }
+
+        // 没加 `--fast`:这一趟会**连那几条 `# slow` 一起跑**(起服务器、等计时器、
+        // 跑十万次切换…),可能要几分钟。跑之前先说一声 —— 免得对着不动的屏幕等,
+        // 或者忘了这一档有多贵。
+        //
+        // 有意**只提醒、不拦**:全量那一趟本来就该"全都跑"(`# slow` 不代表不重要,
+        // 见 `SlowMarker` 那段);`--fast` 才是"我这会儿只想跑快的"那个开关。
+        if (!fast)
+            Console.WriteLine("没加 `--fast`：这一趟会连 `# slow` 那几条一起跑，可能会非常慢。");
 
         int passed = 0, failed = 0, todo = 0, skipped = 0;
         foreach (var file in chosen)
