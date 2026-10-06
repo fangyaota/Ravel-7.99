@@ -370,6 +370,48 @@ Enumerator ::= class {
     by Current := property (() => { Items.At Index; }) ((v: object) => { (); })
 }
 
+# **区间的枚举器**:一块**纯状态**——`Range` 的元素是整数,下一个直接算得出来。
+#
+# 从前它走的是 `Generator`(通用续延协程):那台每送一个元素要**两次捕获 + 两次跳**
+# (消费者那枚、生产者那枚),而"算下一个整数"这件事压根不需要挂起。换成一个索引光标
+# 之后,这条路和 `List` 一样是"字段 + 一步算术"。
+#
+# 和 `Enumerator` 一个形状(`Cur` 对它的 `Index`),也就一个规矩:没 `MoveNext` 就读
+# `Current` 是 j**未定义**的 —— 从前生成器那版给的是 `()`(字段默认值),这版给 `0`,
+# 都是垃圾值;库里的 `foreach` / `Take` 那些一律先 `MoveNext` 再读,碰不到这一格。
+#
+# **方向由两头谁大谁小定**(`[5..1]` 倒着数),空区间直接 `Empty` 挡住 ——
+# 和从前 `Generator` 里那段一模一样,只是不再需要一段"跑给生成器看"的体。
+RangeCursor ::= class {
+    # **不注解** —— 端点可以是 bigint / 小数(`[1..5000000000]` / `[1.5..3.5]`),
+    # 而 `First ()` / `Last ()` 交回的就是它们那种数;老那版是没注解的局部量,吃得下。
+    # (`Step` 永远是 ±1 这个 int,注解着无妨。)
+    Cur: object = 0
+    Top: object = 0
+    Step: int = 1
+    Started: bool = false
+    Empty: bool = true
+
+    init = (r: Range) => {
+        Empty = r.IsEmpty ()
+        if { Empty; } { 0; } {
+            Cur = r.First ()
+            Top = r.Last ()
+            Step = if { (r.First ()) <= (r.Last ()); } { 1; } { -1; }
+        }
+        this;
+    }
+
+    MoveNext := () => {
+        if { Empty; } { false; } {
+            if { Started; } { Cur += Step; } { Started = true; }
+            if { Step > 0; } { Cur <= Top; } { Cur >= Top; }
+        }
+    }
+
+    by Current := property (() => { Cur; }) ((v: object) => { (); })
+}
+
 # 几种容器怎么交出枚举器:把元素表包进一个 Enumerator。
 # `impl` 收的是**一个实现值**(`接口 类 { … }` 造出来的那个),所以整条要括起来 ——
 # 不括的话 `impl IEnumerable list {…}` 会被读成 `((impl IEnumerable) list) {…}`,
@@ -402,28 +444,13 @@ impl (IEnumerable System.Scope {
 #
 # 枚举器**不用** `instance.ToList ()` 来取:那正是这条默认实现自己 —— 会转圈。
 # 这里直接问 Option 那两条(`IsSome ()` / `Value ()`)。
-# `Range` 也是一串(`[1..3]` 里那些整数,按开闭数出来)。枚举器是个**生成器的光标** ——
-# 惰性:`[1..1000000000].Take 3` 不会先铺一张表。`Count` / `Contains` / `ToList` 那几条
-# 由引擎那份先命中(它们住在类链上,类链先说话),语义一样、只是更快。
+# `Range` 也是一串(`[1..3]` 里那些整数,按开闭数出来)。枚举器是 **`RangeCursor`** ——
+# 一块纯状态,惰性:`[1..1000000000].Take 3` 不会先铺一张表。
+# `Count` / `Contains` / `ToList` 那几条由引擎那份先命中(它们住在类链上,类链先说话),
+# 语义一样、只是更快。
 impl (IEnumerable Range {
     by GetEnumerator = property (() => {
-        () => {
-            g := Generator (y: function) => {
-                # 走**元素**那两头(`First` / `Last`)—— 端点可以是小数,元素永远是整数;
-                # 空的区间问 `First ()` 会报错,所以先挡一道。
-                # 两头谁大谁小就是**方向**:`[5..1]` 是倒着数的,那就往回走。
-                if { instance.IsEmpty (); } { (); } {
-                    i := instance.First ()
-                    top := instance.Last ()
-                    if { i <= top; } {
-                        while { i <= top; } { y i; i += 1; }
-                    } {
-                        while { i >= top; } { y i; i -= 1; }
-                    }
-                }
-            }
-            g.GetEnumerator ();
-        }
+        () => { RangeCursor instance; }
     }) ((v: function) => { (); })
 })
 impl (IEnumerable Option {
