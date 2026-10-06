@@ -129,6 +129,19 @@ internal static class AstPrinter
         return "{\n" + Join("\n", lines) + "\n" + Pad(indent) + "}";
     }
 
+    /// <summary>印不出来的一格 —— **当场响,不印占位符**。
+    ///
+    /// 这三种节点(`Statement` / `Expression` / `Pattern`)都是**封闭层级**:新增一个就得
+    /// 回来给这三张表各加一支。从前那支是 `_ => "?"` —— 新节点印成 `?`,`--source` 出来的
+    /// 源码读回去当然对不上(`ast` 自检会红),可**报错消息里的 `describe` 也会印成 `?`**,
+    /// 那就成了一句看不懂的话。占位符把"打印机不认识这个节点"这条信息**吞掉了**,
+    /// 而这正是这门语言最恨的那种静默。
+    ///
+    /// 抛的是 C# 异常(不是 `RuntimeException`):这是**打印机自己的 bug**,不是脚本的错 ——
+    /// CLI 那边兜到它,报的是「解释器内部错误」带类型名,一眼看得出该补哪一支。</summary>
+    private static Exception Unknown(object node)
+        => new InvalidOperationException($"AstPrinter 不认识 {node.GetType().Name} 这个节点");
+
     private static string Pad(int indent) => new(' ', indent * Step);
 
     /// <summary>定义前面那圈修饰符(`readonly` / `private` …)。**从前整个丢掉了** ——
@@ -152,10 +165,10 @@ internal static class AstPrinter
         ExpressionStatement es => Expr(es.Expr, indent),
 
         // 下面这三种**活不过 `Lowering`**(见 `Syntax/Lowering.cs` 抬头),正常到不了这儿。
-        // 留着只是"万一"—— 掉进兜底那个 `?` 就更没法查了。
+        // 留着只是"万一" —— 真到了得**响**,不能印个占位符糊过去(见 `Unknown`)。
         BindStatement bd => bd.Name + " :< " + Expr(bd.Monad, indent),
         Destructure d => Attrs(d.Attrs) + Pattern(d.Pattern, indent) + " = " + Expr(d.Value, indent),
-        _ => "?",
+        _ => throw Unknown(s),
     };
 
     private static string Expr(Expression e, int indent) => e switch
@@ -198,7 +211,7 @@ internal static class AstPrinter
         LiteralExpr => "<builtin>",
         // 同上,`do` 块也活不过 `Lowering`(折成一串 `.Bind`)—— 留着是"万一"。
         DoExpr d => "do " + BlockInner(new BlockExpr(d.Statements), indent),
-        _ => "?",
+        _ => throw Unknown(e),
     };
 
     /// <summary>二元运算:两边的子表达式按优先级决定要不要套括号。
@@ -334,7 +347,7 @@ internal static class AstPrinter
             MemberPattern mp => "{" + Join(" ", mp.Names.Select(x => Pattern(x, indent))) + "}",
             LiteralPattern lit => lit.Text,
             DictPattern d => "{" + Join(" ", d.Entries.Select(x => Expr(x.Key, indent) + " -> " + Pattern(x.Sub, indent))) + "}",
-            _ => "?",
+            _ => throw Unknown(p),
         });
         // 这一格自己的类型要求(`[a b] : list` 那个 `:` 挂最外那格)。**照写** ——
         // 就算它被提上参数签名去了(见 `Lowering.OuterWant`),这儿还是把它印出来:
