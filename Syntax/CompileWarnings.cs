@@ -6,14 +6,20 @@ using Ravel.Runtime;
 /// 所以能在开跑**之前**一次说完,而不是等某一行执行到才吭声(那一行要是在没走到的
 /// 分支里,就永远不吭声 —— 而"没走到的那一支"正是最容易写错的地方)。
 ///
-/// 现在两条:
-/// * `x: int` **单独成句**(`x: int` 只判断、什么都没绑,九成是漏了 `=`);
-/// * `f () > 1` **零参调用后面跟运算符**(实参吃到运算符为止,读成的是 `f (() > 1)`)。
+/// 现在三条:
+/// * `x: int` **单独成句**(只判断、什么都没绑,九成是漏了 `=`);
+/// * `f () > 1` **零参调用后面跟运算符**(实参吃到运算符为止,读成的是 `f (() > 1)`);
+/// * `if { c } { t }` **少给一块**(调用链头是 `if`、实参不足三个)。
 ///
 /// 走 <see cref="AstWalk"/> 的反射遍历,不手写每个节点 —— 理由见那边。
 ///
-/// **「是不是忘了调用」不在这一趟**:它问的是"这个值是不是半成品",而 `if` 是个库函数、
-/// 元数只有跑到才知道 —— 编不出来,照旧留在运行期(见 `Interpreter.Stack.WarnIfForgotCall`)。
+/// **「是不是忘了调用」大部分不在这儿**:那一条问的是"这个值是不是半成品",要**值** ——
+/// `assert 条件` / `true { A }` / `Point 3` / 用户自己的函数都编不出来,照旧留在运行期
+/// (见 `Interpreter.Stack.WarnIfForgotCall`)。
+///
+/// **`if` 是例外**:它是三参的、而且这一句是个**光杆语句**时,少一块在源码上就看得见 ——
+/// 所以那条挪到这儿,连没走到的分支也照报。运行期那条用同一份过账表
+/// (`_warnedForgotCall`),不会说两遍。
 ///
 /// 覆盖范围是**主脚本 + `eval` 的片段**:`using` 进来的库文件不查 —— 标准库自己的响声
 /// 是噪音,而且 `predefined.rav` 每个进程只解析一遍(缓存着的),查它等于每建一个解释器
@@ -21,21 +27,27 @@ using Ravel.Runtime;
 internal static class CompileWarnings
 {
     /// <summary>一个程序的全部语句(顶层那一块)。</summary>
-    public static void Report(IReadOnlyList<Statement> statements, string? file)
+    public static List<(int Line, int Column)> Report(IReadOnlyList<Statement> statements, string? file)
         => Report(new Program([.. statements]) { Source = file });
 
-    public static void Report(Program p)
+    /// <summary>报一遍,并且**交回报过的那些位置** —— 运行期那条「是不是忘了调用」
+    /// 要把它们记进自己的过账表(`_warnedForgotCall`),免得同一处说两遍
+    /// (`if` 少给一块那一条两边都看得见)。</summary>
+    public static List<(int Line, int Column)> Report(Program p)
     {
         // 同一个位置只报一次(和运行期那几条一个规矩)。遍历本身不会重复走到同一枚节点,
         // 但 `Report` 可能被同一个程序叫两遍(REPL 里重放那种),留着保险。
         var seen = new HashSet<(int, int)>();
+        var said = new List<(int, int)>();
 
         foreach (var (msg, at) in Holes(p))
         {
             if (!seen.Add((at.Line, at.Column))) continue;
+            said.Add((at.Line, at.Column));
             Console.Error.WriteLine(
                 ErrorReport.Warning(msg, new SourceSpot(p.Source, at.Line, at.Column)));
         }
+        return said;
     }
 
     /// <summary>扫出来的那几处,**按位置排好** —— 输出次序要跟源码走,不能跟遍历走
@@ -54,14 +66,40 @@ internal static class CompileWarnings
                         + "`(f ()) > 1`", arg));
         }
 
-        // `x: int` 单独成句。**块的最后一条不收** —— 最后一条的值就是块的值,
-        // `if { x: int; } { … } { … }` 正是靠它。
+        // 另外两条都看**语句**、而且**块的最后一条不收** —— 最后一条的值就是块的值,
+        // `if { x: int; } { … } { … }`(当条件)、`f := if { c } { t }`(故意存一个半成品)
+        // 都靠它。
         foreach (var block in Blocks(p))
             for (var i = 0; i < block.Count - 1; i++)
-                if (block[i] is ExpressionStatement { Expr: BinaryExpr { Op: ":" } } st)
+            {
+                if (block[i] is not ExpressionStatement { Expr: { } e } st) continue;
+
+                // `x: int` 单独成句
+                if (e is BinaryExpr { Op: ":" })
                     hits.Add(("这一句只是个类型判断，什么都没绑 —— 想定义是不是漏了 '='？", st));
 
+                // `if { c } { t }` —— **少给一块**。这一条形状上就看得见:调用链头是 `if`、
+                // 而实参不足三个(`if` 是**三参**库函数:条件 / 然后 / 否则)。
+                // 别的半成品(`assert 条件` / `true { A }` / `Point 3` / 自定义函数)
+                // **编不出来** —— 那要"这个值是不是函数",只有跑起来才知道,照旧留在运行期。
+                if (Chain(e) is { Head: "if", Depth: < 3 })
+                    hits.Add(("`if` 要三个块（条件 / 然后 / 否则），这一句只给了两个 —— "
+                            + "这一句的值是个**还差第三个块**的函数，被丢掉了：两块都不会跑。"
+                            + "补上否则那一块（不要就写 `{ (); }`）。", st));
+            }
+
         return hits.OrderBy(h => h.At.Line).ThenBy(h => h.At.Column);
+    }
+
+    /// <summary>一条调用链的**头**和**实参个数**:`f a b` 是 `((f a) b)`,顺着 `Function`
+    /// 一路往下走到不是调用的那一格,那儿是个标识符就是头。
+    ///
+    /// `if { c } { t } { e }` 深度 3、头 `if`;头是别的东西(`x.y` / 一个字面量)时头是 `null`。</summary>
+    private static (string? Head, int Depth) Chain(Expression e)
+    {
+        var depth = 0;
+        while (e is CallExpr c) { depth++; e = c.Function; }
+        return (e is IdentifierExpr id ? id.Name : null, depth);
     }
 
     /// <summary>所有块:顶层那一块 + 树里每个 <see cref="BlockExpr"/>。

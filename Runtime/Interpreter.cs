@@ -189,8 +189,20 @@ public partial class Interpreter
     /// 运行期那条「是不是忘了调用」照旧在跑的时候吭声 —— 它要看值,见 `RunStack`。</summary>
     public RuntimeValue Interpret(Program p)
     {
-        if (WarnForgotCall || DeclaresWarnIn(p.Source)) CompileWarnings.Report(p);
+        if (WarnForgotCall || DeclaresWarnIn(p.Source)) ReportCompileWarnings(p.Statements, p.Source);
         return RunStack(p);
+    }
+
+    /// <summary>编译期那一趟,外加**把说过的地方记进运行期那份过账表**。
+    ///
+    /// 为什么要记:两条路都看得见 `if { c } { t }`(少给一块)—— 编译期按形状说、
+    /// 运行期按"值是不是半成品"说。共用一张表就只说一遍;
+    /// 而**编译那一趟没跑**时(脚本里才开的 `System.WarnForgotCall true`)运行期照旧说,
+    /// 不因为"编译期本该说"就漏掉。</summary>
+    private void ReportCompileWarnings(IReadOnlyList<Statement> statements, string? file)
+    {
+        foreach (var (line, col) in CompileWarnings.Report(statements, file))
+            _warnedForgotCall.Add((file, line, col));
     }
 
     /// <summary>文件头那条 `#program --warn`。**从盘上读一遍** —— 解析那一趟拿到的源码文本
