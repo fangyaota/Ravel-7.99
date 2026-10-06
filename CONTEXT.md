@@ -1586,6 +1586,23 @@ IEnumerator ::= interface { by MoveNext : function = default
 自己的捕获作用域换成"这一次服务谁"的激活格,所以只有 getter 体内创建的闭包才认得出
 `instance`;外面造好的函数塞进来会捕错作用域。
 
+**接口体里也能写普通成员**(不是 `by` 槽)—— 2026-10-06 起它们在**目标值上**也读得到:
+
+- **`by` 槽**是老规矩:交出去之前要**绑到这一次的接收者**上(见 `Activate`)——
+  所以"方法"写成 `by f := property (() => { () => … }) (…)`(函数体写在 getter 里)。
+- **普通成员**(`color := () => …` / `kind: string = "unknown"`)—— 值**就是它自己**,
+  没有 property 可绑:函数直接调、字段直接读,`a.kind = v` 落到**实现那一格**上
+  (每个实现各一份),`readonly` 照样挡(`Variable.CheckWritable`)。
+
+两条路的判据就是 `TraitSlot` 那个 `allowPlain`:**成员访问放行普通成员,运算符不放** ——
+运算符的协议是槽的形状(getter 取、setter 写),普通成员给不出,所以
+`i + 1` 仍旧报「类型 X 不支持运算符 '+'」。
+
+**引擎自己装的成员不转发**:`target` / `generation` / `impl$id` / `*$active` 是
+"这次服务谁、是哪个实现"那一套 —— `Attr.Unreadable` 就是那道闸(那三个早就标着,
+`target` 是这一笔补的),外加 `ObjectVal.IsMethodName` 排掉 `this` / `block` / `parent` 那几个。
+用例 `tests/lang/338_interface_plain.rav`。
+
 序列这一族**也是 `IMonad`**(`IEnumerable ::= interface IMonad`):`Map` 逐个映射、
 `Bind` = "每个元素交回一串、接起来"(flatMap)→ `do { … }` 在序列上就是列表推导。
 `HasTrait` 判的是 `impl.Type.IsAssignableTo(trait)`,而实现对象的类型**就是那个接口**

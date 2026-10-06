@@ -191,7 +191,8 @@ internal static partial class BuiltinClasses
     /// (见 <see cref="InstallInstance"/>);`Dispose` 挂在接口那份上。</summary>
     internal static void FinishImplementation(Interpreter interp, ObjectVal impl, ObjectVal target)
     {
-        impl.Scope.Define(TargetMember, Type, target);
+        // `Unreadable`:引擎内部那几格之一 —— **别转发**(见 `TraitSlot` 里那两道闸)
+        impl.Scope.Define(TargetMember, Type, target).SetAttr(Attr.Unreadable);
         impl.Scope.Define(GenerationMember, Int, IntVal.Of(0)).SetAttr(Attr.Unreadable);
         // `this` 用 OrReplace:这个对象是**实例化那趟**造的(`StepClassInit` 已经绑过 `this`),
         // 实现帧只是在它身上继续装填。
@@ -327,7 +328,8 @@ internal static partial class BuiltinClasses
         }
     }
 
-    internal static TraitHit? TraitSlot(Interpreter interp, RuntimeValue receiver, string name)
+    internal static TraitHit? TraitSlot(Interpreter interp, RuntimeValue receiver, string name,
+                                        bool allowPlain = false)
     {
         // `instance` 是机制自己那条槽,不进"`u.x` 能读到什么"(见 InstanceMember 的说明)。
         // 槽体里读的是**裸名字**,词法链直接命中实现 scope,不走这儿。
@@ -343,8 +345,23 @@ internal static partial class BuiltinClasses
             if (!receiver.Type.IsAssignableTo(target)) continue;
 
             var slot = impl.Scope.LookupField(name);
-            if (slot == null || !slot.HasAttr(Attr.By)) continue;   // 这个实现没这个名字 → 试下一个
-            return new TraitHit(impl, receiver, slot);
+            if (slot == null) continue;                             // 这个实现没这个名字 → 试下一个
+
+            // **`by` 槽**:得绑接收者(实现身上不存"当前实例",见 `Activate`)
+            if (slot.HasAttr(Attr.By)) return new TraitHit(impl, receiver, slot);
+
+            // **普通成员**(接口体里写的函数 / 字段)—— 2026-10-06 起也转发。
+            // 但只在 `allowPlain` 那条路上:**成员访问**要它,而**运算符**那条不要 ——
+            // 运算符的协议是"槽的值是个 property,getter/setter 两头",普通成员给不出
+            // (它是一份现成的值,见 `lib/iterator.rav` 里 `by + := property …` 那个写法)。
+            //
+            // 两道闸拦**引擎自己装的**:`target` / `generation` / `impl$id` / `*$active`
+            // 是"这次服务谁、是哪个实现"那一套,漏出去就是让用户拿内部状态当成员使。
+            // 后三个早就标着 `Unreadable`("别读"的记号),`target` 这一笔补上;
+            // `IsMethodName` 再排掉 `this` / `block` / `parent` 那几个。
+            if (allowPlain && ObjectVal.IsMethodName(name) && !slot.HasAttr(Attr.Unreadable))
+                return new TraitHit(impl, receiver, slot);
+            continue;
         }
 
         return null;
@@ -498,7 +515,11 @@ internal static partial class BuiltinClasses
     }
 }
 
-/// <summary>一次接口分发的命中:哪条槽、是**哪个实现**身上那条、这一次服务谁。
+/// <summary>一次接口分发的命中:哪一格、是**哪个实现**身上那一格、这一次服务谁。
+///
+/// **那一格不一定是 `by` 槽** —— 接口体里写的普通函数/字段也转发(见 `TraitSlot`);
+/// 那种格子的 <see cref="Slot"/> 值是**现成的**(不是 property),调用方按
+/// `Slot.HasAttr(Attr.By)` 分辨走哪条路。
 ///
 /// 它只是一份"找着了"的记录,还**没有**绑接收者 —— 要真用它(读/写/用它的运算符)时由调用点走
 /// <see cref="BuiltinClasses.Activate"/> 拿"绑好这一次"的那一份。分两步是因为半数的调用点

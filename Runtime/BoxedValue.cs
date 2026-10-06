@@ -81,7 +81,20 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         // 不落地成字段,所以值相等保得住)。机制名的过滤在 MemberView 里,不在这。
         var member = Value.MemberScope.LookupField(name);
         if (member == null)
+        {
+            // **接口里的普通成员**(不是 `by` 槽):它住在实现身上,而值**就是它自己** ——
+            // 没有 getter 可走,所以到不了上面 `TryGetByGetter` 那条路。
+            // (运算符访问 / `by` 槽那两条都在前面处理过了;这儿只管"读一个普通名字"。)
+            if (Value is not ModuleVal
+                && BuiltinClasses.TraitSlot(interp, Value, name, allowPlain: true) is { } plain
+                && !plain.Slot.HasAttr(Attr.By))
+            {
+                if (Value is ObjectVal owner) CheckObjectReadAccess(owner, plain.Slot, name);
+                return new BoxedValue(plain.Slot.Value, interp);
+            }
+
             throw new RuntimeException($"{Value.KindName} 没有方法 '{name}'", ErrorKind.Attribute);
+        }
 
         // 门禁只对对象做:借来的类成员表里放的是内置方法,没有 core/private 可言
         if (Value is ObjectVal obj) CheckObjectReadAccess(obj, member, name);

@@ -1,0 +1,88 @@
+#
+# **接口体里写普通函数 / 字段**(不是 `by` 槽)—— 2026-10-06 起它们在**目标值上**也读得到。
+#
+# 接口体本来就是**类体**(接口是类对象,`myTrait is type`),所以什么都写得进去;从前
+# 只有 `by` 槽会被转发到"实现的目标值"上,普通成员写在接口里、读不到,报的还是一句
+# 看不出根子的「类型 'Apple' 没有方法 'color'」。
+#
+# 现在两条路分开:
+#
+#   * **`by` 槽** —— 老规矩:交出去之前要**绑到这一次的接收者**上(实现身上不存
+#     "当前实例",见 `Activate`)。方法都写成 `by f := property (() => { () => … }) (…)`。
+#   * **普通成员** —— 值**就是它自己**,没有 property 可绑。函数直接调、字段直接读;
+#     `a.kind = v` 落到**实现那一格**上(每个实现各一份),`readonly` 照样挡。
+#
+# **运算符那条路不放**:运算符的协议是槽的形状(getter 取、setter 写),
+# `lib/iterator.rav` 里那条 `by + := property …` 就是;普通成员给不出,所以不算运算符。
+#
+# **引擎自己装的成员不转发**:`target` / `generation` / `impl$id` / `*$active`
+# 是"这次服务谁、是哪个实现"那一套 —— 漏出去就成了让用户拿内部状态当成员使。
+
+Fruit ::= interface {
+    color := () => { "?"; }
+    kind: string = "unknown"
+    readonly fixed: int = 7
+    by name : string = default
+}
+
+Apple ::= class { init = () => { this; } }
+
+impl1 := Fruit Apple {
+    by name = property (() => { "apple"; }) ((v: string) => { (); })
+}
+use impl1
+
+a := Apple ()
+
+# ── `by` 槽:老规矩 ──
+print a.name
+
+# ── 普通函数:从**目标值**上直接调 ──
+print (a.color ())
+
+# ── 普通字段:读、写、写进去落在实现那一格(每个实现各一份)──
+print a.kind
+a.kind = "改过了"
+print a.kind
+print impl1.kind
+
+# ── readonly 照样挡(它落的是 `Variable.CheckWritable`)──
+print (try { a.fixed = 9; } (e: Exception) => { e.Message; })
+
+# ── 引擎自己的成员不转发 ──
+print (try { a.target; } (e: Exception) => { "target: " + e.Message; })
+print (try { a.generation; } (e: Exception) => { "generation: " + e.Message; })
+
+# ── `use` 的作用域照旧:它只在**它那一段**里生效 ──
+Fruit2 ::= interface { say := () => { "hi"; } }
+Box ::= class { init = () => { this; } }
+b := Box ()
+inside := () => {
+    impl2 := Fruit2 Box { (); }
+    use impl2
+    print (b.say ())                      # 里面能用
+}
+inside ()
+print (try { b.say (); } (e: Exception) => { "作用域外: " + e.Message; })
+
+# ── 普通成员**不算运算符**(运算符要 `by` 槽)──
+Op ::= interface {
+    + := (b: int) => { 0; }
+}
+Item ::= class { init = () => { this; } }
+op1 := Op Item { (); }
+use op1
+i := Item ()
+print (try { i + 1; } (e: Exception) => { "+: " + e.Message; })
+# --- expected ---
+# apple
+# ?
+# unknown
+# 改过了
+# 改过了
+# 无法给只读变量 'fixed' 赋值
+# target: 类型 'Apple' 没有方法 'target'
+# generation: 类型 'Apple' 没有方法 'generation'
+# hi
+# 作用域外: 类型 'Box' 没有方法 'say'
+# +: 类型 Item 不支持运算符 '+'
