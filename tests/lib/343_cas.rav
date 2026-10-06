@@ -1,0 +1,61 @@
+#
+# **Cas** —— 符号计算(计算机代数),底层是 AngouriMath(`Ravel.Extensions/CasNative.cs`)。
+#
+# 这是"外部的 CAS 怎么进 Ravel"那条路的样子:**一个官方扩展**,`[RavelModule("Cas")]`,
+# 由 `lib/cas.rav` 那句 `using "native.rav"` 装进来 —— 引擎那边一个字没改,
+# 和 `Math` / `Hash` / `Sqlite` 走的是同一条路。
+#
+# **入参是字符串**,用的是 AngouriMath 那套语法(`x^2`、`sin(x)`),不是 Ravel 的;
+# 交回的也是那一套(能再喂回去)。`Eval` 是唯一"回到数"的一条。
+#
+# 表达式**没有变成 Ravel 的值类型** —— 所以是 `Cas.Diff "x^3" "x"`,不是 `(x^3).Diff x`。
+# 要那样得给 `Entity` 加一个 `RuntimeValue` 子类,是另一笔。
+#
+# 下面这几条钉的是**通路**(能不能装上、能不能调、异常接不接得住),
+# 不是 AngouriMath 的算力 —— 它算得对不对是它自己的事。
+
+using "cas.rav"
+
+# ── 化简 / 变形 ──
+print (Cas.Simplify "sin(x)^2 + cos(x)^2")
+print (Cas.Expand "(x+1)^3")
+print (Cas.Factor "x^2 - 1")
+
+# ── 微积分 ──
+print (Cas.Diff "x^3" "x")
+# **不自动化简** —— `Diff` / `DiffN` 交回的是库里算出来的原样(值对,形状不一定整齐);
+# 要整齐就再套一层 `Simplify`。这样"贵不贵"由调用方说了算,没有隐藏开销。
+print (Cas.DiffN "x^3" "x" 2)
+print (Cas.Simplify (Cas.DiffN "x^3" "x" 2))
+print (Cas.Integrate "x^2" "x")
+print (Cas.Limit "sin(x)/x" "x" "0")
+
+# ── 解方程 / 代入 ──
+print (Cas.Solve "x^2 = 4" "x")
+print (Cas.Subst "x^2 + y" "x" "2")
+
+# ── 回到数 / LaTeX ──
+print (Cas.Eval "2 + 3 * 4")
+print (typeof (Cas.Eval "sqrt(2)"))
+print (Cas.Latex "x^2 / 3")
+
+# ── 出错要**接得住**:C# 那边的异常被就地翻成 RuntimeException ──
+# (AngouriMath 自己抛的是 ParseException / ArgumentException 那些,Ravel 的 try 接不住)
+print (try { Cas.Simplify "x +"; } (e: Exception) => { "1: 解析不了"; })
+print (try { Cas.Diff "x" "1+"; } (e: Exception) => { "2: 变量名不对"; })
+# --- expected ---
+# 1
+# 1 + 3 * x + 3 * x ^ 2 + x ^ 3
+# (x - 1) * (x + 1)
+# 3 * x ^ 2
+# 2 * x * 3
+# 6 * x
+# x ^ 3 / 3 + C
+# 1
+# { 2, -2 }
+# 2 ^ 2 + y
+# 14
+# Real
+# \frac{{x}^{2}}{3}
+# 1: 解析不了
+# 2: 变量名不对

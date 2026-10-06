@@ -70,6 +70,15 @@
            (见 PluginLoader.HookDependencies),而那份说明书是**相对插件自己**写的。
            塞进主程序的 `out/runtimes/` 没用:主程序的 deps.json 里根本没有这个包,
            按那个找就是一句光秃秃的 DllNotFoundException。 -->
+      <!-- Cas(`CasNative.cs`)那一份 + 它拖来的四件:`AngouriMath` 用它自己的解析器
+           (`Antlr4.Runtime.Standard`),数值/集合/内部账本各一件。**`PeterO.Numbers` 的
+           程序集名叫 `Numbers.dll`** —— 按包名找会找不着。和 Sqlite 那几件一个道理:
+           主项目不带它们,插件得自己拖着走。 -->
+      <PluginDll Include="Ravel.Extensions/bin/$(Configuration)/net10.0/AngouriMath.dll" />
+      <PluginDll Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Antlr4.Runtime.Standard.dll" />
+      <PluginDll Include="Ravel.Extensions/bin/$(Configuration)/net10.0/GenericTensor.dll" />
+      <PluginDll Include="Ravel.Extensions/bin/$(Configuration)/net10.0/HonkSharp.dll" />
+      <PluginDll Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Numbers.dll" />
       <PluginNative Include="Ravel.Extensions/bin/$(Configuration)/net10.0/runtimes/**/*" />
     </ItemGroup>
     <Copy SourceFiles="@(PluginDll)" DestinationFolder="$(OutDir)plugins" SkipUnchangedFiles="true" />
@@ -86,6 +95,15 @@
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Ravel.Extensions.deps.json" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Microsoft.Data.Sqlite.dll" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/SQLitePCLRaw.*.dll" />
+      <!-- Cas(`CasNative.cs`)那一份 + 它拖来的四件:`AngouriMath` 用它自己的解析器
+           (`Antlr4.Runtime.Standard`),数值/集合/内部账本各一件。**`PeterO.Numbers` 的
+           程序集名叫 `Numbers.dll`** —— 按包名找会找不着。和 Sqlite 那几件一个道理:
+           主项目不带它们,插件得自己拖着走。 -->
+      <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/AngouriMath.dll" />
+      <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Antlr4.Runtime.Standard.dll" />
+      <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/GenericTensor.dll" />
+      <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/HonkSharp.dll" />
+      <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Numbers.dll" />
       <PluginNativeP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/runtimes/**/*" />
     </ItemGroup>
     <Copy SourceFiles="@(PluginDllP)" DestinationFolder="$(PublishDir)plugins" SkipUnchangedFiles="true" />

@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <!-- SQLitePCLRaw 那几件是它的传递依赖,不在这儿明着写。 -->
+    <PackageReference Include="AngouriMath" Version="2.5.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <!-- 终端那一格(`Native.Term*`)用它。**这个 dll 不往 `plugins/` 拷** ——
          主项目自己在用它做 REPL,`out/` 里本来就有一份,运行时按名字就解析得到;

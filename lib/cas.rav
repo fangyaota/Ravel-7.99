@@ -1,0 +1,23 @@
+# Cas 模块 —— **符号计算**(计算机代数)。**要显式引用**:`using "cas.rav"` 之后
+# `Cas.xxx` 才是一个名字(和 `Math` 一个规矩 —— 它俩都拖着一整个库,不该谁都白拿)。
+#
+#       Cas.Simplify "sin(x)^2 + cos(x)^2"     # 1
+#       Cas.Diff "x^3" "x"                     # 3 * x ^ 2
+#       Cas.Solve "x^2 = 4" "x"                # { 2, -2 }
+#
+# **函数体是 C# 造的**(`Ravel.Extensions/CasNative.cs`,底层是 **AngouriMath 2.5.0**,MIT),
+# 和 `Hash` / `Math` 那些一样是**官方扩展**里的 `Native` 一族 —— 下面那行把它装进来,
+# 成员落在 `Cas` 模块里。
+#
+# 三条要记的:
+#
+#   * **入参是字符串,用的是 AngouriMath 那套语法**(`x^2 + 2x + 1` / `sin(x)`),
+#     不是 Ravel 的语法。交回的也是那一套 —— 能再喂回去。
+#   * **`Eval` 是唯一"回到数"的那条**:它交 **real**,别的一律交字符串。
+#   * 解析不了 / 解不动,报的是 `RuntimeException`(C# 那边的异常被就地翻过一道)——
+#     所以 `try` 接得住,不会把进程打掉。
+#
+# 这一版**表达式不是 Ravel 的值**:`Cas.Diff "x^3" "x"`,不是 `(x^3).Diff x`。
+# 要让它变成值类型,得给 `Entity` 加一个 `RuntimeValue` 子类、再把那几条做成它的成员 ——
+# 那是另一笔。
+using "native.rav"

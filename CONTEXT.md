@@ -523,6 +523,9 @@ lib/
   math.rav                Math 模块 —— **本机那一整套在官方扩展里**(见「官方扩展」一节),
                           这个文件只往上补 Ravel 说得清的那四个(square/cube/deg/rad)。
                           `using "math.rav"` 引入
+  cas.rav                 `Cas` 模块 —— **符号计算**(计算机代数),底层是第三方库
+                          **AngouriMath 2.5.0**(MIT,见「Cas 模块」一节)。
+                          `using "cas.rav"` 引入
   types.rav               Types 模块:`PrintTree` 打印类型树(沿 Subtypes () 取直接子类,
                           **接口那一支再挂一句 `实现 ← …`**(`GetImplementors ()`,当下那份快照),
                           `├──/└──` 那套缩进是 `Text.Tree` 画的 —— 这一条只是"子类是谁 /
@@ -888,6 +891,45 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 
 参数收**任何数值**（int/real/bigint/fraction），内部按 double 算 —— 和 `<` 那批运算符
 同一个口径。`lib/math.rav` 只在上面补 Ravel 说得清楚的几个（square/cube/deg/rad）。
+
+## Cas 模块（符号计算）
+
+**这是"外部的 CAS 怎么进 Ravel"那条路的样子** —— 引擎那边**一个字没改**:一个官方扩展
+(`Ravel.Extensions/CasNative.cs`,`[RavelModule("Cas")]`),由 `lib/cas.rav` 那句
+`using "native.rav"` 装进来,和 `Math` / `Hash` / `Sqlite` 走的是同一条路。要显式引用。
+
+底层是 **AngouriMath 2.5.0**(MIT) —— .NET 上目前唯一还在活跃开发的 CAS(2021 年停了,
+2026-01 复活,2026-08 一个月内连出 2.0 → 2.5.0)。给出的:
+
+    Cas.Simplify "sin(x)^2 + cos(x)^2"   # 1
+    Cas.Expand / Factor
+    Cas.Diff s v  /  Cas.DiffN s v n     # 求导、高阶导
+    Cas.Integrate s v                    # 不定积分(自带 + C)
+    Cas.Limit s v at
+    Cas.Solve s v                        # 交回一**组**解:`{ 2, -2 }`
+    Cas.Subst s v val
+    Cas.Eval s                           # **唯一"回到数"的那条**:交 real
+    Cas.Latex s
+
+三条定下来的:
+
+- **入参是字符串,用 AngouriMath 自己的语法**(`x^2 + 2x + 1` / `sin(x)`),不是 Ravel 的;
+  交回的也是那一套(能再喂回去)。**表达式没有变成 Ravel 的值类型** ——
+  所以是 `Cas.Diff "x^3" "x"` 而不是 `(x^3).Diff x`。要那样得给 `Entity` 加一个
+  `RuntimeValue` 子类,是另一笔。
+- **不自动化简**:`Diff` / `DiffN` 交回库里算出来的原样(`DiffN "x^3" "x" 2` 给
+  `2 * x * 3`),要整齐再套一层 `Simplify`。这样"贵不贵"由调用方说了算,没有隐藏开销。
+- **异常一律就地翻成 `RuntimeException`**(`CasNative.Guard`):AngouriMath 抛的是
+  `ParseException` / `ArgumentException` 那些,而 Ravel 的 `try` **只接得住
+  `RuntimeException`** —— 不翻的话用户包不住,进程直接被打掉。另外 `MathS.Parse`
+  在 2.5.0 交的是 `Either<Entity, Failure<…>>`(解析**在类型上**就可失败),
+  **别用那个隐式拆包** —— 它失败时抛 `InvalidCastException`,消息还是英文的。
+
+**依赖代价**:它拖来 4 件 —— `Antlr4.Runtime.Standard`(它自己的解析器)、`GenericTensor` /
+`HonkSharp` / `PeterO.Numbers`(程序集名叫 `Numbers.dll`),**共 2.1 MB**,
+而插件其余加起来才 256 KB。这五件写死在 `Ravel.csproj` 的 `CopyPlugins` /
+`CopyPluginsToPublish` 里 —— 那两处是**白名单不是通配**,别指望自动带走;
+`PeterO.Numbers` 按包名找会找不着。
 
 ## 文件系统（`lib/io.rav`，要显式 `using "io.rav"`）
 
@@ -1290,6 +1332,8 @@ using "structures.rav"       # 库里那半边,照旧
 - **模块名不止 `Native` 一个**:`Math` 整份也在这儿(`[RavelModule("Math")]`)——
   它没有"库面/本机面"之分,`lib/math.rav` 只往上补四个 Ravel 函数。
   这就是 `[RavelModule]` 上那个名字的用处:往**哪个**模块里装,由它说。
+- **`Cas` 也挂在这份 dll 上**(`[RavelModule("Cas")]`,`CasNative.cs`)—— 它带进来的
+  是第三方库 **AngouriMath** 那一摞(见「Cas 模块」一节)。
 - `Microsoft.Data.Sqlite` 那个包也跟着搬了 —— 主项目从此不引用它。所以插件目录里除了
   本 dll,还躺着 `Microsoft.Data.Sqlite.dll` 和 `SQLitePCLRaw.*.dll`(见 `Ravel.csproj`
   的 `CopyPlugins`),本机的 `e_sqlite3.dll` 在 `plugins/runtimes/<rid>/native/`。
