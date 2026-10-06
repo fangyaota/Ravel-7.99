@@ -115,6 +115,11 @@ internal static partial class BuiltinClasses
             return n >= int.MinValue && n <= int.MaxValue ? IntVal.Of((int)n) : new BigIntVal(n);
         });
         Range.DefineMethod("IsEmpty", (s, _) => new BoolVal(((RangeVal)s).IsEmpty()));
+        // 两头都定得下来吗(`[1..]` / `[..1]` 不是)—— `Count` / `Last` / `ToList` 答不出来
+        // 就是因为这个,所以给它一个问法,别让人靠"试试看会不会报错"去猜。
+        Range.DefineMethod("IsBounded", (s, _) => new BoolVal(((RangeVal)s).IsBounded()));
+        // 往哪个方向数:1 正着、-1 倒着。无界也答得出来(方向由无穷在哪一头定,见 RangeVal)
+        Range.DefineMethod("Step", (s, _) => IntVal.Of(((RangeVal)s).Step()));
         Range.DefineMethod("Contains", (s, a) =>
             new BoolVal(((RangeVal)s).ContainsValue(a)));
 
@@ -124,10 +129,12 @@ internal static partial class BuiltinClasses
         Range.DefineMethod("Covers", (s, a) =>
             new BoolVal(((RangeVal)s).CoversValue(a)));
 
-        // 铺成表 —— 只有这一条是 O(n)。空区间给空表(不是报错)
+        // 铺成表 —— 只有这一条是 O(n)。空区间给空表(不是报错),**无限长的报错**(铺不完)
         Range.DefineMethod("ToList", (s, _) =>
         {
             var r = (RangeVal)s;
+            if (!r.IsBounded())
+                throw new RuntimeException($"无限长的区间铺不成表（{r}）—— 用 Take 取前几个", ErrorKind.Value);
             var (first, last, up) = r.Walk();
             var out_ = new List<RuntimeValue>();
             for (var i = first; up ? i <= last : i >= last; i += up ? 1 : -1) out_.Add(r.Element(i));

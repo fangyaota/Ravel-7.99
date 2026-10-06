@@ -148,7 +148,12 @@ public sealed class Lowering
         SlotExpr sl => sl with { Path = Lower(sl.Path) },
         ListLiteral l => l with { Elements = l.Elements.Select(Lower).ToList() },
         SetLiteral s => s with { Elements = s.Elements.Select(Lower).ToList() },
-        RangeExpr r => r with { Lo = Lower(r.Lo), Hi = Lower(r.Hi) },
+        // 两头都可能省了(`[1..]` / `[..1]`),省掉的那头是 `null`,不能往里塞
+        RangeExpr r => r with
+        {
+            Lo = r.Lo is null ? null : Lower(r.Lo),
+            Hi = r.Hi is null ? null : Lower(r.Hi),
+        },
         DictLiteral d => d with
         {
             Entries = d.Entries.Select(x => x with { Key = Lower(x.Key), Value = Lower(x.Value) }).ToList(),

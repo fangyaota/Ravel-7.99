@@ -28,57 +28,92 @@ using System.Numerics;
 /// 打印出来就是写出来那个样子(`ToString` 拼那对括号),所以 `print [1..3]` 交回原文。
 ///
 /// **界**一律用 bigint 算(端点可能是 bigint、个数也可能超出 int);比较走
-/// `TryAsDouble`(和 `<` 那批运算符一个口径)。浮点的 NaN 当**空区间**,±∞ 当场报错
-/// (无穷长的区间给不出界)。</summary>
+/// `TryAsDouble`(和 `<` 那批运算符一个口径)。浮点的 NaN 当**空区间**。
+///
+/// **±∞ 就是"没有界"的意思** —— `[1..]` / `[..1]` 求值时装的就是它(`+Inf` / `-Inf`,
+/// 见 `Interpreter.StepRange`),于是 `[1..]` 和 `[1..Inf]` 是**同一个值**。
+/// 方向**由无穷在哪一头定**:∞ 在上头(+∞ 当上界、或 -∞ 当下界)就往大数走,反之往小数走;
+/// 而**起手那一头永远是定得下来的那头** —— 所以 `[..1]` 是"从 1 往下数",
+/// 不是"从 -∞ 往上数"(那数不出第一站)。两头都无穷没有方向,求值那一步就挡掉了。
+///
+/// 无限长的区间:**`First` / `IsEmpty` / `Take` / `foreach` 照常**(它们只问头那一头),
+/// 而 **`Count` / `Last` / `ToList` 当场报错** —— 那几个要"数到底",无穷答不出来
+/// (判据是 <see cref="IsBounded"/>)。</summary>
 public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, bool EndClosed) : RuntimeValue
 {
     public override ObjectVal Type => BuiltinClasses.Range;
 
-    /// <summary>遍历的两头(整数)**加方向**:`Up` 时第一站在下(`[1..3]` → 1,3),
-    /// 否则第一站在上、往下走(`[5..1]` → 5,1)。端点里有 NaN 就给"到不了"的那组(见 `IsEmpty`)。</summary>
-    public (BigInteger First, BigInteger Last, bool Up) Walk()
-    {
-        if (!Ascending(out var up)) return (1, 0, true);   // NaN:空
+    /// <summary>两头都定得下来吗。**不是**就是无限长 —— `Count` / `Last` / `ToList`
+    /// 那几个"要数到底"的问法答不出来(当场报错),别的照常。</summary>
+    public bool IsBounded() => !Infinite(Start, out _) && !Infinite(End, out _);
 
-        // 起点那一头:升序取"不小于它的最小整数",降序取"不大于它的最大整数"
-        // (降序是**往下**数的,第一站是它下面紧挨着的那个整数);终点那一头反过来。
-        // 开的那端由 `Bound` 顺着方向往里挪一格。
-        var first = Bound(Start, StartClosed, goingUp: up);
-        var last = Bound(End, EndClosed, goingUp: !up);
-        return (first, last, up);
+    /// <summary>**起手那一站**与方向。无界也答得出来 —— 头那一头永远是定得下来的那个
+    /// (见 `Head`),无穷只在"往哪边走"上说话。端点里有 NaN 就给"到不了"的那组(见 `IsEmpty`)。</summary>
+    public (BigInteger First, bool Up) Head()
+    {
+        if (!Ascending(out var up)) return (1, true);              // NaN:空
+        // 定得下来的那一头才是第一站:`[Inf..1]` 从 1 起(往上),`[-Inf..1]` 也从 1 起(往下)
+        return Infinite(Start, out _)
+            ? (Bound(End, EndClosed, goingUp: up), up)
+            : (Bound(Start, StartClosed, goingUp: up), up);
     }
 
-    /// <summary>空:端点里有 NaN,或者按着那个方向数**一个整数都没有**。</summary>
+    /// <summary>遍历的两头(整数)**加方向**:`Up` 时第一站在下(`[1..3]` → 1,3),
+    /// 否则第一站在上、往下走(`[5..1]` → 5,1)。**只对有限的区间成立** —— 无限长没有"末站",
+    /// 调用方先问 <see cref="IsBounded"/>(`Head` 是无界也答得出来的那一半)。</summary>
+    public (BigInteger First, BigInteger Last, bool Up) Walk()
+    {
+        if (!Ascending(out var up)) return (1, 0, true);   // NaN:空(下面 `Bound` 折不出来)
+        var first = Head().First;
+        // 终点那一头:升序取"不大于它的最大整数"、降序取"不小于它的最小整数"(和起点那半相反);
+        // 开的那端由 `Bound` 顺着方向往里挪一格。
+        return (first, Bound(End, EndClosed, goingUp: !up), up);
+    }
+
+    /// <summary>空:端点里有 NaN,或者按着那个方向数**一个整数都没有**。
+    /// **无限长的一律不空** —— 至少有一个头。</summary>
     public bool IsEmpty()
     {
+        if (!Ascending(out _)) return true;         // NaN
+        if (!IsBounded()) return false;
         var (first, last, up) = Walk();
         return up ? first > last : first < last;
     }
 
-    /// <summary>区间里有多少个整数。空的给 0 —— `Count ()` 用它,装不下就给 bigint。</summary>
+    /// <summary>区间里有多少个整数。空的给 0 —— `Count ()` 用它,装不下就给 bigint。
+    /// **无限长数不出来**,当场报错(那是个真答案给不出来的问法,不拿个假数糊弄)。</summary>
     public BigInteger CountValue()
     {
+        if (!IsBounded())
+            throw new RuntimeException($"无限长的区间数不出个数（{this} —— 用 Take 取前几个）", ErrorKind.Value);
         var (first, last, up) = Walk();
         if (up ? first > last : first < last) return BigInteger.Zero;
         return BigInteger.Abs(last - first) + 1;
     }
 
-    /// <summary>第一个 / 最后一个**元素**(不是端点 —— 端点可能在区间外)。空的时候调用方先拦。</summary>
-    public RuntimeValue FirstElement() => Element(Walk().First);
+    /// <summary>第一个 / 最后一个**元素**(不是端点 —— 端点可能在区间外)。空的时候调用方先拦。
+    /// `First` 无界也答得出来(头那一头总是定的);`Last` 要数到底,无限长当场报错。</summary>
+    public RuntimeValue FirstElement() => Element(Head().First);
 
-    public RuntimeValue LastElement() => Element(Walk().Last);
+    public RuntimeValue LastElement()
+    {
+        if (!IsBounded()) throw new RuntimeException($"无限长的区间没有最后一个（{this}）", ErrorKind.Value);
+        return Element(Walk().Last);
+    }
 
     /// <summary>遍历的步长:`+1` 正着数、`-1` 倒着数(空区间没意义,调用方先拦)。</summary>
-    public int Step() => Walk().Up ? 1 : -1;
+    public int Step() => Head().Up ? 1 : -1;
 
-    /// <summary>元素交 int 还是 bigint:端点里有 bigint,或者两头超出 int 范围,就给 bigint
-    /// (值有多大就多大,不静默绕圈)。</summary>
+    /// <summary>元素交 int 还是 bigint:端点里有 bigint,或者两头(头那一头总要问,
+    /// 尾那一头问得到才问)超出 int 范围,就给 bigint(值有多大就多大,不静默绕圈)。</summary>
     public bool Wide()
     {
-        var (first, last, _) = Walk();
-        return Start is BigIntVal || End is BigIntVal
-            || first < int.MinValue || first > int.MaxValue
-            || last < int.MinValue || last > int.MaxValue;
+        if (Start is BigIntVal || End is BigIntVal) return true;
+        var (first, _) = Head();
+        if (first < int.MinValue || first > int.MaxValue) return true;
+        if (!IsBounded()) return false;
+        var (_, last, _) = Walk();
+        return last < int.MinValue || last > int.MaxValue;
     }
 
     /// <summary>界上的那个整数,按 `Wide ()` 的规矩交 int 或 bigint。</summary>
@@ -108,8 +143,11 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     public bool ContainsValue(RuntimeValue v)
     {
         if (!AsInteger(v, out var n)) return false;
-        var (first, last, up) = Walk();
-        if (up ? first > last : first < last) return false;
+        if (!Ascending(out var up)) return false;                    // NaN:空
+        var (first, _) = Head();
+        // 无界:整条都在起手那一站的**一边**(往上就只管不小于它、往下只管不大于它)
+        if (!IsBounded()) return up ? n >= first : n <= first;
+        var (_, last, _) = Walk();
         var lo = BigInteger.Min(first, last);
         var hi = BigInteger.Max(first, last);
         return lo <= n && n <= hi;
@@ -122,7 +160,12 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     //  端点 → 界
     // ============================================================
 
-    /// <summary>起点是不是在终点前面(升序)。NaN 掺和进来给 false,调用方当成空。</summary>
+    /// <summary>往**大数**走吗。NaN 掺和进来给 false,调用方当成空。
+    ///
+    /// 两头都定时按大小比(`[5..1]` → 往下)。**有一头是 ±∞ 时由它定** —— 这是唯一说得通
+    /// 的读法:`[..1]` 装出来是 `[-Inf..1]`,照大小比会读成"从 -∞ 往上数"(数不出第一站),
+    /// 而"∞ 在下头就往小数走"读出来是"从 1 往下数" ✓。
+    /// 两头都是无穷没有方向 —— 求值那一步就挡掉了。</summary>
     private bool Ascending(out bool up)
     {
         up = true;
@@ -130,8 +173,19 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
             return false;
         if (double.IsNaN(a) || double.IsNaN(b)) return false;
 
+        if (Infinite(Start, out var s)) { up = s > 0; return true; }
+        if (Infinite(End, out var e)) { up = e > 0; return true; }
+
         up = a <= b;
         return true;
+    }
+
+    /// <summary>这一头是不是 ±∞。`sign` 给正负(不是就给 0)。</summary>
+    private static bool Infinite(RuntimeValue v, out int sign)
+    {
+        if (v is FloatVal f && double.IsInfinity(f.Value)) { sign = f.Value > 0 ? 1 : -1; return true; }
+        sign = 0;
+        return false;
     }
 
     /// <summary>端点折成一个整数界:`goingUp` 取"不小于它的最小整数",否则取"不大于它的最大整数"

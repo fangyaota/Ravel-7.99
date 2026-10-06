@@ -1,0 +1,77 @@
+#
+# **开放区间** —— `[1..]` / `[..1]`:省掉的那一头就是"没有界"。
+#
+# 它和明写无穷是**同一个值**:`[1..]` 求值时装成 `[1..Inf]`(省了上界补 +∞、省了下界补 -∞),
+# 而 `RangeVal` 是 record、逐字段比 —— 于是 `[1..] == [1..Inf]` 成立。
+#
+# 两件事跟着它来:
+#
+#   * **方向由无穷在哪一头定** —— ∞ 在上头(`End` 是 +∞、或 `Start` 是 -∞)就往大数走,
+#     反之往小数走。而**起手那一头永远是定得下来的那头**:所以 `[..1]` 读作"从 1 往下数",
+#     不是"从 -∞ 往上数"(那个数不出第一站)。
+#   * **要"数到底"的问法答不出来** —— `Count` / `Last` / `ToList` 当场报错,不拿个假数糊弄;
+#     而 `First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` / `foreach`
+#     那批**只问头那一头**(或天生停得住)的照常。
+#
+# 两头都省(`[..]`)没有方向 —— 解析器当场报错;明写 `[-Inf..Inf]` 也挡(求值那一步)。
+
+# ── 同一个值的两种写法 ──
+print [1..]
+print ([1..] == [1..Inf])
+print ([..1] == [-Inf..1])
+
+# ── 取前几个(靠 Take / Where 那批停得住)──
+print (([1..].Take 3).ToList ())
+print (([1..Inf].Take 3).ToList ())
+print (([..1].Take 3).ToList ())
+print (([1..-Inf].Take 3).ToList ())
+print ((([1..].Where (x: object) => { (x % 2) == 0; }).Take 3).ToList ())
+
+# ── 头那一头、方向、空不空 ──
+print ([1..].First ())
+print ([..1].First ())
+print ([Inf..1].First ())        # ∞ 在起手那一头:方向照旧朝大数,起手落在定得下来那头
+print ([1..].Step ())
+print ([..1].Step ())
+print ([1..].IsEmpty ())
+print ([1..].IsBounded ())
+print ([..1].IsBounded ())
+print ([1..3].IsBounded ())
+
+# ── 落不落在这段里:无界那头不设限 ──
+print ([1..].Contains 99999)
+print ([1..].Covers 2.5)
+print ([..1].Contains 99999)
+print ([..1].Contains (-99999))    # 实参里那个负号要括起来:`f -1` 读成减法
+
+# ── 要"数到底"的:报错 ──
+try { [1..].Count (); } (e: Exception) => { print ("1: " + string e); }
+try { [1..].Last (); } (e: Exception) => { print ("2: " + string e); }
+try { [1..].ToList (); } (e: Exception) => { print ("3: " + string e); }
+try { [-Inf..Inf].Take 3; } (e: Exception) => { print ("4: " + string e); }
+# --- expected ---
+# [1..Inf]
+# true
+# true
+# [1 2 3]
+# [1 2 3]
+# [1 0 -1]
+# [1 0 -1]
+# [2 4 6]
+# 1
+# 1
+# 1
+# 1
+# -1
+# false
+# false
+# false
+# true
+# true
+# true
+# false
+# true
+# 1: 无限长的区间数不出个数（[1..Inf] —— 用 Take 取前几个）
+# 2: 无限长的区间没有最后一个（[1..Inf]）
+# 3: 无限长的区间铺不成表（[1..Inf]）—— 用 Take 取前几个
+# 4: 区间的两头都是无穷 —— 那就没有方向了（留一头定的：`[1..]` / `[..1]`）

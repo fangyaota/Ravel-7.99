@@ -352,16 +352,20 @@ RangeCursor ::= class {
     Step: int = 1
     Started: bool = false
     Empty: bool = true
+    # 上界是 ±∞(`[1..]` / `[..1]`):没有 `Top` 可比,走起来就不停。
+    # `foreach` / `Take` / `Where` 那批**天然停得住**(它们是消费者,要几个取几个);
+    # `ToList` / `Count` 那种"要数到底"的在引擎那边就报错了,到不了这儿。
+    Open: bool = false
 
     init = (r: Range) => {
         Empty = r.IsEmpty ()
         if { Empty; } { 0; } {
-            # `First` / `Last` 交回的**就是**区间里最小 / 最大那个整数(端点带小数也折算过了),
-            # 所以"往哪边走"直接问刚落到字段上的这两个,不必再算一遍 ——
-            # 第一版把 `First ()` 调了两遍。
+            # `First` 交回的**就是**第一站那个整数(端点带小数也折算过了),
+            # `Step` 是方向 —— 都直接问区间,不自己从两头推:无界的那一头没有"最后"可言。
             Cur = r.First ()
-            Top = r.Last ()
-            Step = if { Cur <= Top; } { 1; } { -1; }
+            Step = r.Step ()
+            Open = !(r.IsBounded ())
+            if { Open; } { 0; } { Top = r.Last (); }
         }
         this;
     }
@@ -369,7 +373,7 @@ RangeCursor ::= class {
     MoveNext := () => {
         if { Empty; } { false; } {
             if { Started; } { Cur += Step; } { Started = true; }
-            if { Step > 0; } { Cur <= Top; } { Cur >= Top; }
+            if { Open; } { true; } { if { Step > 0; } { Cur <= Top; } { Cur >= Top; } }
         }
     }
 

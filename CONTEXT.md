@@ -799,7 +799,27 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Contains` 按**元素**算（`[1..10].Contains 2.5` 是 false）、`Covers` 按**端点**算
 （`[1..10].Covers 2.5` 是 true；Ruby 的 `include?` / `cover?` 也是这么分的）。
 界一律用 bigint 算（端点可能是 bigint、个数也可能超出 int —— `Count ()` 装不下就给 bigint），
-比较走 `TryAsDouble`（和 `<` 一个口径），NaN 当空区间、±∞ 报错。
+比较走 `TryAsDouble`（和 `<` 一个口径），NaN 当空区间。
+
+**两头都可以省（`[1..]` / `[..1]`）—— 省的哪一头就是"没有界"。** 求值那一步（`StepRange`）
+把它补成对应的 ±∞（省上界补 `+Inf`、省下界补 `-Inf`），于是 `[1..]` 与 `[1..Inf]` 造出的是
+**同一个值**（record 逐字段比，`==` 成立）。AST 里**不填**、留 `null`：填了往返
+（`AstPrinter` / `ast` 转储）就分不出你写的是哪一头。
+
+方向那一条得跟着改：两头都定时按大小比（老规矩），**有一头是 ±∞ 时由它定** —— ∞ 在上头
+（`End` 是 +∞、或 `Start` 是 -∞）就往大数走。这是唯一说得通的读法：`[..1]` 装出来是
+`[-Inf..1]`，照大小比会读成"从 -∞ 往上数"（**数不出第一站**），而按这条得到"从 1 往下数" ✓。
+`Head ()` 因此是"起手那一站 + 方向"那半边（**无界也答得出来**），`Walk ()` 是它加上末站
+（只对有限的成立，调用方先问 `IsBounded ()`）。
+
+**无限长的区间**：`First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` /
+`foreach` 那批（只问头那一头，或天生停得住）照常；`Count` / `Last` / `ToList` **当场报错** ——
+它们要"数到底"，无穷答不出来，不拿假数糊弄（`CountValue` / `LastElement` / `ToList` 各一条）。
+两头都省（`[..]`）没有方向，解析器当场报错；明写 `[-Inf..Inf]` 也挡（求值那一步）。
+新露两条方法：`IsBounded ()`（问上面那件事）、`Step ()`（1 正着 / -1 倒着，无界也给得出）。
+
+`lib/iterator.rav` 的 `RangeCursor` 跟着多一格 `Open`：无界就没有 `Top` 可比，`MoveNext`
+一直交 `true`（停止由消费者那头说了算 —— `Take` / `Where` 本来就是"要够了就停"）。
 
 它同时也是一个 `IEnumerable`（impl 在 `lib/iterator.rav`）：枚举器是**生成器的光标**，
 所以 `[1..1000000000].Take 3` 秒回、不会先铺一张表；`Count` / `Contains` / `ToList` /

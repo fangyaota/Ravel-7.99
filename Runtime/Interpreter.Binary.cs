@@ -130,33 +130,49 @@ public partial class Interpreter
         => (self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
            || BuiltinClasses.TraitSlot(this, self, op) != null;
 
-    /// <summary>区间 `[1..3]` / `(3..5)` …:两个端点各推一帧(照 <see cref="StepBinary"/>
-    /// 那套),收的时候造一个 <see cref="RangeVal"/>。两端要**数值**,别的类型当场报错。
+    /// <summary>区间 `[1..3]` / `(3..5)` / `[1..]` / `[..1]`:两端各推一帧(照
+    /// <see cref="StepBinary"/> 那套),收的时候造一个 <see cref="RangeVal"/>。
+    /// 两端要**数值**,别的类型当场报错。
+    ///
+    /// **省掉的那一头不去求值,直接装成对应的无穷** —— 上界省了给 `+Inf`(`[1..]`)、
+    /// 下界省了给 `-Inf`(`[..1]`)。于是 `[1..]` 和 `[1..Inf]` 造出的是**同一个值**
+    /// (record 逐字段比,相等)。方向由"无穷在哪一头"定,见 <see cref="RangeVal"/>。
     ///
     /// **开闭由语法决定**:括号各带一半的意思,解析器已经把它记在节点上了。</summary>
     private void StepRange(NodeFrame nf, RangeExpr rng)
     {
-        if (nf.Count == 0)
+        var wantLo = rng.Lo is not null;
+        var wantHi = rng.Hi is not null;
+        var need = (wantLo ? 1 : 0) + (wantHi ? 1 : 0);      // 要求值的端点数(省掉的不算)
+
+        if (nf.Count < need)
         {
-            PushChild(nf, rng.Lo);
+            if (wantLo && nf.Count == 0) PushChild(nf, rng.Lo!);
+            else PushChild(nf, rng.Hi!);
             return;
         }
 
-        if (nf.Count == 1)
-        {
-            PushChild(nf, rng.Hi);
-            return;
-        }
+        // 求过的那几头按顺序落在 Result(0..) 上;省了起点就只剩一个。
+        // 省的是**哪一头**就补**那一头**的无穷:`[1..]` 上界省了 = 到 +∞(`[..1]` 反过来)
+        var lo = wantLo ? nf.Result(0) : NegativeInfinity;
+        var hi = wantHi ? nf.Result(wantLo ? 1 : 0) : PositiveInfinity;
 
         // 端点收**任何数值**(int / bigint / float / fraction / bigfraction,混着也行)——
         // 元素是"区间里的整数",所以端点带小数照样能枚举(见 RangeVal)
-        if (!BuiltinClasses.TryAsDouble(nf.Result(0), out _) ||
-            !BuiltinClasses.TryAsDouble(nf.Result(1), out _))
+        if (!BuiltinClasses.TryAsDouble(lo, out var ld) || !BuiltinClasses.TryAsDouble(hi, out var hd))
             throw new RuntimeException(
-                $"Range 的两端需要数值，得到 {nf.Result(0).Type} 与 {nf.Result(1).Type}", ErrorKind.Type);
+                $"Range 的两端需要数值，得到 {lo.Type} 与 {hi.Type}", ErrorKind.Type);
 
-        Return(nf, new RangeVal(nf.Result(0), nf.Result(1), rng.StartClosed, rng.EndClosed));
+        // 两头都是无穷 = 没有方向可言(`[..]` 那头解析器就挡了,`[-Inf..Inf]` 得在这儿挡)
+        if (double.IsInfinity(ld) && double.IsInfinity(hd))
+            throw new RuntimeException(
+                "区间的两头都是无穷 —— 那就没有方向了（留一头定的：`[1..]` / `[..1]`）", ErrorKind.Value);
+
+        Return(nf, new RangeVal(lo, hi, rng.StartClosed, rng.EndClosed));
     }
+
+    private static readonly FloatVal PositiveInfinity = new(double.PositiveInfinity);
+    private static readonly FloatVal NegativeInfinity = new(double.NegativeInfinity);
 
     private void StepBinaryOp(NodeFrame nf, BinaryExpr bin)
     {

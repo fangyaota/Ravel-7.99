@@ -187,7 +187,11 @@ internal static class AstPrinter
         // 会被当成**下一个键**,回读报「字典键后需要 '->'」(实测踩过)。
         DictLiteral d => "{" + Join(" ", d.Entries.Select(x =>
             Arg(x.Key, indent) + " -> " + Arg(x.Value, indent))) + "}",
-        RangeExpr r => (r.StartClosed ? "[" : "(") + Expr(r.Lo, indent) + ".." + Expr(r.Hi, indent) + (r.EndClosed ? "]" : ")"),
+        // 省掉的那头打印成空的(`[1..]` / `[..1]`)—— AST 里存的就是 `null`,原样交回去
+        RangeExpr r => (r.StartClosed ? "[" : "(")
+                       + (r.Lo is null ? "" : Expr(r.Lo, indent)) + ".."
+                       + (r.Hi is null ? "" : Expr(r.Hi, indent))
+                       + (r.EndClosed ? "]" : ")"),
         // 取成员的**接收者**若本身是一次调用,必须套括号:`f a.b` 读起来是 `f (a.b)`
         // (实参位置只吃"主表达式 + 取成员"),而这里要说的是 `(f a).b` —— do 块脱糖出来的
         // `m.Bind (…)` 全是这个形状,不套括号打印出来是另一个意思。

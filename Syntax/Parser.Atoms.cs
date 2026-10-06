@@ -869,17 +869,27 @@ public partial class Parser
         // 没有就直接说"不是区间",一次试读都不做。
         if (!HasDotDotAhead()) return null;
 
+        // `[..]`:两头都省 —— 那没有方向可言(见 `RangeVal.Ascending`)。
+        // **放在 try 外面**:说清楚它错在哪,别退回去让列表那条路报个看不懂的。
+        if (Check(TokenType.DotDot)
+            && (CheckNext(TokenType.RightBracket) || CheckNext(TokenType.RightParen)))
+            throw ParseError("`[..]` 两头都省了 —— 区间总得留一头是定的（写 `[1..]` 或 `[..1]`）");
+
         var save = _pos;
         try
         {
-            var lo = ParseExpression();
+            // 省了起点:`[..1]` —— `..` 就顶在最前头
+            var lo = Check(TokenType.DotDot) ? null : ParseExpression();
             if (!Match(TokenType.DotDot))
             {
                 _pos = save;
                 return null;
             }
 
-            var hi = ParseExpression();
+            // 省了终点:`[1..]` —— 收尾的括号紧跟在后
+            var hi = Check(TokenType.RightBracket) || Check(TokenType.RightParen)
+                ? null
+                : ParseExpression();
 
             bool endClosed;
             if (Match(TokenType.RightBracket)) endClosed = true;
@@ -890,7 +900,9 @@ public partial class Parser
                 return null;
             }
 
-            return new RangeExpr(lo, hi, startClosed, endClosed) { Line = lo.Line, Column = lo.Column };
+            // 位置取实有的那一头(`[..1]` 没有起点可指)
+            var at = lo ?? hi!;
+            return new RangeExpr(lo, hi, startClosed, endClosed) { Line = at.Line, Column = at.Column };
         }
         catch (SyntaxException)
         {

@@ -306,7 +306,15 @@ public record ListLiteral(List<Expression> Elements) : Expression;
 ///
 /// 只在括号里认:**裸的 `a..b` 不成立**(没必要,还多一层歧义)。求值见
 /// `Interpreter.StepRange`,造出来的是 `Runtime/Values/RangeVal.cs` 那个值。</summary>
-public record RangeExpr(Expression Lo, Expression Hi, bool StartClosed, bool EndClosed) : Expression;
+/// <summary>`[1..3]` / `(3..5)` 那一族。**两头都可以省**(`[1..]` / `[..1]`)——
+/// 省掉的那头表示"没有界"。
+///
+/// 省下来的那头在 AST 里就是 `null`,**不在解析期填成 ±∞** —— 填了 AST 就分不出
+/// "你写的是哪一头",往返(AST 转储)会失真。求值那一步才装成对应的无穷
+/// (见 `Interpreter.StepRange`),于是 `[1..]` 和 `[1..Inf]` 是**同一个值**。
+///
+/// **两头都省(`[..]`)不是区间** —— 那没有方向可言,解析器当场报错。</summary>
+public record RangeExpr(Expression? Lo, Expression? Hi, bool StartClosed, bool EndClosed) : Expression;
 public record SetLiteral(List<Expression> Elements) : Expression;
 /// <summary>字典的一个条目。**键也是表达式**(从前的"标识符即字符串"那条糖已经去掉):
 /// `{"a": 1}` / `{1: "x"}` / `{k: v}` —— 键求出来得是**值类型**(数 / 字符串),
