@@ -81,6 +81,10 @@ public partial class Interpreter
             // **引擎自己那份**控制状态(模块加载栈)在这儿拍下来、跳转时自己盖回去 ——
             // 它是引擎的家事(见 `ContinuationVal.Loading`)。**handler 栈仍旧不掺和**:
             // 那是库的状态,库自己拍自己还原(`lib/predefined.rav` 的 `callcc`)。
+            // **捕获 = 冻结**:这一趟之后,链上每一帧都不许再原地改(见 `Frame.Captured`)——
+            // 续延是**多发射**的,同一枚模板要能用很多次,谁都不能把它弄脏。
+            // 沿链一路标到**根**:恢复是从捕获点往上走的,那些祖先也会被读到。
+            for (var f = (Frame?)cf; f != null; f = f.Parent) f.Captured = true;
             CallInto(cf, cf.Arg<RuntimeValue>(0, "callcc"),
                      new ContinuationVal(cf) { Loading = SnapshotLoading() });
             return;

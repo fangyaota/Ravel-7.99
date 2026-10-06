@@ -9,11 +9,33 @@ public abstract record Frame
     /// 报错时靠它指回源码里的调用点 —— 否则 `fraction 1 0` 这类错只能报到最外层的块。</summary>
     public AstNode? CallSite { get; init; }
     public Scope Scope { get; set; } = null!;
-    public RList<RuntimeValue> Results { get; init; } = RList<RuntimeValue>.Empty;
+    public RList<RuntimeValue> Results { get; internal set; } = RList<RuntimeValue>.Empty;
     public int Count => Results.Count;
     public RuntimeValue Result(int i) => Results.At(i);
     public RuntimeValue Last => Results.Last;
-    public Frame WithResult(RuntimeValue v) => this with { Results = Results.Add(v) };
+
+    /// <summary>这一帧**被续延拎走过**吗 —— 拎走过就**冻结**:往后一律拷新的,不再原地改。
+    ///
+    /// 为什么要有这一格:帧从前是**纯持久**的 —— 每次改都 `with` 拷一份,于是"某一帧被
+    /// 续延拍进模板之后不会被后来的执行弄脏"白拿。可拷一份就是一次分配,而
+    /// `Return` / 块推进**每一步**都在拷(量过:一步 ≈ 一个帧对象 + 一个 `RList` 节点,
+    /// 约 115 字节,是整个解释器分配的大头)。
+    ///
+    /// 改成"没被拎走过就原地改"之后,**唯一**会把帧留到它那一趟之外的就只剩
+    /// `ContinuationVal.Captured`(全引擎就这一处 —— 见 `StepCallCC`)。
+    /// 标记要**沿链传染到根**:恢复续延是从捕获点**往上**走的,会读到那些祖先。
+    /// (从前那条"帧不可变"的注释见 CONTEXT「求值器架构」;`Scope` 那一格本来就可变,
+    /// 是"ravel 模块切换"要的。)</summary>
+    internal bool Captured;
+
+    /// <summary>往这一帧挂一个结果。**没被拎走过就原地改**(省掉一次帧拷贝),
+    /// 被拎走过的照旧拷一份新的 —— 那一份是续延要用的模板,不能脏。</summary>
+    public Frame WithResult(RuntimeValue v)
+    {
+        if (Captured) return this with { Results = Results.Add(v) };
+        Results = Results.Add(v);
+        return this;
+    }
 }
 
 /// <summary>求值一个 AST 节点(语句/表达式)</summary>
@@ -38,8 +60,18 @@ public record NodeFrame(AstNode Node) : Frame;
 public record BlockExecFrame(BlockExpr Block) : Frame
 {
     /// <summary>下一条要跑的语句在 `Block.Statements` 里的下标。**只由 `StepBlockExec` 推进** ——
-    /// 推语句的时候顺手把父帧写成 `bf with { Index = bf.Index + 1 }`,别的路一概不动它。</summary>
-    public int Index { get; init; }
+    /// 推语句的时候顺手把游标往前走一格(见 <see cref="Advance"/>),别的路一概不动它。</summary>
+    public int Index { get; internal set; }
+
+    /// <summary>游标往前走一格,返回"往后那句该挂在哪个父帧下"。
+    /// **没被续延拎走过就原地改**(省掉一次拷贝),拎走过就拷一份 —— 和
+    /// <see cref="Frame.WithResult"/> 一个道理。这条落在最热的一格上:块里每推一句都走一次。</summary>
+    internal BlockExecFrame Advance()
+    {
+        if (Captured) return this with { Index = Index + 1 };
+        Index++;
+        return this;
+    }
 
     /// <summary>这个块是**柯里化函数**的体(见 `BlockExpr.Curried`)—— 它交出去的那个函数
     /// 是个半成品,收尾时顺手打上标(见 `FunctionVal.IsPartial`)。调用方只有 `CallInto`。</summary>

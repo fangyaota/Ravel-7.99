@@ -332,7 +332,8 @@ public partial class Interpreter
             {
                 // **游标在这一步推进**(而不是"结果表又长了一格"):推出去的父帧已经是"下一条"了,
                 // 这句跑完 `Return` 把值追加到它身上,回到这儿时 `Index` 就是下一条。
-                Parent = bf with { Index = bf.Index + 1 },
+                // 没被续延拎走过就**原地推进**(见 `BlockExecFrame.Advance`)。
+                Parent = bf.Advance(),
                 Scope = bf.Scope
             };
             return;
