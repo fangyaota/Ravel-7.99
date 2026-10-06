@@ -13,7 +13,8 @@
 #     而 `First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` / `foreach`
 #     那批**只问头那一头**(或天生停得住)的照常。
 #
-# 两头都省(`[..]`)没有方向 —— 解析器当场报错;明写 `[-Inf..Inf]` 也挡(求值那一步)。
+# **两头都省就是 `[..]`** —— 整条数轴(`[-Inf..Inf]` 一个意思):谁都在里头,
+# 可它连**起手那一站**都没有,所以能问的只剩 `Contains` / `Covers` 那两条谓词。
 
 # ── 同一个值的两种写法 ──
 print [1..]
@@ -44,11 +45,24 @@ print ([1..].Covers 2.5)
 print ([..1].Contains 99999)
 print ([..1].Contains (-99999))    # 实参里那个负号要括起来:`f -1` 读成减法
 
-# ── 要"数到底"的:报错 ──
-try { [1..].Count (); } (e: Exception) => { print ("1: " + string e); }
-try { [1..].Last (); } (e: Exception) => { print ("2: " + string e); }
-try { [1..].ToList (); } (e: Exception) => { print ("3: " + string e); }
-try { [-Inf..Inf].Take 3; } (e: Exception) => { print ("4: " + string e); }
+# ── 整条数轴:`[..]`(= `[-Inf..Inf]`)—— 谁都在里头,但没有起手那一头 ──
+print [..]
+print ([-Inf..Inf] == [..])
+print ([..].IsWhole ())
+print ([..].IsBounded ())
+print ([..].IsEmpty ())          # 不空 —— 什么都在里头
+print ([..].Contains 12345)
+print ([..].Contains (-12345))
+print ([..].Covers 2.5)
+print ([1..].IsWhole ())
+print ([1..3].IsWhole ())
+
+# ── 要"第一站"或"数到底"的:报错 ──
+try { [..].First (); } (e: Exception) => { print ("1: " + string e); }
+try { [1..].Count (); } (e: Exception) => { print ("2: " + string e); }
+try { [1..].Last (); } (e: Exception) => { print ("3: " + string e); }
+try { [1..].ToList (); } (e: Exception) => { print ("4: " + string e); }
+try { [..].Count (); } (e: Exception) => { print ("5: " + string e); }
 # --- expected ---
 # [1..Inf]
 # true
@@ -71,7 +85,18 @@ try { [-Inf..Inf].Take 3; } (e: Exception) => { print ("4: " + string e); }
 # true
 # false
 # true
-# 1: 无限长的区间数不出个数（[1..Inf] —— 用 Take 取前几个）
-# 2: 无限长的区间没有最后一个（[1..Inf]）
-# 3: 无限长的区间铺不成表（[1..Inf]）—— 用 Take 取前几个
-# 4: 区间的两头都是无穷 —— 那就没有方向了（留一头定的：`[1..]` / `[..1]`）
+# [-Inf..Inf]
+# true
+# true
+# false
+# false
+# true
+# true
+# true
+# false
+# false
+# 1: 全区间没有第一站（[-Inf..Inf] —— 谁都在里头，但没有起手那一头）
+# 2: 无限长的区间数不出个数（[1..Inf] —— 用 Take 取前几个）
+# 3: 无限长的区间没有最后一个（[1..Inf]）
+# 4: 无限长的区间铺不成表（[1..Inf]）—— 用 Take 取前几个
+# 5: 整条数轴数不出个数（[-Inf..Inf] —— 它谁都在里头，但没有起手那一头）

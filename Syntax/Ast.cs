@@ -313,7 +313,8 @@ public record ListLiteral(List<Expression> Elements) : Expression;
 /// "你写的是哪一头",往返(AST 转储)会失真。求值那一步才装成对应的无穷
 /// (见 `Interpreter.StepRange`),于是 `[1..]` 和 `[1..Inf]` 是**同一个值**。
 ///
-/// **两头都省(`[..]`)不是区间** —— 那没有方向可言,解析器当场报错。</summary>
+/// **两头都省就是 `[..]`** —— 整条数轴:谁都在里头,但没有起手那一头
+/// (见 `RangeVal.IsWhole`)。</summary>
 public record RangeExpr(Expression? Lo, Expression? Hi, bool StartClosed, bool EndClosed) : Expression;
 public record SetLiteral(List<Expression> Elements) : Expression;
 /// <summary>字典的一个条目。**键也是表达式**(从前的"标识符即字符串"那条糖已经去掉):

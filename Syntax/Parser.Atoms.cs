@@ -856,6 +856,10 @@ public partial class Parser
     /// 那一对括号各带**一半的意思**(`[` `]` 含那一端、`(` `)` 不含),所以收尾**两种都收**
     /// —— `[1..5)` 这种混着写是合法的 —— 按实际收到的那个定 `EndClosed`。
     ///
+    /// **两头都可以省**:`[1..]` / `[..1]`,两头都省就是 `[..]`(整条数轴)。
+    /// 省掉的那头在 AST 里是 `null`,**不在解析期填成 ±∞** —— 填了转储就分不出你写的哪一头;
+    /// 求值那一步才补(见 `Interpreter.StepRange`)。省了的那头自然也没得求值。
+    ///
     /// 不是区间就把 `_pos` 退回去,让调用点照原路走(列表字面量 / 括号分组 / lambda);
     /// 试读半路抛语法错也退,**最后报出来的还是原来那条路的错** —— `[]`、`(a + b)`、
     /// `(x: int) => …` 全都不受影响。
@@ -869,17 +873,12 @@ public partial class Parser
         // 没有就直接说"不是区间",一次试读都不做。
         if (!HasDotDotAhead()) return null;
 
-        // `[..]`:两头都省 —— 那没有方向可言(见 `RangeVal.Ascending`)。
-        // **放在 try 外面**:说清楚它错在哪,别退回去让列表那条路报个看不懂的。
-        if (Check(TokenType.DotDot)
-            && (CheckNext(TokenType.RightBracket) || CheckNext(TokenType.RightParen)))
-            throw ParseError("`[..]` 两头都省了 —— 区间总得留一头是定的（写 `[1..]` 或 `[..1]`）");
-
         var save = _pos;
         try
         {
             // 省了起点:`[..1]` —— `..` 就顶在最前头
             var lo = Check(TokenType.DotDot) ? null : ParseExpression();
+            var dot = Peek();                        // 位置兜底用(两头都省时 `lo`/`hi` 都没得指)
             if (!Match(TokenType.DotDot))
             {
                 _pos = save;
@@ -900,9 +899,12 @@ public partial class Parser
                 return null;
             }
 
-            // 位置取实有的那一头(`[..1]` 没有起点可指)
-            var at = lo ?? hi!;
-            return new RangeExpr(lo, hi, startClosed, endClosed) { Line = at.Line, Column = at.Column };
+            // 位置取实有的那一头;两头都省(`[..]`)就指那个 `..` 自己
+            return new RangeExpr(lo, hi, startClosed, endClosed)
+            {
+                Line = lo?.Line ?? hi?.Line ?? dot.Line,
+                Column = lo?.Column ?? hi?.Column ?? dot.Column,
+            };
         }
         catch (SyntaxException)
         {

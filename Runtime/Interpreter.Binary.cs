@@ -136,7 +136,9 @@ public partial class Interpreter
     ///
     /// **省掉的那一头不去求值,直接装成对应的无穷** —— 上界省了给 `+Inf`(`[1..]`)、
     /// 下界省了给 `-Inf`(`[..1]`)。于是 `[1..]` 和 `[1..Inf]` 造出的是**同一个值**
-    /// (record 逐字段比,相等)。方向由"无穷在哪一头"定,见 <see cref="RangeVal"/>。
+    /// (record 逐字段比,相等)。两头都省就是 `[-Inf..Inf]` —— **整条数轴**,
+    /// 谁都在里头但没有起手那一站(见 <see cref="RangeVal.IsWhole"/>)。
+    /// 方向由"无穷在哪一头"定,见 <see cref="RangeVal"/>。
     ///
     /// **开闭由语法决定**:括号各带一半的意思,解析器已经把它记在节点上了。</summary>
     private void StepRange(NodeFrame nf, RangeExpr rng)
@@ -159,14 +161,9 @@ public partial class Interpreter
 
         // 端点收**任何数值**(int / bigint / float / fraction / bigfraction,混着也行)——
         // 元素是"区间里的整数",所以端点带小数照样能枚举(见 RangeVal)
-        if (!BuiltinClasses.TryAsDouble(lo, out var ld) || !BuiltinClasses.TryAsDouble(hi, out var hd))
+        if (!BuiltinClasses.TryAsDouble(lo, out _) || !BuiltinClasses.TryAsDouble(hi, out _))
             throw new RuntimeException(
                 $"Range 的两端需要数值，得到 {lo.Type} 与 {hi.Type}", ErrorKind.Type);
-
-        // 两头都是无穷 = 没有方向可言(`[..]` 那头解析器就挡了,`[-Inf..Inf]` 得在这儿挡)
-        if (double.IsInfinity(ld) && double.IsInfinity(hd))
-            throw new RuntimeException(
-                "区间的两头都是无穷 —— 那就没有方向了（留一头定的：`[1..]` / `[..1]`）", ErrorKind.Value);
 
         Return(nf, new RangeVal(lo, hi, rng.StartClosed, rng.EndClosed));
     }

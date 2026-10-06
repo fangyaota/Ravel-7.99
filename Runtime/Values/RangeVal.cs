@@ -34,11 +34,14 @@ using System.Numerics;
 /// 见 `Interpreter.StepRange`),于是 `[1..]` 和 `[1..Inf]` 是**同一个值**。
 /// 方向**由无穷在哪一头定**:∞ 在上头(+∞ 当上界、或 -∞ 当下界)就往大数走,反之往小数走;
 /// 而**起手那一头永远是定得下来的那头** —— 所以 `[..1]` 是"从 1 往下数",
-/// 不是"从 -∞ 往上数"(那数不出第一站)。两头都无穷没有方向,求值那一步就挡掉了。
+/// 不是"从 -∞ 往上数"(那数不出第一站)。两头都是无穷的是**第三态**:整条数轴
+/// (`[..]` / `[-Inf..Inf]`),谁都在里头却没有起手那一头 —— 见 <see cref="IsWhole"/>。
 ///
-/// 无限长的区间:**`First` / `IsEmpty` / `Take` / `foreach` 照常**(它们只问头那一头),
-/// 而 **`Count` / `Last` / `ToList` 当场报错** —— 那几个要"数到底",无穷答不出来
-/// (判据是 <see cref="IsBounded"/>)。</summary>
+/// 无限长的区间:**`First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及
+/// `Take` / `foreach` 照常**(它们只问头那一头,或天生停得住),而
+/// **`Count` / `Last` / `ToList` 当场报错** —— 那几个要"数到底",无穷答不出来
+/// (判据是 <see cref="IsBounded"/>)。**整条数轴更少一步**:连 `First` / `Step` / 迭代
+/// 都答不出来(没有起手那一头),能问的只剩 `Contains` / `Covers` 那两条谓词。</summary>
 public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, bool EndClosed) : RuntimeValue
 {
     public override ObjectVal Type => BuiltinClasses.Range;
@@ -47,10 +50,19 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     /// 那几个"要数到底"的问法答不出来(当场报错),别的照常。</summary>
     public bool IsBounded() => !Infinite(Start, out _) && !Infinite(End, out _);
 
+    /// <summary>两头**都是** ±∞ —— **整条数轴**(`[..]`,或明写 `[-Inf..Inf]`)。
+    ///
+    /// 它是有界无界之外的**第三种**:不是"空"(谁都在里头 —— `Contains` / `Covers` 一律 true),
+    /// 也不是"有个方向的无界"(两头都没有,方向就无从提起)。所以**没有起手那一站**:
+    /// `First` / `Step` / 迭代 / `Count` / `Last` / `ToList` 全答不出来,各自当场报错。</summary>
+    public bool IsWhole() => Infinite(Start, out _) && Infinite(End, out _);
+
     /// <summary>**起手那一站**与方向。无界也答得出来 —— 头那一头永远是定得下来的那个
     /// (见 `Head`),无穷只在"往哪边走"上说话。端点里有 NaN 就给"到不了"的那组(见 `IsEmpty`)。</summary>
     public (BigInteger First, bool Up) Head()
     {
+        if (IsWhole())
+            throw new RuntimeException($"全区间没有第一站（{this} —— 谁都在里头，但没有起手那一头）", ErrorKind.Value);
         if (!Ascending(out var up)) return (1, true);              // NaN:空
         // 定得下来的那一头才是第一站:`[Inf..1]` 从 1 起(往上),`[-Inf..1]` 也从 1 起(往下)
         return Infinite(Start, out _)
@@ -71,9 +83,10 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     }
 
     /// <summary>空:端点里有 NaN,或者按着那个方向数**一个整数都没有**。
-    /// **无限长的一律不空** —— 至少有一个头。</summary>
+    /// **无限长的一律不空** —— 至少有一个头(整条数轴更是谁都在里头)。</summary>
     public bool IsEmpty()
     {
+        if (IsWhole()) return false;                // 整条数轴,不空
         if (!Ascending(out _)) return true;         // NaN
         if (!IsBounded()) return false;
         var (first, last, up) = Walk();
@@ -85,7 +98,11 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     public BigInteger CountValue()
     {
         if (!IsBounded())
-            throw new RuntimeException($"无限长的区间数不出个数（{this} —— 用 Take 取前几个）", ErrorKind.Value);
+            throw new RuntimeException(
+                IsWhole()
+                    ? $"整条数轴数不出个数（{this} —— 它谁都在里头，但没有起手那一头）"
+                    : $"无限长的区间数不出个数（{this} —— 用 Take 取前几个）",
+                ErrorKind.Value);
         var (first, last, up) = Walk();
         if (up ? first > last : first < last) return BigInteger.Zero;
         return BigInteger.Abs(last - first) + 1;
@@ -109,6 +126,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     public bool Wide()
     {
         if (Start is BigIntVal || End is BigIntVal) return true;
+        if (IsWhole()) return true;                  // 连起手那一头都没有 —— 别去问 `Head`
         var (first, _) = Head();
         if (first < int.MinValue || first > int.MaxValue) return true;
         if (!IsBounded()) return false;
@@ -143,6 +161,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     public bool ContainsValue(RuntimeValue v)
     {
         if (!AsInteger(v, out var n)) return false;
+        if (IsWhole()) return true;                                  // 整条数轴:是个整数就在里头
         if (!Ascending(out var up)) return false;                    // NaN:空
         var (first, _) = Head();
         // 无界:整条都在起手那一站的**一边**(往上就只管不小于它、往下只管不大于它)

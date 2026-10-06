@@ -812,11 +812,18 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 `Head ()` 因此是"起手那一站 + 方向"那半边（**无界也答得出来**），`Walk ()` 是它加上末站
 （只对有限的成立，调用方先问 `IsBounded ()`）。
 
+**两头都省是 `[..]`（= `[-Inf..Inf]`），第三态:整条数轴。** 它跟"一个方向的无界"不一样 ——
+`IsWhole ()` 就是这一条。谁都在里头（`Contains` / `Covers` 一律 true、`IsEmpty` 是 **false**
+—— 不能跟 NaN 那个"空"混），可它**连起手那一站都没有**（两头都是无穷，方向无从提起），
+于是 `First` / `Step` / 迭代 / `Count` / `Last` / `ToList` 全报错。能问的只剩那两条谓词
+（外加 `IsBounded` / `IsWhole` / `IsEmpty` 三个问法）。
+
 **无限长的区间**：`First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` /
 `foreach` 那批（只问头那一头，或天生停得住）照常；`Count` / `Last` / `ToList` **当场报错** ——
-它们要"数到底"，无穷答不出来，不拿假数糊弄（`CountValue` / `LastElement` / `ToList` 各一条）。
-两头都省（`[..]`）没有方向，解析器当场报错；明写 `[-Inf..Inf]` 也挡（求值那一步）。
-新露两条方法：`IsBounded ()`（问上面那件事）、`Step ()`（1 正着 / -1 倒着，无界也给得出）。
+它们要"数到底"，无穷答不出来，不拿假数糊弄（`CountValue` / `LastElement` / `ToList` 各一条；
+**整条数轴**那两句另说一套措辞 —— 那儿连 `Take` 都不管用，"用 Take 取前几个"是条坏建议）。
+新露三条方法：`IsBounded ()`（两头都定得下来吗）、`IsWhole ()`（是整条数轴吗）、
+`Step ()`（1 正着 / -1 倒着，无界也给得出，整条数轴报错）。
 
 `lib/iterator.rav` 的 `RangeCursor` 跟着多一格 `Open`：无界就没有 `Top` 可比，`MoveNext`
 一直交 `true`（停止由消费者那头说了算 —— `Take` / `Where` 本来就是"要够了就停"）。

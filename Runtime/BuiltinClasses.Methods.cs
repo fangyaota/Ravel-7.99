@@ -118,6 +118,8 @@ internal static partial class BuiltinClasses
         // 两头都定得下来吗(`[1..]` / `[..1]` 不是)—— `Count` / `Last` / `ToList` 答不出来
         // 就是因为这个,所以给它一个问法,别让人靠"试试看会不会报错"去猜。
         Range.DefineMethod("IsBounded", (s, _) => new BoolVal(((RangeVal)s).IsBounded()));
+        // 整条数轴(`[..]`):谁都在里头,可没有起手那一头 —— 比"无界"还少一样东西
+        Range.DefineMethod("IsWhole", (s, _) => new BoolVal(((RangeVal)s).IsWhole()));
         // 往哪个方向数:1 正着、-1 倒着。无界也答得出来(方向由无穷在哪一头定,见 RangeVal)
         Range.DefineMethod("Step", (s, _) => IntVal.Of(((RangeVal)s).Step()));
         Range.DefineMethod("Contains", (s, a) =>
@@ -134,7 +136,11 @@ internal static partial class BuiltinClasses
         {
             var r = (RangeVal)s;
             if (!r.IsBounded())
-                throw new RuntimeException($"无限长的区间铺不成表（{r}）—— 用 Take 取前几个", ErrorKind.Value);
+                throw new RuntimeException(
+                    r.IsWhole()
+                        ? $"整条数轴铺不成表（{r} —— 它谁都在里头，但没有起手那一头）"
+                        : $"无限长的区间铺不成表（{r}）—— 用 Take 取前几个",
+                    ErrorKind.Value);
             var (first, last, up) = r.Walk();
             var out_ = new List<RuntimeValue>();
             for (var i = first; up ? i <= last : i >= last; i += up ? 1 : -1) out_.Add(r.Element(i));
