@@ -9,7 +9,7 @@ print (int default)
 print (bool default)
 print (list default)
 print (set default)
-print (float default)
+print (real default)
 print (int.name)
 print (int <: ValueType)
 print (int <: object)
@@ -21,20 +21,20 @@ print "--- System 模块 ---"
 print (System.Integer)
 print (System.String)
 print (System.Bool)
-print (System.Float)
+print (System.Real)
 print (System.List)
 print "--- 小写别名 ---"
 print (int.name)
 print (string.name)
 print (bool.name)
-print (float.name)
+print (real.name)
 print "--- 类型构造 ---"
 print (bool true)
 print (System.String "")
 print (System.Integer)
 print (System.String)
 print (System.Bool)
-print (System.Float)
+print (System.Real)
 print (System.List)
 print (System.Set)
 print (System.Dict)
@@ -355,8 +355,8 @@ print ({1 2 3})
 ravel ""
 # --- expected ---
 # Integer
-# Float
-# Float
+# Real
+# Real
 # 2.5
 # 1
 # Every
@@ -376,20 +376,20 @@ ravel ""
 # Integer
 # String
 # Bool
-# Float
+# Real
 # List
 # --- 小写别名 ---
 # Integer
 # String
 # Bool
-# Float
+# Real
 # --- 类型构造 ---
 # true
 
 # Integer
 # String
 # Bool
-# Float
+# Real
 # List
 # Set
 # Dict

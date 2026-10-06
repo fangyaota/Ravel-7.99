@@ -241,7 +241,7 @@ public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression
     ///
     /// 词法那一步已经认过只可能是这三个(`Lexer.ReadNumber`),所以这儿只看末尾是不是字母。
     /// 后缀说的是**类型**,不是形状:`2n` 是大整数、`2i` 是普通整数(装不下 int 当场报错)、
-    /// `2f` 是浮点。所以 **`2.0` 是 float,`2` 是 int** —— 有小数的形状说了算,不是值。</summary>
+    /// `2f` 是浮点。所以 **`2.0` 是 real,`2` 是 int** —— 有小数的形状说了算,不是值。</summary>
     public char Suffix => char.IsLetter(Lexeme[^1]) ? Lexeme[^1] : '\0';
 
     /// <summary>纯数字那一段(后缀去掉)—— 真正拿去 `Parse` 的文本</summary>

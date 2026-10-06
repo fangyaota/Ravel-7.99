@@ -39,7 +39,7 @@ internal static class SysModule
         DefType(scope, "String", BuiltinClasses.String);
         DefType(scope, "Char", BuiltinClasses.Char);
         DefType(scope, "Bool", BuiltinClasses.Bool);
-        DefType(scope, "Float", BuiltinClasses.Real);
+        DefType(scope, "Real", BuiltinClasses.Real);
         DefType(scope, "BigInteger", BuiltinClasses.BigInt);
         DefType(scope, "Fraction", BuiltinClasses.Fraction);
         DefType(scope, "BigFraction", BuiltinClasses.BigFraction);

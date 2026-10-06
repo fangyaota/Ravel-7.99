@@ -23,7 +23,7 @@ public partial class Interpreter
 
     /// <summary>数字文字 → 值。
     ///
-    /// **没写后缀**时按文本定类型:带小数点就是 float(`2.0` 也是 —— 形状说了算,不是值),
+    /// **没写后缀**时按文本定类型:带小数点就是 real(`2.0` 也是 —— 形状说了算,不是值),
     /// 整数装得下 int 就是 int、装不下退化成 bigint。(以前一律 (int) 硬转,
     /// 2147483648 静默绕成 -2147483648,而且 double 中转还会丢精度。)
     ///
@@ -48,7 +48,7 @@ public partial class Interpreter
                 : int.TryParse(text, System.Globalization.NumberStyles.None, ci, out var d)
                     ? IntVal.Of(d)
                     : new BigIntVal(System.Numerics.BigInteger.Parse(text, ci)),
-            _ => throw new RuntimeException($"后缀 '{nn.Suffix}' 只能贴在整数上：{text} 是小数，而小数天生就是 float", ErrorKind.Value),
+            _ => throw new RuntimeException($"后缀 '{nn.Suffix}' 只能贴在整数上：{text} 是小数，而小数天生就是 real", ErrorKind.Value),
         };
 
         return nn.Parsed = v;
@@ -307,8 +307,8 @@ public partial class Interpreter
         //
         // `Accepts` 那两条就是"这个值本来就属于这个类型":继承链够得着,或者当前作用域里
         // 有生效的实现把它接到目标上。**数值/字符串那种"能转就转"没有了** ——
-        // `x: float = 1` 不再悄悄变成 1.0(Integer 和 Real 是兄弟,不是父子);
-        // 要转就明写 `float 1`。
+        // `x: real = 1` 不再悄悄变成 1.0(Integer 和 Real 是兄弟,不是父子);
+        // 要转就明写 `real 1`。
         //
         // 参数表一直就是这么判的(`Interpreter.Call`:只问 `Accepts`,不问转换)——
         // 定义这边从前多一道,两边不一致,现在统一。

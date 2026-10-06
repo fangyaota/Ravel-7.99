@@ -1,6 +1,6 @@
 #
 # **精确那一族的比较不过 `double`** —— int / bigint / fraction / bigfraction 之间比大小
-# 走的是通分交叉相乘(bigint,乘不溢),只有掺了 float 才落回 double。
+# 走的是通分交叉相乘(bigint,乘不溢),只有掺了 real 才落回 double。
 #
 # 从前六条比较运算符一律 `AsDouble …`,于是:
 #
@@ -11,7 +11,7 @@
 # 同一个程序**自己跟自己打架** —— 2^53 以上全被抹平。算术一直是对的(`+`/`-` 走 bigint),
 # 错的只有比较那一侧。
 #
-# float 那条路**照旧**:它本来就是近似值,和 bigint 比也只能这样。NaN 也照旧 ——
+# real 那条路**照旧**:它本来就是近似值,和 bigint 比也只能这样。NaN 也照旧 ——
 # 和谁都没法比(`==` false、`!=` true、四条序全 false,IEEE 那套)。
 
 a := bigint 1000000000000000000000000000000
@@ -36,7 +36,7 @@ print ((bigfraction 1 3) == (fraction 1 3))
 print ((fraction 2 1) == 2)
 print (1 < (fraction 3 2))
 
-# 掺了 float 就落回 double(近似值,没有"更准"可言)
+# 掺了 real 就落回 double(近似值,没有"更准"可言)
 print (5 == 5.0)
 print (5 < 5.5)
 print (Inf > 1)

@@ -4,7 +4,7 @@ using System.Numerics;
 
 /// <summary>一个**区间**:`[1..3]` / `(3..5)` / `[1..5)` / `(1..5]`。
 ///
-/// **端点收任何数值**(int / bigint / float / fraction / bigfraction,混着写也行)。
+/// **端点收任何数值**(int / bigint / real / fraction / bigfraction,混着写也行)。
 /// 而**元素是"区间里的整数"**:能枚举的是夹在中间的那些整数 ——
 ///
 ///     1..3   → 1 2 3          [1.5..3.5] → 2 3          [0.1..0.9] → 一个都没有
@@ -23,7 +23,7 @@ using System.Numerics;
 /// 值语义是白拿的:`Object` 上那条 `==` 对**两个非 `ObjectVal` 的值**比 `Equals`
 /// (见 `BuiltinClasses.Operators.cs` 的 `SameValue`),record 逐字段比 —— 于是
 /// `[1..3] == [1..3]` 成立。**端点类型不同就不相等**:`[1..3] != [1.0..3.0]`
-/// (一个装的是 int、一个装的是 float)。
+/// (一个装的是 int、一个装的是 real)。
 ///
 /// 打印出来就是写出来那个样子(`ToString` 拼那对括号),所以 `print [1..3]` 交回原文。
 ///

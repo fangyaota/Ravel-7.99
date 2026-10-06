@@ -223,7 +223,7 @@ print (g 1)
 print (g "x")
 try { g true; } (e: Exception) => { print ("none: " + string e); }
 # 四个分支
-h := (a: int) => { 0; } | (a: string) => { 1; } | (a: bool) => { 2; } | (a: float) => { 3; }
+h := (a: int) => { 0; } | (a: string) => { 1; } | (a: bool) => { 2; } | (a: real) => { 3; }
 print (h 1)
 print (h 1.5)
 print (h false)
@@ -379,7 +379,7 @@ print "end"
 # int
 # str
 # bool
-# none: | 的 3 个分支都不收这个参数（最后试的：参数 'a' 需要 Bool，得到 Float）
+# none: | 的 3 个分支都不收这个参数（最后试的：参数 'a' 需要 Bool，得到 Real）
 # int
 # str
 # none: | 的 2 个分支都不收这个参数（最后试的：参数 'a' 需要 String，得到 Bool）

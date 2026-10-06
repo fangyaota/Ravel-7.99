@@ -23,7 +23,7 @@ IComparable ::= interface {
 impl (IComparable int {
     ()
 })
-impl (IComparable float {
+impl (IComparable real {
     ()
 })
 impl (IComparable bigint {

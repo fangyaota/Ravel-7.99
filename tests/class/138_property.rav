@@ -47,7 +47,7 @@ print (dl.dl)
 E ::= class {
     init = () => { 0; this; }
     _n: int = 1
-    _f: float = 1.0
+    _f: real = 1.0
     _s: object = ""
     by n: int = property (() => { _n; }) ((q: int) => { _n = q; })
     by loose := property (() => { _s; }) ((q: object) => { _s = q; })
@@ -311,7 +311,7 @@ ravel ""
 # 7
 # 9
 # 6: 类型错误: 无法将 String 赋值给 'n' (声明为 Integer)
-# 7: 类型错误: 无法将 Float 赋值给 'm' (声明为 Integer)
+# 7: 类型错误: 无法将 Real 赋值给 'm' (声明为 Integer)
 # anything
 # 42
 # 5

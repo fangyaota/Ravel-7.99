@@ -113,7 +113,7 @@ readonly Filler := (n: int have: int fill: string) => {
 
 # ── 数字 ──
 # 定小数位:**不足补零**、超出四舍五入 —— 要的是"排出来齐",所以不省尾随零。
-readonly Num := (x: float digits: int) => {
+readonly Num := (x: real digits: int) => {
     assert ((digits >= 0) && (digits <= 15)) ("Format.Num: 小数位要在 0..15，得到 " + (string digits))
     text := string (Math.RoundTo x digits)
     hasDot := text.Contains "."
@@ -180,7 +180,7 @@ readonly Oct := (n: object) => { InBase n 8; }
 # ── 字节数说人话 ──
 readonly Bytes := (n: int) => {
     units := ["B" "KB" "MB" "GB" "TB"]
-    v := float n
+    v := real n
     k := 0
     while { (v >= 1024.0) && (k < ((units.Count ()) - 1)); } {
         v = v / 1024.0

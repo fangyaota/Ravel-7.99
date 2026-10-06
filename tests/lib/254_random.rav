@@ -57,7 +57,7 @@ inRange := (f: function lo: object hi: object) => {
 }
 print (inRange (() => { r.Int [1..6]; }) 1 6)       # 掷骰子:`[1..6]` 两端都含
 print (inRange (() => { r.Below 10; }) 0 9)
-print (inRange (() => { r.Float (); }) 0.0 1.0)     # [0, 1)(上界取不到,这里只证不越界)
+print (inRange (() => { r.Real (); }) 0.0 1.0)     # [0, 1)(上界取不到,这里只证不越界)
 print (typeof (r.Bool ()))
 pr := Random.Shared ()
 print (inRange (() => { pr.Int [1..100]; }) 1 100)
@@ -121,15 +121,15 @@ try { (Random.Make 1).Below 0; } (e: Exception) => { print ("4: " + string e); }
 # ── 分布与抽样 ──
 r7 := Random.Xoshiro 42
 
-# 小数:`Float ()` 还是 [0, 1);收一个区间就是区间里的小数(连续的东西统一按 [lo, hi) 看)
-f0 := r7.Float ()
+# 小数:`Real ()` 还是 [0, 1);收一个区间就是区间里的小数(连续的东西统一按 [lo, hi) 看)
+f0 := r7.Real ()
 print ((f0 >= 0.0) && (f0 < 1.0))
-fr := r7.Float (0.0..10.0)
+fr := r7.Real (0.0..10.0)
 print ((fr >= 0.0) && (fr < 10.0))
-fn := r7.Float [-1.0..1.0]
+fn := r7.Real [-1.0..1.0]
 print ((fn >= -1.0) && (fn <= 1.0))
-print (typeof (r7.Float ()))
-try { r7.Float (5.0..1.0); } (e: Exception) => { print ("1: " + string e); }
+print (typeof (r7.Real ()))
+try { r7.Real (5.0..1.0); } (e: Exception) => { print ("1: " + string e); }
 
 # 正态:σ 给 0 就是那个均值;一堆抽样的均值该落在均值附近
 print (r7.Normal 5.0 0.0)
@@ -221,10 +221,10 @@ print "end"
 # true
 # true
 # true
-# Float
-# 1: Random.Float: (5..1) 的起点在终点后面
+# Real
+# 1: Random.Real: (5..1) 的起点在终点后面
 # 5
-# Float
+# Real
 # true
 # 2: Random.Normal: 标准差不能是负的，得到 -1
 # a

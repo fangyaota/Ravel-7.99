@@ -20,7 +20,7 @@ print (Args.Parse ["-v" "a.txt"])
 print (Args.Parse ["-5" "-" "--x"])
 
 # ── 带规格:只有声明成"带值"的名字才吃后面的实参 ──
-b := Args.ParseWith ["--port" "8080" "-v" "x" "--ratio" "0.5"] {"port"-> "int" "ratio"-> "float" "v"-> "flag"}
+b := Args.ParseWith ["--port" "8080" "-v" "x" "--ratio" "0.5"] {"port"-> "int" "ratio"-> "real" "v"-> "flag"}
 print (Args.Get b "port" 0)
 print (typeof (Args.Get b "port" 0))      # 转成真的整数了,不是字符串
 print (Args.Get b "ratio" 0.0)
@@ -36,7 +36,7 @@ print (Args.Usage {"port"-> "int" "v"-> "flag" "verbose"-> "flag"})
 # ── 报错的几种:当场说人话 ──
 try { Args.ParseWith ["--oops" "1"] {"port"-> "int"}; } (e: Exception) => { print ("1: " + string e); }
 try { Args.ParseWith ["--port" "abc"] {"port"-> "int"}; } (e: Exception) => { print ("2: " + string e); }
-try { Args.ParseWith ["--n" "x"] {"n"-> "float"}; } (e: Exception) => { print ("3: " + string e); }
+try { Args.ParseWith ["--n" "x"] {"n"-> "real"}; } (e: Exception) => { print ("3: " + string e); }
 try { Args.ParseWith ["--n"] {"n"-> "int"}; } (e: Exception) => { print ("4: " + string e); }
 try { Args.ParseWith ["-ab"] {"a"-> "int" "b"-> "flag"}; } (e: Exception) => { print ("5: " + string e); }
 

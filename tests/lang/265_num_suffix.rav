@@ -1,17 +1,17 @@
 # 数字后缀:`2n` 大整数 / `3i` 普通整数 / `2.5f` 浮点。**没写后缀**时按文本猜
-# (带小数点就是 float;整数装得下 int 就是 int,装不下退化成 bigint)。
+# (带小数点就是 real;整数装得下 int 就是 int,装不下退化成 bigint)。
 #
-# 后缀说的是**类型**,不是形状 —— 所以 **`2.0` 是 float**(形状说了算,即使小数位是 0)。
+# 后缀说的是**类型**,不是形状 —— 所以 **`2.0` 是 real**(形状说了算,即使小数位是 0)。
 
 print (typeof 5)          # 没后缀:装得下 → int
 print (typeof 99999999999)  # 没后缀:装不下 → bigint
 print (typeof 5n)         # 明说大整数
 print (typeof 5i)         # 明说普通整数
-print (typeof 2.0)        # 有小数点 → float(哪怕小数位是 0)
+print (typeof 2.0)        # 有小数点 → real(哪怕小数位是 0)
 print (typeof 2f)         # 明说浮点
 print (typeof 2.5f)
 
-# 算起来和别的类型一个规矩(宽度升级:float > bigint > int)
+# 算起来和别的类型一个规矩(宽度升级:real > bigint > int)
 print (5n + 1)
 print (5i * 2)
 print (2f / 4)
@@ -40,19 +40,19 @@ print (f 1)
 # BigInt
 # BigInt
 # Integer
-# Float
-# Float
-# Float
+# Real
+# Real
+# Real
 # 6
 # 10
 # 0.5
 # 3
 # BigInt
-# Float
+# Real
 # 99999999999
 # 1: '99999999999i' 超出 int 范围（int 是 32 位，要这么大就写 99999999999n）
-# 2: 后缀 'i' 只能贴在整数上：2.5 是小数，而小数天生就是 float
-# 3: 后缀 'n' 只能贴在整数上：2.5 是小数，而小数天生就是 float
+# 2: 后缀 'i' 只能贴在整数上：2.5 是小数，而小数天生就是 real
+# 3: 后缀 'n' 只能贴在整数上：2.5 是小数，而小数天生就是 real
 # 4: 值 0 不是函数，不能调用
 # <function (x: int) => { x + 5n; }>
 # 6

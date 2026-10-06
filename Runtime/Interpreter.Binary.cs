@@ -159,7 +159,7 @@ public partial class Interpreter
         var lo = wantLo ? nf.Result(0) : NegativeInfinity;
         var hi = wantHi ? nf.Result(wantLo ? 1 : 0) : PositiveInfinity;
 
-        // 端点收**任何数值**(int / bigint / float / fraction / bigfraction,混着也行)——
+        // 端点收**任何数值**(int / bigint / real / fraction / bigfraction,混着也行)——
         // 元素是"区间里的整数",所以端点带小数照样能枚举(见 RangeVal)
         if (!BuiltinClasses.TryAsDouble(lo, out _) || !BuiltinClasses.TryAsDouble(hi, out _))
             throw new RuntimeException(

@@ -57,7 +57,7 @@ RegexMatch ::= class {
     Length := () => { Span; }
     Groups := () => { Captured; }
 
-    # 按号取(`m.Group 1`)或者按名字取(`m.Group "y"`)—— 和 `Float` 那两条一样,
+    # 按号取(`m.Group 1`)或者按名字取(`m.Group "y"`)—— 和 `Real` 那两条一样,
     # 两种用法共用一个名字,按实参是什么分流。
     Group := (k) => {
         if { (typeof k) == string; } {

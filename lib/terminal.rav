@@ -146,10 +146,10 @@ readonly Rule := (n: int) => { ("─").Repeat n; }
 # 因为它就是"写一串回车、再写一串"。
 readonly Bar := (done: int total: int width: int) => {
     w := if { width < 4; } { 4; } { width; }
-    frac := if { total <= 0; } { 0.0; } { (float done) / (float total); }
+    frac := if { total <= 0; } { 0.0; } { (real done) / (real total); }
     if { frac < 0.0; } { frac = 0.0; } { 0; }
     if { frac > 1.0; } { frac = 1.0; } { 0; }        # 超额也算满(990% 那种数字没人想看见)
-    n := (int (frac * (float w)))
+    n := (int (frac * (real w)))
     pct := (int (frac * 100.0))
     ("[" + (("#").Repeat n)) + ((".").Repeat (w - n)) + ("] " + (string pct) + "%");
 }

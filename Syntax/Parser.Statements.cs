@@ -872,7 +872,7 @@ public partial class Parser
     /// `(x: int y: int)` 里那个 `int y` 会被解析成一次调用。有了括号就能写"算出来的类型":
     ///
     ///     a: (CallMeToGetARandomType ()) = 0
-    ///     a: (if { flag; } { int; } { float; }) = 0
+    ///     a: (if { flag; } { int; } { real; }) = 0
     ///
     /// 注解是一个**表达式**,求值发生在定义处(变量)或 lambda 创建处(参数)。</summary>
     private Expression ParseTypeAnnotation()

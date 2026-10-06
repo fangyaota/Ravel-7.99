@@ -135,16 +135,16 @@ internal static partial class BuiltinClasses
         if (val is DefaultVal) return new RealVal(0);
         if (val is IntVal i) return new RealVal(i.Value);
         if (val is RealVal f) return f;
-        // bigint → float 是拓宽,顺手接上(以前 `float (bigint 5)` 报「无法转换为 float」,
+        // bigint → real 是拓宽,顺手接上(以前 `real (bigint 5)` 报「无法转换为 real」,
         // 而 `bigint 5 + 1.0` 却算得出来,两边对不上)
         if (val is BigIntVal bi) return new RealVal((double)bi.Value);
         if (val is StringVal s)
         {
             if (double.TryParse(s.Value, out var n)) return new RealVal(n);
-            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 float", ErrorKind.Value);
+            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 real", ErrorKind.Value);
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 float", ErrorKind.Type);
+        throw new RuntimeException($"无法将 {val.Type} 转换为 real", ErrorKind.Type);
     }
 
     // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型

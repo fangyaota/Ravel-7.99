@@ -163,7 +163,7 @@ cdef
 
 ## 7.6 集合的相等性是「同一个对象」
 
-`int` / `string` / `bool` / `float` / `bigint` / `fraction` 比的是**值本身**，所以 `{1 2 2}` 只有 2 个元素。但 `list` / `set` / `dict` 比的是**身份**。
+`int` / `string` / `bool` / `real` / `bigint` / `fraction` 比的是**值本身**，所以 `{1 2 2}` 只有 2 个元素。但 `list` / `set` / `dict` 比的是**身份**。
 
 #### 实例
 
@@ -320,7 +320,7 @@ print ((Random.Xoshiro 7 |> .Below 100) == (Random.Xoshiro 7 |> .Below 100))
 true
 ```
 
-取数那一面是一套方法（写成接口 `IRandom` 的**默认实现**，三台都白拿）：`Int [1..6]`（掷骰子）/ `Below n` / `Float ()` / `Bool ()` / `Choice xs` / `Shuffle xs` / `Sample n xs` / `Choices n xs` / `Normal μ σ` / `Weighted xs ws` / `Bytes n`。
+取数那一面是一套方法（写成接口 `IRandom` 的**默认实现**，三台都白拿）：`Int [1..6]`（掷骰子）/ `Below n` / `Real ()` / `Bool ()` / `Choice xs` / `Shuffle xs` / `Sample n xs` / `Choices n xs` / `Normal μ σ` / `Weighted xs ws` / `Bytes n`。
 
 注意：`Int` **收一个区间** —— 开闭全看那对括号，不必再记"上界含不含"。
 
@@ -399,7 +399,7 @@ true
 false
 ```
 
-注意：**端点收任何数值**（int / bigint / float / fraction），而**元素是「区间里的整数」** —— `[1.5..3.5]` 的元素是 `2 3`。所以 `Start ()` / `End ()`（写出来那个数）和 `First ()` / `Last ()`（区间里真有的那个整数）是**两回事**。
+注意：**端点收任何数值**（int / bigint / real / fraction），而**元素是「区间里的整数」** —— `[1.5..3.5]` 的元素是 `2 3`。所以 `Start ()` / `End ()`（写出来那个数）和 `First ()` / `Last ()`（区间里真有的那个整数）是**两回事**。
 
 注意：**它是惰性的** —— `([1..1000000000]).Take 3` 秒回，`Count ()` / `Contains n` 走引擎那几条（O(1)）。
 

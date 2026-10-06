@@ -89,7 +89,7 @@
             "patterns": [
                 {
                     "comment": "类型:小写别名(`predefined.rav` 那一批)+ `System.` 侧的权威名 + 引擎报错那一族",
-                    "match": "\\b(any|bool|bigfraction|bigint|char|class|dict|float|fraction|function|int|interface|list|object|set|string|type|void|Any|BaseInterface|BigFraction|BigInteger|Bool|Char|Continuation|Dict|Every|Exception|Float|Fraction|Function|Integer|Interface|Json|List|Object|Range|Set|String|Type|ValueType|Void|TypeError|NameError|AttributeError|IndexError|KeyError|ZeroDivisionError|AssertionError|AccessError|ArgumentError|ValueError|IoError|RegexError)\\b",
+                    "match": "\\b(any|bool|bigfraction|bigint|char|class|dict|real|fraction|function|int|interface|list|object|set|string|type|void|Any|BaseInterface|BigFraction|BigInteger|Bool|Char|Continuation|Dict|Every|Exception|Real|Fraction|Function|Integer|Interface|Json|List|Object|Range|Set|String|Type|ValueType|Void|TypeError|NameError|AttributeError|IndexError|KeyError|ZeroDivisionError|AssertionError|AccessError|ArgumentError|ValueError|IoError|RegexError)\\b",
                     "name": "support.type.ravel"
                 },
                 {

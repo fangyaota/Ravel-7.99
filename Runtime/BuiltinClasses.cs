@@ -112,7 +112,7 @@ internal static partial class BuiltinClasses
         Function = New("Function");
         ValueType = New("ValueType");
         Int = New("Integer");           // 名字是 Integer，字段名沿用旧名 Int
-        Real = New("Float");
+        Real = New("Real");
         Bool = New("Bool");
         String = New("String");
         Char = New("Char");

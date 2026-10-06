@@ -22,7 +22,7 @@
 # **合并的短开关一律不带值** —— 想给 `-n` 一个值就写 `-n 5` 或 `-n=5`。
 # 这样 `-abc` 永远只有一种读法,不用先查规格再猜作者什么意思。
 #
-# 规格是一张**名字 → 类型**的 dict,类型有 `flag`(开关)/ `int` / `float` / `string` /
+# 规格是一张**名字 → 类型**的 dict,类型有 `flag`(开关)/ `int` / `real` / `string` /
 # `list`(同名再来一次就攒成一串)。**不写规格就是 `string`**,一个键都不查。
 # 写了规格之后,**不认识的选项当场报错**(打错一个字母却什么都不说,是最难查的那种)。
 # 别名就写两条(`{"v": "flag" "verbose": "flag"}`)—— 比再发明一套"别名语法"直白。
@@ -153,7 +153,7 @@ readonly SpecOf := (spec: dict name: string) => {
 readonly Coerce := (t: string name: string v: object) => {
     if { t == "flag"; } { true; } {
         if { t == "int"; } { AsInt name v; } {
-            if { t == "float"; } { AsFloat name v; } { v; }
+            if { t == "real"; } { AsReal name v; } { v; }
         }
     }
 }
@@ -169,9 +169,9 @@ readonly AsInt := (name: string v: object) => {
     } { v; }
 }
 
-readonly AsFloat := (name: string v: object) => {
+readonly AsReal := (name: string v: object) => {
     if { (typeof v) == string; } {
-        try { float v; } (e: Exception) => { throw (Exception ("Args.Parse: '--" + name + "' 要一个数，得到 '" + v + "'")); }
+        try { real v; } (e: Exception) => { throw (Exception ("Args.Parse: '--" + name + "' 要一个数，得到 '" + v + "'")); }
     } { v; }
 }
 

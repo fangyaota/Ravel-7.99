@@ -13,7 +13,7 @@
 # 而且那份精度更高(3.141592653589793,不是 3.14159)。
 #
 # 参数标成 INumber(predefined.rav 里那个空槽接口,五种数值类型都实现了它):
-# Ravel 的 lambda 参数**不做隐式转换**,标 float 就只收 float,而 `square 5`、
+# Ravel 的 lambda 参数**不做隐式转换**,标 real 就只收 real,而 `square 5`、
 # `deg 90` 这种整数写法必须能用;从前标的是 ValueType,那个连 String 都收。
 using "native.rav"
 

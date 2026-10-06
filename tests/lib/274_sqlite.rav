@@ -24,7 +24,7 @@ print (db.One "select * from t where name = @n" {"n"-> "nobody"})    # 没有 �
 print (db.Value "select 1 where 0" {})                              # 没有 → ()
 
 # ── 类型来回 ──
-# 存:int / bigint / float / string / char / bool(存 0-1)/ `()`(就是 NULL)/ 字节表(BLOB)
+# 存:int / bigint / real / string / char / bool(存 0-1)/ `()`(就是 NULL)/ 字节表(BLOB)
 # 取:INTEGER 装得下 int 给 int、否则 bigint;NULL 给 ();BLOB 给字节表
 print (db.Value "select 99999999999999" {})
 print (typeof (db.Value "select 99999999999999" {}))

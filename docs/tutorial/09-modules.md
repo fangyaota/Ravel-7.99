@@ -133,7 +133,7 @@ print (Math.Deg Math.Pi)
 
 注意：`Math.Round 2.5` 是 `3` —— **四舍五入**，不是银行家舍入。
 
-注意：`Math` 收任何数值（int / float / bigint / fraction），内部按 double 算；三角函数收**弧度**。
+注意：`Math` 收任何数值（int / real / bigint / fraction），内部按 double 算；三角函数收**弧度**。
 
 ## 9.5 命令行参数与环境变量
 

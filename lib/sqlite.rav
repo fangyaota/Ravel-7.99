@@ -15,7 +15,7 @@
 # 不做 `?` 那种按位置替换 —— SQL 里的 `?` 也可能是字符串里的一个字面量,数问号绑参数是埋雷。
 #
 # 存得进的是什么(引擎那层的换算,和 `Json` 一个口径):
-#   int / bigint / float / string / char / bool(存 0/1)/ `()`(就是 **NULL**)/
+#   int / bigint / real / string / char / bool(存 0/1)/ `()`(就是 **NULL**)/
 #   字节表(**BLOB**)。别的类型当场报错,不静默降级成字符串。
 # 读出来:INTEGER 装得下 int 就给 int、否则 bigint;NULL 给 `()`;BLOB 给字节表。
 #

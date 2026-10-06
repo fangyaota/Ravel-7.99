@@ -16,7 +16,7 @@
 # Object [Type]
 # ├── ValueType [Type]
 # │   ├── Integer [Type]
-# │   ├── Float [Type]
+# │   ├── Real [Type]
 # │   ├── String [Type]
 # │   ├── Char [Type]
 # │   ├── BigInt [Type]
@@ -35,7 +35,7 @@
 # ├── Void [Type]
 # ├── BaseInterface [Interface]
 # │   ├── INumber [Interface]
-# │   │   └── 实现 ← BigFraction Fraction BigInt Float Integer
+# │   │   └── 实现 ← BigFraction Fraction BigInt Real Integer
 # │   ├── IMonad [Interface]
 # │   │   ├── IEnumerable [Interface]
 # │   │   │   ├── IEnumerator [Interface]
@@ -43,12 +43,12 @@
 # │   │   │   └── 实现 ← GeneratorCursor Generator Enumerator Option Range Scope Dict String Set List
 # │   │   └── 实现 ← Expected GeneratorCursor Generator Enumerator Option Range Scope Dict String Set List
 # │   ├── IComparable [Interface]
-# │   │   └── 实现 ← Time String Char BigFraction Fraction BigInt Float Integer
+# │   │   └── 实现 ← Time String Char BigFraction Fraction BigInt Real Integer
 # │   ├── IKey [Interface]
-# │   │   └── 实现 ← String Char BigFraction Fraction BigInt Float Integer
+# │   │   └── 实现 ← String Char BigFraction Fraction BigInt Real Integer
 # │   ├── IDict [Interface]
 # │   │   └── 实现 ← Keyed Scope Dict
-# │   └── 实现 ← Expected Keyed Scope Dict String Char BigFraction Fraction BigInt Float Integer Time GeneratorCursor Generator Enumerator Option Range Set List
+# │   └── 实现 ← Expected Keyed Scope Dict String Char BigFraction Fraction BigInt Real Integer Time GeneratorCursor Generator Enumerator Option Range Set List
 # ├── Ravel [Type]
 # ├── Exception [Type]
 # │   ├── TypeError [Type]

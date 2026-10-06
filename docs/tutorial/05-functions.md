@@ -796,7 +796,7 @@ impl (IComparable Rec { () })
 d := {}
 d.Set 1 "int"
 d.Set "1" "str"
-d.Set 1.0 "float"
+d.Set 1.0 "real"
 print ((d.Keys ()).Count ())
 print (d.Get 1)
 ```
@@ -907,7 +907,7 @@ print ((k.Get "x") |> .Extract ())
 `Json` 里包着的是一棵**还没转成原生值**的树，所以可以先看再转：
 
 - **看**：`Kind ()` / `IsNull ()` / `Get k` / `GetOr k dflt` / `At i` / `Count ()` / `Keys ()`（保 JSON 原顺序）—— 交回的还是 **Json**，可以一层层往下走。
-- **转**：`Extract ()` 一次拿原生值 —— `dict` / `list` / `int`（太大退 `bigint`）/ `float` / `string` / `bool` / **`()`**（JSON 的 null）。
+- **转**：`Extract ()` 一次拿原生值 —— `dict` / `list` / `int`（太大退 `bigint`）/ `real` / `string` / `bool` / **`()`**（JSON 的 null）。
 - **写**：`Json v` → `j.Text ()`（紧凑）或 `j.Text 2`（缩进两格）。JSON 里没有的类型（自有类、分数…）**当场报错**，不悄悄降级。
 - **改**：`Set k v` / `SetAt i v` / `Add v` / `Remove k` / `RemoveAt i` —— 直接改那棵树。
 

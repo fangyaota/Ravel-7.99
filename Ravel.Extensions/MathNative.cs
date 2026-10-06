@@ -14,9 +14,9 @@ using static Ravel.Runtime.PluginKit;
 /// `Interpreter.CSharpModules` 那张表空了、删掉了,`EnterModule` 也回到"只建模块"。
 ///
 /// 三条约定(一个字没改):
-/// - **参数收任何数值**(int/float/bigint/fraction),内部按 double 算 —— 和 `<` 那批运算符
+/// - **参数收任何数值**(int/real/bigint/fraction),内部按 double 算 —— 和 `<` 那批运算符
 ///   同一个口径(`PluginKit.Num`),免得 `sin 1` 和 `1 &lt; 2` 给出两套说法。
-/// - **返回值一律是 float**,除了那几个**保型**的:`abs` / `min` / `max` / `clamp` /
+/// - **返回值一律是 real**,除了那几个**保型**的:`abs` / `min` / `max` / `clamp` /
 ///   `minMagnitude` / `maxMagnitude` 原样交出胜出的那个实参(所以 `abs -5` 还是 int、
 ///   `min 3 bigint 9999999999999` 还是 bigint),`sign` 给 int。
 /// - **C# 会抛异常的地方自己先拦**(`sign` 收到 NaN、`clamp` 的下界大于上界、`roundTo` 的

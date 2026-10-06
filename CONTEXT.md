@@ -329,7 +329,7 @@ lib/
                           —— 于是脚本以非零退出码结束。仓库自己的用例仍是 golden 那一套
   random.rav              `Random` 模块 —— **可选择的**随机数生成器:`Random.Shared ()` /
                           `Random.Make seed`(同种子同序列)/ `Random.Crypto ()`,取数那面
-                          (Int/Below/Float/Choice/Shuffle/Sample)是 `IRandom` 的默认实现。
+                          (Int/Below/Real/Choice/Shuffle/Sample)是 `IRandom` 的默认实现。
                           `using "random.rav"` 引入(引擎那三条原语见「System 模块」)
   regex.rav               `Regex` 模块 —— 正则表达式:`Regex.C pattern` / `Regex.With pattern flags`
                           / `Regex.Escape s`,命中的那段是 `RegexMatch`(`Value`/`At`/`Groups`/
@@ -389,7 +389,7 @@ lib/
                           转义就一条:含 `,` / `"` / 换行的格子整体包引号、里面的 `"` 写成 `""`
                           —— 所以引号里的逗号和换行都是**内容**。**要显式引用**
   args.rav                `Args` 模块 —— 命令行参数:`Parse argv`(不看规格)/
-                          `ParseWith argv spec`(名 → 类型:`flag`/`int`/`float`/`string`/`list`)/
+                          `ParseWith argv spec`(名 → 类型:`flag`/`int`/`real`/`string`/`list`)/
                           `Get a name dflt` / `Has` / `Positional` / `Usage spec`。
                           认 `--x=v` / `--x v` / `--x` / `-x` / `-abc`(合并的短开关,**不带值**)/
                           `--`(之后全算位置参数);`-5` 和光杆 `-` 当位置参数。
@@ -606,7 +606,7 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 `NumberLiteral` 存的是**原始文本**（`Lexeme`），不是 `double`——double 只有 15~17 位有效数字，
 大整数中转一手就丢精度。求值时才定类型（`Interpreter.MakeNumber`）：
 
-- 有小数点 → `Float`（所以 **`2.0` 是 float**——形状说了算，不是值）
+- 有小数点 → `Real`（所以 **`2.0` 是 real**——形状说了算，不是值）
 - 没有小数点且装得下 int32 → `Integer`
 - 没有小数点但超了 → `BigInt`（所以 `typeof 2147483648` 是 `BigInt`）
 
@@ -616,13 +616,13 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 |---|---|---|
 | `2n` | `BigInt` | 放不放得下 int 都走 bigint |
 | `2i` | `Integer` | 装不下 int 当场报错，**不悄悄升级**——这正是它和"没后缀"的区别 |
-| `2f` / `2.5f` | `Float` | 没小数点的也能强制成浮点 |
+| `2f` / `2.5f` | `Real` | 没小数点的也能强制成浮点 |
 | `2.5i` / `2.5n` | 报错 | 小数没有"整数后缀"这回事 |
 
 后缀**要吞得干净才算**（`Lexer.ReadNumber`）：后面再粘着标识符字符就不是后缀，
 所以 `0if`、`2not` 照旧读成"数字 + 标识符"，一个字都没变；`2n` 后面跟 `)` `.` `[` 空格才算数。
 
-后缀 `bigint` / `int` / `float` 那些是**构造器**（`bigint 123` 把值转成 BigInt），和字面量的类型是两回事。
+后缀 `bigint` / `int` / `real` 那些是**构造器**（`bigint 123` 把值转成 BigInt），和字面量的类型是两回事。
 
 **int 算术溢出报错,不静默回绕**（`Narrow`）：`int × int` 一律在 `long` 里算再收窄，
 超出 int32 就报「`100000 * 100000` 超出 int 范围（int 是 32 位，大数用 bigint）」。
@@ -631,8 +631,8 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
 一元 `-` 同理（`-int.MinValue` 翻不过来）。要更宽就写 `bigint`：
 一边是 bigint 时按宽度升级,根本不进 int 那条路。
 
-一元 `-` 按数值类型逐个翻转（`Negate`），不走 `0 - x`——Int 的 `-` 只认 Float 右操作数。
-Int 与右操作数的二元运算按宽度升级（`IntOp`）：`float > bigint > int`，
+一元 `-` 按数值类型逐个翻转（`Negate`），不走 `0 - x`——Int 的 `-` 只认 Real 右操作数。
+Int 与右操作数的二元运算按宽度升级（`IntOp`）：`real > bigint > int`，
 所以 `1 + bigint 2` 和 `bigint 2 + 1` 都得到 BigInt。
 
 ## 类型层次
@@ -640,7 +640,7 @@ Int 与右操作数的二元运算按宽度升级（`IntOp`）：`float > bigint
 ```
 Object (parent=自己)
 ├── ValueType
-│   ├── Integer / Float / String / Char / BigInt / Fraction / BigFraction   (并列,不是链)
+│   ├── Integer / Real / String / Char / BigInt / Fraction / BigFraction   (并列,不是链)
 │   └── Range         ← 区间(`[1..3]`)：不可变、按值比,自己不吃糖也在这一支下
 ├── Function
 │   ├── Bool          ← true/false 可调用:收两个块返回选中那个的结果
@@ -685,7 +685,7 @@ Object (parent=自己)
 
 内置模块，解释器启动时创建。包含所有类型和核心函数：
 
-**类型**: Integer String Char Bool Float BigInteger Fraction BigFraction Scope Range
+**类型**: Integer String Char Bool Real BigInteger Fraction BigFraction Scope Range
         List Set Dict **Waitable** Object **Ravel** Void Function Continuation Type Interface
         BaseInterface Any Every Exception ValueType Json
 
@@ -777,7 +777,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 （`() => int`，0 .. 2^30-1 —— 包着 `new Random(seed)` / `Random.Shared`），
 `RandomBytes n` 交回 `list`（元素 0..255，走 `RandomNumberGenerator`）。
 **交回函数而不是新造一个值类型**：和 `Cached` 一个路子（"是个函数，不是要实例化的类型"），
-引擎面最小、也不必动类型树。四台生成器（共享 / .NET 带种子 / **xoshiro256\*\*** / 加密）、`Int`/`Below`/`Float`（也能收区间）/
+引擎面最小、也不必动类型树。四台生成器（共享 / .NET 带种子 / **xoshiro256\*\*** / 加密）、`Int`/`Below`/`Real`（也能收区间）/
 `Bool`/`Choice`/`Shuffle`/`Sample`/`Choices`（有放回）/`Weighted`（按权重）/`Normal`（箱–穆勒）/
 `Bytes` 那些都在库里
 （`lib/random.rav` 的 `IRandom` 默认实现）—— 取数的那一面**只有**这一处（从前那个全局
@@ -792,7 +792,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 一层套一层地放大（tests/152 压着这条）。求值见 `Interpreter.StepRange`，
 值在 `Runtime/Values/RangeVal.cs`。
 
-**端点收任何数值**（int / bigint / float / fraction，混着写也行），而**元素是"区间里的整数"**：
+**端点收任何数值**（int / bigint / real / fraction，混着写也行），而**元素是"区间里的整数"**：
 `[1.5..3.5]` 里是 2、3，`[0.1..0.9]` 一个是空的（这一个读法让"任意数值端点"和"能枚举"
 同时成立）。所以 `Start ()` / `End ()`（写出来那两个数，可能是小数）和 `First ()` / `Last ()`
 （区间里真有的头一个/末一个整数）是两回事；"里头有没有"和"落不落在这段里"也是两条 ——
@@ -800,7 +800,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 （`[1..10].Covers 2.5` 是 true；Ruby 的 `include?` / `cover?` 也是这么分的）。
 界一律用 bigint 算（端点可能是 bigint、个数也可能超出 int —— `Count ()` 装不下就给 bigint），
 比较走 `CompareNumeric` —— **精确那一族不经过 double**（`bigint 10^30 == bigint (10^30+1)`
-从前是 `true`，而 `-` 交回 `-1`：自己跟自己打架；2^53 以上全被抹平），掺了 float 才落回
+从前是 `true`，而 `-` 交回 `-1`：自己跟自己打架；2^53 以上全被抹平），掺了 real 才落回
 `TryAsDouble`；NaN 当空区间。
 
 **两头都可以省（`[1..]` / `[..1]`）—— 省的哪一头就是"没有界"。** 求值那一步（`StepRange`）
@@ -884,9 +884,9 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 **取整**: floor ceil trunc round roundTo（`round` 是四舍五入，不是银行家舍入）
 
 **保型的那几个**: abs sign min max clamp minMagnitude maxMagnitude —— 交回**原始实参**
-（`abs -5` 还是 int、`max 3 bigint …` 还是 bigint），其余一律给 float。
+（`abs -5` 还是 int、`max 3 bigint …` 还是 bigint），其余一律给 real。
 
-参数收**任何数值**（int/float/bigint/fraction），内部按 double 算 —— 和 `<` 那批运算符
+参数收**任何数值**（int/real/bigint/fraction），内部按 double 算 —— 和 `<` 那批运算符
 同一个口径。`lib/math.rav` 只在上面补 Ravel 说得清楚的几个（square/cube/deg/rad）。
 
 ## 文件系统（`lib/io.rav`，要显式 `using "io.rav"`）
@@ -968,7 +968,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 
 ```
 RuntimeValue                          MemberScope（虚）→ 伪 / 真 Scope
-├── IntVal FloatVal BigIntVal FractionVal BigFractionVal
+├── IntVal RealVal BigIntVal FractionVal BigFractionVal
 │   StringVal CharVal VoidVal DefaultVal            ← 原子值：无字段，MemberScope = 伪 Scope
 │   RangeVal                                        ← 区间(`[1..3]` / `(3..5)` …)：不可变、
 │                                                     按值比（record 的 Equals + Object 的 `==`）
@@ -1474,11 +1474,11 @@ obj.n++          # 字段也行，和 `obj.n += 1` 一个待遇
 |---|---|---|
 | `2 ** 3 ** 2` | `2 ** (3 ** 2)` | `512` |
 | `-2 ** 2` | `-(2 ** 2)` | `-4`（要 4 就写 `(-2) ** 2`）|
-| `2 ** -1` | `2 ** (-1)` | `0.5` —— **float** |
+| `2 ** -1` | `2 ** (-1)` | `0.5` —— **real** |
 
 - **左边是什么类型就在那个类型里算**：`int ** int` 还是 int（装不下照旧报「大数用 bigint」，
-  和 `*` 一样，不悄悄换成 bigint）；掺了 float 就全程 double。
-- **整数的负次幂交回 float** —— 整数装不下 `1/2`，而"报错让人自己去转"太不划算。
+  和 `*` 一样，不悄悄换成 bigint）；掺了 real 就全程 double。
+- **整数的负次幂交回 real** —— 整数装不下 `1/2`，而"报错让人自己去转"太不划算。
   **分数不受这条影响**：上下颠倒就行，`(fraction 1 2) ** -1` 是 `2/1`。
 - **涨得太快的先拦一道**：`int` 那条在 `|底| >= 2 && 指数 > 31` 时直接报，不去算；
   不拦的话 `2 ** 1000000000` 会真的去算那个几十万位的数（而不是报错），一按就挂住。
@@ -1529,7 +1529,7 @@ obj.n++          # 字段也行，和 `obj.n += 1` 一个待遇
   这样 `1 <: int` 报的是「'<:' 的左边得是个类型，得到 Integer 的实例」而不是「类型不支持运算符」。
   判据 = `IsAssignableTo`；接口那半（`myClass <: myTrait`）在求值器里补，见「接口与实现」一节。
 - **`:` 是类型判断**：`x: T` —— 左边是**值**，右边是个**类型对象**。判据就是 `IsAssignableTo`：
-  `1: int` ✓、`1: float` ✗（兄弟）、`1: object` ✓、`int: type` ✓。取反写 `!(x: T)`。
+  `1: int` ✓、`1: real` ✗（兄弟）、`1: object` ✓、`int: type` ✓。取反写 `!(x: T)`。
   **和类型注解是同一个读法**：`x: int = 5` 是"绑到 x 上去、顺便确认它是 int"，
   `x: int` 只是少了"绑"那一半（见下面「内置成员速查」里那条注解说明）。
   - 它**不是**普通运算符：和 `!` / `&&` / `||` 一样归"求值器特判、不支持自定义"那一档
@@ -1611,7 +1611,7 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 ## 接口(interface)与实现(use)
 
 **库里已经在用的四个:`INumber`** —— 最简单的那个,**一个槽都没有**,只是"这个类型是数"的标记
-(五种数值类型各 `impl` 一条,于是 `(x: INumber)` 收得下 `int 5` 也收得下 `float 5.0`;
+(五种数值类型各 `impl` 一条,于是 `(x: INumber)` 收得下 `int 5` 也收得下 `real 5.0`;
 `lib/math.rav` 那四个函数用它,从前标的是 `ValueType` —— 那个连 String 都收)。
 
 **`IComparable`**(`lib/sorting.rav`)—— 一条槽 `CompareTo`,"这个类型自己讲了怎么比大小"。
@@ -1845,9 +1845,9 @@ myImplement.Dispose ()   # 提前取消
   —— 判据就是 `Accepts`(继承链父子 + 当前作用域里生效的实现),和 `x: T` 那条判断、
   和参数表(`CallInto`)**同一个**。
   **从前这两处不一样**:`CallInto` 只问 `Accepts`,而 `StepVarDef` 在 `Accepts` 不成立时
-  还会走一次 `ConvertDirect` 隐式转换 —— 于是 `x: float = 1` 悄悄变成 `1.0`
-  (Integer 和 Float 是兄弟,不是父子)、`x: Json = {…}` 悄悄包成 Json。现在那条路删了:
-  要转就**明写**(`float 1` / `Json {…}`),`x: float = 1` 当场报「不是父子」。
+  还会走一次 `ConvertDirect` 隐式转换 —— 于是 `x: real = 1` 悄悄变成 `1.0`
+  (Integer 和 Real 是兄弟,不是父子)、`x: Json = {…}` 悄悄包成 Json。现在那条路删了:
+  要转就**明写**(`real 1` / `Json {…}`),`x: real = 1` 当场报「不是父子」。
   顺带把"隐式与显式两张转换表会飘"那一整类毛病根治了 —— 只剩一张表。
   **`default` 是唯一的例外**:它的类型是底类型 `Every`(见谁都点头),要的也不是转换,
   而是"按注解造一个本类型的空值"(0 / "" / 空表 …),那正是 `ConvertDirect` 干的事。
@@ -2157,7 +2157,7 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
   [[a b]: list c] := e         # 嵌套那格也能带
   ```
 
-  判据是 **`:`**(说形状) —— `[a: float] := [1]` 说"不是 float",不会转成 1.0。
+  判据是 **`:`**(说形状) —— `[a: real] := [1]` 说"不是 real",不会转成 1.0。
   (和注解那边**同一个口径**:注解也是断言、也只认父子,不做隐式转换。两处一条判据。)
 - **类型写在整个模式上就是"先认标签、再拆"** —— 带标签的那种分派靠这条:
 
@@ -2509,7 +2509,7 @@ impl (IComparable Rec { () })
 j := Json {"a"-> [1 2.5 ()] "b"-> {"c"-> true}}
 print (j)                                  # {"a":[1,2.5,null],"b":{"c":true}}（print 就是紧凑 JSON）
 print ((j.Get "a").Count ())               # 3
-print (((j.Get "a").At 1).Extract ())      # 2.5（float）
+print (((j.Get "a").At 1).Extract ())      # 2.5（real）
 d := j.Extract ()                          # 一次转成 dict / list / 数 / string / bool / ()
 k := Json.FromString "{\"x\": 1}"          # 解析（唯一的入口）
 print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
@@ -2534,14 +2534,14 @@ print ((j.Text ()))                        # 紧凑；`j.Text 2` 缩进两格
 |---|---|
 | `dict` | object（键本来就是字符串，保插入序）|
 | `list` / `set` | array |
-| `int` / `float` / `bigint` | number（**`bigint` 原样写数字，不经过 double、不丢精度**）|
+| `int` / `real` / `bigint` | number（**`bigint` 原样写数字，不经过 double、不丢精度**）|
 | `string` / `char` | string |
 | `bool` | true / false |
 | **`()`** | **null**（反方向也回 `()`）|
 | 别的（自有类、分数、函数……）| **当场报错**：「先自己转成 dict / list / 数 / 字符串 / 布尔 / ()」|
 
 `Extract ()` 反着走：`JObject` → `dict`、`JArray` → `list`、整数装得下 `int`、太大退 `bigint`、
-带小数/指数是 `float`、`null` → **`()`**。
+带小数/指数是 `real`、`null` → **`()`**。
 
 **`null` 为什么是 `()`**：`Extract` 是引擎里的一次递归，而引擎造不出 `None`（那是
 `lib/monad.rav` 的，按名去全局取库值全仓零先例、也会让引擎依赖库的加载）；`()` 是语言级、

@@ -84,7 +84,7 @@ ravel "197_is_operator"
 
 # ---- 中缀 ----
 print (1 : int)
-print (1 : float)          # Integer 与 Float 是兄弟,不是子类型
+print (1 : real)          # Integer 与 Real 是兄弟,不是子类型
 print ("a" : ValueType)
 print (1 : object)         # Integer <: ValueType <: Object
 print (1 : Any)            # 顶类型:什么都是它的子类
@@ -218,10 +218,10 @@ ravel "203_annotation_expr"
 # `(x: int y: int)` 里的 `int y` 会被当成一次调用。
 
 # 算出来的类型:同一个字段,注解不同就装不同的类型
-# (注解只**断言**,不转换 —— 所以 `pick false` 那支的值得自己写成 float)
-pick := (flag: bool) => { if { flag; } { int; } { float; } }
+# (注解只**断言**,不转换 —— 所以 `pick false` 那支的值得自己写成 real)
+pick := (flag: bool) => { if { flag; } { int; } { real; } }
 a: (pick true) = 5
-b: (pick false) = float 5
+b: (pick false) = real 5
 print (typeof a)
 print (typeof b)
 
@@ -374,11 +374,11 @@ ravel ""
 # Scope
 # <scope>
 # Integer
-# Float
+# Real
 # String
 # hi
 # Integer
-# Float
+# Real
 # Integer
 # 1: 'z' 的类型注解要是个类型，得到 Integer
 # 2: 未定义的变量 'nope'

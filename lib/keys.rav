@@ -29,7 +29,7 @@ IKey ::= interface {
 impl (IKey int {
     ()
 })
-impl (IKey float {
+impl (IKey real {
     ()
 })
 impl (IKey bigint {

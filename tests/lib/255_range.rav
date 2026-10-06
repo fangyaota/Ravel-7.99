@@ -6,7 +6,7 @@
 # 打印出来就是写出来那个样子(`Text ()` 同一个);它同时也是一个 `IEnumerable`
 # (impl 在 lib/iterator.rav,枚举走生成器的光标、**惰性**),所以整套方法白拿。
 #
-# **端点收任何数值**(int / bigint / float / fraction,混着写也行),而**元素是"区间里的
+# **端点收任何数值**(int / bigint / real / fraction,混着写也行),而**元素是"区间里的
 # 整数"**:`[1.5..3.5]` → 2 3、`[0.1..0.9]` → 空。`Start ()` / `End ()` 交回的是**写出来
 # 那个数**(1.5 就是 1.5),要元素用 `First ()` / `Last ()`。两端不是数值才当场报错。
 using "math.rav"
@@ -300,7 +300,7 @@ print "end"
 # 2
 # 0.5
 # 1
-# Float
+# Real
 # 3: Clamp 的第二个实参要是个区间（如 `Math.Clamp x [0..1]`），得到 Integer
 # 4: Range 的两端需要数值，得到 String 与 Integer
 # 5: s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 Integer

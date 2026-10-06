@@ -30,7 +30,7 @@ internal static partial class BuiltinClasses
         _ => throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type),
     };
 
-    /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:float > bigint > int——
+    /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:real > bigint > int——
     /// 结果类型取较宽的那个。以前只特判了 Real,于是 `1 + bigint 2` 报「运算符 '+' 不支持
     /// BigInt 操作数」,而反过来的 `bigint 2 + 1` 却正常(AsBigInt 收 int),两边不对称。</summary>
     private static RuntimeValue IntOp(RuntimeValue a, RuntimeValue b, string op,
@@ -111,7 +111,7 @@ internal static partial class BuiltinClasses
 
     private static void RegisterOperators()
     {
-        // int 运算符 —— 右操作数按"宽度"升级:float > bigint > int。
+        // int 运算符 —— 右操作数按"宽度"升级:real > bigint > int。
         // int×int 一律在 long 里算再收窄,免得 unchecked 静默回绕见 Narrow
         DefineOp(Int, "+", (a, b) => IntOp(a, b, "+",
             (x, y) => Narrow((long)x + y, $"{x} + {y}"), (x, y) => new RealVal(x + y), (x, y) => new BigIntVal(x + y)));
@@ -133,11 +133,11 @@ internal static partial class BuiltinClasses
         DefineOp(Int, "<<<", (a, b) => IntVal.Of(RotateUp(((IntVal)a).Value, ShiftCount(b, "<<<"))));
         DefineOp(Int, ">>>", (a, b) => IntVal.Of(RotateDown(((IntVal)a).Value, ShiftCount(b, ">>>"))));
 
-        // float 运算符 —— **全程 double**。
-        // 曾经这里走 `AsReal`(转成 32 位 float 再算),于是 `Math.pi * 180` 得
+        // real 运算符 —— **全程 double**。
+        // 曾经这里走 `AsReal`(转成 32 位 real 再算),于是 `Math.pi * 180` 得
         // 565.4866943359375(float32 的 π 乘出来的),而 `180 * Math.pi` 得
         // 565.4866776461628 —— 同一个数换个顺序两个答案,还和比较运算符
-        // (那边一直是 double)也对不上。float 值本身就是 double,没必要经过 32 位。
+        // (那边一直是 double)也对不上。real 值本身就是 double,没必要经过 32 位。
         DefineOp(Real, "+", (a, b) => new RealVal(AsDouble(a, "+") + AsDouble(b, "+")));
         DefineOp(Real, "-", (a, b) => new RealVal(AsDouble(a, "-") - AsDouble(b, "-")));
         DefineOp(Real, "*", (a, b) => new RealVal(AsDouble(a, "*") * AsDouble(b, "*")));
@@ -149,9 +149,9 @@ internal static partial class BuiltinClasses
         // 两条规矩,都照这门语言已有的口径定:
         //
         //   * **左边是什么类型就在那个类型里算** —— `int ** int` 还是 int(装不下照旧报
-        //     「大数用 bigint」,和 `*` 一样,不悄悄换成 bigint);掺了 float 就全程 double。
-        //   * **整数的负次幂交回 float**(`2 ** -1` = 0.5)。整数装不下 1/2,而"报错让人
-        //     自己去转 float"太不划算 —— Python 也是这么干的。**分数不受这条影响**:
+        //     「大数用 bigint」,和 `*` 一样,不悄悄换成 bigint);掺了 real 就全程 double。
+        //   * **整数的负次幂交回 real**(`2 ** -1` = 0.5)。整数装不下 1/2,而"报错让人
+        //     自己去转 real"太不划算 —— Python 也是这么干的。**分数不受这条影响**:
         //     负次幂只是上下颠倒,分数本来就装得下,所以还是分数。
         //
         // 优先级和结合性在解析器那头(`Parser.Expressions` 的 `ParsePower`):右结合、
@@ -264,7 +264,7 @@ internal static partial class BuiltinClasses
         //
         // 判据是类型树上的 `IsAssignableTo`(帮手 `IsA` 还在,那条特判用的就是它):
         //   `1: int`     Integer <: Integer          ✓
-        //   `1: float`   Integer 与 Real 是兄弟       ✗
+        //   `1: real`   Integer 与 Real 是兄弟       ✗
         //   `1: object`  Integer <: ValueType <: Object ✓
         //   `int: type`  类对象是 type 的实例           ✓
         //   `default: int`  Every(底类型)特判           ✓
@@ -361,7 +361,7 @@ internal static partial class BuiltinClasses
     /// 从前六条比较运算符一律 `AsDouble … `,于是 `bigint 10^30 == bigint (10^30+1)` 交回
     /// **true**,而 `-` 交回 `-1` —— 同一个程序自己跟自己打架。2^53 以上全被抹平。
     ///
-    /// **掺了 float 才落回 double**(它本来就是近似值,没有"更准"可言;和 `<bigint>` 比也
+    /// **掺了 real 才落回 double**(它本来就是近似值,没有"更准"可言;和 `<bigint>` 比也
     /// 只能这样)。`NaN` 就和它一个口径:和谁都没法比,交 `null`,六条运算符各自读成
     /// IEEE 那个答案(`==`→false、`!=`→true、四条序→false)。
     ///
@@ -480,7 +480,7 @@ internal static partial class BuiltinClasses
 
     // ── 乘方 `**` 的几条实现 ──
 
-    /// <summary>`int ** n`:指数非负就在整数里算,负的(或 float / 分数那种)交给 `Math.Pow` 出小数。</summary>
+    /// <summary>`int ** n`:指数非负就在整数里算,负的(或 real / 分数那种)交给 `Math.Pow` 出小数。</summary>
     private static RuntimeValue IntPow(int x, RuntimeValue b)
     {
         switch (b)
@@ -512,7 +512,7 @@ internal static partial class BuiltinClasses
         return IntVal.Of((int)r);
     }
 
-    /// <summary>`bigint ** n`:指数非负时是**精确**的(bigint 不会溢出);负指数同样落回 float
+    /// <summary>`bigint ** n`:指数非负时是**精确**的(bigint 不会溢出);负指数同样落回 real
     /// —— 和 int 那条一个规矩。
     ///
     /// 指数本身超过 32 位就报:那是 `.NET` 的 `BigInteger.Pow` 收不下(它只收 `int`),
@@ -534,7 +534,7 @@ internal static partial class BuiltinClasses
     private static RuntimeException PowExponentTooBig(System.Numerics.BigInteger e)
         => new RuntimeException($"指数太大（{e}）—— 乘方的指数要装得进 32 位", ErrorKind.Value);
 
-    /// <summary>`fraction ** n`。**负指数不用落回 float**:上下颠倒就行,分数本来就装得下
+    /// <summary>`fraction ** n`。**负指数不用落回 real**:上下颠倒就行,分数本来就装得下
     /// (`fraction 1 2 ** -1` 是 `2/1`)—— 只有"指数不是整数"那几种才交给 double。</summary>
     private static RuntimeValue FractionPow(FractionVal x, RuntimeValue b)
     {

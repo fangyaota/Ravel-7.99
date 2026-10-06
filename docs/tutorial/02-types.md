@@ -5,7 +5,7 @@
 | 类型 | 字面量 |
 |------|--------|
 | Integer | `42`、`-1`、`7i` |
-| Float | `3.14`、`5.0`、`2f`、`Inf`、`NaN` |
+| Real | `3.14`、`5.0`、`2f`、`Inf`、`NaN` |
 | Bool | `true`、`false` |
 | String | `"hello"` |
 | Char | `'a'` |
@@ -57,9 +57,9 @@ Error: 类型不匹配: 无法将 Integer 赋值给 C（不是父子）—— �
 #### 实例
 
 ```ravel
-pick := (flag: bool) => { if { flag; } { int; } { float; } }
+pick := (flag: bool) => { if { flag; } { int; } { real; } }
 a: (pick true) = 5
-b: (pick false) = float 5      # 注解只断言不转换 —— 要 float 就自己写出来
+b: (pick false) = real 5      # 注解只断言不转换 —— 要 real 就自己写出来
 print (typeof a)
 print (typeof b)
 ```
@@ -68,7 +68,7 @@ print (typeof b)
 
 ```
 Integer
-Float
+Real
 ```
 
 写法两种：一个名字（可带成员访问，`x: int`），或括号里的任意表达式（`x: (pick true)`）。
@@ -91,7 +91,7 @@ Float
 
 ## 2.4 类型转换
 
-把类型名当函数用，就是转换：`int "42"`、`string 100`、`float 3`。
+把类型名当函数用，就是转换：`int "42"`、`string 100`、`real 3`。
 
 注意：`bool` 只认 `bool` 和 `default` —— 数字**没有**到 bool 的转换（`bool 0` 报「无法将 Integer 转换为 bool」）。
 
@@ -100,7 +100,7 @@ Float
 ```ravel
 print (int "42")
 print (string 100)
-print (float 3)
+print (real 3)
 print (int 3.9)              # 往窄处转要自己说：截断成 3
 print (bigint 1.5)
 ```
@@ -118,13 +118,13 @@ print (bigint 1.5)
 **注解是断言，不是转换指令。** `x: T = v` 只在"那个值**本来就属于** `T`"时成立 ——
 判据是继承链（父子）和当前作用域里生效的实现（接口），和 `x: T` 那条判断完全一样。
 
-数值那几族**彼此是兄弟**（`1: float` 是 false），所以下面这几条当场报：
+数值那几族**彼此是兄弟**（`1: real` 是 false），所以下面这几条当场报：
 
 #### 实例
 
 ```ravel
 tries := []
-try { eval "x: float = 1"; } (e: Exception) => { tries.Add ("1: " + e.Message); }
+try { eval "x: real = 1"; } (e: Exception) => { tries.Add ("1: " + e.Message); }
 try { eval "y: bigint = 5"; } (e: Exception) => { tries.Add ("2: " + e.Message); }
 try { eval "z: int = 3.9"; } (e: Exception) => { tries.Add ("3: " + e.Message); }
 foreach tries (t: string) => { print t; }
@@ -133,12 +133,12 @@ foreach tries (t: string) => { print t; }
 执行以上程序会输出如下结果：
 
 ```
-1: 类型不匹配: 无法将 Integer 赋值给 Float（不是父子）—— 要转就明写 `Float …`
+1: 类型不匹配: 无法将 Integer 赋值给 Real（不是父子）—— 要转就明写 `Real …`
 2: 类型不匹配: 无法将 Integer 赋值给 BigInt（不是父子）—— 要转就明写 `BigInt …`
-3: 类型不匹配: 无法将 Float 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
+3: 类型不匹配: 无法将 Real 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
 ```
 
-要转就**明写**：`x: float = float 1`。好处是"这里发生了一次转换"永远写在脸上 ——
+要转就**明写**：`x: real = real 1`。好处是"这里发生了一次转换"永远写在脸上 ——
 而且**转换表只有一张**（隐式那条路没了，就不存在"显式走得通、隐式报错"那种两张表各飘各的）。
 
 参数表和注解一个口径（都只问"本来就属于吗"），`default` 是唯一的例外 ——
@@ -222,7 +222,7 @@ Option { Has = true, Inner = 2 }
 
 ```
 Object (parent = 自身)
-├── ValueType → Integer Float String BigInt Fraction BigFraction Range   (并列)
+├── ValueType → Integer Real String BigInt Fraction BigFraction Range   (并列)
 ├── Function → Bool  Block  Type
 ├── List  Set  Dict
 ├── Void  Exception  Ravel(模块)  Scope  Property
@@ -238,8 +238,8 @@ Object (parent = 自身)
 
 ## 2.7 BigInt / Fraction / BigFraction
 
-数字后缀能直接在字面量上写类型：`42n`（BigInt）、`42i`（Integer）、`2f` / `2.5f`（Float）。构造器是 `bigint` / `fraction` / `bigfraction`。
+数字后缀能直接在字面量上写类型：`42n`（BigInt）、`42i`（Integer）、`2f` / `2.5f`（Real）。构造器是 `bigint` / `fraction` / `bigfraction`。
 
-注意：**`2.0` 是 float，不是 int**，哪怕小数位是 0。整数装得下 `int` 就是 `int`，装不下（`2147483648`）退化成 `bigint`。
+注意：**`2.0` 是 real，不是 int**，哪怕小数位是 0。整数装得下 `int` 就是 `int`，装不下（`2147483648`）退化成 `bigint`。
 
 注意：后缀**要吞得干净**才算 —— 后面再粘着标识符字符就不是后缀（`2n` 后面跟 `)` `.` `[` 空格才算数）。`2.5i` / `2.5n` 报错：小数没有"整数后缀"这回事。
