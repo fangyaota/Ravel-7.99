@@ -63,8 +63,12 @@ public partial class Interpreter
                 _top = sink.WithResult(nc.Fn(ncScope, arg));
                 break;
             }
+            // **裸块不推层**(试验):`{ … }` 是**写在原地**的一截,不是闭包 ——
+            // 没有参数要绑(lambda 那条路推完层要 `Define ("self")` + `Define (参数名)`,
+            // 那一层省不掉),于是它就是唯一有资格不要自己那层的。
+            // 直接在**捕获作用域**里跑:块里 `:=` 的定义落在外层。
             case BlockVal blk:
-                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.CaptureScope.Push() };
+                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.CaptureScope };
                 break;
             // 类对象 = 实例化它。**这是唯一一条路**:类对象自己就是可调用的东西
             // (ClassVal : FunctionVal),没有 `call` 成员、也没有中间的 BoundCall 转发。
@@ -130,7 +134,8 @@ public partial class Interpreter
             case PartialBool pb:
                 if (arg is not BlockVal elseBlock) throw new RuntimeException("true/false 需要两个代码块", ErrorKind.Argument);
                 var chosen = pb.Value ? pb.Then : elseBlock;
-                _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope.Push() };
+                // 同上:`cond { A } { B }` 选中那支是**裸块**,不推层
+                _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope };
                 break;
             // 剩下的普通函数(内置方法、转换器、C# 造的闭包…):它们的体是同步的,当场算。
             // **这一臂必须排在最后**:ClassVal/BoolVal/BlockVal/… 全是 `FunctionVal`,

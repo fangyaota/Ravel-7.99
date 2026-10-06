@@ -70,7 +70,7 @@ _ : int = 99
 print "ok"
 
 # ═══ 17_type_error(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "X: int = 1\nX = true"; } (e: Exception) => { print ("17_type_error: " + string e); }
+try { eval "X17: int = 1\nX17 = true"; } (e: Exception) => { print ("17_type_error: " + string e); }
 
 # ═══ 25_empty_block(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
 try { eval "X := {\n}\nprint X"; } (e: Exception) => { print ("25_empty_block: " + string e); }
@@ -298,7 +298,7 @@ ravel ""
 # 3
 # hello
 # ok
-# 17_type_error: 类型错误: 无法将 Bool 赋值给 'X' (声明为 Integer)
+# 17_type_error: 类型错误: 无法将 Bool 赋值给 'X17' (声明为 Integer)
 # 25_empty_block: 不允许空的 '{ }'
 # 10
 # 7

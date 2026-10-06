@@ -6,7 +6,7 @@ c := C ()
 print (c.x)
 
 # ═══ 59_readonly_error(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "C := class {\n    init = () => { x = 99; this; }\n    readonly x: int = 10\n}\nc := C ()\nprint (c.x)"; } (e: Exception) => { print ("59_readonly_error: " + string e); }
+try { eval "C59 := class {\n    init = () => { x = 99; this; }\n    readonly x: int = 10\n}\nc59 := C59 ()\nprint (c59.x)"; } (e: Exception) => { print ("59_readonly_error: " + string e); }
 
 # ═══ 199_lib_readonly(并入) ═══
 ravel "199_lib_readonly"
@@ -34,7 +34,17 @@ print "done"
 ravel ""
 
 # ═══ 200_readonly_redefine(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "# 全局作用域里重新定义一个只读名字 —— 报「无法重新定义只读变量 'true'」。\n# 这条只能放在顶层:块里的 `:=` 是局部遮蔽(见 tests/199),包不进 try。\ntrue := 1"; } (e: Exception) => { print ("200_readonly_redefine: " + string e); }
+# 顶层再 `:=` 一个已经有的名字 —— `true` 是 predefined 里 readonly 定义的那个。
+#
+# **来的不是「无法重新定义只读变量」那条** —— 用户的 `:=` 走 `Scope.Define`,它先撞上
+# "同一个作用域里已经定义过";那句 readonly 措辞在 `DefineOrReplace` 里,只有**预设类体**
+# 和 `by` 那两条路走得到(见 `StepVarDef` / `StepSlotAssign`)。这条例的**名字**留着,
+# 但它钉的其实是前者。
+#
+# **从前这条是空转的**:`try { eval … }` 自带一层作用域,`true := 1` 在那一层只是个局部
+# 遮蔽、不报错 → 那行 print 压根没跑(期望块里也就一直没有它)。裸块不推层之后它才真的
+# 落在顶层 —— 从"钉不住"变成"钉得住"。
+try { eval "true := 1"; } (e: Exception) => { print ("200_readonly_redefine: " + string e); }
 # --- expected ---
 # 10
 # 59_readonly_error: 无法给只读变量 'x' 赋值
@@ -47,3 +57,4 @@ try { eval "# 全局作用域里重新定义一个只读名字 —— 报「无�
 # 9
 # true
 # done
+# 200_readonly_redefine: 'true' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）

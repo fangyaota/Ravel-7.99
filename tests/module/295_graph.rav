@@ -102,7 +102,7 @@ print (s.Degree "z")
 try { print (g.Neighbors "没这个"); } (e: Exception) => { print ("4: " + string e); }
 try { print (g.Weight "a" "b"); } (e: Exception) => { print ("5: " + string e); }
 try { nw := Structures.Weighted (); nw.AddEdge [1] "b" 1; } (e: Exception) => { print ("6: " + string e); }
-try { nw := Structures.Weighted (); nw.AddEdge "a" "b" (0 - 1); } (e: Exception) => { print ("7: " + string e); }
+try { nw2 := Structures.Weighted (); nw2.AddEdge "a" "b" (0 - 1); } (e: Exception) => { print ("7: " + string e); }
 e := Structures.Graph ()
 print (e.Vertices ())
 print (e.Count ())

@@ -49,7 +49,7 @@ try { print (5 = 5); } (e: Exception) => { print ("2: " + string e); }
 try { print ([1 2] = 3); } (e: Exception) => { print ("3: " + string e); }
 
 # ═══ 149_member_assign_missing(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "# 用 = 给不存在的字段赋值要报错(想新建字段得用 :=)\nC := class {\n    init = () => { 0; this; }\n    v: int = 1\n}\na := C ()\na.missing = 1"; } (e: Exception) => { print ("149_member_assign_missing: " + string e); }
+try { eval "# 用 = 给不存在的字段赋值要报错(想新建字段得用 :=)\nC149 := class {\n    init = () => { 0; this; }\n    v: int = 1\n}\na149 := C149 ()\na149.missing = 1"; } (e: Exception) => { print ("149_member_assign_missing: " + string e); }
 
 # ═══ 150_member_compound_assign(并入) ═══
 ravel "150_member_compound_assign"
@@ -139,6 +139,9 @@ x := 1
 print x
 x = 2                                       # 改值 ✓
 print x
+# `eval` 出来的那段**就跑在这层**(它不另开作用域)—— 于是同一个作用域里再定义,照撞不误。
+# `try { … }` 也是个**裸块**:它从 2026-10-07 起不推自己的那层了(见 CONTEXT「作用域」),
+# 所以 `try` 拦不住这条 —— 从前它拦得住,是因为 try 块自带一层。
 try { eval "x := 3"; } (e: Exception) => { print ("1: " + string e); }
 
 # ② 函数体里(和脚本一个规矩)
@@ -224,6 +227,8 @@ ravel ""
 # 17
 # 1
 # 2
+# 1: 'x' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
+# 2: 'y' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 2
 # inner
 # outer

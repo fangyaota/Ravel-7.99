@@ -10,7 +10,7 @@ c.set 99
 c.show ()
 
 # ═══ 69_access_private_err(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "C := class {\n    init = () => { 0; this; }\n    private secret: int = 42\n}\nc := C ()\nprint (c.secret)"; } (e: Exception) => { print ("69_access_private_err: " + string e); }
+try { eval "C69 := class {\n    init = () => { 0; this; }\n    private secret: int = 42\n}\nc69 := C69 ()\nprint (c69.secret)"; } (e: Exception) => { print ("69_access_private_err: " + string e); }
 
 # ═══ 70_access_protected(并入) ═══
 ravel "70_access_protected"
@@ -32,7 +32,7 @@ ravel ""
 try { eval "Base := class {\n    init = () => { 0; this; }\n    protected val: int = 10\n}\nb := Base ()\nprint (b.val)"; } (e: Exception) => { print ("71_access_protected_err: " + string e); }
 
 # ═══ 72_access_unreadable(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "C := class {\n    init = () => { 0; this; }\n    unreadable x: int = 99\n}\nc := C ()\nprint (c.x)"; } (e: Exception) => { print ("72_access_unreadable: " + string e); }
+try { eval "C72 := class {\n    init = () => { 0; this; }\n    unreadable x: int = 99\n}\nc72 := C72 ()\nprint (c72.x)"; } (e: Exception) => { print ("72_access_unreadable: " + string e); }
 
 # ═══ 73_access_outdated(并入) ═══
 ravel "73_access_outdated"
@@ -79,7 +79,7 @@ c.show ()
 ravel ""
 
 # ═══ 173_core_bare_ident_err(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "# core 字段:类体里用裸标识符读,没进 unsafe 就该拦住(和 c.secret 一个待遇)\nC := class {\n    init = () => { 0; this; }\n    core secret: int = 42\n    peek := () => { print secret; }\n}\nc := C ()\nc.peek ()"; } (e: Exception) => { print ("173_core_bare_ident_err: " + string e); }
+try { eval "# core 字段:类体里用裸标识符读,没进 unsafe 就该拦住(和 c.secret 一个待遇)\nC173 := class {\n    init = () => { 0; this; }\n    core secret: int = 42\n    peek := () => { print secret; }\n}\nc173 := C173 ()\nc173.peek ()"; } (e: Exception) => { print ("173_core_bare_ident_err: " + string e); }
 
 # ═══ 180_unsafe_scope(并入) ═══
 ravel "180_unsafe_scope"

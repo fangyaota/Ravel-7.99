@@ -5,15 +5,25 @@
 # 这一份钉的是另一半 —— **要覆盖写 `=`**:`=` 落到继承来的成员时,在**本层**开一格盖住它。
 # 不去改类对象上那一格:那是**所有模块共用的同一份**,盖一个模块不能顺手把别的也改了。
 #
-# 规矩只管**最外层**那几句:`try` / `eval` / 函数体里跑在自己的子作用域里,在那儿定义
-# 就是"内层遮蔽外层",本来就允许 —— 下面第三条钉的就是这个。
+# 规矩只管**最外层**那几句 —— 而"内层"现在**只剩函数体**了:裸块从 2026-10-07 起
+# 不推自己那层(见 CONTEXT「作用域」),所以 `try { … }` / `eval "…"` 跑的就是**它所在那层**,
+# 不再是现成的沙盒。一个沙盒要靠 lambda 自己开。
 ravel "M"
 x := 1                                   # 不在类链上的名字照旧
 print x
 print ((M.References ()))                # 类成员还在
 
-try { References := 1; print ("子作用域里照旧: " + string References); } (e: Exception) => { print ("拦住了: " + string e); }
+# ① `try` 的体**不是**内层 —— 这句跑在模块顶层,照样被那条规矩拦住
+try { References := 1; print ("子作用域里照旧: " + (string References)); } (e: Exception) => { print ("拦住了: " + string e); }
 print ((M.References ()))                # 那一句没碰着模块的表
+
+# ② **函数体**才是内层 —— 那儿同名是遮蔽,允许
+showShadow := () => {
+    References := 1
+    print ("函数体里遮蔽: " + (string References))
+}
+showShadow ()
+print ((M.References ()))                # 一样没碰着
 
 References = () => { ["覆盖过的"]; }      # `=` 覆盖
 print (M.References ())
@@ -27,7 +37,9 @@ print (typeof N)
 # --- expected ---
 # 1
 # []
-# 子作用域里照旧: 1
+# 拦住了: 'References' 是 Ravel 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）
+# []
+# 函数体里遮蔽: 1
 # []
 # [覆盖过的]
 # [覆盖过的]
