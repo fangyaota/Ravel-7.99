@@ -191,9 +191,10 @@ readonly private CsName := (ty: object) => {
                 args := Reflect.Unwrap (Reflect.Call ty "GetGenericArguments" [])
                 # 单独一句：`.Join ", "` 的实参会一路吃到行尾（"实参吃运算符"）。
                 实参 := (args.Map (a: object) => { CsName a; }).Join ", "
-                # **`Slice` 两端都是闭的**（库里 `s.Slice [8..((s.Length ()) - 1)]` 那个写法
-                # 就是这么来的）—— 所以这里要 `cut - 1`，不然反引号留在名字里。
-                (基.Slice [0..(cut - 1)]) + "<" + 实参 + ">";
+                # **用半开的 `[0..cut)`** —— 区间的括号各带一半意思（`[1..5)` 左闭右开），
+                # 收尾两种右括号都认。写闭区间就得 `cut - 1`，那是**多余的**，
+                # 而且是个隐患（`cut` 真为 0 的话 `[0..-1]` 就错了）。
+                (基.Slice [0..cut)) + "<" + 实参 + ">";
             }
         } {
             # Ravel 的 `Replace` 收**两个**实参（不是一张表）—— 嵌套类型 `FullName` 里
