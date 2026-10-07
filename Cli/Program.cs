@@ -42,9 +42,9 @@ internal static class Program
         app.Configure(config =>
         {
             config.SetApplicationName("ravel");
-            // 版本只写在 csproj 一处(`<Version>7.99</Version>`)。**不能用
+            // 版本只写在 csproj 一处(`<Version>7.999</Version>`)。**不能用
             // `UseAssemblyInformationalVersion ()`** —— 它交回的是带 SourceLink 那截
-            // commit 尾巴的 `7.99+e16bc9e…`,打出来没法看;`+` 后面那截切掉。
+            // commit 尾巴的 `7.999+e16bc9e…`,打出来没法看;`+` 后面那截切掉。
             config.SetApplicationVersion(
                 typeof(Program).Assembly
                     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
