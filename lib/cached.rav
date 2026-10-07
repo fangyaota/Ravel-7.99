@@ -1,5 +1,5 @@
 # 缓存:把 `f` 的返回结果按实参记下来,同一组实参再来就直接给记下的那个 —— 不再重算。
-# 由 predefined.rav 加载(名字落在全局作用域);它用到 `foreach`,所以要在 iterator 之后加载。
+# 由 predefined.rav 加载(名字落在全局作用域);它用到 `.Foreach`,所以要在 iterator 之后加载。
 #
 # 是个**函数**(不是要实例化的类型):`Cached count f` 直接交回那个可调用的包装,
 # 拿到手就能 `(…) 1 2`。`count` 是 **f 的参数个数**(喂够这么多口才算一组实参)。
@@ -33,7 +33,7 @@ readonly Cached ::= (count: int f: function) => {
     # 之后 `r = r a` 把结果(可能是 int/string/…)赋回去就会报类型错误。
     compute := (args: list) => {
         r: object = f
-        foreach args (a: object) => { r = r a; }
+        args.Foreach (a: object) => { r = r a; }
         keys.Add args
         vals.Add r
         r

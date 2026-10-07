@@ -75,11 +75,11 @@ try { print (s.IndexOf "zz"); } (e: Exception) => { print ("6: " + string e); }
 try { print (s.Slice [0..99]); } (e: Exception) => { print ("7: " + string e); }
 try { print ("a".Split ""); } (e: Exception) => { print ("8: " + string e); }
 
-# ── 和库搭台:字符当键、当排序元素、进 foreach ──
+# ── 和库搭台:字符当键、当排序元素、进 `.Foreach` ──
 print ('c' : IComparable)
 print ('c' : IKey)
 print ("ab" : IEnumerable)          # 字符串**可枚举**:元素是字符(lib/iterator.rav 里登记的一条 impl)
-foreach ("abc".Chars ()) (ch: char) => { print ch; }
+("abc".Chars ()).Foreach (ch: char) => { print ch; }
 d := {}
 d.Set 'a' 1
 d.Set 'b' 2

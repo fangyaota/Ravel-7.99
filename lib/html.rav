@@ -93,7 +93,7 @@ readonly AttrText := (v: object) => {
 
 readonly AttrsText := (attrs: object) => {
     out := ""
-    foreach (attrs.Keys ()) (k: string) => {
+    (attrs.Keys ()).Foreach (k: string) => {
         v := attrs.GetOr k ""
         (IsNothing v) { 0; } {
             v : bool {
@@ -119,7 +119,7 @@ readonly Render := (n: object) => {
     out := ""
     walk := (x: object) => {
         x : list {
-            foreach x (k: object) => { walk k; }
+            x.Foreach (k: object) => { walk k; }
         } {
             x : dict {
                 kind := x.GetOr "kind" ""
@@ -135,7 +135,7 @@ readonly Render := (n: object) => {
                             out += ">"
                         } {
                             out += ">"
-                            foreach (x.GetOr "kids" []) (k: object) => { walk k; }
+                            (x.GetOr "kids" []).Foreach (k: object) => { walk k; }
                             out += ("</" + name + ">")
                         }
                     }
@@ -183,7 +183,7 @@ readonly IsBlockTag := (name: string) => { BlockTags.Contains (name.ToLower ());
 # 孩子里有没有块级的(片段按"里面有没有"算)
 readonly HasBlockKid := (kids: list) => {
     hit := false
-    foreach kids (k: object) => { hit = (hit || (IsBlock k)); }
+    kids.Foreach (k: object) => { hit = (hit || (IsBlock k)); }
     hit
 }
 
@@ -199,7 +199,7 @@ readonly Pretty := (n: object) => {
     out := ""
     emit := (x: object depth: int) => {
         x : list {
-            foreach x (k: object) => { emit k depth; }
+            x.Foreach (k: object) => { emit k depth; }
         } {
             x : dict {
                 kind := x.GetOr "kind" ""
@@ -218,7 +218,7 @@ readonly Pretty := (n: object) => {
                             (IsBlockTag name) && (HasBlockKid kids) {
                                 out += (open + ">")
                                 out += "\n"
-                                foreach kids (k: object) => {
+                                kids.Foreach (k: object) => {
                                     out += (Pad (depth + 1))
                                     emit k (depth + 1)
                                     out += "\n"
@@ -227,7 +227,7 @@ readonly Pretty := (n: object) => {
                                 out += ("</" + name + ">")
                             } {
                                 out += (open + ">")
-                                foreach kids (k: object) => { emit k depth; }
+                                kids.Foreach (k: object) => { emit k depth; }
                                 out += ("</" + name + ">")
                             }
                         }
@@ -252,7 +252,7 @@ readonly Pretty := (n: object) => {
 
 readonly Doc := (lang: string head: object body: object) => {
     hk := [(El "meta" {"charset"-> "utf-8"} [])]
-    foreach (KidsOf head) (k: object) => { hk.Add k; }
+    (KidsOf head).Foreach (k: object) => { hk.Add k; }
     Frag [
         {"kind"-> "raw" "text"-> (Doctype + "\n")}
         (El "html" {"lang"-> lang} [
@@ -294,7 +294,7 @@ readonly Ol := (items: object) => { ListOf "ol" items; }
 
 readonly ListOf := (tag: string items: object) => {
     lis := []
-    foreach (KidsOf items) (it: object) => { lis.Add (El "li" {} it); }
+    (KidsOf items).Foreach (it: object) => { lis.Add (El "li" {} it); }
     El tag {} lis
 }
 
@@ -302,9 +302,9 @@ readonly ListOf := (tag: string items: object) => {
 # `headers` 给 `[]` 就是没有表头(那样只出 `<tbody>`,不硬塞一个空 `<thead>`)。
 readonly Table := (headers: object rows: object) => {
     body := []
-    foreach (KidsOf rows) (r: object) => {
+    (KidsOf rows).Foreach (r: object) => {
         cells := []
-        foreach (KidsOf r) (c: object) => { cells.Add (El "td" {} [c]); }
+        (KidsOf r).Foreach (c: object) => { cells.Add (El "td" {} [c]); }
         body.Add (El "tr" {} cells)
     }
     hs := KidsOf headers
@@ -312,7 +312,7 @@ readonly Table := (headers: object rows: object) => {
         El "table" {} [(El "tbody" {} body)]
     } {
         hcells := []
-        foreach hs (h: object) => { hcells.Add (El "th" {} [h]); }
+        hs.Foreach (h: object) => { hcells.Add (El "th" {} [h]); }
         El "table" {} [
             (El "thead" {} [(El "tr" {} hcells)])
             (El "tbody" {} body)
@@ -366,8 +366,8 @@ readonly BaseCss := """
 
 readonly Page := (opts: object body: object) => {
     head := [(El "title" {} [(opts.GetOr "title" "")])]
-    foreach (KidsOf (opts.GetOr "css" [])) (css: object) => { head.Add (Style (string css)); }
-    foreach (KidsOf (opts.GetOr "head" [])) (n: object) => { head.Add n; }
+    (KidsOf (opts.GetOr "css" [])).Foreach (css: object) => { head.Add (Style (string css)); }
+    (KidsOf (opts.GetOr "head" [])).Foreach (n: object) => { head.Add n; }
     Doc (opts.GetOr "lang" "zh") head body
 }
 

@@ -8,7 +8,7 @@
 #   * **`break`** 包的是**整个循环调用** —— 跳出循环;
 #   * **`continue`** 包的是**循环的体** —— 跳过这一轮(每轮新包一次,所以下一个照样管用)。
 #
-# `while` / `foreach` 是**库函数**,解析器按名字认它们(这就是它知道"哪个调用算循环"的
+# `while` / `.Foreach` 是**库函数**,解析器按名字认它们(这就是它知道"哪个调用算循环"的
 # 唯一依据)。要跳出**几层**,给标签:`@outer while { … }` + `break outer`。
 
 # ── 基本 ──
@@ -28,16 +28,16 @@ while { j < 5; } {
 }
 print s
 
-# ── foreach 也一样(它的体是个 lambda,`continue` 包的是**它的体**)──
+# ── `.Foreach` 也一样(它的体是个 lambda,`continue` 包的是**它的体**)──
 tot := 0
-foreach [1 2 3 4 5] (x: int) => {
+[1 2 3 4 5].Foreach (x: int) => {
     x == 4 { break; } { 0; }
     tot += x
 }
 print tot
 
 skipped := 0
-foreach [1 2 3 4] (x: int) => {
+[1 2 3 4].Foreach (x: int) => {
     x == 2 { continue; } { 0; }
     skipped += 1
 }
@@ -45,7 +45,7 @@ print skipped
 
 # ── 标签:跳出好几层 ──
 @outer while { true; } {
-    foreach [1 2 3] (x: int) => {
+    [1 2 3].Foreach (x: int) => {
         x == 2 { break outer; } { 0; }
         print x
     }
@@ -54,8 +54,8 @@ print "跳出来了"
 
 # `continue 标签`:内层循环跳到**外层那一轮**
 hits := 0
-@scan foreach [1 2 3] (a: int) => {
-    foreach [10 20 30] (b: int) => {
+@scan [1 2 3].Foreach (a: int) => {
+    [10 20 30].Foreach (b: int) => {
         b == 20 { continue scan; } { 0; }
         hits += 1
     }
@@ -73,5 +73,5 @@ print ((try { eval "x := 1\n@brk while { x < 2; } {\n    x += 1\n}\nprint x"; } 
 # 1
 # 跳出来了
 # 3
-# 1: 'break' / 'continue' 得写在循环里（`while` / `foreach`，或者带标签的语句）
+# 1: 'break' / 'continue' 得写在循环里（`while` / `.Foreach`，或者带标签的语句）
 # 2: 标签 'brk' 没人用（写 `break brk` 或 `continue brk` 才指得上它）

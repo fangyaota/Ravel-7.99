@@ -113,7 +113,9 @@ internal static partial class BuiltinClasses
     /// `Any(pred)` → `Any p`(和 `Any ()` 共用一个名字)、`First(pred)` → `Find`。</summary>
     private static void RegisterHigherOrderMethods(ObjectVal type)
     {
-        DefineSeq(type, "Each", SeqMode.Each, 3);
+        // `Foreach` —— 2026-10-07 从 `Each` 改名:序列那一族现在只有这一个"每元素跑一遍"
+        // 的名字(`序列.Foreach 体`),解析器按它认循环(`break` / `continue` / `@标签`)。
+        DefineSeq(type, "Foreach", SeqMode.Each, 3);
         DefineSeq(type, "Map", SeqMode.Map, 3);
         DefineSeq(type, "Where", SeqMode.Where, 3);
         DefineSeq(type, "All", SeqMode.All, 3);

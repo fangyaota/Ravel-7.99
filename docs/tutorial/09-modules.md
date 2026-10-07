@@ -80,8 +80,8 @@ false
 | `s.Variables ()` | 名字 → 值的 **dict**（跳过 `this` / `block`）|
 
 `Scope` 自己**不是** `IDict` / `IEnumerable` —— 那两条 `impl` 写在 `lib/keys.rav` / `lib/iterator.rav` 里，
-所以 `s.Has "n"` / `s.Get "n"` / `foreach s …` / `s.Where …` 要先把它们 `using` 进来
-（枚举出来的是**变量的值**，和 `foreach` 一个 dict 一个口径；要名字用 `Keys ()`）。
+所以 `s.Has "n"` / `s.Get "n"` / `s.Foreach …` / `s.Where …` 要先把它们 `using` 进来
+（枚举出来的是**变量的值**，和 `Foreach` 一个 dict 一个口径；要名字用 `Keys ()`）。
 
 #### 实例
 

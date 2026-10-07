@@ -31,7 +31,7 @@ readonly Levels := ["debug" "info" "warn" "error"]
 
 readonly Known := (name: string) => {
     ok := false
-    foreach Levels (l: string) => {
+    Levels.Foreach (l: string) => {
         l == name { ok = true; } { 0; }
     }
     ok

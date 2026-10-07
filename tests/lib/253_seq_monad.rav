@@ -81,8 +81,8 @@ print ((None).Count ())
 print ((Some 5).ToList ())
 print ((None).ToList ())
 seen := []
-foreach (Some 7) (x: int) => { seen.Add x; }
-foreach None (x: int) => { seen.Add 999; }
+(Some 7).Foreach (x: int) => { seen.Add x; }
+None.Foreach (x: int) => { seen.Add 999; }
 print seen
 print (Seqs.Gather (Some 3))
 print (Seqs.Gather (None))

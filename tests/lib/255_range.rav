@@ -70,7 +70,7 @@ print ([5..1].Contains 3)
 print ([5.5..1.5].ToList ())      # 端点带小数也一样,只是从下往上取整换成从上往下
 print ([10.5..10].ToList ())
 back := []
-foreach [3..1] (i: int) => { back.Add i; }
+[3..1].Foreach (i: int) => { back.Add i; }
 print back
 print (([5..1]).Sum ())
 print (([5..1]).Join "-")
@@ -92,9 +92,9 @@ print (lo != allOpen)
 
 # ---- 它也是一串:IEnumerable 那一整套白拿 ----
 seen := []
-foreach [1..4] (i: int) => { seen.Add i; }
+[1..4].Foreach (i: int) => { seen.Add i; }
 print seen
-foreach (1..4) (i: int) => { seen.Add i; }
+(1..4).Foreach (i: int) => { seen.Add i; }
 print seen
 print (([1..4]).Sum ())
 sq := ([1..4]).Map ((i: int) => { i * i; })
@@ -151,7 +151,7 @@ print ([1..2.5].ToList ())
 print ([3..1.5].ToList ())      # 3 2 —— 倒着数,起点那一头往下取整
 print ([(0.0 / 0.0)..3].ToList ())   # NaN 也是空
 flSel := []
-foreach [1.5..2.5] (i: int) => { flSel.Add i; }
+[1.5..2.5].Foreach (i: int) => { flSel.Add i; }
 print flSel
 print ((fraction 1 2..fraction 5 2).ToList ())
 print ([1..fraction 7 2].ToList ())

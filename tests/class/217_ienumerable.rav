@@ -10,7 +10,7 @@
 #
 # 接口对象**继承自 object**(和 C# 一样:接口不是"继承了一个叫 Interface 的基类"),
 # 但它的**类型是 interface** —— `typeof IEnumerable` 是 `Interface`。
-# 三种容器各 `impl` 一条,于是 `is` / 注解 / `foreach` 都认它们。
+# 三种容器各 `impl` 一条,于是 `is` / 注解 / `.Foreach` 都认它们。
 
 # ---- 它是什么 ----
 # 接口**不再有自定义的父** —— 一律挂在 BaseInterface(所有接口的根)上。
@@ -32,10 +32,10 @@ while { e.MoveNext (); } { print (e.Current); }
 print (e.MoveNext ())          # 走完了再问就是 false
 print (([9].GetEnumerator ()) : IEnumerator)   # 每次都新开一个,互不打扰
 
-# ---- foreach 就是照这个形状写的 ----
-foreach [1 2 3] (x: int) => { print ("list " + string x); }
-foreach {"a"-> 7 "b"-> 8} (v: int) => { print ("dict " + string v); }
-foreach [1 2] (x: int) => { foreach [10 20] (y: int) => { print ((string (x)) + "-" + (string y)); } }
+# ---- `.Foreach` 的默认实现就是照这个形状写的 ----
+[1 2 3].Foreach (x: int) => { print ("list " + string x); }
+{"a"-> 7 "b"-> 8}.Foreach (v: int) => { print ("dict " + string v); }
+[1 2].Foreach (x: int) => { [10 20].Foreach (y: int) => { print ((string (x)) + "-" + (string y)); } }
 
 # ---- 注解、参数也认接口,通用函数写得出来 ----
 # 接口承诺的就是"给我一个枚举器",所以通用函数按枚举器的用法写 —— 任何实现者都吃得住。
@@ -66,7 +66,7 @@ seqImpl := use (IEnumerable Seq {
 s := Seq 7
 print (s : IEnumerable)
 print (total s)
-foreach s (x: int) => { print ("mine " + string x); }
+s.Foreach (x: int) => { print ("mine " + string x); }
 
 # ---- T.GetImplements ():这个类型**现在**实现了哪些接口 ----
 # 实现是登记在作用域里的,所以这是一份"当下"的快照:换了作用域、`Dispose` 之后就没了。
@@ -89,8 +89,8 @@ myImpl.Dispose ()
 seqImpl.Dispose ()
 
 # ---- 不是可枚举的:报错说清楚要什么 ----
-try { foreach 5 (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string e2); }
-try { foreach "abc" (c: string) => { 0; } } (e2: Exception) => { print ("2: " + string e2); }
+try { 5.Foreach (x: int) => { 0; } } (e2: Exception) => { print ("1: " + string e2); }
+try { "abc".Foreach (c: string) => { 0; } } (e2: Exception) => { print ("2: " + string e2); }
 
 # ═══ 220_inumber(并入) ═══
 ravel "220_inumber"
@@ -311,7 +311,7 @@ t.Clear ()
 print (t.Count ())
 
 # ═══ 枚举器**也是**一串(`IEnumerator <: IEnumerable`)═══
-# 它自己就是自己的枚举器,所以整套方法白拿、也能直接 foreach。
+# 它自己就是自己的枚举器,所以整套方法白拿、也能直接 `.Foreach`。
 # 两条语义(单遍的东西本来就这样):遍历的是**还没走完的那一段**;走一遍就**消耗掉**。
 e := Enumerator [1 2 3]
 print (e : IEnumerator)
@@ -327,8 +327,8 @@ print (Seqs.Gather (f.Map ((x: int) => { x + 1; })))
 print (f.ToList ())             # 也被上面那两句走完了
 print (f.IsEmpty ())
 g := Enumerator [7 8 9]
-foreach g (x: int) => { print x; }
-print (g.Count ())              # 0 —— foreach 把它走完了
+g.Foreach (x: int) => { print x; }
+print (g.Count ())              # 0 —— `.Foreach` 把它走完了
 # `Generator` 的光标也一样:能拿它当一串用(比如"先看几个,剩下的照旧")
 G := Generator (y: function) => { y 1; y 2; y 3; }
 c := G.GetEnumerator ()
@@ -368,7 +368,7 @@ ravel ""
 # mine 7
 # mine 8
 # mine 9
-# 1: foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
+# 1: 类型 'Integer' 没有方法 'Foreach'
 # 2: 参数 'c' 需要 String，得到 Char
 # true
 # true

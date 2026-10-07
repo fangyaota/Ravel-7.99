@@ -25,13 +25,13 @@ IMonad ::= interface {
     # 体是**调用时**才解析名字的,那会儿它在作用域里了。
     internal Map := (f: function) => {
         Generator (y: function) => {
-            foreach instance (x: object) => { y (f x); }
+            instance.Foreach (x: object) => { y (f x); }
         }
     }
     internal Bind := (f: function) => {
         Generator (y: function) => {
-            foreach instance (x: object) => {
-                foreach (f x) (v: object) => { y v; }
+            instance.Foreach (x: object) => {
+                (f x).Foreach (v: object) => { y v; }
             }
         }
     }
@@ -70,7 +70,7 @@ Option ::= class {
     Exists := (p: function) => { Has && p Inner; }
 
     # 它**也是 `IEnumerable`**(见 lib/iterator.rav 末尾那条 `impl`):有值就是"只含它的一串",
-    # 没值就是"空的一串" —— 于是 `foreach (Some 5) …` 走一次、`Seqs.Gather (None)` 是 `[]`、
+    # 没值就是"空的一串" —— 于是 `(Some 5).Foreach …` 走一次、`Seqs.Gather (None)` 是 `[]`、
     # `(Some 5).Count ()` 是 1。整串方法(ToList / Take / First / Fold …)由 `IEnumerable` 的
     # **默认实现**给,不必在这儿再写一份;反过来那一头是 `xs.TryFirst ()` / `xs.TryFind p`。
     #

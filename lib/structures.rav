@@ -7,7 +7,7 @@
 #     s := Structures.Stack [1 2 3]
 #     Structures.Heap [3 1 2] |> .ToList ()
 #
-# **为什么要这一层**:dll 只能给"类和函数" —— 而 `foreach` / `Map` / `Fold` 那一整套
+# **为什么要这一层**:dll 只能给"类和函数" —— 而 `.Foreach` / `Map` / `Fold` 那一整套
 # 是 Ravel 里的 `IEnumerable` 接口给的,得有人把它们**登记**上去。登记就是下面那六条
 # `impl`(每个结构一个 `GetEnumerator`,交回它的 `ToList ()`)。
 #
@@ -51,8 +51,8 @@ impl (IEnumerable Structures.SortedDict {
 })
 impl (IList Structures.SortedDict default)
 
-# 图那一族(`Graph` / `Digraph` / `Weighted`):`foreach` 一个图就是**枚举它的顶点**。
-# (顶点之间的路要"走一遍"用 `Bfs` / `Dfs`;`foreach` 只按加进来的先后点名。)
+# 图那一族(`Graph` / `Digraph` / `Weighted`):`.Foreach` 一个图就是**枚举它的顶点**。
+# (顶点之间的路要"走一遍"用 `Bfs` / `Dfs`;`.Foreach` 只按加进来的先后点名。)
 impl (IMonad Structures.Graph default)
 impl (IEnumerable Structures.Graph {
     GetEnumerator = () => { Enumerator (instance.Vertices ()); }

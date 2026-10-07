@@ -92,7 +92,7 @@ ITask ::= interface {
     # **怎么先起跑**:`(group) => …`。和 `WaitOn` 是配对的另一半。
     #
     # 为什么要有它 —— 自创任务的 `Body` 在**第一次被 `Await` 的时候**才跑起来,
-    # 于是"几个任务一起跑"这件事就出了问题:`foreach ts (t) => { g.Await t; }`
+    # 于是"几个任务一起跑"这件事就出了问题:`ts.Foreach (t) => { g.Await t; }`
     # 是一个个等的,**后一个要等前一个完才起跑** —— 串行。
     # 想并发就得先把它们**都排进队**(`Tasks.All` 干的就是这个)。
     #
@@ -293,7 +293,7 @@ Signal ::= class TaskBase {
         Val = v
         Ok = true
         Done = true
-        foreach Waiting (w: object) => { Holder.Ready.Add w; }
+        Waiting.Foreach (w: object) => { Holder.Ready.Add w; }
         Waiting = []
         ();
     }
@@ -347,7 +347,7 @@ Chan ::= class {
     # 是另一种设计)。想优雅收工的,循环条件上写 `!(ch.Shut ())`。
     Close := () => {
         Shut = true
-        foreach Waiting (s: object) => { s.Open (); }
+        Waiting.Foreach (s: object) => { s.Open (); }
         Waiting = []
         ();
     }
@@ -366,9 +366,9 @@ Chan ::= class {
 # 先排进队,它们才会在彼此等的时候跑起来。
 All := (ts: list) => {
     Task (g: TaskGroup) => {
-        foreach ts (t: ITask) => { t.Schedule g; }      # 先都起跑
+        ts.Foreach (t: ITask) => { t.Schedule g; }      # 先都起跑
         out := []
-        foreach ts (t: ITask) => { out.Add (g.Await t); }   # 再按顺序收
+        ts.Foreach (t: ITask) => { out.Add (g.Await t); }   # 再按顺序收
         out;
     }
 }
@@ -388,7 +388,7 @@ Any := (ts: list) => {
     Task (g: TaskGroup) => {
         gate := Signal ()
         win := [()]                                  # 一格"谁赢了"(拿单元素表当格子用)
-        foreach ts (t: ITask) => {
+        ts.Foreach (t: ITask) => {
             g.Add (Task (gg: TaskGroup) => {
                 try { gg.Await t; } (e: Exception) => { (); }
                 gate.IsDone { 0; } { win.Set 0 t; gate.Open (); }
@@ -436,7 +436,7 @@ TaskGroup ::= class {
         Current = default
         Back = default
         # 走 `Add` 而不是直接往队列里塞 —— 那道"一个任务只能跑一遍"的闸在那儿
-        foreach tasks (t: Task) => { Add t; }
+        tasks.Foreach (t: Task) => { Add t; }
         this;
     }
 
@@ -530,7 +530,7 @@ TaskGroup ::= class {
     # 一个任务收工:记上"完了",把等着它的都放回就绪队列。
     Finish := (t: Task) => {
         t.Done = true
-        foreach t.Waiters (w: object) => { Ready.Add w; }
+        t.Waiters.Foreach (w: object) => { Ready.Add w; }
         t.Waiters = []
         ()
     }

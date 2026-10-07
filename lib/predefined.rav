@@ -127,7 +127,7 @@ using "expected.rav"   # `Expected` / `Expect`(Option 的兄弟:失败那半是�
 #   * 从模块体里逃出去,这次加载算没发生,之后还能正常 `using` 那个模块。
 # 这两件事从前靠帧的正常收尾来做,而续延一调就把帧链整个丢掉了。
 #
-# 还原这**一句**(`Ex.HandlerStack = hs`)是整表替换,不经过 `while` / `foreach` / `try`
+# 还原这**一句**(`Ex.HandlerStack = hs`)是整表替换,不经过 `while` / `.Foreach` / `try`
 # 这类东西 —— 它们自己都要经过续延,夹在还原中间会互相踩(实测死循环)。改这一段时留意。
 #
 # 它写在子模块**之后**:要用 `Ex.HandlerStack`,而 `Ex` 在 exceptions.rav 里。
@@ -157,7 +157,7 @@ readonly throw := Ex.Throw
 #
 # 词法和语法在引擎那层(`TokenType.QuestionDot` / `Coalesce` / `CoalesceEqual`,
 # 解析期就地折成对下面这四条的调用),**"空"是什么意思、Option 要不要包回去**在这儿 ——
-# 和 `if` / `while` / `foreach` 一个路子:控制流用 Ravel 写,引擎不掺和。
+# 和 `if` / `while` / `.Foreach` 一个路子:控制流用 Ravel 写,引擎不掺和。
 #
 # 「空」**只有 `None` 一样**。`()` 不是空 —— 它是 Void 类型那个**值**,和 `0` / `""` 平起平坐;
 # `Some ()` 更不是空(有个值,值是 `()`)。要"没设过"就明写 `None`:

@@ -231,7 +231,7 @@ Tasks.Cycle [
     (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
     (Tasks.Task (g: Tasks.TaskGroup) => {
         rs := []
-        foreach [1 2 3] (i: int) => { rs.Add (Http.GetTask (base + "/hold")); }
+        [1 2 3].Foreach (i: int) => { rs.Add (Http.GetTask (base + "/hold")); }
         g.Await (Tasks.All rs)
         print (string peak)
         srv.Stop ()

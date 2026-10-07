@@ -88,7 +88,7 @@ readonly PutStrLnErr := (s: object) => { Action (() => { System.WriteLineErr s; 
 readonly Sequence := (actions: list) => {
     Action (() => {
         out := []
-        foreach actions (a: object) => { out.Add (a.Perform ()); }
+        actions.Foreach (a: object) => { out.Add (a.Perform ()); }
         out;
     });
 }
@@ -100,10 +100,10 @@ readonly When := (cond: function body: Action) => {
 readonly Unless := (cond: function body: Action) => { When (() => { !cond (); }) body; }
 
 # 对表里每个元素造一份说明书并依次执行 —— 一串效果。
-# (写成一次 Perform 里跑一个 foreach,而不是把 Foreach 做成递归的 Bind 链:
+# (写成一次 Perform 里跑一个 `.Foreach`,而不是把 `Foreach` 做成递归的 Bind 链:
 #  说明书之间没有依赖,没必要为每一步摊一层。)
 readonly Foreach := (xs: list f: function) => {
-    Action (() => { foreach xs (x: object) => { (f x).Perform (); }; (); })
+    Action (() => { xs.Foreach (x: object) => { (f x).Perform (); }; (); })
 }
 
 # `Action` 在 `IMonad` 这一族里。实现体是空的:它自己那两条 Map / Bind 就是形状本身

@@ -53,7 +53,7 @@ readonly IsWide := (n: int) => {
 # 一格字在终端里占几格。**表头、格子、框线宽度全走它** —— 只有一处说了算。
 readonly Width := (s: string) => {
     w := 0
-    foreach (s.Chars ()) (c: object) => {
+    (s.Chars ()).Foreach (c: object) => {
         IsWide (c.Code ()) { w += 2; } { w += 1; }
     }
     w
@@ -82,7 +82,7 @@ readonly Cell := (v: object) => { (typeof v) == string { v; } { string v; }; }
 readonly AllNum := (rows: list c: object) => {
     seen := 0
     ok := true
-    foreach rows (r: object) => {
+    rows.Foreach (r: object) => {
         v := At r c
         (typeof v) != string {
             seen += 1
@@ -119,17 +119,17 @@ readonly Build := (rows: list given: bool opts: object) => {
     # 列:给了 `cols` 就用它,否则 dict 行取**所有行键的并集**(按第一次出现的顺序 ←
     # 光看第一行会漏掉后面才出现的键),list 行就是下标。
     cols := []
-    given && (opts.Has "cols") { foreach (opts.Get "cols") (c: object) => { cols.Add c; }; } {
+    given && (opts.Has "cols") { (opts.Get "cols").Foreach (c: object) => { cols.Add c; }; } {
         asDict {
             seen := {}
-            foreach rows (r: object) => {
-                foreach (r.Keys ()) (k: object) => {
+            rows.Foreach (r: object) => {
+                (r.Keys ()).Foreach (k: object) => {
                     seen.Has k { 0; } { seen.Set k true; cols.Add k; }
                 }
             }
         } {
             n := 0
-            foreach head (v: object) => { cols.Add n; n += 1; }
+            head.Foreach (v: object) => { cols.Add n; n += 1; }
         }
     }
 
@@ -139,9 +139,9 @@ readonly Build := (rows: list given: bool opts: object) => {
 
     # 宽度:表头那一格也算进去
     widths := []
-    foreach cols (c: object) => {
+    cols.Foreach (c: object) => {
         w := header { Width (string c); } { 0; }
-        foreach rows (r: object) => {
+        rows.Foreach (r: object) => {
             t := Width (Cell (At r c))
             t > w { w = t; } { 0; }
         }
@@ -150,7 +150,7 @@ readonly Build := (rows: list given: bool opts: object) => {
 
     # 对齐:指定了的听指定的,没指定的看整列是不是数
     aligns := []
-    foreach cols (c: object) => {
+    cols.Foreach (c: object) => {
         a := AllNum rows c { "right"; } { "left"; }
         given && (opts.Has "align") {
             al := opts.Get "align"
@@ -188,7 +188,7 @@ readonly Build := (rows: list given: bool opts: object) => {
 
     cellsOf := (r: object) => {
         cs := []
-        foreach cols (c: object) => { cs.Add (Cell (At r c)); }
+        cols.Foreach (c: object) => { cs.Add (Cell (At r c)); }
         cs
     }
 
@@ -196,11 +196,11 @@ readonly Build := (rows: list given: bool opts: object) => {
     box { out.Add (ruler "┌" "┬" "┐"); } { 0; }
     header {
         hs := []
-        foreach cols (c: object) => { hs.Add (string c); }
+        cols.Foreach (c: object) => { hs.Add (string c); }
         out.Add (line hs)
         out.Add (box { ruler "├" "┼" "┤"; } { ruler "" "  " ""; })
     } { 0; }
-    foreach rows (r: object) => { out.Add (line (cellsOf r)); }
+    rows.Foreach (r: object) => { out.Add (line (cellsOf r)); }
     box { out.Add (ruler "└" "┴" "┘"); } { 0; }
 
     out.Join "

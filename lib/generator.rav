@@ -8,9 +8,9 @@
 #         while { true; } { y n; n += 1 }
 #     }
 #
-#     foreach Nats (x: int) => { print x; }      # 想拿几个拿几个
+#     Nats.Foreach (x: int) => { print x; }      # 想拿几个拿几个
 #
-# **每次 `foreach` 都从头跑一遍体**(体是配方,和类体一个规矩):同一个 Generator
+# **每次 `.Foreach` 都从头跑一遍体**(体是配方,和类体一个规矩):同一个 Generator
 # 遍历两次,两次各自从头。要"一次性"就在外面用变量兜住。
 #
 # 两枚续延是 `Continuation` 类型(`callcc` 交出来的就是它,`typeof` 报 `Continuation`,
@@ -68,7 +68,7 @@ GeneratorCursor ::= class {
     by Current := property (() => { Value; }) ((v: object) => { (); })
 }
 
-# 类型关系:两个 `impl` 让 `is` / 注解 / `foreach` 都认它们
+# 类型关系:两个 `impl` 让 `is` / 注解 / `.Foreach` 都认它们
 # (类体里那两条 `by` 槽是**成员**;接口成员还得这样登记一次,和 `Enumerator` 一个写法)
 impl (IMonad Generator default)
 impl (IEnumerable Generator default)

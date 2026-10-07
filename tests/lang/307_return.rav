@@ -54,9 +54,9 @@ dd := (n: int) => {
 print (dd 1)
 print (dd 5)
 
-# `foreach` 的体是**用户写的** lambda —— 所以那儿写 `return` 出的是**那一层**,不是整个循环
+# `.Foreach` 的体是**用户写的** lambda —— 所以那儿写 `return` 出的是**那一层**,不是整个循环
 # (要跳出循环得用 `break`,那是另一条)
-foreach [1 2 3] (x: int) => {
+[1 2 3].Foreach (x: int) => {
     q := (y: int) => {
         y == 2 { return "中"; } { 0; }
         "没中"

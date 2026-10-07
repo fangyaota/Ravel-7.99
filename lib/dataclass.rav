@@ -56,7 +56,7 @@ dataclass ::= class type {
             # 不到(词法链里没有它们),自然被排除;用户写的方法值是个函数,也被排除。
             fieldsNow := () => {
                 out := []
-                foreach (this.Fields ()) (n: string) => {
+                (this.Fields ()).Foreach (n: string) => {
                     ok := try { (valueOf n); true; } (e: Exception) => { false; }
                     ok && ((typeof (valueOf n)) != function) { out.Add n; } { 0; }
                 }
@@ -72,7 +72,7 @@ dataclass ::= class type {
             mine "Values" { 0; } {
                 this.Values := () => {
                     out := []
-                    foreach (fieldsNow ()) (n: string) => { out.Add (valueOf n); }
+                    (fieldsNow ()).Foreach (n: string) => { out.Add (valueOf n); }
                     out
                 }
             }

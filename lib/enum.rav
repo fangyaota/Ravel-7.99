@@ -91,7 +91,7 @@ enum ::= class type {
             # 不必另立一个"哪些是成员"的记号(记号还会撞 `private`:那条门禁看的是
             # "当前作用域在不在**这个对象**的类里",而这儿站在子类的方法里,够不着父类的私有)
             pf := parent.MemberScope ()
-            foreach ((pf.Variables ()).Keys ()) (n: string) => {
+            ((pf.Variables ()).Keys ()).Foreach (n: string) => {
                 v := (pf.Lookup n).Get ()
                 v : parent {
                     names.Add v.Name
@@ -103,7 +103,7 @@ enum ::= class type {
         box := object ()
         with box vars
         from := box.MemberScope ()
-        foreach ((from.Variables ()).Keys ()) (n: string) => {
+        ((from.Variables ()).Keys ()).Foreach (n: string) => {
             # `object ()` 自己那条默认构造器也在这张表里 —— 它不是枚举成员
             n == "init" { 0; } {
                 names.Add n
@@ -129,7 +129,7 @@ enum ::= class type {
         cls.Values := () => { members; }
         cls.Of := (v: object) => {
             hit := []
-            foreach (members) (e: object) => {
+            (members).Foreach (e: object) => {
                 (hit.Count ()) == 0 {
                     e.Value == v { hit.Add e; } { 0; }
                 } { 0; }
@@ -210,7 +210,7 @@ flags ::= class enum {
         # 值为 0 的那几枚一律不算"有" —— 不然每个组合里都跟着它们。
         Names := () => {
             out := []
-            foreach ((typeof this).Values ()) (m: object) => {
+            ((typeof this).Values ()).Foreach (m: object) => {
                 (m.Value) != 0 {
                     (Value & (m.Value)) == (m.Value) { out.Add m.Name; } { 0; }
                 } { 0; }
@@ -241,7 +241,7 @@ flags ::= class enum {
     private Patch := (cls: object) => {
         cls.Of := (v: object) => {
             hit := []
-            foreach (cls.Values ()) (m: object) => {
+            (cls.Values ()).Foreach (m: object) => {
                 ((hit.Count ()) == 0) && ((m.Value) == v) { hit.Add m; } { 0; }
             }
             (hit.Count ()) > 0 { hit.At 0; } {

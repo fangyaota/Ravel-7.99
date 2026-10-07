@@ -3,20 +3,20 @@
 # list / set / dict / string / `Generator` 一视同仁。
 #
 # 交回的是**当场算好的** `list` / `dict` —— 要"边要边给"的惰性,用 `Generator`。
-# 由 predefined.rav 加载(排在 iterator 之后:要用 `IEnumerable` 与 `foreach`)。
+# 由 predefined.rav 加载(排在 iterator 之后:要用 `IEnumerable` 与 `.Foreach`)。
 ravel "Seqs"
 
 # 把一串收进一个 list(里面几件都要用)
 readonly Gather := (xs: IEnumerable) => {
     out := []
-    foreach xs (x: object) => { out.Add x; }
+    xs.Foreach (x: object) => { out.Add x; }
     out
 }
 
 # 摊平**一层**:一串"一串一串"的接成一串
 readonly Flatten := (xss: IEnumerable) => {
     out := []
-    foreach xss (xs: IEnumerable) => { foreach xs (x: object) => { out.Add x; } }
+    xss.Foreach (xs: IEnumerable) => { xs.Foreach (x: object) => { out.Add x; } }
     out
 }
 
@@ -26,7 +26,7 @@ readonly Chunk := (xs: IEnumerable) => {
         assert (n >= 1) ("Chunk 的每组个数至少是 1，得到 " + string n)
         out := []
         cur := []
-        foreach xs (x: object) => {
+        xs.Foreach (x: object) => {
             cur.Add x
             # 装满了就换一摞**新的**再往里放 —— 不换的话后面还会往已经交出去的那摞里加
             (cur.Count ()) == n { out.Add cur; cur = []; } { 0; }
@@ -56,7 +56,7 @@ readonly Zip := (a: IEnumerable) => {
 readonly Group := (xs: IEnumerable) => {
     (key: function) => {
         out := {}
-        foreach xs (x: object) => {
+        xs.Foreach (x: object) => {
             k := (key x).Key ()
             out.Has k { (out.Get k).Add x; } { out.Set k [x]; }
         }
@@ -67,7 +67,7 @@ readonly Group := (xs: IEnumerable) => {
 # 数一数每个值出现几次(键的规矩同 `Group`)
 readonly Frequency := (xs: IEnumerable) => {
     out := {}
-    foreach xs (x: object) => {
+    xs.Foreach (x: object) => {
         k := x.Key ()
         out.Has k { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
     }

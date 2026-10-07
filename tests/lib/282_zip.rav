@@ -36,7 +36,7 @@ print ((z.List ()).Keys ())
 
 # ── 对着接口写的那几件 ──
 Io.EachDir z (p: string e: object) => { print (e.Name ()); }
-foreach (Io.Lines (z.Entry "logs/a.txt")) (l: string) => { print ("行: " + l); }
+(Io.Lines (z.Entry "logs/a.txt")).Foreach (l: string) => { print ("行: " + l); }
 z.Extract "disk.bin" ".io-test/out.bin"            # 流式落盘,内容不进堆
 print (System.ReadText ".io-test/out.bin")
 Io.CopyTo (z.Entry "top.txt") (Io.File ".io-test/copy.txt")

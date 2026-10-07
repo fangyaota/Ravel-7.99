@@ -239,7 +239,7 @@ lib/
                           Count/Map/Where/Bind/Take/First… —— 凡实现者都有,见下)
                           / `IEnumerator`(继承 `IEnumerable`:枚举器**自己就是自己的枚举器**,
                           单遍、走一遍就消耗掉)/ `IList`(继承 `IEnumerable`,标记"`At`/`Count`
-                          不用数" —— 有它就白得枚举器)/ `Enumerator` + 几种容器的实现 + `foreach`
+                          不用数" —— 有它就白得枚举器)/ `Enumerator` + 几种容器的实现 + `Foreach`
   seqs.rav                `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
                           (五件都对着 `IEnumerable` 写,交回当场算好的 list / dict)
   time.rav                `Time`(毫秒 + 一袋零件:Year/Month/… /WeekdayName/Text/AddDays…)
@@ -588,7 +588,7 @@ vscode-ravel/             VS Code 扩展:语法高亮(TextMate) + 运行命令
   扫的,见 `Parser.DeclaresMoreControlFlow`)。
 - `break` / `continue` 同属这个开关,也是上下文关键字。脱糖成对 `__brk<n>` / `__cont<n>` 的
   一次调用:**`break` 包的是整个循环调用**(跳出循环),**`continue` 包的是循环的体**
-  (跳过这一轮;每轮新包一次,所以下一个照样管用)。`while` / `foreach` 是**库函数**,解析器
+  (跳过这一轮;每轮新包一次,所以下一个照样管用)。`while` 是**库函数**(`.Foreach` 是**方法**),解析器
   只按**名字**认它们 —— 那是它知道"哪个调用算循环"的唯一依据。标签 `@名字 <语句>` 往
   `_pendingLabel` 上挂一层,循环认领它;`break 标签` 跳到标签那层(所以标签认领过的循环
   **不自己包 break**),没人指过的标签当场报错。
@@ -830,7 +830,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 （外加 `IsBounded` / `IsWhole` / `IsEmpty` 三个问法）。
 
 **无限长的区间**：`First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` /
-`foreach` 那批（只问头那一头，或天生停得住）照常；`Count` / `Last` / `ToList` **当场报错** ——
+`Foreach` 那批（只问头那一头，或天生停得住）照常；`Count` / `Last` / `ToList` **当场报错** ——
 它们要"数到底"，无穷答不出来，不拿假数糊弄（`CountValue` / `LastElement` / `ToList` 各一条；
 **整条数轴**那两句另说一套措辞 —— 那儿连 `Take` 都不管用，"用 Take 取前几个"是条坏建议）。
 新露三条方法：`IsBounded ()`（两头都定得下来吗）、`IsWhole ()`（是整条数轴吗）、
@@ -865,7 +865,7 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
 所以给了 `RegexTimeout` = 2 秒，超了报普通的 Ravel 错误）；② 模式写错抛的
 `ArgumentException` 接住换成说人话的错误（和 `Fs` 那条老规矩一样，不让 C# 异常漏出去）。
 
-（`while`/`foreach`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
+（`while`/`Cached`/`Some`/`None` 不在 System 模块里——它们在
 `lib/predefined.rav` 用 Ravel 写。那里还定义了这几个类型：
 `Option`(可能没有值的包)、`Expected`(那次调用有没有出错)。）
 
@@ -1363,7 +1363,7 @@ using "structures.rav"       # 库里那半边,照旧
 而成员表是按登记先后列的(`Native.Fields ()` 打的就是它)—— 和 `SysRegistry` 同一条理由。
 
 一个提醒:**插件的 Ravel 那一半得另写**(`lib/structures.rav`)—— dll 只能给"类和函数",
-而 `foreach` / `Map` 那套是 Ravel 的 `IEnumerable` 接口给的,得有人在 Ravel 里 `impl` 一次。
+而 `Foreach` / `Map` 那套是 Ravel 的 `IEnumerable` 接口给的,得有人在 Ravel 里 `impl` 一次。
 
 ### 官方扩展（`Ravel.Extensions` → `plugins/Ravel.Extensions.dll`）
 
@@ -1438,7 +1438,7 @@ using "structures.rav"       # 库里那半边,照旧
 
 - 数据在**值**身上(`Ravel.Structures/*Val.cs`),类只放"有哪些成员"
   (`*Class.cs`,挂 `[RavelModule("Structures")]` + `[RavelClass("…")]`)。
-- 共用小工具 `Structure.cs` 转发到 `PluginKit` —— 播种走 `foreach` 那个口径、
+- 共用小工具 `Structure.cs` 转发到 `PluginKit` —— 播种走 `Foreach` 那个口径、
   键走 `dict` 那个规矩、比大小走 Ravel 的 `<`(于是这一族和语言里别的东西同一套脾气)。
 - 它是**样板**:再加一族库,照它的样子开一个项目就行(构建那两步见 `Ravel.csproj`
   的 `CopyPlugins` 目标)。
@@ -1453,7 +1453,8 @@ using "structures.rav"       # 库里那半边,照旧
 
 ## 控制流
 
-`while`/`foreach` 是**库函数**（`lib/predefined.rav`），不是 C# 内建。它们靠两个机制写出来：
+`while` 是**库函数**（`lib/predefined.rav`），不是 C# 内建；`Foreach` 是 `IEnumerable` 上的**方法**
+（容器那条归引擎 `SeqMethod`，别的走接口默认实现）。它们靠两个机制写出来：
 
 - **`Bool <: Function`**：`true {a} {b}` 执行 a 并返回其结果，`false {a} {b}` 执行 b。
   条件就是它 —— `x > 0 {a} {b}`。**`if` 那个三参库函数 2026-10-07 删了**：
@@ -1496,7 +1497,7 @@ using "structures.rav"       # 库里那半边,照旧
 捕获时拍两份快照(自己的 handler 栈 + 引擎的模块加载状态),交给用户的续延被调时先还原这两份、再跳。
 于是控制流整套(`while` / `try` / `callcc`)都住在库里,引擎不知道 `try` 是什么。
 代价三条:**① 直接用 `System.CallCC` 就没这层保护**(库的 `callcc` 才是入口);
-**② 还原那两句必须是一条内置调用** —— 别在"续延被调时要跑的代码"里用 `while` / `foreach` / `try`
+**② 还原那两句必须是一条内置调用** —— 别在"续延被调时要跑的代码"里用 `while` / `Foreach` / `try`
 (它们自己都要经过续延,会互相踩,实测死循环);**③ 每次续延跳转都要走一遍还原**(循环里就是每次迭代
 一次),实测 20 万轮 `while` 偏慢几个百分点(噪声内)。
 测试 223(try)、224(循环/枚举/多发射/累加器)、225(eval/with/接口槽的 `instance`)、226(模块)。
@@ -1742,7 +1743,7 @@ internal At    := (k: int) => { …走一遍… }
 **它不碰 `GetEnumerator`** —— 那归它**要求**的 `IEnumerable`(要求不给槽,实现者自己在那条
 `impl (IEnumerable X { … })` 里写)。两边各给一份的话,一个类就有**两份** `GetEnumerator`,
 挑中 `IList` 那份时 `Enumerator instance` 会回头问 `Count`,而 `Count` 是"数一遍"
-(`foreach instance`)……自己绕自己,转不出来(转过一次,实测卡死)。
+(`instance.Foreach f` 那个默认实现走的就是"数一遍")……自己绕自己,转不出来(转过一次,实测卡死)。
 
 **`Generator` / `Range` 不是 `IList`** —— 它们不保证有穷(`[1..]`、无限生成器),而兜底那两条
 在无界的东西上永远回不来。`Generator` 因此也**没有** `Count` / `At`(想要就 `ToList ()` 铺一张表)。
@@ -1787,7 +1788,7 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
 `iterator.rav` **前面**。)
 
 和 `Option` 那半通着:**`Option` 自己也 impl 了 `IEnumerable`** —— 它是"0 个或 1 个的一串"
-(`Some x` 走一次、`None` 一次不走):`foreach (Some 5) …`、`Seqs.Flatten [(Some 1) (None) (Some 3)]`
+(`Some x` 走一次、`None` 一次不走):`(Some 5).Foreach …`、`Seqs.Flatten [(Some 1) (None) (Some 3)]`
 都成立,整串方法照旧走默认实现。**`Map` / `Bind` / `Where` 仍是 Option 类体里那三条**
 (类链先命中)—— 那是这一族的"包着 / 摊平",`(Some 5).Map f` 交回的还得是 Option。
 反方向:`xs.TryFirst ()` / `xs.TryFind p`(→ `Option`)。
@@ -1799,7 +1800,7 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
 **枚举器自己也是一串**(`IEnumerator` 要求 `IEnumerable` —— `<:` 成立):`IEnumerator` 体里
 自己声明一条 `GetEnumerator` 并写成"交回**自己**"—— 和 C# 里 `yield` 生成的那个类一个形状(它的 `GetEnumerator ()` 也是
 `this`)。于是 `Enumerator` / `GeneratorCursor` / 用户写的游标都白拿整套方法,也能直接
-`foreach`。两条语义跟着来:遍历的是**还没走完的那一段**、走一遍就**消耗掉**
+`.Foreach`。两条语义跟着来:遍历的是**还没走完的那一段**、走一遍就**消耗掉**
 (`e.Count ()` 之后再 `e.Count ()` 是 0)。
 
 三种容器各 `impl` 一遍(只填 `GetEnumerator`,其余走默认实现)
@@ -1807,10 +1808,11 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
 
 - `[1 2 3]: IEnumerable` / `{1 2 3}: IEnumerable` / `{"a": 1}: IEnumerable` 都成立;
 - `(xs: IEnumerable) => …` 收得下它们(注解也认接口);
-- **`foreach` 改走这条接口**:`e := xs.GetEnumerator ()` + `while { e.MoveNext (); } { f e.Current }`
+- **`.Foreach` 走这条接口**:容器上是引擎的 `SeqMethod`,别的走 `IEnumerable` 里那条默认实现 ——
+  `e := instance.GetEnumerator ()` + `while { e.MoveNext (); } { f (e.Current); }`
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
   一样能遍历(字典遍历的是值);**每次进来新开一个枚举器**,所以嵌套遍历同一串值互不打扰;
-- 用户自己的类实现一条 `use (IEnumerable MyClass { GetEnumerator = () => { … }; })` 就能进 `foreach`。
+- 用户自己的类实现一条 `use (IEnumerable MyClass { GetEnumerator = () => { … }; })` 就能用 `.Foreach`。
 - **接口之间只有「要求」**(2026-10-07 起,原来那套"父 + [要求]"连根去掉):
 
   ```ravel
@@ -1860,7 +1862,7 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
 
 **接口槽的接收者可以是任何值** —— 包括**标量**(数 / 字符串 / 字符)。从前 `TraitSlot` 只接
 `ObjectVal`,于是标量只能「登记」空槽接口(`INumber` 那种),`by …` 的槽够不着;现在两条路都通
-(`foreach "abc"` 就是靠这个:字符串自己实现了 `IEnumerable`)。
+(`"abc".Foreach (c: char) => …` 就是靠这个:字符串自己实现了 `IEnumerable`)。
 
 **`Interface` 自己不是接口** —— 它是**接口的工厂**(元类,和 `type` 之于类同一个位置):
 `typeof 某接口` 就是它,而 `interface { … }` 那下是在**调它**造一个新接口。
@@ -2472,7 +2474,7 @@ g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
 
 **拆法在 `Lowering` 那一趟**(和 `do` / `??` 一个规矩：造意思的活儿不留在解析器)。
 列表模式走的是**枚举器**，次序照 `lib/iterator.rav` 那条：`GetEnumerator` → **先 `MoveNext`**
-→ 再 `Current`(就是 `foreach` 的白描)。所以凡是能 `foreach` 的都能解；`..rest` 是拿同一枚
+→ 再 `Current`(就是 `Foreach` 默认实现的的白描)。所以能 `.Foreach` 的都能解；`..rest` 是拿同一枚
 游标包一个 `Generator`，和游标一样**一次性**。对象模式就是连着取几个成员。
 
 序列比模式短**不静默**：报底层那条越界(`list.At 的索引 2 越界 (列表长度 2)`)。
@@ -2647,7 +2649,7 @@ C# 调用** —— 它们不收用户函数,所以不走 `SeqMethod` 那套控�
 - `int 'A'` → 65(码位)· `char 97` / `char "x"` → 字符 · `'A'.Code ()` 同上
 - 字符自己那几个:`IsDigit` / `IsLetter` / `IsUpper` / `IsLower` / `IsSpace` / `ToString ()`
 
-**字符串是可枚举的**:`"ab": IEnumerable` 成立,`foreach "abc" (c: char) => …` 直接能跑
+**字符串是可枚举的**:`"ab": IEnumerable` 成立,`"abc".Foreach (c: char) => …` 直接能跑
 (`lib/iterator.rav` 里登记的一条 `impl`,元素是**字符**)。
 
 ⚠️ 这一条是**后来才通的**:接口槽从前只服务 `ObjectVal`,而字符串和数一样是**标量**
@@ -3264,13 +3266,13 @@ Error: 未定义的变量 'missing'
 |---|---|
 | 一次 `StepOnce`(含帧分配) | Release **77 ns**、Debug 0.29 µs |
 | `while { i < N; } { sum += 1; i += 1; }` 一轮 | **~4.0 µs**(callcc 那一轮优化前是 5.9) |
-| `xs.Each (…)`(`List`,引擎的 `SeqMethod` 那条路) | ~**8.9 µs**/元素 |
-| `foreach xs (…)`(库那条:`MoveNext` / `Current` 协议) | ~**32 µs**/元素 |
-| `[1..N].Each (…)` / `foreach [1..N] (…)`(`Range` 用 `RangeCursor`,一块纯状态) | ~**49 / 53 µs**/元素 |
+| `xs.Foreach (…)`(`List`,引擎的 `SeqMethod` 那条路) | ~**8.9 µs**/元素 |
+| 同一个东西**不是容器**时(库那条:接口默认实现,`MoveNext` / `Current` 协议) | ~**32 µs**/元素 |
+| `[1..N].Foreach (…)`(`Range` 用 `RangeCursor`,一块纯状态) | ~**49 µs**/元素 |
 
 (2026-10-06 在 **Release** 构建上量的,同日随 callcc 那两笔优化更新过一次;
 噪声约 ±10%,别拿它比几个百分点的改动。
-`fib 22` + 30 万轮 `while` + 20 万次 `foreach` 那套基准,脚本在 `.scratch` 之外没留 ——
+`fib 22` + 30 万轮 `while` + 20 万次 `Foreach` 那套基准,脚本在 `.scratch` 之外没留 ——
 要复现就照上表那几行写。)
 
 **一台循环要建多少个作用域**(2026-10-07 挂 `[CallerMemberName]` 数出来的)。
@@ -3344,7 +3346,7 @@ Ravel 层的**每一次调用、每一块执行、每一个 `true 块1 块2`** �
 一步 = 一次帧拷贝(`callcc` 要能把帧链整个拍下来,所以帧不可变)+ 一个 `RList` 结果节点。
 而 58 步里**自己写的只有 8 步**(`i < M` 三步、`i = i + 1` 五步),**剩下 ~50 步全是
 `while` 那台 Ravel + `callcc` 写的机器**。所以想让它便宜,能动的是**控制流那台机器**
-(把 `while`/`foreach` 做成引擎原生的控制帧,像 `ClassInit`/`ImplMake`/`SeqOp` 那样),
+(把 `while` 也做成引擎原生的控制帧,像 `ClassInit`/`ImplMake`/`SeqOp` 那样),
 不是任何一处分配 —— 这也是为什么上面三笔 Scope 优化加起来 **−13% 分配、0% 墙钟**。
 
 **复用作用域**同理,而且要碰逃逸分析:谁可能把一层拎走 —— 体里造的闭包(`CaptureScope`)、
@@ -3354,27 +3356,32 @@ Ravel 层的**每一次调用、每一块执行、每一个 `true 块1 块2`** �
 `instanceScope`(它就是对象本人)。
 
 所以引擎本身没有"慢函数"可抠(步进循环就是个 switch + 一次帧拷贝),**开销都在
-"一个动作要跑多少步"上** —— 而步数来自库:控制流(`while`/`foreach`)、
+"一个动作要跑多少步"上** —— 而步数来自库:控制流(`while`;`.Foreach` 在容器上已经是引擎那条了,见下)、
 序列默认实现、`Generator` 光标全是 Ravel 写的,每一次都是完整的调用帧。
 
 于是优化只有两个方向,都得先想清楚语义:
 
 1. **少跑几步**(库那一侧)。表里那两行差得最刺眼,根子都是"本来引擎有更短的路":
-   `foreach` 走的是库写的 `MoveNext` / `Current` 协议,而 `.Each` 走引擎的 `SeqMethod` ——
-   同一个 List,**3.6 倍**;`Range` 的 `GetEnumerator` 交回的是 Ravel 写的 `Generator`
+   **这一条 2026-10-07 解决了**:从前 `foreach 序列 体` 是库函数,走的是库写的
+   `MoveNext` / `Current` 协议,而 `.Each` 走引擎的 `SeqMethod` —— 同一个 List **3.6 倍**。
+   现在 `foreach` 删了,改名成 `Foreach` **挂在 `IEnumerable` 上当方法**,容器那条自动归引擎
+   (量出来 5 万元素 313 ms → **57 ms**);非容器(`Generator` / `Option` / 自己实现的 `IList`)
+   还是走接口里那条默认实现,和从前一样。
+   `Range` 的 `GetEnumerator` 交回的是 Ravel 写的 `Generator`
    **2026-10-06 换掉了**:从前它的 `GetEnumerator` 是拿 `Generator`(通用续延协程)现搭的,
    而"算下一个整数"压根不需要挂起 —— 每元素两次捕获 + 两次跳全白花。现在是一块**纯状态**
    (`RangeCursor`:一个下标 + 一步算术,和 `Enumerator` 一个形状)。
-   实测 `[1..N].Each` 74 → **49 µs**/元素、`foreach [1..N]` 95 → **53**。
+   实测 `[1..N].Foreach` 74 → **49 µs**/元素。
    **`Generator` 本身没动** —— 它要挂起任意一段体,那两次捕获是形状要的,减不掉。
    剩下的差距在**另一半**:`List` / `Set` / `Dict` 的 `Each` / `Map` / `Where` 是
    **引擎的 `SeqMethod`**,而 `Range` 走的是**库的 `IEnumerable` 默认实现**
-   (`Each` = `foreach` + 每元素一个 lambda,`foreach` 自己也还是库函数)。
+   (`Foreach` 那条 = 枚举器协议 + 每元素一个 lambda)。
    **注意 `RangeCursor` 是个新类型名**:`typeof (r.GetEnumerator ())` 从此报它
    (从前报 `GeneratorCursor`)。给 `Range` 一个引擎原生的枚举器、
-   让 `foreach` 也走引擎那条,都能拉近 —— 但两条都改的是**可观察的行为边界**
-   (`GetEnumerator ()` 交回什么、`foreach` 是不是"只是个库函数"),所以没做:
-   要做先想清楚值不值。
+   给 `Range` 一个引擎原生的枚举器还能再拉近 —— 但它改的是**可观察的行为边界**
+   (`Range` 的 `GetEnumerator ()` 交回什么),所以没做:要做先想清楚值不值。
+   (**`foreach` 那一条已经做了** —— 它把"`foreach` 是不是只是个库函数"这个问题直接
+   删掉了:现在它是方法,快的那半归引擎。代价是那句说全了的报错没了,见 04-control。)
 2. **每步更便宜**:帧从前是**纯持久**的(`callcc` 要能把帧链整个拍下来、好多次发射),
    所以每步一次 record 拷贝 + 一个 `RList` 节点 —— 每步 **135 字节**的分配就是这么来的,
    也是 Release 与 Debug 差 3.9 倍之外唯一还压着的成本。

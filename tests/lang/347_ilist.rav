@@ -5,7 +5,7 @@
 # `IEnumerable` 的接口体里本来就有这两条(走一遍数的默认实现),子接口再写一遍是重名。
 # 所以这层继承说的是一句**承诺**:这个类型的 `At` / `Count` 不是"走一遍",是真有下标。
 #
-# 于是 `foreach` 一条都不用改 —— 它要的 `GetEnumerator` 跟着 `IList` 一起来了。
+# 于是 `.Foreach` 一条都不用改 —— 它要的 `GetEnumerator` 跟着 `IList` 一起来了。
 
 # ---- 谁是 ----
 print ("abc" : IList)
@@ -27,12 +27,12 @@ print ({10 20 30}.Count ())
 
 # ---- 字符串多了个 O(1) 的 `Count` ----
 # `String` 的个数叫 `Length`,类链上没有 `Count`,不填就会用接口体那份默认 ——
-# 而那份是 `foreach` 数一遍,又要走 `GetEnumerator` → `Enumerator` → 回头问 `Count`,自己绕自己。
+# 而那份是 `.Foreach` 数一遍,又要走 `GetEnumerator` → `Enumerator` → 回头问 `Count`,自己绕自己。
 print ("abcdefghij".Count ())
 print ("".Count ())
 
 # ---- list / string 的枚举器直接交自己,不再 `ToList ()` / `Chars ()` ----
-foreach "abc" (c: char) => { print c; }
+"abc".Foreach (c: char) => { print c; }
 e := "xy".GetEnumerator ()
 while { e.MoveNext (); } { print (e.Current); }
 print "end of enumerator"
@@ -42,7 +42,7 @@ print "end of enumerator"
 #  往容器添东西就转不完。)
 xs := [1 2 3]
 n := 0
-foreach xs (x: int) => {
+xs.Foreach (x: int) => {
     n += 1
     xs.Add 9
 }
@@ -66,7 +66,7 @@ impl (IList Pair default)
 # 括号不能省:`Pair 7 8 : IList` 是 `Pair 7 (8 : IList)` —— 实参吃到运算符为止
 print ((Pair 7 8) : IList)
 print ((Pair 7 8) : IEnumerable)
-foreach (Pair 7 8) (x: int) => { print x; }
+(Pair 7 8).Foreach (x: int) => { print x; }
 print ((Pair 7 8).Count ())
 print ((Pair 7 8).Sum ())
 print ((Pair 7 8).ToList ())

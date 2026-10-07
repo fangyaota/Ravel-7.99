@@ -80,7 +80,7 @@ m := Repl.Editor ()
 print ((m.Screen ()).Count ())           # 空页:标题 + `   | <空>`,垫够 8 行,再挂个换行 → 10
 print ((m.Tips ()).Count ())
 # 菜单项的**顺序**就是 `Pick` 那串 `match` 的序号 —— 钉住它,漏一支 / 错一位都藏不住
-foreach (m.Items ()) (name: string) => { print name; }
+(m.Items ()).Foreach (name: string) => { print name; }
 m.Pages = [["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l"]]
 m.Z = 0
 print ((m.Screen ()).Count ())           # 12 行那页:标题 + 12,不用垫,末尾挂个换行 → 14

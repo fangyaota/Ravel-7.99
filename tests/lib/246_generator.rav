@@ -1,5 +1,5 @@
 # `Generator f`:体的参数 `y` 是投喂口 —— `y v` 送出一个值**并挂起**,消费者再要才接着跑。
-# `Generator f` 本身是个 `IEnumerable`,`foreach` 直接吃;每次遍历从头跑一遍体。
+# `Generator f` 本身是个 `IEnumerable`,`.Foreach` 直接吃;每次遍历从头跑一遍体。
 
 # ① 无限流 + 早期退出(要几个拿几个)
 Nats := Generator (y: function) => {
@@ -8,7 +8,7 @@ Nats := Generator (y: function) => {
 }
 callcc (stop: function) => {
     i := 0
-    foreach Nats (x: int) => {
+    Nats.Foreach (x: int) => {
         i >= 5 { stop (); } { 0; }
         print x
         i += 1
@@ -23,7 +23,7 @@ Fib := Generator (y: function) => {
 }
 callcc (stop: function) => {
     i := 0
-    foreach Fib (x: int) => {
+    Fib.Foreach (x: int) => {
         i >= 8 { stop (); } { 0; }
         print x
         i += 1
@@ -39,29 +39,29 @@ Lazy := Generator (y: function) => {
     print "收尾"
 }
 callcc (stop: function) => {
-    foreach Lazy (x: int) => { print x; stop (); }
+    Lazy.Foreach (x: int) => { print x; stop (); }
 }
 
-# ④ 把已有的遍历包成生成器(能 foreach 的东西都能包)
+# ④ 把已有的遍历包成生成器(能 `.Foreach` 的东西都能包)
 Odds := (xs: IEnumerable) => {
     Generator (y: function) => {
-        foreach xs (x: int) => { (x % 2) != 0 { y x; } { 0; } }
+        xs.Foreach (x: int) => { (x % 2) != 0 { y x; } { 0; } }
     }
 }
-foreach (Odds [1 2 3 4 5]) (x: int) => { print x; }
+(Odds [1 2 3 4 5]).Foreach (x: int) => { print x; }
 
 # ⑤ 生成器套生成器:扁平化
 Flat := (xss: IEnumerable) => {
     Generator (y: function) => {
-        foreach xss (xs: IEnumerable) => { foreach xs (x: object) => { y x; } }
+        xss.Foreach (xs: IEnumerable) => { xs.Foreach (x: object) => { y x; } }
     }
 }
-foreach (Flat [[1 2] [3] [4 5]]) (x: int) => { print x; }
+(Flat [[1 2] [3] [4 5]]).Foreach (x: int) => { print x; }
 
 # ⑥ 同一个 Generator 遍历两次:各自从头(体是配方)
 Twice := Generator (y: function) => { y 1; y 2; }
-foreach Twice (x: int) => { print x; }
-foreach Twice (x: int) => { print x; }
+Twice.Foreach (x: int) => { print x; }
+Twice.Foreach (x: int) => { print x; }
 
 # ⑦ 类型关系:is IEnumerable / is IEnumerator
 print (Twice : IEnumerable)
@@ -70,7 +70,7 @@ print (Twice : IEnumerator)
 
 # ⑧ 交给别的库:按**模式**分派(生成器照旧是 IEnumerable)
 Tag := Generator (y: function) => { y 1; y "x"; y true; }
-foreach Tag (v: object) => {
+Tag.Foreach (v: object) => {
     print (v |> (x: int) => { "整数"; } | (x: string) => { "字符串"; } | _ => { "别的"; })
 }
 print "end"

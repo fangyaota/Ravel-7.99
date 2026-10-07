@@ -38,32 +38,32 @@ readonly Render := (rows: list) => {
         ((typeof (rows.At 0)) == dict) {
             # 表头:扫一遍所有行,键按**第一次出现**的先后排 —— 同一份数据每次都写出一模一样的表头
             cols := []
-            foreach rows (row: dict) => {
-                foreach (row.Keys ()) (k: object) => {
+            rows.Foreach (row: dict) => {
+                (row.Keys ()).Foreach (k: object) => {
                     cols.Contains k { 0; } { cols.Add k; }
                 }
             }
             grid.Add cols
-            foreach rows (row: dict) => {
+            rows.Foreach (row: dict) => {
                 line := []
-                foreach cols (k: object) => {
+                cols.Foreach (k: object) => {
                     line.Add ((row.Has k) { string (row.Get k); } { ""; })
                 }
                 grid.Add line
             }
         } {
-            foreach rows (row: list) => {
+            rows.Foreach (row: list) => {
                 out := []
-                foreach row (cell: object) => { out.Add (string cell); }
+                row.Foreach (cell: object) => { out.Add (string cell); }
                 grid.Add out
             }
         }
     }
 
     lines := []
-    foreach grid (line: list) => {
+    grid.Foreach (line: list) => {
         cells := []
-        foreach line (cell: string) => { cells.Add (Quote cell); }
+        line.Foreach (cell: string) => { cells.Add (Quote cell); }
         lines.Add (cells.Join ",")
     }
     lines.Join "\n"
@@ -137,7 +137,7 @@ readonly Parse := (text: string) => {
     rows := Grid text
     (rows.IsEmpty ()) { []; } {
         head := []
-        foreach (rows.At 0) (k: string) => { head.Add k; }
+        (rows.At 0).Foreach (k: string) => { head.Add k; }
         out := []
         i := 1
         while { i < (rows.Count ()); } {

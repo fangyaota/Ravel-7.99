@@ -67,7 +67,7 @@ print (ok)
 print ((Io.Current ()) == save)
 
 # 收摊：先删文件、再删子目录、最后删根
-foreach ((root.Files ()).Keys ()) (n: string) => { (root.Child n).Delete (); }
+((root.Files ()).Keys ()).Foreach (n: string) => { (root.Child n).Delete (); }
 (sub.Child "deep.txt").Delete ()
 sub.Delete ()
 root.Delete ()
@@ -222,7 +222,7 @@ MemDir ::= class {
     List := () => {
         names := (Kids.Keys ()).Sort ()
         out := {}
-        foreach names (n: string) => { out.Set n (Kids.Get n); }
+        names.Foreach (n: string) => { out.Set n (Kids.Get n); }
         out
     }
 }
@@ -260,7 +260,7 @@ print (disk.Read ())
 back := MemFile "back.txt" ""
 Io.CopyTo disk back
 print (back.Read ())
-foreach (Io.Lines back) (l: string) => { print l; }
+(Io.Lines back).Foreach (l: string) => { print l; }
 
 # `Io.EachDir` 在内存目录上照样递归（路径那一段用 BaseName 打，免得带平台分隔符）
 print (m.Size ())
@@ -325,7 +325,7 @@ f.Append "又一行\n"
 Io.CopyTo f Terminal.Stdout
 # `Io.Lines` 是**生成器**:边要边给 —— 配"按模式分派"挑行、配 `Expected` 兜"读不到"
 IsBlank := (s: string) => { (s.Trim ()).IsEmpty (); }
-foreach (Io.Lines f) (l: string) => {
+(Io.Lines f).Foreach (l: string) => {
     print (l |> (s |> IsBlank) => { "空行"; } | _ => { "有字"; });
 }
 

@@ -1,7 +1,7 @@
 ﻿# 图那一族:`Graph`(无向无权)/ `Digraph`(有向无权)/ `Weighted`(带权,方向看选项)。
 #
 # 和 `Stack` / `Heap` 一族同一个 dll、同一个模块(`Structures`),`using "structures.rav"` 装进来
-# (`foreach` 一个图 = **枚举顶点**,那三条 `impl` 就在那个文件里登记)。
+# (`.Foreach` 一个图 = **枚举顶点**,那三条 `impl` 就在那个文件里登记)。
 #
 # 顶点是**值类型**(数 / 字符串)—— 和 `dict` 的键一个规矩。权重收数值(五种数值类型全吃),
 # **负数在 `AddEdge` 就挡下**(最短路走 Dijkstra,负权它不管)。
@@ -110,8 +110,8 @@ try { print (e.Bfs "空"); } (e: Exception) => { print ("8: " + string e); }
 e.Clear ()
 print (e.Count ())
 
-# ── `foreach` 一个图 = 枚举顶点(和 `Vertices ()` 一个序) ──
-foreach (Structures.Graph ["p" "q"]) (v: object) => { print ("顶点 " + (string v)); }
+# ── `.Foreach` 一个图 = 枚举顶点(和 `Vertices ()` 一个序) ──
+(Structures.Graph ["p" "q"]).Foreach (v: object) => { print ("顶点 " + (string v)); }
 # --- expected ---
 # Graph [a b c] {a-b a-c b-c}
 # [a b c]

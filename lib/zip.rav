@@ -53,7 +53,7 @@ readonly TrimSlash := (s: string) => {
 # `a/b.txt` 这一条同时意味着 `a/` 是个目录。所以只看 `prefix` 之后那一段有没有 `/`。
 readonly Here := (all: list prefix: string) => {
     out := {}
-    foreach all (e: object) => {
+    all.Foreach (e: object) => {
         n := e.Get "name"
         n.StartsWith prefix {
             rest := n.Skip (prefix.Length ())
@@ -71,7 +71,7 @@ readonly Here := (all: list prefix: string) => {
 # 它只是"名字里带那一段"看出来的(要显式的目录成员得自己 `AddDir`)。
 readonly HasUnder := (all: dict prefix: string) => {
     hit := false
-    foreach (all.Keys ()) (k: object) => {
+    (all.Keys ()).Foreach (k: object) => {
         k.StartsWith (prefix + "/") { hit = true; } { 0; }
     }
     hit
@@ -80,7 +80,7 @@ readonly HasUnder := (all: dict prefix: string) => {
 # 整档的成员 → 那一条(dict,按完整名字当键)。名字解析、大小那两个数都从这儿看。
 readonly Members := (handle: int) => {
     out := {}
-    foreach (Native.ZipList handle) (e: object) => { out.Set (e.Get "name") e; }
+    (Native.ZipList handle).Foreach (e: object) => { out.Set (e.Get "name") e; }
     out
 }
 
@@ -114,7 +114,7 @@ Archive ::= class {
     List := () => {
         here := Here (Native.ZipList Handle) Prefix
         out := {}
-        foreach ((here.Keys ()).Sort ()) (n: string) => { out.Set n (Node n (here.Get n)); }
+        ((here.Keys ()).Sort ()).Foreach (n: string) => { out.Set n (Node n (here.Get n)); }
         out
     }
 
@@ -124,7 +124,7 @@ Archive ::= class {
     Pick := (wantDir: bool) => {
         out := {}
         here := Here (Native.ZipList Handle) Prefix
-        foreach ((here.Keys ()).Sort ()) (n: string) => {
+        ((here.Keys ()).Sort ()).Foreach (n: string) => {
             ((here.Get n).EndsWith "/") == wantDir { out.Set n (Node n (here.Get n)); } { 0; }
         }
         out

@@ -60,7 +60,7 @@ Db ::= class {
 
     # 一行一行地给(结果可能很大,不必先在内存里铺开)
     Each := (sql: string args: dict f: function) => {
-        foreach (All sql args) (row: dict) => { f row; }
+        (All sql args).Foreach (row: dict) => { f row; }
         ();
     }
 
@@ -89,7 +89,7 @@ Db ::= class {
 readonly Rows := (raw: dict) => {
     cols := raw.Get "columns"
     out := []
-    foreach (raw.Get "rows") (r: list) => {
+    (raw.Get "rows").Foreach (r: list) => {
         d := {}
         i := 0
         while { i < (cols.Count ()); } {

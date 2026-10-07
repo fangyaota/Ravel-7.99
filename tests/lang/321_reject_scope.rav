@@ -31,7 +31,7 @@ g := (v) => {
 print ((try { g 1; } (e: Exception) => { "兜住: " + ((System.SplitLines e.Message).At 0); }))
 
 # ── ③ 回调里(近旁没有 `try`):还是动态的 —— 外面那一支会被顶掉 ──
-h := (v) => { [1 2].Each (x: object) => { System.Reject (TypeError "回调里拒收"); }; "支1…"; } | (_) => { "支2"; }
+h := (v) => { [1 2].Foreach (x: object) => { System.Reject (TypeError "回调里拒收"); }; "支1…"; } | (_) => { "支2"; }
 print (h 1)
 
 # ── ④ 本行该干的活没被带歪:守卫 / 参数模式 / 解构照旧 ──

@@ -79,7 +79,7 @@ try { u.Append "x"; } (e: Exception) => { print ("2: " + ((string e).Split "："
 Io.CopyTo u (Io.File ".io-test/from-url.txt")            # 对着接口写的 Copy,不认它是网络还是磁盘
 copied := Io.File ".io-test/from-url.txt"
 print ((copied.Read ()).Trim ())
-foreach (Io.Lines u) (line: string) => { print ("行: " + line); }
+(Io.Lines u).Foreach (line: string) => { print ("行: " + line); }
 
 System.DeletePath ".io-test/http.bin"
 System.DeletePath ".io-test/up.txt"

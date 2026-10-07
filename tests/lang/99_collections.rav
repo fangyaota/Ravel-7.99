@@ -127,7 +127,7 @@ print (xs.Count ())
 
 # ---- 收函数的:每个元素调一次 ----
 ys := [1 2 3 4]
-ys.Each (x: int) => { print ("each " + string x); }
+ys.Foreach (x: int) => { print ("each " + string x); }
 print (ys.Map (x: int) => { x * 10; })
 print (ys.Where (x: int) => { x % 2 == 0; })
 print (ys.Fold 0 (acc: int x: int) => { acc + x; })

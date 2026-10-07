@@ -212,12 +212,12 @@ Cells := (line: string) => {
 # 表格:第一行表头,第二行是 `|---|---|` 那种分隔(扔掉),其余是数据行
 Table := (rows: list) => {
     head := []
-    foreach (Cells (rows.At 0)) (c: string) => { head.Add (Html.El "th" {} (Inline c)); }
+    (Cells (rows.At 0)).Foreach (c: string) => { head.Add (Html.El "th" {} (Inline c)); }
     body := []
     i := 2
     while { i < (rows.Count ()); } {
         cells := []
-        foreach (Cells (rows.At i)) (c: string) => { cells.Add (Html.El "td" {} (Inline c)); }
+        (Cells (rows.At i)).Foreach (c: string) => { cells.Add (Html.El "td" {} (Inline c)); }
         body.Add (Html.El "tr" {} cells)
         i += 1
     }
@@ -348,7 +348,7 @@ Chapters := (Glob.Find (SRC + "/*.md") |> .ToList ()) |> .Sort ();
 # 左侧导航:每章一条;当前那一章再展开它自己的小节
 Nav := (cur: string src: string) => {
     out := []
-    foreach Chapters (p: string) => {
+    Chapters.Foreach (p: string) => {
         name := (Io.File p).Name ()
         attrs := name == cur { {"href"-> (PageOf name) "class"-> "on"}; } { {"href"-> (PageOf name)}; }
         # 标题里也可能带 markdown(教程里一堆 `` `Repl` `` / `` `Tasks` ``)—— 过一遍 `Inline`,
@@ -358,7 +358,7 @@ Nav := (cur: string src: string) => {
             # **两层都要收**。`##` 是编号分节(`4.1 if` / `4.2 while` …)、`###` 是它下面
             # 那种描述性的小节(`实现了 IEnumerable,就白拿一整套`)。从前只收 `###`,`##` 整层
             # 跳过 —— 导航里就只剩一串没头没尾的括号名,偏巧最像"目录"的那一层一个都不在。
-            foreach (Toc src) (h: dict) => {
+            (Toc src).Foreach (h: dict) => {
                 lvl := h.Get "lvl"
                 (lvl == 2) || (lvl == 3) {
                     href := "#" + (string (h.Get "id"))
@@ -410,7 +410,7 @@ Build := (out: string) => {
 
     # 首页 = 目录
     entries := []
-    foreach Chapters (p: string) => {
+    Chapters.Foreach (p: string) => {
         name := (Io.File p).Name ()
         entries.Add (Html.El "a" {"href"-> (PageOf name)} (Inline (TitleOf ((Io.File p).Read ()))))
     }

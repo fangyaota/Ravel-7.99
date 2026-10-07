@@ -2,7 +2,7 @@
 #
 # 它们是**插件**:类和函数在一个独立的项目里(`Ravel.Structures/`,编成
 # `plugins/Ravel.Structures.dll`),`using "structures.rav"` 把 dll 装进来、顺手登记
-# `IEnumerable` 那几条(于是 `foreach` / `Map` / `Fold` 白拿)。名字都在 `Structures` 模块下。
+# `IEnumerable` 那几条(于是 `.Foreach` / `Map` / `Fold` 白拿)。名字都在 `Structures` 模块下。
 using "structures.rav"
 
 # ── 栈:后进先出 ──
@@ -67,7 +67,7 @@ print (ss.Count ())
 print ((Structures.Stack [1 2 3]).Map ((x: object) => { x * 10; }) |> .ToList ())
 print ((Structures.Queue [1 2 3]).Fold 0 ((a: object b: object) => { a + b; }))
 print ((Structures.SortedSet [3 1 2]).Sum ())
-foreach (Structures.Heap [3 1 2]) (x: object) => { print ("堆: " + (string x)); }
+(Structures.Heap [3 1 2]).Foreach (x: object) => { print ("堆: " + (string x)); }
 
 # ── 它们是类型树上的节点 ──
 print (typeof (Structures.Stack ()))

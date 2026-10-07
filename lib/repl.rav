@@ -131,7 +131,7 @@ readonly Tint := (kind: string text: string at: object) => {
 # 只上色,不加行号
 readonly Colored := (text: string) => {
     out := ""
-    foreach (Segments text) (s: object) => { out += (Tint (s.Get "kind") (s.Get "text") ()); }
+    (Segments text).Foreach (s: object) => { out += (Tint (s.Get "kind") (s.Get "text") ()); }
     out
 }
 
@@ -141,7 +141,7 @@ readonly Colored := (text: string) => {
 readonly Row := (n: int text: string cursorX: object) => {
     out := "[blue]" + (Pad (string n) 3) + "|[/] "
     pos := 0
-    foreach (Segments text) (s: object) => {
+    (Segments text).Foreach (s: object) => {
         t := s.Get "text"
         # "这一格有没有光标"得用**装东西的盒子**兜着:`at := ()` 会把类型钉成 Void,
         # 后面再赋整数就报「无法将 Integer 赋值给 'at'」
@@ -248,7 +248,7 @@ readonly PageOf := (s: string) => {
     t := s.Trim ()
     n := 0
     ok := (t.Length ()) > 0
-    foreach (t.Chars ()) (c: object) => {
+    (t.Chars ()).Foreach (c: object) => {
         c.IsDigit () { n = (n * 10) + ((c.Code ()) - 48); } { ok = false; }
     }
     ok { n; } { -1; }
@@ -300,7 +300,7 @@ readonly Paint := (drawn: int lines: list) => {
     while { i < drawn; } { System.WriteLine blank; i += 1; }
     System.CursorTo 0 0
     n := 0
-    foreach lines (l: string) => { System.WriteLine l; n += 1; }
+    lines.Foreach (l: string) => { System.WriteLine l; n += 1; }
     n
 }
 
@@ -386,7 +386,7 @@ Editor ::= class {
     # 编辑那一屏:方框 + 快捷栏
     DrawEdit := () => {
         rows := Framed (Screen ())
-        foreach (Tips ()) (t: string) => { rows.Add (Terminal.Render t); }
+        (Tips ()).Foreach (t: string) => { rows.Add (Terminal.Render t); }
         Drawn = Paint Drawn rows;
     }
 
@@ -661,7 +661,7 @@ Editor ::= class {
     }
 
     ShowError := (e: Exception) => {
-        foreach (System.SplitLines (System.FormatError e)) (l: string) => {
+        (System.SplitLines (System.FormatError e)).Foreach (l: string) => {
             Terminal.Line ("[red]" + (Terminal.Escape l) + "[/]")
         }
         ();
@@ -758,7 +758,7 @@ Editor ::= class {
 
     Keep := () => {
         parts := []
-        foreach Pages (p: list) => { parts.Add ((p).Join "\n"); }
+        Pages.Foreach (p: list) => { parts.Add ((p).Join "\n"); }
         try { System.WriteText (SessionFile ()) (parts.Join PageMark); } (e: Exception) => { 0; }
         ();
     }
@@ -769,7 +769,7 @@ Editor ::= class {
             raw := f.Read ()
             raw.IsEmpty () { 0; } {
                 Pages = []
-                foreach (raw.Split PageMark) (p: string) => { Pages.Add (System.SplitLines p); }
+                (raw.Split PageMark).Foreach (p: string) => { Pages.Add (System.SplitLines p); }
                 Z = 0
                 Y = 0
                 X = 0

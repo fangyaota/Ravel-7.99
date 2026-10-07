@@ -12,7 +12,7 @@
 # 那读起来像"赋值给已经有的 x、y",和 `x = v` 撞。要定义就 `:=`,要带类型就 `: T =`。
 #
 # 解析器只把形状读出来,拆法是 `Syntax/Lowering.Destructure` 的事(和 `do` / `??` 一个规矩):
-# 列表模式走**枚举器**(`GetEnumerator` → `MoveNext` → `Current`,和 `foreach` 同一条路),
+# 列表模式走**枚举器**(`GetEnumerator` → `MoveNext` → `Current`,和 `.Foreach` 同一条路),
 # 对象模式就是连着取几个成员 —— 所以右边那个值**只求一次**(中间量落地)。
 
 # ── 列表模式:按位置 ──

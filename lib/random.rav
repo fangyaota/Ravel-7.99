@@ -89,7 +89,7 @@ IRandom ::= interface {
         assert ((items.Count ()) > 0) "Random.Weighted: 空的一串里挑不出东西"
 
         total := 0.0
-        foreach weights (w: object) => {
+        weights.Foreach (w: object) => {
             assert ((real w) >= 0.0) ("Random.Weighted: 权重不能是负的（得到 " + (string w) + "）")
             total += real w
         }

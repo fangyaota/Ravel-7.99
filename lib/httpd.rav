@@ -53,7 +53,7 @@ readonly DefaultIdle := 15000;
 readonly ParseQuery := (q: string) => {
     out := {}
     q == "" { out; } {
-        foreach (q.Split "&") (part: string) => {
+        (q.Split "&").Foreach (part: string) => {
             part != "" {
                 i := part.IndexOf "="
                 i < 0 { out.Set (Encoding.UrlDecode part) ""; } {
@@ -323,7 +323,7 @@ Server ::= class {
     Stop := () => {
         # 照着**当下这份键表的副本**走 —— 每断一条,伺候它的那个任务会醒过来把它自己
         # 从 `Open` 里划掉,直接遍历原表就成了边遍历边改。
-        foreach (Open.Keys ()) (c: int) => { Native.HttpClose c; }
+        (Open.Keys ()).Foreach (c: int) => { Native.HttpClose c; }
         Native.HttpClose Handle;
         ()
     }
@@ -386,7 +386,7 @@ Server ::= class {
     Dispatch := (g: Tasks.TaskGroup req: Request) => {
         me := this
         hit := []
-        foreach Routes (r: dict) => {
+        Routes.Foreach (r: dict) => {
             (me.Matches (r.Get "method") req.Method) && (me.Matches (r.Get "path") req.Path) {
                 hit.Add (r.Get "handler")
             } { 0; }
@@ -400,7 +400,7 @@ Server ::= class {
     DispatchStatic := (g: Tasks.TaskGroup req: Request) => {
         me := this
         hit := []
-        foreach Statics (s: dict) => {
+        Statics.Foreach (s: dict) => {
             p := s.Get "prefix"
             (req.Path).StartsWith p { hit.Add s; } { 0; }
         }

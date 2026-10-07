@@ -49,9 +49,9 @@ s.Push 7
 print (s.Peek ())              # 7
 
 # 收摊:目录非空删不掉(`Dir.Delete` 不递归),得先删文件、再删子目录、最后删根
-foreach ((root.Dirs ()).Keys ()) (d: string) => {
+((root.Dirs ()).Keys ()).Foreach (d: string) => {
     sub := root.Child d
-    foreach ((sub.Files ()).Keys ()) (f: string) => { (sub.Child f).Delete (); }
+    ((sub.Files ()).Keys ()).Foreach (f: string) => { (sub.Child f).Delete (); }
     sub.Delete ()
 }
 root.Delete ()

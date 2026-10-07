@@ -10,7 +10,7 @@
 #     反之往小数走。而**起手那一头永远是定得下来的那头**:所以 `[..1]` 读作"从 1 往下数",
 #     不是"从 -∞ 往上数"(那个数不出第一站)。
 #   * **要"数到底"的问法答不出来** —— `Count` / `Last` / `ToList` 当场报错,不拿个假数糊弄;
-#     而 `First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` / `foreach`
+#     而 `First` / `IsEmpty` / `Step` / `Contains` / `Covers`、以及 `Take` / `Where` / `.Foreach`
 #     那批**只问头那一头**(或天生停得住)的照常。
 #
 # **两头都省就是 `[..]`** —— 整条数轴(`[-Inf..Inf]` 一个意思):谁都在里头,

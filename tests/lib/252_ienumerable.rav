@@ -1,7 +1,7 @@
 # `IEnumerable` 自带的那一整套默认实现(见 lib/iterator.rav)。
 #
 # 从前那几个方法(Count / Map / Where / Fold / Take…)是**引擎按类型**挂给
-# list / set / dict 三家的:别的实现者只有 `foreach` 能用。现在它们写在**接口体**里,
+# list / set / dict 三家的:别的实现者只有 `.Foreach` 能用。现在它们写在**接口体**里,
 # 接口的类体会在每个实现对象上跑一遍 —— 于是凡是实现了 `IEnumerable` 的
 # (Generator、字符串、用户自己写的类)整套都有。
 #
@@ -30,7 +30,7 @@ print (G.Find ((x: int) => { x > 1; }))
 print (G.ToList ())
 print (G.ToSet ())
 seen := []
-G.Each ((x: int) => { seen.Add (x * 100); })
+G.Foreach ((x: int) => { seen.Add (x * 100); })
 print seen
 
 # 要"可能没有"的那两条:交给 Option,别去 try 里接 First/Find 那句错

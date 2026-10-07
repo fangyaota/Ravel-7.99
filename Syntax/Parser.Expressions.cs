@@ -100,10 +100,13 @@ public partial class Parser
         var e = ParseClimb(allowCall, 0);
         if (!allowCall) return e;
 
-        // `while` / `foreach` 的块**仍归原来那套**(在 `ParsePostfixRest` 里)——
-        // 它们的条件和体之间**没有运算符**,所以"块挂到整条表达式上"这条对它们不适用;
-        // 而循环上下文(压 `LoopCtx`、体的 `break` / `continue` 出口)全在那儿。
-        if (moreControlFlow && e is IdentifierExpr { Name: "while" or "foreach" })
+        // `while` 的块**仍归原来那套**(在 `ParsePostfixRest` 里)—— 它的条件和体之间
+        // **没有运算符**,所以"块挂到整条表达式上"这条对它不适用;而循环上下文
+        // (压 `LoopCtx`、体的 `break` / `continue` 出口)全在那儿。
+        //
+        // (从前这里还有个 `foreach`;2026-10-07 起它成了**成员调用** `序列.Foreach 体`,
+        //  体是普通的 lambda 实参,走不上这条路。)
+        if (moreControlFlow && e is IdentifierExpr { Name: "while" })
             return ParsePostfixRest(e, allowCall, allowBlock: true);
 
         while (Check(TokenType.LeftBrace))
@@ -394,12 +397,26 @@ public partial class Parser
             // 「'<|' 左边必须是函数」,指着一个根本不该当函数用的 `1`,查半天都找不到北。
             // (括号开头的实参照旧:`f (1) + 2` 是 `f ((1) + 2)`。运算符作用在调用**结果**上时
             //  是**调用**那一层的事,自己加括号:`xs.Count () == 0` 要写 `(xs.Count ()) == 0`。)
-            // 循环调用(`while <条件> <体>` / `foreach <序列> <体>`,**体是第 2 个实参**)。
+            // 循环调用。两种形状(**体在第几个实参不一样**):
+            //
+            //     while <条件> <体>        —— 裸名字,体是第 **2** 个实参
+            //     <序列>.Foreach <体>      —— **成员调用**(`MemberAccess`),体是第 **1** 个
+            //
             // 一进来就把上下文压上 —— 体里写的 `break` / `continue` 才知道往哪跳。
-            if (moreControlFlow && loop is null
-                && expr is IdentifierExpr { Name: "while" or "foreach" })
+            //
+            // `.Foreach` 写成成员调用是 2026-10-07 的事:从前的 `foreach 序列 体` 是**库函数**,
+            // 每个元素要走一遍 `GetEnumerator` → `MoveNext` → `Current`;挂成方法之后容器
+            // 那条路归引擎(`SeqMethod`,每元素快 5 倍)。解析器**按名字认循环**这条没变,
+            // 只是名字从裸的 `foreach` 挪到成员 `.Foreach` 上。
+            var bodyAt = expr switch
             {
-                loop = new LoopCtx { Label = _pendingLabel, Brk = _pendingBrk ?? "" };
+                IdentifierExpr { Name: "while" } => 2,
+                MemberAccess { Member: "Foreach" } => 1,
+                _ => 0,
+            };
+            if (moreControlFlow && loop is null && bodyAt != 0)
+            {
+                loop = new LoopCtx { Label = _pendingLabel, Brk = _pendingBrk ?? "", BodyAt = bodyAt };
                 // 只清"待认领"那个标记(免得**下一个**循环又把它认走);名字留着 ——
                 // 里面的 `break 标签` 要拿它跟自己的出口比,才知道标签被用过了
                 if (_pendingLabel is not null) _pendingLabel = null;
@@ -416,7 +433,7 @@ public partial class Parser
             var at = Previous();
 
             // 体到手了:先生 `continue` 的出口,再建这次调用,最后按需包 `break`
-            if (loop is not null && ++loop.BodySeen == 2)
+            if (loop is not null && ++loop.BodySeen == loop.BodyAt)
             {
                 if (loop.ContUsed) arg = WrapLoopBody(arg, loop.Cont, at);
                 expr = new CallExpr(expr, arg)

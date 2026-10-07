@@ -74,7 +74,7 @@ readonly Crc32Bytes := (data: object) => {
 
 readonly Crc32Of := (bytes: list) => {
     crc := 0 - 1                                  # 0xFFFFFFFF 的 32 位位型
-    foreach bytes (b: object) => {
+    bytes.Foreach (b: object) => {
         crc = crc ^ (int b)
         i := 0
         while { i < 8; } {

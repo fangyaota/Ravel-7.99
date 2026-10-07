@@ -254,7 +254,7 @@ readonly UploadToTask := (url: string path: object field: string) => {
 readonly Query := (url: string params: dict) => {
     (params.IsEmpty ()) { url; } {
         pairs := []
-        foreach (params.Keys ()) (k: object) => {
+        (params.Keys ()).Foreach (k: object) => {
             pairs.Add ((string k) + "=" + (Encoding.UrlEncode (string (params.Get k))));
         }
         url + ((url.Contains "?") { "&"; } { "?"; }) + (pairs.Join "&")

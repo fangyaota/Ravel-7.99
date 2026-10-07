@@ -534,8 +534,8 @@ false
 
 ```ravel
 print ((Some 5) : IEnumerable)
-foreach (Some 7) (x: int) => { print x; }
-foreach None (x: int) => { print "不会到这儿"; }
+(Some 7).Foreach (x: int) => { print x; }
+None.Foreach (x: int) => { print "不会到这儿"; }
 print (Seqs.Flatten [(Some 1) (None) (Some 3)])
 print ((Some 5).Count ())
 print ((None).ToList ())

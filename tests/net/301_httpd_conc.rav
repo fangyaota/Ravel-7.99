@@ -29,7 +29,7 @@ Tasks.Cycle [
     (Tasks.Task (g: Tasks.TaskGroup) => { srv.RunIn g; })
     (Tasks.Task (g: Tasks.TaskGroup) => {
         # ── 一、keep-alive:三个请求一个一个发,客户端那条连接会被复用 ──
-        foreach [1 2 3] (i: int) => { g.Await (Http.GetTask (base + "/hi")); }
+        [1 2 3].Foreach (i: int) => { g.Await (Http.GetTask (base + "/hi")); }
         print (string (srv.Conns))
         print (string (srv.Requests))
 
@@ -37,7 +37,7 @@ Tasks.Cycle [
         # 每个 handler 都先 `Conns` 一下再挂起 200 毫秒,所以三个会在服务端叠起来。
         # 要是它们排着队跑,peak 会是 1。
         rs := []
-        foreach [1 2 3] (i: int) => { rs.Add (Http.GetTask (base + "/hold")); }
+        [1 2 3].Foreach (i: int) => { rs.Add (Http.GetTask (base + "/hold")); }
         g.Await (Tasks.All rs)
         print (string peak)
 

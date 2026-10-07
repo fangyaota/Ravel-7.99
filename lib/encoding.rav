@@ -175,7 +175,7 @@ readonly DigitOf := (c: char) => {
 
 readonly Hex := (bytes: list) => {
     out := ""
-    foreach bytes (b: object) => {
+    bytes.Foreach (b: object) => {
         v := int b
         out += (string (HexDigits.At (v / 16)))
         out += (string (HexDigits.At (v % 16)))
@@ -204,7 +204,7 @@ readonly UrlSafe := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 
 readonly UrlEncode := (s: string) => {
     out := ""
-    foreach (Utf8 s) (b: object) => {
+    (Utf8 s).Foreach (b: object) => {
         c := string (char (int b))
         UrlSafe.Contains c { out += c; } {
             v := int b

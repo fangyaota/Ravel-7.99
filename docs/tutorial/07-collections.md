@@ -123,7 +123,7 @@ print (px + py)
 7
 ```
 
-两边能嵌套，凡是能 `foreach` 的都能解（list / set / dict / 字符串 / `Generator` / Option 都行）：
+两边能嵌套，凡是能 `.Foreach` 的都能解（list / set / dict / 字符串 / `Generator` / Option 都行）：
 
 #### 实例
 
@@ -236,7 +236,7 @@ Hello
 [a b  c]
 ```
 
-注意：**字符串能 `foreach`**，元素是**字符**。想拿一串字符交给序列方法，用 `s.Chars ()`。
+注意：**字符串能 `.Foreach`**，元素是**字符**。想拿一串字符交给序列方法，用 `s.Chars ()`。
 
 注意：大小写转换**不跟区域设置走**（invariant）—— 同一段程序换台机器结果一样。
 
@@ -348,7 +348,7 @@ true
 |---|---|---|
 | `Contains` / `Covers` | ✓ | ✓（谁都在里头） |
 | `IsEmpty ()` | `false` | `false`（**不空** —— 什么都在里头） |
-| `First ()` / `Step ()` / `Take` / `foreach` | ✓ | **报错**（连**起手那一站**都没有） |
+| `First ()` / `Step ()` / `Take` / `.Foreach` | ✓ | **报错**（连**起手那一站**都没有） |
 | `Count ()` / `Last ()` / `ToList ()` | 报错 | 报错 |
 
 两个问法分得清这三种：`IsBounded ()`（两头都定得下来吗）、`IsWhole ()`（是整条数轴吗）。

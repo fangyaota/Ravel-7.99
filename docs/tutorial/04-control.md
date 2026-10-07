@@ -35,7 +35,7 @@ yes
 
 （`if` 那个三参库函数 **2026-10-07 删了**。它把条件包成一个 thunk、自己再多进一次调用：
 同一次条件分派量下来 **111 步 vs 直接写 75 步（贵 48%）**。代价是"条件得是个 bool"
-少了一道**专门的**检查 —— `while` / `foreach` 里那句 `cond : bool = c ()` 还在，报得准。）
+少了一道**专门的**检查 —— `while` 里那句 `cond : bool = c ()` 还在，报得准。）
 
 ## 4.2 while
 
@@ -47,38 +47,42 @@ while { i < 5; } {
 }
 ```
 
-## 4.3 foreach
+## 4.3 Foreach
 
 ```ravel
-foreach [1 2 3] (x: int) => { print x; }
+[1 2 3].Foreach (x: int) => { print x; }
 ```
 
-`foreach` 也是库函数，吃的是 **`IEnumerable`**（`lib/iterator.rav` 里照 C# 那个形状写的接口）。三种容器都实现了它：
+`Foreach` 是 **`IEnumerable` 上的方法**（`lib/iterator.rav`，接口照 C# 那个形状写的），三种容器各有它：
 
 | 写法 | 迭代的是 |
 |------|----------|
-| `foreach [1 2 3] (x) => { … }` | 元素 |
-| `foreach {1 2 3} (x) => { … }` | 元素（集合）|
-| `foreach {"a"->1} (v) => { … }` | **值**（不是键）|
+| `[1 2 3].Foreach (x) => { … }` | 元素 |
+| `{1 2 3}.Foreach (x) => { … }` | 元素（集合）|
+| `{"a"->1}.Foreach (v) => { … }` | **值**（不是键）|
 
-不是 `IEnumerable` 的东西当场报错：
+**它同时是个循环** —— 解析器和 `while` 一样**按名字认**它，所以体里 `break` / `continue` / `@标签` 都照常。体是个 lambda，所以在里面写 `return` 出的是**那一趟**。
+
+不是 `IEnumerable` 的东西报错（**没有这个方法**）：
 
 #### 实例
 
 ```ravel
-foreach 5 (x: int) => { print x; }
+5.Foreach (x: int) => { print x; }
 ```
 
 执行以上程序会输出如下结果：
 
 ```
-Error: foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
+Error: 类型 'Integer' 没有方法 'Foreach'
 ```
 
-`foreach` 展开就是枚举器那个循环：
+（从前写 `foreach 5 …`：那是**库函数**，报的是说全了的那句「foreach 需要 IEnumerable（能按顺序交出一串的东西：…），得到 Integer」。改成方法之后没有兜底那一层了，换来的是下面这件事。）
+
+**容器上它走引擎那条路**（每元素 ~1 µs），别的 `IEnumerable`（`Generator` / `Option` / 自己实现的 `IList`）走接口里那条默认实现 —— 展开就是枚举器那个循环：
 
 ```ravel
-e := xs.GetEnumerator ()
+e := instance.GetEnumerator ()
 while { e.MoveNext (); } { f (e.Current); }
 ```
 
@@ -159,7 +163,7 @@ print (Seqs.Gather (doubled.Take 3))
 
 注意：容器上那几个**同名方法**是引擎给的（在类链上先命中），行为一样、只是**急切** —— `[1 2 3].Map f` 交回 `list`，`G.Map f` 交回 `Generator`。要转就 `ToList ()` / `ToGenerator ()`。
 
-自己的类交回一个枚举器（库里的 `Enumerator` 拿来就能用）也能进 `foreach`：
+自己的类交回一个枚举器（库里的 `Enumerator` 拿来就能用）也能用 `.Foreach`：
 
 ```ravel
 use (IEnumerable MyThing {
@@ -202,7 +206,7 @@ Nats := Generator (y: function) => {
 five := callcc (stop: function) => {
     i := 0
     out := []
-    foreach Nats (x: int) => {
+    Nats.Foreach (x: int) => {
         i >= 5 { stop out; } { 0; }
         out.Add x
         i += 1
@@ -217,9 +221,9 @@ print five
 [0 1 2 3 4]
 ```
 
-注意：**每次 `foreach` 都从头跑一遍体**（体是配方，和类体一个规矩）—— 同一个 `Generator` 遍历两次，两次各自从头。要"一次性"就在外面用变量兜住。
+注意：**每次 `.Foreach` 都从头跑一遍体**（体是配方，和类体一个规矩）—— 同一个 `Generator` 遍历两次，两次各自从头。要"一次性"就在外面用变量兜住。
 
-注意：能 `foreach` 的东西都能包成生成器（`Generator (y) => { foreach xs (x) => { y x; } }`），生成器也能套生成器做扁平化。
+注意：能 `.Foreach` 的东西都能包成生成器（`Generator (y) => { xs.Foreach (x) => { y x; } }`），生成器也能套生成器做扁平化。
 
 ## 4.4 按模式分派
 
@@ -314,7 +318,7 @@ print (f (-3))
 
 它是**上下文关键字** —— 只在**语句开头**认：`return := 5` 还是定义，`x.return` 还是成员。裸写 `return` 交回 `()`。
 
-出的是**最近一层用户写的函数**。两条推论：`foreach` 的体本身就是一个 lambda，所以在那儿写 `return` 只出那一趟的体；而 `do` / `?.` 那些**内部消糖**造的 lambda 不算一层（它们只是把表达式挪个地方），`return` 不会被截住。
+出的是**最近一层用户写的函数**。两条推论：`.Foreach` 的体本身就是一个 lambda，所以在那儿写 `return` 只出那一趟的体；而 `do` / `?.` 那些**内部消糖**造的 lambda 不算一层（它们只是把表达式挪个地方），`return` 不会被截住。
 
 关着的时候，`return` / `break` / `continue` 就是三个**普通名字**（能拿来做变量、做成员），和从前一模一样 —— 加了三个糖，但不动老代码的写法。
 
@@ -336,7 +340,7 @@ while { i < 10; } {
 print i
 
 s := 0
-foreach [1 2 3 4 5] (x: int) => {
+[1 2 3 4 5].Foreach (x: int) => {
     (x % 2) == 0 { continue; } { 0; }
     s += x
 }
@@ -357,7 +361,7 @@ print s
 ```ravel
 #program --more-control-flow=true
 @outer while { true; } {
-    foreach [1 2 3] (x: int) => {
+    [1 2 3].Foreach (x: int) => {
         x == 2 { break outer; } { 0; }
         print x
     }
@@ -372,11 +376,13 @@ print "跳出来了"
 跳出来了
 ```
 
-注意：**`while` / `foreach` 是库函数，所以解析器只按名字认它们** —— 它知道"哪个调用算循环"的**唯一依据**就是这两个名字。自己写的循环函数（比如 `Repeat n { … }`）不在内，那种要用标签指。
+注意：**解析器是按名字认循环的** —— 它知道"哪个调用算循环"的**唯一依据**就是 `while` 和 `.Foreach` 这两个名字。自己写的循环函数（比如 `Repeat n { … }`）**不在内**，而且**标签也救不了它**：`@l Repeat 3 { … }` 里写 `break l` 报的是「找不到标签 'l' 标的那个循环」。
+
+标签管的是另一件事 —— **跨层指哪一个**：`@outer while { … xs.Foreach (…) => { … break outer; } }` 里 `break outer` 跳的是那个**贴着标签的真循环**。
 
 注意：`continue 标签` 跳的是**那个循环的这一轮**，`break 标签` 跳的是**整个那条语句**。标签没人指会当场报错。
 
-注意：`foreach` 的体是个 lambda，所以在那儿写 `return` 出的是**那一趟的体**，`continue` 才是"跳过这一轮"。
+注意：`.Foreach` 的体是个 lambda，所以在那儿写 `return` 出的是**那一趟的体**，`continue` 才是"跳过这一轮"。
 
 ### 通用做法：`callcc`
 

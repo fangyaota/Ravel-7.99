@@ -98,7 +98,7 @@ RegexPattern ::= class {
 
     FindAll := (text: string) => {
         out := []
-        foreach (Native.RegexFindAll Pattern text Flags) (d: dict) => { out.Add (RegexMatch d); }
+        (Native.RegexFindAll Pattern text Flags).Foreach (d: dict) => { out.Add (RegexMatch d); }
         out
     }
 
@@ -115,7 +115,7 @@ readonly C := (pattern: string) => { RegexPattern pattern ""; }
 readonly With := (pattern: string flags: string) => {
     # 选项串**当场**查一遍:引擎那边也查,但那是用的时候;这里查是为了"构造的时候就报"
     ok := ["i" "m" "s" "x"]
-    foreach (flags.Chars ()) (c: char) => {
+    (flags.Chars ()).Foreach (c: char) => {
         assert (ok.Contains (string c)) ("Regex.With: 不认识的选项 '" + (string c) + "'（有 i / m / s / x）")
     }
     RegexPattern pattern flags;

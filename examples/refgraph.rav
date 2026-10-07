@@ -24,7 +24,7 @@ seen := set default
 Walk := (m: object) => {
     me := Name m
     seen.Add me
-    foreach (m.References ()) (r: object) => {
+    (m.References ()).Foreach (r: object) => {
         other := Name r
         g.AddEdge me other
         (seen.Contains other) { 0; } { Walk r; }
@@ -34,7 +34,7 @@ Walk Repl
 
 print "── 每个模块直接引了谁 ──"
 rows := []
-foreach (g.Vertices ()) (v: object) => {
+(g.Vertices ()).Foreach (v: object) => {
     rows.Add {"模块"-> v "引了"-> ((g.Neighbors v).Join " ")}
 }
 print (Table.Render rows)

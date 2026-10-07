@@ -33,7 +33,7 @@ while {
 }
 xs := [1 2 3]
 sum := 0
-foreach xs (x: int) => { sum = sum + x; }
+xs.Foreach (x: int) => { sum = sum + x; }
 print sum
 s := {42}
 print (typeof s)
@@ -54,26 +54,27 @@ print (h { 1; } { 2; })
 i = 0
 w := while { i < 3; }
 w { print i; i += 1; }
-# foreach 两参部分应用
-fe := foreach [10 20]
+# `.Foreach` 部分应用(方法先取出来再喂体)
+fe := [10 20].Foreach
 fe (x: int) => { print x; }
 
 # ═══ 169_control_flow_args(并入) ═══
 ravel "169_control_flow_args"
-# while/foreach 是 Ravel 库函数,参数不对时要自己给出清楚的消息。
-# foreach 5 报的是含糊的「类型不匹配」。
-# (lambda 那条含糊的消息已经改成「参数 'x' 需要 list，得到 Integer」了,见 177;
-#  这里仍然在前置 assert 里拦,因为库函数想报的是「foreach 需要 IEnumerable」这个语境。)
+# `while` 是 Ravel 库函数,参数不对时要自己给出清楚的消息。
+# `5.Foreach (x) => { 0; }` 报的是「类型 'Integer' 没有方法 'Foreach'」——
+# 2026-10-07 之前 `foreach 5 …` 是库函数,报的是说全了的那句「foreach 需要 IEnumerable
+# （能按顺序交出一串的东西：…），得到 Integer」;改成方法之后没有兜底那一层了。
+# (lambda 那条含糊的消息已经改成「参数 'x' 需要 list，得到 Integer」了,见 177。)
 # 这里用 try 逐个测:运行时错误现在也能被接住,所以一个文件就能覆盖三条。
 #
 # **第一条 2026-10-07 变了**:它原先是 `if { 1; } { 2; } { 3; }` —— 而旧 `if` 里那句
 # `cond : bool = c ()` 的**注解**会报「无法将 Integer 赋值给 Bool」,那是"条件得是个 bool"
 # 最准的一条消息。`if` 删了之后 `cond { A } { B }` 里条件就是接收者本身,
 # 非 bool 的接收者一头撞在"不是函数"上(下面钉的就是这个)。所以:
-# **"条件不是 bool" 现在只有 `while` / `foreach` 那条(下面第 2 条)还报得准**。
+# **"条件不是 bool" 现在只有 `while` / `.Foreach` 那条(下面第 2 条)还报得准**。
 try { 1 { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
 try { while { 1; } { 0; } } (e: Exception) => { print ("2: " + string e); }
-try { foreach 5 (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
+try { 5.Foreach (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
 print "after"
 ravel ""
 
@@ -122,7 +123,7 @@ ravel ""
 # 20
 # 1: 值 1 不是函数，不能调用
 # 2: 类型不匹配: 无法将 Integer 赋值给 Bool（不是父子）—— 要转就明写 `Bool …`
-# 3: foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 Integer
+# 3: 类型 'Integer' 没有方法 'Foreach'
 # after
 # 1: with 的第 2 个参数需要代码块，得到 Integer
 # 2: with 的第 2 个参数需要代码块，得到 Dict

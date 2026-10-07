@@ -108,7 +108,7 @@ readonly Slash := (s: string) => { s.Replace "\\" "/"; }
 # 一张表里相符的那些(按原来顺序)
 readonly Filter := (pat: string names: list) => {
     out := []
-    foreach names (n: object) => { Match pat (string n) { out.Add n; } { 0; } }
+    names.Foreach (n: object) => { Match pat (string n) { out.Add n; } { 0; } }
     out
 }
 
@@ -116,7 +116,7 @@ readonly Filter := (pat: string names: list) => {
 readonly Split := (pat: string names: list) => {
     hit := []
     miss := []
-    foreach names (n: object) => { Match pat (string n) { hit.Add n; } { miss.Add n; } }
+    names.Foreach (n: object) => { Match pat (string n) { hit.Add n; } { miss.Add n; } }
     {"hit"-> hit "miss"-> miss}
 }
 

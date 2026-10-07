@@ -40,7 +40,7 @@ print c.n
 
 # ── 循环体里当"这一轮的语句" ──
 hits := 0
-foreach [1 2 3 4] (x: int) => { hits++; }
+[1 2 3 4].Foreach (x: int) => { hits++; }
 print hits
 
 # ── 和 `+=` 完全等价:只读字段照样拦 ──

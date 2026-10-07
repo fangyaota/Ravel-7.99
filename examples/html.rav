@@ -30,9 +30,9 @@ print (Html.Pretty (card "标题" "正文里 < 和 & 会被转义"))
 rows := [["甲" 12] ["乙" 7] ["丙" 30]]
 
 body := []
-foreach rows (r: list) => {
+rows.Foreach (r: list) => {
     tds := []
-    foreach r (c: object) => { tds.Add (Html.El "td" {} [c]); }
+    r.Foreach (c: object) => { tds.Add (Html.El "td" {} [c]); }
     body.Add (Html.El "tr" {} tds)
 }
 

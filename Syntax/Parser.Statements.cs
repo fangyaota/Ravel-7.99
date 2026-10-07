@@ -67,7 +67,9 @@ public partial class Parser
         public string Cont = "";
         public bool BrkUsed;
         public bool ContUsed;
-        public int BodySeen;          // 走到第几个实参了(第 2 个是体)
+        public int BodySeen;          // 走到第几个实参了
+        public int BodyAt = 2;        // **体是第几个实参** —— `while 条件 体` 是 2,
+                                      // `序列.Foreach 体` 是 1(见 `ParsePostfixRest` 里认循环那段)
     }
 
     private readonly List<LoopCtx> _loops = [];
@@ -113,7 +115,7 @@ public partial class Parser
         if (ctx is null)
             throw new SyntaxException(
                 label is null
-                    ? "'break' / 'continue' 得写在循环里（`while` / `foreach`，或者带标签的语句）"
+                    ? "'break' / 'continue' 得写在循环里（`while` / `.Foreach`，或者带标签的语句）"
                     : $"找不到标签 '{label}' 标的那个循环",
                 new SourceSpot(source, kw.Line, kw.Column));
 

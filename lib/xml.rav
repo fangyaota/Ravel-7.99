@@ -62,7 +62,7 @@ XmlNode ::= class {
     Text := () => {
         IsText () { Tree.Get "text"; } {
             out := ""
-            foreach (Kids ()) (k: XmlNode) => { k.IsText () { out += (k.Text ()); } { 0; } }
+            (Kids ()).Foreach (k: XmlNode) => { k.IsText () { out += (k.Text ()); } { 0; } }
             out
         }
     }
@@ -73,7 +73,7 @@ XmlNode ::= class {
     AllText := () => {
         IsText () { Text (); } {
             out := ""
-            foreach (Kids ()) (k: XmlNode) => { out += (k.AllText ()); }
+            (Kids ()).Foreach (k: XmlNode) => { out += (k.AllText ()); }
             out
         }
     }
@@ -84,7 +84,7 @@ XmlNode ::= class {
         out := []
         # 文本节点没有孩子 —— 给空表,不给"键不存在"
         IsText () { out; } {
-            foreach (Tree.Get "kids") (k: dict) => { out.Add (XmlNode k this); }
+            (Tree.Get "kids").Foreach (k: dict) => { out.Add (XmlNode k this); }
             out
         }
     }
@@ -100,7 +100,7 @@ XmlNode ::= class {
     # (别写成 `hit := ()` 再在循环里赋值 —— `:=` 会把类型**钉成 Void**,后面赋节点就报错了)
     Find := (name: string) => {
         hit := []
-        foreach (Kids ()) (k: XmlNode) => {
+        (Kids ()).Foreach (k: XmlNode) => {
             (hit.Count ()) == 0 {
                 (k.IsElement ()) && ((k.Name ()) == name) { hit.Add k; } { 0; }
             } { 0; }
@@ -111,7 +111,7 @@ XmlNode ::= class {
     # 所有叫这个名字的子元素(XML 里同名兄弟是常事)
     All := (name: string) => {
         out := []
-        foreach (Kids ()) (k: XmlNode) => { (k.IsElement ()) && ((k.Name ()) == name) { out.Add k; } { 0; } }
+        (Kids ()).Foreach (k: XmlNode) => { (k.IsElement ()) && ((k.Name ()) == name) { out.Add k; } { 0; } }
         out
     }
 
@@ -120,7 +120,7 @@ XmlNode ::= class {
 
     Filter := (wantElement: bool) => {
         out := []
-        foreach (Kids ()) (k: XmlNode) => { ((k.IsElement ()) == wantElement) { out.Add k; } { 0; } }
+        (Kids ()).Foreach (k: XmlNode) => { ((k.IsElement ()) == wantElement) { out.Add k; } { 0; } }
         out
     }
 
@@ -157,8 +157,8 @@ XmlNode ::= class {
     # 换对象它就指丢了(和 `JsonNode` 那边一个考虑)。所以是"清空 + 抄进来"。
     Put := (other: object) => {
         tree := TreeOf other
-        foreach ((Tree.Keys ()).Sort ()) (k: string) => { Tree.Remove k; }
-        foreach (tree.Keys ()) (k: string) => { Tree.Set k (tree.Get k); }
+        ((Tree.Keys ()).Sort ()).Foreach (k: string) => { Tree.Remove k; }
+        (tree.Keys ()).Foreach (k: string) => { Tree.Set k (tree.Get k); }
         ();
     }
 
@@ -176,7 +176,7 @@ XmlNode ::= class {
         kids := Tree.Get "kids"
         i := 0
         found := 0 - 1
-        foreach kids (k: dict) => {
+        kids.Foreach (k: dict) => {
             k == tree { found = i; } { 0; }
             i += 1
         }
@@ -217,7 +217,7 @@ XmlNode ::= class {
     List := () => {
         out := {}
         seen := {}
-        foreach (Kids ()) (k: XmlNode) => {
+        (Kids ()).Foreach (k: XmlNode) => {
             tag := k.NameOf ()
             n := seen.Has tag { (seen.Get tag) + 1; } { 1; }
             seen.Set tag n

@@ -190,13 +190,13 @@ ravel ""
 
 # ═══ 224_callcc_loops(并入) ═══
 ravel "224_callcc_loops"
-# `callcc` × 循环与枚举：`while` / `foreach` / 序列方法（`Each` `Map` …）。
+# `callcc` × 循环与枚举：`while` / `.Foreach` / 序列方法（`Each` `Map` …）。
 #
 # 这些控制结构本身就建立在 callcc 或控制帧上（`while` 是 predefined.rav 里用 callcc 写的），
 # 所以它们和用户手里的续延会互相踩。这里钉住四条:
 #
 #   ① **逃出去**（break）:调用外层捕获的续延 = 丢弃当前帧链 → 循环/枚举就地停下，它没做完的
-#      收尾也不再跑（`foreach` 不发第二次 `MoveNext`、`Map` 攒了一半的结果直接丢掉）;
+#      收尾也不再跑（`.Foreach` 不发第二次 `MoveNext`、`Map` 攒了一半的结果直接丢掉）;
 #   ② 枚举的**回调里抛错**照样能被外面的 `try` 接住，且 handler 栈收得干净;
 #   ③ **多发射**:同一枚续延可以调用多次 —— 拿它写"再来一遍"的循环;
 #   ④ **可变状态不回滚**:续延只还原**控制**状态（帧链、handler 栈、模块加载栈），
@@ -215,10 +215,10 @@ out := callcc (esc: function) => {
 print out
 print i
 
-# ---- ① 逃出 foreach / Each ----
+# ---- ① 逃出 `.Foreach` ----
 seen: list = []
 r1 := callcc (k: function) => {
-    foreach [1 2 3 4] (x: int) => {
+    [1 2 3 4].Foreach (x: int) => {
         seen.Add x
         x == 3 { k x; } { 0; }
     }
@@ -229,7 +229,7 @@ print seen
 
 done: list = []
 r2 := callcc (k: function) => {
-    [1 2 3 4].Each (x: int) => { done.Add x; x == 2 { k x; } { 0; } }
+    [1 2 3 4].Foreach (x: int) => { done.Add x; x == 2 { k x; } { 0; } }
     999
 }
 print r2
@@ -238,7 +238,7 @@ print done
 # ---- ② 回调里抛错，外面接住 ----
 stuck := 0
 try {
-    foreach [1 2 3] (x: int) => {
+    [1 2 3].Foreach (x: int) => {
         stuck += 1
         x == 2 { throw (Exception "boom"); } { 0; }
     }

@@ -1,5 +1,5 @@
 ﻿# 按顺序把元素交出来。形状照 C#:`IEnumerable`(交回一个枚举器)/ `IEnumerator`(MoveNext + Current),
-# 外加一个通用枚举器 `Enumerator`;几种容器各实现一条。`foreach` 就是照这个形状写的。
+# 外加一个通用枚举器 `Enumerator`;几种容器各实现一条。`.Foreach` 就是照这个形状写的。
 # 由 predefined.rav 加载(名字落在全局作用域)。
 #
 # ── 这个接口自带一整套**默认实现** ──
@@ -44,7 +44,7 @@ readonly SeekIn := (xs: object p: function) => {
     hit: object = ()
     found := false
     callcc (done: function) => {
-        foreach xs (x: object) => {
+        xs.Foreach (x: object) => {
             (p x) { found = true; hit = x; done (); } { 0; }
         }
     }
@@ -56,7 +56,7 @@ readonly SeekIn := (xs: object p: function) => {
 readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
     got := false
     best: object = ()
-    foreach xs (x: object) => {
+    xs.Foreach (x: object) => {
         (!got) {
             got = true
             best = x
@@ -87,26 +87,26 @@ IEnumerable ::= interface IMonad {
     # 留下满足 `p` 的
     internal Where := (p: function) => {
         Generator (y: function) => {
-            foreach instance (x: object) => {
+            instance.Foreach (x: object) => {
                 (p x) { y x; } { 0; }
             }
         }
     }
 
     # 绑定(= flatMap):每个元素交回**一串**,接起来 —— monad 就是要它,`do { … }` 用的也是它。
-    # 交回的不是 `IEnumerable` 就当场报错(`foreach` 那句话),不悄悄当成一个元素。
+    # 交回的不是 `IEnumerable` 就当场报错(`.Foreach` 那句话),不悄悄当成一个元素。
     internal Bind := (f: function) => {
         Generator (y: function) => {
-            foreach instance (x: object) => {
-                foreach (f x) (v: object) => { y v; }
+            instance.Foreach (x: object) => {
+                (f x).Foreach (v: object) => { y v; }
             }
         }
     }
 
     # 前 n 个(**数够就走** —— 无限流上停得住)
-    # **这一条得自己控 `MoveNext`,不能用 `foreach`。**
+    # **这一条得自己控 `MoveNext`,不能用 `.Foreach`。**
     #
-    # `foreach` 每一步是"**先走一步拿到元素、再跑体**",所以 `i >= n` 判到的时候,那个元素
+    # `.Foreach` 每一步是"**先走一步拿到元素、再跑体**",所以 `i >= n` 判到的时候,那个元素
     # 已经被取出来了 —— 取出来却没交出去,就是**多吃一个**。而且 `instance` 是个枚举器时,
     # 它交回的枚举器**就是它自己**(`IEnumerator <: IEnumerable` 那条),那一步直接落在
     # 调用方身上:实测 `Take 1` 之后调用方少一个。
@@ -127,7 +127,7 @@ IEnumerable ::= interface IMonad {
     internal Skip := (n: int) => {
         Generator (y: function) => {
             i := 0
-            foreach instance (x: object) => {
+            instance.Foreach (x: object) => {
                 (i >= n) { y x; } { 0; }
                 i += 1
             }
@@ -156,8 +156,8 @@ IEnumerable ::= interface IMonad {
     # (和 `Concat` 要用的 `Generator` 一样,都是**调用时**才去解析,那时它们在作用域里了)
     internal Concat := (xs) => {
         Generator (y: function) => {
-            foreach instance (x: object) => { y x; }
-            foreach xs (x: object) => { y x; }
+            instance.Foreach (x: object) => { y x; }
+            xs.Foreach (x: object) => { y x; }
         }
     }
 
@@ -165,21 +165,21 @@ IEnumerable ::= interface IMonad {
     internal Distinct := () => {
         Generator (y: function) => {
             xs := instance.ToList ()
-            foreach (xs.Distinct ()) (x: object) => { y x; }
+            (xs.Distinct ()).Foreach (x: object) => { y x; }
         }
     }
 
     internal Reverse := () => {
         Generator (y: function) => {
             xs := instance.ToList ()
-            foreach (xs.Reverse ()) (x: object) => { y x; }
+            (xs.Reverse ()).Foreach (x: object) => { y x; }
         }
     }
 
     internal SortBy := (key: function) => {
         Generator (y: function) => {
             xs := instance.ToList ()
-            foreach (Sorting.SortBy xs key) (x: object) => { y x; }
+            (Sorting.SortBy xs key).Foreach (x: object) => { y x; }
         }
     }
 
@@ -196,7 +196,7 @@ IEnumerable ::= interface IMonad {
 
     internal ToList := () => {
         out := []
-        foreach instance (x: object) => { out.Add x; }
+        instance.Foreach (x: object) => { out.Add x; }
         out
     }
 
@@ -206,25 +206,39 @@ IEnumerable ::= interface IMonad {
     # 反过来那一扇门:要惰性(能无限)就在这儿转一趟
     internal ToGenerator := () => {
         Generator (y: function) => {
-            foreach instance (x: object) => { y x; }
+            instance.Foreach (x: object) => { y x; }
         }
     }
 
-    internal Each := (f: function) => {
-        foreach instance (x: object) => { f x; }
+    # 每个元素跑一遍 —— 只为**副作用**,交回 `()`。
+    #
+    # 2026-10-07 从 `Each` 改名叫 `Foreach`,同时把从前那个**库函数** `foreach` 删了
+    # (它写出来就是下面这三行)。为什么要改:从前 `foreach 序列 体` 是库函数,每个元素
+    # 都得走一遍 `GetEnumerator` → `MoveNext` → `Current`;挂成**方法**之后,
+    # 容器那条路归引擎(`SeqMethod`,见 `BuiltinClasses.Sequences.cs`),每元素快 5 倍
+    # (5 万元素:313 ms → 57 ms)。**非容器**(`Generator` / `Option` / 用户自己实现的
+    # `IList`)走的还是下面这份,和从前一样。
+    #
+    # 解析器**按名字认循环**(`while` / `.Foreach`)—— 名字从裸的 `foreach` 挪到了成员上,
+    # 于是 `break` / `continue` / `@标签` 照旧能用(体还是那个 lambda)。
+    internal Foreach := (f: function) => {
+        e := instance.GetEnumerator ()
+        while { e.MoveNext (); } { f (e.Current); }
         ()
     }
+
+    # (从前这儿有个 `readonly foreach := (xs f) => { … }` —— 已删,见上。)
 
     # `Fold 初值 函数`:函数是柯里化的 —— 先喂累积值、再喂元素(`f acc x`)
     internal Fold := (init: object f: function) => {
         acc := init
-        foreach instance (x: object) => { acc = (f acc) x; }
+        instance.Foreach (x: object) => { acc = (f acc) x; }
         acc
     }
 
     internal Sum := () => {
         acc := 0
-        foreach instance (x: object) => { acc = acc + x; }
+        instance.Foreach (x: object) => { acc = acc + x; }
         acc
     }
 
@@ -234,7 +248,7 @@ IEnumerable ::= interface IMonad {
     internal Join := (sep: string) => {
         out := ""
         first := true
-        foreach instance (x: object) => {
+        instance.Foreach (x: object) => {
             first { first = false; } { out += sep; }
             out += string x
         }
@@ -253,7 +267,7 @@ IEnumerable ::= interface IMonad {
     internal Last := () => {
         got := false
         last: object = ()
-        foreach instance (x: object) => { got = true; last = x; }
+        instance.Foreach (x: object) => { got = true; last = x; }
         got { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
         last
     }
@@ -289,7 +303,7 @@ IEnumerable ::= interface IMonad {
 
 # 枚举器**也是**一串(`IEnumerator <: IEnumerable`):它**自己就是自己的枚举器**。
 # 于是任何枚举器(`Enumerator`、`GeneratorCursor`、用户自己写的)白拿整套(`Count` /
-# `Map` / `Take` / `ToList` …),也能直接 `foreach`。
+# `Map` / `Take` / `ToList` …),也能直接 `.Foreach`。
 #
 # 两条语义得记着(单遍的东西本来就这样,C# 里 `yield` 生成的那个类也是这个形状:
 # 它的 `GetEnumerator ()` 交回 `this`):
@@ -315,7 +329,7 @@ IEnumerator ::= interface IEnumerable {
 #     一个字都不用写,自己就命中了;
 #   * 类体里自己写(`Generator` / `Option` / `Enumerator` 那三个,见各自文件);
 #   * 类链够不着、又不是类的,就在 impl 体里覆盖(下面 `string` 的 `Count`:类链上叫 `Length`)。
-# 兜底那两条只有"数得出来但直接拿不到"时才会跑到,`foreach` 走一遍,O(n)。
+# 兜底那两条只有"数得出来但直接拿不到"时才会跑到,`.Foreach` 走一遍,O(n)。
 #
 # `IList <: IEnumerable`:按下标读的东西**本来就**是一串,反过来推不过去
 # (能枚举不等于有下标 —— `Generator` 就是),这层是**单向**的。
@@ -323,12 +337,12 @@ IEnumerator ::= interface IEnumerable {
 # **这儿不碰 `GetEnumerator`**:它是**要求** `IEnumerable` 的活儿,槽不并过来,
 # 实现者自己在那条 `impl (IEnumerable X { … })` 里写。这儿再给一份的话,
 # 一个类就有**两份** `GetEnumerator` —— 挑中这份时 `Enumerator instance` 会回头问
-# `Count`,而 `Count` 是下面那条"数一遍"(`foreach instance`)……自己绕自己,转不出来。
+# `Count`,而 `Count` 是下面那条"数一遍"(`instance.Foreach`)……自己绕自己,转不出来。
 IList ::= interface IEnumerable {
     # 兜底:`set` / `dict` / `Scope` 那几种类链上没有"第几个",只能这么数
     internal Count := () => {
         n := 0
-        foreach instance (x: object) => { n += 1; }
+        instance.Foreach (x: object) => { n += 1; }
         n
     }
     internal At := (k: int) => {
@@ -377,7 +391,7 @@ Enumerator ::= class {
     # 从前这两条是 `IEnumerable` 接口体的默认实现,现在写在类里(类链先说话),口径不变。
     Count := () => {
         n := 0
-        foreach this (x: object) => { n += 1; }
+        this.Foreach (x: object) => { n += 1; }
         n
     }
     At := (k: int) => {
@@ -396,7 +410,7 @@ Enumerator ::= class {
 #
 # 和 `Enumerator` 一个形状(`Cur` 对它的 `Index`),也就一个规矩:没 `MoveNext` 就读
 # `Current` 是 j**未定义**的 —— 从前生成器那版给的是 `()`(字段默认值),这版给 `0`,
-# 都是垃圾值;库里的 `foreach` / `Take` 那些一律先 `MoveNext` 再读,碰不到这一格。
+# 都是垃圾值;库里的 `.Foreach` / `Take` 那些一律先 `MoveNext` 再读,碰不到这一格。
 #
 # **方向由两头谁大谁小定**(`[5..1]` 倒着数),空区间直接 `Empty` 挡住 ——
 # 和从前 `Generator` 里那段一模一样,只是不再需要一段"跑给生成器看"的体。
@@ -419,7 +433,7 @@ RangeCursor ::= class {
     Started: bool = false
     Empty: bool = true
     # 上界是 ±∞(`[1..]` / `[..1]`):没有 `Top` 可比,走起来就不停。
-    # `foreach` / `Take` / `Where` 那批**天然停得住**(它们是消费者,要几个取几个);
+    # `.Foreach` / `Take` / `Where` 那批**天然停得住**(它们是消费者,要几个取几个);
     # `ToList` / `Count` 那种"要数到底"的在引擎那边就报错了,到不了这儿。
     Open: bool = false
 
@@ -467,7 +481,7 @@ impl (IEnumerable dict {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
 impl (IList dict default)
-# **作用域**也是一串:元素就是 `Variables ()` 那份 dict 的**值**(变量本身,和 `foreach` 一个 dict
+# **作用域**也是一串:元素就是 `Variables ()` 那份 dict 的**值**(变量本身,和 `.Foreach` 一个 dict
 # 交回它的值一个口径)。要**名字**用 `Keys ()`。`System.Scope` 这个名字来自引擎那边新露的一条
 # (`SysModule.Types`)—— 从前这个类型在 Ravel 层叫不出来,所以这两条 `impl` 一直写不出来。
 impl (IMonad System.Scope default)
@@ -476,7 +490,7 @@ impl (IEnumerable System.Scope {
 })
 impl (IList System.Scope default)
 # `Option` 也是"一串" —— **0 个或 1 个**:`Some x` 走一次、`None` 一次都不走。
-# 于是 `foreach (Some 5) …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法
+# 于是 `(Some 5).Foreach …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法
 # (ToList / Take / First / Fold …)照旧走默认实现。
 #
 # 枚举器**不用** `instance.ToList ()` 来取:那正是这条默认实现自己 —— 会转圈。
@@ -518,14 +532,8 @@ impl (IEnumerator Enumerator {
     by Current = property (() => { instance.Current; }) ((v: object) => { (); })
 })
 
-# `foreach` 写出来就是 C# 里那个 while 循环:拿枚举器 → MoveNext → 用 Current。
-# 每次进来都**新开一个**枚举器,所以嵌套遍历同一串值互不打扰(和 C# 一样)。
-readonly foreach := (xs: object f: function) => {
-    # 那句报错串是 `assert` 的**实参**:写得再好看,`foreach` 每进一次都要先把它拼出来。
-    # 所以写成一进一出的 if —— 只在真报错时才拼(和 `Keys` 那条一个道理)。
-    xs : IEnumerable { 0; } {
-        throw (TypeError ("foreach 需要 IEnumerable（能按顺序交出一串的东西：list / set / dict / string / Generator / 枚举器 / Option…），得到 " + string (typeof xs)))
-    }
-    e := xs.GetEnumerator ()
-    while { e.MoveNext (); } { f (e.Current); }
-}
+# (这里从前是 `readonly foreach := (xs f) => { … }` —— 2026-10-07 删了:
+#  它写出来就是上面 `IEnumerable.Foreach` 里那三行,而**序列.Foreach** 现在是方法调用,
+#  容器那条路因此走引擎的快实现。代价写在文档里:给的要是"不是一串"的东西,
+#  报错从原来那句说全了的「foreach 需要 IEnumerable（…得到 Integer）」变成
+#  「类型 Integer 没有方法 'Foreach'」。)

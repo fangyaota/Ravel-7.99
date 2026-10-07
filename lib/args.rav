@@ -97,7 +97,7 @@ readonly ParseWith := (argv: list spec: object) => {
     # 合并的短开关 `-abc`。**每个字母都得是开关** —— 声明成 int 的那种混进来就报错,
     # 不猜"作者是不是想把 bc 当 a 的值"(同一个写法两种读法,是最坏的那种设计)。
     merge := (body: string) => {
-        foreach (body.Chars ()) (c: object) => {
+        (body.Chars ()).Foreach (c: object) => {
             nm := string c
             given && (!(isFlag nm)) {
                 throw (Exception ("Args.Parse: 合并的短开关不能带值 —— '-" + body + "' 里的 '" + nm + "' 是带值的，请写 '-" + nm + " 值'"))
@@ -162,7 +162,7 @@ readonly AsInt := (name: string v: object) => {
     (typeof v) == string {
         s := v.StartsWith "-" { v.Skip 1; } { v; }
         ok := (s.Length ()) > 0
-        foreach (s.Chars ()) (c: object) => {
+        (s.Chars ()).Foreach (c: object) => {
             !(c.IsDigit ()) { ok = false; } { 0; }
         }
         ok { int v; } { throw (Exception ("Args.Parse: '--" + name + "' 要一个整数，得到 '" + v + "'")); }
@@ -190,7 +190,7 @@ readonly Positional := (a: dict) => { a.Get Rest; }
 # 一行用法说明(`--port <int> --v`),名字排过序 —— 每次跑都长一样,好放进 `--help` 里
 readonly Usage := (spec: dict) => {
     parts := []
-    foreach ((spec.Keys ()).Sort ()) (k: string) => {
+    ((spec.Keys ()).Sort ()).Foreach (k: string) => {
         t := spec.Get k
         parts.Add (t == "flag" { "--" + k; } { (("--" + k) + " <") + (t + ">"); })
     }

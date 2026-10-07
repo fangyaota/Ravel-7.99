@@ -40,8 +40,8 @@ readonly NonceLen := 12
 # (交回 `IEnumerable`,不是 list)—— 这儿要的就是一张**平的 list**,那就自己垒。
 readonly Together := (a: list b: list) => {
     out := []
-    foreach a (x: object) => { out.Add x; }
-    foreach b (x: object) => { out.Add x; }
+    a.Foreach (x: object) => { out.Add x; }
+    b.Foreach (x: object) => { out.Add x; }
     out
 }
 

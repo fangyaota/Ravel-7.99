@@ -82,7 +82,7 @@ xs.Sort ()         # ❌ 交回 [a b] 就丢了 —— 等于什么都没做，x
 ys := xs.Sort ()   # ✅ 接住它
 ```
 
-这门语言里**没有原地排序**。所以 `names.Sort ()` 后面跟一句 `foreach names …` 是**静默的错**：Windows 上目录枚举本来就近似有序，看着像对的，换台机器就露出随机顺序 —— 库里真栽过。
+这门语言里**没有原地排序**。所以 `names.Sort ()` 后面跟一句 `names.Foreach …` 是**静默的错**：Windows 上目录枚举本来就近似有序，看着像对的，换台机器就露出随机顺序 —— 库里真栽过。
 
 ## 12.4 链式调用需要临时变量
 
@@ -94,7 +94,7 @@ v := s.At 0          # ✅ 用临时变量断开
 v.Count ()
 ```
 
-`()` 也是个字面量，所以 `xs.GetEnumerator ().MoveNext ()` 是 `xs.GetEnumerator (().MoveNext ())` —— 同样落到变量上（这就是 `foreach` 里为什么先 `e := …`）。
+`()` 也是个字面量，所以 `xs.GetEnumerator ().MoveNext ()` 是 `xs.GetEnumerator (().MoveNext ())` —— 同样落到变量上（这就是 `.Foreach` 那条默认实现里为什么先 `e := instance.GetEnumerator ()`）。
 
 （要接链就用 `|>`：`xs.Count () |> .ToString ()`。）
 

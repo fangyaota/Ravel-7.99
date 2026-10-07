@@ -125,7 +125,7 @@ readonly Bytes := (n: int) => {
 # 字节表 → int。**只留低 4 个字节**,多出来的那几个会被挤掉(和 `<<` 一样不报错)
 readonly FromBytes := (bs: list) => {
     n := 0
-    foreach bs (b: object) => { n = (n << 8) | (int b); }
+    bs.Foreach (b: object) => { n = (n << 8) | (int b); }
     n
 }
 

@@ -127,7 +127,7 @@ tries := []
 try { eval "x: real = 1"; } (e: Exception) => { tries.Add ("1: " + e.Message); }
 try { eval "y: bigint = 5"; } (e: Exception) => { tries.Add ("2: " + e.Message); }
 try { eval "z: int = 3.9"; } (e: Exception) => { tries.Add ("3: " + e.Message); }
-foreach tries (t: string) => { print t; }
+tries.Foreach (t: string) => { print t; }
 ```
 
 执行以上程序会输出如下结果：

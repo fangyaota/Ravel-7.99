@@ -21,7 +21,7 @@ print (myEnum.A == myEnum.A)
 print (myEnum.A == myEnum.B)
 
 # 全部成员,按声明的先后
-foreach (myEnum.Values ()) (e: object) => { print (e.Name); }
+(myEnum.Values ()).Foreach (e: object) => { print (e.Name); }
 
 # 按值反查;没有这个值就当场报错
 print ((myEnum.Of 3).Name)
@@ -49,7 +49,7 @@ print (sub.A : sub)             # 迁过来的是**这个枚举的**值,不是�
 print (sub.A == base.A)          # 所以两边同名不同枚
 print ((sub ()) : base)         # 但 sub 的实例仍是 base(类链那条)
                                  # (括号不能省:实参吃到运算符为止,`sub () is base` 会读成 `sub (() is base)`)
-foreach (sub.Values ()) (e: object) => { print (e.Name); }   # 父类的在前
+(sub.Values ()).Foreach (e: object) => { print (e.Name); }   # 父类的在前
 print ((sub.Of 2).Name)
 
 # 父类不是 enum —— 当场说清楚,别静默建个空壳

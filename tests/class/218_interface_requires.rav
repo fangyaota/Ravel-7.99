@@ -69,7 +69,7 @@ print (u : masterTrait)
 print (u : supTrait)
 print (u : myTrait)
 print (u : IEnumerable)
-foreach u (v: int) => { print ("each " + string v); }
+u.Foreach (v: int) => { print ("each " + string v); }
 
 # ---- 槽上的类型约束:写进去的值要过声明那个类型 ----
 try { u.a = "x"; } (err: Exception) => { print ("3: " + string err); }

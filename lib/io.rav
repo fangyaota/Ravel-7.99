@@ -133,7 +133,7 @@ Dir ::= class {
         names := (raw.Keys ()).Sort ()
         out := {}
         # 那层括号不能省：实参位置上的「raw.Get n」会被读成「((EntryAt …) raw.Get) n」
-        foreach names (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
+        names.Foreach (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
         out
     }
 
@@ -144,7 +144,7 @@ Dir ::= class {
     Pick := (wantDir: bool) => {
         out := {}
         all := List ()
-        foreach (all.Keys ()) (n: string) => {
+        (all.Keys ()).Foreach (n: string) => {
             e := all.Get n
             (e.IsDir ()) == wantDir { out.Set n e; } { 0; }
         }
@@ -173,7 +173,7 @@ readonly WriteLineAction := (f: IFile text: string) => { IoMonad.Action (() => {
 
 # 一份"把每一行交给 g"的说明书
 readonly EachLineAction := (f: IFile g: function) => {
-    IoMonad.Action (() => { foreach (Lines f) (l: string) => { g l; }; (); });
+    IoMonad.Action (() => { (Lines f).Foreach (l: string) => { g l; }; (); });
 }
 
 
@@ -218,7 +218,7 @@ MemDir ::= class {
     List := () => {
         names := (Kids.Keys ()).Sort ()
         out := {}
-        foreach names (n: string) => { out.Set n (Kids.Get n); }
+        names.Foreach (n: string) => { out.Set n (Kids.Get n); }
         out
     }
     Files := () => { Filter (false); }
@@ -227,7 +227,7 @@ MemDir ::= class {
     Filter := (wantDir: bool) => {
         out := {}
         all := List ()
-        foreach (all.Keys ()) (n: string) => {
+        (all.Keys ()).Foreach (n: string) => {
             e := all.Get n
             ((e.IsDir ()) == wantDir) { out.Set n e; } { 0; }
         }
@@ -314,7 +314,7 @@ JsonNode ::= class {
             }
         } {
             # 按名字排(和别的实现一个规矩);`Sort ()` 交回的是**新表**,别写成一句光秃秃的调用
-            foreach ((Value.Keys ()).Sort ()) (k: string) => { out.Set k (Kid k); }
+            ((Value.Keys ()).Sort ()).Foreach (k: string) => { out.Set k (Kid k); }
         }
         out
     }
@@ -348,16 +348,16 @@ readonly BaseName := (p: string) => { System.PathBase p; }
 readonly Ext := (p: string) => { System.PathExt p; }
 
 # 下面是**对着接口**写的：任何实现都吃（磁盘的、内存的、以后加的）。
-# 按行切开 —— 是个**生成器**：边要边给，`foreach` 直接吃。
+# 按行切开 —— 是个**生成器**：边要边给，`.Foreach` 直接吃。
 #
-#     foreach (Io.Lines (Io.File "a.txt")) (l: string) => { print l; }
+#     (Io.Lines (Io.File "a.txt")).Foreach (l: string) => { print l; }
 #
 # 惰性在**消费**那一头：`IFile` 只有 `Read () => string`（一口气读完），所以内容是一次读进来的，
 # 但"行"是逐条给的 —— 读到第 3 行就 `callcc` 收工，后面那些行不会进你的函数(见 tests/246)。
 # 要一次拿全就用 `System.SplitLines (f.Read ())`，或者磁盘实现上的 `f.Lines ()`（那是个 list）。
 readonly Lines := (f: IFile) => {
     Generator (y: function) => {
-        foreach (System.SplitLines (f.Read ())) (l: string) => { y l; }
+        (System.SplitLines (f.Read ())).Foreach (l: string) => { y l; }
     }
 }
 
@@ -368,7 +368,7 @@ readonly CopyTo := (from: IFile to: IFile) => { to.Write (from.Read ()); (); }
 readonly EachDir := (d: IDir f: function) => {
     walk := (dir: IDir prefix: string) => {
         all := dir.List ()
-        foreach (all.Keys ()) (name: string) => {
+        (all.Keys ()).Foreach (name: string) => {
             e := all.Get name
             here := prefix == "" { name; } { Join prefix name; }
             f here e

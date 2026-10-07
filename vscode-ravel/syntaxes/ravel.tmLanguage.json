@@ -94,7 +94,7 @@
                 },
                 {
                     "comment": "语言级函数/别名(都是 `predefined.rav` 里那些全局名)",
-                    "match": "\\b(print|while|foreach|do|Cached|Some|None|callcc|typeof|assert|eval|with|ravel|using|use|impl|try|throw|exit|input|unsafe|currentScope|property|dataclass)\\b",
+                    "match": "\\b(print|while|do|Cached|Some|None|callcc|typeof|assert|eval|with|ravel|using|use|impl|try|throw|exit|input|unsafe|currentScope|property|dataclass)\\b",
                     "name": "support.function.ravel"
                 },
                 {
