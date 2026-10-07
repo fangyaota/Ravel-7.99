@@ -74,7 +74,7 @@ internal static class ReflectModule
 
     /// <summary>**脱壳**:`DotNetObject` 里的 .NET 值按 `Bridge` 的规矩交回 Ravel。别的值原样。</summary>
     [RavelFn("Unwrap")]
-    public static RuntimeValue Unwrap(RuntimeValue v) => v is DotNetVal dn ? Bridge.FromNet(dn.Value) : v;
+    public static RuntimeValue Unwrap(RuntimeValue v) => v is DotNetVal dn ? Bridge.ToRavel(dn.Value) : v;
 
     // ═══ 帮手 ═══
 

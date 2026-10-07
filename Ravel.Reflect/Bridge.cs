@@ -35,8 +35,20 @@ internal static class Bridge
         _ => throw PluginKit.Fail($"这个值转不成 .NET 的值:{v.Type}", ErrorKind.Type),
     };
 
-    /// <summary>.NET → Ravel。**不认识的不报错**,兜成 `DotNetObject`。</summary>
-    public static RuntimeValue FromNet(object? o) => o switch
+    /// <summary>**`.NET → Ravel` 一律是 `DotNetObject`** —— 一个都不化。
+    ///
+    /// 先前是"认识的(int / string / 一串…)就化成 Ravel 值",踩到的坑是**身份会掉**:
+    /// `ToCharArray ()` 交回来的 `char[]` 被化成了 Ravel 的 `list`,再想传给
+    /// `String.Split (char[])` 就只剩 `object[]` 了 —— 自己刚造出来的东西自己交不出去。
+    /// 所以规矩改成**一律不猜**:反射回来的一律是对象,要看要转,明说:
+    /// `Reflect.Text`(看) / `Reflect.Unwrap`(转成 Ravel 值)。</summary>
+    public static RuntimeValue FromNet(object? o) => new DotNetVal(o);
+
+    /// <summary>**强制**化成 Ravel 值 —— `Unwrap` 走这条。
+    ///
+    /// 认识的就化(`int` / `string` / `bool` / 一串 → `list`…),不认识的兜成
+    /// `DotNetObject`(原地不动)。数组**也化**(这条是"我要 Ravel 值,给我化掉")。</summary>
+    public static RuntimeValue ToRavel(object? o) => o switch
     {
         null => VoidVal.Instance,
         RuntimeValue rv => rv,                       // 已经是 Ravel 值(插件传回来的)

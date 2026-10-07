@@ -1,59 +1,67 @@
 # **反射 .NET** —— `plugins/Ravel.Reflect.dll`。
 #
 # 五个函数:`Type`（名字 → 类型）/ `New`（造）/ `Call`（调）/ `Text`（看看它什么样）/
-# `Unwrap`（脱壳）。两个类:`DotNetType` / `DotNetObject`。
+# `Unwrap`（把 `DotNetObject` 里的东西化成 Ravel 值）。两个类:`DotNetType` / `DotNetObject`。
 #
-# 规矩就一条:**第一个实参给 `DotNetType` 就是静态,给对象就是实例**（和 C# 一样）。
-# 重载按"参数个数 + 绑得上"挑 —— 先按个数筛,再依次试(绑不上换下一个,
-# 被调方真抛的不吞)。
+# 三条规矩:
 #
-# **这一份是"最基本"的**:泛型类型实参、委托方向(Ravel 函数交给 C# —— 硬边界)、
-# 字典、按参数类型逐个转,都不在里面。缺的那几种不静默:当场明说给的是什么、要的是什么。
+# 1. **第一个实参给 `DotNetType` 就是静态,给对象就是实例**（和 C# 一样）。
+# 2. **反射回来的一律是 `DotNetObject`** —— 一个都不化。先前"认识的(int/string/一串)
+#    就化成 Ravel 值",踩到的坑是**身份会掉**:`ToCharArray ()` 交回的 `char[]` 被化成
+#    Ravel 的 `list`,再想传给 `String.Split (char[])` 就只剩 `object[]` ——
+#    自己刚造出来的东西自己交不出去。现在要 Ravel 值就**明说** `.Unwrap ()`。
+# 3. **重载按"个数 + 绑得上"挑**:先按个数筛、再依次试。
 
 using "plugins/Ravel.Reflect.dll"
 
-# ---- 类型本身 ----
+# ---- 类型名字本身就带数组 / 泛型写法 ----
 t := Reflect.Type "System.Console"
 print (t.Name ())
 print (t.FullName ())
-
-m := Reflect.Type "System.Math"
-print (m.IsValue ())
-print (Reflect.Type "System.Int32" |> (x) => { x.IsValue (); })
-print (Reflect.Type "System.IComparable" |> (x) => { x.IsInterface (); })
+print ((Reflect.Type "System.Char[]").FullName ())
+print ((Reflect.Type "System.Collections.Generic.List`1[System.Int32]").Name ())
 
 # ---- 静态方法:第一个实参给"类型" ----
+m := Reflect.Type "System.Math"
 print (Reflect.Call m "Max" [3 7])
 print (Reflect.Call m "Sqrt" [16])
 
-# ---- 实例方法 / 属性:给"对象" ----
+# ---- 反射回来的东西:要看 `.Text ()`,要值 `.Unwrap ()` ----
 print (Reflect.Call "hello" "Length" [])
-print (Reflect.Call "hello" "ToUpper" [])
-print (Reflect.Call "hello" "Contains" ["ell"])
-# **重载依次试**:`Replace` 的 `(char, char)` 排在 `(string, string)` 前面,
-# 不试就永远挑错那个
-print (Reflect.Call "3.7" "Replace" ["3" "4"])
+print ((Reflect.Call "hello" "Length" []).Unwrap ())
+print ((Reflect.Call "hello" "ToUpper" []).Unwrap ())
+print ((Reflect.Call "hello" "Contains" ["ell"]).Unwrap ())
+print ((Reflect.Call "3.7" "Replace" ["3" "4"]).Unwrap ())
 
-# ---- 造一个自己不认识的 .NET 对象,再接着用 ----
+# ---- 造一个**自己不认识的** .NET 对象,再接着用 ----
 sb := Reflect.New (Reflect.Type "System.Text.StringBuilder") []
 Reflect.Call sb "Append" ["hi "]
 Reflect.Call sb "Append" ["there"]
 print (Reflect.Text sb)
-print (Reflect.Call sb "Length" [])
+print ((Reflect.Call sb "Length" []).Unwrap ())
 
-# `DateTime (int int int)` 那条也是"依次试"挑出来的(3 个参数的构造器不止一个)
 dt := Reflect.New (Reflect.Type "System.DateTime") [2026 10 7]
-print (Reflect.Call dt "ToString" ["yyyy-MM-dd"])
+print ((Reflect.Call dt "ToString" ["yyyy-MM-dd"]).Unwrap ())
 print (Reflect.Text (dt.TypeOf ()))
 print (Reflect.Unwrap dt)
 
+# ---- `char[]` 这条:造得出、**交得出去**(身份不掉) ----
+ca := Reflect.Call "a,b,c" "ToCharArray" []
+print (Reflect.Text (ca.TypeOf ()))
+print (Reflect.Text (Reflect.Call "a,b,c" "Split" [ca]))
+
+arr := Reflect.Call (Reflect.Type "System.Array") "CreateInstance" [(Reflect.Type "System.Char") 1]
+Reflect.Call arr "SetValue" [',' 0]
+print (Reflect.Text (arr.TypeOf ()))
+print (Reflect.Text (Reflect.Call "a,b,c" "Split" [arr]))
+
 # ---- 不认识的东西:先列出来看看 ----
-print ((dt.TypeOf ()).Members () |> .Take 4)
+print (((dt.TypeOf ()).Members ()) |> .Take 4)
 print ((sb.TypeOf ()).Name ())
 
-# ---- 转不过去的时候,话要说全 ----
+# ---- 转不过去 / 找不着的时候,话要说全 ----
 try {
-    Reflect.Call "x" "Split" [","]
+    Reflect.Call "x" "Split" [1]
 } (e: Exception) => { print (e.Message.Contains "实参对不上"); }
 try {
     Reflect.Type "查无此类.Wat"
@@ -70,11 +78,11 @@ print "done"
 # --- expected ---
 # Console
 # System.Console
-# false
-# true
-# true
-# 7
-# 4
+# System.Char[]
+# List`1
+# DotNetObject 7
+# DotNetObject 4
+# DotNetObject 5
 # 5
 # HELLO
 # true
@@ -84,6 +92,10 @@ print "done"
 # 2026-10-07
 # System.DateTime
 # DotNetObject 2026/10/7 0:00:00
+# System.Char[]
+# System.String[]
+# System.Char[]
+# System.String[]
 # [.ctor Add AddDays AddHours]
 # StringBuilder
 # true

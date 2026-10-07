@@ -24,7 +24,7 @@ internal static class DotNetClass
 
     /// <summary>**脱壳**:把里头的 .NET 值按 `Bridge` 的规矩交回 Ravel(认识的就化成 Ravel 值)。</summary>
     [ClassMethod("Unwrap")]
-    public static RuntimeValue Unwrap(RuntimeValue self) => Bridge.FromNet(Val(self).Value);
+    public static RuntimeValue Unwrap(RuntimeValue self) => Bridge.ToRavel(Val(self).Value);
 
     private static DotNetVal Val(RuntimeValue self) => (DotNetVal)self;
 }

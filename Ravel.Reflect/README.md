@@ -40,17 +40,34 @@ print (Reflect.Call "hello" "Length" [])      # 属性也走 Call
 
 ## 值桥
 
-| 方向 | 认识的 |
+| 方向 | 规矩 |
 |---|---|
-| Ravel → .NET | `int` `real` `bool` `string` `char` `()` `default` `list`(→ `object[]`) |
-| .NET → Ravel | 上面那些 + 任何一串(→ `list`);**别的兜成 `DotNetObject`**,不报错 |
+| Ravel → .NET | 认识的转:`int` `real` `bool` `string` `char` `()` `default` `list`(→ `object[]`);认不出就报错 |
+| .NET → Ravel | **一律 `DotNetObject`,一个都不化** |
 
-`.NET → Ravel` 兜底是有意的:反射回来一堆 `FileInfo` 是常态,当场炸掉没法用。
+第二条是**故意不猜**。先前是"认识的(int / string / 一串…)就化成 Ravel 值",踩到的坑是
+**身份会掉**:`"a,b,c".ToCharArray ()` 交回来的 `char[]` 被化成 Ravel 的 `list`,
+再想传给 `String.Split (char[])` 就只剩 `object[]` —— **自己刚造出来的东西自己交不出去**。
+
+现在:要看用 `Reflect.Text`,`5` 那种数要算就明说 `.Unwrap ()`:
+
+```ravel
+print (Reflect.Call "hello" "Length" [])              # DotNetObject 5
+print ((Reflect.Call "hello" "Length" []).Unwrap ())  # 5
+```
+
+于是**数组、容器、自己造的对象全都保得住身份**,可以一路传下去:
+
+```ravel
+ca := Reflect.Call "a,b,c" "ToCharArray" []           # DotNetObject 包着真的 char[]
+print (Reflect.Text (Reflect.Call "a,b,c" "Split" [ca]))   # System.String[]
+```
 
 ## 不在里面的(这一份是"最基本"的)
 
-- **按参数类型逐个转**:`"a,b".Split [","]` 会失败 —— 它要 `char[]`,而桥只把
-  `list` 转成 `object[]`。报错会说清给的是什么、要的是什么。
+- **按参数类型逐个转**:Ravel 的 `list` 只会变成 `object[]`,不会变成参数要的那个形状。
+  要 `char[]` 就**自己造一个再传**(上面那两条);要别的容器同理。报错会说清
+  给的是什么、要的是什么。
 - **泛型类型实参**:`List<int>` 在 Ravel 层没有写法。
 - **字典**:`dict` 不往 .NET 转（.NET 的 `IDictionary` 也不往回转,会兜成对象）。
 - **委托方向 —— 硬边界**:引擎里写着三遍"原生闭包调不了 Ravel 函数(那是帧栈的活)",
