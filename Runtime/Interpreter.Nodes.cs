@@ -21,6 +21,25 @@ public partial class Interpreter
         }
     }
 
+    /// <summary>**`default` 按目标类型落地** —— 0 / "" / 空表 / 空函数 / 空续延…。
+    ///
+    /// `default` 的型是**底类型** `Every`,`IsAssignableTo` 见谁都点头,于是"收得下吗"
+    /// 那一关会把它整段放过 —— 变量里就存下一个**真的** `default`,之后 `n + 1` 报
+    /// 「Every 不支持 '+'」。所以它得单独走这一道:按目标类型**造一个本类型的空值**
+    /// (那正是 `ConvertDirect` 干的事)。
+    ///
+    /// **定义和写入两条路都过这儿**(`VarDefinition` / `WriteVariable`)—— 从前只有定义
+    /// 那边有,于是 `n: int = default` 给 0 而 `n = default` 给 `default`,一个语言两样。
+    ///
+    /// **目标类型就是 `Every` 时不转** —— 没写注解的 `x := default` 要的正是那个底值。</summary>
+    private static RuntimeValue LandDefault(RuntimeValue val, ObjectVal target)
+    {
+        if (val is not DefaultVal || target == BuiltinClasses.Every) return val;
+        return TryConvert(val, target, out var why) is { } dv
+            ? dv
+            : throw new RuntimeException($"类型不匹配: 无法将 default 变成 {target} — {why}", ErrorKind.Type);
+    }
+
     /// <summary>数字文字 → 值。
     ///
     /// **没写后缀**时按文本定类型:带小数点就是 real(`2.0` 也是 —— 形状说了算,不是值),
@@ -316,16 +335,14 @@ public partial class Interpreter
         // **`default` 是唯一例外**:它要的本来就不是"转换",而是"按注解造一个本类型的空值"
         // (0 / "" / 空表 / 空函数…),那正是 ConvertDirect 干的事。它的类型是底类型 Every,
         // 见谁都点头,所以上面那条捷径放它过去会留下一个真的 `default` 值。
-        if (!isBy && (val is DefaultVal || !Accepts(val, dt)))
+        if (!isBy)
         {
-            if (val is DefaultVal)
-            {
-                if (TryConvert(val, dt, out var why) is { } dv) val = dv;
-                else throw new RuntimeException($"类型不匹配: 无法将 default 变成 {dt} — {why}", ErrorKind.Type);
-            }
-            else throw new RuntimeException(
-                $"类型不匹配: 无法将 {val.Type} 赋值给 {dt}（不是父子）—— 要转就明写 `{dt} …`",
-                ErrorKind.Type);
+            // `default` 先按注解落地(`x: int = default` → 0);目标就是 `Every` 时原样留着。
+            val = LandDefault(val, dt);
+            if (!Accepts(val, dt))
+                throw new RuntimeException(
+                    $"类型不匹配: 无法将 {val.Type} 赋值给 {dt}（不是父子）—— 要转就明写 `{dt} …`",
+                    ErrorKind.Type);
         }
 
         // **`:=` 是定义,不是覆盖** —— 同一个作用域里同名再 `:=` 就报错(`Scope.Define` 本来
@@ -534,6 +551,11 @@ public partial class Interpreter
     /// (裸变量、自己那层声明的 `by a := property …` 都是这种情况)。</summary>
     private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val, RuntimeValue? prop = null)
     {
+        // **写入的每一条路都过这一道**:`default` 按**声明类型**落地(`x: int` 上写 `default`
+        // 给 0)。和定义那边(`VarDefinition`)一个口径 —— 从前这边只查不转,而 `default` 的型
+        // 是底类型 `Every`、那一查拦不住它,于是变量里存进一个真的 `default`。
+        val = LandDefault(val, field.TypeConstraint);
+
         if (field.HasAttr(Attr.By))
         {
             // `by a: int = …` 的注解在这一侧执行 —— 和普通字段一样,约束的是**写进来的值**。

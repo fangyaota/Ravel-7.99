@@ -160,6 +160,16 @@ public record ObjectVal : RuntimeValue
     /// 不然密封就成了一句只挡直接子类的话。接口同理:实现了**子接口**照样是在实现它。</summary>
     internal bool IsSealed;
 
+    /// <summary>这个接口的**要求表**(`interface [A B] { … }`)—— 没有要求就是 `null`。
+    ///
+    /// 要求是**前置条件**,不是继承:**槽不并**(实现者得像 `impl (IEnumerable X { … })`
+    /// 那样自己登记一条,引擎在造实现那一步查"有没有"),但**`<:` 成立** ——
+    /// 实现了 `IList` 也就是 `IEnumerable`,`IsAssignableTo` 会顺着这张表走。
+    ///
+    /// 存这一格(而不是只存 Ravel 看得见的 `requires` 成员)是因为 `IsAssignableTo`
+    /// 在每个类型判断的路径上,那儿不能去查作用域。</summary>
+    internal List<ObjectVal>? Requires;
+
     /// <summary>类名/函数名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)。
     ///
     /// 是成员表里的一个普通成员,所以函数和类对象一视同仁地有它
@@ -206,18 +216,35 @@ public record ObjectVal : RuntimeValue
 
     /// <summary>this 是否兼容 target?即 this &lt;: target。底类型 Every 全局特判(它是所有类的子类)。
     ///
-    /// 就走 **parent 原型链**那一根 —— 接口也只继承一个父,和类一样。</summary>
+    /// 两根都走:**parent 原型链**(类那一支),以及链上每一层的**要求表**
+    /// (接口那一支,`interface [A B] { … }` —— 要求给 `<:`,只是不给槽)。</summary>
     public bool IsAssignableTo(ObjectVal target)
     {
         if (this == BuiltinClasses.Every) return true;
         if (target == BuiltinClasses.Any) return true;
-        for (var t = this; t != null; t = t.Parent)
-        {
-            if (t == target) return true;
-            if (t.Parent == t) break;      // 自引用(object/Every/Any)= 链到头
-        }
+        return ChainOrRequires(this, target, null);
 
-        return false;
+        // 已访问集合是**惰性**建的:有要求表才可能绕圈(`A 要求 B`、`B 要求 A`),
+        // 而绝大多数调用(值类型、容器)一路 null 检查就走完了,一次分配都不花。
+        static bool ChainOrRequires(ObjectVal from, ObjectVal target, HashSet<ObjectVal>? seen)
+        {
+            for (var t = from; t != null; t = t.Parent)
+            {
+                if (t == target) return true;
+                if (t.Requires is { Count: > 0 } reqs)
+                {
+                    seen ??= new HashSet<ObjectVal>(ReferenceEqualityComparer.Instance);
+                    if (seen.Add(t))
+                        foreach (var r in reqs)
+                            if (ChainOrRequires(r, target, seen))
+                                return true;
+                }
+
+                if (t.Parent == t) break;   // 自引用(object/Every/Any)= 链到头
+            }
+
+            return false;
+        }
     }
 
     /// <summary>绑定方法 self:方法值存为 Curried(self, arg),绑 self 得等待 arg 的函数。

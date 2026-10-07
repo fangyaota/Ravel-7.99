@@ -1,16 +1,17 @@
-# 接口继承:**一个父**,外加一串**要求**。
+# 接口之间**只剩要求**了(2026-10-07 起,原来那套"父 + [要求]"连根去掉)。
 #
-#     supTrait    ::= interface myTrait { by c : int = default }        # 一个父(继承)
-#     masterTrait ::= interface supTrait [IEnumerable] { () }           # 父 + 要求
+#     myTrait     ::= interface { … }                    # 不要求
+#     supTrait    ::= interface myTrait { … }            # **一个要求**
+#     masterTrait ::= interface [supTrait IEnumerable] { … }   # 一串要求
 #
-# 光有要求、没写父的 `interface [A B] { … }` 不收(要求得跟在父后面)。
+# **没有"父"了** —— 接口不再继承接口,三件事各归各的:
+#   * **槽不并**:`supTrait` 的体里没有 `myTrait` 那些槽,它自己的槽得自己声明
+#     (实现的成员也一样:实现者要把**每条要求**的实现都登记上,见下面 `C`);
+#   * **`<:` 成立**:`supTrait <: myTrait` 为真 —— "是 supTrait 的也就是 myTrait";
+#   * **造实现那一刻查前置条件**:实现者得**已经**有那几条实现,缺哪条报哪条。
 #
-# 「父」和「要求」是两回事:
-# - 父是**继承**:槽并进来(`by … = default` 抄进子接口的类体)、`<:` 成立;
-# - 要求是**前置条件**:实现这个接口的类必须**已经**有那些接口的实现 —— 槽不并、
-#   `<:` 也不成立(`masterTrait <: IEnumerable` 是 false),只在造实现那一步查有没有。
-#
-# `parent` 给链上那个(接口也只继承一个,和类一样)。
+# `parent` 一律是 `BaseInterface`(所有接口的根)—— 那根链不再表达"谁是谁",
+# 谁是谁全看要求。
 
 myTrait ::= interface {
     by a : int = default
@@ -22,43 +23,44 @@ supTrait ::= interface myTrait {
     by d : function = default
 }
 
-masterTrait ::= interface supTrait [IEnumerable] {
+masterTrait ::= interface [supTrait IEnumerable] {
     ()
 }
 
-# ---- 谁继承谁 ----
+# ---- 谁是谁:全走 `<:`,和 parent 那条链没关系 ----
 print (supTrait.parent)
-print (masterTrait.parent)
 print (supTrait <: myTrait)
+print (supTrait <: IEnumerable)
 print (masterTrait <: supTrait)
 print (masterTrait <: myTrait)
-
-# ---- 要求不是继承:`<:` 不成立 ----
 print (masterTrait <: IEnumerable)
 
 C ::= class {
     x : int = 0
 }
-D ::= class {
-    y : int = 0
-}
 
-# ---- 要求是前置条件:还没实现 IEnumerable 就造实现 → 报错 ----
+# ---- 前置条件:先造一个,报的是**第一条缺的** ----
 try {
     impl (masterTrait C {
-        by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
-        by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
+        ()
     })
 } (e: Exception) => { print ("1: " + string e); }
 
-# ---- 先给它一条 IEnumerable 的实现,再实现 masterTrait ----
+# ---- 一条条补上。要求是**递归**的:`supTrait` 又要求 `myTrait`,
+#      `IEnumerable` 又要求 `IMonad` ----
+impl (IMonad C default)
 impl (IEnumerable C {
     GetEnumerator = () => { Enumerator [instance.x]; }
 })
-impl (masterTrait C {
+impl (myTrait C {
     by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
-    by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
+    by b = property (() => { instance.x + 1; }) ((v: int) => { instance.x = v; })
 })
+impl (supTrait C {
+    by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
+    by d = property (() => { instance.x + 2; }) ((v: int) => { instance.x = v; })
+})
+impl (masterTrait C default)
 
 u := C ()
 u.a = 5
@@ -69,17 +71,7 @@ print (u : myTrait)
 print (u : IEnumerable)
 foreach u (v: int) => { print ("each " + string v); }
 
-# ---- 同名槽:现在**报错** —— 父接口声明过的槽不能再声明一次(`:=` 是定义不是覆盖;
-#      要换掉它的实现,写的是实现体里那句 `by a = property …`)----
-SameTrait ::= interface myTrait {
-    by a : string = default
-}
-E ::= class {
-    s : string = ""
-}
-try { impl (SameTrait E { () }); } (e: Exception) => { print ("8: " + string e); }
-# 槽上的类型约束:写进去的值要过声明那个类型
-
+# ---- 槽上的类型约束:写进去的值要过声明那个类型 ----
 try { u.a = "x"; } (err: Exception) => { print ("3: " + string err); }
 
 # ---- 注解、参数(和 `is` 同一个判据) ----
@@ -90,15 +82,23 @@ print (takeBase u)
 try {
     interface 5 { () }
 } (err: Exception) => { print ("4: " + string err); }
+# 不是要求表的地方写成要求表:第一格 `supTrait` 是一个要求,后面那个表就没处放(体只能是代码块)
 try {
     interface supTrait [myTrait 5] { () }
 } (err: Exception) => { print ("5: " + string err); }
 try {
     interface C { () }
 } (err: Exception) => { print ("6: " + string err); }
+# 要求表里混进不是接口的
 try {
-    interface [IEnumerable] { () }
+    interface [IEnumerable 5] { () }
 } (err: Exception) => { print ("7: " + string err); }
+# **要求表自己就能开一个接口**(从前不收 —— "要求得跟在父后面")—— 现在这条**合法**
+ListLike ::= interface [IEnumerable IMonad] {
+    ()
+}
+print (ListLike <: IEnumerable)
+print (ListLike <: IMonad)
 
 # ═══ 219_interface_operator(并入) ═══
 ravel "219_interface_operator"
@@ -186,26 +186,27 @@ scoped ()
 try { print ((S ()) + 1); } (err: Exception) => { print ("3: " + string err); }
 ravel ""
 # --- expected ---
-# myTrait
-# supTrait
-# true
-# true
+# BaseInterface
 # true
 # false
-# 1: `masterTrait` 要求 C 已经实现了 IEnumerable（先给它 impl/use 一条）
+# true
+# true
+# true
+# 1: `masterTrait` 要求 C 已经实现了 supTrait（先给它 impl/use 一条）
 # 10
 # true
 # true
 # true
 # true
 # each 5
-# 8: 'a' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 3: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
 # 5
-# 4: `interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），得到 Integer
-# 5: 要求表里得全是接口，第 2 个是 Integer
-# 6: `interface` 只能继承接口（C 是个类）；要给某个类实现接口就写成 `某个接口 那个类 { … }`
-# 7: 要求得跟在父接口后面：`interface 那个接口 [A B] { … }`
+# 4: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），得到 Integer
+# 5: 接口的体得是个代码块（`interface … { … }`），得到 List
+# 6: `interface` 后面只能跟接口（一个要求：`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`）—— C 是个类；要给某个类实现接口就写成 `某个接口 那个类 { … }`
+# 7: 要求表里得全是接口，第 2 个是 Integer
+# true
+# true
 # 10
 # 10
 # 10

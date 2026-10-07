@@ -228,12 +228,10 @@ MemDir ::= class {
 }
 
 # 登记（用 impl：类型层面的事实）。只登记最具体的两条 —— `IEntry` 由接口继承兜着。
-impl (IFile MemFile {
-    ()
-})
-impl (IDir MemDir {
-    ()
-})
+impl (IEntry MemFile default)
+impl (IFile MemFile default)
+impl (IEntry MemDir default)
+impl (IDir MemDir default)
 
 m := MemFile "mem.txt" "内存里的内容"
 top := MemDir "memdir"

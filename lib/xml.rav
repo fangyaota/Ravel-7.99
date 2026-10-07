@@ -229,9 +229,7 @@ XmlNode ::= class {
     ChildNamed := (name: string) => { List () |> .Get name; }
 }
 
-impl (IFile XmlNode {
-    ()
-})
-impl (IDir XmlNode {
-    ()
-})
+impl (IEntry XmlNode default)
+impl (IFile XmlNode default)
+impl (IEntry XmlNode default)
+impl (IDir XmlNode default)

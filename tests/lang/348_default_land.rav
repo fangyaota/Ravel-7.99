@@ -1,0 +1,76 @@
+# `default` **按目标类型落地**（0 / "" / 空表 / 空函数 / 空续延…）。
+#
+# 为什么得单独认一下：`default` 的型是**底类型** `Every`，`IsAssignableTo` 见谁都点头 ——
+# 于是"收得下吗"那一关会把它整段放过，里面就存下一个**真的** `default`，之后 `n + 1`
+# 报「Every 不支持 '+'」。所以它走的是另一道：按目标类型**造一个本类型的空值**。
+#
+# 定义和写入本来两条口径（2026-10-07 统一）：
+#
+#     n : int = default      # 0      —— 定义那条路一直有这一步
+#     n = default            # 从前是 `default`，现在是 0
+#
+# **目标类型就是 `Every` 时不转** —— 没写注解的 `x := default` 要的正是那个底值。
+
+# ---- 定义 ----
+n : int = default
+print n
+s : string = default
+print ("[" + s + "]")
+f : function = default
+print (f ())
+print (typeof f)
+l : list = default
+print l
+
+# ---- 写入：和定义一个口径 ----
+n = default
+print n
+print (typeof n)
+s = default
+print ("[" + s + "]")
+f = default
+print (f ())
+
+# ---- 没写注解：`Every` 原样留着（这就是"当且仅当没有声明为 Every"那半条）----
+z := default
+print z
+print (typeof z)
+z = default
+print (typeof z)
+
+# ---- 属性槽的写入也过同一道 ----
+T ::= interface {
+    by a : int = default
+}
+C ::= class {
+    q : int = 7
+}
+impl (T C {
+    by a = property (() => { instance.q; }) ((v: int) => { instance.q = v; })
+})
+u := C ()
+u.a = default
+print u.a
+print (typeof u.a)
+
+# ---- 别的值该怎么报还怎么报（不是"能转就转"）----
+m : int = 0
+try { m = "x"; } (err: Exception) => { print ("1: " + string err); }
+print "end"
+# --- expected ---
+# 0
+# []
+# ()
+# Function
+# []
+# 0
+# Integer
+# []
+# ()
+# default
+# Every
+# Every
+# 0
+# Integer
+# 1: 类型错误: 无法将 String 赋值给 'm' (声明为 Integer)
+# end

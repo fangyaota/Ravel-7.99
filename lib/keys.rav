@@ -28,27 +28,13 @@ IKey ::= interface {
 # `Bool` / `Void` / `Range` 没有这一条 —— 它们的键就是自己,走 `Of` 里那道兜底。
 # (`IValue` 那份名单在引擎侧,见 `BuiltinClasses.SealBuiltins`;这份是 `Key ()` 那条协议,
 #  两码事,别混。)
-impl (IKey int {
-    ()
-})
-impl (IKey real {
-    ()
-})
-impl (IKey bigint {
-    ()
-})
-impl (IKey fraction {
-    ()
-})
-impl (IKey bigfraction {
-    ()
-})
-impl (IKey char {
-    ()
-})
-impl (IKey string {
-    ()
-})
+impl (IKey int default)
+impl (IKey real default)
+impl (IKey bigint default)
+impl (IKey fraction default)
+impl (IKey bigfraction default)
+impl (IKey char default)
+impl (IKey string default)
 
 
 # 「像字典那样按值找」。字典那五个吃键的操作(`Get` / `Set` / `Has` / `Remove` / `GetOr`)
@@ -167,9 +153,7 @@ Keyed ::= class {
 }
 
 # 登记(实现体是空的:它自己那五条方法就是形状本身 —— 类链先说话,槽不用现装)
-impl (IDict Keyed {
-    ()
-})
+impl (IDict Keyed default)
 
 
 ravel ""

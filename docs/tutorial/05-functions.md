@@ -731,7 +731,7 @@ f.Delete ()
 
 ### "文件"是个接口
 
-`IEntry` / `IFile` / `IDir`（**全局名**）才是本体：磁盘上的、内存里的、zip 条目、远程的，都只是实现。**实现子接口也就实现了父接口**（`IFile ::= interface IEntry`）。
+`IEntry` / `IFile` / `IDir`（**全局名**）才是本体：磁盘上的、内存里的、zip 条目、远程的，都只是实现。**实现了子接口也就实现了父接口**（`IFile ::= interface IEntry` 是**要求**，`IFile <: IEntry` 成立；槽不并，所以实现者要把两条都登记上）。
 
 ```ravel
 describe := (f: IFile) => { f.Name () + " = " + f.Read (); }
@@ -820,9 +820,7 @@ Rec ::= class {
     init = (x: int) => { X = x; this; }
     Key := () => { X; }
 }
-impl (IKey Rec {
-    ()
-})
+impl (IKey Rec default)
 d := {}
 d.Set (Rec 1) "one"
 print (d.Get (Rec 1))
@@ -847,9 +845,7 @@ Rec ::= class {
     init = (x: int n: string) => { X = x; N = n; this; }
     Key := () => { X; }
 }
-impl (IKey Rec {
-    ()
-})
+impl (IKey Rec default)
 t := Keyed ()
 t.Set (Rec 1 "甲") "one"
 print (t.Get (Rec 1 "别的"))

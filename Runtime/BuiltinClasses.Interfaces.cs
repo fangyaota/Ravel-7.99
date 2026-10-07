@@ -96,32 +96,35 @@ internal static partial class BuiltinClasses
     private static void InstallInterfaceInit()
     {
         // ── ① 工厂的那份:挂在 `Interface` 的类体上,`interface …` 那下就是在实例化它 ──
-        // 干的事就是"造一个新接口":收 一个接口 + 代码块(中间还允许先来一张要求表),
-        // 或者 光一个代码块。
+        // 造一个新接口,三种写法:
+        //     interface { … }          —— 不要求
+        //     interface 某接口 { … }    —— **一个要求**
+        //     interface [A B] { … }    —— 一串要求
+        //
+        // **接口之间没有"父"这一说了** —— 那一段语法连根去掉,一律要求(见 BuildInterface)。
         //
         // 这里**不需要**判"谁在造":走得进这个类体的只有 `interface …` 一种写法。
+        // 顺序是载荷:**要求表在最前**,不然那张 List 会掉进"一个要求"那支。
+        var factoryList = new NativeClosure("requires", List, (scope, rs) =>
+            FunctionVal.From(body => BuildInterface(scope, Requirements((ListVal)rs), body)));
+
         var factoryOf = new NativeClosure("of", Type, (scope, of) =>
             of is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface)
-                ? Alternate(
-                    new NativeClosure("requires", List, (_, rs) =>
-                        FunctionVal.From(body => BuildInterface(scope, o, Requirements((ListVal)rs), body))),
-                    new NativeClosure("body", Function, (_, body) => BuildInterface(scope, o, [], body)))
-                : throw new RuntimeException($"`interface` 只能继承接口（{of} 是个类）；"
+                ? FunctionVal.From(body => BuildInterface(scope, [o], body))
+                : throw new RuntimeException($"`interface` 后面只能跟接口（一个要求：`interface 某接口 {{ … }}`）"
+                    + $"或一张要求表（`interface [A B] {{ … }}`）—— {of} 是个类；"
                     + "要给某个类实现接口就写成 `某个接口 那个类 { … }`", ErrorKind.Type));
 
-        // 代码块:不继承、不要求
-        var factoryBody = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, null, [], body));
-
-        // 光有要求、没写父 —— 不收
-        var factoryList = new NativeClosure("requires", List, (_, _) => throw new RuntimeException(
-            "要求得跟在父接口后面：`interface 那个接口 [A B] { … }`", ErrorKind.Argument));
+        // 代码块:不要求
+        var factoryBody = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, [], body));
 
         // 别的:把能写什么说全(不然只会得到「| 的 N 个分支都不收这个参数」)
         var factoryJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
-            "`interface` 后面要跟一个代码块（`interface { … }`）或一个接口（`interface 某接口 { … }`），"
+            "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，"
+            + "`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），"
             + $"得到 {v.Type}", ErrorKind.Argument));
 
-        Interface.ClassBody = PresetCtor(Alternate(factoryOf, factoryBody, factoryList, factoryJunk));
+        Interface.ClassBody = PresetCtor(Alternate(factoryList, factoryOf, factoryBody, factoryJunk));
 
         // ── ② 接口那一支的那份:挂在 `BaseInterface` 的类体上,所有接口(它的子类)继承 ──
         // 干的事完全不同:**造实现**。`某接口 某个类 { … }` 是实例化那个接口,而"谁在被实例化"
@@ -132,9 +135,18 @@ internal static partial class BuiltinClasses
         // **那个对象**本身(不是它的类型):帧里要往它身上装 `target`/`generation`/`instance`。
         //
         // 同样不判"谁在造":走得进这个类体的,永远是某个**接口对象**被应用。
+        // **第三个参数(实现体)声明成 `Block`** —— 控制帧从前按个数收、不查类型,这一格是
+        // 头一处给它带上声明类型的(见 `ControlFunction.Declared`)。于是:
+        //   * `impl (某个接口 某个类 { … })` —— 块本来就是 `Block`(`BlockVal.Type`);
+        //   * `impl (某个接口 某个类 default)` —— `default` 的型是 `Every`(底类型),收得下,
+        //     意思是"空体"(在 `StepImplMake` 里认);
+        //   * 别的(`5`、一个 lambda…)当场拒收,报「参数 '实现体' 需要 Block，得到 Integer」。
         var implOf = new NativeClosure("of", Type, (scope, of) =>
             new ControlFunction(ControlKind.ImplMake, 3,
-                RList<RuntimeValue>.Empty.Add(scope.Lookup(ObjectVal.ThisMember).Value).Add(of)));
+                RList<RuntimeValue>.Empty.Add(scope.Lookup(ObjectVal.ThisMember).Value).Add(of))
+            {
+                Declared = [null, null, ("实现体", Block)],
+            });
 
         var implJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
             "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
@@ -167,28 +179,30 @@ internal static partial class BuiltinClasses
         return reqs;
     }
 
-    /// <summary>造一个接口:`interface { … }`(无父)、`interface 某接口 { … }`(一个父)、
-    /// 或者再加一串要求(`interface 某接口 [A B] { … }`)。
+    /// <summary>造一个接口:`interface { … }`(不要求)、`interface 某接口 { … }`(一个要求)、
+    /// `interface [A B] { … }`(一串要求)。
     ///
-    /// `parent` 就是链上那个(没有 = `object`)—— 类型树、`Subtypes ()`、成员查找、实例化
-    /// 全照旧靠它;`requires` 记在 <see cref="ObjectVal.RequiresMember"/> 里,**只**给
-    /// `StepImplMake` 查前置条件用(不进槽、不进 `<:`)。
+    /// **没有自定义的父** —— 一律挂在 `BaseInterface` 上(它就是"接口的公共基类",
+    /// `init` 那一份默认实现挂在那儿)。`requires` 记两处:<see cref="ObjectVal.Requires"/>
+    /// (给 `IsAssignableTo` —— 要求**给 `<:`**)和 Ravel 看得见的 `requires` 成员。
     ///
-    /// 类体**就是用户写的那份**(和普通 class 一样,各层各存各的)—— 父接口那些槽不是抄进来的,
-    /// 而是实现时**沿链依次跑**跑出来的(见 `StepImplMake`:`CollectBodies` 那一趟)。
-    /// 一条规矩两处通用:继承靠"跑",不靠抄。</summary>
-    private static RuntimeValue BuildInterface(Scope scope, ObjectVal? parent, List<ObjectVal> requires, RuntimeValue body)
+    /// **槽不并** —— 要求是前置条件,实现者得自己把每条要求的实现也登记上
+    /// (`impl (IEnumerable X { … })` 那种),引擎在造实现那一步查(`StepImplMake`)。
+    ///
+    /// 类体**就是用户写的那份**(和普通 class 一样,各层各存各的)。</summary>
+    private static RuntimeValue BuildInterface(Scope scope, List<ObjectVal> requires, RuntimeValue body)
     {
         if (body is not BlockVal blk)
             throw new RuntimeException($"接口的体得是个代码块（`interface … {{ … }}`），得到 {body.Type}", ErrorKind.Argument);
 
-        // 没有父的接口,parent 挂在 **`BaseInterface`** 上(不是 `object`)—— 它就是"接口的
-        // 公共基类",`init` 那一份默认实现挂在那儿,于是每个接口都继承得到。
-        var trait = Install(scope, parent ?? BaseInterface, blk);
+        var trait = Install(scope, BaseInterface, blk);
 
         if (requires.Count > 0)
+        {
+            trait.Requires = requires;
             trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, List, new ListVal([.. requires]))
                 .SetAttr(Attr.Unreadable);
+        }
 
         // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
         // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
@@ -604,8 +618,19 @@ internal static partial class BuiltinClasses
     private static bool HasTraitSlow(Interpreter interp, ObjectVal cls, ObjectVal trait)
     {
         foreach (var impl in LiveImplementations(interp))
-            // `IsAssignableTo` 而不是 `==`:实现了子接口也就实现了父接口(照 C#)
-            if (impl.Type.IsAssignableTo(trait)
+            // **精确匹配那个接口**,不走 `IsAssignableTo`。
+            //
+            // 从前走 `IsAssignableTo` 是对的:接口那时靠**父**继承,子接口不但 `<: 父`,
+            // 连父的**槽**也一起沿链跑出来 —— 所以"实现了子接口"确实等于"实现了父接口",
+            // 类型和成员一次给全。
+            //
+            // 现在接口之间只剩**要求**:`<:` 照着要求走(`IList <: IEnumerable` 成立),
+            // 但**槽不并** —— 实现者得自己再登记一条 `impl (IEnumerable X { … })`,
+            // 成员才在。这一格问的正是"**有没有那条实现**"(造实现的前置条件、
+            // `x : IEnumerable` 收不收得下都看它),所以只能是精确匹配:
+            // 松成 `<:` 的话,只写了 `impl (IList X {})` 也会被当成"实现了 IEnumerable",
+            // 而 `x.GetEnumerator` **没有** —— 报错会挪到调用处,说不清是哪儿缺的。
+            if (impl.Type == trait
                 && impl.Scope.LookupField(TargetMember)?.Value is ObjectVal target
                 && cls.IsAssignableTo(target))
                 return true;

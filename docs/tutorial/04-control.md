@@ -167,6 +167,27 @@ use (IEnumerable MyThing {
 })
 ```
 
+**有下标就更省事**：类里摆上 `At` / `Count`，标一个 `IList`，枚举和白拿的那整套一起到手 ——
+`IList <: IEnumerable`，它的接口体只填 `GetEnumerator = () => { Enumerator instance; }`，
+也就是"拿**自己**当枚举器的元素表"，不再抄一份：
+
+```ravel
+Pair ::= class {
+    A : int = 0
+    B : int = 0
+    init = (a: int b: int) => { A = a; B = b; this; }
+    Count := () => { 2; }
+    At := (i: int) => { i == 0 { A; } { B; }; }
+}
+use (IList Pair {
+    ()
+})
+```
+
+注意 `At` / `Count` **不写在 `IList` 里**：`IEnumerable` 的接口体本来就有这两条的默认实现（**数一遍 /
+走一遍**，任何一串都答得出来，代价 O(n)）—— `IList` 承诺的是"这个类型的这两条**不用数**"，
+所以它只是个标记。（`Count` 那条对字符串要自己填一次：`String` 的个数叫 `Length`，类链上够不着。）
+
 ### 自己造一串：`Generator`
 
 把「往外送值」的那段代码交给 `Generator`，体的参数 `y` 是投喂口：**`y v` 送出一个值并挂起**，消费者再要下一个才接着跑。

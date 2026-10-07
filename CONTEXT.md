@@ -238,7 +238,8 @@ lib/
   iterator.rav            `IEnumerable`(继承 `IMonad`,体内一整套**默认实现**:
                           Count/Map/Where/Bind/Take/First… —— 凡实现者都有,见下)
                           / `IEnumerator`(继承 `IEnumerable`:枚举器**自己就是自己的枚举器**,
-                          单遍、走一遍就消耗掉)/ `Enumerator` + 几种容器的实现 + `foreach`
+                          单遍、走一遍就消耗掉)/ `IList`(继承 `IEnumerable`,标记"`At`/`Count`
+                          不用数" —— 有它就白得枚举器)/ `Enumerator` + 几种容器的实现 + `foreach`
   seqs.rav                `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
                           (五件都对着 `IEnumerable` 写,交回当场算好的 list / dict)
   time.rav                `Time`(毫秒 + 一袋零件:Year/Month/… /WeekdayName/Text/AddDays…)
@@ -983,8 +984,9 @@ REPL 和 `ravel test` 没读命令行，它俩那里是空的 `[]`）；
    路径基准 = 进程当前目录；**不做沙箱** —— 和 `using` 找模块一个待遇。
 2. **接口**（`IEntry` / `IFile` / `IDir`，**全局名**，和 `IEnumerable` / `IMonad` 一个待遇）：
    `Exists` / `IsDir` / `Delete` / `Name`；`IFile` 加 `Read` / `Write` / `Append` / `Size`；
-   `IDir` 加 `List`（`名字 → IEntry`，实现自己排序）。`IFile ::= interface IEntry` ——
-   **实现了 IFile 也就实现了 IEntry**（照 C#；登记只写最具体那条）。磁盘特有的（路径、修改时间、
+   `IDir` 加 `List`（`名字 → IEntry`，实现自己排序）。`IFile ::= interface IEntry` 是**要求**（不是父）——
+   **实现了 IFile 也就实现了 IEntry**（`<:` 成立），但**槽不并**:实现者得把 `IEntry`
+   那条也登记上，引擎在造实现那一步查。磁盘特有的（路径、修改时间、
    改名、复制）**不进接口**。实现有两条路：① 类自己就有那几条成员 + `impl (IFile 那个类 { () })`
    登记；② `impl (IFile 某类 { by Read = property … })` 现装。只读实现（zip 条目那种）让
    `Write` / `Delete` 抛一句人话即可（这轮不拆 `IReadOnlyFile`）。
@@ -1713,8 +1715,9 @@ attrs 只有一份，在 `Variable` 上（`PropertyVal.Var` 指回去）——`A
 
 ```ravel
 IEnumerable ::= interface IMonad { internal GetEnumerator : function = default; …一整套默认实现… }
-IEnumerator ::= interface { internal MoveNext : function = default
-                            by Current  : object   = default }
+IEnumerator ::= interface IEnumerable { internal MoveNext : function = default
+                                        by Current  : object   = default
+                                        internal GetEnumerator : function = default }
 ```
 
 **接口体里那一整套默认实现是 `internal` 普通成员**(接口的类体会在**每个实现对象上
@@ -1724,6 +1727,25 @@ IEnumerator ::= interface { internal MoveNext : function = default
 用户自己写的类)都有整套方法 —— 从前只有三种容器有(引擎按类型挂的,见
 `BuiltinClasses.Sequences.cs`)。**两层同名是有意的**:容器类链上那几个先命中,
 接口这份只补"本来要报没有方法"的(`TraitSlot` 见到类链上有名字就退回去)。
+
+**`IList`**(`lib/iterator.rav`)—— `IList ::= interface IEnumerable`(**要求**,不是父):
+
+```ravel
+internal Count := () => { …数一遍… }      # 兜底
+internal At    := (k: int) => { …走一遍… }
+```
+
+那两条是**兜底**,给类链上够不着"第几个"的类型(`set` / `dict` / `Scope`)用。
+`list` / `string` 有自己的 `At`(引擎挂在类链上),**类链先说话**,兜底碰不到它们;
+`string.Count` 得自己填(`String` 那份叫 `Length`,类链上没有 `Count`)。
+
+**它不碰 `GetEnumerator`** —— 那归它**要求**的 `IEnumerable`(要求不给槽,实现者自己在那条
+`impl (IEnumerable X { … })` 里写)。两边各给一份的话,一个类就有**两份** `GetEnumerator`,
+挑中 `IList` 那份时 `Enumerator instance` 会回头问 `Count`,而 `Count` 是"数一遍"
+(`foreach instance`)……自己绕自己,转不出来(转过一次,实测卡死)。
+
+**`Generator` / `Range` 不是 `IList`** —— 它们不保证有穷(`[1..]`、无限生成器),而兜底那两条
+在无界的东西上永远回不来。`Generator` 因此也**没有** `Count` / `At`(想要就 `ToList ()` 铺一张表)。
 
 **2026-10-06 起这些槽不再写成 `by X := property (() => { () => … }) (…)`** ——
 那种写法的 setter 本来就是空的(只读是这里要的),而 `property` 那层壳只为**绑接收者**:
@@ -1756,11 +1778,13 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
 `target` 是这一笔补的),外加 `ObjectVal.IsMethodName` 排掉 `this` / `block` / `parent` 那几个。
 用例 `tests/lang/338_interface_plain.rav`。
 
-序列这一族**也是 `IMonad`**(`IEnumerable ::= interface IMonad`):`Map` 逐个映射、
-`Bind` = "每个元素交回一串、接起来"(flatMap)→ `do { … }` 在序列上就是列表推导。
-`HasTrait` 判的是 `impl.Type.IsAssignableTo(trait)`,而实现对象的类型**就是那个接口**
-—— 所以接口的 parent 一挂上,list / set / dict / string / Generator / 用户类全都
-`is IMonad`。(`lib/predefined.rav` 里 `monad.rav` 因此排在 `iterator.rav` **前面**。)
+序列这一族**也是 `IMonad`**(`IEnumerable ::= interface IMonad` —— 那是**要求**):
+`Map` 逐个映射、`Bind` = "每个元素交回一串、接起来"(flatMap)→ `do { … }` 在序列上就是
+列表推导。两条槽的**实现写在 `IMonad` 的接口体里**(当默认实现),序列这一族的每个实现者
+补一条空的 `impl (IMonad X { () })` 就到手 —— 要求不给槽,得这样"自己另外登记一条"。
+(真正的 monad —— `Option` / `IoMonad.Action` / `Expected` / `TaskBase` —— 都在**类体**里
+写自己的那对,类链先命中,碰不到那份默认。`lib/predefined.rav` 里 `monad.rav` 因此排在
+`iterator.rav` **前面**。)
 
 和 `Option` 那半通着:**`Option` 自己也 impl 了 `IEnumerable`** —— 它是"0 个或 1 个的一串"
 (`Some x` 走一次、`None` 一次不走):`foreach (Some 5) …`、`Seqs.Flatten [(Some 1) (None) (Some 3)]`
@@ -1772,8 +1796,8 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
 `Current` 是当前那个(C# 里是属性,这边也做成属性)。库里的 `Enumerator` 就是"拿一串值"的
 通用枚举器,谁有现成的一串值谁就能拿它当枚举器。
 
-**枚举器自己也是一串**(`IEnumerator <: IEnumerable`):`IEnumerator` 体里把 `GetEnumerator`
-覆盖成"交回**自己**"—— 和 C# 里 `yield` 生成的那个类一个形状(它的 `GetEnumerator ()` 也是
+**枚举器自己也是一串**(`IEnumerator` 要求 `IEnumerable` —— `<:` 成立):`IEnumerator` 体里
+自己声明一条 `GetEnumerator` 并写成"交回**自己**"—— 和 C# 里 `yield` 生成的那个类一个形状(它的 `GetEnumerator ()` 也是
 `this`)。于是 `Enumerator` / `GeneratorCursor` / 用户写的游标都白拿整套方法,也能直接
 `foreach`。两条语义跟着来:遍历的是**还没走完的那一段**、走一遍就**消耗掉**
 (`e.Count ()` 之后再 `e.Count ()` 是 0)。
@@ -1787,27 +1811,37 @@ getter 在"读"的时候跑,所以体里得再裹一个函数交出手。现在�
   —— 就是 C# 里那个循环。从前它只吃 list(`assert (typeof xs == list)`),现在 set / dict
   一样能遍历(字典遍历的是值);**每次进来新开一个枚举器**,所以嵌套遍历同一串值互不打扰;
 - 用户自己的类实现一条 `use (IEnumerable MyClass { GetEnumerator = () => { … }; })` 就能进 `foreach`。
-- **接口继承一个接口,外加一串要求**:
+- **接口之间只有「要求」**(2026-10-07 起,原来那套"父 + [要求]"连根去掉):
 
   ```ravel
-  supTrait    ::= interface myTrait { by c -> int = default }   # 一个父(继承)
-  masterTrait ::= interface supTrait [IEnumerable] { () }      # 父 + 要求
+  myTrait     ::= interface { by a -> int = default }            # 不要求
+  supTrait    ::= interface myTrait { by c -> int = default }     # **一个要求**
+  masterTrait ::= interface [supTrait IEnumerable] { () }         # 一串要求
   ```
 
-  **父是继承**:槽取并集(父的 + 自己的;同名以自己写的为准),`<:` 沿着继承走
-  (`masterTrait <: myTrait` 成立),而**实现了子接口就等于实现了它的父接口**:
-  `u: supTrait` / 注解 / `foreach` / 两个查询全认。
-  **要求是前置条件**:实现这个接口的类必须**已经**有那些接口的实现 —— 槽**不并**进来、
-  `<:` 也**不**成立(`masterTrait <: IEnumerable` 是 false),只在造实现那一步查有没有
-  (`StepImplMake`,报「`masterTrait` 要求 C 已经实现了 IEnumerable（先给它 impl/use 一条）」)。
-  所以要求者和实现者的关系是"你得自己另外 impl 一条",不是"我替你带上"。
+  三样一起生效:**`<:` 成立**(`masterTrait <: IEnumerable` 为真 ——「是 supTrait 的也就是
+  myTrait」)、**槽不并**(体里没有要求者那些槽,自己的得自己声明)、**前置条件**(实现者必须
+  **已经**有那几条实现,缺哪条报哪条 —— `StepImplMake`,「`masterTrait` 要求 C 已经实现了
+  IEnumerable（先给它 impl/use 一条）」)。要求是**递归**的:`IList` 要 `IEnumerable`,
+  后者又要 `IMonad`,所以 `impl (IList X { … })` 前面得先有那两条。
 
-  实现上:链上挂那一个父(`parent`,类型树/`Subtypes ()`/成员查找/实例化全照旧),
-  父的**声明**在造子接口时抄进它的类体(`BakeInterfaceInit`),于是"接口的形"自足 ——
-  `StepImplMake` 那两段照旧;`interface` 的 init 走 `Alternate`:接口与类合成一支
-  (都声明 `Type`,进到体里靠"谁在造"再分;排在代码块那支前面,不然 `ClassVal : FunctionVal`
-  会把它们吃掉)、代码块一支、光有要求的一支(专门说"要求得跟在父后面")、兜底一支
-  —— 接口那支交出去的又是**一个小分流器**(要求表 / 代码块):先后两次应用,不是嵌套。
+  `parent` 一律是 **`BaseInterface`**(所有接口的根)—— 那根链不再表达"谁是谁"。
+
+  实现上:`BuildInterface` 只填 `requires`,同时写进 `ObjectVal.Requires`(C# 那个字段)——
+  `IsAssignableTo` 顺着它走(带环保护),`<:` 就成立。**`TraitSlot` / `HasTrait` 那边是
+  「精确匹配接口名」,不跟着 `<:` 松** —— 松的话"只写了 `impl (IList X {})`"会被当成
+  "实现了 IEnumerable",而 `x.GetEnumerator` 根本没有,报错会挪到调用处、说不清哪儿缺的。
+  `interface` 的 init 走 `Alternate`:要求表一支(List)、一个要求一支(接口)、代码块一支、
+  兜底一支;`seal` 只挡"再被**实现**",**要求**一个封了的接口是可以的。
+
+  **空实现体写 `default`**:`impl (某个接口 某个类 default)` —— `StepImplMake` 收非块的身体,
+  `DefaultVal` 就是"没槽要换,直接收尾"(空的 `{ }` 解析器不收;`{ () }` 也行,白绕一圈)。
+
+  **实现体那一格现在带声明类型**(`ControlFunction.Declared`,头一处用它的地方):
+  `implOf` 把它标成 `Block` —— 块(`BlockVal.Type`)收得下,`default`(型是 `Every`,底类型)
+  也收得下,`5` / 一个 lambda 当场拒收(「参数 '实现体' 需要 Block，得到 Integer」)。
+  控制帧从前只有 `Arity`、收参数不查类型;带类型那套(检查在 `CallInto` 的 `Accepts`、
+  转换在带类型的 `Define`)本来只做在闭包上 —— `Declared` 把它接到了控制帧这条路上。
 
 - **两个方向的查询**(都在 `Type` 上,所以任何类型对象、接口对象都有):
   - `T.GetImplements ()` —— 这个类型**现在**实现了哪些接口(接口对象组成的 list);
@@ -1957,6 +1991,9 @@ myImplement.Dispose ()   # 提前取消
   顺带把"隐式与显式两张转换表会飘"那一整类毛病根治了 —— 只剩一张表。
   **`default` 是唯一的例外**:它的类型是底类型 `Every`(见谁都点头),要的也不是转换,
   而是"按注解造一个本类型的空值"(0 / "" / 空表 …),那正是 `ConvertDirect` 干的事。
+  **定义和写入两条路都过它**(`LandDefault`:`VarDefinition` / `WriteVariable`)——
+  2026-10-07 统一的,从前只有定义那边有,于是 `n: int = default` 给 0 而 `n = default`
+  给 `default`。目标类型就是 `Every` 时**不转**(没写注解的 `x := default` 要的就是那个底值)。
 - `x: myTrait` 的兜底是 `BuiltinClasses.HasTrait`,同一个判据。它挂在 `StepBinaryOp` 里而**不是**
   运算符的 C# 体里 —— 内置运算符的体是纯 C#,拿不到解释器也就拿不到当前作用域;只接**内置**那一支,
   类里写过 `<: := f` 的照旧走自己的实现。
@@ -2047,7 +2084,8 @@ seal 某个类      # 交回**那个类自己**(可串:`C := seal (class { … }
 代价:`class int { … }` 那个"白拿内建构造器"的写法没了 —— 从前
 `MyInt ::= class int { … }` 之后 `MyInt "42"` 转得出 `42`,现在挡在建类那一步(测试 138 里那一段跟着改了)。
 
-测试 —— 345(`seal` 本身:返回类自己、幂等、挡继承、挡接口继承、挡隔一层的子类、挡 `impl`、
+测试 —— 345(`seal` 本身:返回类自己、幂等、挡继承、挡隔一层的子类、挡 `impl`、
+      要求一个封了的接口**照常**、
 内置那几支、索引那两条查询仍然对得上),138(内置那条被封的现状)。
 
 ## 多参数 lambda
@@ -3048,7 +3086,9 @@ obj.field := v    # 定义/覆盖字段(不存在就新建);obj.field = v 只改
 #   `x: int = default`      **按注解变成本类型的那个空值**(0/""/空表/空函数/空续延…)。
 #                           `default` 的类型是底类型 `Every`(谁都收得下),所以那条
 #                           "类型够不够宽"的捷径会把它整段放过 —— 求值器单独认了一下,
-#                           不然 `n: int = default` 会把 `default` 原样存下来,`n + 1` 报错
+#                           不然会把 `default` 原样存下来,`n + 1` 报错。
+#                           **写入(`x = default`)和定义一个口径**(`LandDefault`);
+#                           目标类型就是 `Every` 时不转 —— 没写注解的 `x := default` 要的就是它
 obj.field += v    # 成员复合赋值(+= -= *= /= %=),左操作数只求一次
 x++  /  x--       # 自增/自减 —— **语句级的糖**(折成 `x += 1` / `x -= 1`)。
                   # **不交回值**(`y := x++` 是语法错误),前缀 `++x` 也不认

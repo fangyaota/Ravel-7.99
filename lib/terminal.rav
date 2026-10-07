@@ -199,12 +199,10 @@ ConsoleIn ::= class {
     Lines := () => { System.SplitLines (System.ReadAllInput ()); }
 }
 
-impl (IFile ConsoleOut {
-    ()
-})
-impl (IFile ConsoleIn {
-    ()
-})
+impl (IEntry ConsoleOut default)
+impl (IFile ConsoleOut default)
+impl (IEntry ConsoleIn default)
+impl (IFile ConsoleIn default)
 
 readonly Stdout := ConsoleOut "stdout" false
 readonly Stderr := ConsoleOut "stderr" true

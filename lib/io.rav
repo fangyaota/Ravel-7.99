@@ -32,7 +32,8 @@ IEntry ::= interface {
     by Name : function = default        # () => string   在容器里的名字
 }
 
-IFile ::= interface IEntry {            # 接口继承：实现了 IFile 也就实现了 IEntry
+IFile ::= interface IEntry {            # **要求**（不是继承）：实现了 IFile 也就是 IEntry，
+                                        # 但槽不并 —— 实现者要把 IEntry 那条也登记上
     by Read : function = default        # () => string
     by Write : function = default       # (text: string) => ()
     by Append : function = default      # (text: string) => ()
@@ -153,12 +154,10 @@ Dir ::= class {
 
 # 登记（`impl`：类型层面的事实，不随作用域来去）。只登记最具体的那个 ——
 # `IEntry` 由**接口继承**兜着：实现了 `IFile` 也就实现了 `IEntry`。
-impl (IFile File {
-    ()
-})
-impl (IDir Dir {
-    ()
-})
+impl (IEntry File default)
+impl (IFile File default)
+impl (IEntry Dir default)
+impl (IDir Dir default)
 
 # ── 和 IoMonad 搭台:文件这一层的"说明书"版本 ──
 # `Io` 自己那几条是**直接做**的(`f.Read ()` 那一刻就读了)。想"先拼好一串、之后再 `Perform ()`",
@@ -236,12 +235,10 @@ MemDir ::= class {
     }
 }
 
-impl (IFile MemFile {
-    ()
-})
-impl (IDir MemDir {
-    ()
-})
+impl (IEntry MemFile default)
+impl (IFile MemFile default)
+impl (IEntry MemDir default)
+impl (IDir MemDir default)
 
 # ── 一棵 JSON 树也是一个文件系统 ──
 # 这条也是那道缝里的:`Json` 里的对象和"目录"是同一个形状(名字 → 子节点),数组就当"下标当名字"的目录。
@@ -330,12 +327,10 @@ JsonNode ::= class {
     }
 }
 
-impl (IFile JsonNode {
-    ()
-})
-impl (IDir JsonNode {
-    ()
-})
+impl (IEntry JsonNode default)
+impl (IFile JsonNode default)
+impl (IEntry JsonNode default)
+impl (IDir JsonNode default)
 
 # 一个文件、一棵 Json,合起来:`Io.JsonFile "conf.json"` —— 读进来就是一棵能当目录走的树
 # (落盘那头记得 `Io.CopyTo 树 (Io.File "conf.json")`,它不会自己盯着文件)

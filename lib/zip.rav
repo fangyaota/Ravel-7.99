@@ -194,9 +194,8 @@ Archive ::= class {
     Close := () => { Native.ZipClose Handle; (); }
 }
 
-impl (IDir Archive {
-    ()
-})
+impl (IEntry Archive default)
+impl (IDir Archive default)
 
 # ── 成员:一个文件 ──
 #
@@ -226,9 +225,8 @@ ZipEntry ::= class {
     Info := () => { (Members Handle).Get Full; }
 }
 
-impl (IFile ZipEntry {
-    ()
-})
+impl (IEntry ZipEntry default)
+impl (IFile ZipEntry default)
 
 # ── 一件小事:要写进去的东西按 UTF-8 变字节 ──
 # 字符串走 UTF-8;字节表原样(要塞二进制就自己给字节表)

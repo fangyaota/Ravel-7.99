@@ -171,7 +171,7 @@ TaskBase ::= class {
 # `Step` 是"我停在哪儿"那一枚续延,起手是 `default`(还没到手的哨兵:一调就报错,
 # 不会静默什么都不做 —— 见 `predefined.rav` 的 callcc)。
 Task ::= class TaskBase {
-    Body: function = () => { (); }
+    Body: function = default
     Step: Continuation = default
     Started: bool = false
 
@@ -402,18 +402,14 @@ Any := (ts: list) => {
 # `Task` / `SysTask` / `Signal` 三个子类跟着认这两个接口 —— 基类登记一次就够
 # (实测子类继承那句 `impl`)。
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
-impl (ITask TaskBase {
-    ()
-})
+impl (ITask TaskBase default)
 
 # 也在 monad 那一族里(`IMonad` 见 `lib/monad.rav`,predefined 加载,所以是全局名)。
 # 用 `impl` 不是 `use`:这一族是**类型层面**的事实,不随作用域来去 —— 和 `IoMonad` 那边
 # 一条规矩。`Map` / `Bind` 在 `TaskBase` 上,三个子类都作数。
 #
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
-impl (IMonad TaskBase {
-    ()
-})
+impl (IMonad TaskBase default)
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
 Pending ::= class {

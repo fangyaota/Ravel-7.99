@@ -11,8 +11,30 @@
 # (只读是这里要的:换实现得回类体里改,不该从实例上顺手覆盖掉)。
 # 用 `=` 覆盖它们的子接口 / 实现体**继承**这个修饰符(`=` 不清 attrs),不必再写一遍。
 IMonad ::= interface {
-    internal Map : function = default
-    internal Bind : function = default
+    # **这两条给了默认实现** —— "逐个映射"和"摊平"。
+    #
+    # 有默认是因为**序列那一族**也要走这条路:`IEnumerable` 只是**要求** `IMonad`
+    # (要求不给槽),所以每个 `impl (IEnumerable X { … })` 都得配一条
+    # `impl (IMonad X { () })` —— 那条 `()` 里没有体,槽就落在这儿。
+    #
+    # 真正的 monad(下面的 `Option`、`io.rav` 的 `Action`、`expected.rav` 的 `Expected`、
+    # `tasks.rav` 的 `TaskBase`)各自在**类体**里写自己的那对 —— **类实现大于接口实现**,
+    # 自己那条先命中,这儿的默认碰不到它们。
+    #
+    # 体里那个 `Generator` 在这支文件里还没定义(monad 排在 iterator 前面),没关系:
+    # 体是**调用时**才解析名字的,那会儿它在作用域里了。
+    internal Map := (f: function) => {
+        Generator (y: function) => {
+            foreach instance (x: object) => { y (f x); }
+        }
+    }
+    internal Bind := (f: function) => {
+        Generator (y: function) => {
+            foreach instance (x: object) => {
+                foreach (f x) (v: object) => { y v; }
+            }
+        }
+    }
 }
 
 
@@ -54,7 +76,14 @@ Option ::= class {
     #
     # 注意 `Map` / `Bind` / `Where` 仍是**上面那三条**(类链上的先命中)—— 它们在这一族里
     # 的语义是"包着/摊平",不是"变一串":`(Some 5).Map f` 交回的还得是 Option。
-
+    #
+    # `Count` / `At` 同理写在类里:它们从前是 `IEnumerable` 接口体的默认实现(走一遍算),
+    # 现在那两条归 `IList`(真按下标读的),而 `Option` **不是** `IList` —— 没有下标,
+    # 只是"0 个或 1 个"。措辞和从前一字不差。
+    Count := () => { Has { 1; } { 0; } }
+    At := (k: int) => {
+        (Has && (k == 0)) { Inner; } { throw (IndexError ("At: 元素不够（一共 " + (string (Count ())) + " 个）")); }
+    }
 
     init = (has: bool v: object) => {
         Has = has
@@ -71,6 +100,4 @@ readonly None := Option false ()
 
 # 这个 `Option` 在 IMonad 这一族里。实现体是空的 —— 它自己那两条 Map / Bind 就是形状本身
 # (`TraitSlot` 查到自己那层就先说话),这里只是**登记**一下,让 `is` / 注解 / 查询都认它。
-impl (IMonad Option {
-    ()
-})
+impl (IMonad Option default)

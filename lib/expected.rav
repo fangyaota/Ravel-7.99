@@ -50,9 +50,7 @@ readonly Ok := (v: object) => { Expected true v (); }
 readonly Err := (e: object) => { Expected false () e; }
 
 # 这个 `Expected` 也在 IMonad 这一族里(和 Option 同一个形状的又一个实例)
-impl (IMonad Expected {
-    ()
-})
+impl (IMonad Expected default)
 
 # `Expect argCount f` → 一个**包装过的函数**。
 #

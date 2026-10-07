@@ -41,9 +41,7 @@ I ::= interface {
 C1 ::= class {
     init = () => { this; }
 }
-impl (I C1 {
-    ()
-})
+impl (I C1 default)
 c1 := C1 ()
 print (c1 : I)               # seal 之前建好的实现照常
 seal I
@@ -53,9 +51,12 @@ C2 ::= class {
 print (try { impl (I C2 {
     ()
 }); } (e: Exception) => { "实现: " + e.Message; })
-print (try { I2 ::= interface I {
+# 但**要求**一个封了的接口是**可以**的 —— 封的是"不能再被实现",不是"不能再被提到"。
+# (接口之间只剩要求:槽不并、`<:` 成立。)
+I2 ::= interface I {
     ()
-}; } (e: Exception) => { "继承接口: " + e.Message; })
+}
+print (I2 <: I)
 
 # ── 封的是**祖先**也一样:子类下面也长不出来 ──
 A ::= class {
@@ -83,7 +84,9 @@ print (try { MyR ::= class Range { 0; }; } (e: Exception) => { "range: " + e.Mes
 
 # `IValue` 封得靠前一步:**用户实现不了新的值类型了** —— 名单归引擎/插件
 # (插件那条路是 `[RavelClass(Implements = "IValue")]`,直接写索引,不走 `impl`)。
-print (try { I2 ::= interface IValue { (); }; } (e: Exception) => { "接口: " + e.Message; })
+# 要求它也一样是可以的(名字换个新的,上面 `I2` 用过了)
+I3 ::= interface IValue { (); }
+print (I3 <: IValue)
 MyC ::= class {
     init = () => { this; }
 }
@@ -118,14 +121,14 @@ print (d.Get 1)
 # [Every]
 # true
 # 实现: `I` 被 seal 了 —— 不能再被实现
-# 继承接口: `I` 被 seal 了 —— 不能再被继承
+# true
 # 隔一层: `A` 被 seal 了 —— 不能再被继承（`B` 就在它的链上）
 # 不是类: seal 要一个类（或接口），得到 Integer
 # int: `Integer` 被 seal 了 —— 不能再被继承
 # list: `List` 被 seal 了 —— 不能再被继承
 # dict: `Dict` 被 seal 了 —— 不能再被继承
 # range: `Range` 被 seal 了 —— 不能再被继承
-# 接口: `IValue` 被 seal 了 —— 不能再被继承
+# true
 # impl: `IValue` 被 seal 了 —— 不能再被实现
 # [IValue BaseInterface IKey IComparable INumber]
 # [IValue BaseInterface]

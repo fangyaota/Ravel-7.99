@@ -22,7 +22,7 @@
 # 三个全局名收进**光标对象**的字段里。
 # 由 predefined.rav 加载(要用 `IEnumerable`,所以排在 iterator 之后)。
 Generator ::= class {
-    Body: function = () => { (); }
+    Body: function = default
     init = (body: function) => { Body = body; this; }
 
     # 要枚举器:新开一枚光标 —— 所以每遍各自从头
@@ -35,7 +35,7 @@ Generator ::= class {
 
 # 一枚**光标**:一次遍历的全部状态。它自己就实现 `IEnumerator`(MoveNext + Current)。
 GeneratorCursor ::= class {
-    Body: function = () => { (); }
+    Body: function = default
     Value: object = ()                # 最近送出来的那个值
     Started: bool = false             # 体起跑了吗(第一次 MoveNext 才起跑)
     # 两枚续延都是 `Continuation` 类型,起手那枚是 `default`(还没到手的哨兵:
@@ -70,9 +70,12 @@ GeneratorCursor ::= class {
 
 # 类型关系:两个 `impl` 让 `is` / 注解 / `foreach` 都认它们
 # (类体里那两条 `by` 槽是**成员**;接口成员还得这样登记一次,和 `Enumerator` 一个写法)
-impl (IEnumerable Generator {
-    ()
+impl (IMonad Generator default)
+impl (IEnumerable Generator default)
+# 光标也是"一串"(走到哪算哪),所以 IEnumerator 那条之前先得有 IEnumerable 这条 ——
+# 要求是**前置条件**,不是继承(见 lib/iterator.rav 的 `BuildInterface` 那段)
+impl (IMonad GeneratorCursor default)
+impl (IEnumerable GeneratorCursor {
+    GetEnumerator = () => { instance; }
 })
-impl (IEnumerator GeneratorCursor {
-    ()
-})
+impl (IEnumerator GeneratorCursor default)

@@ -1,0 +1,105 @@
+# `IList` —— 枚举器的输入从"必须是 `list`"放宽成"**能按下标读就行**"(lib/iterator.rav)。
+#
+# `IList <: IEnumerable`,接口体里就一条 `GetEnumerator = () => { Enumerator instance; }` ——
+# **拿自己当枚举器的元素表**,不 `ToList ()` 抄一份。`At` / `Count` 不在这儿声明:
+# `IEnumerable` 的接口体里本来就有这两条(走一遍数的默认实现),子接口再写一遍是重名。
+# 所以这层继承说的是一句**承诺**:这个类型的 `At` / `Count` 不是"走一遍",是真有下标。
+#
+# 于是 `foreach` 一条都不用改 —— 它要的 `GetEnumerator` 跟着 `IList` 一起来了。
+
+# ---- 谁是 ----
+print ("abc" : IList)
+print ("abc" : IEnumerable)
+print ([1 2 3] : IList)
+# `set` / `dict` 没有"第几个"的引擎实现,靠 `IList` 那条**兜底**
+# (`Count` 数一遍、`At` 走一遍)—— 它们从前也是这么从 `IEnumerable` 拿的,
+# 那两条搬家了就得跟过来,不然 `{1 2 3}.Count ()` 会当场没有方法。
+print ({1 2 3} : IList)
+print ({"a"-> 1} : IList)
+# **`Range` 不是 `IList`** —— 区间可以无界(`[1..]`),而兜底那两条在无界的东西上回不来
+print ((1..3) : IList)
+print (5 : IList)
+
+# ---- 兜底那条真的答得出来 ----
+print ({10 20 30}.At 1)
+print ({10 20 30}.Count ())
+# 引擎类链上有真 `Count` 的(`set` / `dict` / `Range`)先命中,不走兜底;`At` 只能走兜底
+
+# ---- 字符串多了个 O(1) 的 `Count` ----
+# `String` 的个数叫 `Length`,类链上没有 `Count`,不填就会用接口体那份默认 ——
+# 而那份是 `foreach` 数一遍,又要走 `GetEnumerator` → `Enumerator` → 回头问 `Count`,自己绕自己。
+print ("abcdefghij".Count ())
+print ("".Count ())
+
+# ---- list / string 的枚举器直接交自己,不再 `ToList ()` / `Chars ()` ----
+foreach "abc" (c: char) => { print c; }
+e := "xy".GetEnumerator ()
+while { e.MoveNext (); } { print (e.Current); }
+print "end of enumerator"
+
+# ---- `N` 是造的时候问一次定下的:停下点不跟着容器涨 ----
+# (从前抄一份表,两头都是死的;现在元素读活的、长度定死,至少不会因为循环体里
+#  往容器添东西就转不完。)
+xs := [1 2 3]
+n := 0
+foreach xs (x: int) => {
+    n += 1
+    xs.Add 9
+}
+print n
+print xs
+
+# ---- 自己写的类型:有 `At` / `Count` + 标个 `IList`,枚举和白拿的那整套路子都来了 ----
+Pair ::= class {
+    A : int = 0
+    B : int = 0
+    init = (a: int b: int) => { A = a; B = b; this; }
+    Count := () => { 2; }
+    At := (i: int) => { i == 0 { A; } { B; }; }
+}
+# 要求是前置条件,一条一个:`IList` 要 `IEnumerable`,`IEnumerable` 又要 `IMonad`
+impl (IMonad Pair default)
+impl (IEnumerable Pair {
+    GetEnumerator = () => { Enumerator instance; }
+})
+impl (IList Pair default)
+# 括号不能省:`Pair 7 8 : IList` 是 `Pair 7 (8 : IList)` —— 实参吃到运算符为止
+print ((Pair 7 8) : IList)
+print ((Pair 7 8) : IEnumerable)
+foreach (Pair 7 8) (x: int) => { print x; }
+print ((Pair 7 8).Count ())
+print ((Pair 7 8).Sum ())
+print ((Pair 7 8).ToList ())
+print ((Pair 7 8).Map ((x: int) => { x * 10; }))
+print ((Pair 7 8).First ())
+print "done"
+# --- expected ---
+# true
+# true
+# true
+# true
+# true
+# false
+# false
+# 20
+# 3
+# 10
+# 0
+# a
+# b
+# c
+# x
+# y
+# end of enumerator
+# 3
+# [1 2 3 9 9 9]
+# true
+# true
+# 7
+# 8
+# 2
+# 15
+# [7 8]
+# Generator {}
+# 7
+# done

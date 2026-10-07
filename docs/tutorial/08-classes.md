@@ -541,6 +541,10 @@ print c.n
 
 （顶层写 `use` 和写 `impl` 是一回事 —— 顶层那个作用域就是全局。差别只在函数体、模块里写的时候。）
 
+**空体写 `default`**：一条槽都不用换时，`impl (某个接口 某个类 default)` 就够 ——
+`default` 的型是 `Every`（底类型，谁都是它的父），哪儿都收得下。空的 `{ }` 不行
+（解析器不收），`{ () }` 也行，只是白绕一圈。
+
 ### 注解也认接口
 
 在实现生效期间，接口可以当注解使：`typed : myTrait = u`、`(v: myTrait) => …`。判定和类型检查用的是同一个判据。
@@ -579,21 +583,22 @@ HI
 
 注意：类链上已经有同名成员时**它先命中**（接口那份只补"本来要报没有方法"的）。
 
-### 接口继承接口（外加一串要求）
+### 接口之间只有「要求」
 
 ```ravel
-myTrait ::= interface {
-    by a : int = default
-}
-supTrait ::= interface myTrait { by c : int = default; }
-masterTrait ::= interface supTrait [IEnumerable] {
-    ()
-}   # 父 + 要求
+myTrait     ::= interface { by a : int = default }              # 不要求
+supTrait    ::= interface myTrait { by c : int = default; }      # **一个要求**
+masterTrait ::= interface [supTrait IEnumerable] { () }          # 一串要求
 ```
 
-- **父是继承**：槽是父的 + 自己的（同名以自己写的为准），`masterTrait <: supTrait` 成立。
-- **要求是前置条件**：实现它的类必须**已经**有 `IEnumerable` 的实现 —— 槽**不**并进来、`<: IEnumerable` 也**不**成立，只在造实现那一步查。
-- 要求得**跟在父后面**（光写 `interface [IEnumerable] { … }` 不收）。
+接口**不继承接口**。`interface` 后面那些名字只是**要求**（三样一起）：
+
+- **`<:` 成立**：`supTrait <: myTrait`、`masterTrait <: IEnumerable` 都是真 ——「是 supTrait 的也就是 myTrait」。
+- **槽不并**：`supTrait` 的体里**没有** `myTrait` 那些槽，自己的槽得自己声明。
+- **前置条件**：实现它的类必须**已经**有那几条实现，缺哪条报哪条 —— 上面那两条 `impl` 得先写，`impl (masterTrait X { … })` 才轮得到。
+- 一个要求写裸名字，一串写 `[A B]`，不要求就 `interface { … }`。
+
+`parent` 一律是 `BaseInterface`（所有接口的根）—— 那根链不再表达「谁是谁」，谁是谁全看要求（以及要求是递归的：`IList` 要 `IEnumerable`，后者又要 `IMonad`）。
 
 ### 槽里也能放运算符
 
@@ -619,7 +624,7 @@ C := seal (class { … })      # 交回那个类自己，可串；幂等
 seal 我的接口                 # 接口则是"不能再被实现"
 ```
 
-密封一条继承链之后：**不能再被继承**（接口则是**不能再被实现**）。判据是"自己**或任一祖先**密封了"——封的是**这条链到此为止**，所以已经存在的那层子类下面也不能再长（`C <: B <: A`，封 `A` 之后 `class C B { … }` 一样进不来）。接口同理：实现了**子接口**照样是在实现它。
+密封一条继承链之后：**不能再被继承**（接口则是**不能再被实现**）。判据是"自己**或任一祖先**密封了"——封的是**这条链到此为止**，所以已经存在的那层子类下面也不能再长（`C <: B <: A`，封 `A` 之后 `class C B { … }` 一样进不来）。接口则是「不能再被实现」。**要求**一个封了的接口是**可以**的 —— 要求不是继承（`seal I` 之后 `J ::= interface I { … }` 照写，`impl (I X { … })` 才挡）。
 
 封的是"能不能再往下长"，**不是"能不能用"**：密封的类照常实例化、照常当注解；密封的接口照常 `x : I`；**seal 之前立好的那些实现也照常生效**（它是关门，不是撤销）。
 

@@ -20,27 +20,13 @@ IComparable ::= interface {
     by CompareTo : function = default       # (other) => int
 }
 
-impl (IComparable int {
-    ()
-})
-impl (IComparable real {
-    ()
-})
-impl (IComparable bigint {
-    ()
-})
-impl (IComparable fraction {
-    ()
-})
-impl (IComparable bigfraction {
-    ()
-})
-impl (IComparable char {
-    ()
-})
-impl (IComparable string {
-    ()
-})
+impl (IComparable int default)
+impl (IComparable real default)
+impl (IComparable bigint default)
+impl (IComparable fraction default)
+impl (IComparable bigfraction default)
+impl (IComparable char default)
+impl (IComparable string default)
 
 
 ravel "Sorting"

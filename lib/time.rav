@@ -60,9 +60,7 @@ Time ::= class {
     }
 }
 
-impl (IComparable Time {
-    ()
-})
+impl (IComparable Time default)
 
 # 现在、以及从文本读一个(格式串按 .NET 那套)
 readonly Now := () => { Time (System.NowMs ()); }

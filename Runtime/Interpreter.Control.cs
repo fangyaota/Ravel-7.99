@@ -326,7 +326,8 @@ public partial class Interpreter
     {
         var impl = cf.Arg<ObjectVal>(0, "ImplMake");
         var target = cf.Arg<ObjectVal>(1, "ImplMake");
-        var body = cf.Arg<BlockVal>(2, "ImplMake");
+        // **身体不是非得是块** —— `impl (某个接口 某个类 default)` 那种空体也收(见下)。
+        var body = cf.Arg<RuntimeValue>(2, "ImplMake");
 
         if (cf.Count == 0)
         {
@@ -341,17 +342,33 @@ public partial class Interpreter
                 throw new RuntimeException(
                     $"`{trait.DisplayName}` 被 seal 了 —— 不能再被实现", ErrorKind.Access);
 
-            if (trait.Scope.LookupField(ObjectVal.RequiresMember)?.Value is ListVal reqs)
-                foreach (var r in reqs.Elements)
-                    if (r is ObjectVal rt && !BuiltinClasses.HasTrait(this, target, rt))
+            if (trait.Requires is { Count: > 0 } reqs)
+                foreach (var rt in reqs)
+                    if (!BuiltinClasses.HasTrait(this, target, rt))
                         throw new RuntimeException($"`{trait.DisplayName}` 要求 {target.DisplayName} "
                             + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）", ErrorKind.Type);
 
             // 接口那几层类体已经跑过了(实例化那趟跑的,跑的就是这个对象的 scope)——
-            // 这里只追加**实现块**。但这张表得换一个词法父:它由那趟建出来时接的是
-            // **接口定义**处,而实现块的自由名字该在**实现写在哪**解析。
-            impl.Scope.Reparent(body.CaptureScope);
-            _top = new BlockExecFrame(body.Block) { Parent = cf, Scope = impl.Scope };
+            // 这里只追加**实现块**。
+            //
+            // **`default` 就是"空体"** —— `impl (某个接口 某个类 default)`:没槽要换,
+            // 类体那趟摆好的 `by … = default` 原样留着,直接收尾。
+            //
+            // 到得了这儿的只可能是**块**或者 **`default`** —— 这一格在 `CallInto` 里声明成了
+            // `Block`(见 `ControlFunction.Declared` / `InstallInterfaceInit`),别的值
+            // 早就被拒收了(`参数 '实现体' 需要 Block，得到 Integer`)。所以这儿只剩两种:
+            // 块要跑,`default` 直接收尾。
+            if (body is not BlockVal blk)
+            {
+                BuiltinClasses.FinishImplementation(this, impl, target);
+                Return(cf, impl);
+                return;
+            }
+
+            // 这张表得换一个词法父:它由那趟建出来时接的是**接口定义**处,
+            // 而实现块的自由名字该在**实现写在哪**解析。
+            impl.Scope.Reparent(blk.CaptureScope);
+            _top = new BlockExecFrame(blk.Block) { Parent = cf, Scope = impl.Scope };
             return;
         }
 

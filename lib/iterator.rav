@@ -30,9 +30,11 @@
 # **值 getter 仍是 `by`**(`IEnumerator.Current` 那几条):它交的是**值**不是函数,
 # 普通成员是一次算定的,给不出"每读一次算一遍"。
 #
-# 序列这一族也是 **monad**:`IEnumerable ::= interface IMonad`,那两条槽里
-# `Map` 是逐个映射、`Bind` 是"每个元素交回一串、接起来"(flatMap)——
+# 序列这一族也是 **monad**:`IEnumerable` **要求** `IMonad`(不是继承 —— 槽不并),
+# 而那两条槽的实现在 `lib/monad.rav` 的接口体里:那里 `Map` 是逐个映射、
+# `Bind` 是"每个元素交回一串、接起来"(flatMap)——
 # 于是 `do { x =< xs; y =< ys; [x y]; }` 就是列表推导。
+# 每个 `impl (IEnumerable X { … })` 都得配一条 `impl (IMonad X { () })`(前置条件)。
 
 # ── 帮手:收的是**那一串本身**(不是"外面的 instance"),所以能放在接口外面、几个默认实现共用 ──
 
@@ -77,14 +79,10 @@ IEnumerable ::= interface IMonad {
     internal GetEnumerator : function = default
 
     # ═══ 交回一串的:惰性(交回 `Generator`)═══
-
-    # 逐个映射。`Map` / `Bind` 这两条是**覆盖** `IMonad` 里那对槽 ——
-    # 用 `=`(赋值/覆盖),不能写 `:=`(定义:同一个名字在同一个作用域里再定义一次会当场报错)。
-    Map = (f: function) => {
-        Generator (y: function) => {
-            foreach instance (x: object) => { y (f x); }
-        }
-    }
+    #
+    # **`Map` / `Bind` 不在这儿** —— 它们归上一层的 `IMonad`(接口体里那份默认实现:
+    # "逐个映射" / "摊平")。序列这一族只是**要求** `IMonad`,而要求不给槽,
+    # 所以每个实现者各自补一条 `impl (IMonad X { () })` —— 那两条就都到手了。
 
     # 留下满足 `p` 的
     internal Where := (p: function) => {
@@ -97,7 +95,7 @@ IEnumerable ::= interface IMonad {
 
     # 绑定(= flatMap):每个元素交回**一串**,接起来 —— monad 就是要它,`do { … }` 用的也是它。
     # 交回的不是 `IEnumerable` 就当场报错(`foreach` 那句话),不悄悄当成一个元素。
-    Bind = (f: function) => {
+    internal Bind := (f: function) => {
         Generator (y: function) => {
             foreach instance (x: object) => {
                 foreach (f x) (v: object) => { y v; }
@@ -186,12 +184,10 @@ IEnumerable ::= interface IMonad {
     }
 
     # ═══ 要一个值 / 容器的:当场算 ═══
-
-    internal Count := () => {
-        n := 0
-        foreach instance (x: object) => { n += 1; }
-        n
-    }
+    #
+    # **`Count` / `At` 不在这儿** —— 它们是"按下标读"那两件事,住在 `IList` 里(见下),
+    # 由那边声明成**要填的槽**。能枚举不等于能按下标读,所以 `IEnumerable` 这一层不该
+    # 拿"走一遍"冒名顶替一个 O(1) 的下标。
 
     internal IsEmpty := () => {
         e := instance.GetEnumerator ()
@@ -262,12 +258,6 @@ IEnumerable ::= interface IMonad {
         last
     }
 
-    internal At := (n: int) => {
-        i := 0
-        o := SeekIn instance (x: object) => { mine := i; i += 1; mine == n; }
-        o.IsSome () { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
-    }
-
     internal Contains := (v: object) => {
         o := SeekIn instance (x: object) => { x == v; }
         o.IsSome ()
@@ -308,17 +298,93 @@ IEnumerable ::= interface IMonad {
 IEnumerator ::= interface IEnumerable {
     internal MoveNext : function = default
     by Current : object = default
-    # 覆盖父接口那条(`=` 是换槽):交回**自己**,不是"另开一个从头开始"
+    # **自己声明一条**:`IEnumerable` 只是**要求**,槽不并过来(见 `BuildInterface`)
+    internal GetEnumerator : function = default
+    # 交回**自己**,不是"另开一个从头开始"
     GetEnumerator = () => { instance; }
 }
 
-# 通用枚举器:拿一串值 + 记住走到哪了。任何"一次给我一串"的东西都能拿它当枚举器。
+# ── 枚举器的输入:一串**能按下标读**的值 ──
+#
+# `Count ()` 给个数、`At i` 给第 i 个(从 0 数)。这两条**从前在 `IEnumerable` 的接口体里**
+# (默认实现:**数一遍** / **走一遍**),现在搬到这儿 —— 能枚举 ≠ 能按下标读,
+# 那两条是"下标"这件事,归这一层。
+#
+# **默认实现只是个兜底**(下面那两条)。真按下标读得出来的类型**应当覆盖**:
+#   * 类链上本来就有(`list.At` / `Set.Count` / `String.At`)—— **类实现大于接口实现**,
+#     一个字都不用写,自己就命中了;
+#   * 类体里自己写(`Generator` / `Option` / `Enumerator` 那三个,见各自文件);
+#   * 类链够不着、又不是类的,就在 impl 体里覆盖(下面 `string` 的 `Count`:类链上叫 `Length`)。
+# 兜底那两条只有"数得出来但直接拿不到"时才会跑到,`foreach` 走一遍,O(n)。
+#
+# `IList <: IEnumerable`:按下标读的东西**本来就**是一串,反过来推不过去
+# (能枚举不等于有下标 —— `Generator` 就是),这层是**单向**的。
+#
+# **这儿不碰 `GetEnumerator`**:它是**要求** `IEnumerable` 的活儿,槽不并过来,
+# 实现者自己在那条 `impl (IEnumerable X { … })` 里写。这儿再给一份的话,
+# 一个类就有**两份** `GetEnumerator` —— 挑中这份时 `Enumerator instance` 会回头问
+# `Count`,而 `Count` 是下面那条"数一遍"(`foreach instance`)……自己绕自己,转不出来。
+IList ::= interface IEnumerable {
+    # 兜底:`set` / `dict` / `Scope` 那几种类链上没有"第几个",只能这么数
+    internal Count := () => {
+        n := 0
+        foreach instance (x: object) => { n += 1; }
+        n
+    }
+    internal At := (k: int) => {
+        i := 0
+        o := SeekIn instance (x: object) => { mine := i; i += 1; mine == k; }
+        o.IsSome () { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
+    }
+}
+
+# `IList` 要求 `IEnumerable` —— **要求是前置条件**,所以这一条必须先在
+# (它也是"能按键按下标读"这件事的正面:`Enumerator instance` 拿的就是自己)
+impl (IMonad list default)
+impl (IEnumerable list {
+    GetEnumerator = () => { Enumerator instance; }
+})
+impl (IList list default)
+# 字符串也按下标读(`s.At i` 给**字符**)—— `At` 在类链上(引擎给的),不用填;
+# **`Count` 得覆盖**:`String` 那份叫 `Length`,类链上够不着 —— 而兜底那条是"数一遍",
+# 数一遍又要走 `GetEnumerator` → `Enumerator instance` → 回头问 `Count`,自己绕自己。
+impl (IMonad string default)
+impl (IEnumerable string {
+    GetEnumerator = () => { Enumerator instance; }
+})
+impl (IList string {
+    Count = () => { instance.Length (); }
+})
+
+# 通用枚举器:拿一串**能按下标读的**值(上面那个 `IList`)+ 记住走到哪了。
+# 任何"一次给我一串"的东西都能拿它当枚举器。
+#
+# `Items` 拿的是**容器自己**,不抄一份 —— 从前收的是 `list`,于是每种容器都得先 `ToList ()`
+# 铺一张表再交给它(`lib/structures.rav` 那些到现在还是这么干的:它们没有下标)。
+#
+# `N` 是**造的时候问一次**定下的长度:元素读的是活的,停下点不跟着容器涨 ——
+# 和"抄一份表"一样不会因为循环体里往容器添东西而多走一圈,又省掉那次拷贝。
+#
 # `Current` 是**属性**(和 C# 一样):读到哪儿看到哪儿;`MoveNext` 之前读它会报越界。
 Enumerator ::= class {
-    Items : list = []
+    Items : IList = []
+    N : int = 0
     Index : int = -1
-    init = (items: list) => { Items = items; this; }
-    MoveNext := () => { Index += 1; Index < Items.Count (); }
+    init = (items: IList) => { Items = items; N = items.Count (); this; }
+    MoveNext := () => { Index += 1; Index < N; }
+    # `Count` / `At` 是**走一遍**数的 —— 于是和别的走一遍一样,**走完就把它消耗掉**了:
+    # `e.Count ()` 之后的那个 `e` 也到头了(教程 4.3 那个 `3` / `0` 的例子)。
+    # 从前这两条是 `IEnumerable` 接口体的默认实现,现在写在类里(类链先说话),口径不变。
+    Count := () => {
+        n := 0
+        foreach this (x: object) => { n += 1; }
+        n
+    }
+    At := (k: int) => {
+        i := 0
+        o := SeekIn this (x: object) => { mine := i; i += 1; mine == k; }
+        o.IsSome () { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
+    }
     by Current := property (() => { Items.At Index; }) ((v: object) => { (); })
 }
 
@@ -380,45 +446,42 @@ RangeCursor ::= class {
     by Current := property (() => { Cur; }) ((v: object) => { (); })
 }
 
-# 几种容器怎么交出枚举器:把元素表包进一个 Enumerator。
+# 几种容器怎么交出枚举器:把**能按下标读的**那串包进一个 `Enumerator`。
+# list / string 自己就是 `IList`,所以**直接交容器**,不 `ToList ()` / `Chars ()` 抄一份;
+# set / dict / 栈 队列 堆那些没有下标(或"第几个"没意义),照旧先铺成一张表。
 # `impl` 收的是**一个实现值**(`接口 类 { … }` 造出来的那个),所以整条要括起来 ——
 # 不括的话 `impl IEnumerable list {…}` 会被读成 `((impl IEnumerable) list) {…}`,
 # 也就是先把 `impl` 用在接口本身上(它没有 `target`,当场报错)。
 # 这几条只填 `GetEnumerator`:别的那一整套走接口体里的**默认实现**。
-impl (IEnumerable list {
-    GetEnumerator = () => { Enumerator (instance.ToList ()); }
-})
+#
+# **`set` / `dict` / `Scope` 是 `IList`**(下面那些),所以每条要**两条 impl**:
+# `IEnumerable` 那条给枚举器,`IList` 那条把"按下标读"挂上 —— 关系是**要求**
+# (槽不并),`IList` 那句会查"实现了没有"。顺序有讲究:前置条件在前。
+impl (IMonad set default)
 impl (IEnumerable set {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-# 字符串也实现它:元素是**字符**(`s.Chars ()` 那一串)。
-# (它和数一样是标量、不是 ObjectVal —— 早先这儿加不上,是因为 `TraitSlot` 的接收者写死成了
-#  `ObjectVal`;现在那条路放宽了,标量一样能挂接口槽。)
-impl (IEnumerable string {
-    GetEnumerator = () => { Enumerator (instance.Chars ()); }
-})
+impl (IList set default)
+impl (IMonad dict default)
 impl (IEnumerable dict {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
+impl (IList dict default)
 # **作用域**也是一串:元素就是 `Variables ()` 那份 dict 的**值**(变量本身,和 `foreach` 一个 dict
 # 交回它的值一个口径)。要**名字**用 `Keys ()`。`System.Scope` 这个名字来自引擎那边新露的一条
 # (`SysModule.Types`)—— 从前这个类型在 Ravel 层叫不出来,所以这两条 `impl` 一直写不出来。
+impl (IMonad System.Scope default)
 impl (IEnumerable System.Scope {
     GetEnumerator = () => { Enumerator ((instance.Variables ()).Values ()); }
 })
+impl (IList System.Scope default)
 # `Option` 也是"一串" —— **0 个或 1 个**:`Some x` 走一次、`None` 一次都不走。
 # 于是 `foreach (Some 5) …`、`Seqs.Gather (None)`、`(Some 5).Count ()` 全通;整套方法
 # (ToList / Take / First / Fold …)照旧走默认实现。
 #
 # 枚举器**不用** `instance.ToList ()` 来取:那正是这条默认实现自己 —— 会转圈。
 # 这里直接问 Option 那两条(`IsSome ()` / `Value ()`)。
-# `Range` 也是一串(`[1..3]` 里那些整数,按开闭数出来)。枚举器是 **`RangeCursor`** ——
-# 一块纯状态,惰性:`[1..1000000000].Take 3` 不会先铺一张表。
-# `Count` / `Contains` / `ToList` 那几条由引擎那份先命中(它们住在类链上,类链先说话),
-# 语义一样、只是更快。
-impl (IEnumerable Range {
-    GetEnumerator = () => { RangeCursor instance; }
-})
+impl (IMonad Option default)
 impl (IEnumerable Option {
     GetEnumerator = () => {
         instance.IsSome () {
@@ -431,8 +494,25 @@ impl (IEnumerable Option {
         }
     }
 })
+impl (IList Option default)
+# `Range` 也是一串(`[1..3]` 里那些整数,按开闭数出来)。枚举器是 **`RangeCursor`** ——
+# 一块纯状态,惰性:`[1..1000000000].Take 3` 不会先铺一张表。
+# `Count` / `Contains` / `ToList` 那几条由引擎那份先命中(它们住在类链上,类链先说话),
+# 语义一样、只是更快。
+#
+# **它不是 `IList`** —— 区间可以无界(`[1..]`),而 `IList` 那两条兜底(`Count` 数一遍)
+# 在无界的东西上永远回不来。`At` 从前有(接口体那份默认),现在没有了:要用先 `ToList ()`。
+impl (IMonad Range default)
+impl (IEnumerable Range {
+    GetEnumerator = () => { RangeCursor instance; }
+})
 
-# 枚举器自己也实现 IEnumerator(这样 `e is IEnumerator` 成立,注解也收得下它)
+# 枚举器自己也实现 IEnumerator(这样 `e is IEnumerator` 成立,注解也收得下它)。
+# **两条**:`IEnumerator` 要求 `IEnumerable`(枚举器也是"一串"),前置条件那条在前。
+impl (IMonad Enumerator default)
+impl (IEnumerable Enumerator {
+    GetEnumerator = () => { instance; }
+})
 impl (IEnumerator Enumerator {
     MoveNext = () => { instance.MoveNext (); }
     by Current = property (() => { instance.Current; }) ((v: object) => { (); })

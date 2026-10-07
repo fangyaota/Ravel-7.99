@@ -13,8 +13,12 @@
 # 三种容器各 `impl` 一条,于是 `is` / 注解 / `foreach` 都认它们。
 
 # ---- 它是什么 ----
-print (IEnumerable.parent)            # 序列这一族也是 monad,父接口是 IMonad(见 lib/monad.rav)
-print ((IEnumerable.parent).parent)   # IMonad 的父是 BaseInterface(所有接口的根)
+# 接口**不再有自定义的父** —— 一律挂在 BaseInterface(所有接口的根)上。
+# "序列这一族也是 monad"现在是**要求**(见下面 `impl (IMonad …)`),
+# 而那层关系走的是 `<:`:`IEnumerable <: IMonad` 为真,parent 不再是它。
+print (IEnumerable.parent)
+print (IEnumerable <: IMonad)
+print ((IEnumerable.parent).parent)
 print ((IEnumerable.parent) : type)
 print (typeof IEnumerable)
 print (IEnumerable : interface)
@@ -52,6 +56,10 @@ Seq ::= class {
 }
 # 交回一个枚举器就行 —— 库里的 `Enumerator` 拿来就能用。
 # (`property g s` 要写在**同一行**:换行就是两条语句,槽里会只剩半截 `property`)
+# 要求是前置条件:IEnumerable 要求 IMonad,这条得先在
+use (IMonad Seq {
+    ()
+})
 seqImpl := use (IEnumerable Seq {
     GetEnumerator = () => { Enumerator [instance.n (instance.n + 1) (instance.n + 2)]; }
 })
@@ -168,9 +176,7 @@ Rec ::= class {
     init = (k: int n: string) => { K = k; N = n; this; }
     CompareTo := (o: Rec) => { K < o.K { -1; } { K > o.K { 1; } { 0; } } }
 }
-impl (IComparable Rec {
-    ()
-})
+impl (IComparable Rec default)
 rs := []
 rs.Add (Rec 3 "c")
 rs.Add (Rec 1 "a")
@@ -254,9 +260,7 @@ Rec ::= class {
     init = (x: int n: string) => { X = x; N = n; this; }
     Key := () => { X; }
 }
-impl (IKey Rec {
-    ()
-})
+impl (IKey Rec default)
 print ((Rec 1 "a") : IKey)
 print (Keys.Of (Rec 7 "x"))
 
@@ -334,8 +338,9 @@ print (c.ToList ())              # [3] —— 剩下的照旧
 print "end"
 ravel ""
 # --- expected ---
-# IMonad
 # BaseInterface
+# true
+# Object
 # true
 # Interface
 # true

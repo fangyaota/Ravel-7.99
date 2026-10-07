@@ -24,7 +24,7 @@ ravel "IoMonad"
 # 一份"要做的效果"。里面包的那个函数收 `()`、交出一个值 ——
 # 效果发生在**它被调用**的时候,而不是 Action 被造出来的时候。
 Action ::= class {
-    Effect: function = () => { (); }        # 干什么:收 ()、交出一个值
+    Effect: function = default        # 干什么:收 ()、交出一个值
 
     # 跑它。**这是效果世界的边界**:调用之前什么都没发生,调用之后全发生了。
     Perform := () => { Effect (); }
@@ -109,6 +109,4 @@ readonly Foreach := (xs: list f: function) => {
 # `Action` 在 `IMonad` 这一族里。实现体是空的:它自己那两条 Map / Bind 就是形状本身
 # (查到自己那层就先说话),这里只是登记一下。用 `impl`(不是 `use`)——
 # 这一族是**类型层面**的事实,不该随作用域来去;而且这样 `x is IMonad` 在哪儿都成立。
-impl (IMonad Action {
-    ()
-})
+impl (IMonad Action default)

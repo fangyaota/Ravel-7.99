@@ -329,6 +329,5 @@ Url ::= class {
 
 # 登记成 `IFile` —— `Io.CopyTo` / `Io.Lines` 那些是按接口收参数的,
 # 不登记的话传进来会被类型检查挡下(光有那几个成员还不够)。
-impl (IFile Url {
-    ()
-})
+impl (IEntry Url default)
+impl (IFile Url default)

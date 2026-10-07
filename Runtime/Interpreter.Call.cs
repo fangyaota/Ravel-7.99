@@ -10,6 +10,12 @@ public partial class Interpreter
         switch (fn)
         {
             case ControlFunction cf:
+                // **声明过类型的那几格**照下面 `NativeClosure` 那一支的查法:收不下就当场抛
+                // (`Alternate` 靠它挑下一支)。没声明的格子照旧 —— 控制帧本来就是按**个数**收的。
+                if (cf.Declared is { } decls && cf.Args.Count < decls.Count
+                    && decls[cf.Args.Count] is { } d && !Accepts(arg, d.Type))
+                    throw new TypeMismatchException($"参数 '{d.Name}' 需要 {d.Type}，得到 {arg.Type}");
+
                 if (cf.IsFinalAfter(1))
                     _top = new ControlFrame(cf.Kind, cf.Args.Add(arg), VoidVal.Instance) { Parent = sink, Scope = sink.Scope, CallSite = (_top as NodeFrame)?.Node };
                 else
