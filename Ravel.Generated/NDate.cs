@@ -21,7 +21,9 @@ internal static class DateTimeAdaptor
     public static RuntimeValue New (RuntimeValue arg)
         => new DotNetVal (new System.DateTime (PluginKit.Long (arg, "DateTime 的构造器参数")), PluginKit.ClassOf ("DateTime"));
 
-    // 跳过 Add：挑中的那个签名是 TimeSpan -> DateTime，里面有映射表没有的类型（同名 1 个 / 实例 1 个）
+    [ClassMethod("Add")]
+    public static RuntimeValue Add (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.Add", () => new DotNetVal (Me (self).Add ((System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "NDate.Add 的第 1 个实参")), PluginKit.ClassOf ("DateTime")));
 
     [ClassMethod("AddDays")]
     public static RuntimeValue AddDays (RuntimeValue self, RuntimeValue x0)
@@ -69,21 +71,29 @@ internal static class DateTimeAdaptor
     public static RuntimeValue Equals (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NDate.Equals", () => new BoolVal (Me (self).Equals (PluginKit.ToNet (x0))));
 
-    // 跳过 GetDateTimeFormats：签名  -> String[] 里有映射表没有的类型
+    [ClassMethod("GetDateTimeFormats")]
+    public static RuntimeValue GetDateTimeFormats (RuntimeValue self)
+        => PluginKit.Guarded ("NDate.GetDateTimeFormats", () => PluginKit.ToRavel (Me (self).GetDateTimeFormats ()));
 
     [ClassMethod("GetHashCode")]
     public static RuntimeValue GetHashCode (RuntimeValue self)
         => PluginKit.Guarded ("NDate.GetHashCode", () => IntVal.Of (Me (self).GetHashCode ()));
 
-    // 跳过 GetType：挑中的那个签名是  -> Type，里面有映射表没有的类型（同名 1 个 / 实例 1 个）
+    [ClassMethod("GetType")]
+    public static RuntimeValue GetType (RuntimeValue self)
+        => PluginKit.Guarded ("NDate.GetType", () => PluginKit.ToRavel (Me (self).GetType ()));
 
-    // 跳过 GetTypeCode：挑中的那个签名是  -> TypeCode，里面有映射表没有的类型（同名 1 个 / 实例 1 个）
+    [ClassMethod("GetTypeCode")]
+    public static RuntimeValue GetTypeCode (RuntimeValue self)
+        => PluginKit.Guarded ("NDate.GetTypeCode", () => PluginKit.ToRavel (Me (self).GetTypeCode ()));
 
     [ClassMethod("IsDaylightSavingTime")]
     public static RuntimeValue IsDaylightSavingTime (RuntimeValue self)
         => PluginKit.Guarded ("NDate.IsDaylightSavingTime", () => new BoolVal (Me (self).IsDaylightSavingTime ()));
 
-    // 跳过 Subtract：挑中的那个签名是 DateTime -> TimeSpan，里面有映射表没有的类型（同名 2 个 / 实例 2 个）
+    [ClassMethod("Subtract")]
+    public static RuntimeValue Subtract (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.Subtract", () => PluginKit.ToRavel (Me (self).Subtract ((System.DateTime) PluginKit.ToObject (x0, typeof (System.DateTime), "NDate.Subtract 的第 1 个实参"))));
 
     [ClassMethod("ToBinary")]
     public static RuntimeValue ToBinary (RuntimeValue self)

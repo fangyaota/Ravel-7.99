@@ -1476,9 +1476,33 @@ emitter、两个开关**，不是一个开关加分支。
   （改动照样看得见），值类型包的是**那个返回的副本**。链式每步多一个 Ravel 值 ——
   那是壳，不是身份。
 
-**已知的缺口**（值类型这边多一条）：映射表里没有别的**值类型**，所以
-`DateTime.Add (TimeSpan)` / `Subtract (TimeSpan)` 那几条会被跳过 —— 得先有办法把
-`TimeSpan` 也包起来（`AddDays (double)` 那种本来就通）。
+**认不出的参数：照常生成，转换退到运行期**（2026-10-07）。映射表里没有的**参数类型**
+不再整个跳过 —— 照样生成那句调用，取值那一格走
+
+    (System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "…")
+
+先 `ToNet`（认识的就化、脱壳、`list` 化 `object[]`），再按目标类型收（`NetBridge.To`
+那张表：数组 / 泛型容器 / 枚举 / 数值，**加上插件用 `RegisterConverter` 注册的**）。
+括号那句不能省：`ToObject` 交回 `object`，C# 不会自己缩（CS1503）。
+
+于是 `DateTime.Add (TimeSpan)` 通得了（手里真有个 `TimeSpan` 就行）；喂错类型是**调用时**
+一句能 `try` 住的报错（`…转不成 TimeSpan —— 这一型还没有转法。插件可以在 C# 层
+RegisterConverter 加一条`），不是生成阶段什么都不给你。
+
+**只有连 `typeof` 都写不出来的那三种照旧跳过**（`TypeUsable`）：
+
+* **`ref struct`**（`Span<char>` / `DefaultInterpolatedStringHandler`）—— 不能装箱，
+  而且 C# **不许**把 `object` 转成它（CS0030）—— 兜底那条路也堵着；
+* **`ref` / `out`**（`int&`）和**指针**（`int*`）；
+* **泛型参数**（`T`）—— 生成的代码里根本没有 `T` 这个名字。
+
+**返回值**那半同理：表里没有的（`String[]` 那种也算 —— 造值那张表只有标量）交给
+`PluginKit.ToRavel`，认识的就化（**数组也化 `list`**）、不认识的兜成 `DotNetObject`。
+比整个跳过去强。
+
+**已知的缺口**：造值那张表只有标量，所以返回值是**别的值类型**（`DateTime.Subtract` 交回
+`TimeSpan`）的还是落到 `ToRavel` → `DotNetObject` —— 能用，但**不是**生成的 `TimeSpan` 类，
+没有那一族方法。
 
 **已知的可用性缺口**：一个方法名只生成**一个**重载（排位键挑的），所以
 `StringBuilder.Append` 挑中的是 `Append (int)` —— `sb.Append "字符串"` 会报类型错。

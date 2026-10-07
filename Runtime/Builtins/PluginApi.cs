@@ -256,6 +256,18 @@ public static class PluginKit
     /// <summary>它长什么样（`Reflect.Text` 和报错都用它）。</summary>
     public static string NetShow(object? o) => NetBridge.Show(o);
 
+    /// <summary>**把一个 Ravel 值转成指定的 .NET 类型** —— 两步：
+    /// 先 `ToNet`（认识的就化、`DotNetObject` 脱壳、`list` 化 `object[]`），
+    /// 再按 `target` 收（`NetBridge.To` 那张表：数组 / 泛型容器 / 枚举 / 数值，
+    /// 加上插件用 <see cref="RegisterConverter"/> 注册的）。
+    ///
+    /// 生成出来的适配层拿它**兜底**：映射表里没有的参数类型不再整个跳过，
+    /// 照常生成、到这一步来转；转不了就是一句**调用时**能 `try` 住的报错。
+    /// （`ref struct` / `ref` / `out` / 泛型参数那几种连 `typeof` 都写不出来，
+    /// 生成阶段就跳过了。）</summary>
+    public static object? ToObject(RuntimeValue v, Type target, string what)
+        => NetBridge.To(NetBridge.ToNet(v), target, what);
+
     /// <summary>给 **`.ToObject 类型`** 那张表加一条规则：目标类型 → 怎么把手里这个
     /// .NET 值弄成它。`target` 可以是**开放泛型**（`typeof (IEnumerable<>)`）。
     /// **后注册的先问**，所以插件能盖掉引擎自己那几条。引擎认得的（数组 / 泛型容器 /

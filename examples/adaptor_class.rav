@@ -46,4 +46,17 @@ print ("② 原值：" + (string (d.ToLongDateString ())))
 print ("   AddDays 1：" + (string ((d.AddDays 1.0).ToLongDateString ())))
 print ("   原值没动：" + (string (d.ToLongDateString ())))
 
+# ③ **认不出的参数：照常生成，转换退到运行期。**
+#
+# `DateTime.Add (TimeSpan)` 里的 `TimeSpan` **不在映射表里** —— 但这一版不再整个跳过：
+# 生成的代码走 `(System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "…")`，
+# 先 `ToNet` 再按目标类型收。于是**手里真有个 `TimeSpan` 就转得动**：
+using "plugins/Ravel.Reflect.dll"
+span := Reflect.New (Reflect.Type "System.TimeSpan") [24 0 0]     # 24 小时
+print ("③ 原值：" + (string (d.ToLongDateString ())))
+print ("   Add 24 小时：" + (string ((d.Add span).ToLongDateString ())))
+# 喂错类型则是**调用时**一句能 `try` 住的报错（表在运行期、插件还能往上加规则 ——
+# `PluginKit.RegisterConverter`），不是生成阶段就什么都不给你。
+try { d.Add 5; } (e: Exception) => { print ("   " + e.Message); }
+
 print "实例那半跑通了"

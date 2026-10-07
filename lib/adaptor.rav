@@ -98,6 +98,34 @@ readonly private GetterOf := ("Int32" e: string what: string)     => { "PluginKi
     | ("Object" e: string what: string)    => { "PluginKit.ToNet (" + e + ")"; }
     | (_ e: string what: string)           => { "?"; }        # 哨兵：不支持
 
+# **认不出的参数：照常生成，转换退到运行期。**
+#
+# 表里没有的类型不再整个跳过 —— 照样生成那句调用，转换走
+# `PluginKit.ToObject (值, typeof (那一型), "…")`：先 `ToNet`（认识的就化、脱壳、
+# `list` 化 `object[]`），再按目标类型收（`NetBridge.To` 那张表 —— 数组 / 泛型容器 /
+# 枚举 / 数值，加上插件用 `RegisterConverter` 注册的）。
+#
+# 好处：`String.Join` 那种"有个 `IEnumerable` 重载"的能进来了；`DateTime.Add (TimeSpan)`
+# 也能 —— 只要手里那个 `TimeSpan` 是从别处弄来的。转不了就是一句**调用时**能 `try`
+# 住的报错，不是生成阶段就什么都不给你。
+#
+# 只有 `TypeUsable` 说写不出来的那三种照旧跳过（`Span<T>` / `ref` / `T`）。
+readonly private FallbackOf := (ty: object e: string what: string) => {
+    TypeUsable ty {
+        full := string (Reflect.Unwrap (Reflect.Call ty "FullName" []))
+        # **括号那一句不能省**：`ToObject` 交回的是 `object`，C# 不会自己缩成
+        # `TimeSpan` / `DateTime` 那种（CS1503）。转不过去照样是抛，只是从"编译期"
+        # 挪到了"调用时" —— 那正是这条路要的（表在运行期、插件还能往上加规则）。
+        "(" + full + ") PluginKit.ToObject (" + e + ", typeof (" + full + "), \"" + what + "\")";
+    } { "?"; }
+}
+
+# 取值那一格的入口：先查表，查不到退运行期。emitter 都走这个，不走 `GetterOf`。
+readonly private GetterOfType := (ty: object e: string what: string) => {
+    g := GetterOf (Reflect.Unwrap (Reflect.Call ty "Name" [])) e what
+    g == "?" { FallbackOf ty e what; } { g; }
+}
+
 # **造值**：本地值 → `RuntimeValue`。`Int64` 那一格走 `PluginKit.Narrow` —— `long`
 # 装得下就给 `int`、装不下升 `bigint`，别自己 `(int)` 硬转（静默回绕）。
 # `Single` → `RealVal` 是隐式加宽，安全。
@@ -131,6 +159,33 @@ readonly private ParamsOf := (m: object) => {
     ps := Reflect.Unwrap (Reflect.Call m "GetParameters" [])
     ps.Map (p: object) => {
         Reflect.Unwrap (Reflect.Call (Reflect.Call p "ParameterType" []) "Name" []);
+    }
+}
+
+# 参数那一串**类型对象**（不是名字）—— 认不出的参数要退到运行期转，那一步得
+# `typeof (全名)`；而有些类型**连 `typeof` 都写不出来**，得先问出来。
+readonly private ParamTypesOf := (m: object) => {
+    ps := Reflect.Unwrap (Reflect.Call m "GetParameters" [])
+    ps.Map (p: object) => { Reflect.Call p "ParameterType" []; }
+}
+
+# 这一型能不能出现在生成的代码里（靠 `typeof (…)`）。
+#
+# **认不出的类型绝大多数能** —— 那正是"照常生成、转换退到运行期"要的。
+# 写不出来的只有三种：
+#
+#   * **`ref struct`**（`Span<char>` / `DefaultInterpolatedStringHandler`）—— 不能装箱，
+#     而且 C# **不许**把 `object` 转成它（CS0030）—— 连兜底那条路都堵着。
+#   * **`ref` / `out`**（`int&`）和**指针**（`int*`）—— `typeof` 写不出这个形状。
+#   * **泛型参数**（`T`）—— 生成的代码里根本没有 `T` 这个名字。
+readonly private TypeUsable := (ty: object) => {
+    (Reflect.Unwrap (Reflect.Call ty "IsByRefLike" [])) { false; } {
+        (Reflect.Unwrap (Reflect.Call ty "IsGenericParameter" [])) { false; } {
+            full := string (Reflect.Unwrap (Reflect.Call ty "FullName" []))
+            (full.Contains "&") { false; } {
+                (full.Contains "*") { false; } { true; }
+            }
+        }
     }
 }
 
@@ -206,7 +261,11 @@ readonly private CallThen := (call: string value: string) => {
 readonly private Wrapped := (rt: string body: string) => {
     rt == "Void" { CallThen body "PluginKit.Void"; } {
         mk := MakerOf rt body
-        mk == "?" { "?"; } { "() => " + mk; }
+        # **返回值表里没有的**（`String[]` 那种也算 —— 造值那张表只有标量）：
+        # 交给 `PluginKit.ToRavel` —— 认识的就化（**数组也化成 `list`**），
+        # 不认识的兜成 `DotNetObject`。比"整个跳过"好，也比兜成 `DotNetObject` 强
+        # （`string[]` 化出来的是能直接 `.Map` 的 `list`）。
+        mk == "?" { "() => PluginKit.ToRavel (" + body + ")"; } { "() => " + mk; }
     }
 }
 
@@ -214,6 +273,7 @@ readonly private EmitOne := (m: object mod: string full: string) => {
     nm := NameOf m
     ps := ParamsOf m
     names := Names (ps.Count ())
+    ts := ParamTypesOf m
 
     i := 0
     gets := []
@@ -221,7 +281,7 @@ readonly private EmitOne := (m: object mod: string full: string) => {
     while { i < (ps.Count ()); } {
         e := names.At i
         label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
-        g := GetterOf (ps.At i) e label
+        g := GetterOfType (ts.At i) e label
         g == "?" { ok = false; } { (); }
         gets.Add g
         i += 1
@@ -258,8 +318,9 @@ readonly private EmitOne := (m: object mod: string full: string) => {
 # 一个方法能不能照这张映射表生成：参数和返回值都认得出来。
 # **不含"是不是静态"** —— 那是调用方先筛掉的事（见 `EmitMember`）。
 readonly private Usable := (m: object) => {
-    ps := ParamsOf m
-    (ps.All (t: string) => { InOk t; }) { OutOk (RetOf m); } { false; }
+    # **参数**都得能进生成的代码（`typeof` 写得出来）；返回值没这个限制 ——
+    # 表里没有的交给 `ToRavel` 那一格（见 `Wrapped`），总有活路。
+    (ParamTypesOf m).All (t: object) => { TypeUsable t; };
 }
 
 # 一个成员名 → 一段 C#（挑不中就一段注释）。
@@ -289,7 +350,7 @@ readonly private EmitMember := (all: list w: string mod: string full: string) =>
             ps := (ParamsOf best).Join ","
             sign := ps + " -> " + (RetOf best)
             "    // 跳过 " + w + "：挑中的那个签名是 " + sign
-            + "，里面有映射表没有的类型（同名 " + nSame + " 个 / 静态 " + nSt + " 个）\n"
+            + "，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 " + nSame + " 个 / 静态 " + nSt + " 个）\n"
         }
     }
 }
@@ -318,10 +379,7 @@ readonly private EmitMember := (all: list w: string mod: string full: string) =>
 # 少了这一格的话 `Append` / `AppendLine` / `AppendJoin` 全被判成"映射表里没有"，
 # 而其实它们正是这个类最常用的那几个。
 readonly private UsableClass := (m: object selfName: string) => {
-    ps := ParamsOf m
-    (ps.All (t: string) => { InOk t; }) {
-        (OutOk (RetOf m)) || ((RetOf m) == selfName);
-    } { false; }
+    (ParamTypesOf m).All (t: object) => { TypeUsable t; };
 }
 
 # 一个构造器 → `[ClassCtor]`。**`ConstructorInfo` 没有 `ReturnType`**，
@@ -374,10 +432,11 @@ readonly private EmitCtor := (c: object mod: string net: string cls: string) => 
             + "\n            : throw PluginKit.Fail (\""
             + net + " 的 .NET 构造器是 0 个参数的 —— 像 `类 ()` 那样调，别给实参\", ErrorKind.Argument);\n"
         } {
-            ty := ps.First ()
-            g := GetterOf ty "arg" (mod + " 的构造器参数")
+            ty := (ParamsOf c).First ()
+            g := GetterOfType ((ParamTypesOf c).First ()) "arg" (mod + " 的构造器参数")
             g == "?" {
-                "    // 跳过构造器：那个参数是 " + ty + "，映射表里没有\n"
+                "    // 跳过构造器：那个参数是 " + ty + "，连 `typeof` 都写不出来"
+                + "（`ref struct` / `ref` / 泛型参数）\n"
             } {
                 "    [ClassCtor]\n    public static RuntimeValue New (RuntimeValue arg)"
                 + "\n        => new DotNetVal (new " + net + " (" + g + ")" + tail + ";\n"
@@ -404,6 +463,7 @@ readonly private EmitClassOne := (m: object mod: string net: string selfName: st
     nm := NameOf m
     ps := ParamsOf m
     names := Names (ps.Count ())
+    ts := ParamTypesOf m
 
     i := 0
     gets := []
@@ -411,7 +471,7 @@ readonly private EmitClassOne := (m: object mod: string net: string selfName: st
     while { i < (ps.Count ()); } {
         e := names.At i
         label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
-        g := GetterOf (ps.At i) e label
+        g := GetterOfType (ts.At i) e label
         g == "?" { ok = false; } { (); }
         gets.Add g
         i += 1
@@ -466,7 +526,7 @@ readonly private EmitClassMember := (all: list w: string mod: string net: string
             psj := (ParamsOf best).Join ","
             sign := psj + " -> " + (RetOf best)
             "    // 跳过 " + w + "：挑中的那个签名是 " + sign
-            + "，里面有映射表没有的类型（同名 " + nSame + " 个 / 实例 " + nIn + " 个）\n"
+            + "，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 " + nSame + " 个 / 实例 " + nIn + " 个）\n"
         }
     }
 }
