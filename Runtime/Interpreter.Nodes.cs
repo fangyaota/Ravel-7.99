@@ -503,8 +503,27 @@ public partial class Interpreter
 
         // 同 StepSlot:这里只**换槽**,不走 getter/setter,所以不绑接收者
         var field = obj.Scope.LookupField(ma.Member)
-                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot
-                    ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
+                    ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot;
+
+        // **引擎挂在类上的那些槽**（`[ClassProperty]` —— 生成出来的属性/数据成员）:
+        // 读、写那两条路都够得着它（`ClassBySlot`），换槽这一条从前只看实例自己那层，
+        // 于是报的是「对象没有字段 'Length'」（实测）—— 那句话还把方向指错了。
+        //
+        // 换槽**不能改类那张表**:那是整个类共用的，动一下所有实例跟着变。
+        // 所以换到**这个实例自己那层**去（遮住类那格）—— 和 `by a.x := …` 的落点一致。
+        // 只读的那些（值类型的数据成员，`EngineMember(readOnly: true)`）在 `CheckWritable`
+        // 那一句挡下 —— 这也是"值类型改不了"该有的那句话。
+        if (field == null && BuiltinClasses.ClassBySlot(obj, ma.Member) is { } clsSlot)
+        {
+            CheckMemberAccess(clsSlot, obj, ma.Member);
+            clsSlot.CheckWritable();
+            var made = obj.Scope.DefineOrReplace(ma.Member, BuiltinClasses.Any, SlotValue(val2));
+            made.SetAttr(Attr.By);
+            Return(nf, val2);
+            return;
+        }
+
+        if (field == null) throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
         field.ReplaceSlot(SlotValue(val2));

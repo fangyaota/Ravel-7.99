@@ -1,0 +1,52 @@
+﻿# **换槽**（`by x.y = property g s`）—— 和变量那条 `by a = property …` 同一件事，
+# 换的是**对象身上那一格**。生成出来的属性/字段也够得着（引擎挂的槽住在**类**那层，
+# 读/写/换槽三条路都得认得它 —— 从前只有前两条认得）。
+#
+#     by sb.Length = …     # 引用类型那种**可写**的数据成员：换得掉
+#     by d.Year = …        # 值类型那种（引擎标了 `ReadOnly`）：挡住，而且报的是那句对的话
+#
+# 换槽**落到这个实例自己那层**（遮住类那格）—— 类那张表是整个类共用的，动一下所有实例
+# 一起变，那是另一回事。所以换完只有这一个实例变了（下面钉着）。
+using "plugins/Ravel.Generated.dll"
+
+a := NSb.StringBuilder ()
+a.Append_3 "hello"
+b := NSb.StringBuilder ()
+b.Append_3 "world"
+
+print (a.Length)                 # 值本来照旧读得到
+
+by a.Length = property (() => { 42; }) ((v: int) => { (); })
+print (a.Length)                 # 换槽之后读的是新的 getter
+print (a.Length = 7)             # 写走新的 setter（这一份什么都不做）；赋值交出去的是新值
+print (a.Length)
+
+print (b.Length)                 # **同类的另一个实例照旧** —— 换的是实例，不是类
+
+# 值类型那一格换不掉：引擎在槽上标了只读（写回的是装箱那份副本，改完丢掉、静默白做）
+d := NDate.DateTime 0
+try {
+    by d.Year = property (() => { 1; }) ((v: int) => { (); });
+    print "值类型换槽没拦住";
+} (e: object) => {
+    print "值类型那一格换不掉";
+}
+
+# 值类型**能**"通过 `by` 属性变" —— 变的是**装它的那个变量**（值语义那条路：
+# `AddYears` 交回新值，我们把它接回变量）。那份值本身谁也没改。
+by 年 := property (() => { d.Year; }) ((n: int) => { d = d.AddYears (n - d.Year); })
+print (d.Year)
+年 = 2000
+print (d.Year)
+print ((NDate.DateTime 0).Year)  # 值就是值：同一份"0 ticks"的值照旧是第 1 年
+
+# --- expected ---
+# 5
+# 42
+# 7
+# 42
+# 5
+# 值类型那一格换不掉
+# 1
+# 2000
+# 1

@@ -1582,13 +1582,18 @@ SqliteConnection`）又照出三件事：
   而**写进来的是属性值**（`sb.Length = 0` 写的是 `IntVal`）。按 `Function` 约束的话
   `CheckAssignable` 一句「无法将 IntVal 赋值给 'Length'」把写路全挡住（`impl` 的
   `instance` 那条槽也是这么办的）。
-* **`by` 槽得住能找得到**。读（`BoxedValue.TryGetByGetter`）和写（`Interpreter.Binary` 里
+* **`by` 槽得住能找得到**。**三条路**：读（`BoxedValue.TryGetByGetter`）和写（`Interpreter.Binary` 里
   三处成员写路）从前只看**实例自己那层**（`Scope`），而引擎挂的成员住在**类**的实例表里
   （和 `Append` 那些方法一处）—— 症状是"看得到、摸不着"：`sb.Length` 报「没有方法 'Length'」、
   `sb.Length = 2` 报「对象没有字段」（实测）。中间补一格 `ClassBySlot`（走 `MemberScope`，
   **只认标了 `by` 的**）。`MemberView.LookupInClassChain` 那条"**只要 `FunctionVal`**"的
   过滤器得放 `by` 槽进来，`ClassVal.MethodNames` 的判据跟着一起改 —— 两处**必须一字不差**：
   "查得到"和"列得出"（`Fields ()`）是同一个问题的两个问法。
+  **第三条路（换槽 `by x.y = property …`）也得算上**：它从前只看实例那层，于是
+  `by sb.Length = …` 报的是「对象没有字段 'Length'」（那句话还把方向指错了）。现在找到了，
+  但**换槽不能改类那张表**（整个类共用，动一下所有实例一起变）—— 换到**这个实例自己那层**
+  去遮住它（和 `by x.y := …` 的落点一致）。只读那些（值类型的数据成员）在 `CheckWritable`
+  那一句挡下 —— 那也正是"值类型改不了"该有的那句话。
 * **交出去之前要绑接收者**（`BuiltinClasses.BindProperty`）：引擎挂的 getter/setter 是
   `ISelfBinding` 的 `BuiltinMethodVal`，和普通类方法一个待遇 —— 读成员那一刻才认"谁在调"。
   用户写的 `property g s`（普通 lambda，接收者靠捕获）和接口那条（`NativeClosure`，要连
@@ -1599,6 +1604,23 @@ SqliteConnection`）又照出三件事：
 但症状更坏：`d.Year = 2000` / `v.X = 1.0` 看着成了、值还是旧的，**一声不响**。产物里会留
 一段注释说明理由。（`DateTime` / `TimeSpan` 的属性实测全是 get-only，所以这一条在仓库的产物里
 要等 `Vector3` 那种类型才看得到 —— `v.X` 是**可写字段**，正是那一档。）
+
+**值类型"要变"怎么办** —— 写 `v.X = 1.0` 那条路是**结构上**不通的（不是没做）：`v.X = 1.0`
+里没有"哪个变量装着 v"这回事（`v` 可能是字面量、是中间结果、是 `v2 := v` 出来的**同一份值**），
+所以没有地方写回那个改过的副本。两条正经路：
+
+* **值交回新值**（值语义本来的样子）：`d = d.AddYears 1` ✓ 方法那半一直是这么办的。
+* **拿 `by` 包一层，写的是"装它的那个变量"**：
+
+      by 年 := property (() => { d.Year; }) ((n: int) => { d = d.AddYears (n - d.Year); })
+      年 = 2000          # → `d` 换成一份新值（那份旧值本身谁也没改）
+
+  换槽（`by d.Year = …`）**也不行** —— 引擎在那一格上标了 `ReadOnly`，报的是
+  「无法给只读变量 'Year' 赋值」（`tests/class/352_slot_replace.rav` 三种情形都钉着）。
+
+  为什么不干脆"就地改装箱那份"：`v2 := v` 让两份值**共用一个箱子**（别名），改一个另一个
+  跟着变；而字面量 / 中间结果**根本没有箱子**。那和这门语言"值就是值、`Copy ()` 才有身份"
+  的规矩是冲突的 —— 静默影响别处，正是最坏的输法。
 
 **字段和属性只差"能不能写"的问法**：属性是 `CanWrite` **并且** `SetMethod.IsPublic`
 （`CanWrite` 只管有没有 —— `Exception.Message` 那种 `protected set` 也是 `true`，

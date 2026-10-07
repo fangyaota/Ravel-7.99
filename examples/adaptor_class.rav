@@ -113,5 +113,9 @@ print ("⑤ x / y / z：" + (string (v.X)) + " / " + (string (v.Y)) + " / " + (s
 # 属性那条路的名字得看产物里是 `[ClassProperty]` 还是 `[ClassMethod]`（重名的以方法为准）
 print ("   Length ()：" + (string (v.Length ())))
 try { v.X = 1.0; print "   值类型没拦住"; } (e: Exception) => { print "   值类型那一格只给读"; }
+# 要"改"它得走**值语义**那条路：`d = d.AddDays 1`（方法交回新值，② 演示过），
+# 或者拿 `by` 包一层、让 setter 给**装它的那个变量**换一份新值（`tests/class/352`）。
+# 轮不到"就地改那份值" —— `w := v` 之后两份值共用一个箱子，改了会静默影响别处。
+# 连"换槽"都不行：引擎在值类型那些格上标了 `ReadOnly`（`by v.X = …` 报「无法给只读变量」）。
 
 print "实例那半跑通了"
