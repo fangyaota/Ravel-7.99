@@ -28,6 +28,19 @@ internal static class DotNetTypeClass
     [ClassMethod("IsInterface")]
     public static RuntimeValue IsInterface(RuntimeValue self) => new BoolVal(Val(self).DotNetType.IsInterface);
 
+    /// <summary>**把这个类型当成一个对象** —— 交回 `DotNetObject`(里头就是那个 `System.Type`)。
+    ///
+    /// `DotNetType` 的意思是"**静态访问的把手**":`Reflect.Call t "Max" […]` 在它身上找的是
+    /// **静态**成员。而 `Type` 自己的那些**实例**成员(`GetMethods` / `GetParameters` /
+    /// `IsSpecialName` …)就够不着了 —— 想扫一个类型的全部方法,要的恰恰是它们。
+    /// 这一格就是那道门:
+    ///
+    ///     t := Reflect.Type "System.Math"
+    ///     o := t.AsObject ()                 # 现在是个对象了
+    ///     Reflect.Unwrap (Reflect.Call o "GetMethods" [])</summary>
+    [ClassMethod("AsObject")]
+    public static RuntimeValue AsObject(RuntimeValue self) => new DotNetVal(Val(self).DotNetType);
+
     /// <summary>它的公开成员名(不重名、排过序)—— 不知道有什么可调的时候先列这个。</summary>
     [ClassMethod("Members")]
     public static RuntimeValue Members(RuntimeValue self)

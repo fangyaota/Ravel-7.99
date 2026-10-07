@@ -257,13 +257,19 @@ readonly private IsSpecial := (m: object) => {
 
 # ═══ 对外那几个 ═══
 
-# 类型名 → 包着 `Type` 的**对象**。
+# 类型名 → 包着 `System.Type` 的**对象**。
 #
-# **`Reflect.Type` 交回的是"静态访问的把手"**（`Call` 在那个类型上找**静态**成员），
-# 而 `GetMethods` / `GetParameters` 这些是 `Type` 的**实例**成员，够不着它。
-# 所以从 `System.Type.GetType` 拿一个对象回来 —— 之后全是实例调用。
+# **为什么不自己 `System.Type.GetType`**：查不到的时候它交回 **null**，紧接着
+# `null.GetMethods ()` 就是一句 NRE —— 那不是 Ravel 的异常，**`try` 接不住**，
+# 一路打成"解释器内部错误"（实测：`Adaptor.Cs "查无此类.Wat" …` 当场把脚本打死）。
+# `Reflect.Type` 那条路报的是人话（"核心库写全名；别的程序集先 `using` 进来，
+# 再写**带程序集的全名**"），而且它还会在**已经加载的**程序集里再找一遍。
+#
+# **`.AsObject ()` 那一格不能省**：`Reflect.Type` 交回的是"**静态访问的把手**"
+# （`Reflect.Call` 在它身上找的是**静态**成员），而 `GetMethods` / `GetParameters`
+# 这些是 `Type` 自己的**实例**成员，够不着。把它当成对象拿回来，之后全是实例调用。
 readonly private TypeObject := (类型: string) => {
-    Reflect.Call (Reflect.Type "System.Type") "GetType" [类型];
+    (Reflect.Type 类型).AsObject ();
 }
 
 # **这个类型全部该适配的静态方法名** —— 去重、排序。有了它就不用逐个列成员：

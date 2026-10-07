@@ -18,7 +18,7 @@ print (Reflect.Call "hello" "Length" [])      # 属性也走 Call
 
 | | |
 |---|---|
-| `DotNetType` | 一个 `System.Type`。`.Name ()` / `.FullName ()` / `.IsValue ()` / `.IsInterface ()` / `.Members ()` / `.Text ()` |
+| `DotNetType` | 一个 `System.Type`。`.Name ()` / `.FullName ()` / `.IsValue ()` / `.IsInterface ()` / `.Members ()` / `.Text ()` / `.AsObject ()` |
 | `DotNetObject` | 一个任意 .NET 对象。`.TypeOf ()` / `.Text ()` / `.Unwrap ()` |
 | `Reflect.Type name` | 名字 → `DotNetType`（核心库写 `"System.Console"`；别的程序集要**带程序集的全名**）|
 | `Reflect.New t args` | 构造 |
@@ -30,6 +30,21 @@ print (Reflect.Call "hello" "Length" [])      # 属性也走 Call
 所以一个叫 `DotNetType`、方法叫 `TypeOf`。挂错名字**不报错**，只是读不到。
 
 ## 规矩
+
+**`.AsObject ()` 是那道"把类型当对象看"的门。** `DotNetType` 的意思是**静态访问的把手**
+（`Reflect.Call t "Max" […]` 在它身上找的是**静态**成员）—— 而 `Type` 自己的那些
+**实例**成员（`GetMethods` / `GetParameters` / `IsSpecialName`…）就够不着了。
+想扫一个类型的全部方法，要的恰恰是它们：
+
+```ravel
+o := (Reflect.Type "System.Math").AsObject ()
+print ((Reflect.Unwrap (Reflect.Call o "GetMethods" [])).Count ())    # 124
+```
+
+**别自己走 `System.Type.GetType`。** 查不到的时候它交回 **null**，紧接着
+`null.GetMethods ()` 就是一句 NRE —— 那不是 Ravel 的异常，**`try` 接不住**，
+一路打成"解释器内部错误"。`Reflect.Type` 报的是人话（核心库写全名 / 别的程序集先
+`using` 进来再写带程序集的全名），而且它还会在**已经加载的**程序集里再找一遍。
 
 **重载按"参数个数 + 绑得上"挑**:先按个数筛,再**依次试** —— 绑不上就换下一个。
 `"3.7".Replace ["3" "4"]` 就是靠这条:它有两个 2 参数的重载 `(char, char)` 和

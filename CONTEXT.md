@@ -1432,6 +1432,15 @@ using "structures.rav"       # 库里那半边,照旧
 两个同名模块谁后 `using` 谁赢(`DefineOrReplace` 是"装进来的以库为准"),那是**静默**
 的那种坏。所以工具会把取到的名字**打出来**给人看一眼。
 
+**类型找不到的时候**:一路走 `Reflect.Type` —— 报的是人话(核心库写全名 / 别的程序集
+先 `using` 进来再写**带程序集的全名**),而且是 Ravel 的异常、`try` 接得住。
+**别自己 `System.Type.GetType`**:查不到它交回 **null**,紧接着 `null.GetMethods ()`
+就是一句 NRE —— 那不是 Ravel 的异常,**`try` 也接不住**,一路打成"解释器内部错误"
+(实测:`Adaptor.Cs "查无此类.Wat" …` 当场把脚本打死)。为此 `Ravel.Reflect` 补了
+一格 **`.AsObject ()`**:`DotNetType` 是"**静态访问的把手**"(`Reflect.Call` 在它身上
+找的是静态成员),`Type` 自己的实例成员(`GetMethods` / `GetParameters`…)够不着 ——
+这一格就是把那个类型**当对象**拿回来。
+
 `EmitMember` 里那两档筛法是这一节的要害:**先按"是不是静态"筛**(生成的函数体是
 `System.String.Join (…)` 那个形状,只有静态的对得上 —— 漏了这一筛,`Substring` 那种
 实例方法会被照静态生成,而生成器**报的是"写好了"**,要到 C# 编译那一刻才冒一句
