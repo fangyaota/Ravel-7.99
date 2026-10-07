@@ -1336,6 +1336,7 @@ internal static class StackClass
     [ClassProperty("Count")]                                                  // 一个名字、两个方向
     public static RuntimeValue Count(RuntimeValue self, RuntimeValue arg) => …;  // 那格收到 `()` 就是读
     [RavelFn("Make")] public static RuntimeValue Make(RuntimeValue arg) => …;   // 模块里的函数
+    [RavelProperty("PI")] public static RuntimeValue PI(RuntimeValue arg) => …; // 模块里的属性(没接收者)
 }
 ```
 
@@ -1363,7 +1364,11 @@ using "structures.rav"       # 库里那半边,照旧
 - **`[ClassProperty]` 是"一个名字、两个方向"**:那格落成 **`by` 槽**（和 `by x := property g s`
   同一个机制），读走 getter、写走 setter、`+=` 两边都走 —— 所以不必发明 `SetX` / `PutX`
   那种名字。签名和 `[ClassMethod]` 一样（`self` + 那一格实参），`ReadOnly = true` 就是
-  只给 getter 那一半（拦在**槽上**）。生成器那一半见「生成出来的适配层 → 属性」。
+  只给 getter 那一半（拦在**槽上**）。生成器那一半见「生成出来的适配层 → 属性 / 字段」。
+- **`[RavelProperty]` 是模块里的同一个东西**（没有接收者）:签名 `static RuntimeValue
+  Name(RuntimeValue arg)`，落成**模块里**的一格 `by` 槽 —— 于是 `NMath.PI` 读**不用括号**、
+  写由同一对 getter/setter 接。它和 `[RavelConst]`（装的那一刻定值）的分工是
+  **每次读都重新求值**（`DateTime.Now` 那种要的就是这个）。
 - **`[RavelModule("")]` 是特例**:进**全局作用域**(不建模块,直接叫名字)。
 - 函数那几条的签名规矩和 `[Sys]` **同一套**(1~3 个 `RuntimeValue`,开头可以是
   `Interpreter`)—— 绑定只有一处(`ClassRegistry.Fn`)。
@@ -1435,8 +1440,9 @@ using "structures.rav"       # 库里那半边,照旧
     Adaptor.Write 源码 cs路径                     # → 写 .cs
     Adaptor.Build 源码 cs路径 dll路径 引用         # → 写 .cs + 就地编(Roslyn 当库调)
 
-**成员那一格可以交给 `AllOf`** —— 它把一个类型**全部**该适配的静态方法名扫出来
-(去重、排序、滤掉 `IsSpecialName` 那些:属性访问器 / 运算符 / 事件),
+**成员那一格可以交给 `AllOf`** —— 它把一个类型**全部**该适配的静态成员名扫出来
+(去重、排序; 方法滤掉 `IsSpecialName` 那些 —— 属性访问器 / 运算符 / 事件,
+**静态字段和静态属性另行算进来**: `Math.PI` 那种 `const` 字段在 `GetMethods` 里根本不在),
 于是"只给一个类名"就够:
 
     Adaptor.Build (Adaptor.Cs "System.Math" "NMathAll" (Adaptor.AllOf "System.Math")) cs dll []
@@ -1539,19 +1545,29 @@ SqliteConnection`）又照出三件事：
   （`cut` 真为 0 的话 `[0..-1]` 就错了）。库里 `[8..((s.Length ()) - 1)]` 那种是手写习惯
   （能用，但半开更直）。
 
-**属性**（2026-10-07 加，`[ClassProperty]`）。`.NET` 的属性（`sb.Length` / `d.Year`）在反射里是
-`get_X` / `set_X` 两个方法（`IsSpecialName`），方法那条路看不见它们 —— 从前整个跳过。
-现在实例那半**自己从类型上扫**（`Adaptor.PropsOf` → `GetProperties`，不用点名），生成
+**属性 / 字段**（2026-10-07 加，`[ClassProperty]` / `[RavelProperty]`）。
+`.NET` 的**数据成员**（`sb.Length` 属性、`Vector3.X` 字段、`Math.PI` 那个 `const` 字段）
+在反射里是 `get_X` / `set_X` 两个方法（`IsSpecialName`）、或者干脆不在 `GetMethods` 里
+—— 方法那条路**两边都看不见**，所以从前整个跳过。现在：
+
+* **实例那半**自己从类型上扫（`Adaptor.PropsOf` → `GetProperties` + `GetFields`，不用点名），
+  生成 `[ClassProperty]`；
+* **静态那半**（点名那一路）落在静态字段/属性上时生成 `[RavelProperty]` —— 进**模块**，
+  没有接收者。`Math.PI` / `String.Empty` / `DateTime.Now` 就是这一档。
 
     [ClassProperty("Length")]
     public static RuntimeValue Length (RuntimeValue self, RuntimeValue arg)   # 那格收到 `()` 就是读
+    [RavelProperty("PI")]
+    public static RuntimeValue PI (RuntimeValue arg)
 
-引擎把它落成 **`by` 槽**（`Attr.By` + 一对 getter/setter 的 `PropertyVal`）—— 和
+引擎把两样都落成 **`by` 槽**（`Attr.By` + 一对 getter/setter 的 `PropertyVal`）—— 和
 `by x := property g s`、接口体里那条 `instance` 是**同一个机制**：
 
     sb.Length          # 读走 getter
     sb.Length = 2      # 写走 setter（`.NET` 那边真改）
     sb.Length += 3     # 复合赋值两边都走（`StepByCompoundAssign`）
+    NMath.PI           # 模块那半：**不用括号**（它是数据，不是函数）
+    v.X                # 字段和属性走的是同一条路
 
 **一个名字、两个方向** —— 那正是 `by` 存在的理由，所以 `SetLength` / `PutLength` 那几种
 "读的名字 + 写的名字"的约定**一个都不需要**。`ReadOnly`（只给 getter 那一半）拦在**槽上**
@@ -1578,14 +1594,31 @@ SqliteConnection`）又照出三件事：
   用户写的 `property g s`（普通 lambda，接收者靠捕获）和接口那条（`NativeClosure`，要连
   捕获作用域一起换，见 `Activate`）都**不是** `ISelfBinding`，原样交回 —— 那两个机制照旧。
 
-**值类型上的属性一律只给读**。`.NET` 那边有 setter 也没用：`Me (self)` 拆出来的是装箱那份
-**副本**，写回去改的是副本、改完丢掉 —— 和"返回 void 的实例方法"同一档，但症状更坏：
-`d.Year = 2000` 看着成了、`d.Year` 还是旧值，**一声不响**。产物里会留一段注释说明理由。
-（`DateTime` / `TimeSpan` 的属性实测全是 get-only，所以这一条今天在仓库的产物里没触发 ——
-`System.Drawing.Point` 那种有 setter 的值类型一碰就是静默白做。）
+**值类型上的数据成员一律只给读**。`.NET` 那边有 setter / 字段可写也没用：`Me (self)` 拆出来的
+是装箱那份**副本**，写回去改的是副本、改完丢掉 —— 和"返回 void 的实例方法"同一档，
+但症状更坏：`d.Year = 2000` / `v.X = 1.0` 看着成了、值还是旧的，**一声不响**。产物里会留
+一段注释说明理由。（`DateTime` / `TimeSpan` 的属性实测全是 get-only，所以这一条在仓库的产物里
+要等 `Vector3` 那种类型才看得到 —— `v.X` 是**可写字段**，正是那一档。）
 
-**静态属性不做**：静态那半（`Adaptor.Cs`）的成员是你点名的，而属性在 `GetMethods` 里也看不见。
-`Math.PI` / `DateTime.Now` 那些要另说。
+**字段和属性只差"能不能写"的问法**：属性是 `CanWrite` **并且** `SetMethod.IsPublic`
+（`CanWrite` 只管有没有 —— `Exception.Message` 那种 `protected set` 也是 `true`，
+照着生成就是一句 **CS0272**）；字段是 `IsLiteral` / `IsInitOnly`（`const` / `readonly`）。
+两样都归到 `DataText` 一处出体，四个形状（实例/静态 × 属性/字段）共用。
+
+**静态那半的数据成员**走 `[RavelProperty]`（进模块，读**不用括号**），落在 `by` 槽上 ——
+和实例那半同一个机制，区别只在**没有接收者**（那两个函数不是 `ISelfBinding`，
+`BindProperty` 原样放行）。**为什么不挂在 `[RavelConst]` 上**：那个是**装的那一刻定值**
+（挂在 `static readonly RuntimeValue` 字段上），`Math.PI` 冻住没事、`DateTime.Now` 冻住就
+错了。`by` 槽**每次读都重新求值**，两档一次办完。静态数据成员**不参与"重载分名字"那一套**
+（没有重载），但 `--all` / `AllOf` 把它们和静态方法一样算进去。
+
+**两条 Ravel 语法上的坑**（写这半时各踩一次，都留在注释里）：
+
+* **调用换行之后，下一行以 `(` 打头就是另一句** —— 上面那半成了"少给实参"的半调用，
+  值是个函数，产物里打出来是 `<block>` / `<function>`。同理 `cond { A; }` 换行再写 `{ B; }`：
+  前半截是"一个没被调的函数"、后半截是个**裸块**，整段的值就成了那个块。
+* **别把局部变量叫 `self`** —— 那是引擎在每个作用域里都放好的名字，重定义当场报
+  「'self' 在这个作用域里已经定义过」（生成器里那个叫 `收者`）。
 
 **重载分名字**（2026-10-07）：一个名字下的多个重载**都生成**，排位第一的用原名，
 其余的依次 `_2` `_3` …（`Append` / `Append_2` / `Append_3`…）。

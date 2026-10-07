@@ -11,18 +11,25 @@
 # **实例那半**（`--class`）—— 生成**类**（`[RavelClass]` + `[ClassCtor]` + `[ClassMethod]`
 # + `[ClassProperty]`）：
 #
-# 属性**不用点名**：`.NET` 的属性在反射里是 `get_X` / `set_X` 两个方法（`IsSpecialName`），
-# 成员表里根本看不见 —— 生成器自己从类型上扫（`Adaptor.PropsOf`），扫到的都生成。
-# 于是 `sb.Length` 读、`sb.Length = 2` 写、`sb.Length += 3` 也认（引擎那边落成 `by` 槽）。
-# **静态那半没有属性**：那一半的成员是你点名的，属性得另说。
-#
 #     … System.Text.StringBuilder NSb --class     # 模块 NSb / 类 StringBuilder
+#
+# 实例的**数据成员（属性 + 字段）不用点名**：`.NET` 的属性在反射里是 `get_X` / `set_X`
+# 两个方法（`IsSpecialName`）、字段干脆不在 `GetMethods` 里，成员表里两边都看不见 ——
+# 生成器自己从类型上扫（`Adaptor.PropsOf`），扫到的都生成。于是 `sb.Length` 读、
+# `sb.Length = 2` 写、`v.X` 读（字段也一样）—— 引擎那边都落成 **`by` 槽**。
+#
+# **静态那半的数据成员要点名**（它本来就是"点名几个成员"那一路），生成的是
+# `[RavelProperty]` —— `Math.PI`（那是 `const` **字段**）/ `DateTime.Now`（静态属性）：
+#
+#     … System.Math NMath --all                   # `--all` 把静态数据成员也算进去
+#     … System.Math NMath Max PI                  # 点名：一个方法 + 一个常量
 #
 # 两半是**两个形状**（静态的体里是 `System.Math.Max (…)`；实例的体里 `self` 要先脱壳），
 # 所以是两个开关、两份产物，不是一个开关。要两半就各跑一次。
 #
-# **`--class` 不做值类型**（`DateTime` / `Point` 那种）：装箱之后改不了原值，
-# 可变结构体的方法会**静默失效**。碰到当场报，不生成。
+# **值类型做**（`DateTime` / `TimeSpan` 那种）：它跟 `IntVal` 一个形状 —— 不可变，
+# 方法交回**新值**。只挡两个签名：**返回 `void` 的实例方法**、以及**可写的数据成员**
+# （写回的是装箱那份副本，改完丢掉 —— 静默白做，所以只生成读那一半）。
 #
 # 产出 `Ravel.Generated/<模块名>.cs`。加了 `--dll <路径>` 就顺手**就地编**一份 dll
 # （Roslyn 当库调，不经过 `dotnet build`），于是只有 runtime 的机器上也走得完。
@@ -68,9 +75,10 @@ Dll路径 := Args.Get opts "dll" ""
 # 得把这一串递过去，不然是一句离题万里的 `CS0234 'Data' does not exist in …`。
 引用 := Adaptor.RefsOf 类型 成员
 
-# 属性（`[ClassProperty]`）**不由 `成员` 点名** —— `CsClass` 自己从类型上扫
-# （`.NET` 的属性在反射里是 `get_X` / `set_X` 两个方法，`--class` 的成员表里看不见它们）。
-# 静态那半不做属性（那一半的成员是你点名的，属性得另说）—— 所以这一格只报实例那半。
+# 数据成员（**属性 + 字段**，`[ClassProperty]`）**不由 `成员` 点名** —— `CsClass` 自己从
+# 类型上扫（`.NET` 的属性在反射里是 `get_X` / `set_X` 两个方法、字段干脆不在 `GetMethods`
+# 里，`--class` 的成员表里两边都看不见）。所以这一格只报实例那半 —— 静态那半的
+# **静态**字段/属性是**点名**的（`[RavelProperty]`，见上），不在这儿数。
 属性 := 实例 { Adaptor.PropsOf 类型; } { []; }
 
 Dll路径 != "" {
@@ -81,6 +89,6 @@ Dll路径 != "" {
     Adaptor.Write 源码 Cs路径
     print ("写好了：" + Cs路径)
 }
-尾巴 := 实例 { " + " + (string (属性.Count ())) + " 个属性"; } { ""; }
+尾巴 := 实例 { " + " + (string (属性.Count ())) + " 个属性/字段"; } { ""; }
 print ("  类型 " + 类型 + " → " + (实例 { "类 " + 类名; } { "模块 " + 模块; })
        + "；要 " + (string (成员.Count ())) + " 个成员" + 尾巴)

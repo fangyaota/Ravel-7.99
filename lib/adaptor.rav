@@ -405,7 +405,24 @@ readonly private Usable := (m: object) => {
 # 冒出一句 CS0120「需要对象引用」—— 错在了跟这件事无关的地方（实测踩过）。
 #
 # 排位键同时也担着"确定性"：反射给的先后没有保证（引擎自己那趟也为此排过序）。
-readonly private EmitMember := (all: list w: string mod: string full: string) => {
+# 一个**成员名** → 一段 C#。**先看数据成员**（字段 / 属性）—— 名字落在数据上就生成
+# `[RavelProperty]`（进模块，读不用括号；没有重载、也没有"分名字"那一套）；
+# 否则按方法那套挑重载。C# 里方法和数据成员不可能同名，所以这是互斥的两档。
+readonly private EmitMember := (all: list T: object w: string mod: string full: string) => {
+    fHit := (StaticFields T).Where (f: object) => { (NameOf f) == w; }
+    pHit := (StaticProps T).Where (p: object) => { (NameOf p) == w; }
+    # 内层那个 cond **必须写在一行上**：`cond { A; }` 换行再写 `{ B; }`，前半截成了
+    # "一个没被调的函数"、后半截成了**一个裸块** —— 于是整段的**值就是那个块**
+    #（产物里打出来是 `<block>`，实测踩过）。
+    fHit.IsEmpty () {
+        pHit.IsEmpty () { EmitStaticMethod all w mod full; } { EmitStaticProp (pHit.First ()) mod full; }
+    } {
+        EmitStaticField (fHit.First ()) mod full;
+    }
+}
+
+# **静态方法**那半：挑重载，名字排位（下面这一大段）。
+readonly private EmitStaticMethod := (all: list w: string mod: string full: string) => {
     same := all.Where (m: object) => { (NameOf m) == w; }
     statics := same.Where (m: object) => { StaticOf m; }
     # 进得来的都生成得出来（见 `EmitOne` 的头注）—— 这儿只筛"能不能"。
@@ -607,111 +624,219 @@ readonly private EmitClassMember := (all: list w: string mod: string net: string
     }
 }
 
-# ═══ 生成（**属性**那一半）═══
+# ═══ 生成（**数据成员**那一半：属性 / 字段）═══
 #
-# .NET 的属性（`sb.Length` / `d.Year`）在反射里是 `get_X` / `set_X` 两个方法
-# （`IsSpecialName`），`GetMethods` 那条路把它们当"别的东西"滤掉了。这一半直接问
-# `GetProperties`，生成 `[ClassProperty]` —— **一个名字、两个方向**：
+# `.NET` 的属性和字段都是**数据** —— 一个名字、两个方向。属性（`sb.Length` / `d.Year`）
+# 在反射里是 `get_X` / `set_X` 两个方法（`IsSpecialName`），字段（`Vector3.X` / `Math.PI`）
+# 干脆不在 `GetMethods` 里 —— 所以从前两样都整个跳过。
 #
-#     [ClassProperty("Length")]  public static RuntimeValue Length (self, arg) { 读 / 写 }
+# 生成 `[ClassProperty]`（实例那半）或 `[RavelProperty]`（静态那半的模块），四个形状
+# （实例/静态 × 属性/字段）**都落到 `DataText`**：
 #
-# 引擎把那格落成 `by` 槽（见 `Runtime/Builtins/PluginApi.cs`），于是 `sb.Length` 读、
-# `sb.Length = 2` 写、`sb.Length += 3` 也认 —— 不必发明 `SetLength` / `PutLength`
-# 那种名字。**`by` 就是为这个存在的**，生成器没有理由自己再造一套约定。
+#     [ClassProperty("Length")]  public static RuntimeValue Length (RuntimeValue self, RuntimeValue arg)
+#     [RavelProperty("PI")]      public static RuntimeValue PI (RuntimeValue arg)
 #
-# 形状和 `EmitClassOne` **不一样**：那份方法一个方向（表达式体就够），
-# 属性一份方法干两件事 —— 那一格收到 `()` 是读、收到别的就是写，所以是**块体**。
+# 引擎把那格落成 **`by` 槽**（见 `Runtime/Builtins/PluginApi.cs`），于是 `sb.Length` 读、
+# `sb.Length = 2` 写、`Math.PI` 直接读（**不用括号**）、`+=` 也认 —— 不必发明
+# `SetLength` / `PutLength` 那种名字。**`by` 就是为这个存在的**，生成器没有理由自己再造一套。
+#
+# 形状和 `EmitClassOne` 那种**方法**不一样：方法一个方向（表达式体就够），
+# 数据成员一份方法干两件事 —— 那一格收到 `()` 是读、收到别的就是写，所以是**块体**。
 
-# 这个类型的属性里**该生成**的那些（`PropertyInfo` 对象）。
+# 一个数据成员 → 一段 C#。**四个调用点共用这一份** —— 它们的差别只有两格：
+# 访问体怎么写（`Me (self).X` / `System.Math.PI`）、以及"能不能写"（问法各不同）。
+# 形状只有这一个，分四处写迟早分叉。
+#
+# `静态` 一格里分了三件事：特性叫 `RavelProperty` 还是 `ClassProperty`、有没有 `self`、
+# 报错前缀（见下）。
+readonly private DataText := (静态: bool mod: string nm: string 访问: string ty: object 能写: bool 注释: string) => {
+    rt := Reflect.Unwrap (Reflect.Call ty "Name" [])
+    label := mod + "." + nm
+    # 读那半：把 `.NET` 的值**造**成 Ravel 值；写那半：把实参**取**成 `.NET` 值。
+    read := MakeExpr rt 访问
+    write := GetterOfType ty "arg" label
+    # **"能不能写"是三件事的与**，前两件调用方问（有没有 setter / 值类型那条），
+    # 这一件在这儿问：那一型转不转得出来（`GetterOfType` 的哨兵 `?`）。
+    可写 := 能写 && (write != "?")
+
+    特性 := 静态 { "RavelProperty"; } { "ClassProperty"; }
+    # **别叫 `self`** —— 那是引擎在每个作用域里都放好的名字，重定义会当场报
+    # 「'self' 在这个作用域里已经定义过」（实测踩过 —— 这条规矩顺手救了一次命名）
+    收者 := 静态 { ""; } { "RuntimeValue self, "; }
+
+    attr := "    [" + 特性 + "(\"" + nm + "\")]"
+    attr = 可写 { attr; } { "    [" + 特性 + "(\"" + nm + "\", ReadOnly = true)]"; }
+
+    # 只读时**在下面自己说清理由**（`NoteOf`）—— 写不出去不吭声，比生成不出来还难查。
+    # 读那一格收到的是 `()` —— 和 `[ClassCtor]` 一个口径（"没给"就是 `()`）。
+    #
+    # **两条支路都要写全**（`{ … } { … }`）—— 只给一块的话那是个"还没被调的函数"，
+    # 块**根本不跑**（这门语言里 `cond { A; }` 就是这个意思），于是写那一半悄悄地没有。
+    # 这条在 `Usable` 那几处踩过一次，属性那一版又踩一次：症状是"标了读写、生成出来只有读"。
+    body := "() => " + read
+    可写 {
+        body = "() =>"
+        body = body + "\n        {"
+        body = body + "\n            if (arg is VoidVal) return " + read + ";"
+        body = body + "\n            " + 访问 + " = " + write + ";"
+        body = body + "\n            return PluginKit.Void;"
+        body = body + "\n        }"
+    } { (); }
+
+    one := 注释
+    one = one + attr
+    one = one + "\n    public static RuntimeValue " + nm + " (" + 收者 + "RuntimeValue arg)"
+    # **必须兜**（和另两半同一条理由）：C# 异常漏出去绕过 Ravel 的 `try`。
+    one = one + "\n        => PluginKit.Guarded (\"" + label + "\", " + body + ");"
+    one + "\n"
+}
+
+# 只读的那句注释。**理由要分开说** —— 不然"为什么这个只读"要靠人去猜，而值类型那条
+# 尤其反直觉（反射明明说 `CanWrite`）。四档：能写（空串）、值类型、只读字段、没有 setter。
+readonly private NoteOf := ("值类型" nm: string cls: string) => {
+    "    // " + nm + "：`.NET` 那边有 setter，但 " + cls + " 是**值类型** ——\n"
+    + "    //   写回的是**装箱那份副本**（改完丢掉，和「返回 void 的实例方法」同一档），\n"
+    + "    //   所以这一格只给读。要写就 `d.AddYears 1` 那种「交回新值」的方法。\n";
+} | ("值类型字段" nm: string cls: string) => {
+    "    // " + nm + "：`.NET` 那边这个字段是**可写**的，但 " + cls + " 是**值类型** ——\n"
+    + "    //   写回的是**装箱那份副本**（改完丢掉），所以这一格只给读。\n";
+} | (_ nm: string cls: string) => {
+    # **只给"反直觉"的那一档**。「`.NET` 那边没有 setter」和「那边是 `const` / `readonly`」
+    # 不写：只读本来就自明，每格挂一句注释只会把产物淹掉（`DateTime` 那 15 个全是 get-only，
+    # 一挂就是 15 行）。
+    "";
+}
+
+# `.NET` 那边这个属性**写得进去吗**：得有 setter，而且 setter 得**公开**。
+# `CanWrite` 只管"有没有" —— `Exception.Message` 那种 `protected set` 也是 `CanWrite = true`，
+# 照着生成就是一句 **CS0272**（"属性不能被赋值，它是只读的"）。仓库里那三个类型恰好
+# 全是公开 setter，所以这坑得靠别的类型才照得出来。
+readonly private PropWritable := (p: object) => {
+    (Reflect.Unwrap (Reflect.Call p "CanWrite" []))
+    && (Reflect.Unwrap (Reflect.Call (Reflect.Call p "SetMethod" []) "IsPublic" []));
+}
+
+# 字段写得进去吗 —— `const`（`IsLiteral`）和 `readonly`（`IsInitOnly`）都写不进去。
+readonly private FieldWritable := (f: object) => {
+    !((Reflect.Unwrap (Reflect.Call f "IsLiteral" [])) || (Reflect.Unwrap (Reflect.Call f "IsInitOnly" [])));
+}
+
+# 一个**数据成员**问"为什么只读" —— 四档共用（属性/字段 × 实例/静态）。
+# 值类型那一档**只有实例有**：静态字段写的是那个类型上的东西，没有"装箱副本"这回事。
+readonly private 理由Of := (能写: bool val: bool 字段: bool) => {
+    能写 {
+        理由 := ""
+        # 值类型上**有 setter 也不给写**（见下 `EmitClassProp`）—— 这是"我们不给"，得说清。
+        # 字段和属性各一句话：`.NET` 那边一个叫 setter，一个就叫"可写的字段"
+        val { 理由 = 字段 { "值类型字段"; } { "值类型"; }; } { (); }
+        理由;
+    } {
+        # 「没有 setter」「是 const / readonly」—— 只读得自明，不写注释（见 `NoteOf`）
+        "";
+    }
+}
+
+# 这个类型的**实例**属性里该生成的那些（`PropertyInfo` 对象）。
 #
 # 滤掉的四样：只写的（读不出来，一个名字就没有意义）、**静态的**（`Me (self).X` 上
 # 写不出静态成员）、不公开的（读不到）、以及 `typeof` 写不出来的类型（见 `TypeUsable`）；
 # 另外**索引器**（`Item`：带参数）在这儿也不进来 —— 它的形状是方法（要实参），不是一个名字。
 readonly private PropsRaw := (T: object) => {
     ps := Reflect.Unwrap (Reflect.Call T "GetProperties" [])
-    ps.Where (p: object) => { PropOk p; }
+    ps.Where (p: object) => { PropOk p false; }
 }
 
-readonly private PropNameOf := (p: object) => { Reflect.Unwrap (Reflect.Call p "Name" []); }
+# 静态那半同理（`StaticProps` / `StaticFields`），只是"静态"那一格反过来。
+readonly private StaticProps := (T: object) => {
+    ps := Reflect.Unwrap (Reflect.Call T "GetProperties" [])
+    ps.Where (p: object) => { PropOk p true; }
+}
 
-# 三个判据串一条 —— `&&` 是**短路**的（求值器特判那种，见 `StepShortCircuit`），
+# 四个判据串一条 —— `&&` 是**短路**的（求值器特判那种，见 `StepShortCircuit`），
 # 所以**顺序是有用的**：`CanRead` 假的时候 `GetMethod` 是 null，后面那两步去 null 上
 # 找方法就炸了（`.NET` 里 `CanRead` 就是 `GetMethod != null`，判据是一件事的两面）。
 #
 # `((…).Count ()) == 0` 那一层是"不是索引器"：`.Count` 的实参是那个 `()`，它会一路吃到
 # 运算符为止（写成 `.Count () == 0` 就成了 `.Count ((() == 0))` —— 报的是
 # 「类型 Void 不支持运算符 '=='」那种看不出关系的错）。
-readonly private PropOk := (p: object) => {
+readonly private PropOk := (p: object 静态: bool) => {
     ((Reflect.Unwrap (Reflect.Call p "CanRead" []))
-     && (GetterOk (Reflect.Call p "GetMethod" []))
+     && (GetterOk (Reflect.Call p "GetMethod" []) 静态)
      && (((Reflect.Unwrap (Reflect.Call p "GetIndexParameters" [])).Count ()) == 0)
      && (TypeUsable (Reflect.Call p "PropertyType" [])));
 }
 
-# getter 得**公开**（不公开的读不到）、且**不是静态**的（`Me (self).X` 上写不出静态成员）。
-readonly private GetterOk := (g: object) => {
-    (Reflect.Unwrap (Reflect.Call g "IsPublic" [])) && !(StaticOf g);
+# getter 得**公开**（不公开的读不到），而且"静态不静态"得和这一半对得上 ——
+# 实例那半的访问体是 `Me (self).X`，静态那半是 `FullName.X`，两边的写法互不通用。
+readonly private GetterOk := (g: object 静态: bool) => {
+    (Reflect.Unwrap (Reflect.Call g "IsPublic" [])) && ((StaticOf g) == 静态);
 }
 
-# 这个属性的**名字**（排序 —— 反射给的先后没有保证，和 `AllOfClass` 同一条理由）。
+# 实例 / 静态的**字段**。公开、非字面量那些照收（`const` 进来的只是"只读"，
+# 值本身有用 —— `Math.PI` 就是它），只要 `typeof` 写得出来。
+readonly private FieldsRaw := (T: object 静态: bool) => {
+    fs := Reflect.Unwrap (Reflect.Call T "GetFields" [])
+    fs.Where (f: object) => { FieldOk f 静态; }
+}
+
+readonly private FieldOk := (f: object 静态: bool) => {
+    ((Reflect.Unwrap (Reflect.Call f "IsPublic" []))
+     && ((StaticOf f) == 静态)
+     && (TypeUsable (Reflect.Call f "FieldType" [])));
+}
+
+readonly private InstanceFields := (T: object) => { FieldsRaw T false; }
+readonly private StaticFields  := (T: object) => { FieldsRaw T true; }
+
+# 这个类型的数据成员**名字**（排序 —— 反射给的先后没有保证，和 `AllOfClass` 同一条理由）。
+# 给命令行看一眼用（`Adaptor.PropsOf`）。
 readonly PropsOf := (类型: string) => {
-    ps := PropsRaw (TypeObject 类型)
-    ns := ps.Map (p: object) => { PropNameOf p; }
-    Sorting.Sort (ns.Distinct ());
+    T := TypeObject 类型
+    ns := (PropsRaw T).Map (p: object) => { NameOf p; }
+    fs := (InstanceFields T).Map (f: object) => { NameOf f; }
+    # **括号那一层不能省**：`.Concat (fs).Distinct ()` 里，`Concat` 的实参会把后面的
+    # `.Distinct` **吞进去**（和"实参吃运算符"同一个毛病，实测：报「Concat 需要一个容器…得到 Function」）
+    Sorting.Sort ((ns.Concat (fs)).Distinct ());
 }
 
-# 一个属性 → 一段 C#。
-#
-# **写那一半**是"有 setter **而且**那一型转得出来"才给：缺一样就标 `ReadOnly`，
-# 由**引擎在槽上**拦写（`Variable.CheckWritable`）—— 不指望生成的那段体自己报错。
+# 一个**实例**属性 → 一段 C#（`[ClassProperty]`）。
 readonly private EmitClassProp := (p: object mod: string cls: string val: bool) => {
-    nm := PropNameOf p
-    ty := Reflect.Call p "PropertyType" []
-    tn := Reflect.Unwrap (Reflect.Call ty "Name" [])
-    label := mod + "." + nm
-    read := MakeExpr tn ("Me (self)." + nm)
-    write := GetterOfType ty "arg" label
-    可写 := Reflect.Unwrap (Reflect.Call p "CanWrite" [])
+    nm := NameOf p
+    # **值类型上只给读那一半**（`val`）：`.NET` 那边有 setter 也没用 —— `Me (self)` 是从
+    # 装箱那份**拆出来的一份副本**，写回去改的是副本、改完丢掉，和"返回 void 的实例方法"
+    # 是同一档（`UsableClass` 挡的就是那条），而这里的症状更坏：`d.Year = 2000` 看着成了、
+    # `d.Year` 还是旧值，**一声不响**。
+    能写 := (PropWritable p) && !(val)
+    # **调用要写在一行上**：换行之后下一行以 `(` 打头，那是**另一句** —— 上面那半会
+    # 变成"少给了实参"的半调用（值是个函数，产物里打出来是 `<block>` / `<function>`，实测踩过）
+    注 := NoteOf (理由Of (PropWritable p) val false) nm cls
+    DataText false mod nm ("Me (self)." + nm) (Reflect.Call p "PropertyType" []) 能写 注;
+}
 
-    # **值类型上只给读那一半。** `.NET` 那边有 setter 也没用：`Me (self)` 是从装箱那份
-    # **拆出来的一份副本**，写回去改的是副本、改完丢掉 —— 和"返回 void 的实例方法"
-    # 是同一档（`UsableClass` 挡的就是那条），而这里的症状更坏：`d.Year = 2000`
-    # 看着成了、`d.Year` 还是旧值，**一声不响**。
-    writable := 可写 && (write != "?") && !(val)
+# 一个**实例**字段 → 一段 C#（`[ClassProperty]`）。和属性同一个形状，只有"能不能写"的
+# 问法不同（`IsLiteral` / `IsInitOnly` 而不是 `CanWrite` / `SetMethod`）。
+readonly private EmitClassField := (f: object mod: string cls: string val: bool) => {
+    nm := NameOf f
+    能写 := (FieldWritable f) && !(val)
+    注 := NoteOf (理由Of (FieldWritable f) val true) nm cls
+    DataText false mod nm ("Me (self)." + nm) (Reflect.Call f "FieldType" []) 能写 注;
+}
 
-    attr := "    [ClassProperty(\"" + nm + "\")]"
-    attr = writable { attr; } { "    [ClassProperty(\"" + nm + "\", ReadOnly = true)]"; }
+# 一个**静态**字段 / 属性 → 一段 C#（`[RavelProperty]`，进模块）。访问体是 `FullName.X`
+# （没有 `Me (self)`），**也没有"值类型"那一档** —— 写的是那个类型上的静态成员，
+# 不存在"装箱副本"。只读只可能是 `.NET` 那边不许写。
+readonly private EmitStaticField := (f: object mod: string full: string) => {
+    nm := NameOf f
+    能写 := FieldWritable f
+    注 := NoteOf (理由Of 能写 false true) nm ""
+    DataText true mod nm (full + "." + nm) (Reflect.Call f "FieldType" []) 能写 注;
+}
 
-    # 只读**有两种理由**，得分开说：不然"为什么这个只读"要靠人去猜（值类型那条尤其
-    # 反直觉 —— 反射明明说 `CanWrite`）
-    note := ""
-    val && 可写 {
-        note = "    // " + nm + "：`.NET` 那边有 setter，但 " + cls + " 是**值类型** ——\n"
-        note = note + "    //   写回的是**装箱那份副本**（改完丢掉，和「返回 void 的实例方法」同一档），\n"
-        note = note + "    //   所以这一格只给读。要写就 `d.AddYears 1` 那种「交回新值」的方法。\n"
-    } { (); }
-
-    # 读那一格收到的是 `()` —— 和 `[ClassCtor]` 一个口径（"没给"就是 `()`）。
-    #
-    # **两条支路都要写全**（`{ … } { … }`）—— 只给一块的话那是个"还没被调的函数"，
-    # 块**根本不跑**（这门语言里 `cond { A; }` 就是这个意思），于是写那一半悄悄地没有。
-    # 这一条在 `Usable` 那几处踩过一次，这儿又踩一次：症状是"标了读写、生成出来只有读"。
-    body := "() => " + read
-    writable {
-        body = "() =>"
-        body = body + "\n        {"
-        body = body + "\n            if (arg is VoidVal) return " + read + ";"
-        body = body + "\n            Me (self)." + nm + " = " + write + ";"
-        body = body + "\n            return PluginKit.Void;"
-        body = body + "\n        }"
-    } { (); }
-
-    one := note
-    one = one + attr
-    one = one + "\n    public static RuntimeValue " + nm + " (RuntimeValue self, RuntimeValue arg)"
-    # **必须兜**（和另两半同一条理由）：C# 异常漏出去绕过 Ravel 的 `try`。
-    one = one + "\n        => PluginKit.Guarded (\"" + label + "\", " + body + ");"
-    one + "\n"
+readonly private EmitStaticProp := (p: object mod: string full: string) => {
+    nm := NameOf p
+    能写 := PropWritable p
+    注 := NoteOf (理由Of 能写 false false) nm ""
+    DataText true mod nm (full + "." + nm) (Reflect.Call p "PropertyType" []) 能写 注;
 }
 
 # 运算符 / 事件（`op_+` / `add_X`）—— 它们是**别的东西**，挂在模块里当函数用不成
@@ -749,9 +874,14 @@ readonly private TypeObject := (类型: string) => {
 # 由 `EmitMember` 逐条写一行「跳过 …」。生成器的产物是**脚手架**，
 # 那份"跳过了什么"正是要交给人的东西，滤掉了反倒看不见。
 readonly AllOf := (类型: string) => {
-    ms := Reflect.Unwrap (Reflect.Call (TypeObject 类型) "GetMethods" [])
+    T := TypeObject 类型
+    ms := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
     keep := ms.Where (m: object) => { (StaticOf m) && !(IsSpecial m); }
     ns := keep.Map (m: object) => { NameOf m; }
+    # **数据成员也算**（静态字段 / 静态属性）：`--all` 说的是"这个类型全部该适配的成员"，
+    # 不是"全部方法"。`Math` 那三个常量（`PI` / `E` / `Tau` 都是 `const` 字段）就靠这一格进来。
+    ns = ns.Concat ((StaticFields T).Map (f: object) => { NameOf f; })
+    ns = ns.Concat ((StaticProps T).Map (p: object) => { NameOf p; })
     Sorting.Sort (ns.Distinct ());
 }
 
@@ -785,7 +915,7 @@ readonly Cs := (类型: string 模块: string 成员: list) => {
         "{"
     ]
 
-    Body := 成员.Map (w: string) => { EmitMember All w 模块 Full; }
+    Body := 成员.Map (w: string) => { EmitMember All T w 模块 Full; }
 
     # 一步一句 —— 串在一条链里写，`.Concat x` 后面那个 `.Join` 会被当成 `Concat` 的实参。
     Lines := Head.Concat Body
@@ -813,9 +943,13 @@ readonly RefsOf := (类型: string 成员: list) => {
     袋 = 袋.Concat (keep.Fold [] ((acc: list m: object) => { acc.Concat (ParamTypesOf m); }))
     袋 = 袋.Concat (keep.Map (m: object) => { Reflect.Call m "ReturnType" []; })
     袋 = 袋.Concat (cs.Fold [] ((acc: list c: object) => { acc.Concat (ParamTypesOf c); }))
-    # **属性那半也带上** —— 它们不由 `成员` 点名（`CsClass` 自己从类型上扫），
-    # 所以这里是**无条件**算进去的：多给几个引用无害，漏一个就是 CS0234。
+    # **数据成员那半也带上** —— 它们不一定由 `成员` 点名（`CsClass` 自己从类型上扫，
+    # 静态那半的数据成员则由 `EmitMember` 分派），所以这里是**无条件**算进去的：
+    # 多给几个引用无害，漏一个就是 CS0234。
     袋 = 袋.Concat ((PropsRaw T).Map (p: object) => { Reflect.Call p "PropertyType" []; })
+    袋 = 袋.Concat ((StaticProps T).Map (p: object) => { Reflect.Call p "PropertyType" []; })
+    袋 = 袋.Concat ((FieldsRaw T false).Map (f: object) => { Reflect.Call f "FieldType" []; })
+    袋 = 袋.Concat ((FieldsRaw T true).Map (f: object) => { Reflect.Call f "FieldType" []; })
 
     局 := 袋.Map (t: object) => {
         string (Reflect.Unwrap (Reflect.Call (Reflect.Call t "Assembly" []) "Location" []));
@@ -873,13 +1007,17 @@ readonly CsClass := (类型: string 模块: string 类名: string 成员: list) 
     Ctors := Reflect.Unwrap (Reflect.Call T "GetConstructors" [])
     SelfName := ShortName 类型
 
-    # 属性那半（`[ClassProperty]`）。**和方法重名的跳过**：C# 那边两个同名方法就是
-    # CS0111（`Length` 那种既有 `get_Length` 又有实例方法的类型现实里没有，
-    # 但生成器不能靠"现实里没有"活着）。按名字排 —— 反射给的先后没有保证，
-    # 和 `AllOfClass` 同一条理由（同一份 dll 两次生成得**逐字节一样**）。
-    Props := (PropsRaw T).Where (p: object) => { !(成员.Contains (PropNameOf p)); }
-    Props = Props.SortBy (p: object) => { PropNameOf p; }
-    PropNames := Props.Map (p: object) => { PropNameOf p; }
+    # 数据成员那半（属性 + 字段，`[ClassProperty]`）。**和方法重名的跳过**：C# 那边
+    # 两个同名方法就是 CS0111（同名的方法和数据成员 .NET 本身就不许，但生成器不能靠
+    # "现实里没有"活着）。按名字排 —— 反射给的先后没有保证，和 `AllOfClass` 同一条理由
+    # （同一份 dll 两次生成得**逐字节一样**）。
+    Props := (PropsRaw T).Where (p: object) => { !(成员.Contains (NameOf p)); }
+    Props = Props.SortBy (p: object) => { NameOf p; }
+    字段 := (InstanceFields T).Where (f: object) => { !(成员.Contains (NameOf f)); }
+    字段 = 字段.SortBy (f: object) => { NameOf f; }
+    PropNames := Props.Map (p: object) => { NameOf p; }
+    FieldNames := 字段.Map (f: object) => { NameOf f; }
+    数据名 := Sorting.Sort (PropNames.Concat FieldNames)
 
     # 构造器按 `CtorKey` 排，挑**第一个**。一个就够 —— 多个构造器各给一个名字
     # 是另一件事，这一版不做（`New` 一个名字）。
@@ -896,12 +1034,12 @@ readonly CsClass := (类型: string 模块: string 类名: string 成员: list) 
         "//   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。"
         "//"
         "//   类型 " + 类型 + " → 模块 " + 模块 + " / 类 " + 类名 + "；成员 " + (成员.Join " ")
-        "//   属性 " + (PropNames.Join " ")
+        "//   属性/字段 " + (数据名.Join " ")
         "//"
         "//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。"
         "//   静态成员在另一份里（`Adaptor.Cs`）。"
-        "//   属性是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，"
-        "//   不必发明 `SetLength` 那种名字；没有 setter 的标 `ReadOnly`，写由引擎在槽上拦。"
+        "//   属性/字段是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，"
+        "//   不必发明 `SetLength` 那种名字；写不进去的标 `ReadOnly`，并在上面写明理由。"
         "// </auto-generated>"
         ""
         "namespace Ravel.Runtime;"
@@ -918,6 +1056,8 @@ readonly CsClass := (类型: string 模块: string 类名: string 成员: list) 
     ]
 
     PropBody := Props.Map (p: object) => { EmitClassProp p 模块 类名 IsVal; }
+    FieldBody := 字段.Map (f: object) => { EmitClassField f 模块 类名 IsVal; }
+    PropBody = PropBody.Concat FieldBody
     Body := 成员.Map (w: string) => { EmitClassMember All w 模块 Full SelfName 类名 IsVal; }
 
     Lines := Head.Concat [Ctor]

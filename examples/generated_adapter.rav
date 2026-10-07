@@ -55,6 +55,18 @@ print (NMath.Round 2.6)
 print (NMath.Sin 0)
 print (NMath.Exp 1)
 
+# ── **`const` 字段也是成员**：`Math.PI` 连 `get_X` 都没有（它压根不是方法）──
+#
+# 生成的是 `[RavelProperty]`，落到**模块里的一格 `by` 槽** —— 所以读的时候**不用括号**
+# （它是数据，不是函数）。`Math.PI` / `Math.E` / `Math.Tau` 都是 `const` **字段**，
+# `String.Empty` 是 `static readonly` 字段。只读的那些由**引擎在槽上**拦写。
+#
+# 静态属性（`DateTime.Now` 那种）走的是同一条路 —— 而且它是**每次读都重新求值**的，
+# 不像 `[RavelConst]` 会冻在装的那一刻。
+print (NMath.PI)
+print (NMath.Tau)
+print ("[" + NStr.Empty + "]")
+
 # ── 比 `int` 大的整数**自动升 `bigint`**，不是报错也不是回绕 ──
 #
 # `Math.BigMul` 交回一个 `long`；`PluginKit.Narrow` 装得下就给 `int`、

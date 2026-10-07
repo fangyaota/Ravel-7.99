@@ -3,12 +3,12 @@
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
 //   类型 System.Text.StringBuilder → 模块 NSb / 类 StringBuilder；成员 Append AppendFormat AppendJoin AppendLine Clear CopyTo EnsureCapacity Equals GetChunks GetHashCode GetType Insert Remove Replace ToString
-//   属性 Capacity Length MaxCapacity
+//   属性/字段 Capacity Length MaxCapacity
 //
 //   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。
 //   静态成员在另一份里（`Adaptor.Cs`）。
-//   属性是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
-//   不必发明 `SetLength` 那种名字；没有 setter 的标 `ReadOnly`，写由引擎在槽上拦。
+//   属性/字段是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
+//   不必发明 `SetLength` 那种名字；写不进去的标 `ReadOnly`，并在上面写明理由。
 // </auto-generated>
 
 namespace Ravel.Runtime;

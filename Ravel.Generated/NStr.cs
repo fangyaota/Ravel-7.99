@@ -2,7 +2,7 @@
 //   由 `Adaptor.Cs` 生成（`lib/adaptor.rav`）—— 别手改，下次生成会盖掉。
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
-//   类型 System.String → 模块 NStr；成员 IsNullOrEmpty Concat Compare Join Format Intern IsNullOrWhiteSpace
+//   类型 System.String → 模块 NStr；成员 IsNullOrEmpty Concat Compare Join Format Intern IsNullOrWhiteSpace Empty
 // </auto-generated>
 
 namespace Ravel.Runtime;
@@ -91,5 +91,9 @@ internal static class NStrAdaptor
     [RavelFn("IsNullOrWhiteSpace")]
     public static RuntimeValue IsNullOrWhiteSpace (RuntimeValue x0)
         => PluginKit.Guarded ("NStr.IsNullOrWhiteSpace", () => new BoolVal (System.String.IsNullOrWhiteSpace (PluginKit.Text (x0, "NStr.IsNullOrWhiteSpace 的第 1 个实参").Value)));
+
+    [RavelProperty("Empty", ReadOnly = true)]
+    public static RuntimeValue Empty (RuntimeValue arg)
+        => PluginKit.Guarded ("NStr.Empty", () => new StringVal (System.String.Empty));
 
 }

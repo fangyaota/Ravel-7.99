@@ -114,6 +114,20 @@ internal static class ClassRegistry
         }
     }
 
+    /// <summary>把一个 `[ClassProperty]` / `[RavelProperty]` 方法包成 getter/setter **一对**
+    /// —— **同一个方法的两遍**:调用方读的时候递 `()`、写的时候递新值(那一格收到什么就是什么,
+    /// 和 `[ClassCtor]` 一个口径)。所以一份方法就够,不必发明 `GetX` / `SetX` 两个名字。
+    ///
+    /// 那两个函数**不是** `ISelfBinding`:
+    ///   * 模块那条(`[RavelProperty]`)**没有接收者**,原样交出去正好;
+    ///   * 类那条(`[ClassProperty]`)的接收者由 `BuiltinClasses.BindProperty` 在
+    ///     **读成员的那一刻**绑(那儿用的就是 `Bind` 出来的 `BuiltinMethodVal`)。</summary>
+    internal static PropertyVal PropertyOf(Interpreter? self, MethodInfo m)
+    {
+        var acc = Fn(self, m);
+        return new PropertyVal(acc, acc);
+    }
+
     /// <summary>把一个 `[ClassMethod]` 方法包成实例成员:第一个参数是接收者,
     /// 后面 0~2 个实参(多参柯里化,和 `[Sys]` 那套一个走法)。</summary>
     internal static BuiltinMethodVal Bind(ClassVal cls, MethodInfo m, string name)

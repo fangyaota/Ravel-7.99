@@ -92,4 +92,26 @@ print ("   += 3：" + (string (sb.Length)))
 try { sb.MaxCapacity = 1; print "   只读没拦住"; } (e: Exception) => { print ("   只读拦住了：" + e.Message); }
 print ("   值类型（DateTime.Year）：" + (string (d.Year)))
 
+# ⑤ **字段**：和属性走同一条路（实例那半从类型上**属性和字段一起扫**）。
+#
+# `.NET` 的字段（`Vector3.X`）连 `GetMethods` 都进不去（属性好歹还是 `get_X` / `set_X`
+# 两个方法），所以从前同样整个跳过。生成的是同一个 `[ClassProperty]`：
+#
+#     v.X          # 读
+#     v.X = 1.0    # 写 —— 但**值类型上只给读**
+#
+# 为什么值类型只给读：`Me (self)` 拆出来的是**装箱那份副本**，写回去改的是副本、改完丢掉
+# —— `v.X = 1.0` 看着成了、`v.X` 还是旧值，**一声不响**。产物里那一格会带一行说明，
+# 不让人猜。引用类型的字段（`readonly` 的除外）照常给写 —— 写的就是那个对象本身。
+类型2 := "System.Numerics.Vector3"
+源码3 := Adaptor.CsClass 类型2 "NVec" "Vector3" (Adaptor.AllOfClass 类型2)
+Adaptor.Build 源码3 "out/NVec.cs" "out/plugins/NVec.dll" (Adaptor.RefsOf 类型2 (Adaptor.AllOfClass 类型2))
+using "NVec"
+v := NVec.Vector3 3.0                     # 构造器：`Vector3 (float)`
+print ("⑤ x / y / z：" + (string (v.X)) + " / " + (string (v.Y)) + " / " + (string (v.Z)))
+# 注意 `Length` 在这里是**方法**（`Vector3.Length ()`），所以照旧要括号 ——
+# 属性那条路的名字得看产物里是 `[ClassProperty]` 还是 `[ClassMethod]`（重名的以方法为准）
+print ("   Length ()：" + (string (v.Length ())))
+try { v.X = 1.0; print "   值类型没拦住"; } (e: Exception) => { print "   值类型那一格只给读"; }
+
 print "实例那半跑通了"

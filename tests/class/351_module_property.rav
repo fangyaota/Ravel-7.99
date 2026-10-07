@@ -1,0 +1,44 @@
+﻿# `[RavelProperty]`：**模块里的属性** —— 一个名字、两个方向，没有接收者。
+#
+# 和 `[ClassProperty]`（实例那半）是同一件事的两半。`Math.PI` 是 `System.Math` 上的
+# `const` **字段**、`DateTime.Now` 是**静态属性** —— 两样在 `GetMethods` 里都看不见，
+# 所以从前整个跳过。现在生成 `[RavelProperty]`，引擎把它落成模块里的一格 **`by` 槽**：
+#
+#     NMath.PI        # 读（**不用括号** —— 它是数据，不是函数）
+#     NMath.PI = 3    # 写（只读的那些由引擎在槽上拦）
+#
+# 和 `[RavelConst]` 的分工：那个是**装的那一刻定值**（真常量用它），这个是**每次读都重新
+# 求值**的 —— `DateTime.Now` 那种要的正是后者（冻住就错了）。
+#
+# 同一套机制在实例那半是 `sb.Length`（见 `350_property_plugin.rav`），区别只在
+# **有没有接收者**：这边那两个函数不是 `ISelfBinding`，`BindProperty` 原样放行。
+using "plugins/Ravel.Generated.dll"
+
+# `const` 字段 → `[RavelProperty]`
+print (NMath.PI)
+print (NMath.E)
+print (NMath.Tau)
+
+# 读出来的是个**真 `real`**，能接着算（不是包着的 `DotNetObject`）
+print ((NMath.PI) > 3)
+print (NMath.PI == 3.141592653589793)
+
+# `IsInitOnly` 的静态字段（`String.Empty`）走同一条路
+print ("[" + NStr.Empty + "]")
+
+# 只读的那些 (`const` / `readonly`）标了 `ReadOnly` —— 拦在**槽上**（`Variable.CheckWritable`），
+# 不指望生成的那段体自己报错
+try { NMath.PI = 3; print "只读没拦住"; } (e: object) => { print "只读拦住了"; }
+
+# 模块成员表里列得出（"查得到"和"列得出"是同一个判据）
+print ((NMath.Fields ()).Contains "PI")
+
+# --- expected ---
+# 3.141592653589793
+# 2.718281828459045
+# 6.283185307179586
+# true
+# true
+# []
+# 只读拦住了
+# true

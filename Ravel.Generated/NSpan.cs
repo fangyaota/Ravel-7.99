@@ -3,12 +3,12 @@
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
 //   类型 System.TimeSpan → 模块 NSpan / 类 TimeSpan；成员 Add CompareTo Divide Duration Equals GetHashCode GetType Multiply Negate Subtract ToString TryFormat
-//   属性 Days Hours Microseconds Milliseconds Minutes Nanoseconds Seconds Ticks TotalDays TotalHours TotalMicroseconds TotalMilliseconds TotalMinutes TotalNanoseconds TotalSeconds
+//   属性/字段 Days Hours Microseconds Milliseconds Minutes Nanoseconds Seconds Ticks TotalDays TotalHours TotalMicroseconds TotalMilliseconds TotalMinutes TotalNanoseconds TotalSeconds
 //
 //   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。
 //   静态成员在另一份里（`Adaptor.Cs`）。
-//   属性是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
-//   不必发明 `SetLength` 那种名字；没有 setter 的标 `ReadOnly`，写由引擎在槽上拦。
+//   属性/字段是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
+//   不必发明 `SetLength` 那种名字；写不进去的标 `ReadOnly`，并在上面写明理由。
 // </auto-generated>
 
 namespace Ravel.Runtime;

@@ -2,7 +2,7 @@
 //   由 `Adaptor.Cs` 生成（`lib/adaptor.rav`）—— 别手改，下次生成会盖掉。
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
-//   类型 System.Math → 模块 NMath；成员 Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul
+//   类型 System.Math → 模块 NMath；成员 Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul PI E Tau
 // </auto-generated>
 
 namespace Ravel.Runtime;
@@ -258,5 +258,17 @@ internal static class NMathAdaptor
     [RavelFn("BigMul_4")]
     public static RuntimeValue BigMul_4 (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Wrap (System.Math.BigMul ((System.UInt64) PluginKit.ToObject (x0, typeof (System.UInt64), "NMath.BigMul 的第 1 个实参"), (System.UInt64) PluginKit.ToObject (x1, typeof (System.UInt64), "NMath.BigMul 的第 2 个实参")), "UInt128"));
+
+    [RavelProperty("PI", ReadOnly = true)]
+    public static RuntimeValue PI (RuntimeValue arg)
+        => PluginKit.Guarded ("NMath.PI", () => new RealVal (System.Math.PI));
+
+    [RavelProperty("E", ReadOnly = true)]
+    public static RuntimeValue E (RuntimeValue arg)
+        => PluginKit.Guarded ("NMath.E", () => new RealVal (System.Math.E));
+
+    [RavelProperty("Tau", ReadOnly = true)]
+    public static RuntimeValue Tau (RuntimeValue arg)
+        => PluginKit.Guarded ("NMath.Tau", () => new RealVal (System.Math.Tau));
 
 }

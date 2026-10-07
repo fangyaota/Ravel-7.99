@@ -47,6 +47,22 @@ public sealed class RavelConstAttribute(string name) : Attribute
     public string Name { get; } = name;
 }
 
+/// <summary>模块里的一个**属性** —— 一个名字、两个方向(`Math.PI` 读、`Counter.N = 3` 写)。
+///
+/// 和 <see cref="RavelConstAttribute"/> 的分工:那个是**装的那一刻定值**(挂在
+/// `static readonly RuntimeValue` 字段上),适合真正的常量;这个是**每次读都重新求值**的
+/// —— `DateTime.Now` 那种要的正是后者(冻住就错了)。
+///
+/// 和 <see cref="ClassPropertyAttribute"/> 是同一件事,区别只在**没有接收者**:
+/// 签名 `static RuntimeValue Name(RuntimeValue arg)`,那一格收到 `()` 就是读、收到新值就是写。
+/// 落的还是**`by` 槽**(读走 getter、写走 setter),`ReadOnly = true` 是只给 getter 那一半。</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class RavelPropertyAttribute(string name) : Attribute
+{
+    public string Name { get; } = name;
+    public bool ReadOnly { get; set; }
+}
+
 /// <summary>一个 **Ravel 类**(类型树上的节点)。里面的方法挂 <see cref="ClassMethodAttribute"/>、
 /// 构造器挂 <see cref="ClassCtorAttribute"/> —— 和引擎里那些内置类写法完全一样。
 ///
@@ -306,7 +322,7 @@ internal static class PluginLoader
     {
         HookDependencies(asm);
 
-        var found = new List<(string Module, string Name, MethodInfo? Method, RuntimeValue? Value)>();
+        var found = new List<Found>();
 
         foreach (var type in asm.GetTypes())
         {
@@ -318,12 +334,16 @@ internal static class PluginLoader
 
             foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
                 if (m.GetCustomAttribute<RavelFnAttribute>() is { } fn)
-                    found.Add((module, fn.Name, m, null));
+                    found.Add(new Found(module, fn.Name, m, null));
+                // 模块里的**属性** —— 落成一格 `by` 槽(读走 getter、写走 setter),
+                // 和 `[ClassProperty]` 同一个机制,只是没有接收者
+                else if (m.GetCustomAttribute<RavelPropertyAttribute>() is { } prop)
+                    found.Add(new Found(module, prop.Name, m, null, Property: true, ReadOnly: prop.ReadOnly));
 
             // 常量挂在字段上:值就是那个 `RuntimeValue`(见 RavelConstAttribute)
             foreach (var f in type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
                 if (f.GetCustomAttribute<RavelConstAttribute>() is { } c)
-                    found.Add((module, c.Name, null, ReadField(f)));
+                    found.Add(new Found(module, c.Name, null, ReadField(f)));
         }
 
         // **按名字排**(先模块后名字)—— 和内置那趟(`SysRegistry.Scan`)同一条理由:
@@ -334,15 +354,39 @@ internal static class PluginLoader
             ? m
             : string.CompareOrdinal(a.Name, b.Name));
 
-        foreach (var (module, name, m, value) in found)
+        foreach (var f in found)
+        {
             // **`DefineOrReplace` 不是 `Define`**:装进来的是"这个模块该有的东西",
             // 而模块可能是**用户早就自己建过**的(`ravel "Math"` 建一个、之后才
             // `using "math.rav"`)。`Define` 撞名就报「已经定义过」,那是 `:=` 的规矩,
             // 不是"装库"的规矩 —— 装库这一刻该是**以库为准**。
             // (它只挡 `readonly` 那些:用户自己标了只读的东西,照样不许悄悄换掉。)
-            ScopeOf(self, module, global, modules)
-                .DefineOrReplace(name, value?.Type ?? BuiltinClasses.Function, m is null ? value! : ClassRegistry.Fn(self, m));
+            var scope = ScopeOf(self, f.Module, global, modules);
+
+            if (f.Property)
+            {
+                // 那一格是 **`by` 槽** —— 和 Ravel 里 `by x := property g s` 一个机制。
+                // **类型约束给 `Any`**:写进来的是**属性值**,不是那个 property 本身
+                // (同 `ClassProperty`,见 `EngineMember` 那段)。
+                var slot = scope.DefineOrReplace(f.Name, BuiltinClasses.Any,
+                                                 ClassRegistry.PropertyOf(self, f.Method!));
+                slot.SetAttr(Attr.By);
+                if (f.ReadOnly) slot.SetAttr(Attr.Readonly);
+                continue;
+            }
+
+            scope.DefineOrReplace(f.Name, f.Value?.Type ?? BuiltinClasses.Function,
+                                  f.Method is null ? f.Value! : ClassRegistry.Fn(self, f.Method));
+        }
     }
+
+    /// <summary>扫出来的一个待装成员。三种来源(**函数 / 常量 / 属性**)在这儿只是**形状**不同
+    /// —— 收齐、排序、装配都共用一趟(反射给的先后没有保证,成员表是按登记先后列的)。
+    ///
+    /// `Property` 那两格只对属性有意义:getter/setter 是**同一个方法的两遍**
+    /// (读时那一格收到 `()`),`ReadOnly` 就是只给 getter 那一半。</summary>
+    private readonly record struct Found(string Module, string Name, MethodInfo? Method, RuntimeValue? Value,
+                                         bool Property = false, bool ReadOnly = false);
 
     /// <summary>读一个 `[RavelConst]` 字段。**静态字段的初始化时机是它自己那边的事** ——
     /// 读到 null 只可能是"字段不是 `static readonly RuntimeValue` 那个形状",当场说清楚。</summary>
