@@ -139,6 +139,6 @@ internal static class DateTimeAdaptor
     public static RuntimeValue ToUniversalTime (RuntimeValue self)
         => PluginKit.Guarded ("NDate.ToUniversalTime", () => new DotNetVal (Me (self).ToUniversalTime (), PluginKit.ClassOf ("DateTime")));
 
-    // 跳过 TryFormat：挑中的那个签名是 Span`1,Int32&,ReadOnlySpan`1,IFormatProvider -> Boolean，里面有映射表没有的类型（同名 2 个 / 实例 2 个）
+    // 跳过 TryFormat：挑中的那个签名是 Span`1,Int32&,ReadOnlySpan`1,IFormatProvider -> Boolean，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 2 个 / 实例 2 个）
 
 }

@@ -24,6 +24,11 @@ internal static class NetBridge
         DotNetVal dn => dn.Value,
         DotNetTypeVal dt => dt.DotNetType,           // 类型本身也是值（`typeof`）
         IntVal i => i.Value,
+        // **`bigint` 也得认** —— `long` 装得下就给 `long`，装不下明说：
+        // .NET 那边过了 `long` 就没有"整数"这个形状了。少了这一格的话
+        // `Reflect.New (T "System.TimeSpan") [864000000000000]` 那种（tick 数）
+        // 会报「这个值转不成 .NET 的值：BigInt」—— 明明 .NET 那边要的就是个 `long`。
+        BigIntVal b when b.Value >= long.MinValue && b.Value <= long.MaxValue => (long)b.Value,
         RealVal r => r.Value,
         BoolVal b => b.Value,
         StringVal s => s.Value,
