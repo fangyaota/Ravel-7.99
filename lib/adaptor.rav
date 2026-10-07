@@ -222,7 +222,7 @@ readonly private EmitOne := (m: object mod: string full: string) => {
         e := names.At i
         label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
         g := GetterOf (ps.At i) e label
-        g == "?" { ok = false; }
+        g == "?" { ok = false; } { (); }
         gets.Add g
         i += 1
     }
@@ -232,7 +232,7 @@ readonly private EmitOne := (m: object mod: string full: string) => {
     decl := decls.Join (", ")
     args := gets.Join (", ")
     lam := Wrapped (RetOf m) (full + "." + nm + " (" + args + ")")
-    lam == "?" { ok = false; }
+    lam == "?" { ok = false; } { (); }
 
     # **必须兜。** 引擎里那条老规矩是"别让 C# 异常漏到顶层"—— 漏出去会绕过 Ravel 的
     # `try`，一路打到"解释器内部错误"（`PluginKit.Guarded` 就是把 IO / 权限 / 参数 /
@@ -386,7 +386,21 @@ readonly private EmitCtor := (c: object mod: string net: string cls: string) => 
     }
 }
 
-readonly private EmitClassOne := (m: object mod: string net: string selfName: string) => {
+# 交回**同类型**的那个（`DateTime.AddDays` / `StringBuilder.Append` 这种）——
+# **包一个新的**。交回 `self` 是错的，而且**静默**：
+#
+#   * **值类型**上 `AddDays` 交回的是**新值** —— 交 `self` 就是给旧的，
+#     `d.AddDays 1` 看着成了、其实等于没调；
+#   * **引用类型**上也不稳：`" a ".Trim ()` 交回的同样是**新**字符串，交 `self`
+#     给的是没剪的那个。
+#
+# 包一个新的两边都对：引用类型包的是**同一个 .NET 对象**（改动照样看得见），
+# 值类型包的是**那个返回的副本**。代价只是链式每步多一个 Ravel 值 —— 那是壳，不是身份。
+readonly private SameAsSelf := (call: string cls: string) => {
+    "() => new DotNetVal (" + call + ", PluginKit.ClassOf (\"" + cls + "\"))";
+}
+
+readonly private EmitClassOne := (m: object mod: string net: string selfName: string cls: string) => {
     nm := NameOf m
     ps := ParamsOf m
     names := Names (ps.Count ())
@@ -398,7 +412,7 @@ readonly private EmitClassOne := (m: object mod: string net: string selfName: st
         e := names.At i
         label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
         g := GetterOf (ps.At i) e label
-        g == "?" { ok = false; }
+        g == "?" { ok = false; } { (); }
         gets.Add g
         i += 1
     }
@@ -407,13 +421,10 @@ readonly private EmitClassOne := (m: object mod: string net: string selfName: st
     selfArgs := (decls.Map (a: string) => { ", " + a; }).Join ""
     args := gets.Join ", "
 
-    # 交回**自己**的那种（`StringBuilder.Append` 这类 chain 的）—— 交回 `self`，
-    # 链式才成立；每个都新包一个 `DotNetVal` 的话，每步换个壳（而且 `sb` 和
-    # `sb.Append "x"` 会变成两个不同的对象，看着一样其实不是）。
     rt := RetOf m
     call := "Me (self)." + nm + " (" + args + ")"
-    lam := rt == selfName { CallThen call "self"; } { Wrapped rt call; }
-    lam == "?" { ok = false; }
+    lam := rt == selfName { SameAsSelf call cls; } { Wrapped rt call; }
+    lam == "?" { ok = false; } { (); }
 
     ok {
         one := "    [ClassMethod(\"" + nm + "\")]"
@@ -428,20 +439,29 @@ readonly private EmitClassOne := (m: object mod: string net: string selfName: st
 }
 
 # 一个成员名 → 一段 C#。挑重载：**实例** + 参数返回值都认，按排位键取第一个。
-readonly private EmitClassMember := (all: list w: string mod: string net: string selfName: string) => {
+readonly private EmitClassMember := (all: list w: string mod: string net: string selfName: string cls: string val: bool) => {
     same := all.Where (m: object) => { (NameOf m) == w; }
-    cands := same.Where (m: object) => { !(StaticOf m); }
+    inst := same.Where (m: object) => { !(StaticOf m); }
+    # 值类型上**返回 `void` 的实例方法不要** —— 那个签名就是"改原地"，而值类型上
+    # 改的是**装箱那份副本**，改完丢掉（`Point.Offset` 那种）。别的照常。
+    cands := inst
+    val { cands = inst.Where (m: object) => { (RetOf m) != "Void"; }; } { (); }
     ranked := cands.SortBy (m: object) => { RankKey m; }
 
     nSame := string (same.Count ())
-    nIn := string (cands.Count ())
+    nIn := string (inst.Count ())
 
     ranked.IsEmpty () {
-        "    // 跳过 " + w + "：没有实例重载（同名方法 " + nSame + " 个，实例 0 个）\n"
+        val && !(inst.IsEmpty ()) {
+            "    // 跳过 " + w + "：值类型上返回 void 的就是**改原地**的方法 ——"
+            + "改的是装箱那份副本，白做\n"
+        } {
+            "    // 跳过 " + w + "：没有实例重载（同名方法 " + nSame + " 个，实例 0 个）\n"
+        }
     } {
         best := ranked.First ()
         UsableClass best selfName {
-            EmitClassOne best mod net selfName
+            EmitClassOne best mod net selfName cls
         } {
             psj := (ParamsOf best).Join ","
             sign := psj + " -> " + (RetOf best)
@@ -557,14 +577,16 @@ readonly AllOfClass := (类型: string) => {
 # **实例那半**的 C# 源码：`[RavelModule]` + `[RavelClass]` + `[ClassCtor]` + `[ClassMethod]`。
 # 和 `Cs`（静态那半）**是两个形状**，所以是两个函数，不是一个开关。
 readonly CsClass := (类型: string 模块: string 类名: string 成员: list) => {
-    # **值类型的实例不做。** 装箱之后改不了原值 —— `DateTime.AddDays` 那种交回新值的
-    # 没事，可**可变结构体**的方法（`Point.Offset` 那种）会**静默无效**：调了、看着成了、
-    # 原值没动。那是最难查的一种错，所以宁可不生成、当场明说。
-    (Reflect.Type 类型).IsValue () {
-        throw (Exception ("`" + 类型 + "` 是值类型 —— 实例那半不做：装箱之后改不了原值，"
-            + "可变的那些方法会**静默失效**（`DateTime.AddDays` 那种交回新值的没事，"
-            + "`Point.Offset` 那种就白调了）。要哪几个自己补。"));
-    } { (); }
+    # **值类型的实例照常做** —— 它跟 `IntVal` 是一个形状：不可变，方法交回**新值**
+    # （量过：`DateTime` 42 个实例方法里只有 2 个返回 `void`，`Guid` / `TimeSpan` 是 0 个，
+    # 而且那 2 个还是 `out` 参数 / 序列化那种、本来也进不了映射表）。
+    #
+    # 真正要挡的只有**一个签名**：**返回 `void` 的实例方法 = "改原地"** —— 值类型上
+    # 改的是**装箱那份副本**，改完丢掉，静默白做（`Point.Offset` 那种）。
+    # 那一档在 `EmitClassMember` 里逐条跳过，别的照常。
+    #
+    # 从前是一刀切"值类型不做"，拒过头了：把 `DateTime` / `Guid` 那一大族全挡在外面。
+    IsVal := (Reflect.Type 类型).IsValue ()
 
     T := TypeObject 类型
     Full := Reflect.Unwrap (Reflect.Call T "FullName" [])
@@ -595,7 +617,9 @@ readonly CsClass := (类型: string 模块: string 类名: string 成员: list) 
         "namespace Ravel.Runtime;"
         ""
         "[RavelModule(\"" + 模块 + "\")]"
-        "[RavelClass(\"" + 类名 + "\")]"
+        # **值类型顺带标成 `IValue`** —— 那才是"像 `IntVal` 那样"：按值的那一套认它
+        # （能当字典的键、去重）。有身份的那种（`Random` / `StringBuilder`）不标。
+        "[RavelClass(\"" + 类名 + "\"" + (IsVal { ", Implements = \"IValue\""; } { ""; }) + ")]"
         "internal static class " + 类名 + "Adaptor"
         "{"
         "    private static " + Full + " Me (RuntimeValue self)"
@@ -603,7 +627,7 @@ readonly CsClass := (类型: string 模块: string 类名: string 成员: list) 
         ""
     ]
 
-    Body := 成员.Map (w: string) => { EmitClassMember All w 模块 Full SelfName; }
+    Body := 成员.Map (w: string) => { EmitClassMember All w 模块 Full SelfName 类名 IsVal; }
 
     Lines := Head.Concat [Ctor]
     Lines = Lines.Concat Body
