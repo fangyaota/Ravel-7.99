@@ -402,6 +402,24 @@ internal static class PluginLoader
                             + "`<<` `>>` `<<<` `>>>` / `is` `isnot` / `<:` `:>`）");
                     BuiltinClasses.EngineMember(klass, oper.Op, ClassRegistry.Bind(klass, m, oper.Op));
                 }
+                else if (m.GetCustomAttribute<ClassPropertyAttribute>() is { } prop)
+                {
+                    // 形状和 [ClassMethod] 一样:`self` + 那一格实参。**读时那格收到 `()`、
+                    // 写时收到新值** —— 所以一份方法就够,getter/setter 是它的两遍。
+                    var ps = m.GetParameters();
+                    if (ps.Length != 2 || ps[0].ParameterType != typeof(RuntimeValue)
+                                       || ps[1].ParameterType != typeof(RuntimeValue))
+                        throw new InvalidOperationException(
+                            $"类属性 {cls.Name}.{prop.Name} 的签名不对:要收 (self, 一个实参)");
+
+                    var acc = ClassRegistry.Bind(klass, m, prop.Name);
+                    // **类型约束给 `Any`**:那格存的是 property,写进来的是属性值(见 EngineMember)
+                    var slot = BuiltinClasses.EngineMember(klass, prop.Name, new PropertyVal(acc, acc),
+                                                           readOnly: prop.ReadOnly, declared: BuiltinClasses.Any);
+                    // **这一格是 `by` 槽**:读走 getter、写走 setter —— 和用户写的
+                    // `by x := property g s` 一条路(见 TryGetByGetter / PropOf)
+                    slot.SetAttr(Attr.By);
+                }
                 else if (m.GetCustomAttribute<ClassCtorAttribute>() is not null)
                     BuiltinClasses.SetCtor(klass, m);
             }

@@ -23,7 +23,9 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         var vr = value switch
         {
             ModuleVal mv => mv.Scope.Contains(name) ? mv.Scope.Lookup(name) : null,
-            ObjectVal obj => obj.Scope.LookupField(name),
+            // 自己那层没有就问**类那层挂的 `by` 槽**(插件的 `[ClassProperty]`)——
+            // 它住在类的实例表里(和方法一处),而这条路从前只看 `Scope`(实例自己那层)
+            ObjectVal obj => obj.Scope.LookupField(name) ?? BuiltinClasses.ClassBySlot(obj, name),
             _ => null,
         };
         // 本层没有这个成员 → 问当前作用域里生效的接口实现(模块不参与:接口实现是给实例用的)。
@@ -41,7 +43,9 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         // 标量没有字段可言,门禁那套(字段的 private/protected)对它们不适用
         if (value is ModuleVal m) boxed.CheckModuleReadAccess(m, vr, name);
         else if (value is ObjectVal obj) boxed.CheckObjectReadAccess(obj, vr, name);
-        return interp.PropertyGetter(prop!, name);
+        // **引擎挂的 `by` 槽**(`[ClassProperty]`)那两个函数是 `ISelfBinding` 的 ——
+        // 交出去之前按**这一次的接收者**绑一次(读和写各一处,漏一处就是"读得到、写不回")
+        return interp.PropertyGetter(BuiltinClasses.BindProperty(prop!, value), name);
     }
 
     public BoxedValue GetMember(string name)

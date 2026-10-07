@@ -67,9 +67,15 @@ public record ClassVal : FunctionVal
     ///
     /// 机制名照旧排掉(`IsMethodName`):这张表里理论上不会有它们,留着这条是保险
     /// —— `this` / `parent` 那种被当方法绑到非对象 receiver 上,是会打穿程序的 C# 异常。
-    /// 只要 `FunctionVal`:表里本该全是方法,数据成员读出去没法绑 `self`。</summary>
+    /// 只要 `FunctionVal` **和 `by` 槽**:表里本该全是方法,数据成员读出去没法绑 `self`
+    /// —— 而 `by` 槽(`[ClassProperty]`)交出去的是一对 getter/setter,读成员时才按接收者绑
+    /// (见 <see cref="BuiltinClasses.BindProperty"/>),和函数一个待遇。
+    ///
+    /// **这条和 `MemberView.LookupInClassChain` 的判据必须一字不差** ——
+    /// "查得到"和"列得出"(`Fields ()`)是同一个问题的两个问法。</summary>
     internal IEnumerable<string> MethodNames => InstanceTable.Variables
-        .Where(kv => kv.Value.Value is FunctionVal && ObjectVal.IsMethodName(kv.Key))
+        .Where(kv => (kv.Value.Value is FunctionVal || kv.Value.HasAttr(Attr.By))
+                     && ObjectVal.IsMethodName(kv.Key))
         .Select(kv => kv.Key);
 
     /// <summary>类对象打印自己的名字(`print C` → `C`,没名字就是 `class`)。

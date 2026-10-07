@@ -345,14 +345,47 @@ internal static partial class BuiltinClasses
     ///
     /// 类侧本来就要用的成员(读它的就是类对象自己,比如 `Json.FromString`)别走这条 ——
     /// 用 <see cref="ClassSideMember"/>。</summary>
+    /// <param name="declared">那一格的**类型约束**(默认 `Function` —— 方法就是函数值)。
+    /// **`by` 属性必须给 `Any`**:那格存的是 property,而写进来的值是**属性值**
+    /// (`sb.Length = 0` 写的是 `IntVal`,不是那个 property)—— 按 `Function` 约束的话
+    /// 写一次就报「无法将 IntVal 赋值给 'Length'」(见 `Variable.CheckAssignable`)。
+    /// 接口那条槽也是这么办的(`impl` 的 `instance` 落 `Any`)。</param>
     internal static Variable EngineMember(ObjectVal type, string name, RuntimeValue impl,
-                                          bool readOnly = true)
+                                          bool readOnly = true, ObjectVal? declared = null)
     {
         // 只有类对象有实例表。挂错了是 C# 侧的程序错误 —— 当场炸比静默挂到别处好
-        var v = ((ClassVal)type).InstanceTable.DefineOrReplace(name, Function, impl);
+        var v = ((ClassVal)type).InstanceTable.DefineOrReplace(name, declared ?? Function, impl);
         if (readOnly) v.SetAttr(Attr.Readonly);
         return v;
     }
+
+    /// <summary>把一份 property 绑到**这一次的接收者**上再交出去。
+    ///
+    /// **只有引擎挂在类上的那种 `by` 槽**(`[ClassProperty]`)需要这一步:它那两个函数是
+    /// `BuiltinMethodVal`(`ISelfBinding`),和普通类方法一个待遇 —— 读成员的那一刻才认"谁在调"。
+    /// 用户自己写的 `property g s` 是普通 lambda(接收者靠捕获的作用域),原样交回;
+    /// 接口那条槽的 getter/setter 是 `NativeClosure`(要连捕获作用域一起换,见
+    /// <see cref="Activate"/>),也不是 `ISelfBinding`,这儿认不出、也就不插手。
+    ///
+    /// **读和写都得过这里** —— 一处漏了就是"读得到、写不回"那种半瘫,而两处在两个文件里
+    /// (读:`BoxedValue.TryGetByGetter`;写:`Interpreter.PropOf`)。</summary>
+    internal static RuntimeValue BindProperty(RuntimeValue prop, RuntimeValue self)
+        => prop is PropertyVal pv && (pv.Getter is ISelfBinding || pv.Setter is ISelfBinding)
+            ? pv with { Getter = BoundFn(pv.Getter, self), Setter = BoundFn(pv.Setter, self) }
+            : prop;
+
+    private static FunctionVal BoundFn(FunctionVal f, RuntimeValue self)
+        => f is ISelfBinding ? ObjectVal.BindMethod(f, self) : f;
+
+    /// <summary>**类那层挂的 `by` 槽** —— 插件的 `[ClassProperty]` 就落在那里(类的实例表,
+    /// 和 `Append` 那些方法一处)。调用方是"实例自己那层没找到"之后的第二步;
+    /// **只认 `by` 槽**:类那层别的东西(方法)不归读写这条路管
+    /// (读那条路 `BoxedValue.GetMember` 会去 `MemberScope` 找,而且顺带绑接收者)。
+    ///
+    /// 少了这一步,引擎挂的属性就是"看得到、摸不着":`sb.Length` 报「没有方法 'Length'」、
+    /// `sb.Length = 2` 报「对象没有字段」(实测,四条路各报各的)。</summary>
+    internal static Variable? ClassBySlot(ObjectVal obj, string name)
+        => obj.MemberScope.LookupField(name) is { } v && v.HasAttr(Attr.By) ? v : null;
 
     /// <summary>挂一个**类侧**的引擎成员:读它的就是**类对象自己**(`Json.FromString s`)
     /// —— 落类那张表(`Scope`),不进给实例的表。全库只有 `Json.FromString` 一处。</summary>

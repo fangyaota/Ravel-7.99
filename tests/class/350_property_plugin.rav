@@ -1,0 +1,63 @@
+﻿# `[ClassProperty]`：**引擎挂在类上的属性** —— 一个名字、两个方向。
+#
+# 生成器（`lib/adaptor.rav`）把 .NET 的属性生成成这个形状：
+#
+#     [ClassProperty("Length")]
+#     static RuntimeValue Length (RuntimeValue self, RuntimeValue arg)
+#         => 那一格收到 `()` 就是**读**、收到别的就是**写**
+#
+# 引擎把它落成**`by` 槽**（`Attr.By` + 一对 getter/setter）—— 和用户写的
+# `by x := property g s`、接口体里那条 `instance` 是**同一个机制**。于是读 / 写 /
+# 复合赋值三条路都按属性走，`Fields ()` 也列得出来。
+#
+# 从前这一格**不通**：那三条路只看实例自己那层（`Scope`），而引擎挂的成员住在
+# **类**的实例表里（和 `Append` 那些方法一处）—— 症状是"看得到、摸不着"：
+# `sb.Length` 报「没有方法 'Length'」、`sb.Length = 2` 报「对象没有字段」。
+using "plugins/Ravel.Generated.dll"
+
+sb := NSb.StringBuilder ()
+sb.Append_3 "hello"          # 排位第一的 `Append` 是 `(int)` 那个（丢信息最少），字符串那格叫 `Append_3`
+
+# 读
+print (sb.Length)
+
+# 写：`.NET` 那边**真改了**（`StringBuilder.Length` 是截断，不是记账）
+sb.Length = 2
+print (sb.Length)
+print (sb.ToString ())
+
+# 复合赋值：左值过 getter、算好的结果过 setter（`StepByCompoundAssign` 那条）
+sb.Length += 3
+print (sb.Length)
+
+# 属性也在成员表里（`Fields ()` 列得出，"查得到"和"列得出"是同一个判据）
+print ((sb.Fields ()).Contains "Length")
+
+# **只读的**（`.NET` 那边没有 setter）标 `ReadOnly` —— 拦在**槽上**，
+# 不指望生成的体自己报错；`Reflect` 那边照样读得到。
+print (sb.MaxCapacity > 0)
+try { sb.MaxCapacity = 1; print "没拦住"; } (e: object) => { print "只读拦住了"; }
+
+# 值类型那半照旧：属性也是"交回新值"那一族（`TimeSpan` 标了 `IValue`）
+sp := NSpan.TimeSpan 10000000          # 一千万 ticks = 1 秒
+print (sp.TotalSeconds)
+print (sp.Seconds)
+print (sp.Ticks)
+print ((sp.TotalSeconds) + 1)
+
+# 只读的**属性名**不会和同名方法打架：`TimeSpan.Duration` 是方法，属性里没有它
+print (((NSpan.TimeSpan 600000000).Duration ()).TotalMinutes)
+
+# --- expected ---
+# 5
+# 2
+# he
+# 5
+# true
+# true
+# 只读拦住了
+# 1
+# 1
+# 10000000
+# 2
+# 1

@@ -95,11 +95,19 @@ internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
         if (!ObjectVal.IsMethodName(name)) return null;
         var chain = ClassChain();
         for (int i = 0; i < chain.Length; i++)
-            if (chain[i].InstanceTable.LookupField(name) is { Value: FunctionVal } vr)
+            if (chain[i].InstanceTable.LookupField(name) is { } vr && Bindable(vr))
                 return vr;
 
         return null;
     }
+
+    /// <summary>这一格能不能沿类链交出去。**函数**,以及 `by` 槽 —— 后者是引擎挂的属性
+    /// (`[ClassProperty]`:值是一对 getter/setter 的 `PropertyVal`),它和函数一样
+    /// "读的那一刻才认接收者"(见 `BuiltinClasses.BindProperty`)。
+    ///
+    /// 判据必须和 <see cref="ClassVal.MethodNames"/> 一字不差:"查得到"和"列得出"
+    /// 是同一个问题的两个问法。别的数据成员照旧不出去 —— 它们没法绑 `self`。</summary>
+    private static bool Bindable(Variable v) => v.Value is FunctionVal || v.HasAttr(Attr.By);
 
     private static RuntimeException ReadOnly()
         => new("值类型的成员只读（它们的成员表是借类那层的，写进去等于改掉整个类型）");

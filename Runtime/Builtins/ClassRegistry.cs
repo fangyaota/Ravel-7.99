@@ -13,6 +13,26 @@ public sealed class ClassMethodAttribute(string name) : Attribute
     public string Name { get; } = name;
 }
 
+/// <summary>这个类的一个**属性** —— 一个名字、两个方向(`sb.Length` 读、`sb.Length = 10` 写)。
+///
+/// 签名和 <see cref="ClassMethodAttribute"/> 同一个形状:
+/// `static RuntimeValue Name(RuntimeValue self, RuntimeValue arg)` ——
+/// **读的时候那一格收到的是 `()`**(和 [ClassCtor] 一样,"没给"就是 `()`),写的时候收到新值。
+/// 所以**一份方法**就够,不必发明 `GetLength` / `SetLength` 两个名字 —— 那正是 `by` 要免掉的。
+///
+/// 装进实例表时那格是 `by` 槽(`Attr.By`)、值是 getter/setter 一对 —— 和 Ravel 里
+/// `by x := property g s`、接口那条槽是**同一个机制**。用户看到的就是普通属性:
+/// 读、写、`+=` 都按属性那套走。
+///
+/// <see cref="ReadOnly"/> 只给 getter 那一半:写进不来,由引擎在**槽上**拦
+/// (`Variable.CheckWritable`),不指望生成的那段体自己报错。</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ClassPropertyAttribute(string name) : Attribute
+{
+    public string Name { get; } = name;
+    public bool ReadOnly { get; set; }
+}
+
 /// <summary>这个类的构造器 —— `Stack ()` / `Heap [3 1 2]` 走的就是它。
 /// 签名 `static RuntimeValue New(RuntimeValue arg)`(不给实参时收到的是 `()`)。</summary>
 [AttributeUsage(AttributeTargets.Method)]

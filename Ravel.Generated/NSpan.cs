@@ -3,9 +3,12 @@
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
 //   类型 System.TimeSpan → 模块 NSpan / 类 TimeSpan；成员 Add CompareTo Divide Duration Equals GetHashCode GetType Multiply Negate Subtract ToString TryFormat
+//   属性 Days Hours Microseconds Milliseconds Minutes Nanoseconds Seconds Ticks TotalDays TotalHours TotalMicroseconds TotalMilliseconds TotalMinutes TotalNanoseconds TotalSeconds
 //
-//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]`，`self` 先脱壳再调。
-//   静态成员在另一份里（`Adaptor.Cs`）。**属性访问器（`get_X` / `set_X`）这一版不做。**
+//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。
+//   静态成员在另一份里（`Adaptor.Cs`）。
+//   属性是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
+//   不必发明 `SetLength` 那种名字；没有 setter 的标 `ReadOnly`，写由引擎在槽上拦。
 // </auto-generated>
 
 namespace Ravel.Runtime;
@@ -21,6 +24,66 @@ internal static class TimeSpanAdaptor
     public static RuntimeValue New (RuntimeValue arg)
         => new DotNetVal (new System.TimeSpan (PluginKit.Long (arg, "TimeSpan 的构造器参数")), PluginKit.ClassOf ("TimeSpan"));
 
+    [ClassProperty("Days", ReadOnly = true)]
+    public static RuntimeValue Days (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Days", () => IntVal.Of (Me (self).Days));
+
+    [ClassProperty("Hours", ReadOnly = true)]
+    public static RuntimeValue Hours (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Hours", () => IntVal.Of (Me (self).Hours));
+
+    [ClassProperty("Microseconds", ReadOnly = true)]
+    public static RuntimeValue Microseconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Microseconds", () => IntVal.Of (Me (self).Microseconds));
+
+    [ClassProperty("Milliseconds", ReadOnly = true)]
+    public static RuntimeValue Milliseconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Milliseconds", () => IntVal.Of (Me (self).Milliseconds));
+
+    [ClassProperty("Minutes", ReadOnly = true)]
+    public static RuntimeValue Minutes (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Minutes", () => IntVal.Of (Me (self).Minutes));
+
+    [ClassProperty("Nanoseconds", ReadOnly = true)]
+    public static RuntimeValue Nanoseconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Nanoseconds", () => IntVal.Of (Me (self).Nanoseconds));
+
+    [ClassProperty("Seconds", ReadOnly = true)]
+    public static RuntimeValue Seconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Seconds", () => IntVal.Of (Me (self).Seconds));
+
+    [ClassProperty("Ticks", ReadOnly = true)]
+    public static RuntimeValue Ticks (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.Ticks", () => PluginKit.Narrow (Me (self).Ticks));
+
+    [ClassProperty("TotalDays", ReadOnly = true)]
+    public static RuntimeValue TotalDays (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalDays", () => new RealVal (Me (self).TotalDays));
+
+    [ClassProperty("TotalHours", ReadOnly = true)]
+    public static RuntimeValue TotalHours (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalHours", () => new RealVal (Me (self).TotalHours));
+
+    [ClassProperty("TotalMicroseconds", ReadOnly = true)]
+    public static RuntimeValue TotalMicroseconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalMicroseconds", () => new RealVal (Me (self).TotalMicroseconds));
+
+    [ClassProperty("TotalMilliseconds", ReadOnly = true)]
+    public static RuntimeValue TotalMilliseconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalMilliseconds", () => new RealVal (Me (self).TotalMilliseconds));
+
+    [ClassProperty("TotalMinutes", ReadOnly = true)]
+    public static RuntimeValue TotalMinutes (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalMinutes", () => new RealVal (Me (self).TotalMinutes));
+
+    [ClassProperty("TotalNanoseconds", ReadOnly = true)]
+    public static RuntimeValue TotalNanoseconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalNanoseconds", () => new RealVal (Me (self).TotalNanoseconds));
+
+    [ClassProperty("TotalSeconds", ReadOnly = true)]
+    public static RuntimeValue TotalSeconds (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSpan.TotalSeconds", () => new RealVal (Me (self).TotalSeconds));
+
     [ClassMethod("Add")]
     public static RuntimeValue Add (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NSpan.Add", () => new DotNetVal (Me (self).Add ((System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "NSpan.Add 的第 1 个实参")), PluginKit.ClassOf ("TimeSpan")));
@@ -28,10 +91,16 @@ internal static class TimeSpanAdaptor
     [ClassMethod("CompareTo")]
     public static RuntimeValue CompareTo (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NSpan.CompareTo", () => IntVal.Of (Me (self).CompareTo (PluginKit.ToNet (x0))));
+    [ClassMethod("CompareTo_2")]
+    public static RuntimeValue CompareTo_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NSpan.CompareTo", () => IntVal.Of (Me (self).CompareTo ((System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "NSpan.CompareTo 的第 1 个实参"))));
 
     [ClassMethod("Divide")]
     public static RuntimeValue Divide (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NSpan.Divide", () => new DotNetVal (Me (self).Divide (PluginKit.Num (x0, "NSpan.Divide 的第 1 个实参")), PluginKit.ClassOf ("TimeSpan")));
+    [ClassMethod("Divide_2")]
+    public static RuntimeValue Divide_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NSpan.Divide", () => new RealVal (Me (self).Divide ((System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "NSpan.Divide 的第 1 个实参"))));
 
     [ClassMethod("Duration")]
     public static RuntimeValue Duration (RuntimeValue self)
@@ -40,6 +109,9 @@ internal static class TimeSpanAdaptor
     [ClassMethod("Equals")]
     public static RuntimeValue Equals (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NSpan.Equals", () => new BoolVal (Me (self).Equals (PluginKit.ToNet (x0))));
+    [ClassMethod("Equals_2")]
+    public static RuntimeValue Equals_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NSpan.Equals", () => new BoolVal (Me (self).Equals ((System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "NSpan.Equals 的第 1 个实参"))));
 
     [ClassMethod("GetHashCode")]
     public static RuntimeValue GetHashCode (RuntimeValue self)
@@ -64,7 +136,13 @@ internal static class TimeSpanAdaptor
     [ClassMethod("ToString")]
     public static RuntimeValue ToString (RuntimeValue self)
         => PluginKit.Guarded ("NSpan.ToString", () => new StringVal (Me (self).ToString ()));
+    [ClassMethod("ToString_2")]
+    public static RuntimeValue ToString_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NSpan.ToString", () => new StringVal (Me (self).ToString (PluginKit.Text (x0, "NSpan.ToString 的第 1 个实参").Value)));
+    [ClassMethod("ToString_3")]
+    public static RuntimeValue ToString_3 (RuntimeValue self, RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NSpan.ToString", () => new StringVal (Me (self).ToString (PluginKit.Text (x0, "NSpan.ToString 的第 1 个实参").Value, (System.IFormatProvider) PluginKit.ToObject (x1, typeof (System.IFormatProvider), "NSpan.ToString 的第 2 个实参"))));
 
-    // 跳过 TryFormat：挑中的那个签名是 Span`1,Int32&,ReadOnlySpan`1,IFormatProvider -> Boolean，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 2 个 / 实例 2 个）
+    // 跳过 TryFormat：值类型上返回 void 的就是**改原地**的方法 ——改的是装箱那份副本，白做
 
 }

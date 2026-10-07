@@ -3,9 +3,12 @@
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
 //   类型 System.Text.StringBuilder → 模块 NSb / 类 StringBuilder；成员 Append AppendFormat AppendJoin AppendLine Clear CopyTo EnsureCapacity Equals GetChunks GetHashCode GetType Insert Remove Replace ToString
+//   属性 Capacity Length MaxCapacity
 //
-//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]`，`self` 先脱壳再调。
-//   静态成员在另一份里（`Adaptor.Cs`）。**属性访问器（`get_X` / `set_X`）这一版不做。**
+//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。
+//   静态成员在另一份里（`Adaptor.Cs`）。
+//   属性是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
+//   不必发明 `SetLength` 那种名字；没有 setter 的标 `ReadOnly`，写由引擎在槽上拦。
 // </auto-generated>
 
 namespace Ravel.Runtime;
@@ -22,6 +25,28 @@ internal static class StringBuilderAdaptor
         => arg is VoidVal
             ? new DotNetVal (new System.Text.StringBuilder (), PluginKit.ClassOf ("StringBuilder"))
             : throw PluginKit.Fail ("System.Text.StringBuilder 的 .NET 构造器是 0 个参数的 —— 像 `类 ()` 那样调，别给实参", ErrorKind.Argument);
+
+    [ClassProperty("Capacity")]
+    public static RuntimeValue Capacity (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSb.Capacity", () =>
+        {
+            if (arg is VoidVal) return IntVal.Of (Me (self).Capacity);
+            Me (self).Capacity = PluginKit.Int (arg, "NSb.Capacity");
+            return PluginKit.Void;
+        });
+
+    [ClassProperty("Length")]
+    public static RuntimeValue Length (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSb.Length", () =>
+        {
+            if (arg is VoidVal) return IntVal.Of (Me (self).Length);
+            Me (self).Length = PluginKit.Int (arg, "NSb.Length");
+            return PluginKit.Void;
+        });
+
+    [ClassProperty("MaxCapacity", ReadOnly = true)]
+    public static RuntimeValue MaxCapacity (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NSb.MaxCapacity", () => IntVal.Of (Me (self).MaxCapacity));
 
     [ClassMethod("Append")]
     public static RuntimeValue Append (RuntimeValue self, RuntimeValue x0)

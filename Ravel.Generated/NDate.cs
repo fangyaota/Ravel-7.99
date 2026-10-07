@@ -3,9 +3,12 @@
 //   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
 //   类型 System.DateTime → 模块 NDate / 类 DateTime；成员 Add AddDays AddHours AddMicroseconds AddMilliseconds AddMinutes AddMonths AddSeconds AddTicks AddYears CompareTo Deconstruct Equals GetDateTimeFormats GetHashCode GetType GetTypeCode IsDaylightSavingTime Subtract ToBinary ToFileTime ToFileTimeUtc ToLocalTime ToLongDateString ToLongTimeString ToOADate ToShortDateString ToShortTimeString ToString ToUniversalTime TryFormat
+//   属性 Date Day DayOfWeek DayOfYear Hour Kind Microsecond Millisecond Minute Month Nanosecond Second Ticks TimeOfDay Year
 //
-//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]`，`self` 先脱壳再调。
-//   静态成员在另一份里（`Adaptor.Cs`）。**属性访问器（`get_X` / `set_X`）这一版不做。**
+//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。
+//   静态成员在另一份里（`Adaptor.Cs`）。
+//   属性是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，
+//   不必发明 `SetLength` 那种名字；没有 setter 的标 `ReadOnly`，写由引擎在槽上拦。
 // </auto-generated>
 
 namespace Ravel.Runtime;
@@ -20,6 +23,66 @@ internal static class DateTimeAdaptor
     [ClassCtor]
     public static RuntimeValue New (RuntimeValue arg)
         => new DotNetVal (new System.DateTime (PluginKit.Long (arg, "DateTime 的构造器参数")), PluginKit.ClassOf ("DateTime"));
+
+    [ClassProperty("Date", ReadOnly = true)]
+    public static RuntimeValue Date (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Date", () => PluginKit.Wrap (Me (self).Date, "DateTime"));
+
+    [ClassProperty("Day", ReadOnly = true)]
+    public static RuntimeValue Day (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Day", () => IntVal.Of (Me (self).Day));
+
+    [ClassProperty("DayOfWeek", ReadOnly = true)]
+    public static RuntimeValue DayOfWeek (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.DayOfWeek", () => PluginKit.Wrap (Me (self).DayOfWeek, "DayOfWeek"));
+
+    [ClassProperty("DayOfYear", ReadOnly = true)]
+    public static RuntimeValue DayOfYear (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.DayOfYear", () => IntVal.Of (Me (self).DayOfYear));
+
+    [ClassProperty("Hour", ReadOnly = true)]
+    public static RuntimeValue Hour (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Hour", () => IntVal.Of (Me (self).Hour));
+
+    [ClassProperty("Kind", ReadOnly = true)]
+    public static RuntimeValue Kind (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Kind", () => PluginKit.Wrap (Me (self).Kind, "DateTimeKind"));
+
+    [ClassProperty("Microsecond", ReadOnly = true)]
+    public static RuntimeValue Microsecond (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Microsecond", () => IntVal.Of (Me (self).Microsecond));
+
+    [ClassProperty("Millisecond", ReadOnly = true)]
+    public static RuntimeValue Millisecond (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Millisecond", () => IntVal.Of (Me (self).Millisecond));
+
+    [ClassProperty("Minute", ReadOnly = true)]
+    public static RuntimeValue Minute (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Minute", () => IntVal.Of (Me (self).Minute));
+
+    [ClassProperty("Month", ReadOnly = true)]
+    public static RuntimeValue Month (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Month", () => IntVal.Of (Me (self).Month));
+
+    [ClassProperty("Nanosecond", ReadOnly = true)]
+    public static RuntimeValue Nanosecond (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Nanosecond", () => IntVal.Of (Me (self).Nanosecond));
+
+    [ClassProperty("Second", ReadOnly = true)]
+    public static RuntimeValue Second (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Second", () => IntVal.Of (Me (self).Second));
+
+    [ClassProperty("Ticks", ReadOnly = true)]
+    public static RuntimeValue Ticks (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Ticks", () => PluginKit.Narrow (Me (self).Ticks));
+
+    [ClassProperty("TimeOfDay", ReadOnly = true)]
+    public static RuntimeValue TimeOfDay (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.TimeOfDay", () => PluginKit.Wrap (Me (self).TimeOfDay, "TimeSpan"));
+
+    [ClassProperty("Year", ReadOnly = true)]
+    public static RuntimeValue Year (RuntimeValue self, RuntimeValue arg)
+        => PluginKit.Guarded ("NDate.Year", () => IntVal.Of (Me (self).Year));
 
     [ClassMethod("Add")]
     public static RuntimeValue Add (RuntimeValue self, RuntimeValue x0)

@@ -256,7 +256,7 @@ public partial class Interpreter
             throw new RuntimeException($"复合赋值的字段目标需要有自己的成员，{nf.Result(0).Type} 没有", ErrorKind.Type);
         var ov = (ObjectVal)nf.Result(0);
 
-        var own = ov.Scope.LookupField(ma.Member);
+        var own = ov.Scope.LookupField(ma.Member) ?? BuiltinClasses.ClassBySlot(ov, ma.Member);
         var hit = own == null ? BuiltinClasses.TraitSlot(this, ov, ma.Member, allowPlain: true) : null;
         var field = own ?? hit?.Slot ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         CheckMemberAccess(field, ov, ma.Member);
@@ -264,7 +264,7 @@ public partial class Interpreter
         if (field.HasAttr(Attr.By))
         {
             // 接口那条槽要绑到这一次的接收者上(实现身上不再存"当前实例")
-            StepByCompoundAssign(nf, op, field, PropOf(field, hit), ma.Member);
+            StepByCompoundAssign(nf, op, field, PropOf(field, hit, ov), ma.Member);
             return;
         }
 
@@ -288,14 +288,16 @@ public partial class Interpreter
         Return(nf, nf.Result(2));
     }
 
-    /// <summary>取这次要用的那份 property。**接口那条 `by` 槽**要绑到这一次的接收者上
-    /// (<see cref="BuiltinClasses.Activate"/>);自己那层声明的、以及**接口体里那些普通成员**
+    /// <summary>取这次要用的那份 property。**接口那条 `by` 槽**要连捕获作用域一起绑到这一次的
+    /// 接收者上(<see cref="BuiltinClasses.Activate"/>);**引擎挂在类上的那种**(`[ClassProperty]`)
+    /// 要绑那两个 `ISelfBinding` 的函数(<see cref="BuiltinClasses.BindProperty"/>);
+    /// 自己那层声明的(用户写的 `property g s`,接收者靠捕获的作用域)、以及**接口体里那些普通成员**
     /// 一律原样交 `field.Value` ——
-    /// 非接口的 `by` 槽(`by a := property …`)读的是 `this`,没有 `instance` 那回事;
     /// 普通成员(函数 / 字段)**压根不是 property**,`Activate` 到那儿会当场报
     /// 「标了 by，但它的值不是 property」—— 而那句话说反了(它没标 `by`)。</summary>
-    private RuntimeValue PropOf(Variable field, TraitHit? hit)
-        => hit is { } h && field.HasAttr(Attr.By) ? BuiltinClasses.Activate(this, h) : field.Value;
+    private RuntimeValue PropOf(Variable field, TraitHit? hit, RuntimeValue self)
+        => hit is { } h && field.HasAttr(Attr.By) ? BuiltinClasses.Activate(this, h)
+                                                  : BuiltinClasses.BindProperty(field.Value, self);
 
     /// <summary>by 属性的复合赋值:左值要过 getter、结果要过 setter,两个子求值各占一个阶段
     /// (都走 CallInto,内置和类运算符一视同仁,阶段数就固定了)。
@@ -381,7 +383,7 @@ public partial class Interpreter
             // 否则 `:=` 就成了绕过封装的万能钥匙。
             // 本层没有就问接口实现:作用域里有生效的实现时,`u.a = 1` 落在实现那条槽上。
             // 这一阶段只要那格变量(存在性 + 门禁),**不建激活格** —— 真写的时候(count==2)才绑接收者。
-            var ownF = ov.Scope.LookupField(ma.Member);
+            var ownF = ov.Scope.LookupField(ma.Member) ?? BuiltinClasses.ClassBySlot(ov, ma.Member);
             var field = ownF ?? (ownF == null ? BuiltinClasses.TraitSlot(this, ov, ma.Member, allowPlain: true)?.Slot : null);
             if (field == null)
             {
@@ -418,9 +420,9 @@ public partial class Interpreter
         // count==1 已查过字段存在,这里再兜一次:字段在右侧求值期间被删掉时不至于 NRE
         // (接口实现那条也再兜一次:两次都只算"当前作用域里有没有生效的实现",结果一致;
         //  接收者就是 nf.Result(0) 那个,所以两次各建一份激活格是等价的)
-        var own2 = ov2.Scope.LookupField(ma.Member);
+        var own2 = ov2.Scope.LookupField(ma.Member) ?? BuiltinClasses.ClassBySlot(ov2, ma.Member);
         var hit2 = own2 == null ? BuiltinClasses.TraitSlot(this, ov2, ma.Member, allowPlain: true) : null;
         var field2 = own2 ?? hit2?.Slot ?? throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
-        WriteVariable(nf, field2, rv, PropOf(field2, hit2));
+        WriteVariable(nf, field2, rv, PropOf(field2, hit2, ov2));
     }
 }

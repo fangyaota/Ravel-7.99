@@ -1333,6 +1333,8 @@ internal static class StackClass
 {
     [ClassCtor] public static RuntimeValue New(RuntimeValue arg) => …;
     [ClassMethod("Push")] public static RuntimeValue Push(RuntimeValue self, RuntimeValue v) => …;
+    [ClassProperty("Count")]                                                  // 一个名字、两个方向
+    public static RuntimeValue Count(RuntimeValue self, RuntimeValue arg) => …;  // 那格收到 `()` 就是读
     [RavelFn("Make")] public static RuntimeValue Make(RuntimeValue arg) => …;   // 模块里的函数
 }
 ```
@@ -1358,6 +1360,10 @@ using "structures.rav"       # 库里那半边,照旧
   (`ObjectVal.DefineMethod` 那批引擎自己的方法**没动** —— 它收的是同一个两槽委托、
   **不知道元数**;要动得给它加一格,七十来个调用点跟着改。`x.Count 5` 那种写法
   不是真会犯的错,先搁着。)
+- **`[ClassProperty]` 是"一个名字、两个方向"**:那格落成 **`by` 槽**（和 `by x := property g s`
+  同一个机制），读走 getter、写走 setter、`+=` 两边都走 —— 所以不必发明 `SetX` / `PutX`
+  那种名字。签名和 `[ClassMethod]` 一样（`self` + 那一格实参），`ReadOnly = true` 就是
+  只给 getter 那一半（拦在**槽上**）。生成器那一半见「生成出来的适配层 → 属性」。
 - **`[RavelModule("")]` 是特例**:进**全局作用域**(不建模块,直接叫名字)。
 - 函数那几条的签名规矩和 `[Sys]` **同一套**(1~3 个 `RuntimeValue`,开头可以是
   `Interpreter`)—— 绑定只有一处(`ClassRegistry.Fn`)。
@@ -1425,15 +1431,15 @@ using "structures.rav"       # 库里那半边,照旧
 (`examples/adaptor_from_ravel.rav`):
 
     using "adaptor.rav"
-    Adaptor.Cs  类型 模块 成员                    # → 生成的 C# 源码(字符串,不落盘)
-    Adaptor.Save 类型 模块 成员 cs路径            # → 写 .cs
-    Adaptor.Dll  类型 模块 成员 cs路径 dll路径    # → 写 .cs + 就地编
+    Adaptor.Cs    类型 模块 成员                  # → 生成的 C# 源码(字符串,不落盘)
+    Adaptor.Write 源码 cs路径                     # → 写 .cs
+    Adaptor.Build 源码 cs路径 dll路径 引用         # → 写 .cs + 就地编(Roslyn 当库调)
 
 **成员那一格可以交给 `AllOf`** —— 它把一个类型**全部**该适配的静态方法名扫出来
 (去重、排序、滤掉 `IsSpecialName` 那些:属性访问器 / 运算符 / 事件),
 于是"只给一个类名"就够:
 
-    Adaptor.Dll "System.Math" "NMathAll" (Adaptor.AllOf "System.Math") cs dll
+    Adaptor.Build (Adaptor.Cs "System.Math" "NMathAll" (Adaptor.AllOf "System.Math")) cs dll []
 
 命令行那边是 `--all`(模块名也能省,省了就取类型的短名):
 
@@ -1533,13 +1539,68 @@ SqliteConnection`）又照出三件事：
   （`cut` 真为 0 的话 `[0..-1]` 就错了）。库里 `[8..((s.Length ()) - 1)]` 那种是手写习惯
   （能用，但半开更直）。
 
+**属性**（2026-10-07 加，`[ClassProperty]`）。`.NET` 的属性（`sb.Length` / `d.Year`）在反射里是
+`get_X` / `set_X` 两个方法（`IsSpecialName`），方法那条路看不见它们 —— 从前整个跳过。
+现在实例那半**自己从类型上扫**（`Adaptor.PropsOf` → `GetProperties`，不用点名），生成
+
+    [ClassProperty("Length")]
+    public static RuntimeValue Length (RuntimeValue self, RuntimeValue arg)   # 那格收到 `()` 就是读
+
+引擎把它落成 **`by` 槽**（`Attr.By` + 一对 getter/setter 的 `PropertyVal`）—— 和
+`by x := property g s`、接口体里那条 `instance` 是**同一个机制**：
+
+    sb.Length          # 读走 getter
+    sb.Length = 2      # 写走 setter（`.NET` 那边真改）
+    sb.Length += 3     # 复合赋值两边都走（`StepByCompoundAssign`）
+
+**一个名字、两个方向** —— 那正是 `by` 存在的理由，所以 `SetLength` / `PutLength` 那几种
+"读的名字 + 写的名字"的约定**一个都不需要**。`ReadOnly`（只给 getter 那一半）拦在**槽上**
+（`Variable.CheckWritable`），不指望生成的那段体自己报错。
+
+引擎侧这一格原来是**不通**的，四处要动（都写进注释了）：
+
+* **`ClassPropertyAttribute`**（`Runtime/Builtins/ClassRegistry.cs`）+ `InstallClass` 里扫它。
+  签名的形状和 `[ClassMethod]` 一样（`self` + 那一格实参）—— **一份方法当 getter 和 setter
+  两遍**（读时那格收到 `()`、写时收到新值），不必发明两个名字。
+* **那一格的类型约束得是 `Any`**，不是 `EngineMember` 默认的 `Function`：存的是 property，
+  而**写进来的是属性值**（`sb.Length = 0` 写的是 `IntVal`）。按 `Function` 约束的话
+  `CheckAssignable` 一句「无法将 IntVal 赋值给 'Length'」把写路全挡住（`impl` 的
+  `instance` 那条槽也是这么办的）。
+* **`by` 槽得住能找得到**。读（`BoxedValue.TryGetByGetter`）和写（`Interpreter.Binary` 里
+  三处成员写路）从前只看**实例自己那层**（`Scope`），而引擎挂的成员住在**类**的实例表里
+  （和 `Append` 那些方法一处）—— 症状是"看得到、摸不着"：`sb.Length` 报「没有方法 'Length'」、
+  `sb.Length = 2` 报「对象没有字段」（实测）。中间补一格 `ClassBySlot`（走 `MemberScope`，
+  **只认标了 `by` 的**）。`MemberView.LookupInClassChain` 那条"**只要 `FunctionVal`**"的
+  过滤器得放 `by` 槽进来，`ClassVal.MethodNames` 的判据跟着一起改 —— 两处**必须一字不差**：
+  "查得到"和"列得出"（`Fields ()`）是同一个问题的两个问法。
+* **交出去之前要绑接收者**（`BuiltinClasses.BindProperty`）：引擎挂的 getter/setter 是
+  `ISelfBinding` 的 `BuiltinMethodVal`，和普通类方法一个待遇 —— 读成员那一刻才认"谁在调"。
+  用户写的 `property g s`（普通 lambda，接收者靠捕获）和接口那条（`NativeClosure`，要连
+  捕获作用域一起换，见 `Activate`）都**不是** `ISelfBinding`，原样交回 —— 那两个机制照旧。
+
+**值类型上的属性一律只给读**。`.NET` 那边有 setter 也没用：`Me (self)` 拆出来的是装箱那份
+**副本**，写回去改的是副本、改完丢掉 —— 和"返回 void 的实例方法"同一档，但症状更坏：
+`d.Year = 2000` 看着成了、`d.Year` 还是旧值，**一声不响**。产物里会留一段注释说明理由。
+（`DateTime` / `TimeSpan` 的属性实测全是 get-only，所以这一条今天在仓库的产物里没触发 ——
+`System.Drawing.Point` 那种有 setter 的值类型一碰就是静默白做。）
+
+**静态属性不做**：静态那半（`Adaptor.Cs`）的成员是你点名的，而属性在 `GetMethods` 里也看不见。
+`Math.PI` / `DateTime.Now` 那些要另说。
+
+**重载分名字**（2026-10-07）：一个名字下的多个重载**都生成**，排位第一的用原名，
+其余的依次 `_2` `_3` …（`Append` / `Append_2` / `Append_3`…）。
+从前只出排位最好的那一个 —— `StringBuilder.Append` 挑中的是 `Append (int)`，于是
+`sb.Append "字符串"` **根本没路走**。名字里带不出类型来（那得另想），所以想知道哪个是哪个
+看产物里那段签名就是。**这一格有个硬边界**：`[ClassMethod]` 收 `self` + 0~2 个实参，
+超了不是"跳过"而是**装的时候当场报、整个 dll 都装不进来** —— `ArityOk` 就是为此加的
+（`StringBuilder.Append (char[], int, int)` 那种三元重载把 `NSb` 整个带崩过一次）。
+
 **已知的缺口**：造值那张表只有标量，所以返回值是**别的值类型**的（`DateTime.Subtract`
 交回 `TimeSpan`）还是落到 `ToRavel` → `DotNetObject` —— 能用，但不是生成的那个类、
 没有那一族方法。
 
-**已知的可用性缺口**：一个方法名只生成**一个**重载（排位键挑的），所以
-`StringBuilder.Append` 挑中的是 `Append (int)` —— `sb.Append "字符串"` 会报类型错。
-想指定重载得能写签名（`"Append(String)"` 那种），那是下一步。
+**已知的可用性缺口**：名字里只有序号、没有类型，想知道 `Append_2` 收什么得翻产物。
+想按签名点名（`"Append(String)"` 那种）是下一步。
 
 **`object` 参数**（2026-10-07 加）：排位 **50** —— 排在标量/数组后面、认不出的前面。
 它**转得动**（走 `PluginKit.ToNet`，就是那座桥），但别的重载只要能用就该赢
