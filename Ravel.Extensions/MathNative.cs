@@ -161,7 +161,7 @@ internal static class MathNative
     /// 整数那条走 `Narrow`:`abs` 的 `int.MinValue` 翻不过来,报错比静默回绕成自己强。</summary>
     private static RuntimeValue Abs(RuntimeValue v) => v switch
     {
-        IntVal i => Narrow(Math.Abs((long)i.Value), "abs"),
+        IntVal i => Narrow(Math.Abs((long)i.Value)),
         RealVal f => new RealVal(Math.Abs(f.Value)),
         BigIntVal bi => new BigIntVal(System.Numerics.BigInteger.Abs(bi.Value)),
         FractionVal fr => new FractionVal(Math.Abs(fr.Num), fr.Den),          // 分母恒正,符号在分子上

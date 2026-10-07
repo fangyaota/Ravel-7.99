@@ -425,7 +425,7 @@ internal static class ServerNative
             if (c.PendingBody > 0) await Drain(c.Stream, c.PendingBody);
             Close(id);
         }
-        return Narrow(head.Length + (long)body.Length, "写出去的字节数");
+        return Narrow(head.Length + (long)body.Length);
     }
 
     /// <summary>状态码 → 原因短语。**不查 .NET 那张表**:它的文本跟着版本走,而响应的头

@@ -170,8 +170,25 @@ public static class PluginKit
     public static ListVal BytesList(byte[] bytes) => SysKit.BytesList(bytes);
 
     /// <summary>算出来的整数**收窄**:装得下 `int` 就给 `int`,否则给 `bigint`。
-    /// (照 Ravel 的口径来,别自己 `(int)` 硬转 —— 那会静默回绕。)</summary>
-    public static RuntimeValue Narrow(long n, string what) => BuiltinClasses.Narrow(n, what);
+    /// (照 Ravel 的口径来,别自己 `(int)` 硬转 —— 那会静默回绕。)
+    ///
+    /// **它和 <see cref="BuiltinClasses.Narrow"/> 不是一条**:那边是**算术**用的,
+    /// 撞上 `int` 溢出就报「超出 int 范围（大数用 bigint）」—— 那是这门语言要的行为
+    /// (`int` 就是 32 位,要更大的自己写 `bigint`),**别改**。这一格是给**插件**用的:
+    /// 外面世界的一个 `long` 交进来,有现成的 `int` 就用、没有就升 `bigint`,
+    /// 不该因此报错。从前的实现是直接转给那边,于是文档说着"给 bigint"、
+    /// 实际抛了个 `RuntimeException`(`Ravel.Structures` 的图权重踩在这条上)。</summary>
+    public static RuntimeValue Narrow(long n)
+        => n >= int.MinValue && n <= int.MaxValue ? IntVal.Of((int)n) : new BigIntVal(n);
+
+    /// <summary>参数收束成 **long**:`int` 和 `bigint` 都收(装不下报错)。
+    /// <see cref="Narrow"/> 的反方向。</summary>
+    public static long Long(RuntimeValue v, string what) => v switch
+    {
+        IntVal i => i.Value,
+        BigIntVal b when b.Value >= long.MinValue && b.Value <= long.MaxValue => (long)b.Value,
+        _ => throw Fail($"{what} 需要整数参数，得到 {v.Type}", ErrorKind.Type),
+    };
 
     // ── 路径与取值 ──
 

@@ -165,7 +165,7 @@ public record GraphVal : ObjectVal
     /// <summary>权重也可以是 int —— 和 Ravel `1 + 2` / `1 + 2.5` 一个读法</summary>
     public static RuntimeValue Number(double d)
         => d == Math.Floor(d) && !double.IsInfinity(d) && Math.Abs(d) < 9e15
-            ? PluginKit.Narrow((long)d, "图的权重")
+            ? PluginKit.Narrow((long)d)
             : new RealVal(d);
 
     /// <summary>有向图才有的那几条(拓扑排序)先问一句</summary>

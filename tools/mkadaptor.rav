@@ -42,17 +42,19 @@ using "plugins/Ravel.Compile.dll"
 
 readonly RankOf := (tn: string) => {
     tn == "Int32"   { 0; } {
-    tn == "String"  { 1; } {
-    tn == "Boolean" { 2; } {
-    tn == "Char"    { 3; } {
-    tn == "Double"  { 4; } {
-    tn == "Single"  { 5; } {
+    tn == "Int64"   { 1; } {
+    tn == "String"  { 2; } {
+    tn == "Boolean" { 3; } {
+    tn == "Char"    { 4; } {
+    tn == "Double"  { 5; } {
+    tn == "Single"  { 6; } {
         99;                       # 99 = 映射表里没有
-    }}}}}}
+    }}}}}}}
 }
 
 readonly GetterOf := (tn: string e: string what: string) => {
     tn == "Int32"   { "PluginKit.Int (" + e + ", \"" + what + "\")"; } {
+    tn == "Int64"   { "PluginKit.Long (" + e + ", \"" + what + "\")"; } {
     tn == "String"  { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; } {
     tn == "Boolean" { "PluginKit.Bool (" + e + ", \"" + what + "\")"; } {
     tn == "Char"    { "PluginKit.Char (" + e + ", \"" + what + "\")"; } {
@@ -61,11 +63,13 @@ readonly GetterOf := (tn: string e: string what: string) => {
     # 所以自己加一句强转。
     tn == "Single"  { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; } {
         "?";                      # 哨兵：不支持
-    }}}}}}
+    }}}}}}}
 }
 
 readonly MakerOf := (tn: string e: string) => {
     tn == "Int32"   { "IntVal.Of (" + e + ")"; } {
+    # `long` 装得下就给 `int`、装不下升 `bigint` —— 别自己 `(int)` 硬转（静默回绕）。
+    tn == "Int64"   { "PluginKit.Narrow (" + e + ")"; } {
     tn == "String"  { "new StringVal (" + e + ")"; } {
     tn == "Boolean" { "new BoolVal (" + e + ")"; } {
     tn == "Char"    { "new CharVal (" + e + ")"; } {
@@ -73,7 +77,7 @@ readonly MakerOf := (tn: string e: string) => {
     tn == "Single"  { "new RealVal (" + e + ")"; } {     # float → double 是隐式加宽，安全
     tn == "Void"    { "PluginKit.Void"; } {
         "?";
-    }}}}}}}
+    }}}}}}}}
 }
 
 readonly Known  := (tn: string) => { (RankOf tn) < 90; }

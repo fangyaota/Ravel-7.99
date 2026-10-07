@@ -180,7 +180,7 @@ internal static class NetNative
             else
             {
                 using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
-                entries[new StringVal("bytes")] = Narrow(await CopyTo(stream, bodyOut, cts.Token), "下载的字节数");
+                entries[new StringVal("bytes")] = Narrow(await CopyTo(stream, bodyOut, cts.Token));
             }
 
             return new DictVal(entries);

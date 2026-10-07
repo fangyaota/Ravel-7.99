@@ -4,7 +4,7 @@
 #
 #     规格（Ravel）→ ①生成 .cs → ②编译 → ③`using` 用上
 #                     ↑                ↑
-#              tools/mkadaptor.rav   Ravel.Generated/ 那个插件项目
+#              tools/mkadaptor.rav   两条路，见下
 #
 # 1) 生成：
 #
@@ -19,12 +19,11 @@
 #       那个插件**就地**编 —— `out/` 是 framework-dependent 发布，那种机器上
 #       `dotnet build` 这个命令根本不存在，这就是 `--dll` 存在的全部理由：
 #
-#         dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath \
-#             Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul \
+#         dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Sqrt BigMul \
 #             --dll out/plugins/Ravel.Generated.dll
 #
-#        （两条路编出来的是**同一个东西**：同一个 `.cs`、同一个模块名。Roslyn 在这条
-#          路上是**当库调**的，引用集直接从当前进程取 —— 框架那一套走
+#        （两条路编出来的是**同一个东西**：同一个 `.cs`、同一个模块名。Roslyn 在那条路上
+#          是**当库调**的，引用集直接从当前进程取 —— 框架那一套走
 #          `TRUSTED_PLATFORM_ASSEMBLIES`，引擎自己走 `typeof(RuntimeValue).Assembly.Location`。
 #          于是编出来的 dll 引用的就是**跑着的那个 `Ravel.dll`**，版本天然对齐。）
 #
@@ -35,7 +34,7 @@ using "plugins/Ravel.Generated.dll"
 #
 # `Math.Max` 有 11 个同名重载（byte / decimal / double / short / int / long …），
 # 生成器按「参数少 → 丢的信息少 → 签名」排，`Int32` 排在最前、`Double` 在后，
-# 所以挑中的是 `(int, int) -> int` —— 交回一个真 `int`：
+# 于是挑中的是 `(int, int) -> int` —— 交回一个真 `int`：
 print (NMath.Max 3 7)
 print (NMath.Min 3 7)
 print (NMath.Abs (0 - 5))
@@ -51,6 +50,23 @@ print (NMath.Ceiling 2.1)
 print (NMath.Round 2.6)
 print (NMath.Sin 0)
 print (NMath.Exp 1)
+
+# ── 比 `int` 大的整数**自动升 `bigint`**，不是报错也不是回绕 ──
+#
+# `Math.BigMul` 交回一个 `long`；`PluginKit.Narrow` 装得下就给 `int`、
+# 装不下升 `bigint`。这条对"字节数 / ticks / 文件大小"那一族很关键 ——
+# 从前是**当场抛错**（文档说着"给 bigint"，实现却转给了算术语义那条）。
+print (NMath.BigMul 3 7)           # 21（装得下 int）
+print (NMath.BigMul 2000000000 2)  # 4000000000（装不下，升 bigint）
+
+# ── 同一个 dll 里装好几个模块 ──
+#
+# `Ravel.Generated/` 是**一个**插件项目，加适配器 = 多跑一次生成器，不用动 csproj。
+using "plugins/Ravel.Generated.dll"
+print (NStr.IsNullOrEmpty "")
+print (NStr.Concat "生成" " 的")
+print (NStr.Compare "a" "b")
+print (NStr.IsNullOrWhiteSpace "   ")
 
 # ── 被调方抛的也接得住 ──
 #
@@ -76,10 +92,12 @@ print (Reflect.Unwrap (Reflect.Call (Reflect.Type "System.Math") "Max" [3 7]))
 
 # ── 生成器拒绝的东西，写在产物里 ──
 #
-# `Math.BigMul` 六个重载全是 `long` / `ulong`，映射表里没有（v0 是
-# int / string / bool / char / real），于是 `Ravel.Generated/NMath.cs` 末尾留着：
+# `String.Join` 13 个重载全要 `string[]` / `object[]`，`String.Format` 15 个全要
+# `object` —— 映射表里都没有（v0 是 int / long / string / bool / char / real），
+# 于是 `Ravel.Generated/NStr.cs` 里留着：
 #
-#     // 跳过 BigMul：没有能映射的重载（同名静态方法 6 个，0 个类型认得出，6 个被筛掉）
+#     // 跳过 Join：没有能映射的重载（同名静态方法 13 个，0 个类型认得出，13 个被筛掉）
 #
-# **挑不中就明说，不猜** —— 猜错比不生成难查得多。
+# **挑不中就明说，不猜** —— 猜错比不生成难查得多。要数组参数的话，
+# `examples/net_scaffold.rav` 里那个 `ArrayOf` 能造，但那得人来补（产物是脚手架）。
 print "生成出来的适配层跑通了"

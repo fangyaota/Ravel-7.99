@@ -155,7 +155,7 @@ internal static class ZipNative
     private static string Name(RuntimeValue v) => ((StringVal)((DictVal)v).Entries[new StringVal("name")]).Value;
 
     /// <summary>长度收窄成 int 或 bigint(和别处一个口径,zip 里可以装下 4 GB 以上的成员)</summary>
-    private static RuntimeValue SizeOf(long n) => Narrow(n, "成员大小");
+    private static RuntimeValue SizeOf(long n) => Narrow(n);
 
     /// <summary>zip 那一批的兜底:坏档、截断、加密的成员都在这一族里。
     /// `InvalidDataException` 就是"这不是个 zip" / "读到一半坏了"。</summary>

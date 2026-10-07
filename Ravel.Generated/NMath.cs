@@ -66,6 +66,8 @@ internal static class NMathAdaptor
     public static RuntimeValue Log (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Log", () => new RealVal ((System.Math.Log (PluginKit.Num (x0, "NMath.Log 的第 1 个实参")))));
 
-    // 跳过 BigMul：没有能映射的重载（同名静态方法 6 个，0 个类型认得出，6 个被筛掉）
+    [RavelFn("BigMul")]
+    public static RuntimeValue BigMul (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Narrow ((System.Math.BigMul (PluginKit.Int (x0, "NMath.BigMul 的第 1 个实参"), PluginKit.Int (x1, "NMath.BigMul 的第 2 个实参")))));
 
 }
