@@ -1,0 +1,101 @@
+# **反射 .NET 的脚手架** —— 要干大事的时候从这份抄。
+#
+# 规矩只有三条（详见 `Ravel.Reflect/README.md`）：
+#
+#   1. `Reflect.Call` **第一个实参给类型 = 静态，给对象 = 实例**（和 C# 一样）。
+#   2. 反射回来的一律是 **`DotNetObject`** —— 一个都不化。要 Ravel 值就 `.Unwrap ()`。
+#      这条是故意的：化了**身份就掉**（`char[]` 会变成 `list`，再传出去只剩 `object[]`）。
+#   3. 参数表写成 `list`。Ravel 的 `list` 到 .NET 只有 **`object[]`** 这一种形状；
+#      参数要 `char[]` / `string[]` 那种的，**自己造**（下面 `ArrayOf`）。
+#
+# 下面这些名字就是替你记着这三条。
+
+using "plugins/Ravel.Reflect.dll"
+
+# ═══ 值：进出一个名字 ═══
+
+# 脱壳：`DotNetObject` → Ravel 值（要参与 Ravel 运算的马上过一下）
+readonly Val := (x: object) => { Reflect.Unwrap x; }
+# 看它是什么（`ToString`）
+readonly Show := (x: object) => { Reflect.Text x; }
+
+# ═══ 类型 ═══
+
+readonly T := (name: string) => { Reflect.Type name; }
+
+# 常用的先绑好（`Math` 那个名字被库占了，所以叫 `NMath`）
+readonly NConsole := T "System.Console"
+readonly NMath := T "System.Math"
+readonly NString := T "System.String"
+readonly NArray := T "System.Array"
+readonly NConvert := T "System.Convert"
+readonly NSb := T "System.Text.StringBuilder"
+readonly TInt := T "System.Int32"
+readonly TChar := T "System.Char"
+
+# ═══ 调 ═══
+
+readonly Call := (obj: object name: string args: list) => { Reflect.Call obj name args; }
+readonly Call0 := (obj: object name: string) => { Reflect.Call obj name []; }
+readonly Make := (t: object args: list) => { Reflect.New t args; }
+readonly Make0 := (t: object) => { Reflect.New t []; }
+
+# ═══ 造 .NET 数组 ═══
+#
+# 参数要 `char[]` / `string[]` / `Foo[]` 的时候用它。
+# `Array.CreateInstance` 收的是**元素**类型（不是 `"System.Char[]"`）。
+
+readonly ArrayOf := (elem: object items: list) => {
+    a := Call NArray "CreateInstance" [elem (items.Count ())]
+    i := 0
+    items.Foreach (x: object) => {
+        Call a "SetValue" [x i]
+        i += 1
+    }
+    a;
+}
+
+# ═══ 从字符串解析成某个类型 ═══
+#
+# 先让 .NET 自己 `Parse`（数值 / `DateTime` / `Guid` / `TimeSpan` 那一批），
+# 它不会就退到 `Convert.ChangeType`。
+
+readonly Parse := (t: object s: string) => {
+    try { Reflect.Call t "Parse" [s]; } (e: Exception) => {
+        Reflect.Call NConvert "ChangeType" [s t];
+    };
+}
+
+# ═══ 用起来 ═══
+
+# 静态：第一个实参给类型
+print (Val (Call NMath "Sqrt" [16]))
+print (Val (Call NMath "Max" [3 7]))
+
+# 实例：给对象
+sb := Make0 NSb
+Call sb "Append" ["hi "]
+Call sb "Append" ["there"]
+print (Show sb)
+
+# 属性也是 `Call`
+print (Val (Call "hello" "Length" []))
+print (Val (Call "hello" "ToUpper" []))
+
+# **参数要 `char[]` 的：先造一个再传**
+comma := ArrayOf TChar [',']
+print (Show (Call "a,b,c" "Split" [comma]))
+
+# 字符串自己那条更省事（它交回来的就是 `char[]`，身份不掉）
+ca := Call0 "a,b,c" "ToCharArray"
+print (Show (Call "a,b,c" "Split" [ca]))
+
+# 造一个 .NET 对象、调它、把值拿回来
+dt := Make (T "System.DateTime") [2026 10 7]
+print (Show (Call dt "ToString" ["yyyy-MM-dd"]))
+print (Val (Parse TInt "42"))
+print (Show (Parse (T "System.DateTime") "2026-10-07"))
+
+# 不知道有什么可调？先列出来
+print ((T "System.Text.StringBuilder").Members () |> .Where (n: string) => { n.StartsWith "A"; } |> .Take 6)
+print "脚手架跑通了"
