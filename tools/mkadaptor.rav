@@ -43,62 +43,70 @@ using "plugins/Ravel.Compile.dll"
 # **标量排 0~6、数组排 10~15** —— 两段是有意思的：挑重载时"先要标量的那个"赢
 # （见 `RankKey` 里的 `arrCount`）。Ravel 侧写数组得先造个 `list`，能避开就避开：
 # `String.Concat "a" "b"` 要挑 `(string, string)`，不是 `(string[])`。
-readonly RankOf := (tn: string) => {
-    tn == "Int32"     { 0; } {
-    tn == "Int64"     { 1; } {
-    tn == "String"    { 2; } {
-    tn == "Boolean"   { 3; } {
-    tn == "Char"      { 4; } {
-    tn == "Double"    { 5; } {
-    tn == "Single"    { 6; } {
-    tn == "String[]"  { 10; } {
-    tn == "Char[]"    { 11; } {
-    tn == "Int32[]"   { 12; } {
-    tn == "Int64[]"   { 13; } {
-    tn == "Boolean[]" { 14; } {
-    tn == "Double[]"  { 15; } {
-        99;                       # 99 = 映射表里没有
-    }}}}}}}}}}}}}
-}
+#
+# **一条模式一支** —— 不认就交给 `|` 试下一支，收尾那支兜底。三张表一个形状：
+# 第一格是**字面量模式**（拿 `tn` 去比，比不中这一支整个不收），后面几格才是参数。
+#
+# 两条写法上的事：
+#
+# * 第一条得跟在 `:=` 那行上 —— `:=` 后面直接换行，解析器说「需要表达式」。
+# * 表里全是常量，所以用 `~`（`~x` 就是 `{x;}`）—— 一张表全是短常量时才好看。
+#   下面两张表是**字符串拼出来的**，`~` 只吃一个原子、得给整个表达式套括号，
+#   反而更吵，所以那两张照旧写 `{ … ; }`。
+readonly RankOf := "Int32"     => ~0
+                 | "Int64"     => ~1
+                 | "String"    => ~2
+                 | "Boolean"   => ~3
+                 | "Char"      => ~4
+                 | "Double"    => ~5
+                 | "Single"    => ~6
+                 | "String[]"  => ~10
+                 | "Char[]"    => ~11
+                 | "Int32[]"   => ~12
+                 | "Int64[]"   => ~13
+                 | "Boolean[]" => ~14
+                 | "Double[]"  => ~15
+                 | (_)         => ~99          # 99 = 映射表里没有
 
-readonly GetterOf := (tn: string e: string what: string) => {
-    tn == "Int32"   { "PluginKit.Int (" + e + ", \"" + what + "\")"; } {
-    tn == "Int64"   { "PluginKit.Long (" + e + ", \"" + what + "\")"; } {
-    tn == "String"  { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; } {
-    tn == "Boolean" { "PluginKit.Bool (" + e + ", \"" + what + "\")"; } {
-    tn == "Char"    { "PluginKit.Char (" + e + ", \"" + what + "\")"; } {
-    tn == "Double"  { "PluginKit.Num (" + e + ", \"" + what + "\")"; } {
-    # `Single` 那个重载要的是 `float`，而 `Num` 交回 `double` —— C# 不会自己缩，
-    # 所以自己加一句强转。
-    tn == "Single"  { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; } {
-    # 数组：Ravel 侧给 `list`，`PluginKit` 逐个换（错误里带"第几个元素"）。
-    tn == "String[]"  { "PluginKit.Strs (" + e + ", \"" + what + "\")"; } {
-    tn == "Char[]"    { "PluginKit.Chars (" + e + ", \"" + what + "\")"; } {
-    tn == "Int32[]"   { "PluginKit.Ints (" + e + ", \"" + what + "\")"; } {
-    tn == "Int64[]"   { "PluginKit.Longs (" + e + ", \"" + what + "\")"; } {
-    tn == "Boolean[]" { "PluginKit.Bools (" + e + ", \"" + what + "\")"; } {
-    tn == "Double[]"  { "PluginKit.Reals (" + e + ", \"" + what + "\")"; } {
-        "?";                      # 哨兵：不支持
-    }}}}}}}}}}}}}
-}
+# **取值**：`RuntimeValue` → 本地值。`e` 是实参名、`what` 是报错时说的那句话。
+#
+# 两条特别的：`Single` 那个重载要的是 `float`，而 `Num` 交回 `double` —— C# 不会自己缩，
+# 所以自己加一句强转；数组那几格走 `PluginKit` 的 `Strs` / `Ints`…（把 Ravel 的 `list`
+# 逐个换掉，错了说清是**第几个**元素）。
+readonly GetterOf := ("Int32" e: string what: string)     => { "PluginKit.Int (" + e + ", \"" + what + "\")"; }
+                   | ("Int64" e: string what: string)     => { "PluginKit.Long (" + e + ", \"" + what + "\")"; }
+                   | ("String" e: string what: string)    => { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; }
+                   | ("Boolean" e: string what: string)   => { "PluginKit.Bool (" + e + ", \"" + what + "\")"; }
+                   | ("Char" e: string what: string)      => { "PluginKit.Char (" + e + ", \"" + what + "\")"; }
+                   | ("Double" e: string what: string)    => { "PluginKit.Num (" + e + ", \"" + what + "\")"; }
+                   | ("Single" e: string what: string)    => { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; }
+                   | ("String[]" e: string what: string)  => { "PluginKit.Strs (" + e + ", \"" + what + "\")"; }
+                   | ("Char[]" e: string what: string)    => { "PluginKit.Chars (" + e + ", \"" + what + "\")"; }
+                   | ("Int32[]" e: string what: string)   => { "PluginKit.Ints (" + e + ", \"" + what + "\")"; }
+                   | ("Int64[]" e: string what: string)   => { "PluginKit.Longs (" + e + ", \"" + what + "\")"; }
+                   | ("Boolean[]" e: string what: string) => { "PluginKit.Bools (" + e + ", \"" + what + "\")"; }
+                   | ("Double[]" e: string what: string)  => { "PluginKit.Reals (" + e + ", \"" + what + "\")"; }
+                   | (_ e: string what: string)           => { "?"; }        # 哨兵：不支持
 
-readonly MakerOf := (tn: string e: string) => {
-    tn == "Int32"   { "IntVal.Of (" + e + ")"; } {
-    # `long` 装得下就给 `int`、装不下升 `bigint` —— 别自己 `(int)` 硬转（静默回绕）。
-    tn == "Int64"   { "PluginKit.Narrow (" + e + ")"; } {
-    tn == "String"  { "new StringVal (" + e + ")"; } {
-    tn == "Boolean" { "new BoolVal (" + e + ")"; } {
-    tn == "Char"    { "new CharVal (" + e + ")"; } {
-    tn == "Double"  { "new RealVal (" + e + ")"; } {
-    tn == "Single"  { "new RealVal (" + e + ")"; } {     # float → double 是隐式加宽，安全
-    tn == "Void"    { "PluginKit.Void"; } {
-        "?";
-    }}}}}}}}
-}
+# **造值**：本地值 → `RuntimeValue`。`Int64` 那一格走 `PluginKit.Narrow` —— `long`
+# 装得下就给 `int`、装不下升 `bigint`，别自己 `(int)` 硬转（静默回绕）。
+# `Single` → `RealVal` 是隐式加宽，安全。
+readonly MakerOf := ("Int32" e: string)   => { "IntVal.Of (" + e + ")"; }
+                  | ("Int64" e: string)   => { "PluginKit.Narrow (" + e + ")"; }
+                  | ("String" e: string)  => { "new StringVal (" + e + ")"; }
+                  | ("Boolean" e: string) => { "new BoolVal (" + e + ")"; }
+                  | ("Char" e: string)    => { "new CharVal (" + e + ")"; }
+                  | ("Double" e: string)  => { "new RealVal (" + e + ")"; }
+                  | ("Single" e: string)  => { "new RealVal (" + e + ")"; }
+                  | ("Void" e: string)    => { "PluginKit.Void"; }
+                  | (_ e: string)         => { "?"; }
 
+# `Known` = 映射表里有没有这一型。`InOk` 是"能不能当实参收下"，
+# `OutOk` 多认一个 `void`（只有返回值才可能是它）。
 readonly Known  := (tn: string) => { (RankOf tn) < 90; }
 readonly InOk   := (tn: string) => { Known tn; }
-readonly OutOk  := (tn: string) => { Known tn { true; } { tn == "Void" { true; } { false; } } }
+readonly OutOk  := (tn: string) => { (Known tn) || (tn == "Void"); }
+
 
 # ═══ 反射：把 `MethodInfo` 拆成签名 ═══
 
