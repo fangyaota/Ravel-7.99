@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- **反射插件**:让 Ravel 能拿到任意 .NET 类型/对象。
+       和 Structures / Extensions 一样是个插件 dll —— 主项目不引用它,运行时
+       `using "plugins/Ravel.Reflect.dll"` 装进来。
+
+       这一份是**最小可用**的那套:两个类(DotNetObject / DotNetType)+ 十个函数。
+       重载决议按"参数个数 + 参数类型能不能转"挑第一个;泛型、委托方向、完整桥接
+       都不在里面(见 README 那条注释)。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Ravel.Reflect</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ravel.csproj" />
+  </ItemGroup>
+
+</Project>

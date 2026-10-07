@@ -10,12 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 插件那一族**不在主项目里编译**:它们是 `Ravel.Structures/` 和 `Ravel.Extensions/`
-         那两个项目编出来的 dll,运行时由 `using "plugins/xxx.dll"` 装进来
+    <!-- 插件那一族**不在主项目里编译**:它们是 `Ravel.Structures/`、`Ravel.Extensions/`、`Ravel.Reflect/`
+         那三个项目编出来的 dll,运行时由 `using "plugins/xxx.dll"` 装进来
          (见 Runtime/Builtins/PluginApi.cs)。
          不排掉的话 SDK 默认的 `**/*.cs` 会把它们也编进来 —— 同一批类定义两遍。 -->
     <Compile Remove="Ravel.Structures/**" />
     <Compile Remove="Ravel.Extensions/**" />
+    <Compile Remove="Ravel.Reflect/**" />
     <Compile Remove="plugins/**" />
   </ItemGroup>
 
@@ -47,6 +48,8 @@
              Properties="Configuration=$(Configuration);IsPluginBuild=true" />
     <MSBuild Projects="Ravel.Extensions\Ravel.Extensions.csproj" Targets="Restore;Build"
              Properties="Configuration=$(Configuration);IsPluginBuild=true" />
+    <MSBuild Projects="Ravel.Reflect\Ravel.Reflect.csproj" Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);IsPluginBuild=true" />
   </Target>
 
   <!-- 拷到哪儿**分两趟**,因为平时 `build` 和 `publish -o out` 的落点不是同一个:
@@ -56,6 +59,8 @@
           Condition="'$(IsPluginBuild)' != 'true'">
     <ItemGroup>
       <PluginDll Include="Ravel.Structures/bin/$(Configuration)/net10.0/Ravel.Structures.dll" />
+      <!-- 反射插件:没有别的依赖,自己一件就够 -->
+      <PluginDll Include="Ravel.Reflect/bin/$(Configuration)/net10.0/Ravel.Reflect.dll" />
       <!-- 扩展自己那一份 + **它拖来的那几件**:`Microsoft.Data.Sqlite` 和 `SQLitePCLRaw.*`
            得跟着走 —— 那几件是它从包引用里拖来的,主项目已经不带它们了。
            **不能整个 `*.dll` 扫**:插件项目的输出里还躺着 ProjectReference 带过来的
@@ -91,6 +96,7 @@
           Condition="'$(IsPluginBuild)' != 'true'">
     <ItemGroup>
       <PluginDllP Include="Ravel.Structures/bin/$(Configuration)/net10.0/Ravel.Structures.dll" />
+      <PluginDllP Include="Ravel.Reflect/bin/$(Configuration)/net10.0/Ravel.Reflect.dll" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Ravel.Extensions.dll" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Ravel.Extensions.deps.json" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Microsoft.Data.Sqlite.dll" />

@@ -1,0 +1,93 @@
+# **反射 .NET** —— `plugins/Ravel.Reflect.dll`。
+#
+# 五个函数:`Type`（名字 → 类型）/ `New`（造）/ `Call`（调）/ `Text`（看看它什么样）/
+# `Unwrap`（脱壳）。两个类:`DotNetType` / `DotNetObject`。
+#
+# 规矩就一条:**第一个实参给 `DotNetType` 就是静态,给对象就是实例**（和 C# 一样）。
+# 重载按"参数个数 + 绑得上"挑 —— 先按个数筛,再依次试(绑不上换下一个,
+# 被调方真抛的不吞)。
+#
+# **这一份是"最基本"的**:泛型类型实参、委托方向(Ravel 函数交给 C# —— 硬边界)、
+# 字典、按参数类型逐个转,都不在里面。缺的那几种不静默:当场明说给的是什么、要的是什么。
+
+using "plugins/Ravel.Reflect.dll"
+
+# ---- 类型本身 ----
+t := Reflect.Type "System.Console"
+print (t.Name ())
+print (t.FullName ())
+
+m := Reflect.Type "System.Math"
+print (m.IsValue ())
+print (Reflect.Type "System.Int32" |> (x) => { x.IsValue (); })
+print (Reflect.Type "System.IComparable" |> (x) => { x.IsInterface (); })
+
+# ---- 静态方法:第一个实参给"类型" ----
+print (Reflect.Call m "Max" [3 7])
+print (Reflect.Call m "Sqrt" [16])
+
+# ---- 实例方法 / 属性:给"对象" ----
+print (Reflect.Call "hello" "Length" [])
+print (Reflect.Call "hello" "ToUpper" [])
+print (Reflect.Call "hello" "Contains" ["ell"])
+# **重载依次试**:`Replace` 的 `(char, char)` 排在 `(string, string)` 前面,
+# 不试就永远挑错那个
+print (Reflect.Call "3.7" "Replace" ["3" "4"])
+
+# ---- 造一个自己不认识的 .NET 对象,再接着用 ----
+sb := Reflect.New (Reflect.Type "System.Text.StringBuilder") []
+Reflect.Call sb "Append" ["hi "]
+Reflect.Call sb "Append" ["there"]
+print (Reflect.Text sb)
+print (Reflect.Call sb "Length" [])
+
+# `DateTime (int int int)` 那条也是"依次试"挑出来的(3 个参数的构造器不止一个)
+dt := Reflect.New (Reflect.Type "System.DateTime") [2026 10 7]
+print (Reflect.Call dt "ToString" ["yyyy-MM-dd"])
+print (Reflect.Text (dt.TypeOf ()))
+print (Reflect.Unwrap dt)
+
+# ---- 不认识的东西:先列出来看看 ----
+print ((dt.TypeOf ()).Members () |> .Take 4)
+print ((sb.TypeOf ()).Name ())
+
+# ---- 转不过去的时候,话要说全 ----
+try {
+    Reflect.Call "x" "Split" [","]
+} (e: Exception) => { print (e.Message.Contains "实参对不上"); }
+try {
+    Reflect.Type "查无此类.Wat"
+} (e: Exception) => { print (e.Message.Contains "找不到 .NET 类型"); }
+try {
+    Reflect.Call "abc" "NoSuchMember" []
+} (e: Exception) => { print (e.Message.Contains "没有这个名字"); }
+
+# ---- Ravel 函数交给 C#:那条硬边界 ----
+try {
+    Reflect.Call (Reflect.Type "System.Console") "WriteLine" [(x: int) => { x; }]
+} (e: Exception) => { print (e.Message.Contains "原生闭包"); }
+print "done"
+# --- expected ---
+# Console
+# System.Console
+# false
+# true
+# true
+# 7
+# 4
+# 5
+# HELLO
+# true
+# 4.7
+# hi there
+# 8
+# 2026-10-07
+# System.DateTime
+# DotNetObject 2026/10/7 0:00:00
+# [.ctor Add AddDays AddHours]
+# StringBuilder
+# true
+# true
+# true
+# true
+# done
