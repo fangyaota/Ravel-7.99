@@ -17,6 +17,10 @@
     <Compile Remove="Ravel.Structures/**" />
     <Compile Remove="Ravel.Extensions/**" />
     <Compile Remove="Ravel.Reflect/**" />
+    <!-- 生成出来的适配层(`tools/mkadaptor.rav` 写的)。同一个道理 ——
+         而且这一族还多一条:它们的 `obj/` 里那份 AssemblyInfo 要是被主项目扫进来,
+         就是一堆 CS0579「特性重复」。 -->
+    <Compile Remove="Ravel.Generated/**" />
     <Compile Remove="plugins/**" />
   </ItemGroup>
 
@@ -50,6 +54,8 @@
              Properties="Configuration=$(Configuration);IsPluginBuild=true" />
     <MSBuild Projects="Ravel.Reflect\Ravel.Reflect.csproj" Targets="Restore;Build"
              Properties="Configuration=$(Configuration);IsPluginBuild=true" />
+    <MSBuild Projects="Ravel.Generated\Ravel.Generated.csproj" Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);IsPluginBuild=true" />
   </Target>
 
   <!-- 拷到哪儿**分两趟**,因为平时 `build` 和 `publish -o out` 的落点不是同一个:
@@ -61,6 +67,8 @@
       <PluginDll Include="Ravel.Structures/bin/$(Configuration)/net10.0/Ravel.Structures.dll" />
       <!-- 反射插件:没有别的依赖,自己一件就够 -->
       <PluginDll Include="Ravel.Reflect/bin/$(Configuration)/net10.0/Ravel.Reflect.dll" />
+      <!-- 生成出来的适配层:同样没有别的依赖 -->
+      <PluginDll Include="Ravel.Generated/bin/$(Configuration)/net10.0/Ravel.Generated.dll" />
       <!-- 扩展自己那一份 + **它拖来的那几件**:`Microsoft.Data.Sqlite` 和 `SQLitePCLRaw.*`
            得跟着走 —— 那几件是它从包引用里拖来的,主项目已经不带它们了。
            **不能整个 `*.dll` 扫**:插件项目的输出里还躺着 ProjectReference 带过来的
@@ -97,6 +105,7 @@
     <ItemGroup>
       <PluginDllP Include="Ravel.Structures/bin/$(Configuration)/net10.0/Ravel.Structures.dll" />
       <PluginDllP Include="Ravel.Reflect/bin/$(Configuration)/net10.0/Ravel.Reflect.dll" />
+      <PluginDllP Include="Ravel.Generated/bin/$(Configuration)/net10.0/Ravel.Generated.dll" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Ravel.Extensions.dll" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Ravel.Extensions.deps.json" />
       <PluginDllP Include="Ravel.Extensions/bin/$(Configuration)/net10.0/Microsoft.Data.Sqlite.dll" />

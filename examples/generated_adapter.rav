@@ -1,0 +1,56 @@
+# **生成出来的适配层** —— `.rav` 一路交给 .NET，拿回来一个真 dll。
+#
+# 这条链是：
+#
+#     规格（Ravel）→ ①生成 .cs → ②编译 → ③`using` 用上
+#                     ↑                ↑
+#              tools/mkadaptor.rav   Ravel.Generated/ 那个插件项目
+#
+# 1) 生成：
+#
+#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sign Clamp Sqrt
+#     → Ravel.Generated/NMath.cs        # 一个 [RavelModule] / [RavelFn] 的插件源码
+#
+# 2) 编译：`bash build.sh` 会连它一起编（见 `Ravel.csproj` 的 `BuildPlugins`），
+#    产物落在 `out/plugins/Ravel.Generated.dll`。
+#
+# 3) 用：
+using "plugins/Ravel.Generated.dll"
+
+# 生成器挑的是 **`int` 那一族重载** —— `Math.Max` 有 11 个同名重载（decimal / double /
+# long / uint…），只有 `(int, int) -> int` 落在映射表里，所以挑中的就是它。
+print (NMath.Max 3 7)
+print (NMath.Min 3 7)
+print (NMath.Abs (0 - 5))
+print (NMath.Sign (0 - 9))
+print (NMath.Sign 9)
+print (NMath.Clamp 3 1 5)          # 三个实参的那个（值, 最小, 最大）
+print ((NMath.Max 3 7) + 1)        # 结果是个真 Ravel `int`，接着算
+
+# **被调方抛的也接得住。** 生成的代码外面套着 `PluginKit.Guarded` —— 引擎那条
+# "别让 C# 异常漏到顶层"的规矩（不兜的话会绕过 Ravel 的 `try`，直接打成"解释器内部错误"）。
+try {
+    NMath.Clamp 1 5 3;             # 最小 > 最大，`Math.Clamp` 自己要抛
+} (e: Exception) => {
+    print ("接住了：" + e.Message);
+}
+
+# ── 跟 `Reflect.Call` 那条路比一比 ──
+#
+# 同样一件事，`Reflect.Call` 是**运行期**挑重载（挨个试，绑不上就换下一个）：
+using "plugins/Ravel.Reflect.dll"
+print (Reflect.Unwrap (Reflect.Call (Reflect.Type "System.Math") "Max" [3 7]))
+
+# 生成的这条是**编译期**定死的：`Math.Max(x0, x1)` 直接写进 C#，Roslyn 早就挑好了。
+# 代价是它只认生成时挑中的那个重载 —— `NMath.Max 3.5 7.5` 会当场报类型错，
+# 而 `Reflect` 那条路能接住。
+
+# ── 生成器拒绝的东西，它也写在产物里 ──
+#
+# `Sqrt` 是 `double -> double`，映射表里没有 `double`（v0 只有 `int` / `string` / `void`），
+# 于是 `Ravel.Generated/NMath.cs` 里留着一行：
+#
+#     // 跳过 Sqrt：没有能映射的重载（同名静态方法 1 个，0 个类型认得出，1 个被筛掉）
+#
+# **挑不中就明说，不猜** —— 猜错比不生成难查得多。
+print "生成出来的适配层跑通了"

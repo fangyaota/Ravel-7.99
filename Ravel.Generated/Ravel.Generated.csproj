@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- **生成出来的适配层**。里面的 `.cs` 全是 `tools/mkadaptor.rav` 写出来的 ——
+       别手改（要改行为改生成器；要改某一份就把它挪出去）。
+
+       一个项目装**所有**适配层:加一个新适配器 = 多一个 `.cs`,不用动这里。
+       每个 `.cs` 自带 `[RavelModule("…")]`，模块名互不相干。
+
+       和 Structures / Extensions / Reflect 一样是个插件 dll —— 主项目不引用它，
+       运行时 `using "plugins/Ravel.Generated.dll"` 装进来。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Ravel.Generated</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ravel.csproj" />
+  </ItemGroup>
+
+</Project>
