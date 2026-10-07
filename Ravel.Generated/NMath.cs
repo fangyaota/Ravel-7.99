@@ -13,22 +13,172 @@ internal static class NMathAdaptor
     [RavelFn("Max")]
     public static RuntimeValue Max (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NMath.Max", () => IntVal.Of (System.Math.Max (PluginKit.Int (x0, "NMath.Max 的第 1 个实参"), PluginKit.Int (x1, "NMath.Max 的第 2 个实参"))));
+    [RavelFn("Max_2")]
+    public static RuntimeValue Max_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Narrow (System.Math.Max (PluginKit.Long (x0, "NMath.Max 的第 1 个实参"), PluginKit.Long (x1, "NMath.Max 的第 2 个实参"))));
+    [RavelFn("Max_3")]
+    public static RuntimeValue Max_3 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => new RealVal (System.Math.Max (PluginKit.Num (x0, "NMath.Max 的第 1 个实参"), PluginKit.Num (x1, "NMath.Max 的第 2 个实参"))));
+    [RavelFn("Max_4")]
+    public static RuntimeValue Max_4 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => new RealVal (System.Math.Max ((float)PluginKit.Num (x0, "NMath.Max 的第 1 个实参"), (float)PluginKit.Num (x1, "NMath.Max 的第 2 个实参"))));
+    [RavelFn("Max_5")]
+    public static RuntimeValue Max_5 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.Byte) PluginKit.ToObject (x0, typeof (System.Byte), "NMath.Max 的第 1 个实参"), (System.Byte) PluginKit.ToObject (x1, typeof (System.Byte), "NMath.Max 的第 2 个实参")), "Byte"));
+    [RavelFn("Max_6")]
+    public static RuntimeValue Max_6 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Max 的第 1 个实参"), (System.Decimal) PluginKit.ToObject (x1, typeof (System.Decimal), "NMath.Max 的第 2 个实参")), "Decimal"));
+    [RavelFn("Max_7")]
+    public static RuntimeValue Max_7 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.Int16) PluginKit.ToObject (x0, typeof (System.Int16), "NMath.Max 的第 1 个实参"), (System.Int16) PluginKit.ToObject (x1, typeof (System.Int16), "NMath.Max 的第 2 个实参")), "Int16"));
+    [RavelFn("Max_8")]
+    public static RuntimeValue Max_8 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.IntPtr) PluginKit.ToObject (x0, typeof (System.IntPtr), "NMath.Max 的第 1 个实参"), (System.IntPtr) PluginKit.ToObject (x1, typeof (System.IntPtr), "NMath.Max 的第 2 个实参")), "IntPtr"));
+    [RavelFn("Max_9")]
+    public static RuntimeValue Max_9 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.SByte) PluginKit.ToObject (x0, typeof (System.SByte), "NMath.Max 的第 1 个实参"), (System.SByte) PluginKit.ToObject (x1, typeof (System.SByte), "NMath.Max 的第 2 个实参")), "SByte"));
+    [RavelFn("Max_10")]
+    public static RuntimeValue Max_10 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.UInt16) PluginKit.ToObject (x0, typeof (System.UInt16), "NMath.Max 的第 1 个实参"), (System.UInt16) PluginKit.ToObject (x1, typeof (System.UInt16), "NMath.Max 的第 2 个实参")), "UInt16"));
+    [RavelFn("Max_11")]
+    public static RuntimeValue Max_11 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.UInt32) PluginKit.ToObject (x0, typeof (System.UInt32), "NMath.Max 的第 1 个实参"), (System.UInt32) PluginKit.ToObject (x1, typeof (System.UInt32), "NMath.Max 的第 2 个实参")), "UInt32"));
+    [RavelFn("Max_12")]
+    public static RuntimeValue Max_12 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.UInt64) PluginKit.ToObject (x0, typeof (System.UInt64), "NMath.Max 的第 1 个实参"), (System.UInt64) PluginKit.ToObject (x1, typeof (System.UInt64), "NMath.Max 的第 2 个实参")), "UInt64"));
+    [RavelFn("Max_13")]
+    public static RuntimeValue Max_13 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Max", () => PluginKit.Wrap (System.Math.Max ((System.UIntPtr) PluginKit.ToObject (x0, typeof (System.UIntPtr), "NMath.Max 的第 1 个实参"), (System.UIntPtr) PluginKit.ToObject (x1, typeof (System.UIntPtr), "NMath.Max 的第 2 个实参")), "UIntPtr"));
 
     [RavelFn("Min")]
     public static RuntimeValue Min (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NMath.Min", () => IntVal.Of (System.Math.Min (PluginKit.Int (x0, "NMath.Min 的第 1 个实参"), PluginKit.Int (x1, "NMath.Min 的第 2 个实参"))));
+    [RavelFn("Min_2")]
+    public static RuntimeValue Min_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Narrow (System.Math.Min (PluginKit.Long (x0, "NMath.Min 的第 1 个实参"), PluginKit.Long (x1, "NMath.Min 的第 2 个实参"))));
+    [RavelFn("Min_3")]
+    public static RuntimeValue Min_3 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => new RealVal (System.Math.Min (PluginKit.Num (x0, "NMath.Min 的第 1 个实参"), PluginKit.Num (x1, "NMath.Min 的第 2 个实参"))));
+    [RavelFn("Min_4")]
+    public static RuntimeValue Min_4 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => new RealVal (System.Math.Min ((float)PluginKit.Num (x0, "NMath.Min 的第 1 个实参"), (float)PluginKit.Num (x1, "NMath.Min 的第 2 个实参"))));
+    [RavelFn("Min_5")]
+    public static RuntimeValue Min_5 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.Byte) PluginKit.ToObject (x0, typeof (System.Byte), "NMath.Min 的第 1 个实参"), (System.Byte) PluginKit.ToObject (x1, typeof (System.Byte), "NMath.Min 的第 2 个实参")), "Byte"));
+    [RavelFn("Min_6")]
+    public static RuntimeValue Min_6 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Min 的第 1 个实参"), (System.Decimal) PluginKit.ToObject (x1, typeof (System.Decimal), "NMath.Min 的第 2 个实参")), "Decimal"));
+    [RavelFn("Min_7")]
+    public static RuntimeValue Min_7 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.Int16) PluginKit.ToObject (x0, typeof (System.Int16), "NMath.Min 的第 1 个实参"), (System.Int16) PluginKit.ToObject (x1, typeof (System.Int16), "NMath.Min 的第 2 个实参")), "Int16"));
+    [RavelFn("Min_8")]
+    public static RuntimeValue Min_8 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.IntPtr) PluginKit.ToObject (x0, typeof (System.IntPtr), "NMath.Min 的第 1 个实参"), (System.IntPtr) PluginKit.ToObject (x1, typeof (System.IntPtr), "NMath.Min 的第 2 个实参")), "IntPtr"));
+    [RavelFn("Min_9")]
+    public static RuntimeValue Min_9 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.SByte) PluginKit.ToObject (x0, typeof (System.SByte), "NMath.Min 的第 1 个实参"), (System.SByte) PluginKit.ToObject (x1, typeof (System.SByte), "NMath.Min 的第 2 个实参")), "SByte"));
+    [RavelFn("Min_10")]
+    public static RuntimeValue Min_10 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.UInt16) PluginKit.ToObject (x0, typeof (System.UInt16), "NMath.Min 的第 1 个实参"), (System.UInt16) PluginKit.ToObject (x1, typeof (System.UInt16), "NMath.Min 的第 2 个实参")), "UInt16"));
+    [RavelFn("Min_11")]
+    public static RuntimeValue Min_11 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.UInt32) PluginKit.ToObject (x0, typeof (System.UInt32), "NMath.Min 的第 1 个实参"), (System.UInt32) PluginKit.ToObject (x1, typeof (System.UInt32), "NMath.Min 的第 2 个实参")), "UInt32"));
+    [RavelFn("Min_12")]
+    public static RuntimeValue Min_12 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.UInt64) PluginKit.ToObject (x0, typeof (System.UInt64), "NMath.Min 的第 1 个实参"), (System.UInt64) PluginKit.ToObject (x1, typeof (System.UInt64), "NMath.Min 的第 2 个实参")), "UInt64"));
+    [RavelFn("Min_13")]
+    public static RuntimeValue Min_13 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Min", () => PluginKit.Wrap (System.Math.Min ((System.UIntPtr) PluginKit.ToObject (x0, typeof (System.UIntPtr), "NMath.Min 的第 1 个实参"), (System.UIntPtr) PluginKit.ToObject (x1, typeof (System.UIntPtr), "NMath.Min 的第 2 个实参")), "UIntPtr"));
 
     [RavelFn("Abs")]
     public static RuntimeValue Abs (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Abs", () => IntVal.Of (System.Math.Abs (PluginKit.Int (x0, "NMath.Abs 的第 1 个实参"))));
+    [RavelFn("Abs_2")]
+    public static RuntimeValue Abs_2 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => PluginKit.Narrow (System.Math.Abs (PluginKit.Long (x0, "NMath.Abs 的第 1 个实参"))));
+    [RavelFn("Abs_3")]
+    public static RuntimeValue Abs_3 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => new RealVal (System.Math.Abs (PluginKit.Num (x0, "NMath.Abs 的第 1 个实参"))));
+    [RavelFn("Abs_4")]
+    public static RuntimeValue Abs_4 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => new RealVal (System.Math.Abs ((float)PluginKit.Num (x0, "NMath.Abs 的第 1 个实参"))));
+    [RavelFn("Abs_5")]
+    public static RuntimeValue Abs_5 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => PluginKit.Wrap (System.Math.Abs ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Abs 的第 1 个实参")), "Decimal"));
+    [RavelFn("Abs_6")]
+    public static RuntimeValue Abs_6 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => PluginKit.Wrap (System.Math.Abs ((System.Int16) PluginKit.ToObject (x0, typeof (System.Int16), "NMath.Abs 的第 1 个实参")), "Int16"));
+    [RavelFn("Abs_7")]
+    public static RuntimeValue Abs_7 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => PluginKit.Wrap (System.Math.Abs ((System.IntPtr) PluginKit.ToObject (x0, typeof (System.IntPtr), "NMath.Abs 的第 1 个实参")), "IntPtr"));
+    [RavelFn("Abs_8")]
+    public static RuntimeValue Abs_8 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Abs", () => PluginKit.Wrap (System.Math.Abs ((System.SByte) PluginKit.ToObject (x0, typeof (System.SByte), "NMath.Abs 的第 1 个实参")), "SByte"));
 
     [RavelFn("Sign")]
     public static RuntimeValue Sign (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign (PluginKit.Int (x0, "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_2")]
+    public static RuntimeValue Sign_2 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign (PluginKit.Long (x0, "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_3")]
+    public static RuntimeValue Sign_3 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign (PluginKit.Num (x0, "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_4")]
+    public static RuntimeValue Sign_4 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign ((float)PluginKit.Num (x0, "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_5")]
+    public static RuntimeValue Sign_5 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_6")]
+    public static RuntimeValue Sign_6 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign ((System.Int16) PluginKit.ToObject (x0, typeof (System.Int16), "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_7")]
+    public static RuntimeValue Sign_7 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign ((System.IntPtr) PluginKit.ToObject (x0, typeof (System.IntPtr), "NMath.Sign 的第 1 个实参"))));
+    [RavelFn("Sign_8")]
+    public static RuntimeValue Sign_8 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign ((System.SByte) PluginKit.ToObject (x0, typeof (System.SByte), "NMath.Sign 的第 1 个实参"))));
 
     [RavelFn("Clamp")]
     public static RuntimeValue Clamp (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
         => PluginKit.Guarded ("NMath.Clamp", () => IntVal.Of (System.Math.Clamp (PluginKit.Int (x0, "NMath.Clamp 的第 1 个实参"), PluginKit.Int (x1, "NMath.Clamp 的第 2 个实参"), PluginKit.Int (x2, "NMath.Clamp 的第 3 个实参"))));
+    [RavelFn("Clamp_2")]
+    public static RuntimeValue Clamp_2 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Narrow (System.Math.Clamp (PluginKit.Long (x0, "NMath.Clamp 的第 1 个实参"), PluginKit.Long (x1, "NMath.Clamp 的第 2 个实参"), PluginKit.Long (x2, "NMath.Clamp 的第 3 个实参"))));
+    [RavelFn("Clamp_3")]
+    public static RuntimeValue Clamp_3 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => new RealVal (System.Math.Clamp (PluginKit.Num (x0, "NMath.Clamp 的第 1 个实参"), PluginKit.Num (x1, "NMath.Clamp 的第 2 个实参"), PluginKit.Num (x2, "NMath.Clamp 的第 3 个实参"))));
+    [RavelFn("Clamp_4")]
+    public static RuntimeValue Clamp_4 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => new RealVal (System.Math.Clamp ((float)PluginKit.Num (x0, "NMath.Clamp 的第 1 个实参"), (float)PluginKit.Num (x1, "NMath.Clamp 的第 2 个实参"), (float)PluginKit.Num (x2, "NMath.Clamp 的第 3 个实参"))));
+    [RavelFn("Clamp_5")]
+    public static RuntimeValue Clamp_5 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.Byte) PluginKit.ToObject (x0, typeof (System.Byte), "NMath.Clamp 的第 1 个实参"), (System.Byte) PluginKit.ToObject (x1, typeof (System.Byte), "NMath.Clamp 的第 2 个实参"), (System.Byte) PluginKit.ToObject (x2, typeof (System.Byte), "NMath.Clamp 的第 3 个实参")), "Byte"));
+    [RavelFn("Clamp_6")]
+    public static RuntimeValue Clamp_6 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Clamp 的第 1 个实参"), (System.Decimal) PluginKit.ToObject (x1, typeof (System.Decimal), "NMath.Clamp 的第 2 个实参"), (System.Decimal) PluginKit.ToObject (x2, typeof (System.Decimal), "NMath.Clamp 的第 3 个实参")), "Decimal"));
+    [RavelFn("Clamp_7")]
+    public static RuntimeValue Clamp_7 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.Int16) PluginKit.ToObject (x0, typeof (System.Int16), "NMath.Clamp 的第 1 个实参"), (System.Int16) PluginKit.ToObject (x1, typeof (System.Int16), "NMath.Clamp 的第 2 个实参"), (System.Int16) PluginKit.ToObject (x2, typeof (System.Int16), "NMath.Clamp 的第 3 个实参")), "Int16"));
+    [RavelFn("Clamp_8")]
+    public static RuntimeValue Clamp_8 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.IntPtr) PluginKit.ToObject (x0, typeof (System.IntPtr), "NMath.Clamp 的第 1 个实参"), (System.IntPtr) PluginKit.ToObject (x1, typeof (System.IntPtr), "NMath.Clamp 的第 2 个实参"), (System.IntPtr) PluginKit.ToObject (x2, typeof (System.IntPtr), "NMath.Clamp 的第 3 个实参")), "IntPtr"));
+    [RavelFn("Clamp_9")]
+    public static RuntimeValue Clamp_9 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.SByte) PluginKit.ToObject (x0, typeof (System.SByte), "NMath.Clamp 的第 1 个实参"), (System.SByte) PluginKit.ToObject (x1, typeof (System.SByte), "NMath.Clamp 的第 2 个实参"), (System.SByte) PluginKit.ToObject (x2, typeof (System.SByte), "NMath.Clamp 的第 3 个实参")), "SByte"));
+    [RavelFn("Clamp_10")]
+    public static RuntimeValue Clamp_10 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.UInt16) PluginKit.ToObject (x0, typeof (System.UInt16), "NMath.Clamp 的第 1 个实参"), (System.UInt16) PluginKit.ToObject (x1, typeof (System.UInt16), "NMath.Clamp 的第 2 个实参"), (System.UInt16) PluginKit.ToObject (x2, typeof (System.UInt16), "NMath.Clamp 的第 3 个实参")), "UInt16"));
+    [RavelFn("Clamp_11")]
+    public static RuntimeValue Clamp_11 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.UInt32) PluginKit.ToObject (x0, typeof (System.UInt32), "NMath.Clamp 的第 1 个实参"), (System.UInt32) PluginKit.ToObject (x1, typeof (System.UInt32), "NMath.Clamp 的第 2 个实参"), (System.UInt32) PluginKit.ToObject (x2, typeof (System.UInt32), "NMath.Clamp 的第 3 个实参")), "UInt32"));
+    [RavelFn("Clamp_12")]
+    public static RuntimeValue Clamp_12 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.UInt64) PluginKit.ToObject (x0, typeof (System.UInt64), "NMath.Clamp 的第 1 个实参"), (System.UInt64) PluginKit.ToObject (x1, typeof (System.UInt64), "NMath.Clamp 的第 2 个实参"), (System.UInt64) PluginKit.ToObject (x2, typeof (System.UInt64), "NMath.Clamp 的第 3 个实参")), "UInt64"));
+    [RavelFn("Clamp_13")]
+    public static RuntimeValue Clamp_13 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Clamp", () => PluginKit.Wrap (System.Math.Clamp ((System.UIntPtr) PluginKit.ToObject (x0, typeof (System.UIntPtr), "NMath.Clamp 的第 1 个实参"), (System.UIntPtr) PluginKit.ToObject (x1, typeof (System.UIntPtr), "NMath.Clamp 的第 2 个实参"), (System.UIntPtr) PluginKit.ToObject (x2, typeof (System.UIntPtr), "NMath.Clamp 的第 3 个实参")), "UIntPtr"));
 
     [RavelFn("Sqrt")]
     public static RuntimeValue Sqrt (RuntimeValue x0)
@@ -49,14 +199,41 @@ internal static class NMathAdaptor
     [RavelFn("Floor")]
     public static RuntimeValue Floor (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Floor", () => new RealVal (System.Math.Floor (PluginKit.Num (x0, "NMath.Floor 的第 1 个实参"))));
+    [RavelFn("Floor_2")]
+    public static RuntimeValue Floor_2 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Floor", () => PluginKit.Wrap (System.Math.Floor ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Floor 的第 1 个实参")), "Decimal"));
 
     [RavelFn("Ceiling")]
     public static RuntimeValue Ceiling (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Ceiling", () => new RealVal (System.Math.Ceiling (PluginKit.Num (x0, "NMath.Ceiling 的第 1 个实参"))));
+    [RavelFn("Ceiling_2")]
+    public static RuntimeValue Ceiling_2 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Ceiling", () => PluginKit.Wrap (System.Math.Ceiling ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Ceiling 的第 1 个实参")), "Decimal"));
 
     [RavelFn("Round")]
     public static RuntimeValue Round (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Round", () => new RealVal (System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参"))));
+    [RavelFn("Round_2")]
+    public static RuntimeValue Round_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Round", () => new RealVal (System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参"), PluginKit.Int (x1, "NMath.Round 的第 2 个实参"))));
+    [RavelFn("Round_3")]
+    public static RuntimeValue Round_3 (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Round", () => PluginKit.Wrap (System.Math.Round ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Round 的第 1 个实参")), "Decimal"));
+    [RavelFn("Round_4")]
+    public static RuntimeValue Round_4 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Round", () => new RealVal (System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参"), (System.MidpointRounding) PluginKit.ToObject (x1, typeof (System.MidpointRounding), "NMath.Round 的第 2 个实参"))));
+    [RavelFn("Round_5")]
+    public static RuntimeValue Round_5 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Round", () => PluginKit.Wrap (System.Math.Round ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Round 的第 1 个实参"), PluginKit.Int (x1, "NMath.Round 的第 2 个实参")), "Decimal"));
+    [RavelFn("Round_6")]
+    public static RuntimeValue Round_6 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Round", () => new RealVal (System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参"), PluginKit.Int (x1, "NMath.Round 的第 2 个实参"), (System.MidpointRounding) PluginKit.ToObject (x2, typeof (System.MidpointRounding), "NMath.Round 的第 3 个实参"))));
+    [RavelFn("Round_7")]
+    public static RuntimeValue Round_7 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Round", () => PluginKit.Wrap (System.Math.Round ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Round 的第 1 个实参"), (System.MidpointRounding) PluginKit.ToObject (x1, typeof (System.MidpointRounding), "NMath.Round 的第 2 个实参")), "Decimal"));
+    [RavelFn("Round_8")]
+    public static RuntimeValue Round_8 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NMath.Round", () => PluginKit.Wrap (System.Math.Round ((System.Decimal) PluginKit.ToObject (x0, typeof (System.Decimal), "NMath.Round 的第 1 个实参"), PluginKit.Int (x1, "NMath.Round 的第 2 个实参"), (System.MidpointRounding) PluginKit.ToObject (x2, typeof (System.MidpointRounding), "NMath.Round 的第 3 个实参")), "Decimal"));
 
     [RavelFn("Exp")]
     public static RuntimeValue Exp (RuntimeValue x0)
@@ -65,9 +242,21 @@ internal static class NMathAdaptor
     [RavelFn("Log")]
     public static RuntimeValue Log (RuntimeValue x0)
         => PluginKit.Guarded ("NMath.Log", () => new RealVal (System.Math.Log (PluginKit.Num (x0, "NMath.Log 的第 1 个实参"))));
+    [RavelFn("Log_2")]
+    public static RuntimeValue Log_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Log", () => new RealVal (System.Math.Log (PluginKit.Num (x0, "NMath.Log 的第 1 个实参"), PluginKit.Num (x1, "NMath.Log 的第 2 个实参"))));
 
     [RavelFn("BigMul")]
     public static RuntimeValue BigMul (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Narrow (System.Math.BigMul (PluginKit.Int (x0, "NMath.BigMul 的第 1 个实参"), PluginKit.Int (x1, "NMath.BigMul 的第 2 个实参"))));
+    [RavelFn("BigMul_2")]
+    public static RuntimeValue BigMul_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Wrap (System.Math.BigMul (PluginKit.Long (x0, "NMath.BigMul 的第 1 个实参"), PluginKit.Long (x1, "NMath.BigMul 的第 2 个实参")), "Int128"));
+    [RavelFn("BigMul_3")]
+    public static RuntimeValue BigMul_3 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Wrap (System.Math.BigMul ((System.UInt32) PluginKit.ToObject (x0, typeof (System.UInt32), "NMath.BigMul 的第 1 个实参"), (System.UInt32) PluginKit.ToObject (x1, typeof (System.UInt32), "NMath.BigMul 的第 2 个实参")), "UInt64"));
+    [RavelFn("BigMul_4")]
+    public static RuntimeValue BigMul_4 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Wrap (System.Math.BigMul ((System.UInt64) PluginKit.ToObject (x0, typeof (System.UInt64), "NMath.BigMul 的第 1 个实参"), (System.UInt64) PluginKit.ToObject (x1, typeof (System.UInt64), "NMath.BigMul 的第 2 个实参")), "UInt128"));
 
 }

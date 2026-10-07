@@ -17,18 +17,72 @@ internal static class NStrAdaptor
     [RavelFn("Concat")]
     public static RuntimeValue Concat (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.Text (x0, "NStr.Concat 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Concat 的第 2 个实参").Value)));
+    [RavelFn("Concat_2")]
+    public static RuntimeValue Concat_2 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.Text (x0, "NStr.Concat 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Concat 的第 2 个实参").Value, PluginKit.Text (x2, "NStr.Concat 的第 3 个实参").Value)));
+    [RavelFn("Concat_3")]
+    public static RuntimeValue Concat_3 (RuntimeValue x0)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.Strs (x0, "NStr.Concat 的第 1 个实参"))));
+    [RavelFn("Concat_4")]
+    public static RuntimeValue Concat_4 (RuntimeValue x0)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.ToNet (x0))));
+    [RavelFn("Concat_5")]
+    public static RuntimeValue Concat_5 (RuntimeValue x0)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat ((System.Collections.Generic.IEnumerable<System.String>) PluginKit.ToObject (x0, typeof (System.Collections.Generic.IEnumerable<System.String>), "NStr.Concat 的第 1 个实参"))));
+    [RavelFn("Concat_6")]
+    public static RuntimeValue Concat_6 (RuntimeValue x0)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat ((System.Object[]) PluginKit.ToObject (x0, typeof (System.Object[]), "NStr.Concat 的第 1 个实参"))));
+    [RavelFn("Concat_7")]
+    public static RuntimeValue Concat_7 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.ToNet (x0), PluginKit.ToNet (x1))));
+    [RavelFn("Concat_8")]
+    public static RuntimeValue Concat_8 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.ToNet (x0), PluginKit.ToNet (x1), PluginKit.ToNet (x2))));
 
     [RavelFn("Compare")]
     public static RuntimeValue Compare (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NStr.Compare", () => IntVal.Of (System.String.Compare (PluginKit.Text (x0, "NStr.Compare 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Compare 的第 2 个实参").Value)));
+    [RavelFn("Compare_2")]
+    public static RuntimeValue Compare_2 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Compare", () => IntVal.Of (System.String.Compare (PluginKit.Text (x0, "NStr.Compare 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Compare 的第 2 个实参").Value, PluginKit.Bool (x2, "NStr.Compare 的第 3 个实参"))));
+    [RavelFn("Compare_3")]
+    public static RuntimeValue Compare_3 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Compare", () => IntVal.Of (System.String.Compare (PluginKit.Text (x0, "NStr.Compare 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Compare 的第 2 个实参").Value, (System.StringComparison) PluginKit.ToObject (x2, typeof (System.StringComparison), "NStr.Compare 的第 3 个实参"))));
 
     [RavelFn("Join")]
     public static RuntimeValue Join (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NStr.Join", () => new StringVal (System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, PluginKit.Strs (x1, "NStr.Join 的第 2 个实参"))));
+    [RavelFn("Join_2")]
+    public static RuntimeValue Join_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Join", () => new StringVal (System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, (System.Collections.Generic.IEnumerable<System.String>) PluginKit.ToObject (x1, typeof (System.Collections.Generic.IEnumerable<System.String>), "NStr.Join 的第 2 个实参"))));
+    [RavelFn("Join_3")]
+    public static RuntimeValue Join_3 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Join", () => new StringVal (System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, (System.Object[]) PluginKit.ToObject (x1, typeof (System.Object[]), "NStr.Join 的第 2 个实参"))));
+    [RavelFn("Join_4")]
+    public static RuntimeValue Join_4 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Join", () => new StringVal (System.String.Join (PluginKit.Char (x0, "NStr.Join 的第 1 个实参"), PluginKit.Strs (x1, "NStr.Join 的第 2 个实参"))));
+    [RavelFn("Join_5")]
+    public static RuntimeValue Join_5 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Join", () => new StringVal (System.String.Join (PluginKit.Char (x0, "NStr.Join 的第 1 个实参"), (System.Object[]) PluginKit.ToObject (x1, typeof (System.Object[]), "NStr.Join 的第 2 个实参"))));
 
     [RavelFn("Format")]
     public static RuntimeValue Format (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format (PluginKit.Text (x0, "NStr.Format 的第 1 个实参").Value, PluginKit.ToNet (x1))));
+    [RavelFn("Format_2")]
+    public static RuntimeValue Format_2 (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format (PluginKit.Text (x0, "NStr.Format 的第 1 个实参").Value, (System.Object[]) PluginKit.ToObject (x1, typeof (System.Object[]), "NStr.Format 的第 2 个实参"))));
+    [RavelFn("Format_3")]
+    public static RuntimeValue Format_3 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format (PluginKit.Text (x0, "NStr.Format 的第 1 个实参").Value, PluginKit.ToNet (x1), PluginKit.ToNet (x2))));
+    [RavelFn("Format_4")]
+    public static RuntimeValue Format_4 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format ((System.IFormatProvider) PluginKit.ToObject (x0, typeof (System.IFormatProvider), "NStr.Format 的第 1 个实参"), PluginKit.Text (x1, "NStr.Format 的第 2 个实参").Value, PluginKit.ToNet (x2))));
+    [RavelFn("Format_5")]
+    public static RuntimeValue Format_5 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format ((System.IFormatProvider) PluginKit.ToObject (x0, typeof (System.IFormatProvider), "NStr.Format 的第 1 个实参"), PluginKit.Text (x1, "NStr.Format 的第 2 个实参").Value, (System.Object[]) PluginKit.ToObject (x2, typeof (System.Object[]), "NStr.Format 的第 3 个实参"))));
+    [RavelFn("Format_6")]
+    public static RuntimeValue Format_6 (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format ((System.IFormatProvider) PluginKit.ToObject (x0, typeof (System.IFormatProvider), "NStr.Format 的第 1 个实参"), (System.Text.CompositeFormat) PluginKit.ToObject (x1, typeof (System.Text.CompositeFormat), "NStr.Format 的第 2 个实参"), (System.Object[]) PluginKit.ToObject (x2, typeof (System.Object[]), "NStr.Format 的第 3 个实参"))));
 
     [RavelFn("Intern")]
     public static RuntimeValue Intern (RuntimeValue x0)

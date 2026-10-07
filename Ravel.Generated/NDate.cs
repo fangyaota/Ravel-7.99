@@ -64,16 +64,31 @@ internal static class DateTimeAdaptor
     [ClassMethod("CompareTo")]
     public static RuntimeValue CompareTo (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NDate.CompareTo", () => IntVal.Of (Me (self).CompareTo (PluginKit.ToNet (x0))));
+    [ClassMethod("CompareTo_2")]
+    public static RuntimeValue CompareTo_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.CompareTo", () => IntVal.Of (Me (self).CompareTo ((System.DateTime) PluginKit.ToObject (x0, typeof (System.DateTime), "NDate.CompareTo 的第 1 个实参"))));
 
     // 跳过 Deconstruct：值类型上返回 void 的就是**改原地**的方法 ——改的是装箱那份副本，白做
 
     [ClassMethod("Equals")]
     public static RuntimeValue Equals (RuntimeValue self, RuntimeValue x0)
         => PluginKit.Guarded ("NDate.Equals", () => new BoolVal (Me (self).Equals (PluginKit.ToNet (x0))));
+    [ClassMethod("Equals_2")]
+    public static RuntimeValue Equals_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.Equals", () => new BoolVal (Me (self).Equals ((System.DateTime) PluginKit.ToObject (x0, typeof (System.DateTime), "NDate.Equals 的第 1 个实参"))));
 
     [ClassMethod("GetDateTimeFormats")]
     public static RuntimeValue GetDateTimeFormats (RuntimeValue self)
         => PluginKit.Guarded ("NDate.GetDateTimeFormats", () => PluginKit.ToRavel (Me (self).GetDateTimeFormats ()));
+    [ClassMethod("GetDateTimeFormats_2")]
+    public static RuntimeValue GetDateTimeFormats_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.GetDateTimeFormats", () => PluginKit.ToRavel (Me (self).GetDateTimeFormats (PluginKit.Char (x0, "NDate.GetDateTimeFormats 的第 1 个实参"))));
+    [ClassMethod("GetDateTimeFormats_3")]
+    public static RuntimeValue GetDateTimeFormats_3 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.GetDateTimeFormats", () => PluginKit.ToRavel (Me (self).GetDateTimeFormats ((System.IFormatProvider) PluginKit.ToObject (x0, typeof (System.IFormatProvider), "NDate.GetDateTimeFormats 的第 1 个实参"))));
+    [ClassMethod("GetDateTimeFormats_4")]
+    public static RuntimeValue GetDateTimeFormats_4 (RuntimeValue self, RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NDate.GetDateTimeFormats", () => PluginKit.ToRavel (Me (self).GetDateTimeFormats (PluginKit.Char (x0, "NDate.GetDateTimeFormats 的第 1 个实参"), (System.IFormatProvider) PluginKit.ToObject (x1, typeof (System.IFormatProvider), "NDate.GetDateTimeFormats 的第 2 个实参"))));
 
     [ClassMethod("GetHashCode")]
     public static RuntimeValue GetHashCode (RuntimeValue self)
@@ -81,11 +96,11 @@ internal static class DateTimeAdaptor
 
     [ClassMethod("GetType")]
     public static RuntimeValue GetType (RuntimeValue self)
-        => PluginKit.Guarded ("NDate.GetType", () => PluginKit.ToRavel (Me (self).GetType ()));
+        => PluginKit.Guarded ("NDate.GetType", () => PluginKit.Wrap (Me (self).GetType (), "Type"));
 
     [ClassMethod("GetTypeCode")]
     public static RuntimeValue GetTypeCode (RuntimeValue self)
-        => PluginKit.Guarded ("NDate.GetTypeCode", () => PluginKit.ToRavel (Me (self).GetTypeCode ()));
+        => PluginKit.Guarded ("NDate.GetTypeCode", () => PluginKit.Wrap (Me (self).GetTypeCode (), "TypeCode"));
 
     [ClassMethod("IsDaylightSavingTime")]
     public static RuntimeValue IsDaylightSavingTime (RuntimeValue self)
@@ -93,7 +108,10 @@ internal static class DateTimeAdaptor
 
     [ClassMethod("Subtract")]
     public static RuntimeValue Subtract (RuntimeValue self, RuntimeValue x0)
-        => PluginKit.Guarded ("NDate.Subtract", () => PluginKit.ToRavel (Me (self).Subtract ((System.DateTime) PluginKit.ToObject (x0, typeof (System.DateTime), "NDate.Subtract 的第 1 个实参"))));
+        => PluginKit.Guarded ("NDate.Subtract", () => PluginKit.Wrap (Me (self).Subtract ((System.DateTime) PluginKit.ToObject (x0, typeof (System.DateTime), "NDate.Subtract 的第 1 个实参")), "TimeSpan"));
+    [ClassMethod("Subtract_2")]
+    public static RuntimeValue Subtract_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.Subtract", () => new DotNetVal (Me (self).Subtract ((System.TimeSpan) PluginKit.ToObject (x0, typeof (System.TimeSpan), "NDate.Subtract 的第 1 个实参")), PluginKit.ClassOf ("DateTime")));
 
     [ClassMethod("ToBinary")]
     public static RuntimeValue ToBinary (RuntimeValue self)
@@ -134,11 +152,20 @@ internal static class DateTimeAdaptor
     [ClassMethod("ToString")]
     public static RuntimeValue ToString (RuntimeValue self)
         => PluginKit.Guarded ("NDate.ToString", () => new StringVal (Me (self).ToString ()));
+    [ClassMethod("ToString_2")]
+    public static RuntimeValue ToString_2 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.ToString", () => new StringVal (Me (self).ToString (PluginKit.Text (x0, "NDate.ToString 的第 1 个实参").Value)));
+    [ClassMethod("ToString_3")]
+    public static RuntimeValue ToString_3 (RuntimeValue self, RuntimeValue x0)
+        => PluginKit.Guarded ("NDate.ToString", () => new StringVal (Me (self).ToString ((System.IFormatProvider) PluginKit.ToObject (x0, typeof (System.IFormatProvider), "NDate.ToString 的第 1 个实参"))));
+    [ClassMethod("ToString_4")]
+    public static RuntimeValue ToString_4 (RuntimeValue self, RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NDate.ToString", () => new StringVal (Me (self).ToString (PluginKit.Text (x0, "NDate.ToString 的第 1 个实参").Value, (System.IFormatProvider) PluginKit.ToObject (x1, typeof (System.IFormatProvider), "NDate.ToString 的第 2 个实参"))));
 
     [ClassMethod("ToUniversalTime")]
     public static RuntimeValue ToUniversalTime (RuntimeValue self)
         => PluginKit.Guarded ("NDate.ToUniversalTime", () => new DotNetVal (Me (self).ToUniversalTime (), PluginKit.ClassOf ("DateTime")));
 
-    // 跳过 TryFormat：挑中的那个签名是 Span`1,Int32&,ReadOnlySpan`1,IFormatProvider -> Boolean，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 2 个 / 实例 2 个）
+    // 跳过 TryFormat：值类型上返回 void 的就是**改原地**的方法 ——改的是装箱那份副本，白做
 
 }

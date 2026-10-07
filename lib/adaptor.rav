@@ -300,29 +300,38 @@ readonly private CallThen := (call: string value: string) => {
 readonly private Wrapped := (rt: string body: string) => {
     rt == "Void" { CallThen body "PluginKit.Void"; } {
         mk := MakerOf rt body
-        # **返回值表里没有的**（`String[]` 那种也算 —— 造值那张表只有标量）：
-        # 交给 `PluginKit.ToRavel` —— 认识的就化（**数组也化成 `list`**），
-        # 不认识的兜成 `DotNetObject`。比"整个跳过"好，也比兜成 `DotNetObject` 强
-        # （`string[]` 化出来的是能直接 `.Map` 的 `list`）。
-        mk == "?" { "() => PluginKit.ToRavel (" + body + ")"; } { "() => " + mk; }
+        # **返回值表里没有的**（造值那张表只有标量），分两种：
+        #
+        # * **数组**（`String[]`）→ `PluginKit.ToRavel`：化成 `list`，能直接 `.Map` ✓
+        # * **别的类型** → `PluginKit.Wrap (值, "短名")`：**问一声有没有对应的 Ravel 类** ——
+        #   调用方为那个类型生成过适配器就包成它（那一族方法才够得着），没有就
+        #   `DotNetObject`。`DateTime.Subtract` 交回 `TimeSpan` 就是这一档。
+        mk == "?" {
+            rt.EndsWith "[]" { "() => PluginKit.ToRavel (" + body + ")"; } {
+                "() => PluginKit.Wrap (" + body + ", \"" + rt + "\")";
+            }
+        } { "() => " + mk; }
     }
 }
 
-readonly private EmitOne := (m: object mod: string full: string) => {
-    nm := NameOf m
+# 一个静态重载 → 一段 C#。**一定成功** —— 进得来的都过了 `Usable`（泛型方法和非
+# `typeof` 的类型已经挡在外面），取值那半有运行期兜底、返回值那半有 `ToRavel` / `Wrap`。
+# 所以这里没有"跳过分枝"。
+#
+# `nm` 是**对外的名字**（`[RavelFn("…")]` 和 C# 方法名都用它）；调用的还是 .NET 那个
+# 真名字（`NameOf m`）。**重载分名字就是分在这儿** —— `Append` / `Append_2` …
+readonly private EmitOne := (m: object nm: string mod: string full: string) => {
+    真名 := NameOf m
     ps := ParamsOf m
     names := Names (ps.Count ())
     ts := ParamTypesOf m
 
     i := 0
     gets := []
-    ok := true
     while { i < (ps.Count ()); } {
         e := names.At i
-        label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
-        g := GetterOfType (ts.At i) e label
-        g == "?" { ok = false; } { (); }
-        gets.Add g
+        label := mod + "." + 真名 + " 的第 " + (string (i + 1)) + " 个实参"
+        gets.Add (GetterOfType (ts.At i) e label)
         i += 1
     }
 
@@ -330,41 +339,57 @@ readonly private EmitOne := (m: object mod: string full: string) => {
     decls := names.Map (a: string) => { "RuntimeValue " + a; }
     decl := decls.Join (", ")
     args := gets.Join (", ")
-    lam := Wrapped (RetOf m) (full + "." + nm + " (" + args + ")")
-    lam == "?" { ok = false; } { (); }
+    lam := Wrapped (RetOf m) (full + "." + 真名 + " (" + args + ")")
 
     # **必须兜。** 引擎里那条老规矩是"别让 C# 异常漏到顶层"—— 漏出去会绕过 Ravel 的
     # `try`，一路打到"解释器内部错误"（`PluginKit.Guarded` 就是把 IO / 权限 / 参数 /
     # 溢出…那几族翻成 Ravel 错误的那个口子）。不兜的话，被调方一句
     # `ArgumentException` 用户接都接不住。实测踩过（`Math.Clamp 1 5 3`）。
-    guarded := "PluginKit.Guarded (\"" + mod + "." + nm + "\", " + lam + ")"
+    guarded := "PluginKit.Guarded (\"" + mod + "." + 真名 + "\", " + lam + ")"
 
-    ok {
-        one := "    [RavelFn(\"" + nm + "\")]"
-        one = one + "\n    public static RuntimeValue " + nm + " (" + decl + ")"
-        one = one + "\n        => " + guarded + ";"
-        one + "\n"
-    } {
-        # **分开两句**：`(ParamsOf m).Join "," + " -> " + (RetOf m)` 里，
-        # `Join` 的实参会一路吃到行尾 —— 分隔符成了 `", -> ValueTuple`2"`，
-        # 拼出来的签名是坏的（实测踩过，症状是"参数粘连在返回类型上"）。
-        ps := (ParamsOf m).Join ","
-        sign := ps + " -> " + (RetOf m)
-        "    // 跳过 " + nm + "：签名 " + sign + " 里有映射表没有的类型\n"
-    }
+    one := "    [RavelFn(\"" + nm + "\")]"
+    one = one + "\n    public static RuntimeValue " + nm + " (" + decl + ")"
+    one = one + "\n        => " + guarded + ";"
+    one + "\n"
+}
+
+# 一条"跳过"的注释。**分开两句**：`(ParamsOf m).Join "," + " -> " + (RetOf m)` 里，
+# `Join` 的实参会一路吃到行尾 —— 分隔符成了 `", -> ValueTuple`2"`，拼出来的签名是坏的
+# （实测踩过，症状是"参数粘连在返回类型上"）。
+readonly private SkipNote := (m: object w: string why: string) => {
+    ps := (ParamsOf m).Join ","
+    sign := ps + " -> " + (RetOf m)
+    "    // 跳过 " + w + "（" + sign + "）：" + why + "\n";
 }
 
 # 一个方法能不能照这张映射表生成：参数和返回值都认得出来。
 # **不含"是不是静态"** —— 那是调用方先筛掉的事（见 `EmitMember`）。
+# **参数个数的上限。** 那两族的签名是**写死的**：`[RavelFn]` 收 1~3 个 `RuntimeValue`、
+# `[ClassMethod]` 收 `self` + 0~2 个。**超了不是"跳过"，是装的时候当场报**
+# `类方法 X 的签名不对:要收 (self, 0~2 个实参)` —— **整个 dll 都装不进来** ✗。
+#
+# 这条是"重载分名字"照出来的：从前每个名字只出排位第一那个（往往是低元的），
+# 撞不上；现在每个重载都出，`StringBuilder.Append (char[], int, int)` 那种三元重载
+# 就把 `NSb` 整个带崩了（实测）。
+readonly private ArityOk := (m: object 上限: int) => {
+    # **整个调用括起来**：`.Count` 的实参是那个 `()`，它会一路吃到运算符为止 ——
+    # 写成 `(ParamsOf m).Count () <= 上限` 就成了 `.Count ((() <= 上限))`，
+    # 报的是「类型 Void 不支持运算符 '<='」（跟这件事看着没关系的那种错）。
+    ((ParamsOf m).Count ()) <= 上限;
+}
+
 readonly private Usable := (m: object) => {
     # **泛型方法不要。** `JToken.ToObject<T>()` / `Annotation<T>()` 那种 —— 生成的代码里
     # 没有 `T`，写出来就是 **CS0411「类型实参推不出来」**（实测：`Newtonsoft.Json` 的
     # `JObject` 一生成就撞上，五条一起报）。它和 `TypeUsable` 里"泛型参数"那条是一回事，
     # 只是一个在**参数类型**上、一个在**方法自己**头上。
     (Reflect.Unwrap (Reflect.Call m "IsGenericMethod" [])) { false; } {
-        # **参数**都得能进生成的代码（`typeof` 写得出来）；返回值没这个限制 ——
-        # 表里没有的交给 `ToRavel` 那一格（见 `Wrapped`），总有活路。
-        (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+        # `[RavelFn]` 收 1~3 个（见 `ArityOk`）。
+        ArityOk m 3 {
+            # **参数**都得能进生成的代码（`typeof` 写得出来）；返回值没这个限制 ——
+            # 表里没有的交给 `ToRavel` / `Wrap` 那两格（见 `Wrapped`），总有活路。
+            (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+        } { false; }
     }
 }
 
@@ -378,25 +403,30 @@ readonly private Usable := (m: object) => {
 # 排位键同时也担着"确定性"：反射给的先后没有保证（引擎自己那趟也为此排过序）。
 readonly private EmitMember := (all: list w: string mod: string full: string) => {
     same := all.Where (m: object) => { (NameOf m) == w; }
-    cands := same.Where (m: object) => { StaticOf m; }
-    ranked := cands.SortBy (m: object) => { RankKey m; }
+    statics := same.Where (m: object) => { StaticOf m; }
+    # 进得来的都生成得出来（见 `EmitOne` 的头注）—— 这儿只筛"能不能"。
+    good := statics.Where (m: object) => { Usable m; }
+    ranked := good.SortBy (m: object) => { RankKey m; }
 
     nSame := string (same.Count ())
-    nSt   := string (cands.Count ())
+    nSt := string (statics.Count ())
 
     ranked.IsEmpty () {
-        "    // 跳过 " + w + "：没有静态重载（同名方法 " + nSame + " 个，静态 0 个）\n"
+        "    // 跳过 " + w + "：没有能生成的静态重载（同名方法 " + nSame + " 个，静态 " + nSt + " 个）\n"
     } {
-        best := ranked.First ()
-        Usable best {
-            EmitOne best mod full
-        } {
-            # 同 `EmitOne` 那条：`Join` 的实参吃运算符，先 `Join` 出来再拼。
-            ps := (ParamsOf best).Join ","
-            sign := ps + " -> " + (RetOf best)
-            "    // 跳过 " + w + "：挑中的那个签名是 " + sign
-            + "，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 " + nSame + " 个 / 静态 " + nSt + " 个）\n"
+        # **一个重载一个名字**：排位第一的用**原名**，其余的依次 `_2` `_3` …
+        #
+        # 从前只出排位最好的那一个 —— `StringBuilder.Append` 挑中的是 `Append (int)`，
+        # 于是 `sb.Append "字符串"` **根本没路走**。现在其余的也在，只是名字带个号：
+        # 想知道哪个是哪个，看产物里那段签名就是（名字里带不出类型来 —— 那得另想）。
+        out := []
+        i := 0
+        while { i < (ranked.Count ()); } {
+            nm := i == 0 { w; } { w + "_" + (string (i + 1)); }
+            out.Add (EmitOne (ranked.At i) nm mod full)
+            i += 1
         }
+        (out.Join "")
     }
 }
 
@@ -423,10 +453,17 @@ readonly private EmitMember := (all: list w: string mod: string full: string) =>
 # （`StringBuilder.Append` 那种 chain 的 —— 交回 `self`，见 `EmitClassOne`）。
 # 少了这一格的话 `Append` / `AppendLine` / `AppendJoin` 全被判成"映射表里没有"，
 # 而其实它们正是这个类最常用的那几个。
-readonly private UsableClass := (m: object selfName: string) => {
+readonly private UsableClass := (m: object selfName: string val: bool) => {
     # 泛型方法同上 —— 生成的代码里没有 `T`。
     (Reflect.Unwrap (Reflect.Call m "IsGenericMethod" [])) { false; } {
-        (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+        # `[ClassMethod]` 收 `self` + 0~2 个（见 `ArityOk`）。
+        ArityOk m 2 {
+            # 值类型上**返回 `void` 的实例方法不要** —— 那个签名就是"改原地"，而值类型上
+            # 改的是**装箱那份副本**，改完丢掉（`Point.Offset` 那种）。别的照常。
+            val && ((RetOf m) == "Void") { false; } {
+                (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+            }
+        } { false; }
     }
 }
 
@@ -507,21 +544,18 @@ readonly private SameAsSelf := (call: string cls: string) => {
     "() => new DotNetVal (" + call + ", PluginKit.ClassOf (\"" + cls + "\"))";
 }
 
-readonly private EmitClassOne := (m: object mod: string net: string selfName: string cls: string) => {
-    nm := NameOf m
+readonly private EmitClassOne := (m: object nm: string mod: string net: string selfName: string cls: string) => {
+    真名 := NameOf m
     ps := ParamsOf m
     names := Names (ps.Count ())
     ts := ParamTypesOf m
 
     i := 0
     gets := []
-    ok := true
     while { i < (ps.Count ()); } {
         e := names.At i
-        label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
-        g := GetterOfType (ts.At i) e label
-        g == "?" { ok = false; } { (); }
-        gets.Add g
+        label := mod + "." + 真名 + " 的第 " + (string (i + 1)) + " 个实参"
+        gets.Add (GetterOfType (ts.At i) e label)
         i += 1
     }
 
@@ -530,31 +564,21 @@ readonly private EmitClassOne := (m: object mod: string net: string selfName: st
     args := gets.Join ", "
 
     rt := RetOf m
-    call := "Me (self)." + nm + " (" + args + ")"
+    call := "Me (self)." + 真名 + " (" + args + ")"
     lam := rt == selfName { SameAsSelf call cls; } { Wrapped rt call; }
-    lam == "?" { ok = false; } { (); }
 
-    ok {
-        one := "    [ClassMethod(\"" + nm + "\")]"
-        one = one + "\n    public static RuntimeValue " + nm + " (RuntimeValue self" + selfArgs + ")"
-        one = one + "\n        => PluginKit.Guarded (\"" + mod + "." + nm + "\", " + lam + ");"
-        one + "\n"
-    } {
-        psj := (ParamsOf m).Join ","
-        sign := psj + " -> " + (RetOf m)
-        "    // 跳过 " + nm + "：签名 " + sign + " 里有映射表没有的类型\n"
-    }
+    one := "    [ClassMethod(\"" + nm + "\")]"
+    one = one + "\n    public static RuntimeValue " + nm + " (RuntimeValue self" + selfArgs + ")"
+    one = one + "\n        => PluginKit.Guarded (\"" + mod + "." + 真名 + "\", " + lam + ");"
+    one + "\n"
 }
 
 # 一个成员名 → 一段 C#。挑重载：**实例** + 参数返回值都认，按排位键取第一个。
 readonly private EmitClassMember := (all: list w: string mod: string net: string selfName: string cls: string val: bool) => {
     same := all.Where (m: object) => { (NameOf m) == w; }
     inst := same.Where (m: object) => { !(StaticOf m); }
-    # 值类型上**返回 `void` 的实例方法不要** —— 那个签名就是"改原地"，而值类型上
-    # 改的是**装箱那份副本**，改完丢掉（`Point.Offset` 那种）。别的照常。
-    cands := inst
-    val { cands = inst.Where (m: object) => { (RetOf m) != "Void"; }; } { (); }
-    ranked := cands.SortBy (m: object) => { RankKey m; }
+    good := inst.Where (m: object) => { UsableClass m selfName val; }
+    ranked := good.SortBy (m: object) => { RankKey m; }
 
     nSame := string (same.Count ())
     nIn := string (inst.Count ())
@@ -564,18 +588,18 @@ readonly private EmitClassMember := (all: list w: string mod: string net: string
             "    // 跳过 " + w + "：值类型上返回 void 的就是**改原地**的方法 ——"
             + "改的是装箱那份副本，白做\n"
         } {
-            "    // 跳过 " + w + "：没有实例重载（同名方法 " + nSame + " 个，实例 0 个）\n"
+            "    // 跳过 " + w + "：没有能生成的实例重载（同名方法 " + nSame + " 个，实例 " + nIn + " 个）\n"
         }
     } {
-        best := ranked.First ()
-        UsableClass best selfName {
-            EmitClassOne best mod net selfName cls
-        } {
-            psj := (ParamsOf best).Join ","
-            sign := psj + " -> " + (RetOf best)
-            "    // 跳过 " + w + "：挑中的那个签名是 " + sign
-            + "，有进不了生成代码的类型（`ref struct` / `ref` / 泛型参数 —— `typeof` 都写不出来）（同名 " + nSame + " 个 / 实例 " + nIn + " 个）\n"
+        # **一个重载一个名字** —— 同 `EmitMember`（排位第一的用原名，其余 `_2` `_3` …）。
+        out := []
+        i := 0
+        while { i < (ranked.Count ()); } {
+            nm := i == 0 { w; } { w + "_" + (string (i + 1)); }
+            out.Add (EmitClassOne (ranked.At i) nm mod net selfName cls)
+            i += 1
         }
+        (out.Join "")
     }
 }
 

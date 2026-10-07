@@ -571,6 +571,13 @@ internal static partial class BuiltinClasses
             ? t
             : throw new RuntimeException($"{what}: 没有 '{name}' 这个内置类", ErrorKind.Name);
 
+    /// <summary>有就交回、没有交回 `null` —— **不抛**。`ClassOf` 是"必须有"那条，这条是
+    /// "**有就用**"：生成出来的适配层拿它决定"能不能把手里这个 .NET 值包成某个 Ravel 类"
+    /// （见 `PluginKit.Wrap` —— 调用方为那个类型生成过适配器就包成它，没有就 `DotNetObject`，
+    /// 两种都是能用的值）。</summary>
+    internal static ClassVal? ClassOrNull(string name)
+        => ByName.TryGetValue(name, out var t) ? t : null;
+
     /// <summary>第二趟：挂 parent、回填元类。约束这时才给得上（String/Object 已经存在）。</summary>
     internal static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
     {

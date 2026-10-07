@@ -256,6 +256,19 @@ public static class PluginKit
     /// <summary>它长什么样（`Reflect.Text` 和报错都用它）。</summary>
     public static string NetShow(object? o) => NetBridge.Show(o);
 
+    /// <summary>把 .NET 值包成 Ravel 值：**有那个 Ravel 类就包成它**（那一族方法才够得着），
+    /// 没有就老实 `DotNetObject`。
+    ///
+    /// 给**生成出来的适配层**用的。一个方法交回的是**别的** .NET 类型时（`DateTime.Subtract`
+    /// 交回 `TimeSpan`），生成器**不知道**调用方有没有为那个类型生成过适配器 ——
+    /// 于是别猜、**问一声**：有就包成它，没有就 `DotNetObject`。两种都是能用的值，
+    /// 只是方法多寡不同。
+    ///
+    /// 名字的约定是**那个 .NET 类型的短名**（`System.TimeSpan` → `TimeSpan`，
+    /// 也就是 `Adaptor.CsClass` 默认给的那个类名）。</summary>
+    public static RuntimeValue Wrap(object? v, string className)
+        => BuiltinClasses.ClassOrNull(className) is { } cls ? new DotNetVal(v, cls) : new DotNetVal(v);
+
     /// <summary>**把一个 Ravel 值转成指定的 .NET 类型** —— 两步：
     /// 先 `ToNet`（认识的就化、`DotNetObject` 脱壳、`list` 化 `object[]`），
     /// 再按 `target` 收（`NetBridge.To` 那张表：数组 / 泛型容器 / 枚举 / 数值，
