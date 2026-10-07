@@ -102,6 +102,6 @@ print c.Late           # Append:接着类体跑,x 已经在了
 # 3
 # Empty()
 # true
-# [init Values Text Eq == != : <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init Values Text Eq == != : <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # false
 # true

@@ -16,10 +16,16 @@ print (Reflect.Call "hello" "Length" [])      # 属性也走 Call
 
 ## 门面:2 个类 + 5 个函数
 
+**两个类不住在这个插件里了**（2026-10-07 搬进引擎，见 `Runtime/BuiltinClasses.Net.cs`）——
+`DotNetVal` 一造出来就要按名字挂 `DotNetObject` 那个类，类不在引擎里的话，
+没 `using` 这个插件的场合连造都造不出来。所以**值**（`DotNetVal` / `DotNetTypeVal`）、
+**类**、以及 `Object.ToDot` / `.ToObject` 都在引擎里；这一份只剩下面那五个函数。
+
 | | |
 |---|---|
 | `DotNetType` | 一个 `System.Type`。`.Name ()` / `.FullName ()` / `.IsValue ()` / `.IsInterface ()` / `.Members ()` / `.Text ()` / `.AsObject ()` |
-| `DotNetObject` | 一个任意 .NET 对象。`.TypeOf ()` / `.Text ()` / `.Unwrap ()` |
+| `DotNetObject` | 一个任意 .NET 对象。`.TypeOf ()` / `.Text ()` / `.Unwrap ()` / `.ToObject 类型` |
+| `Object.ToDot ()` | **每个值都有**（挂在根类上）：Ravel 值 → `DotNetObject` |
 | `Reflect.Type name` | 名字 → `DotNetType`（核心库写 `"System.Console"`；别的程序集要**带程序集的全名**）|
 | `Reflect.New t args` | 构造 |
 | `Reflect.Call obj name args` | 调方法 / 读属性 |
@@ -30,6 +36,20 @@ print (Reflect.Call "hello" "Length" [])      # 属性也走 Call
 所以一个叫 `DotNetType`、方法叫 `TypeOf`。挂错名字**不报错**，只是读不到。
 
 ## 规矩
+
+**`ToDot` / `ToObject` 是两个方向，别弄混。** `5.ToDot ()` 是"**我按自己那套给你**"
+（认识的化成 .NET 值、`list` 化 `object[]`）；`.ToObject 类型` 是"**你要什么我给你什么**"
+（按目标类型转，`T[]` / `IEnumerable<T>` 那些会按元素类型现造）：
+
+```ravel
+print (((5).ToDot ()).ToObject (Reflect.Type "System.String"))     # DotNetObject 5
+print ((([1 2 3].ToDot ()).ToObject (Reflect.Type "System.Int32[]")).TypeOf ())
+# DotNetType System.Int32[]
+```
+
+那张表在 `Runtime/Builtins/NetBridge.cs`，插件能在 C# 层加规则
+（`PluginKit.RegisterConverter (typeof (你的类型), (值, 目标) => …)`）——
+引擎自己认得的是数组 / 泛型容器 / 枚举 / 数值那几条。
 
 **`.AsObject ()` 是那道"把类型当对象看"的门。** `DotNetType` 的意思是**静态访问的把手**
 （`Reflect.Call t "Max" […]` 在它身上找的是**静态**成员）—— 而 `Type` 自己的那些

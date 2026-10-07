@@ -17,7 +17,7 @@ namespace Ravel.Runtime;
 /// 明说"给的是什么、要的是什么",不会静默跑错一个。
 ///
 /// **不在这儿的**:泛型类型实参、委托方向(Ravel 函数交给 C# —— 硬边界)、
-/// 按目标类型探路挑重载。见 `Bridge` 的头注。</summary>
+/// 按目标类型探路挑重载。见 `Runtime/Builtins/NetBridge.cs`。</summary>
 [RavelModule("Reflect")]
 internal static class ReflectModule
 {
@@ -64,17 +64,17 @@ internal static class ReflectModule
         // 这种"静态类"在 .NET 里就是 abstract sealed,挡一下 `Math.Max` 就用不了了。
         if (obj is DotNetTypeVal tv) return CallStatic(tv.DotNetType, n, argv);
 
-        var target = Bridge.ToNet(obj);
+        var target = PluginKit.ToNet(obj);
         return CallInstance(target!.GetType(), target, n, argv);
     }
 
     /// <summary>`ToString ()`,基本就是"给我看看"。Ravel 值也行。</summary>
     [RavelFn("Text")]
-    public static RuntimeValue Text(RuntimeValue v) => new StringVal(Bridge.Show(Bridge.ToNet(v)));
+    public static RuntimeValue Text(RuntimeValue v) => new StringVal(PluginKit.NetShow(PluginKit.ToNet(v)));
 
     /// <summary>**脱壳**:`DotNetObject` 里的 .NET 值按 `Bridge` 的规矩交回 Ravel。别的值原样。</summary>
     [RavelFn("Unwrap")]
-    public static RuntimeValue Unwrap(RuntimeValue v) => v is DotNetVal dn ? Bridge.ToRavel(dn.Value) : v;
+    public static RuntimeValue Unwrap(RuntimeValue v) => v is DotNetVal dn ? PluginKit.ToRavel(dn.Value) : v;
 
     // ═══ 帮手 ═══
 
@@ -135,7 +135,7 @@ internal static class ReflectModule
     /// (`TargetInvocationException`)在这儿翻成人话。</summary>
     private static RuntimeValue Invoke(Func<object?> go, string what)
     {
-        try { return Bridge.FromNet(go()); }
+        try { return new DotNetVal(go()); }
         catch (TargetInvocationException ex)
         {
             var inner = ex.InnerException ?? ex;
@@ -174,7 +174,7 @@ internal static class ReflectModule
     /// <summary>参数表:收 `list`;`()` 当空的。</summary>
     private static object?[] Args(RuntimeValue v) => v switch
     {
-        ListVal l => [.. l.Elements.Select(Bridge.ToNet)],
+        ListVal l => [.. l.Elements.Select(PluginKit.ToNet)],
         VoidVal or DefaultVal => [],
         _ => throw PluginKit.Fail($"参数表得写成 `list`（比如 `[\"hi\" 42]`，空的写 `[]`），得到 {v.Type}", ErrorKind.Argument)
     };

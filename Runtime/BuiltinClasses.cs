@@ -84,6 +84,14 @@ internal static partial class BuiltinClasses
     /// <summary>JSON 值:里面包着一棵 Newtonsoft 的 `JToken` 树,`Extract ()` 才转成
     /// dict / list / 原生值。`predefined.rav` 给全局别名 `Json`。</summary>
     public static readonly ClassVal Json;
+
+    /// <summary>一个**任意 .NET 对象**（`DotNetVal` 的类）。方法见 `BuiltinClasses.Net.cs`。
+    /// 从前是 `Ravel.Reflect` 插件带来的 `[RavelClass]`,2026-10-07 搬进引擎 ——
+    /// `DotNetVal` 的基类 ctor 要按它挂类,不在引擎里的话没 `using` 那个插件就造不出来。</summary>
+    public static readonly ClassVal DotNetObject;
+
+    /// <summary>一个 **`System.Type`**（`DotNetTypeVal` 的类）。同一个来路。</summary>
+    public static readonly ClassVal DotNetType;
     public static readonly ClassVal Ravel;
     public static readonly ClassVal ScopeType;
     public static readonly ClassVal Property;
@@ -155,6 +163,8 @@ internal static partial class BuiltinClasses
         IoError = New("IoError");
         RegexError = New("RegexError");
         Json = New("Json");
+        DotNetObject = New("DotNetObject");
+        DotNetType = New("DotNetType");
         Every = New("Every");
         Any = New("Any");
 
@@ -206,6 +216,9 @@ internal static partial class BuiltinClasses
         Link(IoError, Exception, Type);
         Link(RegexError, Exception, Type);
         Link(Json, Object, Type);
+        // 反射那两个值 —— 直挂 `Object`（它们不是"值类型"：按身份认，不做 IValue）
+        Link(DotNetObject, Object, Type);
+        Link(DotNetType, Object, Type);
         // 接口继承 `type`:于是 `interface is type`,而 `interface { … }` 造出来的是**类对象**
         Link(BaseInterface, Object, Interface);   // 它自己就是个接口(所有接口的根)
         // `IValue` 是**内置的接口**:和平常的接口一样 —— 元类是 `Interface`、
@@ -233,7 +246,7 @@ internal static partial class BuiltinClasses
                      Object, Int, Real, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
                      List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface, IValue,
-                     Ravel, Any, Every, Exception, Json, ScopeType, Property,
+                     Ravel, Any, Every, Exception, Json, DotNetObject, DotNetType, ScopeType, Property,
                      TypeError, NameError, AttributeError, IndexError, KeyError,
                      ZeroDivisionError, AssertionError, AccessError, ArgumentError, ValueError,
                      IoError, RegexError

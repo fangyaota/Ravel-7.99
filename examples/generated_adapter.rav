@@ -79,6 +79,13 @@ print (NStr.Join "-" ["a" "b" "c"])
 # 同样是 `Join`，挑中的是 `(string, string[])` 而不是 `(char, string[])` ——
 # 排位键先比"要几个数组"、再比参数个数、再比"丢信息多少"。
 
+# **`object` 参数**：交给那座桥（`PluginKit.ToNet`）—— 于是 `String.Format`
+# 那 15 个重载也进来了（从前它们被整个跳过）。
+#
+# 挑中的是 **`(string, object)`** 那个（排位键第 2 段"参数少的在前"），所以是**两个**实参
+# —— 想要三个占位就得要 `(string, object, object)`，那是**另一格**，得自己补。
+print (NStr.Format "{0}" 42)
+
 # ── 被调方抛的也接得住 ──
 #
 # 生成的每个方法外面都套着 `PluginKit.Guarded` —— 引擎那条"别让 C# 异常漏到顶层"
@@ -103,12 +110,15 @@ print (Reflect.Unwrap (Reflect.Call (Reflect.Type "System.Math") "Max" [3 7]))
 
 # ── 生成器拒绝的东西，写在产物里 ──
 #
-# `String.Format` 15 个重载全要 `object`（`Format (string, object)` 那种）——
-# 映射表里没有 `object`，于是 `Ravel.Generated/NStr.cs` 里留着：
+# 类型对不上的（`ref struct` / 委托 / 泛型参数）逐条跳过。`System.String` 那 177 个
+# 静态方法扫一遍，只剩两条：
 #
-#     // 跳过 Format：没有能映射的重载（同名静态方法 15 个，0 个类型认得出，15 个被筛掉）
+#     // 跳过 Create：挑中的那个签名是 IFormatProvider,DefaultInterpolatedStringHandler& -> String，…
+#     // 跳过 GetHashCode：挑中的那个签名是 ReadOnlySpan`1 -> Int32，…
 #
-# **挑不中就明说，不猜** —— 猜错比不生成难查得多。
-# `object` 那一格要的是"Ravel 值 → 任意 .NET 值"的完整桥（`Ravel.Reflect` 里那套），
-# 得人来补：产物是脚手架，不是构建产物。
+# 两条都是 **`ref struct`**（`DefaultInterpolatedStringHandler` / `ReadOnlySpan<char>`）
+# —— 那玩意儿不能装箱、不能当字段，**结构上就转不了**，不是"还没做"。
+#
+# **挑不中就明说，不猜** —— 猜错比不生成难查得多。真要它们，就把那份 `.cs` 挪出
+# `Ravel.Generated/` 自己补：产物是**脚手架**，不是构建产物。
 print "生成出来的适配层跑通了"

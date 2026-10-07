@@ -60,6 +60,12 @@ readonly private RankOf := "Int32"     => ~0
                          | "Int64[]"   => ~13
                          | "Boolean[]" => ~14
                          | "Double[]"  => ~15
+                         # **`object` 排在标量/数组后面、认不出的前面**（50）—— 它转得动
+                         # （走桥），但**别的重载只要能用就该赢**：`String.Concat "a" "b"`
+                         # 该挑 `(string, string)` 而不是 `(object, object)`。它也照样
+                         # 算进 `arrCount` 那一段（见 `RankKey`），于是"要 object 的"
+                         # 和"要数组的"一样往后站。
+                         | "Object"    => ~50
                          | (_)         => ~99          # 99 = 映射表里没有
 
 # **取值**：`RuntimeValue` → 本地值。`e` 是实参名、`what` 是报错时说的那句话。
@@ -80,7 +86,11 @@ readonly private GetterOf := ("Int32" e: string what: string)     => { "PluginKi
                            | ("Int64[]" e: string what: string)   => { "PluginKit.Longs (" + e + ", \"" + what + "\")"; }
                            | ("Boolean[]" e: string what: string) => { "PluginKit.Bools (" + e + ", \"" + what + "\")"; }
                            | ("Double[]" e: string what: string)  => { "PluginKit.Reals (" + e + ", \"" + what + "\")"; }
-                           | (_ e: string what: string)           => { "?"; }        # 哨兵：不支持
+                           # **`object` 参数** —— 交给 `PluginKit.ToNet`（就是那座桥）：认识的化成 .NET 值、
+    # `list` 化 `object[]`、`DotNetObject` 脱壳。转不过去的那一支（**Ravel 函数**）
+    # 照样抛 —— 那是引擎里"原生闭包调不了 Ravel 函数"那条硬边界，谁来了都一样。
+    | ("Object" e: string what: string)    => { "PluginKit.ToNet (" + e + ")"; }
+    | (_ e: string what: string)           => { "?"; }        # 哨兵：不支持
 
 # **造值**：本地值 → `RuntimeValue`。`Int64` 那一格走 `PluginKit.Narrow` —— `long`
 # 装得下就给 `int`、装不下升 `bigint`，别自己 `(int)` 硬转（静默回绕）。
@@ -93,6 +103,9 @@ readonly private MakerOf := ("Int32" e: string)   => { "IntVal.Of (" + e + ")"; 
                           | ("Double" e: string)  => { "new RealVal (" + e + ")"; }
                           | ("Single" e: string)  => { "new RealVal (" + e + ")"; }
                           | ("Void" e: string)    => { "PluginKit.Void"; }
+                          # 返回值是 `object` 的那种（`Activator.CreateInstance` 之类）——
+                          # 交回一个 `DotNetObject`，和"反射回来的一律 DotNetObject"一个口径。
+                          | ("Object" e: string)  => { "new DotNetVal (" + e + ")"; }
                           | (_ e: string)         => { "?"; }
 
 # `Known` = 映射表里有没有这一型。`InOk` 是"能不能当实参收下"，

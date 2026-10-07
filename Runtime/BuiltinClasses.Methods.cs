@@ -14,6 +14,7 @@ internal static partial class BuiltinClasses
         RegisterStringMethods();
         RegisterRangeMethods();
         RegisterJsonMethods();
+        RegisterNetMethods();
         RegisterListMethods();
         RegisterSetMethods();
         RegisterDictMethods();

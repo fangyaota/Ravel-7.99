@@ -174,7 +174,7 @@ print "end"
 # 12: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 7: 类型 'Type' 没有方法 'Kind'
 # number
-# [name parent FromString block Default GetImplements GetImplementors Subtypes | >> Name Scope Body SetScope Prepend Append : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [name parent FromString block Default GetImplements GetImplementors Subtypes | >> Name Scope Body SetScope Prepend Append : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 99
 # 8: 类型 'Json' 没有方法 'tag'
 # {"a":[1,2.5,null],"b":{"c":true},"s":"你好"}

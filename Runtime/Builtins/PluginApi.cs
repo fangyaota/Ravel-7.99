@@ -240,6 +240,29 @@ public static class PluginKit
     public static int OptInt(DictVal d, string key, int dflt) => SysKit.OptInt(d, key, dflt);
     public static bool OptBool(DictVal d, string key, bool dflt) => SysKit.OptBool(d, key, dflt);
 
+    // ── 和 .NET 打交道那几件 ──
+    //
+    // `NetBridge` 是引擎里的（`internal`，外部 dll 看不见），所以按这个文件一贯的规矩
+    // 重新公开一遍。**一件都不新造**，背后就是 `NetBridge` 那三个方向。
+
+    /// <summary>Ravel 值 → .NET 值（`list` → `object[]`；**Ravel 函数转不了**，
+    /// 那条硬边界的消息在 `NetBridge.ToNet` 里）。</summary>
+    public static object? ToNet(RuntimeValue v) => NetBridge.ToNet(v);
+
+    /// <summary>.NET 值 → Ravel 值（认识的就化、不认识的兜成 `DotNetObject`）。
+    /// `.Unwrap ()` 走的就是这条。</summary>
+    public static RuntimeValue ToRavel(object? o) => NetBridge.ToRavel(o);
+
+    /// <summary>它长什么样（`Reflect.Text` 和报错都用它）。</summary>
+    public static string NetShow(object? o) => NetBridge.Show(o);
+
+    /// <summary>给 **`.ToObject 类型`** 那张表加一条规则：目标类型 → 怎么把手里这个
+    /// .NET 值弄成它。`target` 可以是**开放泛型**（`typeof (IEnumerable<>)`）。
+    /// **后注册的先问**，所以插件能盖掉引擎自己那几条。引擎认得的（数组 / 泛型容器 /
+    /// 枚举 / 数值）见 `NetBridge.To` —— 那几条是写死的，不该在这里重加一遍。</summary>
+    public static void RegisterConverter(Type target, Func<object?, Type, object?> conv)
+        => NetBridge.Register(target, conv);
+
     /// <summary>兜底:把一类 C# 异常(IO / 权限 / 参数 / 溢出 / 平台不支持…)翻成 Ravel 的
     /// `IoError`。**别让 C# 异常漏到顶层**是这批原语一条老规矩 —— 漏出去会绕过 Ravel 的
     /// `try` 把程序打掉。要兜别的异常族(比如 `SqliteException`)就自己写一个,别硬塞进来。</summary>

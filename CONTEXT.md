@@ -1432,6 +1432,39 @@ using "structures.rav"       # 库里那半边,照旧
 两个同名模块谁后 `using` 谁赢(`DefineOrReplace` 是"装进来的以库为准"),那是**静默**
 的那种坏。所以工具会把取到的名字**打出来**给人看一眼。
 
+**`object` 参数**（2026-10-07 加）：排位 **50** —— 排在标量/数组后面、认不出的前面。
+它**转得动**（走 `PluginKit.ToNet`，就是那座桥），但别的重载只要能用就该赢
+（`String.Concat "a" "b"` 该挑 `(string, string)` 而不是 `(object, object)`）。
+加上它之后 `System.String` 的 177 个静态方法只剩 **2 条**跳过，而且两条都是
+**`ref struct`**（`DefaultInterpolatedStringHandler` / `ReadOnlySpan<char>`）
+—— 不能装箱、不能当字段，**结构上就转不了**，不是"还没做"。
+
+为这个，桥和两个反射值从 `Ravel.Reflect` **搬进了引擎**：
+
+| 搬过去的 | 落在 |
+|---|---|
+| 两个值 `DotNetVal` / `DotNetTypeVal` | `Runtime/Values/` |
+| 那座桥 + **按目标类型转**那张表 | `Runtime/Builtins/NetBridge.cs` |
+| `DotNetObject` / `DotNetType` 两个**类** | `Runtime/BuiltinClasses.Net.cs` |
+
+**类为什么也得搬**：`DotNetVal` 一造出来就要按名字挂 `DotNetObject` 那个类
+（`ObjectVal` 的基类 ctor 收的是 `ClassVal`）—— 类不在引擎里的话，没 `using`
+那个插件的场合连造都造不出来，`Object.ToDot` 就挂不上根类。`Ravel.Reflect`
+从此只剩 `Reflect` 模块那五个函数。
+
+**两个方向别弄混**：`5.ToDot ()` 是"**我按自己那套给你**"（值 → .NET，`list` 化
+`object[]`）；`.ToObject 类型` 是"**你要什么我给你什么**"（按目标类型转，`T[]` /
+`IEnumerable<T>` 按元素类型现造）。后者那张表**插件能在 C# 层加**
+（`PluginKit.RegisterConverter`），引擎自己认数组 / 泛型容器 / 枚举 / 数值那几条。
+
+`ToDot` 挂根类是**有代价**的：每个类的成员表都多一格，`System.Fields ()` 的个数也跟着涨
+—— 12 条 golden 用例的输出为此更新（差异只有 `ToDot` 和那个 +1，逐条看过）。
+
+顺带堵了一个洞：`PluginKit.Guarded`（→ `SysKit.Fs`）从前只翻 IO / 权限 / 参数 / 溢出 /
+平台那六族，**别的 .NET 异常会绕过 Ravel 的 `try`**、一路打成"解释器内部错误"
+（实测：`NStr.Format "{9}" 42` 把整个脚本打死）。现在有一条兜底，引擎自己当控制流使的
+那三个（`RuntimeException` / `ExitException` / `SyntaxException`）放行。
+
 **类型找不到的时候**:一路走 `Reflect.Type` —— 报的是人话(核心库写全名 / 别的程序集
 先 `using` 进来再写**带程序集的全名**),而且是 Ravel 的异常、`try` 接得住。
 **别自己 `System.Type.GetType`**:查不到它交回 **null**,紧接着 `null.GetMethods ()`

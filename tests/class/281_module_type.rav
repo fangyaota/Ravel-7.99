@@ -49,7 +49,7 @@ print (Mine)
 # false
 # false
 # 36
-# 54
+# 55
 # 1: 模块 'System' 没有方法 'Class'
 # 2: 模块 'Math' 没有方法 'Nope'
 # 3: '<:' 的左边得是个类型，得到模块 'Math'

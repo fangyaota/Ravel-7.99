@@ -17,5 +17,5 @@ print x
 # --- expected ---
 # 2
 # 1
-# [a References : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [a References : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 0

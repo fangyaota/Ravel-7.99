@@ -26,7 +26,9 @@ internal static class NStrAdaptor
     public static RuntimeValue Join (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NStr.Join", () => new StringVal ((System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, PluginKit.Strs (x1, "NStr.Join 的第 2 个实参")))));
 
-    // 跳过 Format：挑中的那个签名是 String,Object -> String，里面有映射表没有的类型（同名 15 个 / 静态 15 个）
+    [RavelFn("Format")]
+    public static RuntimeValue Format (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal ((System.String.Format (PluginKit.Text (x0, "NStr.Format 的第 1 个实参").Value, PluginKit.ToNet (x1)))));
 
     [RavelFn("Intern")]
     public static RuntimeValue Intern (RuntimeValue x0)

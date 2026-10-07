@@ -80,7 +80,7 @@ try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 re
 # 99
 # 99
 # 123
-# [init v set get tmp : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init v set get tmp : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 99
 # 7
 # 1
@@ -91,5 +91,5 @@ try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 re
 # 1
 # 10
 # 5
-# [init _v v w : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init _v v w : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 168_copy_readonly: 无法给只读变量 'w' 赋值

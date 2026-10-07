@@ -54,6 +54,19 @@ internal static class SysKit
         {
             throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
         }
+        // **别的 .NET 异常也得兜** —— 引擎那条"别让 C# 异常漏到顶层"的规矩。
+        // 从前只翻上面那六族,于是被调方抛个 `FormatException` 之类的会**绕过 Ravel 的
+        // `try`**、一路打成"解释器内部错误"(实测:生成的适配层调 `String.Format`
+        // 占位越界,整个脚本当场没了)。生成的适配层会调**任意** .NET,这个兜不能少。
+        //
+        // **引擎自己那几个当控制流使的放行** —— 它们不是"被调方抛的",重新包一层
+        // 会把 `exit`(`ExitException`)和模式拒收(`RejectedException` ← `RuntimeException`)
+        // 吃掉,那是把控制流嚼了。
+        catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
+        {
+            throw new RuntimeException(
+                $"{what}的时候 .NET 抛了 {ex.GetType().Name}: {ex.Message}", ErrorKind.Value);
+        }
     }
 
     /// <summary>`Fs` 的异步那一半 —— 判据是**同一个** <see cref="IsFsFault"/>,兜的是同一句话。
@@ -67,6 +80,19 @@ internal static class SysKit
         catch (Exception ex) when (IsFsFault(ex))
         {
             throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
+        }
+        // **别的 .NET 异常也得兜** —— 引擎那条"别让 C# 异常漏到顶层"的规矩。
+        // 从前只翻上面那六族,于是被调方抛个 `FormatException` 之类的会**绕过 Ravel 的
+        // `try`**、一路打成"解释器内部错误"(实测:生成的适配层调 `String.Format`
+        // 占位越界,整个脚本当场没了)。生成的适配层会调**任意** .NET,这个兜不能少。
+        //
+        // **引擎自己那几个当控制流使的放行** —— 它们不是"被调方抛的",重新包一层
+        // 会把 `exit`(`ExitException`)和模式拒收(`RejectedException` ← `RuntimeException`)
+        // 吃掉,那是把控制流嚼了。
+        catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
+        {
+            throw new RuntimeException(
+                $"{what}的时候 .NET 抛了 {ex.GetType().Name}: {ex.Message}", ErrorKind.Value);
         }
     }
 

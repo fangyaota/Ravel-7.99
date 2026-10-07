@@ -173,7 +173,7 @@ ravel ""
 # 3
 # 3: 类型 'Type' 没有方法 'Count'
 # 4: 类型 'Type' 没有方法 'Add'
-# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Foreach Map Where All Any Find SortBy Fold : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Foreach Map Where All Any Find SortBy Fold : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # false
 # {"a":1}
 # 5: 类型 'Type' 没有方法 'Kind'

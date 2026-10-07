@@ -420,7 +420,7 @@ ravel ""
 # BigFraction
 # 10
 # 99
-# [init x : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init x : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 5
 # changed
 # 2.718281828459045
@@ -460,7 +460,7 @@ ravel ""
 # 1
 # true
 # class { flag = true, n = 5 }
-# [init flag n : == != <: :> ToString Copy Fields MemberScope CompareTo Key]
+# [init flag n : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # class
 # true
 # 2
