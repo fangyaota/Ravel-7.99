@@ -9,6 +9,9 @@
 #     Adaptor.Save  类型 模块 成员 cs路径       # → 写 .cs
 #     Adaptor.Dll   类型 模块 成员 cs路径 dll路径   # → 写 .cs + **就地编** dll
 #
+# **成员那一格不用手数** —— `Adaptor.AllOf 类型` 就是"这个类型全部该适配的静态方法名"
+# （去重、排序、滤掉属性访问器和运算符）。第 ⑤ 段走的就是它。
+#
 # 产物落在 `out/` 里 —— 那是构建目录，`build.sh` 会整个删掉重来，不用管它。
 using "adaptor.rav"
 
@@ -36,4 +39,18 @@ using "NFromRavel"
 print (NFromRavel.Max 3 7)                 # 7
 print (NFromRavel.Sqrt 16)                 # 4
 print (NFromRavel.BigMul 2000000000 2)     # 4000000000（装不下 int，升 bigint）
+# ⑤ **不用逐个列成员**：`AllOf` 把这个类型全部该适配的静态方法名扫出来。
+#    类型名给一个就够 —— 短名（`System.Math` → `Math`）能当模块名使，
+#    但**别真拿短名去建模块**：库里可能已经有一个同名的了（`Math` 就是），
+#    两个同名模块谁后 `using` 谁赢，那是静默的坏。
+名字 := Adaptor.AllOf 类型
+print ("⑤ 扫出 " + (string (名字.Count ())) + " 个静态方法名，"
+       + "短名是 " + (Adaptor.ShortName 类型))
+
+全模块 := "NMathAll"
+Adaptor.Dll 类型 全模块 名字 ("out/" + 全模块 + ".cs") ("out/plugins/" + 全模块 + ".dll")
+using "NMathAll"
+print (NMathAll.Tanh 1.0)              # 0.7615941559557649
+print (NMathAll.ILogB 8.0)             # 3
+print (NMathAll.Truncate (0 - 2.7))    # -2
 print "在 .rav 里走完了 生成 → 编译 → 用"

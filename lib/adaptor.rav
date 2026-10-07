@@ -135,9 +135,15 @@ readonly private Pad2 := (n: int) => { n < 10 { "0" + (string n); } { string n; 
 #   1. `arrCount` —— 要数组的排后面。Ravel 侧写数组得先造个 `list`，能避开就避开：
 #      `String.Concat "a" "b"` 该挑 `(string, string)`，不是 `(string[])`
 #      （少了这一段的话，`(string[])` 只有 1 个参数、按下面第 2 段会赢）。
+#      **`99`（认不出）也算在"要排后面"里** —— 它本来就是最差的那一档。
 #   2. 参数个数少 —— `Math.Round (double)` 赢 `Math.Round (double, int)`。
-#   3. 排位和最小 —— "丢信息最少"，`int` 赢 `real`。
+#   3. 逐个比排位（`00` `01` … `99`，**每个都定宽**）—— "丢信息最少"，`int` 赢 `real`。
 #   4. 签名兜底 —— 保证**确定性**（反射给的先后没有保证，引擎自己那趟也为此排过序）。
+#
+# **第 3 段别改成"排位之和"。** 加出来的数位数不一样，`Pad2` 顶不住三位：
+# 字符串比较里 `"101" < "12"` —— 于是 `String.Join` 会挑中 `(String, IEnumerable)`
+# （和 99+2=101）而不是能映射的 `(String, String[])`（2+10=12），把它判成"跳过"。
+# 逐个定宽比就没这个毛病（`"0299"` 输给 `"0210"`，对）。
 readonly private RankKey := (m: object) => {
     ps := ParamsOf m
     ranks := ps.Map (t: string) => { RankOf t; }
@@ -145,13 +151,11 @@ readonly private RankKey := (m: object) => {
     arrCount := ranks.Fold 0 ((acc: int r: int) => { (r >= 10) { acc + 1; } { acc; } })
     arrStr := Pad2 arrCount
     nStr := Pad2 (ranks.Count ())
-    sum := ranks.Fold 0 ((acc: int r: int) => { acc + r; })
-    sumStr := Pad2 sum
-    rsStr := (ranks.Map (r: int) => { string r; }).Join ""
+    rsStr := (ranks.Map (r: int) => { Pad2 r; }).Join ""
     retStr := Pad2 (RankOf (RetOf m))
     sig := ps.Join ","
 
-    arrStr + "|" + nStr + "|" + sumStr + "|" + rsStr + "|" + retStr + "|" + sig;
+    arrStr + "|" + nStr + "|" + rsStr + "|" + retStr + "|" + sig;
 }
 
 # ═══ 生成 ═══
@@ -197,41 +201,98 @@ readonly private EmitOne := (m: object mod: string full: string) => {
         one = one + "\n        => " + guarded + ";"
         one + "\n"
     } {
-        sign := (ParamsOf m).Join "," + " -> " + (RetOf m)
+        # **分开两句**：`(ParamsOf m).Join "," + " -> " + (RetOf m)` 里，
+        # `Join` 的实参会一路吃到行尾 —— 分隔符成了 `", -> ValueTuple`2"`，
+        # 拼出来的签名是坏的（实测踩过，症状是"参数粘连在返回类型上"）。
+        ps := (ParamsOf m).Join ","
+        sign := ps + " -> " + (RetOf m)
         "    // 跳过 " + nm + "：签名 " + sign + " 里有映射表没有的类型\n"
     }
 }
 
-# 一个成员名 → 一段 C#。挑重载：静态 + 参数返回值都认，按排位键取第一个。
-readonly private EmitMember := (all: list w: string mod: string full: string) => {
-    cands := all.Where (m: object) => { (NameOf m) == w; }
-    usable := cands.Where (m: object) => {
-        ps := ParamsOf m
-        (ps.All (t: string) => { InOk t; }) { OutOk (RetOf m); } { false; }
-    }
-    # 排序为的是**确定性** —— 反射给的先后没有保证（引擎自己那趟也为此排过序）。
-    ranked := usable.SortBy (m: object) => { RankKey m; }
+# 一个方法能不能照这张映射表生成：参数和返回值都认得出来。
+# **不含"是不是静态"** —— 那是调用方先筛掉的事（见 `EmitMember`）。
+readonly private Usable := (m: object) => {
+    ps := ParamsOf m
+    (ps.All (t: string) => { InOk t; }) { OutOk (RetOf m); } { false; }
+}
 
-    nAll  := string (cands.Count ())
-    nOk   := string (usable.Count ())
-    nDrop := string ((cands.Count ()) - (usable.Count ()))
+# 一个成员名 → 一段 C#（挑不中就一段注释）。
+#
+# **只挑静态方法。** 生成的函数体是 `System.String.Join (…)` 那个形状 —— 名字前面
+# 顶的是**类型**，所以只有静态的才对得上。漏了这一筛的后果很别扭：`Substring` 那种
+# 实例方法会被照静态生成出来，而生成器**报的是"写好了"**，要到 C# 编译那一刻才
+# 冒出一句 CS0120「需要对象引用」—— 错在了跟这件事无关的地方（实测踩过）。
+#
+# 排位键同时也担着"确定性"：反射给的先后没有保证（引擎自己那趟也为此排过序）。
+readonly private EmitMember := (all: list w: string mod: string full: string) => {
+    same := all.Where (m: object) => { (NameOf m) == w; }
+    cands := same.Where (m: object) => { StaticOf m; }
+    ranked := cands.SortBy (m: object) => { RankKey m; }
+
+    nSame := string (same.Count ())
+    nSt   := string (cands.Count ())
 
     ranked.IsEmpty () {
-        "    // 跳过 " + w + "：没有能映射的重载（同名静态方法 " + nAll + " 个，" + nOk
-        + " 个类型认得出，" + nDrop + " 个被筛掉）\n"
+        "    // 跳过 " + w + "：没有静态重载（同名方法 " + nSame + " 个，静态 0 个）\n"
     } {
-        EmitOne (ranked.First ()) mod full
+        best := ranked.First ()
+        Usable best {
+            EmitOne best mod full
+        } {
+            # 同 `EmitOne` 那条：`Join` 的实参吃运算符，先 `Join` 出来再拼。
+            ps := (ParamsOf best).Join ","
+            sign := ps + " -> " + (RetOf best)
+            "    // 跳过 " + w + "：挑中的那个签名是 " + sign
+            + "，里面有映射表没有的类型（同名 " + nSame + " 个 / 静态 " + nSt + " 个）\n"
+        }
     }
 }
 
-# ═══ 对外那三个 ═══
+# 属性访问器 / 运算符 / 事件（`get_X` / `set_X` / `op_+` / `add_X`）—— 它们是**别的东西**，
+# 挂在模块里当函数用不成（运算符该走 `[ClassOp]`，那是另一条路）。
+readonly private IsSpecial := (m: object) => {
+    Reflect.Unwrap (Reflect.Call m "IsSpecialName" []);
+}
+
+# ═══ 对外那几个 ═══
+
+# 类型名 → 包着 `Type` 的**对象**。
+#
+# **`Reflect.Type` 交回的是"静态访问的把手"**（`Call` 在那个类型上找**静态**成员），
+# 而 `GetMethods` / `GetParameters` 这些是 `Type` 的**实例**成员，够不着它。
+# 所以从 `System.Type.GetType` 拿一个对象回来 —— 之后全是实例调用。
+readonly private TypeObject := (类型: string) => {
+    Reflect.Call (Reflect.Type "System.Type") "GetType" [类型];
+}
+
+# **这个类型全部该适配的静态方法名** —— 去重、排序。有了它就不用逐个列成员：
+#
+#     Adaptor.Dll "System.Math" "NMath" (Adaptor.AllOf "System.Math") cs路径 dll路径
+#
+# **滤掉的**：非静态的（见 `EmitMember`）、`IsSpecialName` 那些。
+# **故意没滤的**：类型对不上的（`object` 参数 / `ref` / 泛型参数）—— 那些**留在表里**，
+# 由 `EmitMember` 逐条写一行「跳过 …」。生成器的产物是**脚手架**，
+# 那份"跳过了什么"正是要交给人的东西，滤掉了反倒看不见。
+readonly AllOf := (类型: string) => {
+    ms := Reflect.Unwrap (Reflect.Call (TypeObject 类型) "GetMethods" [])
+    keep := ms.Where (m: object) => { (StaticOf m) && !(IsSpecial m); }
+    ns := keep.Map (m: object) => { NameOf m; }
+    Sorting.Sort (ns.Distinct ());
+}
+
+# 类型名 → 短名（`"System.Math"` → `"Math"`）。模块名没给的时候拿它兜底。
+#
+# **兜底要当心撞名**：`Math` / `String` 这些短名，库里、别的插件里可能已经有了 ——
+# 两个模块同名的话，`using` 的先后说了算（`DefineOrReplace` 是"装进来的以库为准"），
+# 那是**静默**的那种坏。所以自动取的名字，生成的时候会打出来给人看一眼。
+readonly ShortName := (类型: string) => {
+    Reflect.Unwrap (Reflect.Call (TypeObject 类型) "Name" []);
+}
 
 # 生成的 C# 源码（不落盘）。编不过/映射不全都写在里面的注释里，不抛。
 readonly Cs := (类型: string 模块: string 成员: list) => {
-    # **`Reflect.Type` 交回的是"静态访问的把手"**（`Call` 在那个类型上找**静态**成员），
-    # 而 `GetMethods` / `GetParameters` 这些是 `Type` 的**实例**成员，够不着。
-    # 所以从 `System.Type.GetType` 拿一个**包着 `Type` 的对象**回来 —— 之后全是实例调用。
-    T := Reflect.Call (Reflect.Type "System.Type") "GetType" [类型]
+    T := TypeObject 类型
     Full := Reflect.Unwrap (Reflect.Call T "FullName" [])
     All := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
 

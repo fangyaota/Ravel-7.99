@@ -1,13 +1,22 @@
 # **`mkadaptor`** —— 从 .NET 反射里生成适配层的 C#（命令行的壳）。
 #
-#     dotnet out/ravel.dll tools/mkadaptor.rav <类型> <模块名> <成员...> [--dll 路径]
-#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sqrt Pow BigMul
+#     dotnet out/ravel.dll tools/mkadaptor.rav <类型> [模块名] [成员...] [--all] [--dll 路径]
+#
+# 三种给法：
+#
+#     … System.Math NMath Max Min Sqrt          # 点名几个成员
+#     … System.Math NMath --all                 # 这个类型**全部**静态方法（不用逐个列）
+#     … System.Math --all                       # 连模块名都省了 —— 取类型的短名（`Math`）
+#
+# `--all` 那两种就是"只给一个类名"那条路：`Adaptor.AllOf` 把静态方法名扫出来，
+# 剩下的照旧。（**自动取的名字会打出来** —— 短名可能和库里已有的模块撞，
+# 两个同名模块谁后 `using` 谁赢，那是静默的坏，所以至少让人看见一眼。）
 #
 # 产出 `Ravel.Generated/<模块名>.cs` —— 一个 `[RavelModule]` / `[RavelFn]` 形状的
 # 插件**源码**。加了 `--dll <路径>` 就顺手**就地编**一份 dll（Roslyn 当库调，
 # 不经过 `dotnet build`），于是只有 runtime 的机器上也走得完：
 #
-#     … System.Math NMath Max Min --dll out/plugins/Ravel.Generated.dll
+#     … System.Math NMath --all --dll out/plugins/Ravel.Generated.dll
 #
 # 在仓库里（有 SDK）就不用 `--dll`：`bash build.sh` 会连 `Ravel.Generated/`
 # 那个插件项目一起编（见 `Ravel.csproj` 的 `BuildPlugins`）。两条路编出来的是
@@ -17,20 +26,26 @@
 # 也能直接调：
 #
 #     using "adaptor.rav"
-#     Adaptor.Dll "System.Math" "NMath" ["Max" "Min"] "Ravel.Generated/NMath.cs" "out/plugins/NMath.dll"
+#     Adaptor.Dll "System.Math" "NMath" (Adaptor.AllOf "System.Math") cs dll
 #
-# 这一份就三件事：解析参数、拼路径、调那三个函数。
+# 这一份就三件事：解析参数、拼路径、调那几个函数。
 
 using "adaptor.rav"
 using "args.rav"
 
-opts := Args.ParseWith (System.Args ()) {"dll" -> "string"}
-位置 := Args.Positional opts
-类型 := 位置.At 0
-模块 := 位置.At 1
-成员 := 位置.Skip 2
+opts  := Args.ParseWith (System.Args ()) {"dll" -> "string" "all" -> "flag"}
+位置  := Args.Positional opts
+全扫  := Args.Has opts "all"
+
+类型  := 位置.At 0
+# `(位置.Count ()) > 1` —— 括号**不能省**：`.Count` 的实参是那个 `()`，
+# 它会一路吃到运算符为止，写成 `位置.Count () > 1` 就成了 `.Count ((() > 1))`，
+# 报的是「类型 Void 不支持运算符 '>'」（跟这件事看着没关系的那种错）。
+模块  := (位置.Count ()) > 1 { 位置.At 1; } { Adaptor.ShortName 类型; }
+成员  := 全扫 { Adaptor.AllOf 类型; } { 位置.Skip 2; }
+
 Dll路径 := Args.Get opts "dll" ""
-Cs路径 := "Ravel.Generated/" + 模块 + ".cs"
+Cs路径  := "Ravel.Generated/" + 模块 + ".cs"
 
 Dll路径 != "" {
     Adaptor.Dll 类型 模块 成员 Cs路径 Dll路径

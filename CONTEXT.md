@@ -546,6 +546,8 @@ lib/
                           `Cs 类型 模块 成员`(交回源码字符串,不落盘)/
                           `Save 类型 模块 成员 cs路径` / `Dll 类型 模块 成员 cs路径 dll路径`
                           (写 .cs 再**就地编**成 dll —— Roslyn 当库调,见「生成出来的适配层」)。
+                          `AllOf 类型` 是"这个类型**全部**该适配的静态方法名"(成员那一格
+                          不用手数)/ `ShortName 类型`(短名,`"System.Math"` → `"Math"`)。
                           **要显式引用** —— 不进 predefined:它拖着 `Ravel.Reflect`,
                           编 dll 那条还拖着 `Ravel.Compile`(Roslyn,十几 MB),
                           没人用时一分别花。命令行那个壳在 `tools/mkadaptor.rav`,
@@ -1415,6 +1417,28 @@ using "structures.rav"       # 库里那半边,照旧
     Adaptor.Cs  类型 模块 成员                    # → 生成的 C# 源码(字符串,不落盘)
     Adaptor.Save 类型 模块 成员 cs路径            # → 写 .cs
     Adaptor.Dll  类型 模块 成员 cs路径 dll路径    # → 写 .cs + 就地编
+
+**成员那一格可以交给 `AllOf`** —— 它把一个类型**全部**该适配的静态方法名扫出来
+(去重、排序、滤掉 `IsSpecialName` 那些:属性访问器 / 运算符 / 事件),
+于是"只给一个类名"就够:
+
+    Adaptor.Dll "System.Math" "NMathAll" (Adaptor.AllOf "System.Math") cs dll
+
+命令行那边是 `--all`(模块名也能省,省了就取类型的短名):
+
+    dotnet out/ravel.dll tools/mkadaptor.rav System.Math --all
+
+**自动取的短名要当心撞名**:`Math` / `String` 这些,库里或别的插件里可能已经有了 ——
+两个同名模块谁后 `using` 谁赢(`DefineOrReplace` 是"装进来的以库为准"),那是**静默**
+的那种坏。所以工具会把取到的名字**打出来**给人看一眼。
+
+`EmitMember` 里那两档筛法是这一节的要害:**先按"是不是静态"筛**(生成的函数体是
+`System.String.Join (…)` 那个形状,只有静态的对得上 —— 漏了这一筛,`Substring` 那种
+实例方法会被照静态生成,而生成器**报的是"写好了"**,要到 C# 编译那一刻才冒一句
+CS0120「需要对象引用」;实测踩过),**再按"类型认不认得"筛**。挑重载的排位键见
+`RankKey` 的注释:第 3 段是**逐个比排位**、不是"排位之和" —— 加出来的数位数不一,
+`Pad2` 顶不住三位,字符串比较里 `"101" < "12"`,于是 `String.Join` 会挑中
+`(String, IEnumerable)` 而不是能映射的 `(String, String[])`、把它误判成"跳过"。
 
 `tools/mkadaptor.rav` 只剩三件事:解析参数、拼路径、调上面三个函数。
 放在 `lib/` 而不是 `tools/` 是因为**搜索路径上有 `lib/` 没有 `tools/`**
