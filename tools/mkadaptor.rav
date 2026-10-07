@@ -57,8 +57,13 @@ Dll路径 := Args.Get opts "dll" ""
     Adaptor.Cs 类型 模块 成员;
 }
 
+# 生成的代码里 `typeof (X)` / `(X) 值` 那些 X 得在**编译引用集**里。框架和主程序自带的
+# `Compile` 那边自己会加；**插件拖进来的**（`Microsoft.Data.Sqlite` 那种）不在 ——
+# 得把这一串递过去，不然是一句离题万里的 `CS0234 'Data' does not exist in …`。
+引用 := Adaptor.RefsOf 类型 成员
+
 Dll路径 != "" {
-    Adaptor.Build 源码 Cs路径 Dll路径
+    Adaptor.Build 源码 Cs路径 Dll路径 引用
     print ("写好了：" + Cs路径)
     print ("  编好了：" + Dll路径 + "（Roslyn 就地编，没走 dotnet build）")
 } {

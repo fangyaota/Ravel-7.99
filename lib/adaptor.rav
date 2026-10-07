@@ -112,7 +112,7 @@ readonly private GetterOf := ("Int32" e: string what: string)     => { "PluginKi
 # 只有 `TypeUsable` 说写不出来的那三种照旧跳过（`Span<T>` / `ref` / `T`）。
 readonly private FallbackOf := (ty: object e: string what: string) => {
     TypeUsable ty {
-        full := string (Reflect.Unwrap (Reflect.Call ty "FullName" []))
+        full := CsName ty
         # **括号那一句不能省**：`ToObject` 交回的是 `object`，C# 不会自己缩成
         # `TimeSpan` / `DateTime` 那种（CS1503）。转不过去照样是抛，只是从"编译期"
         # 挪到了"调用时" —— 那正是这条路要的（表在运行期、插件还能往上加规则）。
@@ -169,6 +169,40 @@ readonly private ParamTypesOf := (m: object) => {
     ps.Map (p: object) => { Reflect.Call p "ParameterType" []; }
 }
 
+# 一个 `Type` 的 **C# 写法** —— `typeof (…)` 那格里要的是这个，**不是 `FullName`**。
+#
+# `Type.FullName` 对泛型给的是**反射语法**：`IEnumerable`1[[System.String, System.Private.
+# CoreLib, Version=…]]` —— 那是给 `Type.GetType` 读的，写进 C# 就是一句
+# `Unexpected character '`'`（实测：`Microsoft.Data.Sqlite` 那个类型一生成就撞上，
+# 七条一起报）。
+#
+# 能写出来的形状就这三种：数组（`T[]`）、**闭合**泛型（`名字<实参, …>`）、和普通类型
+# （`FullName` —— 嵌套类型那个 `+` 换成 `.`）。**开放泛型**（`IEnumerable<>`）写不出来，
+# `TypeUsable` 会把它挡在外面（参数位置上本来也罕见）。
+readonly private CsName := (ty: object) => {
+    (Reflect.Unwrap (Reflect.Call ty "IsArray" [])) {
+        (CsName (Reflect.Call ty "GetElementType" [])) + "[]";
+    } {
+        (Reflect.Unwrap (Reflect.Call ty "IsGenericType" [])) {
+            d := Reflect.Call ty "GetGenericTypeDefinition" []
+            基 := string (Reflect.Unwrap (Reflect.Call d "FullName" []))
+            cut := 基.IndexOf "`"
+            cut < 0 { 基; } {
+                args := Reflect.Unwrap (Reflect.Call ty "GetGenericArguments" [])
+                # 单独一句：`.Join ", "` 的实参会一路吃到行尾（"实参吃运算符"）。
+                实参 := (args.Map (a: object) => { CsName a; }).Join ", "
+                # **`Slice` 两端都是闭的**（库里 `s.Slice [8..((s.Length ()) - 1)]` 那个写法
+                # 就是这么来的）—— 所以这里要 `cut - 1`，不然反引号留在名字里。
+                (基.Slice [0..(cut - 1)]) + "<" + 实参 + ">";
+            }
+        } {
+            # Ravel 的 `Replace` 收**两个**实参（不是一张表）—— 嵌套类型 `FullName` 里
+            # 那个 `+` 在 C# 里写作 `.`。
+            (string (Reflect.Unwrap (Reflect.Call ty "FullName" []))).Replace "+" ".";
+        }
+    }
+}
+
 # 这一型能不能出现在生成的代码里（靠 `typeof (…)`）。
 #
 # **认不出的类型绝大多数能** —— 那正是"照常生成、转换退到运行期"要的。
@@ -181,9 +215,13 @@ readonly private ParamTypesOf := (m: object) => {
 readonly private TypeUsable := (ty: object) => {
     (Reflect.Unwrap (Reflect.Call ty "IsByRefLike" [])) { false; } {
         (Reflect.Unwrap (Reflect.Call ty "IsGenericParameter" [])) { false; } {
-            full := string (Reflect.Unwrap (Reflect.Call ty "FullName" []))
-            (full.Contains "&") { false; } {
-                (full.Contains "*") { false; } { true; }
+            # **开放泛型**（`IEnumerable<>` 那种没填实参的）也写不出来 —— C# 里的形状是
+            # `名字<>`，而 `CsName` 拼的是闭合的那种。参数位置上本来就罕见。
+            (Reflect.Unwrap (Reflect.Call ty "IsGenericTypeDefinition" [])) { false; } {
+                full := string (Reflect.Unwrap (Reflect.Call ty "FullName" []))
+                (full.Contains "&") { false; } {
+                    (full.Contains "*") { false; } { true; }
+                }
             }
         }
     }
@@ -318,9 +356,15 @@ readonly private EmitOne := (m: object mod: string full: string) => {
 # 一个方法能不能照这张映射表生成：参数和返回值都认得出来。
 # **不含"是不是静态"** —— 那是调用方先筛掉的事（见 `EmitMember`）。
 readonly private Usable := (m: object) => {
-    # **参数**都得能进生成的代码（`typeof` 写得出来）；返回值没这个限制 ——
-    # 表里没有的交给 `ToRavel` 那一格（见 `Wrapped`），总有活路。
-    (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+    # **泛型方法不要。** `JToken.ToObject<T>()` / `Annotation<T>()` 那种 —— 生成的代码里
+    # 没有 `T`，写出来就是 **CS0411「类型实参推不出来」**（实测：`Newtonsoft.Json` 的
+    # `JObject` 一生成就撞上，五条一起报）。它和 `TypeUsable` 里"泛型参数"那条是一回事，
+    # 只是一个在**参数类型**上、一个在**方法自己**头上。
+    (Reflect.Unwrap (Reflect.Call m "IsGenericMethod" [])) { false; } {
+        # **参数**都得能进生成的代码（`typeof` 写得出来）；返回值没这个限制 ——
+        # 表里没有的交给 `ToRavel` 那一格（见 `Wrapped`），总有活路。
+        (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+    }
 }
 
 # 一个成员名 → 一段 C#（挑不中就一段注释）。
@@ -379,7 +423,10 @@ readonly private EmitMember := (all: list w: string mod: string full: string) =>
 # 少了这一格的话 `Append` / `AppendLine` / `AppendJoin` 全被判成"映射表里没有"，
 # 而其实它们正是这个类最常用的那几个。
 readonly private UsableClass := (m: object selfName: string) => {
-    (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+    # 泛型方法同上 —— 生成的代码里没有 `T`。
+    (Reflect.Unwrap (Reflect.Call m "IsGenericMethod" [])) { false; } {
+        (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+    }
 }
 
 # 一个构造器 → `[ClassCtor]`。**`ConstructorInfo` 没有 `ReturnType`**，
@@ -607,20 +654,50 @@ readonly Cs := (类型: string 模块: string 成员: list) => {
     Lines.Join "\n";
 }
 
+# **生成的代码要引用的程序集**（全路径表）—— 类型自己 + 成员签名里出现过的那些类型。
+#
+# **为什么要有这个**：`typeof (X)` / `(X) 值` 里的 X 得在 C# 的**编译引用集**里。框架那一套
+# 和主程序自己带的都在（`Compile` 那边走 `TRUSTED_PLATFORM_ASSEMBLIES`），**插件拖进来的
+# 那些不在** —— `Microsoft.Data.Sqlite` 那种：主项目的 `deps.json` 里压根没有这个包，
+# 编出来的是 `CS0234 'Data' does not exist in the namespace 'Microsoft'`（实测：
+# `SqliteConnection` 一生成就撞上）。
+#
+# 收的是**超集**（同名成员的所有重载都算）—— 多给几个引用无害，漏一个才编不过。
+# 空位置（动态程序集没有）和重复的去掉。
+readonly RefsOf := (类型: string 成员: list) => {
+    T := TypeObject 类型
+    ms := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+    keep := ms.Where (m: object) => { 成员.Contains (NameOf m); }
+    cs := Reflect.Unwrap (Reflect.Call T "GetConstructors" [])
+
+    袋 := [T]
+    袋 = 袋.Concat (keep.Fold [] ((acc: list m: object) => { acc.Concat (ParamTypesOf m); }))
+    袋 = 袋.Concat (keep.Map (m: object) => { Reflect.Call m "ReturnType" []; })
+    袋 = 袋.Concat (cs.Fold [] ((acc: list c: object) => { acc.Concat (ParamTypesOf c); }))
+
+    局 := 袋.Map (t: object) => {
+        string (Reflect.Unwrap (Reflect.Call (Reflect.Call t "Assembly" []) "Location" []));
+    }
+    有 := 局.Where (s: string) => { s != ""; }
+    有.Distinct () |> .ToList ()
+}
+
 # **`Write` / `Build` 收的是源码**，不是"类型 + 成员" —— 于是
 # 「静态那半 / 实例那半」（`Cs` / `CsClass`）和「写 / 写+编」两件事**正交**地拼：
 #
 #     Adaptor.Write (Adaptor.Cs 类型 模块 成员) 路径
-#     Adaptor.Build (Adaptor.CsClass 类型 模块 类名 成员) cs路径 dll路径
+#     Adaptor.Build (Adaptor.CsClass 类型 模块 类名 成员) cs路径 dll路径 (Adaptor.RefsOf 类型 成员)
 #
 # 不这么抽的话命令行那边是四个分支（静态/实例 × 写/编），一加形状就翻倍。
 
 readonly Write := (源码: string 路径: string) => { System.WriteText 路径 源码; 路径; }
 
-readonly Build := (源码: string cs路径: string dll路径: string) => {
+readonly Build := (源码: string cs路径: string dll路径: string 引用: list) => {
     System.WriteText cs路径 源码
     # **就地编**：Roslyn 当库调，不经过 `dotnet build` —— 只有 runtime 的机器上也跑得起来。
-    Compile.Cs 源码 dll路径 []
+    # `引用` 那一格给的是**额外的**程序集（`Adaptor.RefsOf` 算出来的那种）——
+    # 框架和主程序自带的那批 `Compile` 那边自己会加。
+    Compile.Cs 源码 dll路径 引用
     dll路径;
 }
 

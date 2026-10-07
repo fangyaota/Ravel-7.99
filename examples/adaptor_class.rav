@@ -17,7 +17,7 @@ using "adaptor.rav"
 # ① **引用类型**：`Random` 那种"有身份"的
 类型 := "System.Random"
 源码 := Adaptor.CsClass 类型 "Rnd" "Random" (Adaptor.AllOfClass 类型)
-Adaptor.Build 源码 "out/Rnd.cs" "out/plugins/Rnd.dll"
+Adaptor.Build 源码 "out/Rnd.cs" "out/plugins/Rnd.dll" (Adaptor.RefsOf 类型 (Adaptor.AllOfClass 类型))
 print ("① 扫出 " + (string ((Adaptor.AllOfClass 类型).Count ())) + " 个实例方法名")
 using "Rnd"
 r := Rnd.Random ()                 # 构造器（`[RavelClass]` 挂了 `[RavelModule]`，类对象也进模块）
@@ -37,7 +37,7 @@ print ("   NextDouble ()：" + (string (r.NextDouble ())))
 # **装箱那份副本**，改完丢掉 —— 静默白做。产物里会留一行「跳过 Deconstruct：…」。
 dt := "System.DateTime"
 源码2 := Adaptor.CsClass dt "NDate" "DateTime" (Adaptor.AllOfClass dt)
-Adaptor.Build 源码2 "out/NDate.cs" "out/plugins/NDate.dll"
+Adaptor.Build 源码2 "out/NDate.cs" "out/plugins/NDate.dll" (Adaptor.RefsOf dt (Adaptor.AllOfClass dt))
 using "NDate"
 d := NDate.DateTime 638000000000000000     # 构造器：`DateTime(long ticks)`
 print ("② 原值：" + (string (d.ToLongDateString ())))

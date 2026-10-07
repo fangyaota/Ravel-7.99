@@ -1500,8 +1500,29 @@ RegisterConverter 加一条`），不是生成阶段什么都不给你。
 `PluginKit.ToRavel`，认识的就化（**数组也化 `list`**）、不认识的兜成 `DotNetObject`。
 比整个跳过去强。
 
-**已知的缺口**：造值那张表只有标量，所以返回值是**别的值类型**（`DateTime.Subtract` 交回
-`TimeSpan`）的还是落到 `ToRavel` → `DotNetObject` —— 能用，但**不是**生成的 `TimeSpan` 类，
+**生成的代码要引用的程序集**（`Adaptor.RefsOf`）。`typeof (X)` / `(X) 值` 里的 X 得在 C# 的
+**编译引用集**里 —— 框架那套和主程序自己带的都在（`Compile` 走
+`TRUSTED_PLATFORM_ASSEMBLIES`），**插件拖进来的那些不在**（`Microsoft.Data.Sqlite` 那种：
+主项目的 `deps.json` 里压根没有这个包）。不收的话编出来是一句离题万里的
+`CS0234 'Data' does not exist in the namespace 'Microsoft'`。收的是**超集**
+（同名成员的所有重载都算）—— 多给几个引用无害，漏一个才编不过。`Build` 因此多了一格。
+
+试一条**第三方类型**（`Newtonsoft.Json.Linq.JObject` / `Microsoft.Data.Sqlite.
+SqliteConnection`）又照出三件事：
+
+* **泛型方法不要**（`JToken.ToObject<T>()` / `Annotation<T>()`）—— 生成的代码里没有 `T`，
+  写出来就是 **CS0411「类型实参推不出来」**（`JObject` 一生成就五条一起报）。
+  和 `TypeUsable` 里"泛型参数"那条是一回事，只是一个在**参数类型**上、一个在**方法自己头上**。
+* **`typeof (…)` 那格不能写 `FullName`** —— 泛型的 `FullName` 是**反射语法**
+  （`IEnumerable`1[[System.String, …]]`），写进 C# 就是 `Unexpected character '`'`
+  （`SqliteConnection` 一生成就七条一起报）。得自己拼 C# 写法（`CsName`：数组 /
+  **闭合**泛型 / 普通类型；**开放泛型**写不出来，`TypeUsable` 挡掉）。
+* **`Slice` 两端都是闭的** —— `[0..cut]` 会把那个字符本身留下（库里
+  `s.Slice [8..((s.Length ()) - 1)]` 就是这么来的）。拼 `CsName` 时踩了这个，
+  反引号留在了类型名里。
+
+**已知的缺口**：造值那张表只有标量，所以返回值是**别的值类型**的（`DateTime.Subtract`
+交回 `TimeSpan`）还是落到 `ToRavel` → `DotNetObject` —— 能用，但不是生成的那个类、
 没有那一族方法。
 
 **已知的可用性缺口**：一个方法名只生成**一个**重载（排位键挑的），所以
