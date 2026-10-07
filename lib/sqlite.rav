@@ -86,7 +86,7 @@ readonly Db ::= class {
 }
 
 # 把引擎交回的那张 `{columns rows}` 摆成一行行 dict
-readonly Rows := (raw: dict) => {
+readonly private Rows := (raw: dict) => {
     cols := raw.Get "columns"
     out := []
     (raw.Get "rows").Foreach (r: list) => {

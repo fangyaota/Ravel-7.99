@@ -85,7 +85,7 @@ readonly Merge := (a: list b: list key: function) => {
 }
 
 # 挑一个:`wantMax` 为真挑最大,否则最小。
-readonly Best := (xs: list key: function wantMax: bool) => {
+readonly private Best := (xs: list key: function wantMax: bool) => {
     assert ((xs.Count ()) > 0) ("空表没得挑：Max / Min 至少要一个元素")
     best := xs.At 0
     i := 1

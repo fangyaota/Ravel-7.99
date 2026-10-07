@@ -46,11 +46,11 @@ using "encoding.rav"
 
 # 一次请求的默认空转时间(毫秒)。keep-alive 的连接闲着超过它就让位 ——
 # 少了这条,一条不说话的连接会永远占着一个任务,而任务是有数的。
-readonly DefaultIdle := 15000;
+readonly private DefaultIdle := 15000;
 
 # `a=1&b=%E4%B8%AD` → `{"a": "1" "b": "中"}`。没写 `=` 的按空串(键照样留)。
 # 解码用 `Encoding.UrlDecode`;`Slice` 是**包含式**的,所以右边那个端点要减一。
-readonly ParseQuery := (q: string) => {
+readonly private ParseQuery := (q: string) => {
     out := {}
     q == "" { out; } {
         (q.Split "&").Foreach (part: string) => {
@@ -70,7 +70,7 @@ readonly ParseQuery := (q: string) => {
 # 扩展名 → content-type。**这是策略,不归本机那半边**(那边只管把字节发出去)。
 # 表里没有的一律 `application/octet-stream` —— 猜错类型会让浏览器把文本当附件下载,
 # 不如老实说"我不知道这是什么"。
-readonly MimeOf := (path: string) => {
+readonly private MimeOf := (path: string) => {
     i := path.LastIndexOf "."
     i < 0 { "application/octet-stream"; } {
         ext := (path.Slice [(i + 1)..((path.Length ()) - 1)]).ToLower ()
@@ -79,8 +79,8 @@ readonly MimeOf := (path: string) => {
 }
 
 # 造一次就留着 —— 每个静态文件都重建一张表太亏
-readonly MimeCache := {}
-readonly MimeTable := () => {
+readonly private MimeCache := {}
+readonly private MimeTable := () => {
     MimeCache.IsEmpty () {
         MimeCache.Set "html" "text/html; charset=utf-8"
         MimeCache.Set "htm" "text/html; charset=utf-8"
@@ -106,9 +106,9 @@ readonly MimeTable := () => {
     MimeCache;
 }
 
-readonly PlainType := "text/plain; charset=utf-8"
-readonly HtmlType := "text/html; charset=utf-8"
-readonly JsonType := "application/json; charset=utf-8"
+readonly private PlainType := "text/plain; charset=utf-8"
+readonly private HtmlType := "text/html; charset=utf-8"
+readonly private JsonType := "application/json; charset=utf-8"
 
 # ── 响应 ──
 
@@ -162,7 +162,7 @@ readonly Json := (v: object) => {
 }
 
 # 已经是 JSON 文本了(别拿它包一层字符串 —— 那样发出去的是个带引号的 JSON 字符串)
-readonly JsonText := (s: string) => { Build 200 JsonType (Encoding.Utf8 s); }
+readonly private JsonText := (s: string) => { Build 200 JsonType (Encoding.Utf8 s); }
 
 readonly Bytes := (type: string body: list) => { Build 200 type body; }
 

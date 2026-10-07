@@ -31,25 +31,25 @@ ravel "Html"
 readonly Doctype := "<!DOCTYPE html>"
 
 # void 元素 —— 标准里不写收尾标签的那 14 个
-readonly Voids := ["area" "base" "br" "col" "embed" "hr" "img" "input"
+readonly private Voids := ["area" "base" "br" "col" "embed" "hr" "img" "input"
                    "link" "meta" "param" "source" "track" "wbr"]
 
-readonly IsVoid := (name: string) => { Voids.Contains (name.ToLower ()); }
+readonly private IsVoid := (name: string) => { Voids.Contains (name.ToLower ()); }
 
 # ── 造节点 ──
 
 # **文本**只要躲开这三个:引号在文本里是普通字符,转成 `&quot;` 白白让源码变吵
 # (`<pre>` 里的代码最明显:`print "x"` 变成 `print &quot;x&quot;`)。引号是**属性**
 # 那边的事,所以属性值照旧走 `Encoding.HtmlEscape` 那五个。
-readonly TextEscape := (s: string) => {
+readonly private TextEscape := (s: string) => {
     ((s.Replace "&" "&amp;").Replace "<" "&lt;").Replace ">" "&gt;";
 }
 
-readonly TextNode := (s: object) => { {"kind"-> "text" "text"-> (string s)}; }
-readonly RawNode := (s: string) => { {"kind"-> "raw" "text"-> s}; }
+readonly private TextNode := (s: object) => { {"kind"-> "text" "text"-> (string s)}; }
+readonly private RawNode := (s: string) => { {"kind"-> "raw" "text"-> s}; }
 
 # 孩子:list 照收;单个(一个节点、一个字符串)包成只有一个元素的 list;`None` 当没有
-readonly KidsOf := (kids: object) => {
+readonly private KidsOf := (kids: object) => {
     (IsNothing kids) { []; } {
         kids : list { kids; } { [kids]; }
     }
@@ -87,11 +87,11 @@ readonly Frag := (kids: object) => { KidsOf kids; }
 #
 # 属性的先后**照你写的先后**(dict 是有序的),不重排 —— 输出才稳、diff 才好看。
 
-readonly AttrText := (v: object) => {
+readonly private AttrText := (v: object) => {
     v : list { v.Join " "; } { string v; }
 }
 
-readonly AttrsText := (attrs: object) => {
+readonly private AttrsText := (attrs: object) => {
     out := ""
     (attrs.Keys ()).Foreach (k: string) => {
         v := attrs.GetOr k ""
@@ -171,23 +171,23 @@ readonly Pad := (n: int) => {
 # 也算了进来 —— 它们不是块级盒子,但一个 `<head>` 挤成一行、里面还塞着整段 `<style>`,
 # 那是没法看的。
 
-readonly BlockTags := ["address" "article" "aside" "blockquote" "body" "details" "div"
+readonly private BlockTags := ["address" "article" "aside" "blockquote" "body" "details" "div"
                        "dl" "dd" "dt" "fieldset" "figcaption" "figure" "footer" "form"
                        "h1" "h2" "h3" "h4" "h5" "h6" "head" "header" "hr" "html" "li"
                        "main" "nav" "ol" "p" "pre" "section" "summary" "table" "tbody"
                        "td" "tfoot" "th" "thead" "tr" "ul"
                        "base" "link" "meta" "script" "style" "title"]
 
-readonly IsBlockTag := (name: string) => { BlockTags.Contains (name.ToLower ()); }
+readonly private IsBlockTag := (name: string) => { BlockTags.Contains (name.ToLower ()); }
 
 # 孩子里有没有块级的(片段按"里面有没有"算)
-readonly HasBlockKid := (kids: list) => {
+readonly private HasBlockKid := (kids: list) => {
     hit := false
     kids.Foreach (k: object) => { hit = (hit || (IsBlock k)); }
     hit
 }
 
-readonly IsBlock := (x: object) => {
+readonly private IsBlock := (x: object) => {
     x : list {
         HasBlockKid x
     } {
@@ -275,10 +275,10 @@ readonly Doc := (lang: string head: object body: object) => {
 #     ]
 
 readonly H1 := (kids: object) => { El "h1" {} kids; }
-readonly H2 := (kids: object) => { El "h2" {} kids; }
-readonly H3 := (kids: object) => { El "h3" {} kids; }
-readonly H4 := (kids: object) => { El "h4" {} kids; }
-readonly H5 := (kids: object) => { El "h5" {} kids; }
+readonly private H2 := (kids: object) => { El "h2" {} kids; }
+readonly private H3 := (kids: object) => { El "h3" {} kids; }
+readonly private H4 := (kids: object) => { El "h4" {} kids; }
+readonly private H5 := (kids: object) => { El "h5" {} kids; }
 readonly H6 := (kids: object) => { El "h6" {} kids; }
 
 readonly P := (kids: object) => { El "p" {} kids; }
@@ -292,7 +292,7 @@ readonly Pre := (s: object) => { El "pre" {} [(El "code" {} [s])]; }
 readonly Ul := (items: object) => { ListOf "ul" items; }
 readonly Ol := (items: object) => { ListOf "ol" items; }
 
-readonly ListOf := (tag: string items: object) => {
+readonly private ListOf := (tag: string items: object) => {
     lis := []
     (KidsOf items).Foreach (it: object) => { lis.Add (El "li" {} it); }
     El tag {} lis

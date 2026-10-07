@@ -27,7 +27,7 @@ ravel "Hash"
 # ── 十六进制那两条:值类型是字节表,文本是十六进制串 ──
 # 引擎那层收字节表、交回字节表;这一层管"字符串怎么进、十六进制怎么出"。
 
-readonly HashOf := (algo: string data: object) => {
+readonly private HashOf := (algo: string data: object) => {
     # 条件**整个**括起来:不括的话 `string { … }` 会被读成「拿这个块当实参调 string」
     ((typeof data) == string) {
         Native.HashBytes algo (Encoding.Utf8 data);
@@ -35,12 +35,12 @@ readonly HashOf := (algo: string data: object) => {
 }
 
 # 小写十六进制(要字节表用 `...Bytes` 那几条 —— 它们收字节表、交回字节表)
-readonly HexOf := (bytes: list) => { Encoding.Hex bytes; }
+readonly private HexOf := (bytes: list) => { Encoding.Hex bytes; }
 
 readonly Sha256Bytes := (data: object) => { HashOf "sha256" data; }
-readonly Sha512Bytes := (data: object) => { HashOf "sha512" data; }
-readonly Sha1Bytes := (data: object) => { HashOf "sha1" data; }
-readonly Md5Bytes := (data: object) => { HashOf "md5" data; }
+readonly private Sha512Bytes := (data: object) => { HashOf "sha512" data; }
+readonly private Sha1Bytes := (data: object) => { HashOf "sha1" data; }
+readonly private Md5Bytes := (data: object) => { HashOf "md5" data; }
 
 readonly Sha256 := (data: object) => { HexOf (Sha256Bytes data); }
 readonly Sha512 := (data: object) => { HexOf (Sha512Bytes data); }
@@ -48,11 +48,11 @@ readonly Sha1 := (data: object) => { HexOf (Sha1Bytes data); }
 readonly Md5 := (data: object) => { HexOf (Md5Bytes data); }
 
 # 文件的摘要(流式):交回十六进制串;`...Bytes` 那条交回字节表
-readonly FileBytes := (path: object algo: string) => { Native.HashFile algo ((PathStr path)); }
+readonly private FileBytes := (path: object algo: string) => { Native.HashFile algo ((PathStr path)); }
 readonly File := (path: object algo: string) => { HexOf (FileBytes path algo); }
 
 # 收路径字符串,或一个**磁盘条目**(`Io.File "a.zip"`)—— 和 `io.rav` 的 `CopyTo dest` 一个待遇
-readonly PathStr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
+readonly private PathStr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
 
 # ── HMAC:带密钥的摘要 ──
 readonly HmacBytes := (algo: string key: object data: object) => {
@@ -68,11 +68,11 @@ readonly Hmac := (algo: string key: object data: object) => { HexOf (HmacBytes a
 #
 # 纯 Ravel 写:引擎那边 .NET 的 BCL 里没有 CRC32(它在 `System.IO.Hashing` 那个包里),
 # 而这一套位运算 `Bits` 已经够了。逐位算(每字节 8 圈),图个看得懂。
-readonly Crc32Bytes := (data: object) => {
+readonly private Crc32Bytes := (data: object) => {
     ((typeof data) == string) { Crc32Of (Encoding.Utf8 data); } { Crc32Of data; }
 }
 
-readonly Crc32Of := (bytes: list) => {
+readonly private Crc32Of := (bytes: list) => {
     crc := 0 - 1                                  # 0xFFFFFFFF 的 32 位位型
     bytes.Foreach (b: object) => {
         crc = crc ^ (int b)

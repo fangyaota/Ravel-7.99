@@ -37,7 +37,7 @@ readonly Element := (name: string) => { XmlNode {"kind"-> "element" "name"-> nam
 readonly Text := (s: string) => { XmlNode {"kind"-> "text" "text"-> s} (); }
 
 # 节点或者那棵裸树都收
-readonly TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; } { n; } }
+readonly private TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; } { n; } }
 
 # ── 一个节点 ──
 #

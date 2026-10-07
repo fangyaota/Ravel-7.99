@@ -46,14 +46,14 @@ using "glob.rav"
 
 # 哪儿找 markdown —— 源目录写死在这儿(这个模块就是为这份教程写的);要换地方就
 # 改这一行。**落点是 `Build out` 的参数**,不在这儿。
-readonly SRC := "docs/tutorial"
-readonly SITE := "Ravel 语言教程"
+readonly private SRC := "docs/tutorial"
+readonly private SITE := "Ravel 语言教程"
 
 # 样式表**从磁盘读**,不写在代码里 —— 和 markdown 放同一格:那一格就是"这个站的
 # 全部原料"。好处很实在:改颜色不用碰 Ravel 源码,编辑器也当 CSS 高亮。
 # 和 `SRC` 一样按**当前目录**找,少了它 `Build` 当场报错(生成一团没样子的 HTML
 # 才是真麻烦)。
-readonly CSS_FILE := SRC + "/style.css"
+readonly private CSS_FILE := SRC + "/style.css"
 
 # ═══ 小工具 ═══
 
@@ -62,14 +62,14 @@ readonly CSS_FILE := SRC + "/style.css"
 readonly Sub := (s: string i: int n: int) => {
     n <= 0 { ""; } { s.Slice [i..((i + n) - 1)]; }
 }
-readonly Mid := (s: string i: int j: int) => { Sub s i (j - i); }      # [i, j)
+readonly private Mid := (s: string i: int j: int) => { Sub s i (j - i); }      # [i, j)
 
 # 第 i 行,越界就是空串。(`&&` 是**真短路**的,所以这不是为了兜它 —— 是为了读起来
 # 不用每处都先想一遍"这个 i 会不会越界"。)
-readonly LineAt := (lines: list i: int) => {
+readonly private LineAt := (lines: list i: int) => {
     i < (lines.Count ()) { lines.At i; } { ""; }
 }
-readonly Tail := (s: string n: int) => { Sub s n ((s.Length ()) - n); }  # 从第 n 个到末尾
+readonly private Tail := (s: string n: int) => { Sub s n ((s.Length ()) - n); }  # 从第 n 个到末尾
 
 # 从 `from` 起找 `sub`,交回位置;没有就是 -1
 readonly Find := (s: string sub: string from: int) => {
@@ -95,7 +95,7 @@ readonly Find := (s: string sub: string from: int) => {
 #
 # 三条各拆成"交回节点"和"下一个位置"两半:认不出的情况(没有收尾记号)照样得往前走一格,
 # 不然会死循环。
-readonly Inline := (s: string) => {
+readonly private Inline := (s: string) => {
     out := []
     i := 0
     n := s.Length ()
@@ -133,7 +133,7 @@ readonly Code := (s: string i: int) => {
     j := Find s "`" (i + 1)
     j < 0 { Html.Text (Mid s i (i + 1)); } { Html.Code (Mid s (i + 1) j); }
 }
-readonly CodeEnd := (s: string i: int) => {
+readonly private CodeEnd := (s: string i: int) => {
     j := Find s "`" (i + 1)
     j < 0 { i + 1; } { j + 1; }
 }
@@ -142,12 +142,12 @@ readonly Bold := (s: string i: int) => {
     j := Find s "**" (i + 2)
     j < 0 { Html.Text (Mid s i (i + 1)); } { Html.El "strong" {} (Inline (Mid s (i + 2) j)); }
 }
-readonly BoldEnd := (s: string i: int) => {
+readonly private BoldEnd := (s: string i: int) => {
     j := Find s "**" (i + 2)
     j < 0 { i + 1; } { j + 2; }
 }
 
-readonly LinkAt := (s: string i: int) => {
+readonly private LinkAt := (s: string i: int) => {
     j := Find s "]" (i + 1)
     k := j < 0 { -1; } { Find s "(" (j + 1); }
     e := k < 0 { -1; } { Find s ")" (k + 1); }
@@ -155,7 +155,7 @@ readonly LinkAt := (s: string i: int) => {
         Html.A (Mid s (k + 1) e) (Inline (Mid s (i + 1) j));
     }
 }
-readonly LinkEnd := (s: string i: int) => {
+readonly private LinkEnd := (s: string i: int) => {
     j := Find s "]" (i + 1)
     k := j < 0 { -1; } { Find s "(" (j + 1); }
     e := k < 0 { -1; } { Find s ")" (k + 1); }
@@ -177,7 +177,7 @@ readonly Head := (lvl: int at: int text: string) => {
 # `\|` 最后显示成一个 `|`。
 #
 # 从前这一句是 `inner.Replace "|" "\n"`,一个 `Replace` 把转义和分隔一视同仁了。
-readonly Cells := (line: string) => {
+readonly private Cells := (line: string) => {
     t := line.Trim ()
     out := []
     cur := ""
@@ -229,7 +229,7 @@ readonly Table := (rows: list) => {
 
 # 正文:逐行走一遍状态机,交回**一串块节点**。几条判据**平铺**着写(它们互斥,
 # `#### ` 不以 `### ` 开头),每行至多命中一条,靠 `done` 拦住后面的段落分支。
-readonly Md := (text: string) => {
+readonly private Md := (text: string) => {
     lines := System.SplitLines text
     out := []
     i := 0
@@ -291,7 +291,7 @@ readonly Md := (text: string) => {
 }
 
 # 抽 `##` / `###` 给左侧导航用
-readonly Toc := (text: string) => {
+readonly private Toc := (text: string) => {
     out := []
     lines := System.SplitLines text
     i := 0
@@ -334,7 +334,7 @@ readonly Save := (out: string rel: string text: string) => {
 }
 
 # 一章的标题:头一行 `# …`
-readonly TitleOf := (src: string) => {
+readonly private TitleOf := (src: string) => {
     t := (LineAt (System.SplitLines src) 0)
     t.StartsWith "# " { Tail t 2; } { t; }
 }
@@ -346,7 +346,7 @@ readonly PageOf := (md: string) => { md.Replace ".md" ".html"; }
 readonly Chapters := (Glob.Find (SRC + "/*.md") |> .ToList ()) |> .Sort ();
 
 # 左侧导航:每章一条;当前那一章再展开它自己的小节
-readonly Nav := (cur: string src: string) => {
+readonly private Nav := (cur: string src: string) => {
     out := []
     Chapters.Foreach (p: string) => {
         name := (Io.File p).Name ()

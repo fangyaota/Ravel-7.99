@@ -26,7 +26,7 @@ PassCount: int = 0
 FailCount: int = 0
 
 # 记一条。**先打再记** —— 断言当场就看得见,不用等汇总(跑到一半崩了也知道走到哪了)
-readonly Record := (name: string ok: bool msg: string) => {
+readonly private Record := (name: string ok: bool msg: string) => {
     Results.Add {"name"-> name "ok"-> ok "msg"-> msg}
     ok { PassCount += 1; } { FailCount += 1; }
     ok { print ("ok ${Results.Count ()} - ${name}"); } { print ("not ok ${Results.Count ()} - ${name}"); }

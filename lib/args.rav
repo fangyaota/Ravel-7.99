@@ -28,18 +28,18 @@
 # 别名就写两条(`{"v": "flag" "verbose": "flag"}`)—— 比再发明一套"别名语法"直白。
 ravel "Args"
 
-readonly Rest := "_"          # 位置参数落在这个键下
+readonly private Rest := "_"          # 位置参数落在这个键下
 
 # ── 认不认得出"这是个选项" ──
 # 光看 `-` 开头不够:`-5` 是负数,`-` 常常是"标准输入"。这两样都该当**位置参数**。
-readonly IsOpt := (v: string) => {
+readonly private IsOpt := (v: string) => {
     (v.Length ()) < 2 { false; } {
         !(v.StartsWith "-") { false; } { !((v.At 1).IsDigit ()); }
     }
 }
 
 # 剥掉前缀:`--name` / `-n` → `name` / `n`
-readonly Peel := (arg: string) => {
+readonly private Peel := (arg: string) => {
     arg.StartsWith "--" { arg.Skip 2; } { arg.Skip 1; }
 }
 
@@ -144,13 +144,13 @@ readonly ParseWith := (argv: list spec: object) => {
 }
 
 # 「这名字该按什么类型收」—— 规格里没写就是 string
-readonly SpecOf := (spec: dict name: string) => {
+readonly private SpecOf := (spec: dict name: string) => {
     spec.Has name { spec.Get name; } { "string"; }
 }
 
 # 原始值 → 该有的样子。**转不动就报错,而且要说清是哪个选项** ——
 # "123abc" 是个 int 这件事,不说明白的话用户得自己去数第几个参数。
-readonly Coerce := (t: string name: string v: object) => {
+readonly private Coerce := (t: string name: string v: object) => {
     t == "flag" { true; } {
         t == "int" { AsInt name v; } {
             t == "real" { AsReal name v; } { v; }
@@ -158,7 +158,7 @@ readonly Coerce := (t: string name: string v: object) => {
     }
 }
 
-readonly AsInt := (name: string v: object) => {
+readonly private AsInt := (name: string v: object) => {
     (typeof v) == string {
         s := v.StartsWith "-" { v.Skip 1; } { v; }
         ok := (s.Length ()) > 0
@@ -169,7 +169,7 @@ readonly AsInt := (name: string v: object) => {
     } { v; }
 }
 
-readonly AsReal := (name: string v: object) => {
+readonly private AsReal := (name: string v: object) => {
     (typeof v) == string {
         try { real v; } (e: Exception) => { throw (Exception ("Args.Parse: '--" + name + "' 要一个数，得到 '" + v + "'")); }
     } { v; }

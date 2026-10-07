@@ -55,7 +55,7 @@ readonly PathOf := (p: object) => {
 
 # 一个条目该是 File 还是 Dir：拿不准就问磁盘（`ListDir` 给的"是不是目录"带了来，
 # 别的地方就再问一次）。
-readonly EntryAt := (path: string isDir: bool) => {
+readonly private EntryAt := (path: string isDir: bool) => {
     isDir { Dir path; } { File path; }
 }
 

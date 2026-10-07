@@ -21,7 +21,7 @@
 ravel "Csv"
 
 # ── 一个格子怎么转义 ──
-readonly NeedsQuote := (cell: string) => {
+readonly private NeedsQuote := (cell: string) => {
     (cell.Contains ",") || ((cell.Contains "\"") || ((cell.Contains "\n") || (cell.Contains "\r")));
 }
 

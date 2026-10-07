@@ -34,11 +34,11 @@ readonly BytesOf := (v: object) => { ((typeof v) == string) { Encoding.Utf8 v; }
 # 所以 `Seal` 自己现取,并把它拼在密文**前面** —— `Open` 从同一个位置读回来,调用方不用管。
 # 密文格式就是 `nonce(12) ‖ 密文 ‖ 标签(16)`,整个再 base64。
 
-readonly NonceLen := 12
+readonly private NonceLen := 12
 
 # 两张字节表接起来。**不能用 `+`**(list 没这个运算符),`Concat` 给的又是惰性的一串
 # (交回 `IEnumerable`,不是 list)—— 这儿要的就是一张**平的 list**,那就自己垒。
-readonly Together := (a: list b: list) => {
+readonly private Together := (a: list b: list) => {
     out := []
     a.Foreach (x: object) => { out.Add x; }
     b.Foreach (x: object) => { out.Add x; }
@@ -64,18 +64,18 @@ readonly Open := (key: object text: string) => { Encoding.Utf8Text (OpenBytes ke
 #
 # `Salt ()` 每次给一串新的(16 字节)。盐**不必保密**,它的用处是让"两个人用同一个口令"
 # 也得不出同一个密钥 —— 不然一张彩虹表就同时破掉一片。
-readonly SaltLen := 16
+readonly private SaltLen := 16
 readonly Salt := () => { Native.RandomBytes SaltLen; }
 
 # 轮数:2026 年那批建议是 60 万起步(salt 16 字节)。数越大越难被硬试,代价是自己也慢。
-readonly Rounds := 600000
+readonly private Rounds := 600000
 
 readonly DeriveKey := (password: object salt: object rounds: int) => {
     Native.Pbkdf2 (BytesOf password) (BytesOf salt) rounds;
 }
 
 # 常用那份:轮数用默认的(和 `HashPassword` 存的轮数一致)
-readonly Derive := (password: object salt: object) => { DeriveKey password salt Rounds; }
+readonly private Derive := (password: object salt: object) => { DeriveKey password salt Rounds; }
 
 # ── 口令:存"怎么校验",不存口令 ──
 #
@@ -84,7 +84,7 @@ readonly Derive := (password: object salt: object) => { DeriveKey password salt 
 
 readonly Prefix := "pbkdf2$sha256$"
 
-readonly HashWith := (password: object salt: object rounds: int) => {
+readonly private HashWith := (password: object salt: object rounds: int) => {
     # 一行写完:换行再接 `+` 不认(表达式不跨行)
     (((((Prefix + (string rounds)) + "$") + (Encoding.Base64 (BytesOf salt))) + "$") + (Encoding.Base64 (DeriveKey password salt rounds)))
 }

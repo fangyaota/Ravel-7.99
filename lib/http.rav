@@ -83,13 +83,13 @@ readonly Response ::= class {
 ravel "Http"
 
 # 读一个可选 int 字段(没写给默认)。
-readonly IntOr := (d: dict k: string dflt: int) => { (d.Has k) { d.Get k; } { dflt; } }
+readonly private IntOr := (d: dict k: string dflt: int) => { (d.Has k) { d.Get k; } { dflt; } }
 
 # 正文交上来的是什么?
 #   字符串             → 按 UTF-8 编成字节
 #   dict / list / set  → **JSON**(顺带补 `content-type`;要发别的类型自己写个头盖掉它)
 # 二进制走 `bodyFile`(从文件流式发)或 `Http.Upload` —— 别塞进 Ravel 堆里。
-readonly BodyOf := (body: object) => {
+readonly private BodyOf := (body: object) => {
     # 条件**整个**括起来:不括的话 `string { … }` 会被读成"拿这个块当实参调 string"
     # (实参吃到运算符为止 —— 见教程「常见陷阱」那条)
     ((typeof body) == string) {
@@ -100,7 +100,7 @@ readonly BodyOf := (body: object) => {
 }
 
 # 用户交的那张 dict → 引擎要的那张:补上 url / method,正文统一成字节表。
-readonly Spec := (url: string method: string opts: dict) => {
+readonly private Spec := (url: string method: string opts: dict) => {
     s := opts.Copy ()
     s.Set "url" url
     s.Set "method" method
@@ -121,7 +121,7 @@ readonly Once := (spec: dict) => { Response (Native.HttpReq spec); }
 
 # 带重试:`retries` 是**额外**次数(默认 0 = 只发一次)。5xx 和网络错误都算"没成";
 # 每次之间睡 `backoff` 毫秒(默认 0)。**4xx 不重试** —— 那是"你要的东西不对",再发一百遍也一样。
-readonly TrySpec := (spec: dict n: int) => {
+readonly private TrySpec := (spec: dict n: int) => {
     r := try { Once spec; } (e: Exception) => {
         (n <= 0) { throw e; } {
             System.Sleep (IntOr spec "backoff" 0)
@@ -134,7 +134,7 @@ readonly TrySpec := (spec: dict n: int) => {
     } { r; }
 }
 
-readonly Send := (url: string method: string opts: dict) => {
+readonly private Send := (url: string method: string opts: dict) => {
     spec := Spec url method opts
     TrySpec spec (IntOr spec "retries" 0)
 }
@@ -157,7 +157,7 @@ readonly Request := (spec: dict) => {
 
 # 落点收**路径字符串**或一个**磁盘条目**(`Io.File "a.zip"`)—— 和 `io.rav` 的
 # `CopyTo dest` 一个待遇,那个也是两种都收。抽象条目(内存文件、URL)没有路径,给不了。
-readonly PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
+readonly private PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
 
 # 下载到文件:正文**边收边写**,不进内存(几百 MB 也不怕)。交回的 Response 里
 # `size` 是写了多少字节,`body` 是空的。
@@ -170,7 +170,7 @@ readonly Upload := (url: string path: object) => {
     Response (Native.HttpUpload {"url"-> url "path"-> (PathOr path)});
 }
 
-readonly UploadTo := (url: string path: object field: string) => {
+readonly private UploadTo := (url: string path: object field: string) => {
     Response (Native.HttpUpload {"url"-> url "path"-> (PathOr path) "field"-> field});
 }
 
@@ -196,13 +196,13 @@ readonly UploadTo := (url: string path: object field: string) => {
 #
 # 交回的是**自创任务**,不是 `SysTask` —— 因为重试要在等下一次之前做点事(睡 `backoff`),
 # 那是"要推进的"那一种。
-readonly OnceTask := (g: Tasks.TaskGroup spec: dict) => {
+readonly private OnceTask := (g: Tasks.TaskGroup spec: dict) => {
     Response (g.Await (Tasks.Of (Native.HttpReqTask spec)));
 }
 
 # 带重试,规矩和同步那条 `TrySpec` 一字不差(5xx 和网络错误都算"没成";**4xx 不重试**)。
 # 只有等的姿势不同:那边 `System.Sleep` 把线程占住,这边 `g.Await (Tasks.After …)` 让出去。
-readonly TrySpecTask := (g: Tasks.TaskGroup spec: dict n: int) => {
+readonly private TrySpecTask := (g: Tasks.TaskGroup spec: dict n: int) => {
     r := try { OnceTask g spec; } (e: Exception) => {
         (n <= 0) { throw e; } {
             g.Await (Tasks.After (IntOr spec "backoff" 0))
@@ -220,14 +220,14 @@ readonly RequestTask := (spec: dict) => {
     Tasks.Task (g: Tasks.TaskGroup) => { TrySpecTask g spec (IntOr spec "retries" 0); }
 }
 
-readonly SendTask := (url: string method: string opts: dict) => { RequestTask (Spec url method opts); }
+readonly private SendTask := (url: string method: string opts: dict) => { RequestTask (Spec url method opts); }
 
 readonly GetTask := (url: string) => { SendTask url "GET" {}; }
 readonly PostTask := (url: string body: object) => { SendTask url "POST" {"body"-> body}; }
-readonly PutTask := (url: string body: object) => { SendTask url "PUT" {"body"-> body}; }
-readonly PatchTask := (url: string body: object) => { SendTask url "PATCH" {"body"-> body}; }
-readonly DeleteTask := (url: string) => { SendTask url "DELETE" {}; }
-readonly HeadTask := (url: string) => { SendTask url "HEAD" {}; }
+readonly private PutTask := (url: string body: object) => { SendTask url "PUT" {"body"-> body}; }
+readonly private PatchTask := (url: string body: object) => { SendTask url "PATCH" {"body"-> body}; }
+readonly private DeleteTask := (url: string) => { SendTask url "DELETE" {}; }
+readonly private HeadTask := (url: string) => { SendTask url "HEAD" {}; }
 
 # 下载 / 上传:底下那两条原语本来就是"边收边写、不进内存",交回任务的版本一样。
 readonly DownloadTask := (url: string path: object) => {
@@ -236,13 +236,13 @@ readonly DownloadTask := (url: string path: object) => {
     }
 }
 
-readonly UploadTask := (url: string path: object) => {
+readonly private UploadTask := (url: string path: object) => {
     Tasks.Task (g: Tasks.TaskGroup) => {
         Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url"-> url "path"-> (PathOr path)})));
     }
 }
 
-readonly UploadToTask := (url: string path: object field: string) => {
+readonly private UploadToTask := (url: string path: object field: string) => {
     Tasks.Task (g: Tasks.TaskGroup) => {
         Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url"-> url "path"-> (PathOr path) "field"-> field})));
     }

@@ -412,7 +412,7 @@ impl (ITask TaskBase default)
 impl (IMonad TaskBase default)
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
-readonly Pending ::= class {
+readonly private Pending ::= class {
     Who: Task = default
     Job: object = ()
     init = (who: Task job: object) => { Who = who; Job = job; this; }

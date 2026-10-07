@@ -19,7 +19,7 @@
 ravel "Bits"
 
 # 位下标:0..31,越界报错。名字带上来,报错时知道是谁在问(`what` 是模块里的全名)
-readonly BitIndex := (what: string i: int) => {
+readonly private BitIndex := (what: string i: int) => {
     assert ((i >= 0) && (i < 32)) (what + ": 位下标要在 0..31 里，得到 " + (string i))
     i
 }

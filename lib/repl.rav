@@ -47,7 +47,7 @@ ravel "Repl"
 # 一段的四种"粗细" —— 和引擎那个真词法器的分法对齐(`ReplView` 也是这四类)。
 # **高亮只要编辑器的粗细,不必是完整的词法**:所以这儿只认字符串、数字、词、别的,
 # 不去分辨运算符那些 —— 那是解析器的事,而这一层的产出只有颜色。
-readonly ColorOf := (kind: string) => {
+readonly private ColorOf := (kind: string) => {
     kind == "string" { "yellow"; } {
         kind == "number" { "lime"; } { kind == "word" { "cyan"; } { "bold"; } }
     }
@@ -55,7 +55,7 @@ readonly ColorOf := (kind: string) => {
 
 # 一个字符算不算"词"的一部分:字母、下划线,以及**所有非 ASCII**
 # (Ravel 的标识符可以是中文,`名字 := 1` 是合法的)
-readonly WordChar := (c: char) => {
+readonly private WordChar := (c: char) => {
     code := c.Code ()
     code >= 128 { true; } {
         ((code >= 65) && (code <= 90)) || (((code >= 97) && (code <= 122)) || (code == 95));
@@ -64,7 +64,7 @@ readonly WordChar := (c: char) => {
 
 # 数字那一截:连着吃数字和 `.`,末尾再吃一个后缀(`n` / `i` / `f`)。
 # `2.0` 是一段、`123n` 是一段;`1 abc` 中间那个空格不在内。
-readonly NumChar := (c: char) => {
+readonly private NumChar := (c: char) => {
     c.IsDigit () { true; } { c == '.' { true; } { "nif".Contains (string c); } }
 }
 
@@ -114,7 +114,7 @@ readonly Segments := (text: string) => {
 
 # 一段 → 带标记的文本。`at` 给了就是这个段里的第几格画成**光标块**(给 `()` 表示不画)——
 # 它是个 object 而不是 int,因为"这里没有光标"得说得出来。
-readonly Tint := (kind: string text: string at: object) => {
+readonly private Tint := (kind: string text: string at: object) => {
     head := "[" + (ColorOf kind) + "]"
     (typeof at) != int { head + (Terminal.Escape text) + "[/]"; } {
         k := at
@@ -167,10 +167,10 @@ readonly Pad := (s: string n: int) => {
 # 在 `s` 的第 `i` 格插进 `t` / 挖掉第 `i` 格。
 # **`string` 没有 `Insert` / `Remove`**(那是 `list` 才有的),自己拿 Take/Skip 接一下 ——
 # 就两句,不必为它给引擎加方法。
-readonly InsertAt := (s: string i: int t: string) => { (s.Take i) + t + (s.Skip i); }
-readonly CutAt := (s: string i: int) => { (s.Take i) + (s.Skip (i + 1)); }
+readonly private InsertAt := (s: string i: int t: string) => { (s.Take i) + t + (s.Skip i); }
+readonly private CutAt := (s: string i: int) => { (s.Take i) + (s.Skip (i + 1)); }
 
-readonly ClampTo := (v: int lo: int hi: int) => {
+readonly private ClampTo := (v: int lo: int hi: int) => {
     v < lo { lo; } { v > hi { hi; } { v; } }
 }
 
@@ -186,7 +186,7 @@ readonly ClampTo := (v: int lo: int hi: int) => {
 # **先落成变量再比**:实参位置只收"主表达式 + 取成员",写成 `src.At (i + 1) == '"'`
 # 会把 `== '"'` 整个当成 `At` 的实参(于是拿 `int` 和 `char` 去比,报「运算符 '==' 不支持
 # Char 操作数」)—— 和 `lib/cached.rav` 那段是同一个坑。顺带这样也才越不了界。
-readonly IsTriple := (src: string i: int) => {
+readonly private IsTriple := (src: string i: int) => {
     n := src.Length ()
     hit := false
     i + 2 < n {
@@ -258,7 +258,7 @@ readonly PageOf := (s: string) => {
 #  ② 壳:那个编辑器
 # ============================================================
 
-readonly PageMark := string (char 12)        # 存盘时的分页符(源码里几乎见不到)
+readonly private PageMark := string (char 12)        # 存盘时的分页符(源码里几乎见不到)
 
 # 启动那张大图 —— **一个字没动**,照抄 `NeoInteractor.EvaluateShowRavel`。
 #
@@ -293,7 +293,7 @@ readonly Banner := () => {
 # 收的是**已经渲染好的**几行(不带标记) —— 方框那一份是 `Terminal.Panel` 出来的、
 # 里面可能带 ANSI 和字面的 `[`,再过一遍标记那一层就把它读坏了,所以走 `System.WriteLine`。
 # 交回这一屏画了几行,调用方存回去当下次的"上一屏"。
-readonly Paint := (drawn: int lines: list) => {
+readonly private Paint := (drawn: int lines: list) => {
     blank := (" ").Repeat ((Terminal.Width ()) - 1)
     System.CursorTo 0 0
     i := 0
@@ -780,7 +780,7 @@ readonly Editor ::= class {
     }
 }
 
-readonly SessionFile := () => { ".ravel-session"; }
+readonly private SessionFile := () => { ".ravel-session"; }
 
 # ============================================================
 #  ③ 入口
@@ -804,7 +804,7 @@ readonly Run := () => {
 }
 
 # 把一段源码跑一遍,交回值就打到 stdout,报错就打那份报告到 stderr
-readonly RunSource := (src: string) => {
+readonly private RunSource := (src: string) => {
     body := src.Trim ()                       # 先落成变量:链式调用得这么写(见教程那条坑)
     body.IsEmpty () { (); } {
         try {

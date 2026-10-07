@@ -107,7 +107,7 @@ readonly Utf8Text := (bytes: list) => {
 }
 
 # ── Base64 ──
-readonly B64Table := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+readonly private B64Table := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 readonly Base64 := (bytes: list) => {
     out := ""
@@ -159,13 +159,13 @@ readonly Base64Text := (s: string) => { Base64 (Utf8 s); }
 readonly Unbase64Text := (s: string) => { Utf8Text (Unbase64 s); }
 
 # ── 十六进制 ──
-readonly HexDigits := "0123456789abcdef"
-readonly HexUpper := "0123456789ABCDEF"
+readonly private HexDigits := "0123456789abcdef"
+readonly private HexUpper := "0123456789ABCDEF"
 
 # 一个十六进制字符是几(大小写都认);不认识的给 -1。
 # **不写 `.ToUpper ().IndexOf c`** —— 调用后面接 `.成员` 要 `|>` 才接得上
 # (`.成员` 比并列的调用绑得紧),写出来是 `ToUpper (().IndexOf c)` 那种读法。
-readonly DigitOf := (c: char) => {
+readonly private DigitOf := (c: char) => {
     t := string c
     # `IndexOf` 是"找不到就报"的那个(它不交回 -1),所以先 `Contains` 问一句
     HexDigits.Contains t { HexDigits.IndexOf c; } {
@@ -200,7 +200,7 @@ readonly Unhex := (s: string) => {
 
 # ── URL 百分号编码 ──
 # 只留 RFC 3986 的 unreserved(`A-Z a-z 0-9 - _ . ~`),其余按 UTF-8 逐字节写成 `%XX`。
-readonly UrlSafe := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
+readonly private UrlSafe := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
 
 readonly UrlEncode := (s: string) => {
     out := ""

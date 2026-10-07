@@ -27,9 +27,9 @@ using "time.rav"
 ravel "Log"
 
 # 由松到紧。**顺序就是这张表**,`Rank` 拿的是下标 —— 加一级只动这一行。
-readonly Levels := ["debug" "info" "warn" "error"]
+readonly private Levels := ["debug" "info" "warn" "error"]
 
-readonly Known := (name: string) => {
+readonly private Known := (name: string) => {
     ok := false
     Levels.Foreach (l: string) => {
         l == name { ok = true; } { 0; }
@@ -39,7 +39,7 @@ readonly Known := (name: string) => {
 
 # 级别 → 名次。认不出的按 `info` 算(但正规入口 `SetLevel` 会先拦下来,
 # 走到这儿还认不出的只可能是从文件里读来的旧名字,那时候宁可多打点也别静默全灭)。
-readonly Rank := (name: string) => {
+readonly private Rank := (name: string) => {
     r := 1
     i := 0
     while { i < (Levels.Count ()); } {

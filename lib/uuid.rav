@@ -35,7 +35,7 @@ readonly Format := (h: string) => {
 
 # 逐字节摆位:头 6 个字节照 `stamp`(V7 的时间戳;V4 给 `()`,那就用随机的),
 # 第 7 / 第 9 个字节按版本和 variant 改,其余原样。
-readonly Shape := (bytes: list who: int stamp: object) => {
+readonly private Shape := (bytes: list who: int stamp: object) => {
     out := []
     i := 0
     while { i < 16; } {
@@ -66,7 +66,7 @@ readonly V7 := () => {
 
 # 时间戳里第 `shift` 位那一个字节。用**除法**取,不碰位运算 ——
 # bigint 那边没有 `&`(只有移位),而毫秒这个数量级 int 装不下。
-readonly TimestampByte := (ms: object shift: int) => {
+readonly private TimestampByte := (ms: object shift: int) => {
     int ((((bigint ms) / ((bigint 1) << shift)) % 256));
 }
 
@@ -91,7 +91,7 @@ readonly IsValid := (s: string) => {
 }
 
 # 那几个位置该是连字符(写成一层层的块,不是一串 `||` 套括号 —— 那种数括号数错一次就再见)
-readonly IsDashAt := (i: int) => {
+readonly private IsDashAt := (i: int) => {
     (i == 8) { true; } {
         (i == 13) { true; } {
             (i == 18) { true; } { i == 23; }
@@ -99,18 +99,18 @@ readonly IsDashAt := (i: int) => {
     }
 }
 
-readonly IsHex := (c: char) => {
+readonly private IsHex := (c: char) => {
     ((c >= '0') && (c <= '9')) { true; } { IsHexLetter c; }
 }
 
-readonly IsHexLetter := (c: char) => {
+readonly private IsHexLetter := (c: char) => {
     ((c >= 'a') && (c <= 'f')) { true; } { (c >= 'A') && (c <= 'F'); }
 }
 
 # 第 13 个字符(下标 14)就是版本那一位
 readonly Version := (s: string) => { (IsValid s) { Digit (s.At 14); } { 0; } }
 
-readonly Digit := (c: char) => {
+readonly private Digit := (c: char) => {
     ((c >= '0') && (c <= '9')) { (int c) - 48; } {
         ((c >= 'a') && (c <= 'f')) { (int c) - 87; } {
             ((c >= 'A') && (c <= 'F')) { (int c) - 55; } { 0; }

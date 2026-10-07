@@ -102,7 +102,7 @@ readonly Center := (s: string n: int fill: string) => {
 
 # 补够到宽度 `n`(原串长 `have`)要用的那一串填充 —— 上面的对齐共用这一份。
 # 多字符的填充串按需重复,再从左边切够。
-readonly Filler := (n: int have: int fill: string) => {
+readonly private Filler := (n: int have: int fill: string) => {
     need := n - have
     need <= 0 { ""; } {
         pad := fill
@@ -152,11 +152,11 @@ readonly Thousands := (x: object) => {
 }
 
 # ── 进制 ──
-readonly Digits := "0123456789abcdef"
+readonly private Digits := "0123456789abcdef"
 
 # 收 int 也收 bigint(`-2147483648` 这种字面量自己就溢成 bigint 了):
 # 内部一律抬到 bigint 再算,bignum 的取负和整除都不溢出。
-readonly InBase := (n: object base: int) => {
+readonly private InBase := (n: object base: int) => {
     assert ((base >= 2) && (base <= 16)) ("Format: 进制要在 2..16，得到 " + (string base))
     left := bigint n
     zero := bigint 0

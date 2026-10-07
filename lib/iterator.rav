@@ -40,7 +40,7 @@
 
 # 一串里第一个满足 `p` 的(没有就 `None`)。**找到就走**(callcc 早期退出)——
 # 无限流上 `Any` / `Find` / `Contains` / `First` 才停得下来。
-readonly SeekIn := (xs: object p: function) => {
+readonly private SeekIn := (xs: object p: function) => {
     hit: object = ()
     found := false
     callcc (done: function) => {
@@ -53,7 +53,7 @@ readonly SeekIn := (xs: object p: function) => {
 
 # 最小的 / 最大的(`keepLess` = true 求最小)。比对走 `<`(和容器那批、`Sorting` 一个口径),
 # 空的那串当场报错,措辞照引擎那份。
-readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
+readonly private ExtremeOf := (xs: object what: string keepLess: bool) => {
     got := false
     best: object = ()
     xs.Foreach (x: object) => {

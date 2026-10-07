@@ -159,7 +159,7 @@ readonly IRandom ::= interface {
 # ── 一台 = 一个"取数的源头" ──
 # 三台共用一个类,区别只在 `Kind`(给人看的那句话)和交进来的那枚函数。
 # `Kind` 只是标签,不参与语义 —— 断言/打印时一眼看出手里是哪台。
-readonly RandomSource ::= class {
+readonly private RandomSource ::= class {
     Kind: string = ""
     NextFn: function = () => { 0; }
     init = (kind: string f: function) => { Kind = kind; NextFn = f; this; }
@@ -171,7 +171,7 @@ impl (IRandom RandomSource {
 ravel "Random"
 
 # 从 4 个随机字节拼一个 0..2^30-1。走 bigint 中转:4 字节能到 2^32-1,int 装不下(会报溢出)。
-readonly CryptoNext := () => {
+readonly private CryptoNext := () => {
     bs := Native.RandomBytes 4
     big := (bigint (bs.At 0)) * 16777216 + (bigint (bs.At 1)) * 65536 + (bigint (bs.At 2)) * 256 + bigint (bs.At 3)
     int (big % 1073741824)

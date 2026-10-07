@@ -28,7 +28,7 @@ ravel "Glob"
 # (不加的话 `a.txt` 那个点会变成"任意一个字符",`*.txt` 会连 `axtxt` 都吃)
 readonly Meta := ".+(){}^$|\\"
 
-readonly Esc := (c: char) => {
+readonly private Esc := (c: char) => {
     s := string c
     Meta.Contains s { "\\" + s; } { s; }
 }
@@ -78,7 +78,7 @@ readonly ToRegex := (pat: string) => {
 # 本地那一份,外面看不见 —— 所以整段**造好再交回**,而不是边写边改。
 #
 # 认不出的(没有闭合的 `]`)当普通的一格 `[`:报错不如照字面来,括号写错一个太常见了。
-readonly CharClass := (pat: string i: int) => {
+readonly private CharClass := (pat: string i: int) => {
     j := i + 1
     n := pat.Length ()
     neg := (j < n) && ((pat.At j) == '!')                       # `[!...]` 是取反
@@ -103,7 +103,7 @@ readonly Match := (pat: string path: string) => { (Regex.C (ToRegex pat)).IsMatc
 
 # 换成正斜杠再比 —— `Io.EachDir` 走出来的路径在 Windows 上带反斜杠,
 # 而模式里写的是 `/`(那是所有人的写法),不归一化就会**在这台机器上对、换一台不对**
-readonly Slash := (s: string) => { s.Replace "\\" "/"; }
+readonly private Slash := (s: string) => { s.Replace "\\" "/"; }
 
 # 一张表里相符的那些(按原来顺序)
 readonly Filter := (pat: string names: list) => {

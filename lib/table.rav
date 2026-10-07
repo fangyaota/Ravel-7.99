@@ -25,7 +25,7 @@ ravel "Table"
 # 东亚"宽"和"全角"的那几段码位占两格。范围取的是 Unicode `East_Asian_Width` 里的
 # W/F 两类的**主要区间** —— 不做全量表(那表几 MB),要的是"中文、假名、全角标点、
 # emoji 别歪",这几段够了。
-readonly WideRange := [
+readonly private WideRange := [
     4352 4447          # 0x1100-0x115F  谚文字母
     11904 12350        # 0x2E80-0x303E  部首 / 康熙 / CJK 符号标点
     12353 13311        # 0x3041-0x33FF  假名 ～ CJK 兼容
@@ -40,7 +40,7 @@ readonly WideRange := [
     127744 129791      # 0x1F300-0x1FBFF emoji
 ]
 
-readonly IsWide := (n: int) => {
+readonly private IsWide := (n: int) => {
     w := false
     i := 0
     while { i < (WideRange.Count ()); } {
@@ -60,9 +60,9 @@ readonly Width := (s: string) => {
 }
 
 # ── 摆一格 ──
-readonly Spaces := (n: int) => { (" ").Repeat n; }
+readonly private Spaces := (n: int) => { (" ").Repeat n; }
 
-readonly Fit := (s: string n: int align: string) => {
+readonly private Fit := (s: string n: int align: string) => {
     gap := n - (Width s)
     gap <= 0 { s; } {
         align == "right" { (Spaces gap) + s; } {
@@ -79,7 +79,7 @@ readonly Fit := (s: string n: int align: string) => {
 readonly Cell := (v: object) => { (typeof v) == string { v; } { string v; }; }
 
 # 这一列的格子是不是**都是数**(空格子不算)。是就右对齐 —— 列里有字有数时不硬凑。
-readonly AllNum := (rows: list c: object) => {
+readonly private AllNum := (rows: list c: object) => {
     seen := 0
     ok := true
     rows.Foreach (r: object) => {

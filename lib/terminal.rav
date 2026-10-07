@@ -99,7 +99,7 @@ readonly Menu := (title: string items: list) => { Native.TerminalMenu title item
 #
 #     Terminal.Red "错了"                    # 常用那几条直接调
 #     Terminal.Wrap Terminal.Color.Red "错了"  # 要动态挑颜色时,拿一枚 `Color` 传进去
-readonly Color ::= enum {
+readonly private Color ::= enum {
     Red := "red"
     Green := "green"
     Yellow := "yellow"
@@ -121,19 +121,19 @@ readonly Escape := (s: string) => { Native.TerminalEscape s; }
 readonly Red := Wrap Color.Red
 readonly Green := Wrap Color.Green
 readonly Yellow := Wrap Color.Yellow
-readonly Blue := Wrap Color.Blue
-readonly Magenta := Wrap Color.Magenta
-readonly Cyan := Wrap Color.Cyan
-readonly Grey := Wrap Color.Grey
+readonly private Blue := Wrap Color.Blue
+readonly private Magenta := Wrap Color.Magenta
+readonly private Cyan := Wrap Color.Cyan
+readonly private Grey := Wrap Color.Grey
 readonly Bold := Wrap Color.Bold
-readonly Dim := Wrap Color.Dim
-readonly Underline := Wrap Color.Underline
+readonly private Dim := Wrap Color.Dim
+readonly private Underline := Wrap Color.Underline
 
 # 几条"就这么写"的语义色 —— 拼 `Red` 那些是猜,这几条是**说事情**(好 / 警告 / 坏 / 提示)
 readonly Good := Wrap Color.Green
 readonly Warn := Wrap Color.Yellow
 readonly Bad := Wrap Color.Red
-readonly Hint := Wrap Color.Grey
+readonly private Hint := Wrap Color.Grey
 
 # ── 几条纯 Ravel 的画 ──
 
