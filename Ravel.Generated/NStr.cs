@@ -12,30 +12,30 @@ internal static class NStrAdaptor
 {
     [RavelFn("IsNullOrEmpty")]
     public static RuntimeValue IsNullOrEmpty (RuntimeValue x0)
-        => PluginKit.Guarded ("NStr.IsNullOrEmpty", () => new BoolVal ((System.String.IsNullOrEmpty (PluginKit.Text (x0, "NStr.IsNullOrEmpty 的第 1 个实参").Value))));
+        => PluginKit.Guarded ("NStr.IsNullOrEmpty", () => new BoolVal (System.String.IsNullOrEmpty (PluginKit.Text (x0, "NStr.IsNullOrEmpty 的第 1 个实参").Value)));
 
     [RavelFn("Concat")]
     public static RuntimeValue Concat (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NStr.Concat", () => new StringVal ((System.String.Concat (PluginKit.Text (x0, "NStr.Concat 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Concat 的第 2 个实参").Value))));
+        => PluginKit.Guarded ("NStr.Concat", () => new StringVal (System.String.Concat (PluginKit.Text (x0, "NStr.Concat 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Concat 的第 2 个实参").Value)));
 
     [RavelFn("Compare")]
     public static RuntimeValue Compare (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NStr.Compare", () => IntVal.Of ((System.String.Compare (PluginKit.Text (x0, "NStr.Compare 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Compare 的第 2 个实参").Value))));
+        => PluginKit.Guarded ("NStr.Compare", () => IntVal.Of (System.String.Compare (PluginKit.Text (x0, "NStr.Compare 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Compare 的第 2 个实参").Value)));
 
     [RavelFn("Join")]
     public static RuntimeValue Join (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NStr.Join", () => new StringVal ((System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, PluginKit.Strs (x1, "NStr.Join 的第 2 个实参")))));
+        => PluginKit.Guarded ("NStr.Join", () => new StringVal (System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, PluginKit.Strs (x1, "NStr.Join 的第 2 个实参"))));
 
     [RavelFn("Format")]
     public static RuntimeValue Format (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NStr.Format", () => new StringVal ((System.String.Format (PluginKit.Text (x0, "NStr.Format 的第 1 个实参").Value, PluginKit.ToNet (x1)))));
+        => PluginKit.Guarded ("NStr.Format", () => new StringVal (System.String.Format (PluginKit.Text (x0, "NStr.Format 的第 1 个实参").Value, PluginKit.ToNet (x1))));
 
     [RavelFn("Intern")]
     public static RuntimeValue Intern (RuntimeValue x0)
-        => PluginKit.Guarded ("NStr.Intern", () => new StringVal ((System.String.Intern (PluginKit.Text (x0, "NStr.Intern 的第 1 个实参").Value))));
+        => PluginKit.Guarded ("NStr.Intern", () => new StringVal (System.String.Intern (PluginKit.Text (x0, "NStr.Intern 的第 1 个实参").Value)));
 
     [RavelFn("IsNullOrWhiteSpace")]
     public static RuntimeValue IsNullOrWhiteSpace (RuntimeValue x0)
-        => PluginKit.Guarded ("NStr.IsNullOrWhiteSpace", () => new BoolVal ((System.String.IsNullOrWhiteSpace (PluginKit.Text (x0, "NStr.IsNullOrWhiteSpace 的第 1 个实参").Value))));
+        => PluginKit.Guarded ("NStr.IsNullOrWhiteSpace", () => new BoolVal (System.String.IsNullOrWhiteSpace (PluginKit.Text (x0, "NStr.IsNullOrWhiteSpace 的第 1 个实参").Value)));
 
 }

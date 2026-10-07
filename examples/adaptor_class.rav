@@ -1,0 +1,36 @@
+# **实例那半** —— 生成的不是一个模块，是一个**类**。
+#
+#     dotnet out/ravel.dll examples/adaptor_class.rav
+#
+# 静态那半（`Adaptor.Cs`）生成的是**模块函数**（`[RavelFn]`，体里 `System.Math.Max (…)`）；
+# 这一半生成的是**类**（`[RavelClass]` + `[ClassCtor]` + `[ClassMethod]`，体里 `self`
+# 先脱壳再调）。**两个形状，所以是两个函数，不是一个开关**：
+#
+#     Adaptor.Cs      类型 模块 成员          # 静态 → 模块
+#     Adaptor.CsClass 类型 模块 类名 成员      # 实例 → 类
+#     Adaptor.AllOf       类型                # 全部静态方法名
+#     Adaptor.AllOfClass  类型                # 全部实例方法名
+#
+# 产物落在 `out/`（构建目录，`build.sh` 会整个删掉）。
+using "adaptor.rav"
+
+类型 := "System.Random"
+名字 := Adaptor.AllOfClass 类型
+print ("① 扫出 " + (string (名字.Count ())) + " 个实例方法名")
+
+源码 := Adaptor.CsClass 类型 "Rnd" "Random" 名字
+Adaptor.Build 源码 "out/Rnd.cs" "out/plugins/Rnd.dll"
+print "② 写好了 out/Rnd.cs，编好了 out/plugins/Rnd.dll"
+
+# ③ 装上它，用起来 —— `Random` 是个普通的 Ravel 类
+using "Rnd"
+r := Rnd.Random ()                 # 构造器（`[RavelClass]` 挂了 `[RavelModule]`，类对象也进模块）
+print ("③ Next ()：" + (string (r.Next ())))
+print ("   NextDouble ()：" + (string (r.NextDouble ())))
+
+# ④ 值是**生成的那个类**的实例，不是泛泛的 `DotNetObject` —— 这一步是**必须**的：
+#    成员查找沿"值自己的类"往上走，构造器要是交回 `DotNetObject`，
+#    `r.Next ()` 会报「类型 'DotNetObject' 没有方法 'Next'」（实测踩过）。
+#    所以生成的 `New` 是 `new DotNetVal (…, PluginKit.ClassOf ("Random"))`。
+print ("④ 它的类：" + (string (typeof r)))
+print "实例那半跑通了"

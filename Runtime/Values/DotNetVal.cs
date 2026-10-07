@@ -19,6 +19,17 @@ public record DotNetVal : ObjectVal
         : base(BuiltinClasses.DotNetObject, members ?? new Scope())
         => Value = value;
 
+    /// <summary>用**另一个类**造一个 —— **生成出来的适配层**用这条：它把 .NET 实例包成
+    /// **自己那个 Ravel 类**（`[RavelClass("StringBuilder")]`），不是泛泛的 `DotNetObject`。
+    ///
+    /// 不这么做的话 `sb.Append "x"` 会报「类型 'DotNetObject' 没有方法 'Append'」——
+    /// 值是 `DotNetObject`、方法挂在 `StringBuilder` 上，而成员查找沿**值自己的类**
+    /// 往上走，走不到那条路（实测踩过）。生成器那边写成
+    /// `new DotNetVal (…, PluginKit.ClassOf ("StringBuilder"))`。</summary>
+    public DotNetVal(object? value, ClassVal classType, Scope? members = null)
+        : base(classType, members ?? new Scope())
+        => Value = value;
+
     public override string ToString()
         => ShowDepth.Guard(() => Value is null ? "DotNetObject (null)" : "DotNetObject " + NetBridge.Show(Value));
 

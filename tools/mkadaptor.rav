@@ -1,58 +1,69 @@
 # **`mkadaptor`** —— 从 .NET 反射里生成适配层的 C#（命令行的壳）。
 #
-#     dotnet out/ravel.dll tools/mkadaptor.rav <类型> [模块名] [成员...] [--all] [--dll 路径]
+#     dotnet out/ravel.dll tools/mkadaptor.rav <类型> [模块名] [成员...] [--all] [--class] [--dll 路径]
 #
-# 三种给法：
+# **静态那半**（默认）—— 生成**模块函数**（`[RavelFn]`）：
 #
-#     … System.Math NMath Max Min Sqrt          # 点名几个成员
-#     … System.Math NMath --all                 # 这个类型**全部**静态方法（不用逐个列）
-#     … System.Math --all                       # 连模块名都省了 —— 取类型的短名（`Math`）
+#     … System.Math NMath Max Min Sqrt        # 点名几个成员
+#     … System.Math NMath --all               # 全部静态方法（不用逐个列）
+#     … System.Math --all                     # 连模块名都省了 —— 取类型短名
 #
-# `--all` 那两种就是"只给一个类名"那条路：`Adaptor.AllOf` 把静态方法名扫出来，
-# 剩下的照旧。（**自动取的名字会打出来** —— 短名可能和库里已有的模块撞，
-# 两个同名模块谁后 `using` 谁赢，那是静默的坏，所以至少让人看见一眼。）
+# **实例那半**（`--class`）—— 生成**类**（`[RavelClass]` + `[ClassCtor]` + `[ClassMethod]`）：
 #
-# 产出 `Ravel.Generated/<模块名>.cs` —— 一个 `[RavelModule]` / `[RavelFn]` 形状的
-# 插件**源码**。加了 `--dll <路径>` 就顺手**就地编**一份 dll（Roslyn 当库调，
-# 不经过 `dotnet build`），于是只有 runtime 的机器上也走得完：
+#     … System.Text.StringBuilder NSb --class     # 模块 NSb / 类 StringBuilder
 #
-#     … System.Math NMath --all --dll out/plugins/Ravel.Generated.dll
+# 两半是**两个形状**（静态的体里是 `System.Math.Max (…)`；实例的体里 `self` 要先脱壳），
+# 所以是两个开关、两份产物，不是一个开关。要两半就各跑一次。
 #
-# 在仓库里（有 SDK）就不用 `--dll`：`bash build.sh` 会连 `Ravel.Generated/`
-# 那个插件项目一起编（见 `Ravel.csproj` 的 `BuildPlugins`）。两条路编出来的是
-# **同一个东西**：同一个 `.cs`、同一个模块名。
+# **`--class` 不做值类型**（`DateTime` / `Point` 那种）：装箱之后改不了原值，
+# 可变结构体的方法会**静默失效**。碰到当场报，不生成。
 #
-# **生成逻辑不在这里** —— 在 `lib/adaptor.rav`（模块 `Adaptor`），所以 `.rav` 文件里
-# 也能直接调：
+# 产出 `Ravel.Generated/<模块名>.cs`。加了 `--dll <路径>` 就顺手**就地编**一份 dll
+# （Roslyn 当库调，不经过 `dotnet build`），于是只有 runtime 的机器上也走得完。
+# 在仓库里（有 SDK）就不用 `--dll`：`bash build.sh` 会连 `Ravel.Generated/` 一起编。
+#
+# **生成逻辑不在这里** —— 在 `lib/adaptor.rav`（模块 `Adaptor`），所以 `.rav` 文件里也能直接调：
 #
 #     using "adaptor.rav"
-#     Adaptor.Dll "System.Math" "NMath" (Adaptor.AllOf "System.Math") cs dll
+#     Adaptor.Build (Adaptor.Cs "System.Math" "NMath" (Adaptor.AllOf "System.Math")) cs dll
 #
 # 这一份就三件事：解析参数、拼路径、调那几个函数。
 
 using "adaptor.rav"
 using "args.rav"
 
-opts  := Args.ParseWith (System.Args ()) {"dll" -> "string" "all" -> "flag"}
-位置  := Args.Positional opts
-全扫  := Args.Has opts "all"
+opts := Args.ParseWith (System.Args ()) {"dll" -> "string" "all" -> "flag" "class" -> "flag"}
+位置 := Args.Positional opts
+全扫 := Args.Has opts "all"
+实例 := Args.Has opts "class"
 
-类型  := 位置.At 0
+类型 := 位置.At 0
 # `(位置.Count ()) > 1` —— 括号**不能省**：`.Count` 的实参是那个 `()`，
 # 它会一路吃到运算符为止，写成 `位置.Count () > 1` 就成了 `.Count ((() > 1))`，
 # 报的是「类型 Void 不支持运算符 '>'」（跟这件事看着没关系的那种错）。
-模块  := (位置.Count ()) > 1 { 位置.At 1; } { Adaptor.ShortName 类型; }
-成员  := 全扫 { Adaptor.AllOf 类型; } { 位置.Skip 2; }
+模块 := (位置.Count ()) > 1 { 位置.At 1; } { Adaptor.ShortName 类型; }
+类名 := Adaptor.ShortName 类型
+成员 := 全扫 {
+    Adaptor.AllOf 类型;
+} {
+    实例 { Adaptor.AllOfClass 类型; } { 位置.Skip 2; }
+}
 
-Dll路径 := Args.Get opts "dll" ""
 Cs路径  := "Ravel.Generated/" + 模块 + ".cs"
+Dll路径 := Args.Get opts "dll" ""
+源码    := 实例 {
+    Adaptor.CsClass 类型 模块 类名 成员;
+} {
+    Adaptor.Cs 类型 模块 成员;
+}
 
 Dll路径 != "" {
-    Adaptor.Dll 类型 模块 成员 Cs路径 Dll路径
+    Adaptor.Build 源码 Cs路径 Dll路径
     print ("写好了：" + Cs路径)
     print ("  编好了：" + Dll路径 + "（Roslyn 就地编，没走 dotnet build）")
 } {
-    Adaptor.Save 类型 模块 成员 Cs路径
+    Adaptor.Write 源码 Cs路径
     print ("写好了：" + Cs路径)
 }
-print ("  类型 " + 类型 + " → 模块 " + 模块 + "；要 " + (string (成员.Count ())) + " 个成员")
+print ("  类型 " + 类型 + " → " + (实例 { "类 " + 类名; } { "模块 " + 模块; })
+       + "；要 " + (string (成员.Count ())) + " 个成员")

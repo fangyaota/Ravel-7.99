@@ -2,11 +2,17 @@
 #
 #     using "adaptor.rav"
 #
-#     src := Adaptor.Cs "System.Math" "NMath" ["Max" "Min" "Sqrt"]   # 源码字符串
-#     Adaptor.Save "System.Math" "NMath" [...] "Ravel.Generated/NMath.cs"
-#     Adaptor.Dll  "System.Math" "NMath" [...] "Ravel.Generated/NMath.cs" "out/plugins/NMath.dll"
+#     src := Adaptor.Cs "System.Math" "NMath" ["Max" "Min" "Sqrt"]   # 静态那半 → 模块
+#     src := Adaptor.CsClass "System.Random" "Rnd" "Random" (Adaptor.AllOfClass "System.Random")
+#                                                                    # ↑ 实例那半 → 类
+#     Adaptor.Write src "Ravel.Generated/NMath.cs"
+#     Adaptor.Build src "Ravel.Generated/NMath.cs" "out/plugins/NMath.dll"
 #
-# 命令行那个壳在 `tools/mkadaptor.rav`，它就是这三个函数 + 参数解析。
+# **两半是两个形状**（静态的生成模块函数，体里 `System.Math.Max (…)`；实例的生成类方法，
+# 体里 `self` 先脱壳），所以是两套函数，不是一个开关。`Write` / `Build` 收的是**源码** ——
+# 于是「哪一半」和「写 / 写+编」两件事**正交**地拼，加形状不用加分支。
+#
+# 命令行那个壳在 `tools/mkadaptor.rav`。
 #
 # **要显式 `using`** —— 不进 `predefined.rav`：它拖着 `Ravel.Reflect`，编 dll 那条
 # 还拖着 Roslyn（`Ravel.Compile`，十几 MB）。没人用的时候一分别花。
@@ -177,6 +183,33 @@ readonly private RankKey := (m: object) => {
 # 凡是方法调用的结果要接着 `+` 的，要么把整个调用括起来（`(a.Join x) + y`），
 # 要么让它单独占一句。踩过一次，症状是字符串拼到一半、剩下的元素掉到末尾。
 
+# 返回值那半 → 一个 **`Func<RuntimeValue>` 的 lambda 体**。
+#
+# **`void` 的不能走 `MakerOf`** —— `MakerOf "Void"` 交回的是 `PluginKit.Void`，
+# 它不知道还有个调用要发出去；照那个拼出来是 `() => PluginKit.Void`：
+# **方法根本没被调**，而且安安静静。所以 `void` 单开一条，写成块（先调、再交回）。
+# 这条是写实例那半时才照出来的 —— 静态那半一直没生成过 void 的方法
+# （`System.Math` / `System.String` 上就没有），所以一直没露头。
+# **调用必须发出去，然后交回一个值。** `Wrapped` 管"交回的就是调用的结果"；
+# 交回别的（`void`、或者 chain 那种 `self`）就得走这一格 —— 写成块：先调、再交回。
+#
+# **漏了这一步就是"调了等于没调"**，而且安安静静：`() => self` 看着人畜无害，
+# 编译也过，`sb.Append "x"` 跑完 `sb` 里什么都没有。这一轮在 `void` 和 `self`
+# 两处各犯了一次，所以提出来一个名字 —— 以后见着"不是交回调用结果"就往这儿想。
+readonly private CallThen := (call: string value: string) => {
+    # `call` **不能带外层括号** —— C# 里 `(f ());` 不是合法语句表达式（CS0201），
+    # 而这一支正是把它当语句使的。`Wrapped` 那条不用管：`MakerOf` 的模板自己会
+    # 把表达式括起来造值。
+    "() => { " + call + "; return " + value + "; }";
+}
+
+readonly private Wrapped := (rt: string body: string) => {
+    rt == "Void" { CallThen body "PluginKit.Void"; } {
+        mk := MakerOf rt body
+        mk == "?" { "?"; } { "() => " + mk; }
+    }
+}
+
 readonly private EmitOne := (m: object mod: string full: string) => {
     nm := NameOf m
     ps := ParamsOf m
@@ -198,15 +231,14 @@ readonly private EmitOne := (m: object mod: string full: string) => {
     decls := names.Map (a: string) => { "RuntimeValue " + a; }
     decl := decls.Join (", ")
     args := gets.Join (", ")
-    mk := MakerOf (RetOf m) ("(" + full + "." + nm + " (" + args + "))")
-    mk == "?" { ok = false; }
+    lam := Wrapped (RetOf m) (full + "." + nm + " (" + args + ")")
+    lam == "?" { ok = false; }
 
     # **必须兜。** 引擎里那条老规矩是"别让 C# 异常漏到顶层"—— 漏出去会绕过 Ravel 的
     # `try`，一路打到"解释器内部错误"（`PluginKit.Guarded` 就是把 IO / 权限 / 参数 /
     # 溢出…那几族翻成 Ravel 错误的那个口子）。不兜的话，被调方一句
     # `ArgumentException` 用户接都接不住。实测踩过（`Math.Clamp 1 5 3`）。
-    gk := "PluginKit.Guarded (\"" + mod + "." + nm + "\", () => "
-    guarded := gk + mk + ")"
+    guarded := "PluginKit.Guarded (\"" + mod + "." + nm + "\", " + lam + ")"
 
     ok {
         one := "    [RavelFn(\"" + nm + "\")]"
@@ -258,6 +290,163 @@ readonly private EmitMember := (all: list w: string mod: string full: string) =>
             sign := ps + " -> " + (RetOf best)
             "    // 跳过 " + w + "：挑中的那个签名是 " + sign
             + "，里面有映射表没有的类型（同名 " + nSame + " 个 / 静态 " + nSt + " 个）\n"
+        }
+    }
+}
+
+# ═══ 生成（**实例**那半）═══
+#
+# **两个形状，别合并**：静态那半生成**模块函数**（`[RavelFn]`，体里是
+# `System.Math.Max (…)`）；实例这半生成**类方法**（`[ClassMethod]`，体里要先
+# `Me (self)` 脱壳）。生成的类长这样：
+#
+#     [RavelModule("NSb")] [RavelClass("StringBuilder")]
+#     internal static class StringBuilderAdaptor
+#     {
+#         private static System.Text.StringBuilder Me (RuntimeValue self)
+#             => (System.Text.StringBuilder)((DotNetVal)self).Value;   // ← 脱壳那一格
+#
+#         [ClassCtor]  public static RuntimeValue New (RuntimeValue x0) => …;
+#         [ClassMethod("Append")] public static RuntimeValue Append (RuntimeValue self, RuntimeValue x0) => …;
+#     }
+#
+# `Me` 是 `private static` —— 装配那边只认挂了 `[ClassMethod]` / `[ClassCtor]` 的，
+# 没挂的扫不到 ✓。
+
+# 实例方法能不能生成。**比静态那半松一格**：返回值是**这个类自己**也算过得去
+# （`StringBuilder.Append` 那种 chain 的 —— 交回 `self`，见 `EmitClassOne`）。
+# 少了这一格的话 `Append` / `AppendLine` / `AppendJoin` 全被判成"映射表里没有"，
+# 而其实它们正是这个类最常用的那几个。
+readonly private UsableClass := (m: object selfName: string) => {
+    ps := ParamsOf m
+    (ps.All (t: string) => { InOk t; }) {
+        (OutOk (RetOf m)) || ((RetOf m) == selfName);
+    } { false; }
+}
+
+# 一个构造器 → `[ClassCtor]`。**`ConstructorInfo` 没有 `ReturnType`**，
+# 所以排位键得单写一个（`RankKey` 里要读 `RetOf`）。
+readonly private CtorKey := (c: object) => {
+    ps := ParamsOf c
+    ranks := ps.Map (t: string) => { RankOf t; }
+    arrCount := ranks.Fold 0 ((acc: int r: int) => { (r >= 10) { acc + 1; } { acc; } })
+    arrStr := Pad2 arrCount
+    nStr := Pad2 (ranks.Count ())
+    rsStr := (ranks.Map (r: int) => { Pad2 r; }).Join ""
+    sig := ps.Join ","
+    arrStr + "|" + nStr + "|" + rsStr + "|" + sig;
+}
+
+# **`[ClassCtor]` 只有一格实参。** 引擎那个特性的契约是
+# `static RuntimeValue New (RuntimeValue arg)`，**不给实参时收到的是 `()`**
+# （见 `Runtime/Builtins/ClassRegistry.cs` 上那条注释）—— 写成 `New ()` 这种零参数，
+# 运行期会当场 `TargetParameterCountException: Parameter count mismatch`（踩过）。
+#
+# 于是按 .NET 构造器的参数个数分三档：
+#
+#   * **0 个** → `New (arg)` 收下不用（Ravel 那边就是 `类 ()`）
+#   * **1 个** → `arg` 就是那个参数
+#   * **2 个以上** → **生成不了**，明说：那一格递不出两个实参，得自己补一个
+#     （收个 `list` 再拆也行，那是人的决定，不是生成器该猜的）
+readonly private EmitCtor := (c: object mod: string net: string cls: string) => {
+    ps := ParamsOf c
+    n := ps.Count ()
+
+    # **包成自己那个类**，不是泛泛的 `DotNetObject` —— 不然 `sb.Append "x"` 报
+    # 「类型 'DotNetObject' 没有方法 'Append'」：值是 `DotNetObject`、方法挂在
+    # `StringBuilder` 上，而成员查找沿**值自己的类**往上走（实测踩过）。
+    # `PluginKit.ClassOf` 按名字拿类对象，那个名字就是 `[RavelClass("…")]` 上那个。
+    # **不带 `;`** —— 0 参数那支是三元表达式，分号得等 `:` 那一半走完才落
+    # （先带上就成了 `…)); : throw …`，CS1003）。
+    tail := ", PluginKit.ClassOf (\"" + cls + "\"))"
+
+    n > 1 {
+        "    // 跳过构造器：它要 " + (string n) + " 个参数，而 `[ClassCtor]` 那格"
+        + "只有一格实参（Ravel 那边 `类 a` 递一个）—— 要它就自己补一个收 `list` 再拆的\n"
+    } {
+        n == 0 {
+            # **别把实参悄悄咽了**：`[ClassCtor]` 那一格总会收到点东西（不给就是 `()`），
+            # 而 0 参数的 .NET 构造器用不上它。不拦的话 `类 42` 看着像"用 42 造一个"，
+            # 其实 42 被丢了 —— 正是这门语言最恨的那种静默。
+            "    [ClassCtor]\n    public static RuntimeValue New (RuntimeValue arg)"
+            + "\n        => arg is VoidVal"
+            + "\n            ? new DotNetVal (new " + net + " ()" + tail
+            + "\n            : throw PluginKit.Fail (\""
+            + net + " 的 .NET 构造器是 0 个参数的 —— 像 `类 ()` 那样调，别给实参\", ErrorKind.Argument);\n"
+        } {
+            ty := ps.First ()
+            g := GetterOf ty "arg" (mod + " 的构造器参数")
+            g == "?" {
+                "    // 跳过构造器：那个参数是 " + ty + "，映射表里没有\n"
+            } {
+                "    [ClassCtor]\n    public static RuntimeValue New (RuntimeValue arg)"
+                + "\n        => new DotNetVal (new " + net + " (" + g + ")" + tail + ";\n"
+            }
+        }
+    }
+}
+
+readonly private EmitClassOne := (m: object mod: string net: string selfName: string) => {
+    nm := NameOf m
+    ps := ParamsOf m
+    names := Names (ps.Count ())
+
+    i := 0
+    gets := []
+    ok := true
+    while { i < (ps.Count ()); } {
+        e := names.At i
+        label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
+        g := GetterOf (ps.At i) e label
+        g == "?" { ok = false; }
+        gets.Add g
+        i += 1
+    }
+
+    decls := names.Map (a: string) => { "RuntimeValue " + a; }
+    selfArgs := (decls.Map (a: string) => { ", " + a; }).Join ""
+    args := gets.Join ", "
+
+    # 交回**自己**的那种（`StringBuilder.Append` 这类 chain 的）—— 交回 `self`，
+    # 链式才成立；每个都新包一个 `DotNetVal` 的话，每步换个壳（而且 `sb` 和
+    # `sb.Append "x"` 会变成两个不同的对象，看着一样其实不是）。
+    rt := RetOf m
+    call := "Me (self)." + nm + " (" + args + ")"
+    lam := rt == selfName { CallThen call "self"; } { Wrapped rt call; }
+    lam == "?" { ok = false; }
+
+    ok {
+        one := "    [ClassMethod(\"" + nm + "\")]"
+        one = one + "\n    public static RuntimeValue " + nm + " (RuntimeValue self" + selfArgs + ")"
+        one = one + "\n        => PluginKit.Guarded (\"" + mod + "." + nm + "\", " + lam + ");"
+        one + "\n"
+    } {
+        psj := (ParamsOf m).Join ","
+        sign := psj + " -> " + (RetOf m)
+        "    // 跳过 " + nm + "：签名 " + sign + " 里有映射表没有的类型\n"
+    }
+}
+
+# 一个成员名 → 一段 C#。挑重载：**实例** + 参数返回值都认，按排位键取第一个。
+readonly private EmitClassMember := (all: list w: string mod: string net: string selfName: string) => {
+    same := all.Where (m: object) => { (NameOf m) == w; }
+    cands := same.Where (m: object) => { !(StaticOf m); }
+    ranked := cands.SortBy (m: object) => { RankKey m; }
+
+    nSame := string (same.Count ())
+    nIn := string (cands.Count ())
+
+    ranked.IsEmpty () {
+        "    // 跳过 " + w + "：没有实例重载（同名方法 " + nSame + " 个，实例 0 个）\n"
+    } {
+        best := ranked.First ()
+        UsableClass best selfName {
+            EmitClassOne best mod net selfName
+        } {
+            psj := (ParamsOf best).Join ","
+            sign := psj + " -> " + (RetOf best)
+            "    // 跳过 " + w + "：挑中的那个签名是 " + sign
+            + "，里面有映射表没有的类型（同名 " + nSame + " 个 / 实例 " + nIn + " 个）\n"
         }
     }
 }
@@ -338,18 +527,87 @@ readonly Cs := (类型: string 模块: string 成员: list) => {
     Lines.Join "\n";
 }
 
-# 写一份 `.cs`，交回落盘路径。
-readonly Save := (类型: string 模块: string 成员: list 路径: string) => {
-    System.WriteText 路径 (Cs 类型 模块 成员)
-    路径;
-}
+# **`Write` / `Build` 收的是源码**，不是"类型 + 成员" —— 于是
+# 「静态那半 / 实例那半」（`Cs` / `CsClass`）和「写 / 写+编」两件事**正交**地拼：
+#
+#     Adaptor.Write (Adaptor.Cs 类型 模块 成员) 路径
+#     Adaptor.Build (Adaptor.CsClass 类型 模块 类名 成员) cs路径 dll路径
+#
+# 不这么抽的话命令行那边是四个分支（静态/实例 × 写/编），一加形状就翻倍。
 
-# 写 `.cs` 再**就地编**成 dll（Roslyn 当库调，不经过 `dotnet build`，
-# 所以只有 runtime 的机器上也跑得起来）。交回 dll 路径。
-readonly Dll := (类型: string 模块: string 成员: list cs路径: string dll路径: string) => {
-    # 源码只算一遍 —— `Cs` 要把类型的整个方法表反射一遍，两次没必要。
-    src := Cs 类型 模块 成员
-    System.WriteText cs路径 src
-    Compile.Cs src dll路径 []
+readonly Write := (源码: string 路径: string) => { System.WriteText 路径 源码; 路径; }
+
+readonly Build := (源码: string cs路径: string dll路径: string) => {
+    System.WriteText cs路径 源码
+    # **就地编**：Roslyn 当库调，不经过 `dotnet build` —— 只有 runtime 的机器上也跑得起来。
+    Compile.Cs 源码 dll路径 []
     dll路径;
 }
+
+# ═══ 对外那几个（**实例**那半）═══
+
+# 这个类型全部该适配的**实例**方法名（去重、排序、滤掉属性访问器和运算符）。
+readonly AllOfClass := (类型: string) => {
+    ms := Reflect.Unwrap (Reflect.Call (TypeObject 类型) "GetMethods" [])
+    keep := ms.Where (m: object) => { !(StaticOf m) && !(IsSpecial m); }
+    ns := keep.Map (m: object) => { NameOf m; }
+    Sorting.Sort (ns.Distinct ());
+}
+
+# **实例那半**的 C# 源码：`[RavelModule]` + `[RavelClass]` + `[ClassCtor]` + `[ClassMethod]`。
+# 和 `Cs`（静态那半）**是两个形状**，所以是两个函数，不是一个开关。
+readonly CsClass := (类型: string 模块: string 类名: string 成员: list) => {
+    # **值类型的实例不做。** 装箱之后改不了原值 —— `DateTime.AddDays` 那种交回新值的
+    # 没事，可**可变结构体**的方法（`Point.Offset` 那种）会**静默无效**：调了、看着成了、
+    # 原值没动。那是最难查的一种错，所以宁可不生成、当场明说。
+    (Reflect.Type 类型).IsValue () {
+        throw (Exception ("`" + 类型 + "` 是值类型 —— 实例那半不做：装箱之后改不了原值，"
+            + "可变的那些方法会**静默失效**（`DateTime.AddDays` 那种交回新值的没事，"
+            + "`Point.Offset` 那种就白调了）。要哪几个自己补。"));
+    } { (); }
+
+    T := TypeObject 类型
+    Full := Reflect.Unwrap (Reflect.Call T "FullName" [])
+    All := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+    Ctors := Reflect.Unwrap (Reflect.Call T "GetConstructors" [])
+    SelfName := ShortName 类型
+
+    # 构造器按 `CtorKey` 排，挑**第一个**。一个就够 —— 多个构造器各给一个名字
+    # 是另一件事，这一版不做（`New` 一个名字）。
+    rankC := Ctors.SortBy (c: object) => { CtorKey c; }
+    Ctor := rankC.IsEmpty () {
+        "    // 没有公开构造器\n"
+    } {
+        EmitCtor (rankC.First ()) 类名 Full 类名
+    }
+
+    Head := [
+        "// <auto-generated>"
+        "//   由 `Adaptor.CsClass` 生成（`lib/adaptor.rav`）—— 别手改，下次生成会盖掉。"
+        "//   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。"
+        "//"
+        "//   类型 " + 类型 + " → 模块 " + 模块 + " / 类 " + 类名 + "；成员 " + (成员.Join " ")
+        "//"
+        "//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]`，`self` 先脱壳再调。"
+        "//   静态成员在另一份里（`Adaptor.Cs`）。**属性访问器（`get_X` / `set_X`）这一版不做。**"
+        "// </auto-generated>"
+        ""
+        "namespace Ravel.Runtime;"
+        ""
+        "[RavelModule(\"" + 模块 + "\")]"
+        "[RavelClass(\"" + 类名 + "\")]"
+        "internal static class " + 类名 + "Adaptor"
+        "{"
+        "    private static " + Full + " Me (RuntimeValue self)"
+        "        => (" + Full + ")((DotNetVal)self).Value;"
+        ""
+    ]
+
+    Body := 成员.Map (w: string) => { EmitClassMember All w 模块 Full SelfName; }
+
+    Lines := Head.Concat [Ctor]
+    Lines = Lines.Concat Body
+    Lines = Lines.Concat ["}"]
+    Lines.Join "\n";
+}
+

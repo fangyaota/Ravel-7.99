@@ -6,8 +6,11 @@
 # 只是它的命令行壳。所以一条 `using` 就能调：
 #
 #     Adaptor.Cs    类型 模块 成员              # → 生成的 C# 源码（字符串，不落盘）
-#     Adaptor.Save  类型 模块 成员 cs路径       # → 写 .cs
-#     Adaptor.Dll   类型 模块 成员 cs路径 dll路径   # → 写 .cs + **就地编** dll
+#     Adaptor.Write 源码 cs路径                 # → 写 .cs
+#     Adaptor.Build 源码 cs路径 dll路径          # → 写 .cs + **就地编** dll
+#
+# `Write` / `Build` 收的是**源码**，不是「类型 + 成员」—— 于是「静态那半 / 实例那半」
+# （`Cs` / `CsClass`）和「写 / 写+编」两件事**正交**地拼，加形状不用加分支。
 #
 # **成员那一格不用手数** —— `Adaptor.AllOf 类型` 就是"这个类型全部该适配的静态方法名"
 # （去重、排序、滤掉属性访问器和运算符）。第 ⑤ 段走的就是它。
@@ -25,13 +28,13 @@ print ("① 源码 " + (string (src.Length ())) + " 个字符")
 
 # ② 落成 .cs
 Cs路径 := "out/" + 模块 + ".cs"
-Adaptor.Save 类型 模块 成员 Cs路径
+Adaptor.Write (Adaptor.Cs 类型 模块 成员) Cs路径
 print ("② 写好了：" + Cs路径)
 
 # ③ 顺手**就地编**成 dll —— Roslyn 当库调，不经过 `dotnet build`，
 #    所以只有 runtime（没装 SDK）的机器上这一步一样走得完。
 Dll路径 := "out/plugins/" + 模块 + ".dll"
-Adaptor.Dll 类型 模块 成员 Cs路径 Dll路径
+Adaptor.Build (Adaptor.Cs 类型 模块 成员) Cs路径 Dll路径
 print ("③ 编好了：" + Dll路径)
 
 # ④ 装上它 —— 就在同一份脚本里，往后就是普通模块了
@@ -48,7 +51,7 @@ print ("⑤ 扫出 " + (string (名字.Count ())) + " 个静态方法名，"
        + "短名是 " + (Adaptor.ShortName 类型))
 
 全模块 := "NMathAll"
-Adaptor.Dll 类型 全模块 名字 ("out/" + 全模块 + ".cs") ("out/plugins/" + 全模块 + ".dll")
+Adaptor.Build (Adaptor.Cs 类型 全模块 名字) ("out/" + 全模块 + ".cs") ("out/plugins/" + 全模块 + ".dll")
 using "NMathAll"
 print (NMathAll.Tanh 1.0)              # 0.7615941559557649
 print (NMathAll.ILogB 8.0)             # 3

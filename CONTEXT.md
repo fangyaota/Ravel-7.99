@@ -1432,6 +1432,34 @@ using "structures.rav"       # 库里那半边,照旧
 两个同名模块谁后 `using` 谁赢(`DefineOrReplace` 是"装进来的以库为准"),那是**静默**
 的那种坏。所以工具会把取到的名字**打出来**给人看一眼。
 
+**实例那半**（2026-10-07 加，`Adaptor.CsClass` / `--class`）：静态那半生成的是**模块函数**
+（`[RavelFn]`，体里 `System.Math.Max (…)`）；这半生成的是**类**（`[RavelClass]` +
+`[ClassCtor]` + `[ClassMethod]`，体里 `self` 先经 `Me (self)` 脱壳）。两个形状，**两套
+emitter、两个开关**，不是一个开关加分支。
+
+写这半时照出来的四件事（都写进注释了）：
+
+* **`[ClassCtor]` 只有一格实参** —— 契约是 `New (RuntimeValue arg)`，不给就是 `()`。
+  写成 `New ()` 这种零参数会当场 `TargetParameterCountException`。于是按 .NET 构造器的
+  参数个数分三档：0 个（收下 `arg` 不用，但**不是丢掉**：非 `()` 就报）、1 个（`arg` 就是
+  那个）、**2 个以上不做**（那一格递不出两个实参，要就自己补一个收 `list` 再拆的）。
+* **构造器得把类也带上**：`new DotNetVal (值, PluginKit.ClassOf ("Random"))`。
+  不带的话值是 `DotNetObject`、方法挂在生成的类上，`r.Next ()` 报「类型 'DotNetObject'
+  没有方法 'Next'」—— 成员查找沿**值自己的类**往上走，走不到（`DotNetVal` 为此多开了一个
+  ctor 重载）。
+* **"不是交回调用结果"的两种写法要小块**（`CallThen`）：`void` 的、以及 chain 那种
+  **返回 `self`** 的。直接 `() => self` 是**调了等于没调**，而且安安静静
+  （`sb.Append "x"` 跑完 `sb` 里什么都没有）。这一轮在 `void` 和 `self` 两处各犯了一次。
+* **调用那半不带外层括号** —— C# 里 `(f ());` 不是合法语句表达式（CS0201），
+  而 `CallThen` 正是把它当语句使的。`MakerOf` 的模板自己会括，两边不用抢。
+
+**值类型的实例不做**（`DateTime` / `Point` 那种）：装箱之后改不了原值，可变结构体的方法
+会**静默失效** —— 调了、看着成了、原值没动。碰到当场报。
+
+**已知的可用性缺口**：一个方法名只生成**一个**重载（排位键挑的），所以
+`StringBuilder.Append` 挑中的是 `Append (int)` —— `sb.Append "字符串"` 会报类型错。
+想指定重载得能写签名（`"Append(String)"` 那种），那是下一步。
+
 **`object` 参数**（2026-10-07 加）：排位 **50** —— 排在标量/数组后面、认不出的前面。
 它**转得动**（走 `PluginKit.ToNet`，就是那座桥），但别的重载只要能用就该赢
 （`String.Concat "a" "b"` 该挑 `(string, string)` 而不是 `(object, object)`）。

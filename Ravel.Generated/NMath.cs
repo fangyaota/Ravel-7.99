@@ -12,62 +12,62 @@ internal static class NMathAdaptor
 {
     [RavelFn("Max")]
     public static RuntimeValue Max (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NMath.Max", () => IntVal.Of ((System.Math.Max (PluginKit.Int (x0, "NMath.Max 的第 1 个实参"), PluginKit.Int (x1, "NMath.Max 的第 2 个实参")))));
+        => PluginKit.Guarded ("NMath.Max", () => IntVal.Of (System.Math.Max (PluginKit.Int (x0, "NMath.Max 的第 1 个实参"), PluginKit.Int (x1, "NMath.Max 的第 2 个实参"))));
 
     [RavelFn("Min")]
     public static RuntimeValue Min (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NMath.Min", () => IntVal.Of ((System.Math.Min (PluginKit.Int (x0, "NMath.Min 的第 1 个实参"), PluginKit.Int (x1, "NMath.Min 的第 2 个实参")))));
+        => PluginKit.Guarded ("NMath.Min", () => IntVal.Of (System.Math.Min (PluginKit.Int (x0, "NMath.Min 的第 1 个实参"), PluginKit.Int (x1, "NMath.Min 的第 2 个实参"))));
 
     [RavelFn("Abs")]
     public static RuntimeValue Abs (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Abs", () => IntVal.Of ((System.Math.Abs (PluginKit.Int (x0, "NMath.Abs 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Abs", () => IntVal.Of (System.Math.Abs (PluginKit.Int (x0, "NMath.Abs 的第 1 个实参"))));
 
     [RavelFn("Sign")]
     public static RuntimeValue Sign (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of ((System.Math.Sign (PluginKit.Int (x0, "NMath.Sign 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Sign", () => IntVal.Of (System.Math.Sign (PluginKit.Int (x0, "NMath.Sign 的第 1 个实参"))));
 
     [RavelFn("Clamp")]
     public static RuntimeValue Clamp (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
-        => PluginKit.Guarded ("NMath.Clamp", () => IntVal.Of ((System.Math.Clamp (PluginKit.Int (x0, "NMath.Clamp 的第 1 个实参"), PluginKit.Int (x1, "NMath.Clamp 的第 2 个实参"), PluginKit.Int (x2, "NMath.Clamp 的第 3 个实参")))));
+        => PluginKit.Guarded ("NMath.Clamp", () => IntVal.Of (System.Math.Clamp (PluginKit.Int (x0, "NMath.Clamp 的第 1 个实参"), PluginKit.Int (x1, "NMath.Clamp 的第 2 个实参"), PluginKit.Int (x2, "NMath.Clamp 的第 3 个实参"))));
 
     [RavelFn("Sqrt")]
     public static RuntimeValue Sqrt (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Sqrt", () => new RealVal ((System.Math.Sqrt (PluginKit.Num (x0, "NMath.Sqrt 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Sqrt", () => new RealVal (System.Math.Sqrt (PluginKit.Num (x0, "NMath.Sqrt 的第 1 个实参"))));
 
     [RavelFn("Pow")]
     public static RuntimeValue Pow (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NMath.Pow", () => new RealVal ((System.Math.Pow (PluginKit.Num (x0, "NMath.Pow 的第 1 个实参"), PluginKit.Num (x1, "NMath.Pow 的第 2 个实参")))));
+        => PluginKit.Guarded ("NMath.Pow", () => new RealVal (System.Math.Pow (PluginKit.Num (x0, "NMath.Pow 的第 1 个实参"), PluginKit.Num (x1, "NMath.Pow 的第 2 个实参"))));
 
     [RavelFn("Sin")]
     public static RuntimeValue Sin (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Sin", () => new RealVal ((System.Math.Sin (PluginKit.Num (x0, "NMath.Sin 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Sin", () => new RealVal (System.Math.Sin (PluginKit.Num (x0, "NMath.Sin 的第 1 个实参"))));
 
     [RavelFn("Cos")]
     public static RuntimeValue Cos (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Cos", () => new RealVal ((System.Math.Cos (PluginKit.Num (x0, "NMath.Cos 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Cos", () => new RealVal (System.Math.Cos (PluginKit.Num (x0, "NMath.Cos 的第 1 个实参"))));
 
     [RavelFn("Floor")]
     public static RuntimeValue Floor (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Floor", () => new RealVal ((System.Math.Floor (PluginKit.Num (x0, "NMath.Floor 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Floor", () => new RealVal (System.Math.Floor (PluginKit.Num (x0, "NMath.Floor 的第 1 个实参"))));
 
     [RavelFn("Ceiling")]
     public static RuntimeValue Ceiling (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Ceiling", () => new RealVal ((System.Math.Ceiling (PluginKit.Num (x0, "NMath.Ceiling 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Ceiling", () => new RealVal (System.Math.Ceiling (PluginKit.Num (x0, "NMath.Ceiling 的第 1 个实参"))));
 
     [RavelFn("Round")]
     public static RuntimeValue Round (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Round", () => new RealVal ((System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Round", () => new RealVal (System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参"))));
 
     [RavelFn("Exp")]
     public static RuntimeValue Exp (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Exp", () => new RealVal ((System.Math.Exp (PluginKit.Num (x0, "NMath.Exp 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Exp", () => new RealVal (System.Math.Exp (PluginKit.Num (x0, "NMath.Exp 的第 1 个实参"))));
 
     [RavelFn("Log")]
     public static RuntimeValue Log (RuntimeValue x0)
-        => PluginKit.Guarded ("NMath.Log", () => new RealVal ((System.Math.Log (PluginKit.Num (x0, "NMath.Log 的第 1 个实参")))));
+        => PluginKit.Guarded ("NMath.Log", () => new RealVal (System.Math.Log (PluginKit.Num (x0, "NMath.Log 的第 1 个实参"))));
 
     [RavelFn("BigMul")]
     public static RuntimeValue BigMul (RuntimeValue x0, RuntimeValue x1)
-        => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Narrow ((System.Math.BigMul (PluginKit.Int (x0, "NMath.BigMul 的第 1 个实参"), PluginKit.Int (x1, "NMath.BigMul 的第 2 个实参")))));
+        => PluginKit.Guarded ("NMath.BigMul", () => PluginKit.Narrow (System.Math.BigMul (PluginKit.Int (x0, "NMath.BigMul 的第 1 个实参"), PluginKit.Int (x1, "NMath.BigMul 的第 2 个实参"))));
 
 }
