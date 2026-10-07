@@ -1,0 +1,275 @@
+# **`Adaptor`** —— 从 .NET 反射里**生成适配层的 C#**，并且（要的话）就地编成 dll。
+#
+#     using "adaptor.rav"
+#
+#     src := Adaptor.Cs "System.Math" "NMath" ["Max" "Min" "Sqrt"]   # 源码字符串
+#     Adaptor.Save "System.Math" "NMath" [...] "Ravel.Generated/NMath.cs"
+#     Adaptor.Dll  "System.Math" "NMath" [...] "Ravel.Generated/NMath.cs" "out/plugins/NMath.dll"
+#
+# 命令行那个壳在 `tools/mkadaptor.rav`，它就是这三个函数 + 参数解析。
+#
+# **要显式 `using`** —— 不进 `predefined.rav`：它拖着 `Ravel.Reflect`，编 dll 那条
+# 还拖着 Roslyn（`Ravel.Compile`，十几 MB）。没人用的时候一分别花。
+#
+# ── 三条规矩 ──
+#
+# 1. **重载在这里就挑定了。** 同名、静态、参数与返回值都在映射表里的，按
+#    「要数组的排后面 → 参数少的在前 → 丢信息少的在前 → 签名」排一下取第一个。
+#    这是相对运行期反射（`Reflect.Call`）的**主要收益**：那边是挨个试，这边是定死。
+# 2. **挑不中就说，不猜。** 映射表里没有的类型**明说跳过**，把筛掉的个数也写出来。
+# 3. **产物是脚手架。** 生成器注定填不满（泛型类型实参、委托、`object`），
+#    所以写出来的 `.cs` 是给人接手用的，不是构建产物。
+
+ravel "Adaptor"
+
+using "plugins/Ravel.Reflect.dll"
+using "plugins/Ravel.Compile.dll"
+
+# ═══ 映射表 ═══
+#
+# 每一格三件事：**取值**（`RuntimeValue` → 本地）、**造值**（本地 → `RuntimeValue`）、
+# **排位**（重载挑哪个用）。
+#
+# **排位是必须的，不是锦上添花。** 光按签名排序的话 `Double` 排在 `Int32` 前面
+# （`D` < `I`），`Math.Max` 会挑中 `(double, double) -> double` —— 于是
+# `NMath.Max 3 7` 交回一个 `real`，把已经能用的适配层**改坏**。
+
+# **标量排 0~6、数组排 10~15** —— 两段是有意思的：挑重载时"先要标量的那个"赢
+# （见 `RankKey` 里的 `arrCount`）。Ravel 侧写数组得先造个 `list`，能避开就避开：
+# `String.Concat "a" "b"` 要挑 `(string, string)`，不是 `(string[])`。
+#
+# **一条模式一支** —— 不认就交给 `|` 试下一支，收尾那支兜底。三张表一个形状：
+# 第一格是**字面量模式**（拿 `tn` 去比，比不中这一支整个不收），后面几格才是参数。
+#
+# 两条写法上的事：
+#
+# * 第一条得跟在 `:=` 那行上 —— `:=` 后面直接换行，解析器说「需要表达式」。
+# * 表里全是常量，所以用 `~`（`~x` 就是 `{x;}`）—— 一张表全是短常量时才好看。
+#   下面两张表是**字符串拼出来的**，`~` 只吃一个原子、得给整个表达式套括号，
+#   反而更吵，所以那两张照旧写 `{ … ; }`。
+readonly private RankOf := "Int32"     => ~0
+                         | "Int64"     => ~1
+                         | "String"    => ~2
+                         | "Boolean"   => ~3
+                         | "Char"      => ~4
+                         | "Double"    => ~5
+                         | "Single"    => ~6
+                         | "String[]"  => ~10
+                         | "Char[]"    => ~11
+                         | "Int32[]"   => ~12
+                         | "Int64[]"   => ~13
+                         | "Boolean[]" => ~14
+                         | "Double[]"  => ~15
+                         | (_)         => ~99          # 99 = 映射表里没有
+
+# **取值**：`RuntimeValue` → 本地值。`e` 是实参名、`what` 是报错时说的那句话。
+#
+# 两条特别的：`Single` 那个重载要的是 `float`，而 `Num` 交回 `double` —— C# 不会自己缩，
+# 所以自己加一句强转；数组那几格走 `PluginKit` 的 `Strs` / `Ints`…（把 Ravel 的 `list`
+# 逐个换掉，错了说清是**第几个**元素）。
+readonly private GetterOf := ("Int32" e: string what: string)     => { "PluginKit.Int (" + e + ", \"" + what + "\")"; }
+                           | ("Int64" e: string what: string)     => { "PluginKit.Long (" + e + ", \"" + what + "\")"; }
+                           | ("String" e: string what: string)    => { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; }
+                           | ("Boolean" e: string what: string)   => { "PluginKit.Bool (" + e + ", \"" + what + "\")"; }
+                           | ("Char" e: string what: string)      => { "PluginKit.Char (" + e + ", \"" + what + "\")"; }
+                           | ("Double" e: string what: string)    => { "PluginKit.Num (" + e + ", \"" + what + "\")"; }
+                           | ("Single" e: string what: string)    => { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; }
+                           | ("String[]" e: string what: string)  => { "PluginKit.Strs (" + e + ", \"" + what + "\")"; }
+                           | ("Char[]" e: string what: string)    => { "PluginKit.Chars (" + e + ", \"" + what + "\")"; }
+                           | ("Int32[]" e: string what: string)   => { "PluginKit.Ints (" + e + ", \"" + what + "\")"; }
+                           | ("Int64[]" e: string what: string)   => { "PluginKit.Longs (" + e + ", \"" + what + "\")"; }
+                           | ("Boolean[]" e: string what: string) => { "PluginKit.Bools (" + e + ", \"" + what + "\")"; }
+                           | ("Double[]" e: string what: string)  => { "PluginKit.Reals (" + e + ", \"" + what + "\")"; }
+                           | (_ e: string what: string)           => { "?"; }        # 哨兵：不支持
+
+# **造值**：本地值 → `RuntimeValue`。`Int64` 那一格走 `PluginKit.Narrow` —— `long`
+# 装得下就给 `int`、装不下升 `bigint`，别自己 `(int)` 硬转（静默回绕）。
+# `Single` → `RealVal` 是隐式加宽，安全。
+readonly private MakerOf := ("Int32" e: string)   => { "IntVal.Of (" + e + ")"; }
+                          | ("Int64" e: string)   => { "PluginKit.Narrow (" + e + ")"; }
+                          | ("String" e: string)  => { "new StringVal (" + e + ")"; }
+                          | ("Boolean" e: string) => { "new BoolVal (" + e + ")"; }
+                          | ("Char" e: string)    => { "new CharVal (" + e + ")"; }
+                          | ("Double" e: string)  => { "new RealVal (" + e + ")"; }
+                          | ("Single" e: string)  => { "new RealVal (" + e + ")"; }
+                          | ("Void" e: string)    => { "PluginKit.Void"; }
+                          | (_ e: string)         => { "?"; }
+
+# `Known` = 映射表里有没有这一型。`InOk` 是"能不能当实参收下"，
+# `OutOk` 多认一个 `void`（只有返回值才可能是它）。
+readonly private Known  := (tn: string) => { (RankOf tn) < 90; }
+readonly private InOk   := (tn: string) => { Known tn; }
+readonly private OutOk  := (tn: string) => { (Known tn) || (tn == "Void"); }
+
+# ═══ 反射：把 `MethodInfo` 拆成签名 ═══
+
+readonly private NameOf   := (m: object) => { Reflect.Unwrap (Reflect.Call m "Name" []); }
+readonly private StaticOf := (m: object) => { Reflect.Unwrap (Reflect.Call m "IsStatic" []); }
+readonly private RetOf    := (m: object) => {
+    Reflect.Unwrap (Reflect.Call (Reflect.Call m "ReturnType" []) "Name" []);
+}
+readonly private ParamsOf := (m: object) => {
+    ps := Reflect.Unwrap (Reflect.Call m "GetParameters" [])
+    ps.Map (p: object) => {
+        Reflect.Unwrap (Reflect.Call (Reflect.Call p "ParameterType" []) "Name" []);
+    }
+}
+
+# `x0 x1 x2 …`
+readonly private Names := (n: int) => {
+    i := 0
+    out := []
+    while { i < n; } {
+        out.Add ("x" + (string i))
+        i += 1
+    }
+    out
+}
+
+# 排位键里的数字要**定宽**：字符串排序里 `"10" < "2"`，不定宽的话三个参数的
+# `(int,int,int)` 会排到 `(real,real)` 前面去。两段式：`00` `01` … `99`。
+readonly private Pad2 := (n: int) => { n < 10 { "0" + (string n); } { string n; } }
+
+# 一个方法的重载排位键。**四段，先后是有讲究的**：
+#
+#   1. `arrCount` —— 要数组的排后面。Ravel 侧写数组得先造个 `list`，能避开就避开：
+#      `String.Concat "a" "b"` 该挑 `(string, string)`，不是 `(string[])`
+#      （少了这一段的话，`(string[])` 只有 1 个参数、按下面第 2 段会赢）。
+#   2. 参数个数少 —— `Math.Round (double)` 赢 `Math.Round (double, int)`。
+#   3. 排位和最小 —— "丢信息最少"，`int` 赢 `real`。
+#   4. 签名兜底 —— 保证**确定性**（反射给的先后没有保证，引擎自己那趟也为此排过序）。
+readonly private RankKey := (m: object) => {
+    ps := ParamsOf m
+    ranks := ps.Map (t: string) => { RankOf t; }
+
+    arrCount := ranks.Fold 0 ((acc: int r: int) => { (r >= 10) { acc + 1; } { acc; } })
+    arrStr := Pad2 arrCount
+    nStr := Pad2 (ranks.Count ())
+    sum := ranks.Fold 0 ((acc: int r: int) => { acc + r; })
+    sumStr := Pad2 sum
+    rsStr := (ranks.Map (r: int) => { string r; }).Join ""
+    retStr := Pad2 (RankOf (RetOf m))
+    sig := ps.Join ","
+
+    arrStr + "|" + nStr + "|" + sumStr + "|" + rsStr + "|" + retStr + "|" + sig;
+}
+
+# ═══ 生成 ═══
+#
+# **当心"实参吃运算符"**：`a.Join x + y` 是 `a.Join (x + y)`，不是 `(a.Join x) + y`。
+# 凡是方法调用的结果要接着 `+` 的，要么把整个调用括起来（`(a.Join x) + y`），
+# 要么让它单独占一句。踩过一次，症状是字符串拼到一半、剩下的元素掉到末尾。
+
+readonly private EmitOne := (m: object mod: string full: string) => {
+    nm := NameOf m
+    ps := ParamsOf m
+    names := Names (ps.Count ())
+
+    i := 0
+    gets := []
+    ok := true
+    while { i < (ps.Count ()); } {
+        e := names.At i
+        label := mod + "." + nm + " 的第 " + (string (i + 1)) + " 个实参"
+        g := GetterOf (ps.At i) e label
+        g == "?" { ok = false; }
+        gets.Add g
+        i += 1
+    }
+
+    # **每段单独算。** 串在一条 `+` 链里写，`.Join x` 后面那些 `+ …` 会被当成 `Join` 的实参。
+    decls := names.Map (a: string) => { "RuntimeValue " + a; }
+    decl := decls.Join (", ")
+    args := gets.Join (", ")
+    mk := MakerOf (RetOf m) ("(" + full + "." + nm + " (" + args + "))")
+    mk == "?" { ok = false; }
+
+    # **必须兜。** 引擎里那条老规矩是"别让 C# 异常漏到顶层"—— 漏出去会绕过 Ravel 的
+    # `try`，一路打到"解释器内部错误"（`PluginKit.Guarded` 就是把 IO / 权限 / 参数 /
+    # 溢出…那几族翻成 Ravel 错误的那个口子）。不兜的话，被调方一句
+    # `ArgumentException` 用户接都接不住。实测踩过（`Math.Clamp 1 5 3`）。
+    gk := "PluginKit.Guarded (\"" + mod + "." + nm + "\", () => "
+    guarded := gk + mk + ")"
+
+    ok {
+        one := "    [RavelFn(\"" + nm + "\")]"
+        one = one + "\n    public static RuntimeValue " + nm + " (" + decl + ")"
+        one = one + "\n        => " + guarded + ";"
+        one + "\n"
+    } {
+        sign := (ParamsOf m).Join "," + " -> " + (RetOf m)
+        "    // 跳过 " + nm + "：签名 " + sign + " 里有映射表没有的类型\n"
+    }
+}
+
+# 一个成员名 → 一段 C#。挑重载：静态 + 参数返回值都认，按排位键取第一个。
+readonly private EmitMember := (all: list w: string mod: string full: string) => {
+    cands := all.Where (m: object) => { (NameOf m) == w; }
+    usable := cands.Where (m: object) => {
+        ps := ParamsOf m
+        (ps.All (t: string) => { InOk t; }) { OutOk (RetOf m); } { false; }
+    }
+    # 排序为的是**确定性** —— 反射给的先后没有保证（引擎自己那趟也为此排过序）。
+    ranked := usable.SortBy (m: object) => { RankKey m; }
+
+    nAll  := string (cands.Count ())
+    nOk   := string (usable.Count ())
+    nDrop := string ((cands.Count ()) - (usable.Count ()))
+
+    ranked.IsEmpty () {
+        "    // 跳过 " + w + "：没有能映射的重载（同名静态方法 " + nAll + " 个，" + nOk
+        + " 个类型认得出，" + nDrop + " 个被筛掉）\n"
+    } {
+        EmitOne (ranked.First ()) mod full
+    }
+}
+
+# ═══ 对外那三个 ═══
+
+# 生成的 C# 源码（不落盘）。编不过/映射不全都写在里面的注释里，不抛。
+readonly Cs := (类型: string 模块: string 成员: list) => {
+    # **`Reflect.Type` 交回的是"静态访问的把手"**（`Call` 在那个类型上找**静态**成员），
+    # 而 `GetMethods` / `GetParameters` 这些是 `Type` 的**实例**成员，够不着。
+    # 所以从 `System.Type.GetType` 拿一个**包着 `Type` 的对象**回来 —— 之后全是实例调用。
+    T := Reflect.Call (Reflect.Type "System.Type") "GetType" [类型]
+    Full := Reflect.Unwrap (Reflect.Call T "FullName" [])
+    All := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+
+    Head := [
+        "// <auto-generated>"
+        "//   由 `Adaptor.Cs` 生成（`lib/adaptor.rav`）—— 别手改，下次生成会盖掉。"
+        "//   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。"
+        "//"
+        "//   类型 " + 类型 + " → 模块 " + 模块 + "；成员 " + (成员.Join " ")
+        "// </auto-generated>"
+        ""
+        "namespace Ravel.Runtime;"
+        ""
+        "[RavelModule(\"" + 模块 + "\")]"
+        "internal static class " + 模块 + "Adaptor"
+        "{"
+    ]
+
+    Body := 成员.Map (w: string) => { EmitMember All w 模块 Full; }
+
+    # 一步一句 —— 串在一条链里写，`.Concat x` 后面那个 `.Join` 会被当成 `Concat` 的实参。
+    Lines := Head.Concat Body
+    Lines = Lines.Concat ["}"]
+    Lines.Join "\n";
+}
+
+# 写一份 `.cs`，交回落盘路径。
+readonly Save := (类型: string 模块: string 成员: list 路径: string) => {
+    System.WriteText 路径 (Cs 类型 模块 成员)
+    路径;
+}
+
+# 写 `.cs` 再**就地编**成 dll（Roslyn 当库调，不经过 `dotnet build`，
+# 所以只有 runtime 的机器上也跑得起来）。交回 dll 路径。
+readonly Dll := (类型: string 模块: string 成员: list cs路径: string dll路径: string) => {
+    # 源码只算一遍 —— `Cs` 要把类型的整个方法表反射一遍，两次没必要。
+    src := Cs 类型 模块 成员
+    System.WriteText cs路径 src
+    Compile.Cs src dll路径 []
+    dll路径;
+}

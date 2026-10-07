@@ -12,6 +12,10 @@
 #         Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul
 #     → Ravel.Generated/NMath.cs        # 一个 [RavelModule] / [RavelFn] 的插件源码
 #
+#     不想开命令行也行 —— 生成逻辑是个**库**（`lib/adaptor.rav`，模块 `Adaptor`），
+#     `using "adaptor.rav"` 之后 `Adaptor.Cs 类型 模块 成员` 直接拿源码字符串。
+#     见 `examples/adaptor_from_ravel.rav`（生成 → 编译 → 用，一份脚本走完）。
+#
 # 2) 编译 —— **看现场有没有 SDK**：
 #
 #    a. 在仓库里（有 SDK）：`bash build.sh` 连它一起编（见 `Ravel.csproj` 的 `BuildPlugins`）

@@ -542,6 +542,14 @@ lib/
                           `impl (IMonad Action { () })` 只是登记一下;`impl` 是全局的,所以
                           `x: IMonad` 在哪儿都成立)。两者的 `Bind` 各干各的:这边真跑效果,
                           那边没有值就短路
+  adaptor.rav             `Adaptor` 模块 —— **从 .NET 反射里生成适配层的 C#**:
+                          `Cs 类型 模块 成员`(交回源码字符串,不落盘)/
+                          `Save 类型 模块 成员 cs路径` / `Dll 类型 模块 成员 cs路径 dll路径`
+                          (写 .cs 再**就地编**成 dll —— Roslyn 当库调,见「生成出来的适配层」)。
+                          **要显式引用** —— 不进 predefined:它拖着 `Ravel.Reflect`,
+                          编 dll 那条还拖着 `Ravel.Compile`(Roslyn,十几 MB),
+                          没人用时一分别花。命令行那个壳在 `tools/mkadaptor.rav`,
+                          它就这三件事:解析参数、拼路径、调上面三个函数
   app.rav                 示例脚本(math + try 的冒烟),手动跑:
                           dotnet out/ravel.dll lib/app.rav
 
@@ -1398,6 +1406,20 @@ using "structures.rav"       # 库里那半边,照旧
 
     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sqrt BigMul
     → Ravel.Generated/NMath.cs      # 一个 [RavelModule] / [RavelFn] 形状的插件源码
+
+**它是个库,不是一个脚本** —— 生成逻辑在 `lib/adaptor.rav`(模块 `Adaptor`),
+所以 `.rav` 文件里也能直接调,生成 → 编译 → 用一条链走完
+(`examples/adaptor_from_ravel.rav`):
+
+    using "adaptor.rav"
+    Adaptor.Cs  类型 模块 成员                    # → 生成的 C# 源码(字符串,不落盘)
+    Adaptor.Save 类型 模块 成员 cs路径            # → 写 .cs
+    Adaptor.Dll  类型 模块 成员 cs路径 dll路径    # → 写 .cs + 就地编
+
+`tools/mkadaptor.rav` 只剩三件事:解析参数、拼路径、调上面三个函数。
+放在 `lib/` 而不是 `tools/` 是因为**搜索路径上有 `lib/` 没有 `tools/`**
+(`ModuleSearchPath.Defaults`)—— 换个工作目录也 `using` 得到,而 `tools/` 那种
+相对路径只有"正好在仓库根跑"才认。
 
 拿到的 `.cs` 就是个**插件**,和 `Ravel.Structures` 那三个没有分别。`Ravel.Generated/`
 是**一个**插件项目 —— 加适配器 = 多跑一次生成器,不用动 csproj。(但 `Ravel.csproj`
