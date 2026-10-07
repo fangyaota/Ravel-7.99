@@ -33,7 +33,7 @@ using "math.rav"
 # ── 形状:一条槽 ──
 # `Next ()` 交回 0 .. 2^30-1 的整数(各家实现自己保证这个范围);下面那一整套是默认实现,
 # 只依赖 `Next` —— 所以换台子只需要换"取数的源头"。
-IRandom ::= interface {
+readonly IRandom ::= interface {
     internal Next : function = default
 
     # 收一个**区间**:`r.Int [1..6]` 就是掷骰子,`r.Int [0..10)` 是 0..9 —— 开闭全由
@@ -159,7 +159,7 @@ IRandom ::= interface {
 # ── 一台 = 一个"取数的源头" ──
 # 三台共用一个类,区别只在 `Kind`(给人看的那句话)和交进来的那枚函数。
 # `Kind` 只是标签,不参与语义 —— 断言/打印时一眼看出手里是哪台。
-RandomSource ::= class {
+readonly RandomSource ::= class {
     Kind: string = ""
     NextFn: function = () => { 0; }
     init = (kind: string f: function) => { Kind = kind; NextFn = f; this; }

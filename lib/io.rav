@@ -25,14 +25,14 @@ using "iomonad.rav"
 # 算不算某个接口看的是"类型有没有登记"（`impl` / `use`），不逐条查成员 —— 所以实现那几条
 # **要么自己就有那些成员**（下面 `File` / `Dir` 就是这样），要么用
 # `impl (IFile 某类 { by Read = property … })` 现装。
-IEntry ::= interface {
+readonly IEntry ::= interface {
     by Exists : function = default      # () => bool
     by IsDir : function = default       # () => bool
     by Delete : function = default      # () => ()       从它所在的容器里删掉
     by Name : function = default        # () => string   在容器里的名字
 }
 
-IFile ::= interface IEntry {            # **要求**（不是继承）：实现了 IFile 也就是 IEntry，
+readonly IFile ::= interface IEntry {            # **要求**（不是继承）：实现了 IFile 也就是 IEntry，
                                         # 但槽不并 —— 实现者要把 IEntry 那条也登记上
     by Read : function = default        # () => string
     by Write : function = default       # (text: string) => ()
@@ -40,7 +40,7 @@ IFile ::= interface IEntry {            # **要求**（不是继承）：实现�
     by Size : function = default        # () => int
 }
 
-IDir ::= interface IEntry {
+readonly IDir ::= interface IEntry {
     by List : function = default        # () => dict   名字 → IEntry（实现自己排好序）
 }
 
@@ -59,7 +59,7 @@ readonly EntryAt := (path: string isDir: bool) => {
     isDir { Dir path; } { File path; }
 }
 
-File ::= class {
+readonly File ::= class {
     Path: string = ""
 
     init = (path: string) => { Path = System.PathClean path; this; }
@@ -98,7 +98,7 @@ File ::= class {
     Rename := (name: string) => { MoveTo (System.PathJoin (System.PathDir Path) name); }
 }
 
-Dir ::= class {
+readonly Dir ::= class {
     Path: string = ""
 
     init = (path: string) => { Path = System.PathClean path; this; }
@@ -184,7 +184,7 @@ readonly EachLineAction := (f: IFile g: function) => {
 #
 # `MemFile` 的内容就是一个字符串(`Exists` 恒真、`Delete` 是清空 —— 它不在谁里面,"删掉"只能这么算);
 # `MemDir` 的孩子摆在一张 dict 里,`Add` 用条目自己的 `Name ()` 当键。
-MemFile ::= class {
+readonly MemFile ::= class {
     Label: string = ""
     Text: string = ""
 
@@ -200,7 +200,7 @@ MemFile ::= class {
     Delete := () => { Text = ""; (); }
 }
 
-MemDir ::= class {
+readonly MemDir ::= class {
     Label: string = ""
     Kids: dict = {}
 
@@ -250,7 +250,7 @@ impl (IDir MemDir default)
 #
 # 改的是**那棵 Json 值本身**(窗口,不是副本)—— 攒好之后 `Io.CopyTo 树 (Io.File "conf.json")`
 # 就落盘了。
-JsonNode ::= class {
+readonly JsonNode ::= class {
     Label: string = ""
     Value: Json = Json ()
     Parent: object = ()

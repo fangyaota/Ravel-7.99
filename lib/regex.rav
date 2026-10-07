@@ -36,7 +36,7 @@
 # ── 命中的那一段 ──
 # 引擎交回的是一份普通 dict(`{value, index, length, groups, named}`),这个类把它摆成
 # 几个好读的方法。名字带 `Regex` 前缀:它是全局名,叫 `Match` 太容易和别的东西撞。
-RegexMatch ::= class {
+readonly RegexMatch ::= class {
     Hit: string = ""
     Index: int = 0
     Span: int = 0
@@ -75,7 +75,7 @@ RegexMatch ::= class {
 # ── 编译好的那一台 ──
 # 它只存"模式 + 选项"这一对;真正的编译在引擎那边(而且 .NET 自己缓存同一个模式,
 # 所以连着 `Regex.C "同一个"` 也不会反复编译)。
-RegexPattern ::= class {
+readonly RegexPattern ::= class {
     Pattern: string = ""
     Flags: string = ""
 

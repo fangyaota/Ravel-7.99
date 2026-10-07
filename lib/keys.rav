@@ -20,7 +20,7 @@
 # 引擎那份是同步的 C#,而 `Key ()` 是 Ravel 函数(调它要推帧);更要紧的是查表那一步发生在
 # .NET 的 `Dictionary` 内部,那儿插不进帧。所以"规范化"只能发生在 Ravel 里、进表之前。
 
-IKey ::= interface {
+readonly IKey ::= interface {
     by Key : function = default       # () => 值类型(数 / 字符串)
 }
 
@@ -42,7 +42,7 @@ impl (IKey string default)
 #
 # 注意**不往里加** `Keys` / `Values` / `Count` / `Clear`:那些不吃键、名字也还在类链上,
 # 而按 `TraitSlot` 的规矩,类链上有名字时接口槽是**够不着且静默**的 —— 加了也只是死槽。
-IDict ::= interface {
+readonly IDict ::= interface {
     internal Get : function = default
     internal Set : function = default
     internal Has : function = default
@@ -125,7 +125,7 @@ impl (IDict System.Scope {
 #
 # (定义在模块里、再在文件末尾绑给全局:它有个方法也叫 `Keys`,写在全局就得小心
 #  "类成员盖住同名模块"那个坑 —— 放在模块里,`Of` 就是兄弟,名字爱怎么叫怎么叫。)
-Keyed ::= class {
+readonly Keyed ::= class {
     Index: dict = {}          # 规范键 → 原键
     Data: dict = {}           # 规范键 → 值
 

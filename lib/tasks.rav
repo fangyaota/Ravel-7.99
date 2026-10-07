@@ -74,7 +74,7 @@ ravel "Tasks"
 # 它上面写的就是"**能被组调度的东西**"的全部要求 —— 组里每个参数都注解成它,
 # 于是"传了个不是任务的东西"当场在**调用点**报,而不是跑到里面某一行才炸。
 # (实现类是普通字段 / 普通方法就能满足这些槽,不必写成 property —— 实测。)
-ITask ::= interface {
+readonly ITask ::= interface {
     # 收尾那几格:组要读(`Run` 末尾那两道检查)、也要写(`Await` 认领)
     by Done : function = default
     by Ok : function = default
@@ -102,7 +102,7 @@ ITask ::= interface {
 }
 
 # 共用那一半。**它自己不该被实例化** —— `WaitOn` 那份只会报错的默认体就是拦这个的。
-TaskBase ::= class {
+readonly TaskBase ::= class {
     # 结果那一格:Done 之后 Ok / Val / Err 才有意义
     Done: bool = false
     Ok: bool = true
@@ -223,7 +223,7 @@ Task ::= class TaskBase {
 
 # 自动推进的:`Tasks.After ms` 这种。底下是 OS 的计时器 / IO 句柄,它在**操作系统那边**
 # 自己往前走;组管不了它、也不用管它,只需要**看**它完没完(`System.WaitAny`)。
-SysTask ::= class TaskBase {
+readonly SysTask ::= class TaskBase {
     Job: object = ()
 
     init = () => { Job = (); this; }
@@ -264,7 +264,7 @@ SysTask ::= class TaskBase {
 # / 事件 / 信号量的人只摆一只闸,不碰 `Current.Step` / `Back` / `Ready`。
 # `examples/signal.rav` 里拿两版能等的队列对着看:手搓的那版两处伸手进调度器,
 # 用闸的那版一个字段都不碰 —— 而跑出来一模一样。
-Signal ::= class TaskBase {
+readonly Signal ::= class TaskBase {
     # 谁在等我 —— 有人来等的时候记下来。**所以 `Open` 的人不需要组。**
     Holder: TaskGroup = default
     Waiting: list = []
@@ -307,7 +307,7 @@ Signal ::= class TaskBase {
 #     ch := Tasks.Chan ()
 #     …一个任务:ch.Put "货"
 #     …另一个:  g.Await (ch.Take g)
-Chan ::= class {
+readonly Chan ::= class {
     Items: list = []
     Waiting: list = []          # 等货的人各攥一只闸(每项一个 `Signal`)
     Shut: bool = false
@@ -384,7 +384,7 @@ All := (ts: list) => {
 #
 # 陪跑的那些任务**把错吞掉**了:它们只是"看谁先完"。被等的任务真炸了,错记在它自己身上,
 # 谁最后 `Await` 那个赢家、谁 `.Value` 它,就在那一头现形 —— 还是那个规矩。
-Any := (ts: list) => {
+readonly Any := (ts: list) => {
     Task (g: TaskGroup) => {
         gate := Signal ()
         win := [()]                                  # 一格"谁赢了"(拿单元素表当格子用)
@@ -412,7 +412,7 @@ impl (ITask TaskBase default)
 impl (IMonad TaskBase default)
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
-Pending ::= class {
+readonly Pending ::= class {
     Who: Task = default
     Job: object = ()
     init = (who: Task job: object) => { Who = who; Job = job; this; }
@@ -583,7 +583,7 @@ TaskGroup ::= class {
 #   * 想"让一轮"就用 **`After 0`** —— 它是**当场就完成**的(底下不是计时器),不碰粒度;
 #   * 别拿几毫秒的差去比谁快 —— 要分先后,间隔拉到几十上百毫秒。
 # (实测踩过:三个 `After 5/10/20` 抢 `Tasks.Any`,赢家来回变;换成 `50/200/400` 就稳了。)
-After := (ms: int) => {
+readonly After := (ms: int) => {
     t := SysTask ()
     t.Job = System.Sleepable ms
     t
@@ -600,7 +600,7 @@ After := (ms: int) => {
 # 不写这一层的话,最后那句交回的是个**裸值**,`Bind` 拿它去 `Await` —— 报
 # 「参数 't' 需要 ITask,得到 Integer」。别的 monad 同一个道理,只是那个 `Some (…)`
 # / `Ok (…)` 你写惯了、不觉得它是个构造子。
-Return := (v: object) => {
+readonly Return := (v: object) => {
     Task (g: TaskGroup) => { v; }
 }
 
@@ -614,7 +614,7 @@ Return := (v: object) => {
 #
 # 句柄要**是句柄**:给了别的东西(数、字符串)`WaitAny` 那一头才报 —— 这里不先查一遍,
 # 是因为 `Waitable` 是个类型,注解上写得出来,传错在**调用点**就拦住了。
-Of := (h: System.Waitable) => {
+readonly Of := (h: System.Waitable) => {
     t := SysTask ()
     t.Job = h
     t
@@ -626,7 +626,7 @@ Of := (h: System.Waitable) => {
 # 组管调度,不管收成。要收成就把任务先兜在变量里:`t := Tasks.Task (…)`、之后 `t.Value`。
 #
 # `Tasks.Cycle [ … ]` —— "建一个组,跑完"的糖。元素和 `TaskGroup` 一样是任务。
-Cycle := (tasks: list) => {
+readonly Cycle := (tasks: list) => {
     (TaskGroup tasks).Run ()
 }
 

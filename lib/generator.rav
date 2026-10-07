@@ -21,7 +21,7 @@
 # `Yield` 每送一个值就重抓)。这里只是把那张脸包成 `IEnumerable`,并且把原型里的
 # 三个全局名收进**光标对象**的字段里。
 # 由 predefined.rav 加载(要用 `IEnumerable`,所以排在 iterator 之后)。
-Generator ::= class {
+readonly Generator ::= class {
     Body: function = default
     init = (body: function) => { Body = body; this; }
 
@@ -34,7 +34,7 @@ Generator ::= class {
 }
 
 # 一枚**光标**:一次遍历的全部状态。它自己就实现 `IEnumerator`(MoveNext + Current)。
-GeneratorCursor ::= class {
+readonly GeneratorCursor ::= class {
     Body: function = default
     Value: object = ()                # 最近送出来的那个值
     Started: bool = false             # 体起跑了吗(第一次 MoveNext 才起跑)

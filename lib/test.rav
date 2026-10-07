@@ -21,7 +21,7 @@
 ravel "Test"
 
 # 到目前为止的每一条:`{name, ok, msg}`(模块级的状态 —— 和 `Ex.HandlerStack` 一个路子)
-Results: list = []
+readonly Results: list = []
 PassCount: int = 0
 FailCount: int = 0
 

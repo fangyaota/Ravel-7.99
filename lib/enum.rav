@@ -27,7 +27,7 @@
 # * **`with` 现在不推层了**(见 `StepWith`),所以块里的定义**留得下来** —— 靠的就是这一条。
 using "io.rav"
 
-enum ::= class type {
+readonly enum ::= class type {
     private parentInit := init
 
     # 每个枚举值身上那几条**固定**的。写成类体传给 `parentInit` —— 实例化时接着跑,
@@ -171,7 +171,7 @@ enum ::= class type {
 #     `Of` 找不着成员就现拼一枚,不再报错;拼出来正好等于某枚成员时,交回的就是**那枚成员**。
 #   * **另一边给什么**:同一个 flags 的值,或者直接给整数(解配置里的掩码时好使)。
 #     别的类型当场报错,不瞎猜。
-flags ::= class enum {
+readonly flags ::= class enum {
     # 父类那份 `init` 先抓在手里再包一层。**必须在覆盖之前取** —— 这儿的名字是**动态**解析的
     # (子类盖住了就走子类那份,`Members` 就是这么生效的),覆盖之后再读 `init` 就是新的了。
     private baseInit := init

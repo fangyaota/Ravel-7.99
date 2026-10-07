@@ -43,7 +43,7 @@ readonly TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; } { n; }
 #
 # 一层包装(和 `JsonNode` 一模一样):`Tree` 指着底下那棵 dict 树,`Parent` 指着上一层。
 # 根没有 `Parent`(给 `()`),所以 `Delete ()` 在根上会报错。
-XmlNode ::= class {
+readonly XmlNode ::= class {
     Tree: dict = {}
     Parent: object = ()
 

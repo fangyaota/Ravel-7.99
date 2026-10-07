@@ -31,7 +31,7 @@ using "tasks.rav"   # 「交回任务」那一族要用(见下面同名 + `Task`
 #
 # 头是**小写名 → 值**,同名的多个值用 `, ` 连起来(HTTP 头不区分大小写,给两套写法只会让人猜);
 # 正文是**字节表**(要文本用 `Text ()`)。
-Response ::= class {
+readonly Response ::= class {
     status: int = 0
     reason: string = ""
     headers: dict = {}
@@ -287,7 +287,7 @@ readonly Expect := (r: Response) => {
 #   * `Append` 报错 —— HTTP 没有"追写"这回事(和 `Terminal.Stdout` 删不掉、`stdin` 写不了一个待遇);
 #   * `Exists ()` / `Size ()` 走 **HEAD**(服务器不认 HEAD 就退回 GET),
 #     所以它们**不下载正文**,除非对面连 `content-length` 都没给。
-Url ::= class {
+readonly Url ::= class {
     Link: string = ""
 
     init = (link: string) => { Link = link; this; }

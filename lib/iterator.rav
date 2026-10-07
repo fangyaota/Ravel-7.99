@@ -73,7 +73,7 @@ readonly ExtremeOf := (xs: object what: string keepLess: bool) => {
 # **热路径上的两路分支写成"bool 直接吃两个块"**(`(cond) { A } { B }`),不再套 `if { cond; } { A } { B }`:
 # 前者是同一个机制的白描,后者要多进一次 `if`、还多造一个块。量的数:`if` 版比直调版慢约 30%
 # ——下面凡是"每个元素判一次"的地方都用直写。
-IEnumerable ::= interface IMonad {
+readonly IEnumerable ::= interface IMonad {
     # `internal`:填进来之后只读(外面 `x.GetEnumerator = …` 写不进去)。
     # 覆盖它的那几处写 `=`(不是 `:=`)—— `=` 不清 attrs,所以继承得到。
     internal GetEnumerator : function = default
@@ -309,7 +309,7 @@ IEnumerable ::= interface IMonad {
 # 它的 `GetEnumerator ()` 交回 `this`):
 #   * 遍历的是**还没走完的那一段**,不是从头;
 #   * 走一遍就把它**消耗掉**了 —— `e.Count ()` / `e.ToList ()` 之后,`e` 也到头了。
-IEnumerator ::= interface IEnumerable {
+readonly IEnumerator ::= interface IEnumerable {
     internal MoveNext : function = default
     by Current : object = default
     # **自己声明一条**:`IEnumerable` 只是**要求**,槽不并过来(见 `BuildInterface`)
@@ -380,7 +380,7 @@ impl (IList string {
 # 和"抄一份表"一样不会因为循环体里往容器添东西而多走一圈,又省掉那次拷贝。
 #
 # `Current` 是**属性**(和 C# 一样):读到哪儿看到哪儿;`MoveNext` 之前读它会报越界。
-Enumerator ::= class {
+readonly Enumerator ::= class {
     Items : IList = []
     N : int = 0
     Index : int = -1
@@ -414,7 +414,7 @@ Enumerator ::= class {
 #
 # **方向由两头谁大谁小定**(`[5..1]` 倒着数),空区间直接 `Empty` 挡住 ——
 # 和从前 `Generator` 里那段一模一样,只是不再需要一段"跑给生成器看"的体。
-RangeCursor ::= class {
+readonly RangeCursor ::= class {
     # **这两个不注解**(`object`)—— 它们的值只有一个来路:引擎的 `First ()` / `Last ()`,
     # 交回的**只可能是数**(端点带小数也折算成整数了),松的那一面在真实路径上碰不到。
     #

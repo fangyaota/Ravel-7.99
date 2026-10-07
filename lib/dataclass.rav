@@ -35,7 +35,7 @@
 # 帮手(字段表、按名取值、默认构造器)全关在一个**立即调用的 lambda** 里,
 # 不留成实例的数据字段。
 
-dataclass ::= class type {
+readonly dataclass ::= class type {
     private parentInit := init
 
     # ── 注入的那一块 ──

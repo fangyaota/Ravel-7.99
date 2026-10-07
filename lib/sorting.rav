@@ -16,7 +16,7 @@
 # 成立、注解 `(x: IComparable)` 收得下它(和 `INumber` 一个规矩)。内建那几个**空实现体**登记一遍
 # —— 槽不用现装,它们本来就有 `Object` 那条。
 
-IComparable ::= interface {
+readonly IComparable ::= interface {
     by CompareTo : function = default       # (other) => int
 }
 

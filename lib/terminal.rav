@@ -99,7 +99,7 @@ readonly Menu := (title: string items: list) => { Native.TerminalMenu title item
 #
 #     Terminal.Red "错了"                    # 常用那几条直接调
 #     Terminal.Wrap Terminal.Color.Red "错了"  # 要动态挑颜色时,拿一枚 `Color` 传进去
-Color ::= enum {
+readonly Color ::= enum {
     Red := "red"
     Green := "green"
     Yellow := "yellow"
@@ -165,7 +165,7 @@ readonly Tick := (done: int total: int) => {
 # `stdout` / `stderr` / `stdin` 三个**单例值**,实现 `IFile` —— 于是对着接口写的代码直接能用:
 # 把文件倒进终端 `Io.CopyTo f Terminal.Stdout`,把输入倒进文件 `Io.CopyTo Terminal.Stdin f`。
 # 只写的那两个读不了、只读的那个写不了(报错说人话,和"只读的 zip 条目"是同一种取舍)。
-ConsoleOut ::= class {
+readonly ConsoleOut ::= class {
     Label: string = "stdout"
     ToErr: bool = false
 
@@ -184,7 +184,7 @@ ConsoleOut ::= class {
     Append := (text: string) => { Write text; }
 }
 
-ConsoleIn ::= class {
+readonly ConsoleIn ::= class {
     Name := () => { "stdin"; }
     Exists := () => { true; }
     IsDir := () => { false; }

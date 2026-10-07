@@ -10,7 +10,7 @@
 # 形状本身 —— 所以它俩是 `internal`:实现填进来之后,外面**读得到、写不进去**
 # (只读是这里要的:换实现得回类体里改,不该从实例上顺手覆盖掉)。
 # 用 `=` 覆盖它们的子接口 / 实现体**继承**这个修饰符(`=` 不清 attrs),不必再写一遍。
-IMonad ::= interface {
+readonly IMonad ::= interface {
     # **这两条给了默认实现** —— "逐个映射"和"摊平"。
     #
     # 有默认是因为**序列那一族**也要走这条路:`IEnumerable` 只是**要求** `IMonad`
@@ -43,7 +43,7 @@ IMonad ::= interface {
 #
 # 两种情况的**类型相同**(都是 Option),`x is Option` 分不出来 —— 要问有没有值就用
 # `IsSome ()`。这是有意的:能拿到值的地方才该解包,`Value ()` 在 None 上当场报错。
-Option ::= class {
+readonly Option ::= class {
     Has: bool = false                    # 有没有包着值
     Inner: object = ()                   # 包着的那个值(None 时是 ())
 

@@ -79,7 +79,7 @@ readonly MimeOf := (path: string) => {
 }
 
 # 造一次就留着 —— 每个静态文件都重建一张表太亏
-MimeCache := {}
+readonly MimeCache := {}
 readonly MimeTable := () => {
     MimeCache.IsEmpty () {
         MimeCache.Set "html" "text/html; charset=utf-8"
@@ -118,7 +118,7 @@ readonly JsonType := "application/json; charset=utf-8"
 # **交回自己**,所以能用 `|>` 串起来:
 #
 #     Httpd.Text "没有" |> .With 404
-Response ::= class {
+readonly Response ::= class {
     Status: int = 200
     Headers: dict = {}
     Body: list = []
@@ -186,7 +186,7 @@ readonly File := (g: Tasks.TaskGroup path: string) => {
 
 # ── 请求 ──
 
-Request ::= class {
+readonly Request ::= class {
     Method: string = "GET"
     Path: string = "/"
     Query: dict = {}
@@ -229,7 +229,7 @@ Request ::= class {
 
 # ── 服务器 ──
 
-Server ::= class {
+readonly Server ::= class {
     Handle: int = 0
     Port: int = 0
     Routes: list = []

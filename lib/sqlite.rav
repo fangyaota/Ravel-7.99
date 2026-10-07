@@ -28,7 +28,7 @@ ravel "Sqlite"
 #
 # **每条都要给参数那格**:没有参数就写 `{}` —— Ravel 没有默认参数,而"没有参数"和
 # "有参数"分成两个名字(`All` / `AllArgs`)读起来更烦。
-Db ::= class {
+readonly Db ::= class {
     Handle: int = 0
     Source: string = ""
 

@@ -304,7 +304,7 @@ readonly Paint := (drawn: int lines: list) => {
     n
 }
 
-Editor ::= class {
+readonly Editor ::= class {
     Pages: list = [[]]
     Z: int = 0                                # 第几页
     Y: int = 0                                # 第几行

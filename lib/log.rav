@@ -49,7 +49,7 @@ readonly Rank := (name: string) => {
     r
 }
 
-Logger ::= class {
+readonly Logger ::= class {
     Level: string = "info"
     Sink: string = ""            # 落盘路径;空串 = 不落盘
     ToErr: bool = false

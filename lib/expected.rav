@@ -6,7 +6,7 @@
 #
 # 主要用途是**给一次函数调用兜底**(见下面的 `Expect`):把"会抛出来的东西"变成值,
 # 于是调用方可以先看再决定,而不是被一句报错打断 —— 和 `Json` 那边"先看再转"一个意思。
-Expected ::= class {
+readonly Expected ::= class {
     Has: bool = false                    # 这次调用成功了吗
     Inner: object = ()                   # 成功时那个值
     Err: object = ()                     # 失败时那个 Exception

@@ -40,7 +40,7 @@
 #     `init`",而 `init` 交回别的值是允许的(教程 7.3) —— 所以第 N 次的开销和第 1 次一样,
 #     连类体里那些**字段初始值也会一次次重算**。单例那几行通常无所谓;要在意的话,别把有副作
 #     用的活儿写在字段初始值里。
-singleton ::= class type {
+readonly singleton ::= class type {
     private parentInit := init
 
     # `mk` 收一个"类体"、交回建好的类 —— 两个分支唯一的差别就是它(照 `enum` 那个形状,

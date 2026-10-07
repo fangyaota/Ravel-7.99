@@ -88,7 +88,7 @@ readonly Members := (handle: int) => {
 #
 # 根、以及每一层子目录,都是**同一个类**的不同视图 —— 差别只在 `Prefix`
 # ("logs/" 这种)。这样 `Io.EachDir` 那套递归不用为"根"单开一路。
-Archive ::= class {
+readonly Archive ::= class {
     Handle: int = 0
     Path: string = ""
     Prefix: string = ""            # "" 是根;"logs/" 是下一层
@@ -200,7 +200,7 @@ impl (IDir Archive default)
 # ── 成员:一个文件 ──
 #
 # **只读**:`Read` 有,`Write` / `Append` / `Delete` 一律报错(见文件开头那段取舍)。
-ZipEntry ::= class {
+readonly ZipEntry ::= class {
     Handle: int = 0
     Full: string = ""
 
