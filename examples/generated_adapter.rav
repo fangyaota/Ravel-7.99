@@ -8,27 +8,56 @@
 #
 # 1) 生成：
 #
-#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sign Clamp Sqrt
+#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath \
+#         Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul
 #     → Ravel.Generated/NMath.cs        # 一个 [RavelModule] / [RavelFn] 的插件源码
 #
-# 2) 编译：`bash build.sh` 会连它一起编（见 `Ravel.csproj` 的 `BuildPlugins`），
-#    产物落在 `out/plugins/Ravel.Generated.dll`。
+# 2) 编译 —— **看现场有没有 SDK**：
+#
+#    a. 在仓库里（有 SDK）：`bash build.sh` 连它一起编（见 `Ravel.csproj` 的 `BuildPlugins`）
+#    b. 手上只有 `out/`（**只有 runtime**）：生成时加 `--dll <路径>`，用 `Ravel.Compile`
+#       那个插件**就地**编 —— `out/` 是 framework-dependent 发布，那种机器上
+#       `dotnet build` 这个命令根本不存在，这就是 `--dll` 存在的全部理由：
+#
+#         dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath \
+#             Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul \
+#             --dll out/plugins/Ravel.Generated.dll
+#
+#        （两条路编出来的是**同一个东西**：同一个 `.cs`、同一个模块名。Roslyn 在这条
+#          路上是**当库调**的，引用集直接从当前进程取 —— 框架那一套走
+#          `TRUSTED_PLATFORM_ASSEMBLIES`，引擎自己走 `typeof(RuntimeValue).Assembly.Location`。
+#          于是编出来的 dll 引用的就是**跑着的那个 `Ravel.dll`**，版本天然对齐。）
 #
 # 3) 用：
 using "plugins/Ravel.Generated.dll"
 
-# 生成器挑的是 **`int` 那一族重载** —— `Math.Max` 有 11 个同名重载（decimal / double /
-# long / uint…），只有 `(int, int) -> int` 落在映射表里，所以挑中的就是它。
+# ── 重载是**编译期**挑好的，而且挑"丢信息最少"的那个 ──
+#
+# `Math.Max` 有 11 个同名重载（byte / decimal / double / short / int / long …），
+# 生成器按「参数少 → 丢的信息少 → 签名」排，`Int32` 排在最前、`Double` 在后，
+# 所以挑中的是 `(int, int) -> int` —— 交回一个真 `int`：
 print (NMath.Max 3 7)
 print (NMath.Min 3 7)
 print (NMath.Abs (0 - 5))
 print (NMath.Sign (0 - 9))
-print (NMath.Sign 9)
 print (NMath.Clamp 3 1 5)          # 三个实参的那个（值, 最小, 最大）
-print ((NMath.Max 3 7) + 1)        # 结果是个真 Ravel `int`，接着算
+print ((NMath.Max 3 7) + 1)        # 接着算也行
 
-# **被调方抛的也接得住。** 生成的代码外面套着 `PluginKit.Guarded` —— 引擎那条
-# "别让 C# 异常漏到顶层"的规矩（不兜的话会绕过 Ravel 的 `try`，直接打成"解释器内部错误"）。
+# ── `real` 也进来了（`PluginKit.Num` 把五种数值类型全收成一个 `double`）──
+print (NMath.Sqrt 16)
+print (NMath.Pow 2 10)
+print (NMath.Floor 2.7)
+print (NMath.Ceiling 2.1)
+print (NMath.Round 2.6)
+print (NMath.Sin 0)
+print (NMath.Exp 1)
+
+# ── 被调方抛的也接得住 ──
+#
+# 生成的每个方法外面都套着 `PluginKit.Guarded` —— 引擎那条"别让 C# 异常漏到顶层"
+# 的老规矩（不兜的话会绕过 Ravel 的 `try`，直接打成"解释器内部错误"）。
+# 这条**不是可选项**，是实测踩出来的：没兜的时候 `Math.Clamp` 一句
+# `ArgumentException` 把整个脚本打掉了。
 try {
     NMath.Clamp 1 5 3;             # 最小 > 最大，`Math.Clamp` 自己要抛
 } (e: Exception) => {
@@ -37,20 +66,20 @@ try {
 
 # ── 跟 `Reflect.Call` 那条路比一比 ──
 #
-# 同样一件事，`Reflect.Call` 是**运行期**挑重载（挨个试，绑不上就换下一个）：
+# 同一件事，`Reflect.Call` 是**运行期**挨个试重载：
 using "plugins/Ravel.Reflect.dll"
 print (Reflect.Unwrap (Reflect.Call (Reflect.Type "System.Math") "Max" [3 7]))
 
-# 生成的这条是**编译期**定死的：`Math.Max(x0, x1)` 直接写进 C#，Roslyn 早就挑好了。
-# 代价是它只认生成时挑中的那个重载 —— `NMath.Max 3.5 7.5` 会当场报类型错，
-# 而 `Reflect` 那条路能接住。
+# 生成的这条是**编译期**定死的：`Math.Max(x0, x1)` 直接写进 C#，Roslyn 早就挑好了，
+# 而且不走 `Invoke` + 装箱 + `DotNetObject` 那圈绕行。代价是它只认生成时挑中的那个
+# 重载 —— `NMath.Max 3.5 7.5` 会当场报类型错，而 `Reflect` 那条路能接住。
 
-# ── 生成器拒绝的东西，它也写在产物里 ──
+# ── 生成器拒绝的东西，写在产物里 ──
 #
-# `Sqrt` 是 `double -> double`，映射表里没有 `double`（v0 只有 `int` / `string` / `void`），
-# 于是 `Ravel.Generated/NMath.cs` 里留着一行：
+# `Math.BigMul` 六个重载全是 `long` / `ulong`，映射表里没有（v0 是
+# int / string / bool / char / real），于是 `Ravel.Generated/NMath.cs` 末尾留着：
 #
-#     // 跳过 Sqrt：没有能映射的重载（同名静态方法 1 个，0 个类型认得出，1 个被筛掉）
+#     // 跳过 BigMul：没有能映射的重载（同名静态方法 6 个，0 个类型认得出，6 个被筛掉）
 #
 # **挑不中就明说，不猜** —— 猜错比不生成难查得多。
 print "生成出来的适配层跑通了"

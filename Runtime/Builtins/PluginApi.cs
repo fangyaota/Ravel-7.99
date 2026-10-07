@@ -141,6 +141,17 @@ public static class PluginKit
     /// <summary>参数收束成 **int**(不是数、或者是个装不下的 bigint,都会说人话)</summary>
     public static int Int(RuntimeValue v, string what) => BuiltinClasses.IntArg(v, what);
 
+    /// <summary>参数收束成 **bool**。别的类型当场报(`Interpreter.As` 那条路)。
+    ///
+    /// 和 <see cref="Int"/> / <see cref="Text"/> / <see cref="Num"/> 一伙的 ——
+    /// 「把一个 Ravel 值收成一个 C# 标量」这件事原来只开了一半的口子,
+    /// `bool` 和 `char` 得插件自己 `(BoolVal)v` 硬转(**没有类型检查、没有消息**)。
+    /// 生成出来的适配层要写 `PluginKit.Bool (x0, "…")`,所以补上。</summary>
+    public static bool Bool(RuntimeValue v, string what) => Interpreter.As<BoolVal>(v, what).Value;
+
+    /// <summary>参数收束成 **char**(单个字符)。见 <see cref="Bool"/></summary>
+    public static char Char(RuntimeValue v, string what) => Interpreter.As<CharVal>(v, what).Value;
+
     /// <summary>数值参数收成 `double` 来算 —— **五种数值类型全吃**(int / real / bigint /
     /// fraction / bigfraction)。**这条专门是"近似那一条路"**:`sin` / `sqrt` 那些本来就按
     /// double 算的。**别拿它去比大小** —— 比较走

@@ -1,45 +1,84 @@
 # **`mkadaptor`** —— 从 .NET 反射里**生成适配层的 C#**。
 #
-#     dotnet out/ravel.dll tools/mkadaptor.rav <类型> <模块名> <成员...>
-#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sign Clamp Sqrt
+#     dotnet out/ravel.dll tools/mkadaptor.rav <类型> <模块名> <成员...> [--dll 路径]
+#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sqrt Pow
 #
 # 产出 `Ravel.Generated/<模块名>.cs` —— 一个 `[RavelModule]` / `[RavelFn]` 形状的插件**源码**。
-# 那一份归 `Ravel.Generated/` 那个插件项目编，`bash build.sh` 一出就是
-# `out/plugins/Ravel.Generated.dll`，于是 `using "plugins/Ravel.Generated.dll"` 之后
-# `NMath.Max 3 7` 直接可用 —— **`.rav` 生成器 → `.cs` → 真 dll** 那一圈就合上了。
+# 于是 `using "plugins/Ravel.Generated.dll"` 之后 `NMath.Max 3 7` 直接可用 ——
+# **`.rav` 生成器 → `.cs` → 真 dll** 那一圈就合上了。
+#
+# **两条编译路**，按"现场有没有 SDK"挑：
+#
+#   * 在仓库里（有 SDK）→ `bash build.sh` 连它一起编（见 `Ravel.csproj` 的 `BuildPlugins`）
+#   * 手上只有 `out/`（**只有 runtime**）→ 加 `--dll <路径>`，用 `Ravel.Compile`
+#     这个插件**就地**编。`out/` 是 framework-dependent 发布，那种机器上
+#     `dotnet build` 这个命令根本不存在 —— 这就是 `--dll` 存在的全部理由。
+#
+#     … System.Math NMath Max Min --dll out/plugins/Ravel.Generated.dll
 #
 # 三条规矩：
 #
-# 1. **重载在这里就挑定了。** 同名、静态、参数与返回值都在映射表里的，按签名排一下取第一个。
-#    这是这套做法相对 `Reflect.Call` 的**主要收益**：那边是运行期挨个试，这里是编译期定死。
-# 2. **挑不中就说，不猜。** 这一版只认 `int` / `string`（进）和 `int` / `string` / `void`（出）。
-#    别的**明说跳过**，把筛掉的个数也写出来 —— 猜错比不生成难查得多。
+# 1. **重载在这里就挑定了。** 同名、静态、参数与返回值都在映射表里的，按
+#    「参数少 → 丢的信息少 → 签名」排一下取第一个。这是这套做法相对 `Reflect.Call` 的
+#    **主要收益**：那边是运行期挨个试，这里是**编译期**由 Roslyn 定死。
+# 2. **挑不中就说，不猜。** 映射表里没有的类型**明说跳过**，把筛掉的个数也写出来 ——
+#    猜错比不生成难查得多。
 # 3. **产物是脚手架。** 生成器注定填不满（泛型类型实参、回调、`out`），所以写出来的 `.cs`
 #    是给人接手用的，不是构建产物。
 
+using "args.rav"
 using "plugins/Ravel.Reflect.dll"
+using "plugins/Ravel.Compile.dll"
 
-# ═══ 映射表：v0 只认这三种。`"?"` 是"不支持"的哨兵 ═══
+# ═══ 映射表 ═══
+#
+# 每一格三件事：**取值**（`RuntimeValue` → 本地）、**造值**（本地 → `RuntimeValue`）、
+# **排位**（重载挑哪个用）。
+#
+# **排位是必须的，不是锦上添花。** 光按签名排序的话 `Double` 排在 `Int32` 前面
+# （`D` < `I`），`Math.Max` 会挑中 `(double, double) -> double` —— 于是
+# `NMath.Max 3 7` 交回一个 `real`，把已经能用的适配层**改坏**。排位这条说的是
+# 「同一个方法有好几个重载时，挑**丢信息最少**的那个」，`int` 赢 `real`。
+
+readonly RankOf := (tn: string) => {
+    tn == "Int32"   { 0; } {
+    tn == "String"  { 1; } {
+    tn == "Boolean" { 2; } {
+    tn == "Char"    { 3; } {
+    tn == "Double"  { 4; } {
+    tn == "Single"  { 5; } {
+        99;                       # 99 = 映射表里没有
+    }}}}}}
+}
 
 readonly GetterOf := (tn: string e: string what: string) => {
-    tn == "Int32"  { "PluginKit.Int (" + e + ", \"" + what + "\")"; } {
-    tn == "String" { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; } {
-        "?";
-    }}
+    tn == "Int32"   { "PluginKit.Int (" + e + ", \"" + what + "\")"; } {
+    tn == "String"  { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; } {
+    tn == "Boolean" { "PluginKit.Bool (" + e + ", \"" + what + "\")"; } {
+    tn == "Char"    { "PluginKit.Char (" + e + ", \"" + what + "\")"; } {
+    tn == "Double"  { "PluginKit.Num (" + e + ", \"" + what + "\")"; } {
+    # `Single` 那个重载要的是 `float`，而 `Num` 交回 `double` —— C# 不会自己缩，
+    # 所以自己加一句强转。
+    tn == "Single"  { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; } {
+        "?";                      # 哨兵：不支持
+    }}}}}}
 }
 
 readonly MakerOf := (tn: string e: string) => {
-    tn == "Int32"  { "IntVal.Of (" + e + ")"; } {
-    tn == "String" { "new StringVal (" + e + ")"; } {
-    tn == "Void"   { "PluginKit.Void"; } {
+    tn == "Int32"   { "IntVal.Of (" + e + ")"; } {
+    tn == "String"  { "new StringVal (" + e + ")"; } {
+    tn == "Boolean" { "new BoolVal (" + e + ")"; } {
+    tn == "Char"    { "new CharVal (" + e + ")"; } {
+    tn == "Double"  { "new RealVal (" + e + ")"; } {
+    tn == "Single"  { "new RealVal (" + e + ")"; } {     # float → double 是隐式加宽，安全
+    tn == "Void"    { "PluginKit.Void"; } {
         "?";
-    }}}
+    }}}}}}}
 }
 
-readonly InOk  := (tn: string) => { tn == "Int32" { true; } { tn == "String" { true; } { false; } } }
-readonly OutOk := (tn: string) => {
-    InOk tn { true; } { tn == "Void" { true; } { false; } }
-}
+readonly Known  := (tn: string) => { (RankOf tn) < 90; }
+readonly InOk   := (tn: string) => { Known tn; }
+readonly OutOk  := (tn: string) => { Known tn { true; } { tn == "Void" { true; } { false; } } }
 
 # ═══ 反射：把 `MethodInfo` 拆成签名 ═══
 
@@ -64,6 +103,23 @@ readonly Names := (n: int) => {
         i += 1
     }
     out
+}
+
+# 排位键里的数字要**定宽**：字符串排序里 `"10" < "2"`，不定宽的话三个参数的
+# `(int,int,int)` 会排到 `(real,real)` 前面去。两段式：`00` `01` … `99`。
+readonly Pad2 := (n: int) => { n < 10 { "0" + (string n); } { string n; } }
+
+# 一个方法的重载排位键：参数少 → 丢的信息少 → 签名兜底（保证确定性）。
+readonly RankKey := (m: object) => {
+    ps := ParamsOf m
+    ranks := ps.Map (t: string) => { RankOf t; }
+    nStr := Pad2 (ranks.Count ())
+    sum := ranks.Fold 0 ((acc: int r: int) => { acc + r; })
+    sumStr := Pad2 sum
+    rsStr := (ranks.Map (r: int) => { string r; }).Join ""
+    retStr := Pad2 (RankOf (RetOf m))
+    sig := ps.Join ","
+    nStr + "|" + sumStr + "|" + rsStr + "|" + retStr + "|" + sig;
 }
 
 # ═══ 生成 ═══
@@ -98,7 +154,7 @@ readonly EmitOne := (m: object mod: string full: string) => {
     # **必须兜。** 引擎里那条老规矩是"别让 C# 异常漏到顶层"—— 漏出去会绕过 Ravel 的
     # `try`，一路打到"解释器内部错误"（`PluginKit.Guarded` 就是把 IO / 权限 / 参数 /
     # 溢出…那几族翻成 Ravel 错误的那个口子）。不兜的话，被调方一句
-    # `ArgumentException` 用户接都接不住。
+    # `ArgumentException` 用户接都接不住。实测踩过（`Math.Clamp 1 5 3`）。
     gk := "PluginKit.Guarded (\"" + mod + "." + nm + "\", () => "
     guarded := gk + mk + ")"
 
@@ -108,11 +164,12 @@ readonly EmitOne := (m: object mod: string full: string) => {
         one = one + "\n        => " + guarded + ";"
         one + "\n"
     } {
-        "    // 跳过 " + nm + "：返回值 " + (RetOf m) + " 或参数里有映射表没有的类型\n"
+        sign := (ParamsOf m).Join "," + " -> " + (RetOf m)
+        "    // 跳过 " + nm + "：签名 " + sign + " 里有映射表没有的类型\n"
     }
 }
 
-# 一个成员名 → 一段 C#。挑重载：静态 + 参数返回值都认，按签名排一下取第一个。
+# 一个成员名 → 一段 C#。挑重载：静态 + 参数返回值都认，按排位键取第一个。
 readonly EmitMember := (all: list w: string mod: string full: string) => {
     cands := all.Where (m: object) => { (NameOf m) == w; }
     usable := cands.Where (m: object) => {
@@ -120,11 +177,7 @@ readonly EmitMember := (all: list w: string mod: string full: string) => {
         (ps.All (t: string) => { InOk t; }) { OutOk (RetOf m); } { false; }
     }
     # 排序为的是**确定性** —— 反射给的先后没有保证（引擎自己那趟也为此排过序）。
-    ranked := usable.SortBy (m: object) => {
-        ps := ParamsOf m
-        sigs := ps.Join ","
-        (string (ps.Count ())) + "|" + sigs + "->" + (RetOf m);
-    }
+    ranked := usable.SortBy (m: object) => { RankKey m; }
 
     nAll  := string (cands.Count ())
     nOk   := string (usable.Count ())
@@ -140,10 +193,12 @@ readonly EmitMember := (all: list w: string mod: string full: string) => {
 
 # ═══ 主流程 ═══
 
-argv := System.Args ()
-TypeName := argv.At 0
-ModName := argv.At 1
-Wanted := argv.Skip 2
+opts := Args.ParseWith (System.Args ()) {"dll" -> "string"}
+Positional := Args.Positional opts
+TypeName := Positional.At 0
+ModName := Positional.At 1
+Wanted := Positional.Skip 2
+OutDll := Args.Get opts "dll" ""        # 没给就是 ""（= 只出 .cs）
 
 # **`Reflect.Type` 交回的是"静态访问的把手"**（`Call` 在那个类型上找**静态**成员），
 # 而 `GetMethods` / `GetParameters` 这些是 `Type` 的**实例**成员，够不着。
@@ -180,3 +235,10 @@ System.WriteText OutPath Text
 print ("写好了：" + OutPath)
 print ("  类型 " + Full + "；要 " + (string (Wanted.Count ())) + " 个成员；这个名字在 .NET 里共 "
        + (string (All.Count ())) + " 个方法")
+
+# 给了 `--dll` 就地编一份（不经过 SDK）。**产物是同一个东西** —— 同一个 `.cs`、
+# 同一个模块，`dotnet build` 那条路编出来的语义和这一份一模一样。
+OutDll != "" {
+    Compile.Cs Text OutDll []
+    print ("  编好了：" + OutDll + "（Roslyn 就地编，没走 dotnet build）")
+} { (); }

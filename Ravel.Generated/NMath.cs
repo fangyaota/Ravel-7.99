@@ -2,7 +2,7 @@
 //   由 `tools/mkadaptor.rav` 生成 —— 别手改，下次生成会盖掉。
 //   要改行为：改生成器；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。
 //
-//   源：`dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sign Clamp Sqrt`
+//   源：`dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul`
 // </auto-generated>
 
 namespace Ravel.Runtime;
@@ -30,6 +30,42 @@ internal static class NMathAdaptor
     public static RuntimeValue Clamp (RuntimeValue x0, RuntimeValue x1, RuntimeValue x2)
         => PluginKit.Guarded ("NMath.Clamp", () => IntVal.Of ((System.Math.Clamp (PluginKit.Int (x0, "NMath.Clamp 的第 1 个实参"), PluginKit.Int (x1, "NMath.Clamp 的第 2 个实参"), PluginKit.Int (x2, "NMath.Clamp 的第 3 个实参")))));
 
-    // 跳过 Sqrt：没有能映射的重载（同名静态方法 1 个，0 个类型认得出，1 个被筛掉）
+    [RavelFn("Sqrt")]
+    public static RuntimeValue Sqrt (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sqrt", () => new RealVal ((System.Math.Sqrt (PluginKit.Num (x0, "NMath.Sqrt 的第 1 个实参")))));
+
+    [RavelFn("Pow")]
+    public static RuntimeValue Pow (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NMath.Pow", () => new RealVal ((System.Math.Pow (PluginKit.Num (x0, "NMath.Pow 的第 1 个实参"), PluginKit.Num (x1, "NMath.Pow 的第 2 个实参")))));
+
+    [RavelFn("Sin")]
+    public static RuntimeValue Sin (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Sin", () => new RealVal ((System.Math.Sin (PluginKit.Num (x0, "NMath.Sin 的第 1 个实参")))));
+
+    [RavelFn("Cos")]
+    public static RuntimeValue Cos (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Cos", () => new RealVal ((System.Math.Cos (PluginKit.Num (x0, "NMath.Cos 的第 1 个实参")))));
+
+    [RavelFn("Floor")]
+    public static RuntimeValue Floor (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Floor", () => new RealVal ((System.Math.Floor (PluginKit.Num (x0, "NMath.Floor 的第 1 个实参")))));
+
+    [RavelFn("Ceiling")]
+    public static RuntimeValue Ceiling (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Ceiling", () => new RealVal ((System.Math.Ceiling (PluginKit.Num (x0, "NMath.Ceiling 的第 1 个实参")))));
+
+    [RavelFn("Round")]
+    public static RuntimeValue Round (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Round", () => new RealVal ((System.Math.Round (PluginKit.Num (x0, "NMath.Round 的第 1 个实参")))));
+
+    [RavelFn("Exp")]
+    public static RuntimeValue Exp (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Exp", () => new RealVal ((System.Math.Exp (PluginKit.Num (x0, "NMath.Exp 的第 1 个实参")))));
+
+    [RavelFn("Log")]
+    public static RuntimeValue Log (RuntimeValue x0)
+        => PluginKit.Guarded ("NMath.Log", () => new RealVal ((System.Math.Log (PluginKit.Num (x0, "NMath.Log 的第 1 个实参")))));
+
+    // 跳过 BigMul：没有能映射的重载（同名静态方法 6 个，0 个类型认得出，6 个被筛掉）
 
 }

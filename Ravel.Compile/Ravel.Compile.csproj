@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- **就地编译**:把一段 C# 编成 dll,用 Roslyn **当库**调,不经过 `dotnet build`。
+
+       为什么要有这个:上一条路(`Ravel.Generated/` 那个 csproj)要求机器上**有 SDK**。
+       而 `out/` 是 **framework-dependent** 发布 —— 只有 runtime 的机器上
+       `dotnet build` 这个命令根本不存在。生成器要在那种机器上跑完
+       「`.rav` → `.cs` → `.dll`」,就得把编译器**带在身边**。
+
+       代价是这一包不小(Microsoft.CodeAnalysis + CSharp ≈ 十几 MB),所以它单开一个
+       插件 —— 用不上的场合 `using` 都别加。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Ravel.Compile</AssemblyName>
+    <!-- **库项目默认不把 NuGet 依赖拷到自己的 bin**,只有 exe / publish 才拷 ——
+         而这一格的产物(`和它拖来的 Microsoft.CodeAnalysis*.dll`)是要被主项目那个
+         通配扫进 `plugins/` 的,所以得显式打开(和 `Ravel.Extensions` 同一条理由)。 -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- `Private=false`:要它的**引用**,但别把 ravel.dll / Spectre / Newtonsoft
+         抄一份到我这儿的 bin —— 那几件主程序自己就有,多一份就多一份过期的。 -->
+    <ProjectReference Include="..\Ravel.csproj" Private="false" />
+  </ItemGroup>
+
+</Project>
