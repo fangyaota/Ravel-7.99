@@ -68,6 +68,13 @@ print (NStr.Concat "生成" " 的")
 print (NStr.Compare "a" "b")
 print (NStr.IsNullOrWhiteSpace "   ")
 
+# **数组参数**：Ravel 侧给 `list`，`PluginKit.Strs` 逐个换成 `string[]`。
+# 这一格一开，`Join` / `Path.Combine` / `File.WriteAllLines` 那一大族就都进来了。
+print (NStr.Join "-" ["a" "b" "c"])
+
+# 同样是 `Join`，挑中的是 `(string, string[])` 而不是 `(char, string[])` ——
+# 排位键先比"要几个数组"、再比参数个数、再比"丢信息多少"。
+
 # ── 被调方抛的也接得住 ──
 #
 # 生成的每个方法外面都套着 `PluginKit.Guarded` —— 引擎那条"别让 C# 异常漏到顶层"
@@ -92,12 +99,12 @@ print (Reflect.Unwrap (Reflect.Call (Reflect.Type "System.Math") "Max" [3 7]))
 
 # ── 生成器拒绝的东西，写在产物里 ──
 #
-# `String.Join` 13 个重载全要 `string[]` / `object[]`，`String.Format` 15 个全要
-# `object` —— 映射表里都没有（v0 是 int / long / string / bool / char / real），
-# 于是 `Ravel.Generated/NStr.cs` 里留着：
+# `String.Format` 15 个重载全要 `object`（`Format (string, object)` 那种）——
+# 映射表里没有 `object`，于是 `Ravel.Generated/NStr.cs` 里留着：
 #
-#     // 跳过 Join：没有能映射的重载（同名静态方法 13 个，0 个类型认得出，13 个被筛掉）
+#     // 跳过 Format：没有能映射的重载（同名静态方法 15 个，0 个类型认得出，15 个被筛掉）
 #
-# **挑不中就明说，不猜** —— 猜错比不生成难查得多。要数组参数的话，
-# `examples/net_scaffold.rav` 里那个 `ArrayOf` 能造，但那得人来补（产物是脚手架）。
+# **挑不中就明说，不猜** —— 猜错比不生成难查得多。
+# `object` 那一格要的是"Ravel 值 → 任意 .NET 值"的完整桥（`Ravel.Reflect` 里那套），
+# 得人来补：产物是脚手架，不是构建产物。
 print "生成出来的适配层跑通了"

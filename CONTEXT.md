@@ -1392,6 +1392,50 @@ using "structures.rav"       # 库里那半边,照旧
 - **合同钉在两处**:`tests/271` 是"引擎自带那张表",`tests/280` 是"扩展带来那张表"
   (`Native` 58 条 + `Math` 49 条),两张合起来正好是搬之前的全集。
 
+### 生成出来的适配层（`tools/mkadaptor.rav` → `Ravel.Generated` → `Ravel.Compile`）
+
+**C# 的库要能用得像 Ravel 的,中间那一层可以生成出来。** 规格用 Ravel 写:
+
+    dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Abs Sqrt BigMul
+    → Ravel.Generated/NMath.cs      # 一个 [RavelModule] / [RavelFn] 形状的插件源码
+
+拿到的 `.cs` 就是个**插件**,和 `Ravel.Structures` 那三个没有分别。`Ravel.Generated/`
+是**一个**插件项目 —— 加适配器 = 多跑一次生成器,不用动 csproj。(但 `Ravel.csproj`
+上那句 `<Compile Remove="Ravel.Generated/**" />` 不能省:它的 `obj/` 里那份
+AssemblyInfo 被主项目扫进来就是一堆 CS0579。)
+
+**为什么是"生成 C#"不是"把 `.rav` 编成 IL"**:后者是给解释器写 .NET 后端
+(帧栈 / 柯里化 / `callcc` 捕整条链…),月级工程,而适配层本来就薄 —— 收益是零。
+生成 C# 只要写模板,重活由 Roslyn 干,而且目标形状是**已知的**(那三个插件就是它)。
+
+**为什么它不比"运行期反射"白干**:①**重载在编译期就定了** —— `Reflect.Call` 是运行期
+挨个试(`TryEach`),这边是 `Math.Max (x0, x1)` 直接写进 C#;②**没有绕行** ——
+不走 `Invoke` + `object[]` + 装箱 + `DotNetObject`;③**产物是给人接手的** ——
+生成器注定填不满(泛型类型实参 / 委托 / `object`),而 `.cs` 能读能改。
+
+挑重载的排位键四段,**先后有讲究**(`RankKey`):要数组的排后面 → 参数少的在前 →
+排位和小的在前 → 签名兜底。第二段少了 `arrCount` 的话 `String.Concat "a" "b"`
+会挑中 `(string[])`(它只有 1 个参数);第三段少了的话 `Double` 会排在 `Int32`
+前面(`D` < `I`),`Math.Max` 交回一个 `real`、把已经能用的适配层改坏。
+**挑不中就明说**(产物里留一行 `// 跳过 Format：…15 个被筛掉`),不猜。
+
+编译那一步**两条路**,按现场有没有 SDK 挑:
+
+| 现场 | 怎么编 |
+|---|---|
+| 在仓库里(有 SDK) | `bash build.sh` —— `Ravel.csproj` 的 `BuildPlugins` 连它一起编 |
+| 只有 `out/`(**只有 runtime**) | 生成时加 `--dll <路径>`,用 `Ravel.Compile` **就地**编 |
+
+`out/` 是 framework-dependent 发布,`dotnet build` 在那种机器上根本不存在 ——
+这就是 `Ravel.Compile`(Roslyn **当库调**)存在的全部理由。它的**引用集从当前进程取**:
+框架走 `TRUSTED_PLATFORM_ASSEMBLIES`、引擎走 `typeof(RuntimeValue).Assembly.Location` ——
+于是编出来的 dll 引用的就是**跑着的那个 `Ravel.dll`**,版本天然对齐(而 `dotnet build`
+那条路反而没这个保证)。代价是那一包 **9.5 MB**,所以它单开一个插件。
+
+**生成的代码必须兜异常**(每个方法外面套 `PluginKit.Guarded`)。不套的话被调方一句
+`ArgumentException` 会绕过 Ravel 的 `try`、一路打成"解释器内部错误" —— 引擎里那条
+老规矩在这儿最容易破(实测:没兜的时候 `Math.Clamp` 把整个脚本打掉了)。
+
 ## REPL 也是用 Ravel 写的（`lib/repl.rav`）
 
 **REPL 本体就在这儿** —— `ravel` 不带参数进的就是它:`Cli/Program.cs` 的 `RunRepl` 只跑

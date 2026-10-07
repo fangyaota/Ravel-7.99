@@ -190,6 +190,31 @@ public static class PluginKit
         _ => throw Fail($"{what} 需要整数参数，得到 {v.Type}", ErrorKind.Type),
     };
 
+    // ── 数组 ──
+    //
+    // 参数表要 `T[]` 的 API 一大把(`String.Join` / `Path.Combine` / `File.WriteAllLines`…),
+    // 而 Ravel 侧只有 `list`。这一格就是"把 `list` 逐个换成 `T[]`"。
+    //
+    // **错误里带上第几个**:一个元素类型不对,只说"某个元素不对"是没法查的。
+
+    /// <summary>Ravel `list` → `T[]`。`one` 管单个元素怎么换(顺带把
+    /// "第几个"那个 `what` 传给它)。</summary>
+    public static T[] ArrOf<T>(RuntimeValue v, string what, Func<RuntimeValue, string, T> one)
+    {
+        var elems = List(v, what).Elements;
+        var outp = new T[elems.Count];
+        for (var i = 0; i < outp.Length; i++)
+            outp[i] = one(elems[i], $"{what} 的第 {i + 1} 个元素");
+        return outp;
+    }
+
+    public static string[] Strs(RuntimeValue v, string what)  => ArrOf(v, what, (e, w) => Text(e, w).Value);
+    public static char[]   Chars(RuntimeValue v, string what) => ArrOf(v, what, (e, w) => Char(e, w));
+    public static int[]    Ints(RuntimeValue v, string what)  => ArrOf(v, what, (e, w) => Int(e, w));
+    public static long[]   Longs(RuntimeValue v, string what) => ArrOf(v, what, (e, w) => Long(e, w));
+    public static bool[]   Bools(RuntimeValue v, string what) => ArrOf(v, what, (e, w) => Bool(e, w));
+    public static double[] Reals(RuntimeValue v, string what) => ArrOf(v, what, (e, w) => Num(e, w));
+
     // ── 路径与取值 ──
 
     /// <summary>路径收束:要一个字符串。(扩展里要收**磁盘条目**就当文件写,这一条只管字符串。)

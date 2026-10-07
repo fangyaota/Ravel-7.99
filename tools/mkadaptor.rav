@@ -40,16 +40,25 @@ using "plugins/Ravel.Compile.dll"
 # `NMath.Max 3 7` 交回一个 `real`，把已经能用的适配层**改坏**。排位这条说的是
 # 「同一个方法有好几个重载时，挑**丢信息最少**的那个」，`int` 赢 `real`。
 
+# **标量排 0~6、数组排 10~15** —— 两段是有意思的：挑重载时"先要标量的那个"赢
+# （见 `RankKey` 里的 `arrCount`）。Ravel 侧写数组得先造个 `list`，能避开就避开：
+# `String.Concat "a" "b"` 要挑 `(string, string)`，不是 `(string[])`。
 readonly RankOf := (tn: string) => {
-    tn == "Int32"   { 0; } {
-    tn == "Int64"   { 1; } {
-    tn == "String"  { 2; } {
-    tn == "Boolean" { 3; } {
-    tn == "Char"    { 4; } {
-    tn == "Double"  { 5; } {
-    tn == "Single"  { 6; } {
+    tn == "Int32"     { 0; } {
+    tn == "Int64"     { 1; } {
+    tn == "String"    { 2; } {
+    tn == "Boolean"   { 3; } {
+    tn == "Char"      { 4; } {
+    tn == "Double"    { 5; } {
+    tn == "Single"    { 6; } {
+    tn == "String[]"  { 10; } {
+    tn == "Char[]"    { 11; } {
+    tn == "Int32[]"   { 12; } {
+    tn == "Int64[]"   { 13; } {
+    tn == "Boolean[]" { 14; } {
+    tn == "Double[]"  { 15; } {
         99;                       # 99 = 映射表里没有
-    }}}}}}}
+    }}}}}}}}}}}}}
 }
 
 readonly GetterOf := (tn: string e: string what: string) => {
@@ -62,8 +71,15 @@ readonly GetterOf := (tn: string e: string what: string) => {
     # `Single` 那个重载要的是 `float`，而 `Num` 交回 `double` —— C# 不会自己缩，
     # 所以自己加一句强转。
     tn == "Single"  { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; } {
+    # 数组：Ravel 侧给 `list`，`PluginKit` 逐个换（错误里带"第几个元素"）。
+    tn == "String[]"  { "PluginKit.Strs (" + e + ", \"" + what + "\")"; } {
+    tn == "Char[]"    { "PluginKit.Chars (" + e + ", \"" + what + "\")"; } {
+    tn == "Int32[]"   { "PluginKit.Ints (" + e + ", \"" + what + "\")"; } {
+    tn == "Int64[]"   { "PluginKit.Longs (" + e + ", \"" + what + "\")"; } {
+    tn == "Boolean[]" { "PluginKit.Bools (" + e + ", \"" + what + "\")"; } {
+    tn == "Double[]"  { "PluginKit.Reals (" + e + ", \"" + what + "\")"; } {
         "?";                      # 哨兵：不支持
-    }}}}}}}
+    }}}}}}}}}}}}}
 }
 
 readonly MakerOf := (tn: string e: string) => {
@@ -113,17 +129,28 @@ readonly Names := (n: int) => {
 # `(int,int,int)` 会排到 `(real,real)` 前面去。两段式：`00` `01` … `99`。
 readonly Pad2 := (n: int) => { n < 10 { "0" + (string n); } { string n; } }
 
-# 一个方法的重载排位键：参数少 → 丢的信息少 → 签名兜底（保证确定性）。
+# 一个方法的重载排位键。**四段，先后是有讲究的**：
+#
+#   1. `arrCount` —— 要数组的排后面。Ravel 侧写数组得先造个 `list`，能避开就避开：
+#      `String.Concat "a" "b"` 该挑 `(string, string)`，不是 `(string[])`
+#      （少了这一段的话，`(string[])` 只有 1 个参数、按下面第 2 段会赢）。
+#   2. 参数个数少 —— `Math.Round (double)` 赢 `Math.Round (double, int)`。
+#   3. 排位和最小 —— "丢信息最少"，`int` 赢 `real`。
+#   4. 签名兜底 —— 保证**确定性**（反射给的先后没有保证，引擎自己那趟也为此排过序）。
 readonly RankKey := (m: object) => {
     ps := ParamsOf m
     ranks := ps.Map (t: string) => { RankOf t; }
+
+    arrCount := ranks.Fold 0 ((acc: int r: int) => { (r >= 10) { acc + 1; } { acc; } })
+    arrStr := Pad2 arrCount
     nStr := Pad2 (ranks.Count ())
     sum := ranks.Fold 0 ((acc: int r: int) => { acc + r; })
     sumStr := Pad2 sum
     rsStr := (ranks.Map (r: int) => { string r; }).Join ""
     retStr := Pad2 (RankOf (RetOf m))
     sig := ps.Join ","
-    nStr + "|" + sumStr + "|" + rsStr + "|" + retStr + "|" + sig;
+
+    arrStr + "|" + nStr + "|" + sumStr + "|" + rsStr + "|" + retStr + "|" + sig;
 }
 
 # ═══ 生成 ═══

@@ -22,7 +22,9 @@ internal static class NStrAdaptor
     public static RuntimeValue Compare (RuntimeValue x0, RuntimeValue x1)
         => PluginKit.Guarded ("NStr.Compare", () => IntVal.Of ((System.String.Compare (PluginKit.Text (x0, "NStr.Compare 的第 1 个实参").Value, PluginKit.Text (x1, "NStr.Compare 的第 2 个实参").Value))));
 
-    // 跳过 Join：没有能映射的重载（同名静态方法 13 个，0 个类型认得出，13 个被筛掉）
+    [RavelFn("Join")]
+    public static RuntimeValue Join (RuntimeValue x0, RuntimeValue x1)
+        => PluginKit.Guarded ("NStr.Join", () => new StringVal ((System.String.Join (PluginKit.Text (x0, "NStr.Join 的第 1 个实参").Value, PluginKit.Strs (x1, "NStr.Join 的第 2 个实参")))));
 
     // 跳过 Format：没有能映射的重载（同名静态方法 15 个，0 个类型认得出，15 个被筛掉）
 
