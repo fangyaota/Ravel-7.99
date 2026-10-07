@@ -104,7 +104,20 @@ internal static class ClassRegistry
 
         return new BuiltinMethodVal(ps.Length switch
         {
-            1 => (s, _) => Call(m, [s]),
+            // **只收 `self` 的那个:第二个槽摆着(形状是死的,两槽同步委托),但只认 `()`。**
+            //
+            // 从前写成 `(s, _) => …` —— 多给的实参**悄悄丢掉**。而 lambda 那边
+            // `f 1 2` 是报「值 1 不是函数」的(柯里化:多给的成为"把结果再调一次")——
+            // 于是这是**引擎里独一份的静默**。踩得很正:生成的适配层里 `AppendLine`
+            // 排位第一的是 0 参数那个,`sb.AppendLine "尾巴"` 只加了个换行、实参没了,
+            // `--warn` 也不喊(实测)。
+            //
+            // **"没给"和"多给"本来就分得开**:没给时那个槽收到的是 `()`。
+            1 => (s, a) => a is VoidVal
+                ? Call(m, [s])
+                : throw new RuntimeException(
+                    $"类方法 {cls.DisplayName}.{name} 不收实参(它只有 self)—— 多给了 {a.Type}",
+                    ErrorKind.Argument),
             2 => (s, a) => Call(m, [s, a]),
             _ => (s, a) => FunctionVal.From(b => Call(m, [s, a, b])),
         })

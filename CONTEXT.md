@@ -1347,6 +1347,17 @@ using "Ravel.Structures"     # ≡ using "plugins/Ravel.Structures.dll"
 using "structures.rav"       # 库里那半边,照旧
 ```
 
+- **`[ClassMethod]` 的元数是有数的,多给实参明说**。`ClassRegistry.Bind` 里那个
+  `BuiltinMethodVal` 的 C# 形状**固定两槽**(`self` + 一个实参),所以只收 `self` 的那个
+  从前写成 `(s, _) => …` —— 多给的实参**悄悄丢掉**。而 lambda 那边(`f 1 2`)是**柯里化**:
+  多给的成为"把结果再调一次",于是报「值 1 不是函数」—— 那是**引擎里独一份的静默**,
+  而且踩得很正:生成的适配层里 `AppendLine` 排位第一的是 0 参数那个,
+  `sb.AppendLine "尾巴"` 只加了个换行、实参没了,`--warn` 也不喊。
+  **"没给"和"多给"本来就分得开** —— 没给时那个槽收到的是 `()`。现在只认 `()`,
+  别的报「类方法 X 不收实参(它只有 self)—— 多给了 Y」。
+  (`ObjectVal.DefineMethod` 那批引擎自己的方法**没动** —— 它收的是同一个两槽委托、
+  **不知道元数**;要动得给它加一格,七十来个调用点跟着改。`x.Count 5` 那种写法
+  不是真会犯的错,先搁着。)
 - **`[RavelModule("")]` 是特例**:进**全局作用域**(不建模块,直接叫名字)。
 - 函数那几条的签名规矩和 `[Sys]` **同一套**(1~3 个 `RuntimeValue`,开头可以是
   `Interpreter`)—— 绑定只有一处(`ClassRegistry.Fn`)。
