@@ -130,11 +130,33 @@ public partial class Interpreter
             // 而模块本来就有自己的来路:`Math` 由 `lib/math.rav` 那句 `ravel "Math"` 认领,
             // 装它的那个 `lib/native.rav` 自己没写模块名,于是它算 `<global>` 那一枚
             // (见 `GlobalModule`)—— 和"没写模块名的文件"一条规矩。
-            PluginLoader.Load(this, System.Reflection.Assembly.LoadFrom(full), _global, _modules);
+            PluginLoader.Load(this, LoadPluginAssembly(full), _global, _modules);
             return null;
         }
 
         return ParseLibBlock(full, MoreControlFlow);
+    }
+
+    /// <summary>把插件 dll 装进来。**先找已加载的同一份,找不到才 `LoadFrom`** ——
+    /// 这一条是宿主嵌进来才暴露的：Godot 的 C# 运行时**从内存**装程序集
+    /// （`Assembly.Location` 是空串、`GetLoadContext` 返回 null），而 `Assembly.LoadFrom`
+    /// 走的是 **Default** 那一格，于是磁盘上同一份 dll 会被**再装一次**。
+    /// 两个程序集两份元数据，`[RavelModule]` 就成了**两个不同的特性类型** ——
+    /// `PluginLoader` 用自己那份去 `GetCustomAttribute` 一个都查不到，
+    /// 模块建出来是空的（现象：`using "x"` 不报错，但 `x.Member` 全说未定义）。
+    /// 按简单名复用宿主已经装好的那份，特性类型才对得上。
+    ///
+    /// 名字撞了怎么办：简单名相同就是"同一个程序集"的意思，取先来的那份 ——
+    /// 宿主进程里同名程序集本来就只能有一份是被引用的，多装一份只有坏处。
+    /// </summary>
+    private static System.Reflection.Assembly LoadPluginAssembly(string full)
+    {
+        var name = Path.GetFileNameWithoutExtension(full);
+        foreach (var loaded in AppDomain.CurrentDomain.GetAssemblies())
+            if (string.Equals(loaded.GetName().Name, name, StringComparison.OrdinalIgnoreCase))
+                return loaded;
+
+        return System.Reflection.Assembly.LoadFrom(full);
     }
 
     /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里。
