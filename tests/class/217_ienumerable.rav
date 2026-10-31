@@ -222,7 +222,7 @@ print ((Keys.Of "a") == "a")
 try { print ((Some 5).Key ()); } (e: Exception) => { print ("1: " + string e); }
 
 # ② dict:键是值类型,相等就是值自己的
-d := {}
+d := {->}
 d.Set 1 "int"
 d.Set "1" "str"
 d.Set 1.0 "real"
@@ -264,7 +264,7 @@ impl (IKey Rec default)
 print ((Rec 1 "a") : IKey)
 print (Keys.Of (Rec 7 "x"))
 
-d2 := {}
+d2 := {->}
 d2.Set (Rec 1 "甲") "one"
 d2.Set (Rec 2 "乙") "two"
 print (d2.Get (Rec 1 "别的"))

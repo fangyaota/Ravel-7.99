@@ -276,7 +276,13 @@ public sealed class Lowering
                 lam) { Line = d.Line, Column = d.Column };
         }
 
-        return rest;
+        // 折出来的那段如果还是个**块**,它不是"值"而是一段语句:直接交出去,求值器会把它
+        // 当成一枚 Block(第一类值)交回来 —— `do { y := 10; Some 2 }` 于是得到 `<block>`,
+        // 连 `do { 1 }` 都是。块里得有人去**跑**它:包一层零参 lambda 当场调用。
+        // (有 `:<` 时折出来的是 `m.Bind …` 那种调用,本来就已经跑过了,不用套。)
+        return rest is BlockExpr block
+            ? Call0(new LambdaExpr(new Parameter("_", Ident("void", d)), block) { Line = d.Line, Column = d.Column, Sugar = true })
+            : rest;
     }
 
     /// <summary>把一条语句搁到已经折好的那段**前面**(`do` 里那些不是 `:<` 的语句)。</summary>

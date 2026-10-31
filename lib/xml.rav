@@ -33,7 +33,7 @@ readonly Parse := (text: string) => { XmlNode (Native.XmlParse text) (); }
 readonly Render := (n: object) => { Native.XmlRender (TreeOf n); }
 
 # 造新节点(要自己拼一棵的时候用)
-readonly Element := (name: string) => { XmlNode {"kind"-> "element" "name"-> name "attrs"-> {} "kids"-> []} (); }
+readonly Element := (name: string) => { XmlNode {"kind"-> "element" "name"-> name "attrs"-> {->} "kids"-> []} (); }
 readonly Text := (s: string) => { XmlNode {"kind"-> "text" "text"-> s} (); }
 
 # 节点或者那棵裸树都收
@@ -44,7 +44,7 @@ readonly private TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; 
 # 一层包装(和 `JsonNode` 一模一样):`Tree` 指着底下那棵 dict 树,`Parent` 指着上一层。
 # 根没有 `Parent`(给 `()`),所以 `Delete ()` 在根上会报错。
 readonly XmlNode ::= class {
-    Tree: dict = {}
+    Tree: dict = {->}
     Parent: object = ()
 
     init = (tree: dict parent: object) => { Tree = tree; Parent = parent; this; }
@@ -126,7 +126,7 @@ readonly XmlNode ::= class {
 
     # ── 属性 ──
 
-    Attrs := () => { IsElement () { Tree.Get "attrs"; } { {}; } }
+    Attrs := () => { IsElement () { Tree.Get "attrs"; } { {->}; } }
     Attr := (name: string) => {
         a := Attrs ()
         assert (a.Has name) ("<" + (Name ()) + "> 上没有 '" + name + "' 这个属性")
@@ -215,8 +215,8 @@ readonly XmlNode ::= class {
     # (XPath 里 `item[2]` 就是这个意思 —— 不是新发明的记号)。
     # 文本节点按 `#text` 排进去(要有 `#text[2]`)
     List := () => {
-        out := {}
-        seen := {}
+        out := {->}
+        seen := {->}
         (Kids ()).Foreach (k: XmlNode) => {
             tag := k.NameOf ()
             n := seen.Has tag { (seen.Get tag) + 1; } { 1; }

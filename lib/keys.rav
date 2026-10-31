@@ -126,8 +126,8 @@ impl (IDict System.Scope {
 # (定义在模块里、再在文件末尾绑给全局:它有个方法也叫 `Keys`,写在全局就得小心
 #  "类成员盖住同名模块"那个坑 —— 放在模块里,`Of` 就是兄弟,名字爱怎么叫怎么叫。)
 readonly Keyed ::= class {
-    Index: dict = {}          # 规范键 → 原键
-    Data: dict = {}           # 规范键 → 值
+    Index: dict = {->}          # 规范键 → 原键
+    Data: dict = {->}           # 规范键 → 值
 
     Set := (k: object v: object) => {
         c := Of k

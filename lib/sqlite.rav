@@ -26,7 +26,7 @@ ravel "Sqlite"
 
 # 一个库。拿着一张**句柄号**(连接本身在引擎那边 —— 它要 Dispose,Ravel 值没有析构那一套)。
 #
-# **每条都要给参数那格**:没有参数就写 `{}` —— Ravel 没有默认参数,而"没有参数"和
+# **每条都要给参数那格**:没有参数就写 `{->}` —— Ravel 没有默认参数,而"没有参数"和
 # "有参数"分成两个名字(`All` / `AllArgs`)读起来更烦。
 readonly Db ::= class {
     Handle: int = 0
@@ -71,13 +71,13 @@ readonly Db ::= class {
     # 块里全部成、或者全部不成。出错(`throw` 也算)自己回滚,再把错抛出去 ——
     # 外面照常 `try` 得住。
     Tx := (body: function) => {
-        Exec "begin" {}
+        Exec "begin" {->}
         try {
             body ()
-            Exec "commit" {}
+            Exec "commit" {->}
             ();
         } (e: Exception) => {
-            Exec "rollback" {}
+            Exec "rollback" {->}
             throw e;
         }
     }
@@ -90,7 +90,7 @@ readonly private Rows := (raw: dict) => {
     cols := raw.Get "columns"
     out := []
     (raw.Get "rows").Foreach (r: list) => {
-        d := {}
+        d := {->}
         i := 0
         while { i < (cols.Count ()); } {
             d.Set (cols.At i) (r.At i)

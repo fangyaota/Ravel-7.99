@@ -157,7 +157,8 @@ internal static class AstPrinter
         VarDefinition v =>
             Attrs(v.Attrs)
             + v.Name
-            + (v.TypeAnnotation != null ? ": " + Annotated(v.TypeAnnotation, indent) + " = "
+            // `::` 和 `:` 是**两种**写法(`::` 是自动命名:名字由值定),`Named` 丢了回读就变一种。
+            + (v.TypeAnnotation != null ? (v.Named ? "::" : ": ") + Annotated(v.TypeAnnotation, indent) + " = "
                                         : v.Named ? " ::= " : " := ")
             + Expr(v.Value, indent),
         Assignment a => a.Name + " = " + Expr(a.Value, indent),
@@ -185,7 +186,8 @@ internal static class AstPrinter
         // 键和值都走 `Arg`:它们后面紧跟着 `->` 或 `}`,而**调用会往右边吃** ——
         // `{"level" -> (System.EnvOr "RAVEL_LOG" "info")}` 不套括号的话,那个 `"RAVEL_LOG"`
         // 会被当成**下一个键**,回读报「字典键后需要 '->'」(实测踩过)。
-        DictLiteral d => "{" + Join(" ", d.Entries.Select(x =>
+        // 空字典印成 `{->}` —— 单看 `{}` 是空集合(`->` 才是字典的判据,见 ParseBrace)。
+        DictLiteral d => d.Entries.Count == 0 ? "{->}" : "{" + Join(" ", d.Entries.Select(x =>
             Arg(x.Key, indent) + " -> " + Arg(x.Value, indent))) + "}",
         // 省掉的那头打印成空的(`[1..]` / `[..1]`)—— AST 里存的就是 `null`,原样交回去
         RangeExpr r => (r.StartClosed ? "[" : "(")

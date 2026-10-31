@@ -3,9 +3,9 @@
 #     using "html.rav"
 #
 #     card := (title: string body: string) => {
-#         Html.El "div" {"class": "card"} [
-#             (Html.El "h2" {} [title])
-#             (Html.El "p" {} [body])
+#         Html.El "div" {"class"-> "card"} [
+#             (Html.El "h2" {->} [title])
+#             (Html.El "p" {->} [body])
 #         ]
 #     }
 #     print (Html.Pretty (card "标题" "a < b"))
@@ -13,14 +13,14 @@
 # 四条立起来的规矩:
 #
 #   * **节点就是普通 dict / list** —— 和 `lib/xml.rav` 底下那棵树**同一个形状**
-#     (`{"kind": "element" "name": … "attrs": {} "kids": []}` / `{"kind": "text" "text": …}` /
+#     (`{"kind"-> "element" "name"-> … "attrs"-> {->} "kids"-> []}` / `{"kind": "text" "text": …}` /
 #     `{"kind": "raw" "text": …}`)。自己拼一棵、或者把 `Xml.Parse` 交回的那棵喂进来,都认。
 #   * **转义默认开** —— 文本躲 `&` `<` `>`,属性值再饶上引号(见 `TextEscape`);
 #     要插整段现成标记用 `Html.Raw`。
 #   * **标签名不设白名单** —— 唯一的例外是 void 元素(`br` / `img` / …,标准里那 14 个),
 #     它们不写收尾标签;给它们**塞孩子是写错了**,当场报错,不静默丢掉。
 #   * **孩子是个 list** —— 而 list 字面量里**每个调用要自己加括号**(空格在 `[…]` 里是分隔符,
-#     这是语言的规矩,不是这个模块的):`[(El "h2" {} ["x"]) (El "p" {} ["y"])]`。
+#     这是语言的规矩,不是这个模块的):`[(El "h2" {->} ["x"]) (El "p" {->} ["y"])]`。
 #
 # 组件就是**普通函数**:收几个值、交回一棵节点树。这门语言不需要另造一套模板语法 ——
 # 上面那个 `card` 就是一份"组件",直接嵌进别人的孩子里用。
@@ -130,7 +130,7 @@ readonly Render := (n: object) => {
                         out += (x.GetOr "text" "");
                     } {
                         name := x.GetOr "name" ""
-                        out += ("<" + name + (AttrsText (x.GetOr "attrs" {})))
+                        out += ("<" + name + (AttrsText (x.GetOr "attrs" {->})))
                         IsVoid name {
                             out += ">"
                         } {
@@ -210,7 +210,7 @@ readonly Pretty := (n: object) => {
                         out += (x.GetOr "text" "");
                     } {
                         name := x.GetOr "name" ""
-                        open := "<" + name + (AttrsText (x.GetOr "attrs" {}))
+                        open := "<" + name + (AttrsText (x.GetOr "attrs" {->}))
                         kids := x.GetOr "kids" []
                         IsVoid name {
                             out += (open + ">")
@@ -256,8 +256,8 @@ readonly Doc := (lang: string head: object body: object) => {
     Frag [
         {"kind"-> "raw" "text"-> (Doctype + "\n")}
         (El "html" {"lang"-> lang} [
-            (El "head" {} hk)
-            (El "body" {} body)
+            (El "head" {->} hk)
+            (El "body" {->} body)
         ])
     ]
 }
@@ -274,19 +274,19 @@ readonly Doc := (lang: string head: object body: object) => {
 #         (Html.Table ["名称" "数量"] [["甲" 12] ["乙" 7]])
 #     ]
 
-readonly H1 := (kids: object) => { El "h1" {} kids; }
-readonly private H2 := (kids: object) => { El "h2" {} kids; }
-readonly private H3 := (kids: object) => { El "h3" {} kids; }
-readonly private H4 := (kids: object) => { El "h4" {} kids; }
-readonly private H5 := (kids: object) => { El "h5" {} kids; }
-readonly H6 := (kids: object) => { El "h6" {} kids; }
+readonly H1 := (kids: object) => { El "h1" {->} kids; }
+readonly private H2 := (kids: object) => { El "h2" {->} kids; }
+readonly private H3 := (kids: object) => { El "h3" {->} kids; }
+readonly private H4 := (kids: object) => { El "h4" {->} kids; }
+readonly private H5 := (kids: object) => { El "h5" {->} kids; }
+readonly H6 := (kids: object) => { El "h6" {->} kids; }
 
-readonly P := (kids: object) => { El "p" {} kids; }
-readonly Blockquote := (kids: object) => { El "blockquote" {} kids; }
-readonly Code := (s: object) => { El "code" {} [s]; }
+readonly P := (kids: object) => { El "p" {->} kids; }
+readonly Blockquote := (kids: object) => { El "blockquote" {->} kids; }
+readonly Code := (s: object) => { El "code" {->} [s]; }
 
 # 代码块 —— 里面的东西**照原样显示**(转义是渲染那一步做的,`<` 不会变成标签)
-readonly Pre := (s: object) => { El "pre" {} [(El "code" {} [s])]; }
+readonly Pre := (s: object) => { El "pre" {->} [(El "code" {->} [s])]; }
 
 # 列表:一项一个 `<li>`;某一项本身是个 list 时,那就是那个 `<li>` 的内容
 readonly Ul := (items: object) => { ListOf "ul" items; }
@@ -294,8 +294,8 @@ readonly Ol := (items: object) => { ListOf "ol" items; }
 
 readonly private ListOf := (tag: string items: object) => {
     lis := []
-    (KidsOf items).Foreach (it: object) => { lis.Add (El "li" {} it); }
-    El tag {} lis
+    (KidsOf items).Foreach (it: object) => { lis.Add (El "li" {->} it); }
+    El tag {->} lis
 }
 
 # 表格:`Table headers rows`,两边都是"一串一串"。
@@ -304,32 +304,32 @@ readonly Table := (headers: object rows: object) => {
     body := []
     (KidsOf rows).Foreach (r: object) => {
         cells := []
-        (KidsOf r).Foreach (c: object) => { cells.Add (El "td" {} [c]); }
-        body.Add (El "tr" {} cells)
+        (KidsOf r).Foreach (c: object) => { cells.Add (El "td" {->} [c]); }
+        body.Add (El "tr" {->} cells)
     }
     hs := KidsOf headers
     (hs.IsEmpty ()) {
-        El "table" {} [(El "tbody" {} body)]
+        El "table" {->} [(El "tbody" {->} body)]
     } {
         hcells := []
-        hs.Foreach (h: object) => { hcells.Add (El "th" {} [h]); }
-        El "table" {} [
-            (El "thead" {} [(El "tr" {} hcells)])
-            (El "tbody" {} body)
+        hs.Foreach (h: object) => { hcells.Add (El "th" {->} [h]); }
+        El "table" {->} [
+            (El "thead" {->} [(El "tr" {->} hcells)])
+            (El "tbody" {->} body)
         ]
     }
 }
 
 readonly A := (href: string kids: object) => { El "a" {"href"-> href} kids; }
 readonly Img := (src: string alt: string) => { El "img" {"src"-> src "alt"-> alt} []; }
-readonly Hr := () => { El "hr" {} []; }
-readonly Br := () => { El "br" {} []; }
+readonly Hr := () => { El "hr" {->} []; }
+readonly Br := () => { El "br" {->} []; }
 
 # ── CSS ──
 #
 # `<style>` 里的东西**不能**做 HTML 转义(那两个标签里实体是不解码的,`&gt;` 进去就是
 # 一串错字符),所以它走 `Raw` —— 也就是说,别把用户输入拼进 CSS。
-readonly Style := (css: string) => { El "style" {} [(Raw css)]; }
+readonly Style := (css: string) => { El "style" {->} [(Raw css)]; }
 readonly CssLink := (href: string) => { El "link" {"rel"-> "stylesheet" "href"-> href} []; }
 
 # 一份能看的默认样式(系统字体、正文限宽、表格带框、代码浅底)。
@@ -365,7 +365,7 @@ readonly BaseCss := """
 # head 里的先后:`<meta charset>` → `<title>` → 那些 `<style>` → `"head"` 里给的。
 
 readonly Page := (opts: object body: object) => {
-    head := [(El "title" {} [(opts.GetOr "title" "")])]
+    head := [(El "title" {->} [(opts.GetOr "title" "")])]
     (KidsOf (opts.GetOr "css" [])).Foreach (css: object) => { head.Add (Style (string css)); }
     (KidsOf (opts.GetOr "head" [])).Foreach (n: object) => { head.Add n; }
     Doc (opts.GetOr "lang" "zh") head body

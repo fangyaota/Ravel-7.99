@@ -140,7 +140,7 @@ readonly private CodeEnd := (s: string i: int) => {
 
 readonly Bold := (s: string i: int) => {
     j := Find s "**" (i + 2)
-    j < 0 { Html.Text (Mid s i (i + 1)); } { Html.El "strong" {} (Inline (Mid s (i + 2) j)); }
+    j < 0 { Html.Text (Mid s i (i + 1)); } { Html.El "strong" {->} (Inline (Mid s (i + 2) j)); }
 }
 readonly private BoldEnd := (s: string i: int) => {
     j := Find s "**" (i + 2)
@@ -212,18 +212,18 @@ readonly private Cells := (line: string) => {
 # 表格:第一行表头,第二行是 `|---|---|` 那种分隔(扔掉),其余是数据行
 readonly Table := (rows: list) => {
     head := []
-    (Cells (rows.At 0)).Foreach (c: string) => { head.Add (Html.El "th" {} (Inline c)); }
+    (Cells (rows.At 0)).Foreach (c: string) => { head.Add (Html.El "th" {->} (Inline c)); }
     body := []
     i := 2
     while { i < (rows.Count ()); } {
         cells := []
-        (Cells (rows.At i)).Foreach (c: string) => { cells.Add (Html.El "td" {} (Inline c)); }
-        body.Add (Html.El "tr" {} cells)
+        (Cells (rows.At i)).Foreach (c: string) => { cells.Add (Html.El "td" {->} (Inline c)); }
+        body.Add (Html.El "tr" {->} cells)
         i += 1
     }
-    Html.El "table" {} [
-        (Html.El "thead" {} [(Html.El "tr" {} head)])
-        (Html.El "tbody" {} body)
+    Html.El "table" {->} [
+        (Html.El "thead" {->} [(Html.El "tr" {->} head)])
+        (Html.El "tbody" {->} body)
     ]
 }
 
@@ -312,16 +312,16 @@ readonly private Toc := (text: string) => {
 readonly Page := (title: string nav: object body: object prev: object next: object) => {
     head := [
         (Html.El "meta" {"name"-> "viewport" "content"-> "width=device-width, initial-scale=1"} [])
-        (Html.El "title" {} [title])
+        (Html.El "title" {->} [title])
         (Html.CssLink "style.css")
     ]
     Html.Doc "zh" head [
-        (Html.El "header" {} [(Html.A "index.html" [SITE])])
+        (Html.El "header" {->} [(Html.A "index.html" [SITE])])
         (Html.El "div" {"class"-> "wrap"} [
-            (Html.El "nav" {} nav)
-            (Html.El "main" {} body)
+            (Html.El "nav" {->} nav)
+            (Html.El "main" {->} body)
         ])
-        (Html.El "footer" {} [prev (Html.El "span" {} []) next])
+        (Html.El "footer" {->} [prev (Html.El "span" {->} []) next])
     ]
 }
 

@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 /// <summary>非原子值 —— 有**自己的成员表**,见 <see cref="ObjectVal"/>。
 /// 形状和 <see cref="ListVal"/> 一样:`members` 喂基类,不占数据字段。
@@ -18,6 +18,8 @@ public record DictVal : ObjectVal
 
     public override string ToString() => ShowDepth.Guard(() =>
     {
+        // 空的印 `{->}` —— 和源码里那个写法对齐:`{}` 现在是空集合,印成 `{}` 会骗人。
+        if (Entries.Count == 0) return "{->}";
         var pairs = new List<string>();
         foreach (var kv in Entries) pairs.Add(kv.Key + ": " + kv.Value);
         return "{" + string.Join(" ", pairs) + "}";

@@ -793,7 +793,7 @@ impl (IComparable Rec { () })
 #### 实例
 
 ```ravel
-d := {}
+d := {->}
 d.Set 1 "int"
 d.Set "1" "str"
 d.Set 1.0 "real"
@@ -821,7 +821,7 @@ Rec ::= class {
     Key := () => { X; }
 }
 impl (IKey Rec default)
-d := {}
+d := {->}
 d.Set (Rec 1) "one"
 print (d.Get (Rec 1))
 ```

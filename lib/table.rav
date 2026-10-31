@@ -121,7 +121,7 @@ readonly Build := (rows: list given: bool opts: object) => {
     cols := []
     given && (opts.Has "cols") { (opts.Get "cols").Foreach (c: object) => { cols.Add c; }; } {
         asDict {
-            seen := {}
+            seen := {->}
             rows.Foreach (r: object) => {
                 (r.Keys ()).Foreach (k: object) => {
                     seen.Has k { 0; } { seen.Set k true; cols.Add k; }

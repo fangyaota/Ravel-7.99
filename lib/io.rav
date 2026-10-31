@@ -131,7 +131,7 @@ readonly Dir ::= class {
         # 写成光秃秃一句 `names.Sort ()` 就是**静默什么都不做**:Windows 上目录枚举常常
         # 看着本来就是有序的,到 Linux 上顺序就随机的 —— 这种"在你这台机器上看不出来"的错最难查。
         names := (raw.Keys ()).Sort ()
-        out := {}
+        out := {->}
         # 那层括号不能省：实参位置上的「raw.Get n」会被读成「((EntryAt …) raw.Get) n」
         names.Foreach (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
         out
@@ -142,7 +142,7 @@ readonly Dir ::= class {
     Dirs := () => { Pick true; }
 
     Pick := (wantDir: bool) => {
-        out := {}
+        out := {->}
         all := List ()
         (all.Keys ()).Foreach (n: string) => {
             e := all.Get n
@@ -202,14 +202,14 @@ readonly MemFile ::= class {
 
 readonly MemDir ::= class {
     Label: string = ""
-    Kids: dict = {}
+    Kids: dict = {->}
 
     init = (label: string) => { Label = label; this; }
 
     Name := () => { Label; }
     Exists := () => { true; }
     IsDir := () => { true; }
-    Delete := () => { Kids = {}; (); }
+    Delete := () => { Kids = {->}; (); }
 
     Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
 
@@ -217,7 +217,7 @@ readonly MemDir ::= class {
     # (记住 `Sort ()` 是**交回一份新的**,不是排自己 —— 见上面 `Dir.List` 那段)
     List := () => {
         names := (Kids.Keys ()).Sort ()
-        out := {}
+        out := {->}
         names.Foreach (n: string) => { out.Set n (Kids.Get n); }
         out
     }
@@ -225,7 +225,7 @@ readonly MemDir ::= class {
     Dirs := () => { Filter (true); }
 
     Filter := (wantDir: bool) => {
-        out := {}
+        out := {->}
         all := List ()
         (all.Keys ()).Foreach (n: string) => {
             e := all.Get n
@@ -304,7 +304,7 @@ readonly JsonNode ::= class {
 
     # 子节点(对象按 JSON 原顺序;数组按下标)
     List := () => {
-        out := {}
+        out := {->}
         ((Value.Kind ()) == "array") {
             i := 0
             while { i < (Value.Count ()); } {

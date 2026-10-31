@@ -13,7 +13,13 @@ public partial class Parser
     // ========================================
 
     private Expression ParseExpression(bool allowCall = true)
-        => ParsePipe(allowCall);
+    {
+        // 一条表达式从哪儿开始、到哪儿结束,链长就在这一段里算:出去(哪怕是抛异常出去)
+        // 都还回原值。没有这一层,`obj.field := v` 这种**语句级**的赋值会把 `_exprDepth`
+        // 越攒越高 —— 攒过 400 条,第 401 条好端端的语句就被判成"嵌套太深"。
+        using var _expr = ExprDepth.Begin(this);
+        return ParsePipe(allowCall);
+    }
 
     /// <summary>管道 &lt;|  （最低优先级，右结合）</summary>
     private Expression ParsePipe(bool allowCall = true)
@@ -22,6 +28,7 @@ public partial class Parser
 
         if (Match(TokenType.PipeLeft))
         {
+            BumpExprDepth();                        // `<|` 右结合:`a <| b <| c` 是 `a <| (b <| c)`
             var right = ParsePipe(allowCall);
             return new PipeExpr(left, right) { Line = left.Line, Column = left.Column };
         }
@@ -45,6 +52,7 @@ public partial class Parser
             var op = Previous();
             if (left is not (IdentifierExpr or MemberAccess))
                 throw ParseError("'??=' 的左边得是变量或成员（就像 '=' 那样）");
+            BumpExprDepth();                    // `a ??= b ??= c`:右结合,一层一个栈帧
             var right = ParseAssignment(allowCall);
             return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
         }
@@ -54,6 +62,7 @@ public partial class Parser
             Match(TokenType.SlashEqual) || Match(TokenType.PercentEqual))
         {
             var op = Previous().Lexeme;
+            BumpExprDepth();                    // `a := b := c` / `a = b = c`:右结合,一层一个栈帧
             var right = ParseAssignment(allowCall);
             return new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
         }
@@ -70,6 +79,7 @@ public partial class Parser
         var left = ParseBlockArgs(allowCall);
         if (!Match(TokenType.Coalesce)) return left;
 
+        BumpExprDepth();                            // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`,每层一个栈帧
         var op = Previous();
         var right = ParseNullCoalesce(allowCall);          // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`
         return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
@@ -212,6 +222,7 @@ public partial class Parser
     /// 不吃并列的调用。这正是生成器做不到的那一件(规则不能参数化,只能把整条链抄两遍)。</summary>
     private Expression ParseClimb(bool allowCall, int minBp)
     {
+        using var _climb = ExprDepth.Begin(this);
         var left = ParsePower(allowCall);
 
         while (true)
@@ -237,6 +248,7 @@ public partial class Parser
             if (lbp <= minBp) break;
 
             _pos++;
+            BumpExprDepth();                        // 链上又挂了一节,树也跟着长一层
             var op = t.Lexeme;
             var right = ParseClimb(allowCall, rbp);
             left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
@@ -262,6 +274,7 @@ public partial class Parser
 
         if (Match(TokenType.StarStar))
         {
+            BumpExprDepth();                        // `**` 右结合:右边那个就是下一层
             var op = Previous().Lexeme;
             var right = ParsePower(allowCall);      // 往本层递归 = 右结合
             return new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
@@ -288,6 +301,7 @@ public partial class Parser
 
         if (Match(TokenType.Bang) || Match(TokenType.Minus))
         {
+            BumpExprDepth();                        // `! ! !x` / `- - -1`:一元也是一层递归
             var op = Previous();
             return new UnaryExpr(op.Lexeme, ParsePower(allowCall)) { Line = op.Line, Column = op.Column };
         }
@@ -302,6 +316,15 @@ public partial class Parser
     /// 单拎出来是因为 `?.`:`a?.b c` 里**整条链**(成员访问 + 后面的调用)都归那枚守卫
     /// 闭包管 —— 它在自己的 lambda 体内得再走一趟这段(见 <see cref="GuardedChain"/>)。
     /// `guarded: true` = 已经在一层守卫里了,再撞上 `?.` 就当普通 `.` 使(守卫只包一层)。</summary>
+    /// <summary>链上又挂了一节(运算符 / 一元 / 成员访问 / 乘方 / 空值合并)。
+    /// 数字超了就是 <see cref="MaxExprDepth"/> —— 再往下走,打印器和脱糖那几趟递归
+    /// 会先把 C# 栈用光。</summary>
+    private void BumpExprDepth()
+    {
+        if (++_exprDepth > MaxExprDepth)
+            throw ParseError($"表达式嵌套太深（超过 {MaxExprDepth} 层运算符/调用链）");
+    }
+
     private Expression ParsePostfixRest(Expression expr, bool allowCall, bool guarded = false,
                                         bool stopAtPipe = false, bool allowPipe = false,
                                         bool allowBlock = false)
@@ -337,6 +360,7 @@ public partial class Parser
             if (Match(TokenType.PipeInto))
             {
                 if (stopAtPipe) { _pos--; break; }      // 把这一枚还回去,外层接着收
+                BumpExprDepth();                       // `a |> f |> g`:一层套一层
 
                 if (Check(TokenType.Dot) || Check(TokenType.QuestionDot))
                 {
@@ -369,6 +393,7 @@ public partial class Parser
                 // (左结合,和 `|` 自己一个规矩;`stopAtPipe` 那层保护不受影响 —— 那只管 `|>`。)
                 while (Match(TokenType.Pipe))
                 {
+                    BumpExprDepth();
                     var bar = Previous();
                     fn = new BinaryExpr(fn, "|", Clause()) { Line = bar.Line, Column = bar.Column };
                 }
@@ -469,6 +494,7 @@ public partial class Parser
         {
             if (Match(TokenType.Dot))
             {
+                BumpExprDepth();                    // `a.b.c…`:成员访问也是一层接一层
                 var member = ParseMemberName();
                 e = new MemberAccess(e, member) { Line = e.Line, Column = e.Column };
                 continue;
@@ -483,6 +509,7 @@ public partial class Parser
                 // 各包各的会变成 `Some (Some (…))` —— `a?.b?.c` 要的是"一条链一个守卫"。
                 if (guarded)
                 {
+                    BumpExprDepth();
                     var m = ParseMemberName();
                     e = new MemberAccess(e, m) { Line = q.Line, Column = q.Column };
                     continue;

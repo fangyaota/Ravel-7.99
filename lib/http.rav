@@ -34,7 +34,7 @@ using "tasks.rav"   # 「交回任务」那一族要用(见下面同名 + `Task`
 readonly Response ::= class {
     status: int = 0
     reason: string = ""
-    headers: dict = {}
+    headers: dict = {->}
     body: list = []
     url: string = ""
     size: int = 0
@@ -108,7 +108,7 @@ readonly private Spec := (url: string method: string opts: dict) => {
         b := BodyOf (s.Get "body")
         s.Set "body" (b.Get "bytes")
         ((b.Get "contentType") != "") {
-            h := (s.Has "headers") { s.Get "headers"; } { {}; }
+            h := (s.Has "headers") { s.Get "headers"; } { {->}; }
             (h.Has "content-type") { 0; } { h.Set "content-type" (b.Get "contentType"); }
             s.Set "headers" h
         } { 0; }
@@ -140,12 +140,12 @@ readonly private Send := (url: string method: string opts: dict) => {
 }
 
 # ── 动词那几个 ──
-readonly Get := (url: string) => { Send url "GET" {}; }
+readonly Get := (url: string) => { Send url "GET" {->}; }
 readonly Post := (url: string body: object) => { Send url "POST" {"body"-> body}; }
 readonly Put := (url: string body: object) => { Send url "PUT" {"body"-> body}; }
 readonly Patch := (url: string body: object) => { Send url "PATCH" {"body"-> body}; }
-readonly Delete := (url: string) => { Send url "DELETE" {}; }
-readonly Head := (url: string) => { Send url "HEAD" {}; }
+readonly Delete := (url: string) => { Send url "DELETE" {->}; }
+readonly Head := (url: string) => { Send url "HEAD" {->}; }
 
 # 全参数那条:`Http.Request {"url": … "method": "PATCH" "headers": {…} "body": … "retries": 2}`。
 # `method` 不写就是 GET;引擎还认 `bodyFile` / `follow` / `timeout` / `max`(见 CONTEXT)。
@@ -222,12 +222,12 @@ readonly RequestTask := (spec: dict) => {
 
 readonly private SendTask := (url: string method: string opts: dict) => { RequestTask (Spec url method opts); }
 
-readonly GetTask := (url: string) => { SendTask url "GET" {}; }
+readonly GetTask := (url: string) => { SendTask url "GET" {->}; }
 readonly PostTask := (url: string body: object) => { SendTask url "POST" {"body"-> body}; }
 readonly private PutTask := (url: string body: object) => { SendTask url "PUT" {"body"-> body}; }
 readonly private PatchTask := (url: string body: object) => { SendTask url "PATCH" {"body"-> body}; }
-readonly private DeleteTask := (url: string) => { SendTask url "DELETE" {}; }
-readonly private HeadTask := (url: string) => { SendTask url "HEAD" {}; }
+readonly private DeleteTask := (url: string) => { SendTask url "DELETE" {->}; }
+readonly private HeadTask := (url: string) => { SendTask url "HEAD" {->}; }
 
 # 下载 / 上传:底下那两条原语本来就是"边收边写、不进内存",交回任务的版本一样。
 readonly DownloadTask := (url: string path: object) => {
@@ -314,7 +314,7 @@ readonly Url ::= class {
 
     Read := () => { (Http.Get Link).Text (); }
     Write := (text: string) => { Send Link "PUT" {"body"-> text}; (); }
-    Delete := () => { Send Link "DELETE" {}; (); }
+    Delete := () => { Send Link "DELETE" {->}; (); }
     Append := (text: string) => { throw (Exception ("网络文件没得追写（HTTP 里没有这回事）：" + Link)); }
 
     # 先用 HEAD 探一下(不下载正文)。服务器不认这个方法(405/501)、或者干脆连不上,

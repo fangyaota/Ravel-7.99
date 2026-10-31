@@ -115,6 +115,12 @@ print ((pick false).IsSome ())
 print (5 < -1)
 print (-1 < 5)
 
+# 前面先有普通语句(不是 `:<`):它和后面那串在**这儿**顺序跑,整块的值仍是 Bind 的结果。
+# 从前这条会交出一枚 Block:`do { y := 10; Some 2 }` 到手的是 `<block>`,连 `do { 1 }` 都是。
+print (do { base := 10; x :< Some 2; Some (base + x) }.Value ())
+# 一条绑定都没有:整块就是"在这儿顺序执行的块",值是最后一句
+print (do { a := 3; a * 2 })
+
 # do 只是语法糖:打印一个含 do 的函数,看到的是脱糖后的 Bind 链
 # (取成员的接收者是一次调用时打印器会套括号 —— `f a.b` 读起来是 `f (a.b)`)
 show ::= (x: int) => { do { y :< Some x; Some (y + 1); } }
@@ -271,6 +277,8 @@ ravel ""
 # false
 # false
 # true
+# 12
+# 6
 # <function show (x: int) => { (Some x).Bind ((y: object) => { Some (y + 1); }); }>
 # 1: ':<' 只能写在 do { … } 里
 # 2: do 块的最后一条语句要是个值（不能以 ':<' 收尾）

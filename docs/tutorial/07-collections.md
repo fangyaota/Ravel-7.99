@@ -701,12 +701,12 @@ true
 using "sqlite.rav"
 db := Sqlite.Open "app.db"        # 或 Sqlite.Memory ()
 db.Exec "insert into t (name) values (@n)" {"n"-> "ada"}  # 参数按名字绑
-rows := db.All "select * from t" {}                       # 打出来是 [{id: 1 name: ada}]
+rows := db.All "select * from t" {->}                       # 打出来是 [{id: 1 name: ada}]
 db.Tx { … }                                               # 事务：出错自己回滚再抛
 db.Close ()
 ```
 
-注意：**参数那格永远要给**（没有参数就写 `{}`）—— Ravel 没有默认参数。存得进的是 数 / 字符串 / 字符 / 布尔 / `()`（就是 NULL）/ 字节表（BLOB）。
+注意：**参数那格永远要给**（没有参数就写 `{->}`）—— Ravel 没有默认参数。存得进的是 数 / 字符串 / 字符 / 布尔 / `()`（就是 NULL）/ 字节表（BLOB）。
 
 ## 7.19 数据结构（`Structures`）
 
@@ -840,8 +840,8 @@ using "html.rav"
 
 card := (title: string body: string) => {
     Html.El "div" {"class"-> "card"} [
-        (Html.El "h2" {} [title])
-        (Html.El "p" {} [body])
+        (Html.El "h2" {->} [title])
+        (Html.El "p" {->} [body])
     ]
 }
 print (Html.Pretty (card "标题" "a < b"))

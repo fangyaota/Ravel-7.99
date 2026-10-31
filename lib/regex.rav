@@ -41,7 +41,7 @@ readonly RegexMatch ::= class {
     Index: int = 0
     Span: int = 0
     Captured: list = []
-    Named: dict = {}
+    Named: dict = {->}
 
     init = (d: dict) => {
         Hit = d.Get "value"

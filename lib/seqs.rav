@@ -55,7 +55,7 @@ readonly Zip := (a: IEnumerable) => {
 # 每个键下是**保持原顺序**的 list;键的先后 = 第一次出现的先后(dict 保插入序)。
 readonly Group := (xs: IEnumerable) => {
     (key: function) => {
-        out := {}
+        out := {->}
         xs.Foreach (x: object) => {
             k := (key x).Key ()
             out.Has k { (out.Get k).Add x; } { out.Set k [x]; }
@@ -66,7 +66,7 @@ readonly Group := (xs: IEnumerable) => {
 
 # 数一数每个值出现几次(键的规矩同 `Group`)
 readonly Frequency := (xs: IEnumerable) => {
-    out := {}
+    out := {->}
     xs.Foreach (x: object) => {
         k := x.Key ()
         out.Has k { out.Set k ((out.Get k) + 1); } { out.Set k 1; }

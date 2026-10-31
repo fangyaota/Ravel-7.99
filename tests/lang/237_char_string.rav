@@ -80,7 +80,7 @@ print ('c' : IComparable)
 print ('c' : IKey)
 print ("ab" : IEnumerable)          # 字符串**可枚举**:元素是字符(lib/iterator.rav 里登记的一条 impl)
 ("abc".Chars ()).Foreach (ch: char) => { print ch; }
-d := {}
+d := {->}
 d.Set 'a' 1
 d.Set 'b' 2
 print (d.Get 'a')

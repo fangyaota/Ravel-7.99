@@ -109,7 +109,7 @@ print (builtinValues.All hasValue)
 # 而**用**它们一点没变:当字典的键、`x : IValue`、进类型树
 print (1 : IValue)
 print (true : IValue)
-d := {}
+d := {->}
 d.Set 1 "一"
 print (d.Get 1)
 # --- expected ---

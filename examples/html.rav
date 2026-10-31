@@ -15,8 +15,8 @@ using "html.rav"
 # 直接嵌进别人的孩子里用。
 card := (title: string body: string) => {
     Html.El "div" {"class"-> "card"} [
-        (Html.El "h2" {} [title])
-        (Html.El "p" {} [body])
+        (Html.El "h2" {->} [title])
+        (Html.El "p" {->} [body])
     ]
 }
 
@@ -32,8 +32,8 @@ rows := [["甲" 12] ["乙" 7] ["丙" 30]]
 body := []
 rows.Foreach (r: list) => {
     tds := []
-    r.Foreach (c: object) => { tds.Add (Html.El "td" {} [c]); }
-    body.Add (Html.El "tr" {} tds)
+    r.Foreach (c: object) => { tds.Add (Html.El "td" {->} [c]); }
+    body.Add (Html.El "tr" {->} tds)
 }
 
 # ── 三、属性 ──
@@ -43,13 +43,13 @@ rows.Foreach (r: list) => {
 #   list   → 按空格拼起来(`class` 最常见)
 #   别的   → `name="值"`,值过转义
 print (Html.Pretty (Html.El "table" {"class"-> ["data" "striped"] "border"-> true} [
-    (Html.El "tbody" {} body)
+    (Html.El "tbody" {->} body)
 ]))
 
 # ── 四、`Raw`:插一段现成的标记(不转义) ──
 #
 # 安全得你自己保证 —— **用户的输入不要走这儿**,那条走 `Html.Text` / 直接写字符串。
-print (Html.Render (Html.El "div" {} [(Html.Raw "<svg>…</svg>") " 后面这段照常转义: <b>"] ))
+print (Html.Render (Html.El "div" {->} [(Html.Raw "<svg>…</svg>") " 后面这段照常转义: <b>"] ))
 
 # ── 五、写文档那一层:标题 / 段落 / 列表 / 表格 ──
 #

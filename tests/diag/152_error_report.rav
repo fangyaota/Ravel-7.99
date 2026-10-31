@@ -59,6 +59,12 @@ c := C ()
 c.new := 9
 print (c.new)
 ravel ""
+
+# ═══ 220_deep_chain(新:长运算符链的护栏) ═══
+# `!`/`-`/`**`/`??`/`?.`/`|>`/`.` 这些链一节一个栈帧,而且要等子调用**返回之后**才往回退,
+# 光靠括号那条 200 的线兜不住 —— 实测 `a ?? a ?? …` 850 层左右先在脱糖/打印器上 StackOverflow,
+# 进程直接死、一句报错都没有(见 .scratch/fuzz/thresh.py)。所以链本身也要数,过了 400 就报。
+try { eval ("x := " + (("!").Repeat 600) + "true"); } (e: Exception) => { print ("220_deep_chain: " + string e); }
 # --- expected ---
 # 152_error_report: 未定义的变量 'missing'
 # 154_operator_type_error: 运算符 '+' 不支持 Bool 操作数
@@ -79,3 +85,4 @@ ravel ""
 # 3: 'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）
 # 7
 # 9
+# 220_deep_chain: 表达式嵌套太深（超过 400 层运算符/调用链）

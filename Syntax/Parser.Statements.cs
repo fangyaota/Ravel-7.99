@@ -390,6 +390,16 @@ public partial class Parser
             return new Destructure([], pat, cd.Right) { Line = cd.Line, Column = cd.Column };
         }
 
+        // 赋值那几样(`:=` / `+=` …)的左边得是**左值**。`(f x) := …` / `(a + b) += 1` 这种
+        // 求值期一定会报「赋值的左边得是个变量名或字段」,可树已经造出来了 —— 而打印器把它印回
+        // `<表达式> := <表达式>`,那个形状在语句位置**读不出赋值**(先掉进模式那条路,报
+        // 「模式括号没闭上」)。错在左边不是左值,指在这儿比等求值准。
+        if (expr is BinaryExpr { Op: ":=" or "+=" or "-=" or "*=" or "**=" or "/=" or "%=" } bad
+            && bad.Left is not (IdentifierExpr or MemberAccess))
+            throw new SyntaxException(
+                $"'{bad.Op}' 的左边得是变量或成员（和 '=' 一样）",
+                new SourceSpot(source, bad.Line, bad.Column));
+
         // `x++` / `x--`。**紧贴着**刚算完的表达式看,不跨换行 —— `x` 一行、`++` 一行
         // 那是两条语句,不是自增(第二条到语句开头会被上面那条拦下来)。
         if (Check(TokenType.PlusPlus) || Check(TokenType.MinusMinus))

@@ -142,7 +142,7 @@ readonly Parse := (text: string) => {
         i := 1
         while { i < (rows.Count ()); } {
             line := rows.At i
-            d := {}
+            d := {->}
             j := 0
             while { j < (head.Count ()); } {
                 d.Set (head.At j) (j < (line.Count ()) { line.At j; } { ""; })

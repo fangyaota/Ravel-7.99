@@ -53,7 +53,7 @@ readonly Parse := (argv: list) => { ParseWith argv (); }
 readonly ParseWith := (argv: list spec: object) => {
     given := (typeof spec) == dict
     n := argv.Count ()
-    out := {}
+    out := {->}
     out.Set Rest []
     i := 0
     tail := false                                  # 见过 `--` 了?

@@ -51,7 +51,7 @@ readonly private DefaultIdle := 15000;
 # `a=1&b=%E4%B8%AD` → `{"a": "1" "b": "中"}`。没写 `=` 的按空串(键照样留)。
 # 解码用 `Encoding.UrlDecode`;`Slice` 是**包含式**的,所以右边那个端点要减一。
 readonly private ParseQuery := (q: string) => {
-    out := {}
+    out := {->}
     q == "" { out; } {
         (q.Split "&").Foreach (part: string) => {
             part != "" {
@@ -79,7 +79,7 @@ readonly private MimeOf := (path: string) => {
 }
 
 # 造一次就留着 —— 每个静态文件都重建一张表太亏
-readonly private MimeCache := {}
+readonly private MimeCache := {->}
 readonly private MimeTable := () => {
     MimeCache.IsEmpty () {
         MimeCache.Set "html" "text/html; charset=utf-8"
@@ -120,7 +120,7 @@ readonly private JsonType := "application/json; charset=utf-8"
 #     Httpd.Text "没有" |> .With 404
 readonly Response ::= class {
     Status: int = 200
-    Headers: dict = {}
+    Headers: dict = {->}
     Body: list = []
 
     init = (status: int headers: dict body: list) => {
@@ -172,7 +172,7 @@ readonly Redirect := (to: string) => {
     Response 302 {"location"-> to "content-length"-> "0"} [];
 }
 
-readonly NoContent := () => { Build 204 {} []; }
+readonly NoContent := () => { Build 204 {->} []; }
 
 readonly NotFound := () => { Text 404 "404 没有这条路由"; }
 
@@ -189,8 +189,8 @@ readonly File := (g: Tasks.TaskGroup path: string) => {
 readonly Request ::= class {
     Method: string = "GET"
     Path: string = "/"
-    Query: dict = {}
-    Headers: dict = {}
+    Query: dict = {->}
+    Headers: dict = {->}
     Body: list = []
     KeepAlive: bool = true
     Version: string = "HTTP/1.1"
@@ -245,7 +245,7 @@ readonly Server ::= class {
     #
     # 用**字典**不用 list:`list.Remove` 收的是**下标**(`RemoveAt` 的别名),
     # 拿连接号当下标传会「参数越界」;字典的 `Remove` 才是"按那个键删"。
-    Open: dict = {}
+    Open: dict = {->}
 
     # 两种起法:`Httpd.Server 8080`,或者一张配置
     # `Httpd.Server {"port": 8443 "cert": "s.crt" "key": "s.key"}`(HTTPS 见 `Native.HttpListen`)。

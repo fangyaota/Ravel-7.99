@@ -207,21 +207,21 @@ MemFile ::= class {
 
 MemDir ::= class {
     Label: string = ""
-    Kids: dict = {}
+    Kids: dict = {->}
 
     init = (label: string) => { Label = label; this; }
 
     Name := () => { Label; }
     Exists := () => { true; }
     IsDir := () => { true; }
-    Delete := () => { Kids = {}; (); }
+    Delete := () => { Kids = {->}; (); }
     Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
 
     # 接口没规定顺序，但两个实现都按名字排 —— `Io.EachDir` 的输出才稳定
     # (`Sort ()` 交回一份**新的**,不是排自己 —— 写成光秃秃一句 `names.Sort ()` 就是空操作)
     List := () => {
         names := (Kids.Keys ()).Sort ()
-        out := {}
+        out := {->}
         names.Foreach (n: string) => { out.Set n (Kids.Get n); }
         out
     }

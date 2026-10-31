@@ -70,6 +70,7 @@ public partial class Parser
         // `~-x` 读不出来(要写 `~(-x)`)—— 一行一格的糖,不值得再多一层。
         if (Match(TokenType.Tilde))
         {
+            BumpExprDepth();                        // `~ ~ ~x`:一层一个 `{x;}`
             var tilde = Previous();
             var atom = ParseMemberChain(ParsePrimary(bareLambda: false), allowCall: false);
             return Block([new ExpressionStatement(atom) { Line = tilde.Line, Column = tilde.Column }], tilde);
@@ -570,60 +571,75 @@ public partial class Parser
         return HasHoles(inner) ? DesugarHoles(inner) : inner;
     }
 
-    /// <summary>{ ... } — 集合 / 字典 / 代码块（根据是否跨行判断）</summary>
+    /// <summary>{ ... } —— 集合 / 字典 / 代码块。
+    ///
+    /// 判据只有两条:
+    ///   * **这一层**有 `->` → 字典（`->` 不是表达式运算符，只在这儿出现，所以见它必是字典）；
+    ///   * 没箭头但有换行（`;` 也算；**嵌进括号里的也算**）→ 代码块;
+    ///   * 都没有 → 集合。
+    ///
+    /// 换行那条不数深度，是因为块和集合本来就是同一对花括号，`{f {a;}}` 这种"一行块、
+    /// 分号全在里层"从老早就是块；字典由箭头那条先挑走，所以不会把 `{"k" -> {a; 1}}` 抢成块。
+    ///
+    /// 空的两样各有各的写法:`{}` 是空集合，`{->}` 是空字典 —— 字典的判据是那个箭头，
+    /// 没有条目也得把它写出来。空块本来就禁止（见 ParseBlockStatements），三样不打架。
+    /// </summary>
     private Expression ParseBrace()
     {
         int line = Previous().Line, col = Previous().Column;
 
-        // 单行 `{}` 是空字典。空块本来就禁止(见 ParseBlockStatements),所以没有歧义;
-        // 这样空集合的三种写法才一致:[] / {} / set default
         if (Match(TokenType.RightBrace))
-            return new DictLiteral([]) { Line = line, Column = col };
+            return new SetLiteral([]) { Line = line, Column = col };
 
-        // 含 Newline（; 也算）→ 代码块，否则 → 集合或字典
-        if (HasNewlineBeforeClose(TokenType.RightBrace))
+        var (arrow, newline) = ScanBraceBody();
+        if (arrow) return ParseDict(line, col);
+        if (newline)
         {
             var block = ParseBlockStatements();
             return new BlockExpr(block) { Line = line, Column = col, Source = source };
         }
 
-        // 单行无换行：**先当表达式把第一个元素读出来**,看它后面跟的是不是 `:` —— 是就是字典。
-        // 键从"标识符即字符串"改成了**表达式**(`{"a" -> 1}` / `{1 -> "x"}` / `{k -> v}`),
-        // 判据不能再靠前瞻,得真读一次。
-        //
-        // **分隔符是 `->`**(从前是 `:`)—— 于是 `:` 整个让给了类型判断,这一族也不再有
-        // "`x: int = 5` 到底算字典还是算块"那条特判:花括号里见 `->` 才是字典。
-        //
-        // 这一次解析的**结果两条路都用**(字典那条当第一个键、集合那条当第一个元素),
-        // 不走"读完退回去再读一遍":`_` 的序号是个单调计数器(见 `_holeCount`),
-        // 读两遍会让洞的编号和消糖时按顺序发的参数对不上(`{_ + 1}` 直接报「未定义的变量 '_1'」)。
-        var first = ParseExpression(allowCall: false);
-        return Check(TokenType.DictArrow) ? ParseDict(line, col, first) : ParseSet(line, col, first);
+        return ParseSet(line, col);
     }
 
-    /// <summary>前瞻：在匹配 closing 之前是否遇到 Newline</summary>
-    private bool HasNewlineBeforeClose(TokenType closing)
+    /// <summary>扫到配对的 `}` 之前，**这一层**有没有 `->`、**任意深度**有没有换行。
+    ///
+    /// 箭头只数最外层:嵌进 `(` / `[` / `{` 之后的箭头是里面那件事的，与这个 `{` 无关 ——
+    /// `{ {"a" -> 1} }` 是"集合里放个字典"，`{ x := {"a" -> 1} }` 是"一行块里装了条字典"。
+    /// 换行反过来是**任意深度**都算:块和集合本来就不靠括号分家(`{f {a;}}` 一直是块)，
+    /// 而字典一定有最深一层之外的箭头，所以箭头那一步已经把字典挑走了，换行这条不会抢走它。
+    ///
+    /// 只看 token、不解析 —— 不动 `_holeCount`，所以"先扫一遍、再正经读一遍"没有洞编号
+    /// 错位的顾虑（早先那条判据是"先读第一个元素再看后面跟不跟箭头"，读完不能退）。
+    /// </summary>
+    private (bool Arrow, bool Newline) ScanBraceBody()
     {
         int depth = 1;
+        bool arrow = false, newline = false;
         for (int i = _pos; i < tokens.Count; i++)
         {
             var t = tokens[i];
-            if (t.Type == TokenType.Newline) return true;
-            if (t.Type == TokenType.LeftBrace) depth++;
-            if (t.Type == closing)
+            if (t.Type == TokenType.EndOfFile) break;
+            switch (t.Type)
             {
-                depth--;
-                if (depth == 0) return false;
+                case TokenType.LeftParen or TokenType.LeftBracket or TokenType.LeftBrace:
+                    depth++;
+                    break;
+                case TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace:
+                    if (--depth == 0) return (arrow, newline);
+                    break;
+                case TokenType.Newline:
+                    newline = true;
+                    break;
+                case TokenType.DictArrow when depth == 1:
+                    arrow = true;
+                    break;
             }
-
-            if (t.Type == TokenType.EndOfFile) return false;
         }
 
-        return false;
+        return (arrow, newline);
     }
 
-    /// <summary>{ expr expr ... } → 集合。`first` 是判据那一步已经读好的第一个元素
-    /// (见 ParseBrace:那一次解析的成果两条路共用)。</summary>
     /// <summary>插值字符串 —— 拼成 `"" + 段 + 段 …`:字面量段原样,表达式段套一层
     /// `string (…)`(那个转换器管着"什么都转得成字符串":数、字符、对象都行)。
     ///
@@ -651,9 +667,10 @@ public partial class Parser
         return expr;
     }
 
-    private Expression ParseSet(int line, int col, Expression first)
+    /// <summary>{ expr expr ... } → 集合。判据在 ParseBrace：进来就是单行、没有箭头。</summary>
+    private Expression ParseSet(int line, int col)
     {
-        var elements = new List<Expression> { first };
+        var elements = new List<Expression>();
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
             elements.Add(ParseExpression(allowCall: false));
@@ -663,20 +680,32 @@ public partial class Parser
         return new SetLiteral(elements) { Line = line, Column = col };
     }
 
-    /// <summary>{ key: val key: val ... } → 字典。**键是表达式**(见 ParseBrace 的判据),
-    /// 和值一样按 `allowCall: false` 那一档读 —— 于是 `{"a" + "b": 1}` 写得出来,
-    /// 而 `{f x: 1}` 这种"实参里再套应用"不行(和值那边的口径一致)。</summary>
-    private Expression ParseDict(int line, int col, Expression first)
+    /// <summary>{ key -> val key -> val ... } → 字典。**键是表达式**(判据见 ParseBrace:
+    /// 这一层出现 `->` 就是字典),和值一样按 `allowCall: false` 那一档读 —— 于是
+    /// `{"a" + "b": 1}` 写得出来,而 `{f x: 1}` 这种"实参里再套应用"不行(和值那边口径一致)。
+    ///
+    /// 条目之间**可以有换行**:判据已经是那个箭头了,不必再靠"一行写完"来分辨,
+    /// 于是多行字典合法。空字典写成 `{->}`(没有条目,但箭头还在),由下面循环顶上那一格收。</summary>
+    private Expression ParseDict(int line, int col)
     {
         var entries = new List<DictEntry>();
-        var key = first;
         while (true)
         {
+            SkipNewlines();
+            if (Check(TokenType.RightBrace) || IsAtEnd()) break;
+
+            // `{->}` —— 空字典。只认在条目之前(entries 空)的那一个,别把 `{a -> 1 ->}` 放过去。
+            if (entries.Count == 0 && Check(TokenType.DictArrow))
+            {
+                Consume(TokenType.DictArrow, "字典键后需要 '->'");
+                SkipNewlines();
+                break;
+            }
+
+            var key = ParseExpression(allowCall: false);
             Consume(TokenType.DictArrow, "字典键后需要 '->'");
             var value = ParseExpression(allowCall: false);
             entries.Add(new DictEntry(key, value));
-            if (Check(TokenType.RightBrace) || IsAtEnd()) break;
-            key = ParseExpression(allowCall: false);
         }
 
         Consume(TokenType.RightBrace, "字典条目后需要 '}'");
@@ -838,11 +867,37 @@ public partial class Parser
         return Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
     }
 
+    /// <summary>前瞻:在配对的 `}` 之前**任意深度**有没有 Newline。
+    ///
+    /// 只给"已经是强制块"那条路用（<see cref="ParseMandatoryBlock"/>）—— 那儿没有歧义，
+    /// `=> { f { a; } }` 这种"块体只有一条语句、换行全在嵌套里"照样算块。普通花括号
+    /// 不能看这一条（`{"k" -> {a; 1}}` 会被误判成块，那就是 bug A），见 ScanBraceBody。</summary>
+    private bool AnyNewlineBeforeClose(TokenType closing)
+    {
+        int depth = 1;
+        for (int i = _pos; i < tokens.Count; i++)
+        {
+            var t = tokens[i];
+            if (t.Type == TokenType.Newline) return true;
+            if (t.Type == TokenType.LeftBrace) depth++;
+            if (t.Type == closing)
+            {
+                depth--;
+                if (depth == 0) return false;
+            }
+
+            if (t.Type == TokenType.EndOfFile) return false;
+        }
+
+        return false;
+    }
+
     private BlockExpr ParseMandatoryBlock(string context)
     {
         int line = Previous().Line, col = Previous().Column;
         Consume(TokenType.LeftBrace, $"{context}需要 '{{' 开头");
-        if (!HasNewlineBeforeClose(TokenType.RightBrace))
+        // 只问"看起来是不是块":强制块里出现 `->` 也不算字典(字典不该被当成块体)。
+        if (!AnyNewlineBeforeClose(TokenType.RightBrace))
             throw ParseError($"{context}需要代码块（单行要用 ';' 收尾，多行要换行）"
                            + "——只想交回一个值就直接写 `(x) => 表达式`，不用花括号");
         var stmts = ParseBlockStatements();

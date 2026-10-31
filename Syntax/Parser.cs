@@ -31,6 +31,37 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     /// 必崩,而单独跑那条没事。200 是压着最坏情况取的。</summary>
     private const int MaxDepth = 200;
 
+    /// <summary>运算符链 / 调用链"挂了几节"。一条 `a + a + …`、`a.b.b…`、`a ?? a ?? …`
+    /// 在树里都是一层套一层:树有多深,后头脱糖、打印、求值那几趟的 C# 递归就有多深。
+    /// 括号那一路另有 <see cref="MaxDepth"/> 管,两边分开数。</summary>
+    private int _exprDepth;
+
+    /// <summary>运算符链上限。`??` / `**` / `!` 这类右结合和前缀链从前半点护栏都没有:
+    /// 实测 `a ?? a ?? …` 到 1200 层、`!` 到 3000 层,进程直接死在 "Stack overflow." 上
+    /// —— 一个字都看不到。更早倒下的其实是**打印器/脱糖**那一侧(约 850 层)。
+    ///
+    /// 400 是照那个爆点打的折:既不挡正常代码(400 节运算/成员访问没人手写),又留出余量
+    /// 给"解析器在解释器深处被调用"那种更浅的栈。括号那条线(200)不受影响 ——
+    /// 括号只数层数,不往这个数里加。</summary>
+    private const int MaxExprDepth = 400;
+
+    /// <summary>一条表达式的解析范围:出了作用域把链长还回去(语法错误抛出去也一样还)。</summary>
+    private readonly struct ExprDepth : IDisposable
+    {
+        private readonly Parser _parser;
+        private readonly int _start;
+
+        private ExprDepth(Parser parser, int start)
+        {
+            _parser = parser;
+            _start = start;
+        }
+
+        public static ExprDepth Begin(Parser parser) => new(parser, parser._exprDepth);
+
+        public void Dispose() => _parser._exprDepth = _start;
+    }
+
     // ========================================
     //  入口
     // ========================================

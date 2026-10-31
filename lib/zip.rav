@@ -52,7 +52,7 @@ readonly private TrimSlash := (s: string) => {
 # zip 里没有真的目录树,只有一串带 `/` 的路径 —— 树是**看出来的**:
 # `a/b.txt` 这一条同时意味着 `a/` 是个目录。所以只看 `prefix` 之后那一段有没有 `/`。
 readonly private Here := (all: list prefix: string) => {
-    out := {}
+    out := {->}
     all.Foreach (e: object) => {
         n := e.Get "name"
         n.StartsWith prefix {
@@ -79,7 +79,7 @@ readonly private HasUnder := (all: dict prefix: string) => {
 
 # 整档的成员 → 那一条(dict,按完整名字当键)。名字解析、大小那两个数都从这儿看。
 readonly Members := (handle: int) => {
-    out := {}
+    out := {->}
     (Native.ZipList handle).Foreach (e: object) => { out.Set (e.Get "name") e; }
     out
 }
@@ -113,7 +113,7 @@ readonly private Archive ::= class {
     # 这一层的名字 → 条目(文件是 `ZipEntry`、子目录是这个类的另一份)
     List := () => {
         here := Here (Native.ZipList Handle) Prefix
-        out := {}
+        out := {->}
         ((here.Keys ()).Sort ()).Foreach (n: string) => { out.Set n (Node n (here.Get n)); }
         out
     }
@@ -122,7 +122,7 @@ readonly private Archive ::= class {
     Dirs := () => { Pick true; }
 
     Pick := (wantDir: bool) => {
-        out := {}
+        out := {->}
         here := Here (Native.ZipList Handle) Prefix
         ((here.Keys ()).Sort ()).Foreach (n: string) => {
             ((here.Get n).EndsWith "/") == wantDir { out.Set n (Node n (here.Get n)); } { 0; }
