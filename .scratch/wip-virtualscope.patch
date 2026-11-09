@@ -1,0 +1,502 @@
+diff --git a/Runtime/BoxedValue.cs b/Runtime/BoxedValue.cs
+index a7d841a..2132df2 100644
+--- a/Runtime/BoxedValue.cs
++++ b/Runtime/BoxedValue.cs
+@@ -1,4 +1,4 @@
+-namespace Ravel.Runtime;
++﻿namespace Ravel.Runtime;
+ 
+ /// <summary>成员访问包装器:把「取成员」的门禁(unreadable / outdated / core / private-protected)
+ /// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。
+@@ -70,6 +70,7 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
+ 
+     public BoxedValue GetMember(string name)
+     {
++        Console.Error.WriteLine("G1 " + name + " <- " + string.Join("|", new System.Diagnostics.StackTrace(1, false).GetFrames().Take(5).Select(f => f.GetMethod()?.Name)));
+         // 运算符访问：`1.+` / `"a".==`。**必须和 `BindOperator` 同一个判据** —— 脱糖之后
+         // `1 + 2` 就是 `1.+ 2`（见 `Lowering.MemberCall`），两条路的解析若差一点，
+         // 同一条式子换个写法就是两个答案（实测：接口里的普通成员 `+ := f` 不算运算符，
+@@ -103,7 +104,9 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
+         // **唯一一次查找**:`MemberScope` 自己知道该怎么找 ——
+         // 对象是"自己那层(扁平) → 沿类链兜底",原子值是"只有沿类链那半"(那层是算出来的,
+         // 不落地成字段,所以值相等保得住)。机制名的过滤在 MemberView 里,不在这。
++        Console.Error.WriteLine("G2");
+         var member = Value.MemberScope.LookupField(name);
++        Console.Error.WriteLine("G3 " + (member?.Name ?? "null") + " cls=" + Value.GetType().Name + " ty=" + Value.Type + " inst=" + (Value is ObjectVal oo ? (oo.InstanceMembers.LookupField(name)?.Name ?? "null") : "-"));
+         if (member == null)
+         {
+             // **接口里的普通成员**(不是 `by` 槽):它住在实现身上,而值**就是它自己** ——
+diff --git a/Runtime/BuiltinClasses.Methods.cs b/Runtime/BuiltinClasses.Methods.cs
+index baa727a..c579f93 100644
+--- a/Runtime/BuiltinClasses.Methods.cs
++++ b/Runtime/BuiltinClasses.Methods.cs
+@@ -85,7 +85,6 @@ internal static partial class BuiltinClasses
+ 
+     private static void RegisterIntMethods()
+     {
+-        Int.DefineMethod("ToString", (s, _) => new StringVal(((IntVal)s).Value.ToString()));
+     }
+ 
+     /// <summary>字符串的参数:要字符串,或者**一个字符**(`"abc".Contains 'b'` 一样通)。
+diff --git a/Runtime/BuiltinClasses.Operators.cs b/Runtime/BuiltinClasses.Operators.cs
+index 45c60b8..be19e99 100644
+--- a/Runtime/BuiltinClasses.Operators.cs
++++ b/Runtime/BuiltinClasses.Operators.cs
+@@ -18,7 +18,7 @@ internal static partial class BuiltinClasses
+     /// 直接写 `((IntVal)b)` 会抛 C# 的 InvalidCastException,消息里全是
+     /// `Ravel.Runtime.BoolVal` 这种实现细节,`1 + true` 就长这样。
+     /// 左操作数不用过这里:它由方法表保证(查的就是该类型的方法)。</summary>
+-    private static T Operand<T>(RuntimeValue v, string op) where T : RuntimeValue
++    internal static T Operand<T>(RuntimeValue v, string op) where T : RuntimeValue
+         => v as T ?? throw new RuntimeException($"运算符 '{op}' 不支持 {v.Type} 操作数", ErrorKind.Type);
+ 
+     /// <summary>拼接的右操作数:字符串或字符都行(别的照旧报「不支持 X 操作数」)——
+@@ -33,7 +33,7 @@ internal static partial class BuiltinClasses
+     /// <summary>Int 与右操作数的二元运算。右操作数按「宽度」升级:real > bigint > int——
+     /// 结果类型取较宽的那个。以前只特判了 Real,于是 `1 + bigint 2` 报「运算符 '+' 不支持
+     /// BigInt 操作数」,而反过来的 `bigint 2 + 1` 却正常(AsBigInt 收 int),两边不对称。</summary>
+-    private static RuntimeValue IntOp(RuntimeValue a, RuntimeValue b, string op,
++    internal static RuntimeValue IntOp(RuntimeValue a, RuntimeValue b, string op,
+         Func<int, int, RuntimeValue> ii,
+         Func<int, double, RuntimeValue> id,
+         Func<int, System.Numerics.BigInteger, RuntimeValue> ib)
+@@ -68,7 +68,7 @@ internal static partial class BuiltinClasses
+     private const int WordBits = 32;
+ 
+     /// <summary>移位数:一个非负的 int。负数/大得装不下/根本不是数,各报各的。</summary>
+-    private static int ShiftCount(RuntimeValue v, string op)
++    internal static int ShiftCount(RuntimeValue v, string op)
+     {
+         if (v is IntVal i)
+         {
+@@ -83,22 +83,22 @@ internal static partial class BuiltinClasses
+     }
+ 
+     /// <summary>左移(位型):高位丢出去就没了。移满 32 位及以上,32 个格子全空 —— 给 0。</summary>
+-    private static int ShiftUp(int x, int k)
++    internal static int ShiftUp(int x, int k)
+         => k >= WordBits ? 0 : unchecked((int)((uint)x << k));
+ 
+     /// <summary>算术右移(保符号):移满 32 位及以上只剩符号本身 —— 负数给 -1,其余给 0。</summary>
+-    private static int ShiftDown(int x, int k)
++    internal static int ShiftDown(int x, int k)
+         => k >= WordBits ? (x < 0 ? -1 : 0) : x >> k;
+ 
+     /// <summary>循环左移。`k % 32` 之后再转 —— 转 32 位就是原样一圈。</summary>
+-    private static int RotateUp(int x, int k)
++    internal static int RotateUp(int x, int k)
+     {
+         k %= WordBits;
+         return k == 0 ? x : unchecked((int)(((uint)x << k) | ((uint)x >> (WordBits - k))));
+     }
+ 
+     /// <summary>循环右移(同上,方向反过来)</summary>
+-    private static int RotateDown(int x, int k)
++    internal static int RotateDown(int x, int k)
+     {
+         k %= WordBits;
+         return k == 0 ? x : unchecked((int)(((uint)x >> k) | ((uint)x << (WordBits - k))));
+@@ -111,28 +111,6 @@ internal static partial class BuiltinClasses
+ 
+     private static void RegisterOperators()
+     {
+-        // int 运算符 —— 右操作数按"宽度"升级:real > bigint > int。
+-        // int×int 一律在 long 里算再收窄,免得 unchecked 静默回绕见 Narrow
+-        DefineOp(Int, "+", (a, b) => IntOp(a, b, "+",
+-            (x, y) => Narrow((long)x + y, $"{x} + {y}"), (x, y) => new RealVal(x + y), (x, y) => new BigIntVal(x + y)));
+-        DefineOp(Int, "-", (a, b) => IntOp(a, b, "-",
+-            (x, y) => Narrow((long)x - y, $"{x} - {y}"), (x, y) => new RealVal(x - y), (x, y) => new BigIntVal(x - y)));
+-        DefineOp(Int, "*", (a, b) => IntOp(a, b, "*",
+-            (x, y) => Narrow((long)x * y, $"{x} * {y}"), (x, y) => new RealVal(x * y), (x, y) => new BigIntVal(x * y)));
+-        DefineOp(Int, "/", (a, b) => IntOp(a, b, "/",
+-            (x, y) => Narrow((long)x / NonZero(y, "/"), $"{x} / {y}"), (x, y) => new RealVal(x / y),
+-            (x, y) => new BigIntVal(x / NonZero(y, "/"))));
+-        DefineOp(Int, "%", (a, b) => IntOp(a, b, "%",
+-            (x, y) => Narrow((long)x % NonZero(y, "%"), $"{x} % {y}"), (x, y) => new RealVal(x % y),
+-            (x, y) => new BigIntVal(x % NonZero(y, "%"))));
+-
+-        // 移位 / 循环移位(四条,`int` 上;语义见上面那一段)。
+-        // **不走 IntOp**:右边是"移多少位",不是参与运算的另一个值 —— 不该按宽度升级。
+-        DefineOp(Int, "<<", (a, b) => IntVal.Of(ShiftUp(((IntVal)a).Value, ShiftCount(b, "<<"))));
+-        DefineOp(Int, ">>", (a, b) => IntVal.Of(ShiftDown(((IntVal)a).Value, ShiftCount(b, ">>"))));
+-        DefineOp(Int, "<<<", (a, b) => IntVal.Of(RotateUp(((IntVal)a).Value, ShiftCount(b, "<<<"))));
+-        DefineOp(Int, ">>>", (a, b) => IntVal.Of(RotateDown(((IntVal)a).Value, ShiftCount(b, ">>>"))));
+-
+         // real 运算符 —— **全程 double**。
+         // 曾经这里走 `AsReal`(转成 32 位 real 再算),于是 `Math.pi * 180` 得
+         // 565.4866943359375(float32 的 π 乘出来的),而 `180 * Math.pi` 得
+@@ -156,7 +134,6 @@ internal static partial class BuiltinClasses
+         //
+         // 优先级和结合性在解析器那头(`Parser.Expressions` 的 `ParsePower`):右结合、
+         // 而且比一元负号紧 —— `-2 ** 2` 是 `-(2 ** 2)` = -4。
+-        DefineOp(Int, "**", (a, b) => IntPow(((IntVal)a).Value, b));
+         DefineOp(Real, "**", (a, b) => new RealVal(Math.Pow(AsDouble(a, "**"), AsDouble(b, "**"))));
+         DefineOp(BigInt, "**", (a, b) => BigIntPow(AsBigInt(a, "**"), b));
+         DefineOp(Fraction, "**", (a, b) => FractionPow(Operand<FractionVal>(a, "**"), b));
+@@ -216,7 +193,7 @@ internal static partial class BuiltinClasses
+         // 比较运算符 — 数字。**精确那一族不经过 double**(见 `CompareNumeric`);
+         // `int?` 和 0 比:`NaN` 那条路给 null,于是 `null == 0` 是 false、`null != 0` 是 true、
+         // 四条序全是 false —— 正好是 IEEE 要的那组答案。
+-        foreach (var t in new[] { Int, Real, BigInt, Fraction, BigFraction })
++        foreach (var t in new[] { Real, BigInt, Fraction, BigFraction })
+         {
+             DefineOp(t, "==", (a, b) => new BoolVal(CompareNumeric(a, b, "==") == 0));
+             DefineOp(t, "!=", (a, b) => new BoolVal(CompareNumeric(a, b, "!=") != 0));
+@@ -303,10 +280,6 @@ internal static partial class BuiltinClasses
+         DefineOp(Bool, "&", (a, b) => new BoolVal(((BoolVal)a).Value && Operand<BoolVal>(b, "&").Value));
+         DefineOp(Bool, "|", (a, b) => new BoolVal(((BoolVal)a).Value || Operand<BoolVal>(b, "|").Value));
+         DefineOp(Bool, "^", (a, b) => new BoolVal(((BoolVal)a).Value ^ Operand<BoolVal>(b, "^").Value));
+-        // int 位运算符
+-        DefineOp(Int, "&", (a, b) => IntVal.Of(((IntVal)a).Value & Operand<IntVal>(b, "&").Value));
+-        DefineOp(Int, "|", (a, b) => IntVal.Of(((IntVal)a).Value | Operand<IntVal>(b, "|").Value));
+-        DefineOp(Int, "^", (a, b) => IntVal.Of(((IntVal)a).Value ^ Operand<IntVal>(b, "^").Value));
+ 
+         // 函数交替 |（前一个不收这个参数就试下一个）→ Alternate 控制帧。
+         // 左边已经是交替时**摊平**成一个分支列表:`x | y | z` 解析成 `(x | y) | z`,
+@@ -332,10 +305,10 @@ internal static partial class BuiltinClasses
+ 
+     /// <summary>整除的除数。不查的话 C# 会抛 DivideByZeroException,
+     /// 用户看到的是英文的 "Attempted to divide by zero."</summary>
+-    private static int NonZero(int d, string op)
++    internal static int NonZero(int d, string op)
+         => d != 0 ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零", ErrorKind.ZeroDivision);
+ 
+-    private static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
++    internal static System.Numerics.BigInteger NonZero(System.Numerics.BigInteger d, string op)
+         => !d.IsZero ? d : throw new RuntimeException($"运算符 '{op}' 的除数为零", ErrorKind.ZeroDivision);
+ 
+     /// <summary>把数值收成 double(大数/分数也接受)。**这是"近似"那条路** ——
+@@ -481,7 +454,7 @@ internal static partial class BuiltinClasses
+     // ── 乘方 `**` 的几条实现 ──
+ 
+     /// <summary>`int ** n`:指数非负就在整数里算,负的(或 real / 分数那种)交给 `Math.Pow` 出小数。</summary>
+-    private static RuntimeValue IntPow(int x, RuntimeValue b)
++    internal static RuntimeValue IntPow(int x, RuntimeValue b)
+     {
+         switch (b)
+         {
+diff --git a/Runtime/MemberView.cs b/Runtime/MemberView.cs
+deleted file mode 100644
+index 3897d7e..0000000
+--- a/Runtime/MemberView.cs
++++ /dev/null
+@@ -1,124 +0,0 @@
+-namespace Ravel.Runtime;
+-
+-/// <summary>成员表视图 —— 「**这个值**能读到哪些成员」的唯一入口。
+-///
+-/// 两段,顺序固定:
+-/// 1. <c>own</c>:值**自己**那层(对象是它的实例作用域;类对象是它自己那张成员表)。
+-///    对象是扁平的,只查这一层。原子值(IntVal/StringVal/…)没有这一层,传 null ——
+-///    这正是"伪 Scope":它不落地成字段,所以 `IntVal(1) == IntVal(1)` 依旧成立。
+-/// 2. 沿**类对象的 parent 链**兜底,读每一层的 <see cref="ClassVal.InstanceTable"/>:
+-///    给实例的成员住在那一张("以我为类型的那些值读得到的"),`1.Fields ()` 的 `Fields`
+-///    就在 `Integer → IValue → Object` 链上 `Object` 的实例表里。
+-///
+-/// 第 2 段读的是**实例表**而不是类自己那张,所以"类上挂的东西实例看不到"是**结构**决定的
+-/// (`C.func := …` 落在 `C.Scope` 里,链上没人读它);反过来 `list.Add` 从类那一侧也读不到
+-/// —— `Add` 在 `List.InstanceTable` 里,而类对象自己的查找(第 1 段用它的 `Scope`、
+-/// 第 2 段沿**元类**链)两条都不经过它。不必再靠标记或过滤去分这两侧。
+-///
+-/// 只读:定义/赋值一律拒绝。往这儿写等于把字段挂到整个类型上。
+-///
+-/// 它不是 `Scope` 的词法链:视图的 `Parent` 是 null,`Variables` 是空的 ——
+-/// 它只覆写 `LookupField` 这一个动作。</summary>
+-internal sealed class MemberView(Scope? own, ObjectVal type) : Scope
+-{
+-    public override Variable? LookupField(string name)
+-        => own?.LookupField(name) ?? LookupInClassChain(name);
+-
+-    /// <summary>这个值**有哪些成员** —— 就是"查找能解析出什么",两段和 <see cref="LookupField"/>
+-    /// **共用同一份判据**(类链那半见 <see cref="ClassVal.MethodNames"/>)。
+-    ///
+-    /// 自己那层照单全收:它就是"这个 Scope 里有哪些名字"(`init` / `parent` 也列,
+-    /// 读不到是另一回事)。不收的话,模块里一个叫 `name` 的变量就没了 ——
+-    /// 它不是机制成员,是用户的变量。
+-    ///
+-    /// 唯一另外排掉的是 `this`:它不是"这个值的成员",是**这个值自己**的别名,
+-    /// 引擎为了让类体写得出 `this` 才注入的。</summary>
+-    public override IEnumerable<string> MemberNames => Names();
+-
+-    private IEnumerable<string> Names()
+-    {
+-        var seen = new HashSet<string>();
+-        if (own != null)
+-            foreach (var kv in own.Variables)
+-                if (kv.Key != ObjectVal.ThisMember && seen.Add(kv.Key))
+-                    yield return kv.Key;
+-
+-        foreach (var t in ClassChain())
+-            foreach (var n in t.MethodNames)
+-                if (seen.Add(n))
+-                    yield return n;
+-    }
+-
+-    /// <summary>「**往上查**」那一半:这个值所属的类,再沿它的 `parent` 一层层往上。
+-    ///
+-    /// 就一条规则 —— 值读成员是"自己那层 + 它的类那层 + 类往上那些层";**类对象也是值**
+-    /// (它的类是它的元类),所以从类对象上读成员时起点落在元类,一路还是"往上",不是另一条链。
+-    ///
+-    /// 自引用(`parent` 是自己)是"链到头"的标记。**唯一的例外**是 `object` 以外的两个自指:
+-    /// `Every` / `Any` 借自指表示"不在继承链上"(底类型/顶类型按特判挂靠),而"任何值都有"
+-    /// 的那批(`ToString` / `Copy` / `Fields` / `is` / `==`…)住在 `object` 上 ——
+-    /// 所以它们**接上 `object` 再走完**。`object` 自己是根,到它就是到头。
+-    ///
+-    /// **只取类对象**:链上理论上都是类(`parent` 是建类时装进去的),万一有个普通对象
+-    /// 被当父类挂着,它没有实例表可言、也就贡献不了成员。
+-    ///
+-    /// **算一次就存下来**:取成员是解释器最热的一条路,而链建好之后不会再变(各方都只在
+-    /// 建类那一刻写 `parent`,之后只读) —— 从前这是个迭代器,每次取成员都要新建一堆
+-    /// 状态机对象。值类型那批(`IntVal` / `StringVal`…)的 `MemberScope` 直接借
+-    /// `Type.InstanceMembers`,每个类一份,于是这份缓存**所有同类值共享**。</summary>
+-    private ClassVal[]? _chain;
+-
+-    private ClassVal[] ClassChain() => _chain ??= BuildChain();
+-
+-    private ClassVal[] BuildChain()
+-    {
+-        var chain = new List<ClassVal>(4);
+-        var t = type as ClassVal;
+-        while (t != null)
+-        {
+-            chain.Add(t);
+-            if (t.Parent != t) { t = t.Parent as ClassVal; continue; }   // 往上一层
+-            if (t == BuiltinClasses.Object) break;                       // 根
+-            t = BuiltinClasses.Object;                                   // Every / Any:接到 object
+-        }
+-
+-        return [.. chain];
+-    }
+-
+-    /// <summary>沿类对象的 parent 链读**实例表** —— "给它那些实例用的成员"住在那一张。
+-    /// 自引用(`object`/`Every`/`Any` 的 parent 是自己)就地停。
+-    ///
+-    /// 判据和 <see cref="ClassVal.MethodNames"/>(`Fields ()` 那半)必须一致 ——
+-    /// "查得到"和"列得出"是同一个问题的两个问法。</summary>
+-    internal Variable? LookupInClassChain(string name)
+-    {
+-        if (!ObjectVal.IsMethodName(name)) return null;
+-        var chain = ClassChain();
+-        for (int i = 0; i < chain.Length; i++)
+-            if (chain[i].InstanceTable.LookupField(name) is { } vr && Bindable(vr))
+-                return vr;
+-
+-        return null;
+-    }
+-
+-    /// <summary>这一格能不能沿类链交出去。**函数**,以及 `by` 槽 —— 后者是引擎挂的属性
+-    /// (`[ClassProperty]`:值是一对 getter/setter 的 `PropertyVal`),它和函数一样
+-    /// "读的那一刻才认接收者"(见 `BuiltinClasses.BindProperty`)。
+-    ///
+-    /// 判据必须和 <see cref="ClassVal.MethodNames"/> 一字不差:"查得到"和"列得出"
+-    /// 是同一个问题的两个问法。别的数据成员照旧不出去 —— 它们没法绑 `self`。</summary>
+-    private static bool Bindable(Variable v) => v.Value is FunctionVal || v.HasAttr(Attr.By);
+-
+-    private static RuntimeException ReadOnly()
+-        => new("值类型的成员只读（它们的成员表是借类那层的，写进去等于改掉整个类型）");
+-
+-    public override Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
+-                                     Statement? site = null)
+-        => throw ReadOnly();
+-
+-    public override Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
+-        => throw ReadOnly();
+-
+-    public override void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
+-        => throw ReadOnly();
+-}
+diff --git a/Runtime/RuntimeValue.cs b/Runtime/RuntimeValue.cs
+index 12ea573..63b6fce 100644
+--- a/Runtime/RuntimeValue.cs
++++ b/Runtime/RuntimeValue.cs
+@@ -42,7 +42,7 @@ public abstract record RuntimeValue
+     /// 默认实现是**伪 Scope** —— 原子值(`IntVal`/`DefaultVal`/…)自己没有成员表,
+     /// 借的是 `Type` 那条链,而那是算出来的视图、不落地。它只读:
+     /// `HasOwnMembers` 为假时写路径会把写入挡回去,免得"挂到借用来的表上"等于改掉整个类型。</summary>
+-    public virtual Scope MemberScope => Type.InstanceMembers;
++    public virtual Scope MemberScope => Type is ClassVal c ? c.InstanceTable : Type.Scope;
+ 
+     /// <summary>这个值有**自己**的成员表吗?有才能往它身上写成员
+     /// (对象有;原子值和借类成员表的那些没有)。</summary>
+diff --git a/Runtime/Scope.cs b/Runtime/Scope.cs
+index 8858166..d4fd913 100644
+--- a/Runtime/Scope.cs
++++ b/Runtime/Scope.cs
+@@ -44,7 +44,33 @@ public class Scope(Scope? parent = null)
+     /// 它的回答是"先看看实例表本层有没有"。**只问那一层**(`LookupField`,不走它的词法父):
+     /// 实例表的词法父是"最具体那个类的写法处",那正是 <see cref="BodyScope"/> 要绕开的东西。</summary>
+     protected virtual Variable? LookupHere(string name)
+-        => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
++        => LookupOwn(name) ?? Inherit?.LookupOwn(name);
++
++    /// <summary>本层的**模板层**:本层没有这个名字时,只多问这一层,不再往上走。
++    ///
++    /// 实例的成员表就是这样:数据在自己那层,内置方法在类那张表里 ——
++    /// 于是"一个对象一张表"仍然成立(平铺),但**不复制**:类表是只读的模板,
++    /// 谁都不许往它里面写(写的是本层,遮蔽)。</summary>
++    private Scope? _inherit;
++    private bool _inheritResolved;
++    internal Func<Scope?>? InheritOf;
++
++    internal Scope? Inherit
++    {
++        get
++        {
++            if (_inheritResolved) return _inherit;
++            _inheritResolved = true;
++            var t = InheritOf?.Invoke();
++            _inherit = ReferenceEquals(t, this) ? null : t;
++            return _inherit;
++        }
++        set
++        {
++            _inherit = value;
++            _inheritResolved = true;
++        }
++    }
+ 
+     /// <summary>这一层**是谁私有的成员表** —— 模块就是这样的:它的作用域**就是**成员表
+     /// (见 <see cref="ModuleVal.WithOwnTable"/>)。普通作用域是普通作用域,这里是 null。
+@@ -149,13 +175,15 @@ public class Scope(Scope? parent = null)
+     }
+ 
+     public Scope Push() => new(this);
+-    public bool Contains(string name) => _vars?.ContainsKey(name) ?? false;
+-    public IEnumerable<KeyValuePair<string, Variable>> Variables
++    public virtual bool Contains(string name)
++        => (_vars?.ContainsKey(name) ?? false) || (Inherit?.Contains(name) ?? false);
++    public virtual IEnumerable<KeyValuePair<string, Variable>> Variables
+         => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
+ 
+     /// <summary>这一层里**有哪些成员名**。取值的成员清单要走 <see cref="MemberView"/>
+     /// (它在本层之外还并上类链的方法);这里只是"本层登记了哪些名字"。</summary>
+-    public virtual IEnumerable<string> MemberNames => _vars?.Keys ?? Enumerable.Empty<string>();
++    public virtual IEnumerable<string> MemberNames
++        => _vars is { } d ? d.Keys.Concat(Inherit?.MemberNames ?? []) : Inherit?.MemberNames ?? [];
+ 
+     /// <summary>查找字段：只看本 scope 自己的变量，不走词法链、不走链式继承。
+     /// 继承来的字段在实例化时就已平铺进同一个实例 scope，所以一层就够；
+@@ -164,9 +192,16 @@ public class Scope(Scope? parent = null)
+     /// **取值的成员要走 <see cref="MemberView"/>**(它在本层之外还沿类链兜底);
+     /// 这个名字保留"只查一层"的语义,给那些**必须**看本层的调用点用:
+     /// 找构造器(`init`)、找类运算符、取 `parent`/`block`/`name` 这些类自己的数据。</summary>
+-    public virtual Variable? LookupField(string name)
++    public virtual Variable? LookupField(string name) => LookupOwn(name);
++
++    /// <summary>**只看本层**的查找 —— 给"自己那层查完再沿链兜底"的实现用
++    /// (<see cref="InstanceScope"/>),免得把自己的覆写再走一遍。</summary>
++    internal Variable? LookupOwn(string name)
+         => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
+ 
++    /// <summary>本层登记了哪些名字(不含继承)。</summary>
++    internal IEnumerable<string> OwnNames() => _vars?.Keys ?? Enumerable.Empty<string>();
++
+     /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>
+     public Variable? LookupVar(string name)
+     {
+diff --git a/Runtime/Values/ClassVal.cs b/Runtime/Values/ClassVal.cs
+index ca38a3d..a7724ba 100644
+--- a/Runtime/Values/ClassVal.cs
++++ b/Runtime/Values/ClassVal.cs
+@@ -1,4 +1,4 @@
+-namespace Ravel.Runtime;
++﻿namespace Ravel.Runtime;
+ 
+ /// <summary>类对象 —— 一个类就是一个 `ClassVal`。实例仍然是 <see cref="ObjectVal"/>。
+ ///
+diff --git a/Runtime/Values/IntVal.cs b/Runtime/Values/IntVal.cs
+index b7f2a69..362f5a9 100644
+--- a/Runtime/Values/IntVal.cs
++++ b/Runtime/Values/IntVal.cs
+@@ -36,5 +36,16 @@ public record IntVal : RuntimeValue
+ 
+     public override ObjectVal Type => BuiltinClasses.Int;
+ 
++    /// <summary>这一个整数自己的视图表。懒建 —— 不用成员就一直不建。</summary>
++    private Scope? _memberScope;
++
++    public override Scope MemberScope => _memberScope ??= new IntegerScope(this);
++
++    /// <summary>相等只看数值。**必须自己写**:上面那个缓存字段会被编译器算进 record 的
++    /// 自动相等里,于是"取过一次成员"的整数就和没取过的不相等了。</summary>
++    public virtual bool Equals(IntVal? other) => other is not null && other.Value == Value;
++
++    public override int GetHashCode() => Value;
++
+     public override string ToString() => Value.ToString();
+ }
+diff --git a/Runtime/Values/ObjectVal.cs b/Runtime/Values/ObjectVal.cs
+index be033e0..3fc6c39 100644
+--- a/Runtime/Values/ObjectVal.cs
++++ b/Runtime/Values/ObjectVal.cs
+@@ -33,14 +33,29 @@ public record ObjectVal : RuntimeValue
+     /// 懒建的代价是这层判空 —— 它落在取成员那条热路上,所以只值一个 `??=`,
+     /// 别在这儿加别的东西。**建出来之后身份就定了**(`??=` 只可能赋一次),
+     /// 于是 `ReferenceEquals` 那些照旧成立。</summary>
+-    public Scope Scope => _scope ??= new Scope();
++    public Scope Scope
++    {
++        get
++        {
++            return _scope ??= Wire(new Scope());
++        }
++    }
+ 
+     private Scope? _scope;
+ 
++    /// <summary>实例的成员表:数据在本层,内置方法在类那张表(= **模板**)。
++    /// 类对象不接模板 —— 它的 `Type` 是元类,自己那张 `InstanceTable` 是给**实例**的。
++    /// 懒求值:构造的时候 `Type` 可能还没落定。</summary>
++    private Scope Wire(Scope s)
++    {
++        s.InheritOf ??= () => !IsClass && Type is ClassVal c ? c.InstanceTable : null;
++        return s;
++    }
++
+     public ObjectVal(ClassVal? classType, Scope? scope)
+     {
+         ClassType = classType!;
+-        _scope = scope;
++        _scope = scope is null ? null : Wire(scope);
+     }
+ 
+     /// <summary>最多列几个字段,超出用 ... 收尾</summary>
+@@ -81,9 +96,8 @@ public record ObjectVal : RuntimeValue
+     /// <see cref="ClassVal.InstanceTable"/> 那段),里面没有给实例的方法 —— 所以
+     /// `list.Add 2` 报的是「类型 'Type' 没有方法 'Add'」,而不是拿类对象当 `self` 去炸。
+     /// 这是结构决定的,不靠标记。</summary>
+-    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type);
+-
+-    private Scope? _memberScope;
++    /// <summary>读成员:**就是这张表自己**(自己的数据 + 沿类链兜底,见 <see cref="InstanceScope"/>)。</summary>
++    public override Scope MemberScope => Scope;
+ 
+     /// <summary>「**以我为类型**的那些值」的成员表:沿 `parent` 链收集各层的
+     /// <see cref="ClassVal.InstanceTable"/>。
+@@ -92,9 +106,7 @@ public record ObjectVal : RuntimeValue
+     /// 所以自己那层之外还要再往我的**元类**链上找(`C.Fields ()` 能看到 `type` 那层的方法)。
+     /// 原子值(它没有自己的成员表)借的是这一个;`BindOperator` 那类"以类型为单位找运算符"
+     /// 也用它(`1 + 2` 找的正是 `Integer` 那张给实例的表)。</summary>
+-    internal Scope InstanceMembers => _instanceMembers ??= new MemberView(null, this);
+-
+-    private Scope? _instanceMembers;
++    internal Scope InstanceMembers => Type is ClassVal c ? c.InstanceTable : Scope;
+ 
+     public override bool HasOwnMembers => true;
+ 
+@@ -270,7 +282,14 @@ public record ObjectVal : RuntimeValue
+     /// 这是**引擎内部**的注册口:那一串 `X.DefineMethod (…)` 一个字符都不用改。
+     /// 用户代码碰不到它(它不在语言里,只有 C# 侧调得到)。</summary>
+     internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
+-        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name });
++    {
++        // 值类型的成员住它们各自的 VirtualScope 子类里(`IntegerScope`、`StringScope` …) ——
++        // 一个值一张表,不再挂到类对象的实例表上。
++        var member = BuiltinClasses.Member(name, impl);
++        if (BuiltinClasses.AddValueMember(this, member)) return member;
++
++        return BuiltinClasses.EngineMember(this, name, member.Value as BuiltinMethodVal ?? new BuiltinMethodVal(impl) { Name = name });
++    }
+ 
+     /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
+     /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。

@@ -150,7 +150,7 @@ public class Scope(Scope? parent = null)
 
     public Scope Push() => new(this);
     public bool Contains(string name) => _vars?.ContainsKey(name) ?? false;
-    public IEnumerable<KeyValuePair<string, Variable>> Variables
+    public virtual IEnumerable<KeyValuePair<string, Variable>> Variables
         => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
 
     /// <summary>这一层里**有哪些成员名**。取值的成员清单要走 <see cref="MemberView"/>

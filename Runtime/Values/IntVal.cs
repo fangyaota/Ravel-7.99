@@ -17,6 +17,17 @@ public record IntVal : RuntimeValue
     private const int Lo = -128;
     private const int Hi = 4096;
 
+    /// <summary>这个整数**自己的**成员表 —— 第一次读成员时才建,一个整数一张(池子里的共享那几枚也就共用一张)。</summary>
+    private Scope? _virtual;
+
+    public override Scope MemberScope => _virtual ??= new IntegerScope(this);
+
+    // 成员表是缓存字段,record 自动生成的相等会把 `_virtual` 算进去 —— 池子里的整数
+    // 一旦被人读过成员,就不再等于自己。按值比,手写。
+    public virtual bool Equals(IntVal? other) => other is not null && other.Value == Value;
+
+    public override int GetHashCode() => Value;
+
     private static readonly IntVal[] Pool = Build();
 
     private static IntVal[] Build()

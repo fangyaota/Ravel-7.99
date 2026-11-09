@@ -1,0 +1,14 @@
+2
+<function ToString>
+16
+1
+true
+true
+2.5
+Error: 类型 'Integer' 没有方法 'Fields'
+  --> .scratch/t/probe.rav:8:9
+  8 | print ((1).Fields ())
+    |         ^
+  调用栈 (1 层):
+    在 .scratch/t/probe.rav:1:1
+

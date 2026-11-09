@@ -85,7 +85,6 @@ internal static partial class BuiltinClasses
 
     private static void RegisterIntMethods()
     {
-        Int.DefineMethod("ToString", (s, _) => new StringVal(((IntVal)s).Value.ToString()));
     }
 
     /// <summary>字符串的参数:要字符串,或者**一个字符**(`"abc".Contains 'b'` 一样通)。

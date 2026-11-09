@@ -25,7 +25,8 @@ internal static partial class BuiltinClasses
         // 更具体的层写了就覆盖它:比如 List 的预设类体里那个只认 default 的构造器,
         // 它跑在 object 之后,所以 `MyList default` 走的还是 List 那一份。
         Object.ClassBody = PresetCtor(DefaultCtor());
-        Int.ClassBody = PresetCtor(MakeCaster(CastToInt));
+        IntCaster = MakeCaster(CastToInt);
+        Int.ClassBody = PresetCtor(IntCaster);
         Real.ClassBody = PresetCtor(MakeCaster(CastToFloat));
         Bool.ClassBody = PresetCtor(MakeCaster(CastToBool));
         String.ClassBody = PresetCtor(MakeCaster(CastToString));
@@ -81,7 +82,10 @@ internal static partial class BuiltinClasses
         => new NativeClosure("_", Any, (scope, _) => scope.Lookup(ObjectVal.ThisMember).Value);
 
     /// <summary>包装转换函数为单参构造器</summary>
-    private static FunctionVal MakeCaster(Func<RuntimeValue, RuntimeValue> cast)
+    /// <summary>`Integer` 的 `init`(类体里那份 caster);值类型的成员表直接引用这一份。</summary>
+    internal static FunctionVal? IntCaster;
+
+    internal static FunctionVal MakeCaster(Func<RuntimeValue, RuntimeValue> cast)
         => FunctionVal.From(cast);
 
     /// <summary>仅支持 default → 默认值的构造器（集合等不可直接构造的类型）</summary>
@@ -109,7 +113,7 @@ internal static partial class BuiltinClasses
         return IntVal.Of((int)v);
     }
 
-    private static RuntimeValue CastToInt(RuntimeValue val)
+    internal static RuntimeValue CastToInt(RuntimeValue val)
     {
         if (val is DefaultVal) return IntVal.Of(0);
         if (val is IntVal i) return i;
