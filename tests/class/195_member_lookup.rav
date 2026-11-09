@@ -21,7 +21,7 @@ print ((5).+ 2)
 # 不挡的话 `(5).parent` 会拿到 `Object`,`(5).block` 会拿到 Integer 的类体。
 try { (5).parent; } (e: Exception) => { print ("(5).parent: " + string e); }
 try { (5).block; } (e: Exception) => { print ("(5).block: " + string e); }
-try { (5).init; } (e: Exception) => { print ("(5).init: " + string e); }
+print ((5).init "12")
 # 对象:①优先(自己那层就是它的字段/方法),miss 了才走②
 C ::= class { init = () => { this; }; x: int = 7; m := () => { 9; }; }
 c := C ()
@@ -302,7 +302,7 @@ print (c.Fields ())
 print ((1).Fields ())
 ravel ""
 # --- expected ---
-# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString : <: :> Copy Fields MemberScope CompareTo Key ToDot]
+# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString init : <: :> Copy Fields MemberScope CompareTo Key ToDot]
 # 3
 # 4
 # true
@@ -311,7 +311,7 @@ ravel ""
 # 7
 # (5).parent: 类型 'Integer' 没有方法 'parent'
 # (5).block: 类型 'Integer' 没有方法 'block'
-# (5).init: 类型 'Integer' 没有方法 'init'
+# 12
 # 7
 # 9
 # true
@@ -398,4 +398,4 @@ ravel ""
 # 1: 运算符 '==' 不支持 Integer 操作数
 # 2: 运算符 '==' 不支持 Void 操作数
 # [init x s m : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
-# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString : <: :> Copy Fields MemberScope CompareTo Key ToDot]
+# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString init : <: :> Copy Fields MemberScope CompareTo Key ToDot]

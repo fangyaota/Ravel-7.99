@@ -6,7 +6,7 @@ internal sealed class IntegerScope(IntVal self) : VirtualScope(self)
     protected override IEnumerable<string> AllNames =>
     [
         "+", "-", "*", "/", "%", "<<", ">>", "<<<", ">>>", "**",
-        "&", "|", "^", "==", "!=", "<", ">", "<=", ">=", "ToString", "init",
+        "==", "!=", "<", ">", "<=", ">=", "&", "|", "^", "ToString", "init",
     ];
 
     protected override Variable? Create(string name)

@@ -11,14 +11,29 @@ public abstract class VirtualScope(RuntimeValue owner) : Scope
     /// <summary>这一张表的全部名字(静态清单)。懒的是"值什么时候造",不是"名字有没有"。</summary>
     protected abstract IEnumerable<string> AllNames { get; }
 
-    public override IEnumerable<string> MemberNames => AllNames;
+    /// <summary>清单在前(值自己的那些),类那层的机制名在后 —— 与 `LookupField` 的兜底顺序一致。</summary>
+    private IEnumerable<string> NamesInOrder()
+    {
+        foreach (var name in AllNames) yield return name;
+
+        var seen = new HashSet<string>(AllNames);
+        for (var t = Owner.Type; t is not null; t = t.Parent)
+        {
+            if (t is ClassVal tc)
+                foreach (var name in tc.InstanceTable.MemberNames)
+                    if (seen.Add(name)) yield return name;
+            if (t.Parent is null || ReferenceEquals(t.Parent, t)) break;
+        }
+    }
+
+    public override IEnumerable<string> MemberNames => NamesInOrder();
 
     /// <summary>列举 = 把每一格都造出来(顺序照静态清单)。`Fields ()` 走这条。</summary>
     public override IEnumerable<KeyValuePair<string, Variable>> Variables
     {
         get
         {
-            foreach (var name in AllNames)
+            foreach (var name in NamesInOrder())
                 if (LookupField(name) is { } v)
                     yield return new KeyValuePair<string, Variable>(name, v);
         }
@@ -51,7 +66,6 @@ public abstract class VirtualScope(RuntimeValue owner) : Scope
             if (t is ClassVal tc)
             {
                 if (tc.InstanceTable.LookupField(name) is { } mv) return mv;
-                if (tc.Scope.LookupField(name) is { } sv) return sv;
             }
             if (t.Parent is null || ReferenceEquals(t.Parent, t)) break;
         }
