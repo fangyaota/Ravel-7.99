@@ -1,4 +1,4 @@
-namespace Ravel;
+﻿namespace Ravel;
 
 using Ravel.Runtime;
 
@@ -60,7 +60,10 @@ internal static class CompileWarnings
         {
             // `f () > 1`:实参是一条运算符链、最左端是 `()` 字面量,**而且**那个 `()`
             // 是**空参数表**写下来的。最后那半句不能省 —— 见 `CallExpr.BareUnitArg`。
-            if (node is CallExpr { BareUnitArg: true, Argument: BinaryExpr arg } && StartsAtVoid(arg))
+            // 脱糖之后那条链已经是 `().> 1`(`Lowering.MemberCall`),形状变了、意思没变,
+            // 所以两种形状都认。
+            if (node is CallExpr { BareUnitArg: true, Argument: var raw }
+                && AsOperatorChain(raw) is { } arg && StartsAtVoid(arg))
                 hits.Add(("这一格的 `()` 被后面的运算符吃进**实参**里了"
                         + "（`f () > 1` 读成的是 `f (() > 1)`）—— 要拿调用结果去算就给它加括号："
                         + "`(f ()) > 1`", arg));
@@ -112,10 +115,21 @@ internal static class CompileWarnings
 
     /// <summary>一条算式最左端是不是那个 `()` 字面量。顺着 `Left` 一路下去 ——
     /// `f () + 2 * 3` 的实参是 `(() + (2 * 3))`,最左那格还是它。</summary>
+    /// <summary>脱糖前是一条 `BinaryExpr`,脱糖后是 `().> 1` 那种运算符成员调用
+    /// (`Lowering.MemberCall`) —— 同一条链的两种形状,折回前一种好统一判断。</summary>
+    private static BinaryExpr? AsOperatorChain(Expression e) => e switch
+    {
+        BinaryExpr b => b,
+        CallExpr { Function: MemberAccess m, Argument: var a } when OperatorSymbols.IsSymbol(m.Member)
+            => new BinaryExpr(m.Object, m.Member, a) { Line = m.Line, Column = m.Column },
+        _ => null,
+    };
+
     private static bool StartsAtVoid(Expression e) => e switch
     {
         VoidLiteral => true,
         BinaryExpr b => StartsAtVoid(b.Left),
-        _ => false,
+        // 脱糖后的形状:最左端可能还是 `().> 1` 这种链
+        _ => AsOperatorChain(e) is { } chain && StartsAtVoid(chain.Left),
     };
 }

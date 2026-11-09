@@ -1,0 +1,3 @@
+.scratch/fuzz/cases/04870.rav: 印出来再解析,树对不上 —— 第 881 行起：原 SetLiteral / 新 BlockExpr
+
+印出 1 个文件,1 个往返后树对不上

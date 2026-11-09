@@ -139,6 +139,16 @@ public sealed class Lowering
         // **不交回值**(`y := x++` 是语法错误),所以解析器只在**语句位置**认它。
         UnaryExpr { Op: "++" or "--" } u => IncDec(u),
 
+        // ── 二元运算符 → 成员调用 ──
+        // `1 + 2` 就是 `1.+ 2`。运算符本来就住在左值的成员表里(`BindOperator` 找的正是
+        // `left.MemberScope.LookupField(op)`,`BoxedValue.GetMember` 找的是同一格)。在这一层
+        // 折成**成员访问 + 调用**,求值器就只剩一条路:两种写法同一个节点。
+        //
+        // **不折的那些**不是"成员表里的一格":`&&`/`||`(短路)、`:`(类型判断)、`|`(交替与位或
+        // 两种身份)、`??`/`??=`(惰性,上面折过)、赋值一族(`=`/`:=`/`+=`…)——它们是求值器的
+        // 控制动作。`<:`/`:>` 同理(类型之间比,不比值)。
+        BinaryExpr b when IsMemberOperator(b.Op) => MemberCall(b),
+
         // ── 别的只是"往下走、原样重建" ──
         BinaryExpr b => b with { Left = Lower(b.Left), Right = Lower(b.Right) },
         CallExpr c => c with { Function = Lower(c.Function), Argument = Lower(c.Argument) },
@@ -167,6 +177,23 @@ public sealed class Lowering
 
         _ => throw new NotSupportedException($"Lowering 没认这个节点:{e.GetType().Name}"),
     };
+
+    /// <summary>哪些二元运算符"就是左值成员表里的一格"——只有它们能折成 `a.op b`。
+    ///
+    /// 剩下的都不是成员:`&&`/`||` 短路、`:`/`<:`/`:>` 是类型判断、`|` 一个符号两种身份
+    /// (交替 / 位或)、`??`/`??=` 惰性、赋值一族要写回某个位置。求值器那边还留着
+    /// `StepBinaryOp` 给这些用。</summary>
+    private static bool IsMemberOperator(string op) => op is
+        "+" or "-" or "*" or "/" or "%" or "**"
+        or "==" or "!=" or "<" or ">" or "<=" or ">="
+        or "<<" or ">>" or "<<<" or ">>>" or "&" or "^";
+
+    /// <summary>`a op b` → `(a.op) b`。位置照抄那枚运算符的,报错才指得准。</summary>
+    private Expression MemberCall(BinaryExpr b)
+        => new CallExpr(
+               new MemberAccess(Lower(b.Left), b.Op) { Line = b.Line, Column = b.Column },
+               Lower(b.Right))
+           { Line = b.Line, Column = b.Column };
 
     /// <summary>`f or g` → `(x) => { (f x) || (g x); }`(与是 `&&`)。
     ///

@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 /// <summary>成员访问包装器:把「取成员」的门禁(unreadable / outdated / core / private-protected)
 /// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。
@@ -48,14 +48,34 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         return interp.PropertyGetter(BuiltinClasses.BindProperty(prop!, value), name);
     }
 
+    /// <summary>运算符成员：`MemberScope` 那一格 → `by` 槽 → "不支持运算符"。
+    ///
+    /// 三段的**次序和判据**和 `Interpreter.BindOperator` 一模一样 —— 那是 `1 + 2` 的老路,
+    /// 脱糖之后两条路必须给出同一个答案(端口里普通成员 `+ := f` 不算运算符,
+    /// 只有 `by + := property …` 那套槽形状才算)。</summary>
+    private FunctionVal ResolveOperator(string op)
+    {
+        if (Value.MemberScope.LookupField(op)?.Value is FunctionVal fn)
+            // 引擎挂的要绑接收者;类体里写的那份是普通 lambda(收的是右操作数)
+            return fn is ISelfBinding ? ObjectVal.BindMethod(fn, Value) : fn;
+
+        // 槽运算符:自己那层(类体/实现体里写的),以及生效中的接口实现落在实现身上的
+        if (Value is ObjectVal o
+            && ((o.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
+                || BuiltinClasses.TraitSlot(interp, o, op) != null))
+            return new BoundTraitOp(o, op);
+
+        throw new RuntimeException($"类型 {Value.Type} 不支持运算符 '{op}'", ErrorKind.Type);
+    }
+
     public BoxedValue GetMember(string name)
     {
-        // 运算符访问：`1.+` / `"a".==` → 交回那个运算符函数,和 `BindOperator` 查的是**同一处**
-        // (`MemberScope`:值自己那层 → 沿类的 parent 链的实例表)。
-        if (OperatorSymbols.IsSymbol(name) && Value.MemberScope.LookupField(name)?.Value is FunctionVal opMethod)
-            return new BoxedValue(
-                // 引擎挂的要绑接收者;类体里写的那份是普通 lambda(收的是右操作数,见 BindOperator)
-                opMethod is ISelfBinding ? ObjectVal.BindMethod(opMethod, Value) : opMethod, interp);
+        // 运算符访问：`1.+` / `"a".==`。**必须和 `BindOperator` 同一个判据** —— 脱糖之后
+        // `1 + 2` 就是 `1.+ 2`（见 `Lowering.MemberCall`），两条路的解析若差一点，
+        // 同一条式子换个写法就是两个答案（实测：接口里的普通成员 `+ := f` 不算运算符，
+        // `i + 1` 该报"不支持"，只有 `by +` 槽那套才算）。
+        if (OperatorSymbols.IsSymbol(name))
+            return new BoxedValue(ResolveOperator(name), interp);
 
         // `p.Get` / `p.Set` —— 属性值上那两个函数是**特判**出来的,不在任何作用域里
         if (Value is PropertyVal pv)

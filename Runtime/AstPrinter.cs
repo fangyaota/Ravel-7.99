@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 using System.Text;
 
@@ -201,6 +201,11 @@ internal static class AstPrinter
                           + "." + m.Member,
         // 多参调用是"一层层收一个"(`f a b` ≡ `(f a) b`),所以函数那一侧认 CallExpr、
         // 实参那一侧**不认**(见 `Arg`)。
+        // **例外**:`a.+ b` 这种"运算符成员调用"就是脱糖后的 `a + b`(`Lowering.MemberCall`),
+        // 按中缀印回去 —— 否则打印出来的源码会把每个加法都写成成员调用,差分测试没法跟
+        // 手写的式子对照。结合性/括号直接借 `Binary` 那条路,保证和手写的二元式印得一样。
+        CallExpr { Function: MemberAccess m, Argument: var ra } when OperatorSymbols.IsSymbol(m.Member) => Binary(
+            new BinaryExpr(m.Object, m.Member, ra), indent),
         CallExpr c => Atom(c.Function, indent) + " " + Arg(c.Argument, indent),
         BinaryExpr b => Binary(b, indent),
         // 一元运算符的操作数**至少要跟它一样紧**(18 = `**` 那一档)才不用套括号。
