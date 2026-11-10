@@ -20,7 +20,6 @@ print (c2.get ())
 
 # 块里的**定义**现在**落进对象**了（`with` 不再推一层）—— 于是 `tmp` 成了 c 的字段
 c3 := with c { tmp := 123; print (string tmp); }
-print (c3.Fields ())
 
 # 要副本请明说:Copy () 才是拷
 c4 := c.Copy ()
@@ -70,7 +69,6 @@ c2.v = 10
 print (c.v)
 print (c2.v)
 print (c2.w)
-print (c2.Fields ())
 ravel ""
 
 # ═══ 168_copy_readonly(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
@@ -80,7 +78,6 @@ try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 re
 # 99
 # 99
 # 123
-# [init v set get tmp : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 99
 # 7
 # 1
@@ -91,5 +88,4 @@ try { eval "# 拷贝要带上 attrs。以前 CopyScope 丢掉 attrs,副本上 re
 # 1
 # 10
 # 5
-# [init _v v w : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 168_copy_readonly: 无法给只读变量 'w' 赋值

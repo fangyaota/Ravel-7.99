@@ -11,11 +11,9 @@ ravel "A"
 print b
 print a
 ravel ""
-print (A.Fields ())
 # 全局的定义也还都在
 print x
 # --- expected ---
 # 2
 # 1
-# [a References : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 0

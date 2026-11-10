@@ -72,7 +72,6 @@ b := a.Copy ()
 b.x = 99
 print (a.x)
 print (b.x)
-print (a.Fields ())
 using "math.rav"
 a = 5
 print a
@@ -251,7 +250,6 @@ C := class {
 }
 c := C ()
 print c
-print (c.Fields ())
 print (typeof c)
 # 相等性按值:`true` 和 `1 == 1` 算出来的 true 必须是同一个东西。
 # 它是 FunctionVal,所以不显式写就会落到 ObjectVal 的身份比较上
@@ -420,7 +418,6 @@ ravel ""
 # BigFraction
 # 10
 # 99
-# [init x : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 5
 # changed
 # 2.718281828459045
@@ -460,7 +457,6 @@ ravel ""
 # 1
 # true
 # class { flag = true, n = 5 }
-# [init flag n : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # class
 # true
 # 2

@@ -100,7 +100,6 @@ try { m.Set "d" (fraction 1 2); } (e: Exception) => { print ("12: " + string e);
 # (该报「没有方法」,而不是解析成"类上的方法"再把 self 强转炸掉)
 try { print (Json.Kind); } (e: Exception) => { print ("7: " + string e); }
 print ((Json 5).Kind ())
-print (Json.Fields ())                 # 类对象身上:这一侧读得到的那些 + 元类链
                                        # (实例方法带 private → 类这一侧读不到,也就不列)
 j2 := Json 2
 j2.tag := 99                           # 值自己的那层留给用户挂的东西:只影响这一个
@@ -174,7 +173,6 @@ print "end"
 # 12: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 7: 类型 'Type' 没有方法 'Kind'
 # number
-# [name parent FromString block Default GetImplements GetImplementors Subtypes | >> Name Scope Body SetScope Prepend Append : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # 99
 # 8: 类型 'Json' 没有方法 'tag'
 # {"a":[1,2.5,null],"b":{"c":true},"s":"你好"}

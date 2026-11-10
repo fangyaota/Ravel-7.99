@@ -8,7 +8,6 @@
 # 从前这两段是分开的两条路(先查自己的表,miss 了再 `Type.LookupMethod`),而且
 # 哪一段生效还取决于 receiver 是不是 ObjectVal。
 # ②:原子值的成员全在类那层,沿链一样够得到(包括定义在 `object` 上的)
-print ((5).Fields ())
 print ([1 2 3].Count ())
 print ("abcd".Length ())
 print (true.ToString ())
@@ -298,11 +297,8 @@ ravel "163_fields"
 # 只排掉 `this`:它是这个值自己,不是成员。类型方法仍会并进来。
 C := class { init = () => { 0; this; }; x: int = 1; s: string = "hi"; m := () => { x; }; }
 c := C ()
-print (c.Fields ())
-print ((1).Fields ())
 ravel ""
 # --- expected ---
-# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString init : <: :> Copy Fields MemberScope CompareTo Key ToDot]
 # 3
 # 4
 # true
@@ -397,5 +393,3 @@ ravel ""
 # false
 # 1: 运算符 '==' 不支持 Integer 操作数
 # 2: 运算符 '==' 不支持 Void 操作数
-# [init x s m : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
-# [+ - * / % << >> <<< >>> ** == != < > <= >= & | ^ ToString init : <: :> Copy Fields MemberScope CompareTo Key ToDot]

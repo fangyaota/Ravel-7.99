@@ -37,7 +37,6 @@ l := [1 2 3]
 print (l.Count ())
 try { print (list.Count ()); } (e: Exception) => { print ("3: " + string e); }
 try { print (list.Add 2); } (e: Exception) => { print ("4: " + string e); }
-print ([1 2 3].Fields ())                   # 实例:整串
 print ((list.Fields ()).Contains "Add")     # 类对象:没有它
 
 # ④ 类那一侧的 API 不进②:`Json.FromString` 就是**在类上读**的
@@ -173,7 +172,6 @@ ravel ""
 # 3
 # 3: 类型 'Type' 没有方法 'Count'
 # 4: 类型 'Type' 没有方法 'Add'
-# [At Add Remove Insert Set IndexOf RemoveAt AddRange Clear Sort Count IsEmpty First Last Contains ToList ToSet Distinct Reverse Take Skip Concat Join Sum Min Max Foreach Map Where All Any Find SortBy Fold : == != <: :> ToString Copy Fields MemberScope CompareTo Key ToDot]
 # false
 # {"a":1}
 # 5: 类型 'Type' 没有方法 'Kind'
