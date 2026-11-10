@@ -4,29 +4,9 @@ using Microsoft.CodeAnalysis.Emit;
 
 namespace Ravel.Runtime;
 
-/// <summary>**`Compile` 模块** —— 把一段 C# 编成 dll，Roslyn **当库**调。
-///
-///     using "plugins/Ravel.Compile.dll"
-///     cs := "namespace Ravel.Runtime; …"          # 一个插件形状的 C# 源码
-///     Compile.Cs cs "out/plugins/NMath.dll"
-///
-/// 存在的理由：`dotnet build` 那条路要求机器上**有 SDK**，而 `out/` 是
-/// framework-dependent 发布 —— 只有 runtime 的机器上根本没有 `dotnet build`。
-/// 生成器要在那儿把「`.rav` → `.cs` → `.dll`」走完，编译器就得带在身边。
-///
-/// **引用集是从当前进程取的**，这条比"生成一个 csproj 再 restore"干净得多：
-///
-/// * 框架那一套 → `TRUSTED_PLATFORM_ASSEMBLIES`（跑着的这个 runtime 的完整清单）
-/// * 引擎自己 → `typeof(RuntimeValue).Assembly.Location`
-/// * 要适配的第三方库 → 调用方从第三个参数传（**它多半已经在进程里了**：
-///   生成器刚用 `Reflect.Type` 把它加载过，`Assembly.Location` 现成）
-///
-/// 于是**编出来的 dll 引用的就是跑着的那个 `Ravel.dll`** —— 版本天然对齐，
-/// 而 `dotnet build` 那条路反而没这个保证（它编的可能指向另一份副本）。</summary>
 [RavelModule("Compile")]
 internal static class CompileModule
 {
-    /// <summary>源码 → dll。编不过**当场把诊断说出来**（带文件、行、列）。</summary>
     [RavelFn("Cs")]
     public static RuntimeValue Cs(RuntimeValue source, RuntimeValue outPath, RuntimeValue extraRefs)
     {
@@ -66,8 +46,6 @@ internal static class CompileModule
         return PluginKit.Void;
     }
 
-    /// <summary>编译要引用的那一批程序集。**按文件名去重，先到的赢** ——
-    /// 框架清单排在最前，所以它那一份是权威。</summary>
     private static List<MetadataReference> References(RuntimeValue extraRefs)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

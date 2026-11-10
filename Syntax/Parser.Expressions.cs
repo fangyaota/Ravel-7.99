@@ -1,11 +1,8 @@
-﻿namespace Ravel;
+namespace Ravel;
 
 using System.Linq;
 using Ravel.Runtime;
 
-/// <summary>递归下降解析器的分片,按职责拆文件(和 Runtime/Interpreter.*.cs 一个路子):
-/// `Parser.cs` 入口 + token 辅助,`Parser.Statements.cs` 语句,
-/// `Parser.Expressions.cs` 优先级链,`Parser.Atoms.cs` 基本单元与括号/块。</summary>
 public partial class Parser
 {
     // ========================================
@@ -21,7 +18,6 @@ public partial class Parser
         return ParsePipe(allowCall);
     }
 
-    /// <summary>管道 &lt;|  （最低优先级，右结合）</summary>
     private Expression ParsePipe(bool allowCall = true)
     {
         var left = ParseAssignment(allowCall);
@@ -36,9 +32,6 @@ public partial class Parser
         return left;
     }
 
-    /// <summary>赋值 = += -= *= /= %= ??= 与成员定义 :=  （右结合，仅表达式级别）。
-    /// 顶层语句的 `x := v` 在 ParseStatement 就分派给 ParseDefinition 了，
-    /// 这里收的是左操作数为成员访问的 `obj.field := v`（定义/覆盖字段）。</summary>
     private Expression ParseAssignment(bool allowCall = true)
     {
         var left = ParseNullCoalesce(allowCall);
@@ -70,10 +63,6 @@ public partial class Parser
         return left;
     }
 
-    /// <summary>空值合并 `a ?? b` —— 右结合,比 `||` 低、比赋值高。
-    ///
-    /// 解析器只造 `BinaryExpr(a, "??", b)`;**折成 `NilOr` 两个 thunk** 是
-    /// <see cref="Lowering"/> 那趟的事(右边惰性的那些语义在 `lib/predefined.rav`)。</summary>
     private Expression ParseNullCoalesce(bool allowCall = true)
     {
         var left = ParseBlockArgs(allowCall);
@@ -85,26 +74,6 @@ public partial class Parser
         return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
     }
 
-    /// <summary>块字面量当实参时**绑到整个左边的表达式**上 —— 它比运算符松,比 `??` / `=` 紧。
-    ///
-    ///     x > 0 { A; } { B; }        ≡  (x > 0) { A; } { B; }
-    ///
-    /// **为什么单拎一层**:`{ … }` 从前是在 `ParsePostfixRest`(最里层)当并列实参收的,
-    /// 那儿只看得见**紧挨着的那个操作数** —— `x > 0 { … }` 于是成了 `x > (0 { … })`,
-    /// 块挂在了 `0` 上。`true` / `false` 可调用(收两个块)是这门语言的条件,
-    /// 而"整条条件式"才是那个 bool,所以块必须挂到 `x > 0` 上。
-    ///
-    /// **别的一概不动**:
-    /// <list type="bullet">
-    /// <item>`f { A } { B }`(callee 本来就是个值)照旧;</item>
-    /// <item>`f { A } 1` 照旧 —— 接完块接着走一遍 `ParsePostfixRest` 接普通的并列实参;</item>
-    /// <item>`x > f (1)` 照旧 —— `(1)` 是**括号组**不是块字面量,它仍在里层当实参收,
-    ///   所以 `f () == x` ≡ `f (() == x)` 那条"实参吃运算符"的规矩不受影响。</item>
-    /// </list>
-    ///
-    /// **影响面量过**:语料(203 个 `.rav`)里未加括号的「`运算符 值 {块}`」**一处都没有** ——
-    /// 这一层落地后全语料的 AST 逐字节不变(改之前先把整份语料的 `ravel ast` 存下来比过)。
-    /// `allowCall: false`(实参位置)整层跳过:实参里不接块,和从前一致。</summary>
     private Expression ParseBlockArgs(bool allowCall)
     {
         var e = ParseClimb(allowCall, 0);
@@ -130,10 +99,6 @@ public partial class Parser
         return e;
     }
 
-    /// <summary>把一条表达式包成"要用才跑"的块 `() => { expr; }`。参数名是 `_`(void),
-    /// 和 `() => …` 的 AST 写法一致(见 `ParseParen`)。
-    ///
-    /// 只剩 `?.` 在用了 —— `??` / `??=` 那两处已经搬到 `Lowering` 去折。</summary>
     private LambdaExpr Thunk(Expression e, Token at)
         => new(new Parameter("_", new IdentifierExpr("void") { Line = at.Line, Column = at.Column }), AsBlock(e, at))
             { Line = at.Line, Column = at.Column, Sugar = true };
@@ -143,21 +108,6 @@ public partial class Parser
     private static CallExpr Call(Expression fn, Expression arg, Token at)
         => new(fn, arg) { Line = at.Line, Column = at.Column };
 
-    /// <summary>纯二元那八层共用的优先级表:`(左结合度, 右结合度)`。
-    ///
-    /// 左结合写 `(2k, 2k+1)` —— 右结合度比左结合度大一,于是"同级的右边"该不该继续
-    /// 吃下一个同级的运算符,由这一对数说了算:右边那一趟的 `minBp` 正好把同级挡在外面。
-    ///
-    /// **只有纯二元的在表里。** 四个例外各有各的道理,留在自己那层:
-    ///
-    ///   * `**` **比一元还紧**(见 `ParsePower`)—— 优先级表表达不了"比前缀运算符紧";
-    ///   * `??` 是**惰性**的,要脱糖成 `NilOr` 的两个 thunk,不是"求两个值";
-    ///   * `=` 那一族是赋值,右值那边要的是"又一个赋值",不是运算符链;
-    ///   * `<|` **比这一整条链都松**(见 `ParsePipe`)—— 它连赋值都包得住,
-    ///     表里放不下"比最松的还松"。(`|>` 不是运算符,它住在调用那一段。)
-    ///
-    /// **词形运算符**(`or` / `and`)是**标识符**,进不了按 token 类型查的表 —— 单独一张
-    /// (见 <see cref="WordOpBp"/>)。</summary>
     private static readonly Dictionary<TokenType, (int Lbp, int Rbp)> BinOpBp = new()
     {
         [TokenType.OrOr] = (2, 3),
@@ -175,51 +125,19 @@ public partial class Parser
         [TokenType.Star] = (16, 17), [TokenType.Slash] = (16, 17), [TokenType.Percent] = (16, 17),
     };
 
-    /// <summary>**词形运算符**:看着是标识符,但在中缀位置是运算符 —— 现在只有 `or` / `and`
-    /// (谓词级的与 / 或)。
-    ///
-    /// 它们比不了 `<:` 那种"生来就是标点"的:进不了按 TokenType 查的 <see cref="BinOpBp"/>,
-    /// 得按**词**认,而且只有两个词、只在**中缀位置**认。代价说清楚:
-    /// **在实参那个位置它们不再是名字** —— `f or g` 合成谓词,想传一个叫 `or` 的值得写 `f (or)`
-    /// (括号里它照旧是普通标识符)。定义位置(`or := 42`)、参数位置、成员位置(`o.or`)、
-    /// 字典键一概不受影响。语料里没有把 `or` / `and` 当裸实参传的地方。
-    ///
-    /// 优先级**照着 `||` / `&&`**:`or` 那一档、`and` 高两档 —— 于是 `a or b and c` 是
-    /// `a or (b and c)`,和布尔那边读法一致。
-    ///
-    /// 折成谓词那一步**不在这儿** —— 解析器只造 `BinaryExpr(l, "or", r)`,换形状是
-    /// <see cref="Lowering"/> 那趟的事。</summary>
     private static readonly Dictionary<string, (int Lbp, int Rbp)> WordOpBp = new()
     {
         ["or"] = (2, 3),
         ["and"] = (8, 9),
     };
 
-    /// <summary>这一枚是不是**中缀位置**的词形运算符(`or` / `and`)。</summary>
     private static bool IsInfixWordOperator(Token t)
         => t.Type == TokenType.Identifier && WordOpBp.ContainsKey(t.Lexeme);
 
-    /// <summary>这一枚在**中缀位置**是个二元运算符吗 —— 标点的(见 <see cref="BinOpBp"/>)、
-    /// 词形的(`or` / `and`),再加两个走别的路的(`??` 在 `ParseNullCoalesce`、
-    /// `|>` 在 `ParsePostfixRest`)。
-    ///
-    /// **词法器要用它**:一行要是**以二元运算符打头**,那个换行就不算数,于是"接着上一行写"
-    /// 成立(见 `Lexer.Tokenize` 末尾那一趟)。表在哪儿、判据就在哪儿 —— 别在两处各列一份。</summary>
     internal static bool IsInfixOperator(Token t)
         => BinOpBp.ContainsKey(t.Type) || IsInfixWordOperator(t)
         || t.Type is TokenType.Coalesce or TokenType.PipeInto;
 
-    /// <summary>优先级爬升 —— 替掉原来"一个运算符一个函数"的那八层。
-    ///
-    /// 那八层(`ParseLogic` / `ParsePipeOp` / `ParseAndBit` / `ParseAnd` / `ParseComparison` /
-    /// `ParseShift` / `ParseTerm` / `ParseFactor`)除了"认哪个运算符"之外**一模一样** ——
-    /// 加一个运算符得新开一个函数,还得在链上找准位置。现在加一个运算符就是**表里添一行**。
-    ///
-    /// 顺带把调用栈也削平了:从前一层括号要穿过八层才下到 `ParsePower`,现在只穿过一层 ——
-    /// 而这几层本来就是整个解析器里递归最深的一段。
-    ///
-    /// `allowCall` 照旧往下传 —— 实参那一趟(`allowCall: false`)爬的是**同一条链**,只是
-    /// 不吃并列的调用。这正是生成器做不到的那一件(规则不能参数化,只能把整条链抄两遍)。</summary>
     private Expression ParseClimb(bool allowCall, int minBp)
     {
         using var _climb = ExprDepth.Begin(this);
@@ -257,17 +175,6 @@ public partial class Parser
         return left;
     }
 
-    /// <summary>乘方 `**` —— **右结合**,而且**比一元还紧**:
-    ///
-    ///     -2 ** 2     ≡  -(2 ** 2)       = -4     ← 要 (-2)² 得自己括
-    ///     2 ** 3 ** 2 ≡  2 ** (3 ** 2)   = 512
-    ///     2 ** -1     ≡  2 ** (-1)       = 0.5    ← 指数里的负号照样是一元的
-    ///
-    /// 它是这门口子里**唯一**比一元紧的二元运算符(`-2 * 3` 仍然是 `(-2) * 3`)。
-    /// 照着数学写法定的:写 `-2 ** 2` 的人要的是 -4 的多。
-    ///
-    /// 实现上不是靠优先级表——是让 `ParseCall` 里那个一元分支的**操作数走这一层**
-    /// (而不是它自己),于是"先把整个乘方收完、再套负号"。</summary>
     private Expression ParsePower(bool allowCall = true)
     {
         var left = ParseCall(allowCall);
@@ -283,7 +190,6 @@ public partial class Parser
         return left;
     }
 
-    /// <summary>一元 ! -  .成员访问  和函数调用</summary>
     private Expression ParseCall(bool allowCall = true)
     {
         // 一元 ! 和 -(都往本层递归,所以 `! !x` / `- -1` 写得出来)。
@@ -311,14 +217,6 @@ public partial class Parser
         return ParsePostfixRest(expr, allowCall);
     }
 
-    /// <summary>主表达式后面那一串**并列的调用/实参**(`f a b` / `|>`)。
-    ///
-    /// 单拎出来是因为 `?.`:`a?.b c` 里**整条链**(成员访问 + 后面的调用)都归那枚守卫
-    /// 闭包管 —— 它在自己的 lambda 体内得再走一趟这段(见 <see cref="GuardedChain"/>)。
-    /// `guarded: true` = 已经在一层守卫里了,再撞上 `?.` 就当普通 `.` 使(守卫只包一层)。</summary>
-    /// <summary>链上又挂了一节(运算符 / 一元 / 成员访问 / 乘方 / 空值合并)。
-    /// 数字超了就是 <see cref="MaxExprDepth"/> —— 再往下走,打印器和脱糖那几趟递归
-    /// 会先把 C# 栈用光。</summary>
     private void BumpExprDepth()
     {
         if (++_exprDepth > MaxExprDepth)
@@ -485,9 +383,6 @@ public partial class Parser
         return expr;
     }
 
-    /// <summary>主表达式后面挂的一串 `.成员`(`a.b.c`)。实参和函数各要用一次。
-    ///
-    /// `?.` 也在这一串里 —— 它和 `.` 一个位置,只是"空就短路"。</summary>
     private Expression ParseMemberChain(Expression e, bool allowCall = true, bool guarded = false)
     {
         while (true)
@@ -525,13 +420,6 @@ public partial class Parser
         return e;
     }
 
-    /// <summary>`a?.b c` —— 「空就短路;有值就拿着里面的值往下走」。
-    ///
-    /// **`?.` 后面整条链都归它管**(成员访问 + 并列调用):`u?.Name ()` 是"有 u 才调 Name",
-    /// 不是在 `None` 上调它。折成 `NilChain (() => { a; }) (v) => { v.b c; }` ——
-    /// 哪样算"空"、Option 要不要包回去,由库里的 `NilChain` 说了算(见 `lib/predefined.rav`)。
-    ///
-    /// 参数名 `_nil{n}` 和占位符消糖的 `_n` 分开:两种糖撞在同一条语句里也不会互相遮蔽。</summary>
     private Expression GuardedChain(Expression receiver, bool allowCall, Token q)
     {
         var name = "_nil" + _nilCount++;

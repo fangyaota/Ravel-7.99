@@ -1,12 +1,5 @@
 namespace Ravel.Runtime;
 
-/// <summary>**双端队列**:两头都能进能出(底下是双向链表,两端 O(1))。
-///
-///     d := Deque ()
-///     d.PushBack 1 / d.PushFront 0 / d.PopFront () / d.PopBack ()
-///
-/// `Push` / `Pop` 是 `PushBack` / `PopBack` 的简写(当栈使的时候顺手)。
-/// 枚举顺序是**从前到后**。</summary>
 [RavelModule("Structures")]
 [RavelClass("Deque")]
 internal static class DequeClass

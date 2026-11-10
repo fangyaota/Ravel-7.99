@@ -4,18 +4,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-/// <summary>给 golden 用例用的**回环 HTTP 服务器** —— 网络那几条用例不碰真网络:
-/// 真网络会飘(断网、限流、返回变了),那对一份要精确比对的用例是致命的。
-///
-/// 自己拿 `TcpListener` 说 HTTP/1.1,不用 `HttpListener`:后者在 Windows 上走 http.sys、
-/// 要管理员配 URL 前缀,而且响应字节不完全可控。自己写就能造出**想要的每一颗字节** ——
-/// GBK 的网页、故意慢的响应、500、302、几百 KB 的正文,都在这儿。
-///
-/// 端口让它自己挑(`TcpListener` 绑 0),基址通过环境变量 `RAVEL_TEST_HTTP` 交给用例。
-/// **用例里不许打印 URL** —— 端口每次都变,打印出来就钉不住了。</summary>
 internal sealed class LoopbackServer : IDisposable
 {
-    /// <summary>用例读的那个环境变量的名字(引擎那边就是 `System.Env`)</summary>
     public const string EnvName = "RAVEL_TEST_HTTP";
 
     private readonly TcpListener _listener;
@@ -24,8 +14,6 @@ internal sealed class LoopbackServer : IDisposable
     private int _live;           // 此刻握着几个 `/hold`
     private int _peak;           // `/hold` 上见过的最大并发(`/stats` 报它,`/reset` 清零)
 
-    /// <summary>把一个数往上抬到至少 `value`(并发计数用 —— 只增不减的那种收尾)
-    /// </summary>
     private static void InterlockedMax(ref int target, int value)
     {
         int seen;
@@ -35,7 +23,6 @@ internal sealed class LoopbackServer : IDisposable
         }
     }
 
-    /// <summary>基址,形如 `http://127.0.0.1:51234`(没有结尾的 `/`)</summary>
     public string BaseUrl { get; }
 
     public LoopbackServer()
@@ -160,9 +147,6 @@ internal sealed class LoopbackServer : IDisposable
         }
     }
 
-    /// <summary>从 multipart 正文里抠出文件名(够用就行,不上真正的解析器)。
-    /// 引号可有可无 —— .NET 那台写出来是 `filename=up.txt`(不带引号),
-    /// 别的客户端可能写 `filename="up.txt"`;`filename*=`(带 `*` 那个)不会被误抓。</summary>
     private static string FileOf(string raw)
     {
         const string key = "filename=";
@@ -173,8 +157,6 @@ internal sealed class LoopbackServer : IDisposable
         return (end < 0 ? raw[start..] : raw[start..end]).Trim().Trim('"');
     }
 
-    /// <summary>读一个请求:请求行、头、正文(按 Content-Length)。自己按字节读 ——
-    /// 混用 StreamReader 会在它自己那层缓冲里多吞掉正文的头几个字节。</summary>
     private static (string Method, string Path, byte[] Body, Dictionary<string, string> Headers) ReadRequest(Stream s)
     {
         var head = new MemoryStream();

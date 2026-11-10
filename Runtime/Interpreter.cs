@@ -1,17 +1,11 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 using System.IO;
 
 public partial class Interpreter
 {
-    /// <summary>全局作用域。内置里 `impl` 那一条要往这儿登记(每个作用域链都到全局,
-    /// 于是处处生效),所以给内置那一族开个 `internal` 的口。</summary>
     internal Scope GlobalScope => _global;
 
-    /// <summary>接口分发那条缓存放这儿(**每个解释器一份**,不是静态的)——
-    /// 见 `BuiltinClasses.HasTrait`。`SawScopedUse` 是"这个解释器见过 `use` 吗":
-    /// 见过就整个关掉缓存,因为 `use` 的可见性随作用域走,而作用域是**这个解释器**的事。
-    /// (计数器见 `HasTraitMemoVersion`,它比的是登记表的版本号。)</summary>
     internal bool SawScopedUse;
 
     internal int HasTraitMemoVersion = -1;
@@ -19,61 +13,19 @@ public partial class Interpreter
 
     private readonly Scope _global;
 
-    /// <summary>当前作用域——随执行动态变化(同步自帧栈)</summary>
     public Scope CurrentScope { get; set; }
 
-    /// <summary>脚本名**之后**那些命令行参数(`System.Args ()` 交回的就是它,复制成一份 list)。
-    ///
-    /// 解释器自己**不读命令行**:是谁把它跑起来的、命令行长什么样,那是 CLI 的事(见 `Cli/Program.cs`
-    /// 的 RunFile)。所以 REPL 和 `ravel test` 里这份就是空的 —— 它们没有"脚本的参数"可言。</summary>
     public IReadOnlyList<string> ScriptArgs { get; }
 
-    /// <summary>「是不是忘了调用?」—— 块里**不是最后一条**的语句,值求出来是个函数就在 stderr 上提醒一句。
-    ///
-    /// 为什么专挑这个:实参收满才成一次调用,少给一块(最典型的就是 `if { … } { … }` 只给两块)
-    /// **不报错**,只交回一个半成品函数,然后被当成一条普通语句静默丢掉 —— 程序照跑,结果不对。
-    ///
-    /// 为什么不管**最后一条**:块的值就是它,`() => { … }` 那种"交回一个函数"是正常写法。
-    /// 管了的话每个高阶函数的返回处都要响一声。
-    ///
-    /// 为什么默认关:它是**诊断开关**,不是语法规则。CLI 用 `--warn` 打开(REPL 同理),
-    /// 脚本里随时能开 —— `System.WarnForgotCall true`(见 predefined 之外的 System 模块)。
-    /// **报过一次的位置不再报**:循环体里那一句一跑就是几千遍,刷屏反而看不见。
-    ///
-    /// 怎么看:真正的兜底在 `Runtime/Interpreter.Stack.cs` 的 `WarnIfForgotCall`。
-    ///
-    /// **这个开关还管着编译期那两条**(见 <see cref="Interpret"/>):命令行 `--warn` 一开,
-    /// 开跑之前先把形状类的那两条说完(`Syntax/CompileWarnings.cs`)。反过来不成立 ——
-    /// 脚本里 `System.WarnForgotCall true` 只管**运行期**这条:它是跑到才生效的,
-    /// 而编译那一趟早过去了(要那两条就得写文件头 `#program --warn`)。</summary>
     public bool WarnForgotCall { get; set; }
 
-    /// <summary>`return` / `break` / `continue` 这三个糖的开关(`--more-control-flow`,
-    /// 或脚本头一条 `#program --more-control-flow=true`)。**默认关** —— 关着的时候
-    /// 那三个就是普通名字,和从前一模一样。`eval` 和 `using` 进来的代码跟着它走
-    /// (各自文件头还能自己声明)。</summary>
     public bool MoreControlFlow { get; set; }
 
-    /// <summary>进程级的一次性准备 —— 静态构造,第一次造解释器时跑一遍。
-    ///
-    /// **把老编码(GBK / GB2312 / Big5…)注册上**。.NET 默认只认 Unicode 那几套,不注册的话
-    /// `Encoding.GetEncoding("gbk")` 直接抛。这是"本进程认不认老编码"的一件**进程级**的事,
-    /// 有两处要它:官方扩展里那条 `Native.DecodeText`(网页 `charset=gbk`),
-    /// 和测试用的回环服务器(造 GBK 的响应字节)。
-    ///
-    /// 从前它挂在 `SysNet` 的静态构造里 —— 那是"谁先碰网络谁顺手注册",而搬去扩展之后
-    /// 就不是这个顺序了。放在引擎这边,**一次、无条件、谁也不必记得**。
-    /// (`System.Text.Encoding.CodePages` 从 net10 起在共享框架里,不必挂 PackageReference。)</summary>
     static Interpreter()
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
     }
 
-    /// <summary>注册内置:建 `System` 模块 —— 它是唯一「用 C# 写死」的模块(其余模块都来自
-    /// .rav 文件),而且**启动就有**(不像 `Math` 要显式 `ravel` 才有)。
-    /// 装进去的东西全在 `Runtime/Builtins/`:`SysModule` 摆三张数据表,`[Sys]` 那一族填函数。
-    /// (「某个库的本机半边」不在这儿 —— 那些是 `Ravel.Extensions/` 那个官方扩展,
-    /// 由 `lib/native.rav` 在用到时装进来,成员落在 `Native` 模块。)</summary>
     private void RegisterBuiltins()
     {
         var module = ModuleVal.WithOwnTable("System", _global, this);
@@ -82,8 +34,6 @@ public partial class Interpreter
         _global.Define("System", BuiltinClasses.Ravel, module);
     }
 
-    /// <summary>创建解释器：注册内置、加载预定义模块</summary>
-    /// <param name="scriptArgs">脚本名之后那些参数;不给就是空的(REPL、测试运行器这么用)</param>
     public Interpreter(IEnumerable<string>? scriptArgs = null)
     {
         ScriptArgs = scriptArgs is null ? [] : [.. scriptArgs];
@@ -95,33 +45,14 @@ public partial class Interpreter
     }
 
     private readonly Dictionary<string, ModuleVal> _modules = [];
-    /// <summary>**文件 → 那个文件装出来的模块**(见 `EnterModule`)。`References ()` 拿它把
-    /// 记下的路径解析成模块 —— 记 `using` 的那一刻目标还没跑、模块还没建出来,
-    /// 所以只能回查(见 `ResolveReferences`)。</summary>
     private readonly Dictionary<string, ModuleVal> _moduleByPath = [];
-    /// <summary>**没写模块名的那些文件**共用的那一枚(见 `GlobalModule`)—— 它们往全局落名字,
-    /// 就是同一个地方,所以 `References ()` 里也只用一枚模块替它们站位。</summary>
     private ModuleVal? _globalModule;
-    /// <summary>正在加载的那个文件 → 它**攒下的那些 `using`**(见 `RecordReference`)。
-    /// 按**文件**攒、不按模块攒:`using` 常常写在 `ravel "M"` 前面,那会儿模块还没建出来。
-    /// 建模块时把这份列表**接**给 `ModuleVal.ReferencePaths`,两边从此是同一个列表。</summary>
     private readonly Dictionary<string, List<string>> _refsByPath = [];
-    /// <summary>当前挂着的那个模块(`ravel "M"` 之后、`ravel ""` 之前)。`using` 记给它 ——
-    /// 主脚本里定义的模块走这条路(`_loading` 里没有它,它不是被 `using` 进来的文件)。</summary>
     private ModuleVal? _currentModule;
     private readonly HashSet<string> _loaded = [];
     private readonly Stack<string> _loading = new();
-    /// <summary>`unsafe ()` 标记过的作用域。core 字段只在「当前作用域往上走得到某个被标记的作用域」
-    /// 时才放行。
-    ///
-    /// 从前这里是个只增不减的计数器(`UnsafeDepth++`,没有对应的 --),于是**任何一次**
-    /// `unsafe ()` 之后整个程序余下的 core 检查全关掉:在某个无关函数里调一次
-    /// ——哪怕它早就返回了——外部就能直接读核心字段,core 修饰符等于不存在。
-    /// 按作用域标记才对得上「读写之前先 `unsafe ()`」这个用法:标记随调用帧走,
-    /// 函数返回后自然失效。</summary>
     internal readonly HashSet<Scope> UnsafeScopes = [];
 
-    /// <summary>当前作用域是否在被 `unsafe ()` 标记的范围内</summary>
     internal bool IsUnsafe
     {
         get
@@ -132,23 +63,9 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>**同一个进程里,同一个库文件只解析一遍**（`lib/` 那些）。
-    ///
-    /// 为什么值得缓存：每建一个 `Interpreter` 都要把 `predefined.rav` 连同它 `using` 的
-    /// 整个标准库**重新解析**一遍 —— 而测试运行器一个进程里要建一百多个
-    /// (`GoldenTestRunner` 每条用例一个)，光这一项就是十几秒。
-    /// 解析出来的 AST 是**不可变记录**，`Interpret` 只是走它、不改它，所以按文件共享是稳的。
-    ///
-    /// **按路径缓存**，不按内容：一个进程里同一个路径不会中途换内容(库文件没人写)。
-    /// 缓存是 static，进程一退就没了 —— 所以改了库文件不会吃到旧的，重跑一遍就是新的。
-    /// 键里带 `flow`：那个开关会影响解析结果(`DeclaresMoreControlFlow`)，两种都得各留一份。
-    ///
-    /// **只有库文件走这儿** —— 用户脚本仍旧一次一解析。</summary>
     private static readonly Dictionary<(string Path, bool Flow), Program> _libPrograms = [];
     private static readonly Dictionary<(string Path, bool Flow), BlockExpr> _libBlocks = [];
 
-    /// <summary>`predefined.rav` 那一趟(和 `Parser.ParseSource(text, path)` 两参重载**等价**:
-    /// 开关只看文件自己声明的)。</summary>
     private static Program ParseLibSource(string path)
     {
         var text = File.ReadAllText(path);
@@ -157,8 +74,6 @@ public partial class Interpreter
         return _libPrograms[(path, flow)] = Parser.ParseSource(text, path, flow);
     }
 
-    /// <summary>`using "x.rav"` 那一趟:开关是**命令行那个 OR 文件自己声明的**(见 Modules 里
-    /// 原来那句),所以助手把两件事一起做掉。</summary>
     private static BlockExpr ParseLibBlock(string path, bool commandLineFlow)
     {
         var text = File.ReadAllText(path);
@@ -167,10 +82,6 @@ public partial class Interpreter
         return _libBlocks[(path, flow)] = Parser.ParseBlock(text, path, flow);
     }
 
-    /// <summary>从磁盘加载 predefined.rav（别名、导入标准库）。
-    ///
-    /// **找不到就报错**,不静默跳过:别名(`print` / `true` / `int` / …)和控制流全在那个文件里,
-    /// 空着手往下跑的话,用户拿到的是「未定义的变量 'print'」—— 指不到真正的原因。</summary>
     private void LoadPredefined()
     {
         foreach (var d in ModuleSearchPath.Defaults)
@@ -188,37 +99,18 @@ public partial class Interpreter
             + string.Join(" ", ModuleSearchPath.Defaults), ErrorKind.Io);
     }
 
-    /// <summary>执行一个程序的全部语句，返回最后一条语句的值。
-    ///
-    /// **开跑之前先把编译期那几条警告说完** —— 那一趟只看树的形状,不必等某一行走到
-    /// (见 <see cref="CompileWarnings"/>)。开关两个:命令行/REPL 的 `--warn`
-    /// (落到 `WarnForgotCall` 上),以及**文件头**那条 `#program --warn`
-    /// (脚本里那句 `System.WarnForgotCall true` 这时候还没跑到)。
-    ///
-    /// 运行期那条「是不是忘了调用」照旧在跑的时候吭声 —— 它要看值,见 `RunStack`。</summary>
     public RuntimeValue Interpret(Program p)
     {
         if (WarnForgotCall || DeclaresWarnIn(p.Source)) ReportCompileWarnings(p.Statements, p.Source);
         return RunStack(p);
     }
 
-    /// <summary>编译期那一趟,外加**把说过的地方记进运行期那份过账表**。
-    ///
-    /// 为什么要记:两条路都看得见 `if { c } { t }`(少给一块)—— 编译期按形状说、
-    /// 运行期按"值是不是半成品"说。共用一张表就只说一遍;
-    /// 而**编译那一趟没跑**时(脚本里才开的 `System.WarnForgotCall true`)运行期照旧说,
-    /// 不因为"编译期本该说"就漏掉。</summary>
     private void ReportCompileWarnings(IReadOnlyList<Statement> statements, string? file)
     {
         foreach (var (line, col) in CompileWarnings.Report(statements, file))
             _warnedForgotCall.Add((file, line, col));
     }
 
-    /// <summary>文件头那条 `#program --warn`。**从盘上读一遍** —— 解析那一趟拿到的源码文本
-    /// 没留在 `Program` 上(记着它等于把整份源码钉在树旁边),而文件就在那儿,
-    /// 一个程序读一次不值当为它加字段。
-    ///
-    /// 没有真文件的不算(REPL / `eval` 的 `<eval>`)—— 那两种本来也没有文件头可写。</summary>
     private static bool DeclaresWarnIn(string? path)
     {
         if (path is not { Length: > 0 } || path[0] == '<') return false;
@@ -230,10 +122,6 @@ public partial class Interpreter
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    /// <summary>访问控制:private 仅本对象 scope;protected 额外允许子类实例 scope。无访问控制时直接放行。
-    ///
-    /// 内置方法不带这两个属性(它们住在类的**实例表**里,谁都能从实例上读),所以这里
-    /// 只管用户写在自己类里的字段 —— 判据就是"当前作用域在不在这个对象的类里"。</summary>
     internal bool CheckFieldAccess(Variable field, ObjectVal obj)
     {
         if (!field.HasAttr(Attr.Private) && !field.HasAttr(Attr.Protected)) return true;
@@ -252,49 +140,25 @@ public partial class Interpreter
         return false;
     }
 
-    /// <summary>这个值算不算 target 类型的值 —— **接口也算数**:名义继承链够不着时,再看当前作用域里
-    /// 有没有生效中的实现把它接到 target 上(判据同 `x is T`,见 `BuiltinClasses.HasTrait`)。
-    /// 类型检查(注解、参数)一律走这一条:接口不在继承链上,但"在这个作用域里实现了"就该收下。</summary>
     private bool Accepts(RuntimeValue value, ObjectVal target)
         => value.Type.IsAssignableTo(target) || BuiltinClasses.HasTrait(this, value.Type, target);
 
-    /// <summary>把"接口也算数"那半递给 <see cref="Variable.CheckAssignable"/> / `Assign` 当补充判据。
-    /// 是个委托:名义链够得着就不问它(接口那一问要走一遍作用域链)。</summary>
     private Func<ObjectVal, bool> ViaTrait(RuntimeValue value) => t => BuiltinClasses.HasTrait(this, value.Type, t);
 
-    /// <summary>取 `by` 属性值上的 getter / setter。
-    ///
-    /// 标了 `by` 却没有那两个函数(值不是 `property g s` 造的)就是**用错了** —— 报错,
-    /// 别静默原样交回:那样 `by v := 5` 读起来像个普通变量,`v = 1` 更是什么都不发生。
-    /// 从前四条读写路各有各的兜底:`obj.v` 报「没有方法 'Get'」,而裸读 `v` **悄悄把那个
-    /// 值交出去**、写回来还什么都不做 —— 同一个错误四个答案,现在只有一个。
-    ///
-    /// `owner` 是报错文案里的名字(变量名/字段名)。</summary>
     internal FunctionVal PropertyGetter(RuntimeValue prop, string owner)
         => (prop as PropertyVal)?.Getter ?? throw NotAProperty(prop, "getter", owner);
 
     internal FunctionVal PropertySetter(RuntimeValue prop, string owner)
         => (prop as PropertyVal)?.Setter ?? throw NotAProperty(prop, "setter", owner);
 
-    /// <summary>那一**份** property 本身(不是它的 getter/setter)。
-    ///
-    /// 拿它做什么:接口那条槽交出去之前要**连 getter/setter 一起**绑到这一次的作用域上
-    /// (见 `BuiltinClasses.Activate`),光取 getter 不够。`what` 只是报错文案里那个词,
-    /// 和上面两条共用一套措辞(测试 138 钉着 `没有 getter` / `没有 setter` 两种)。</summary>
     internal PropertyVal SlotProperty(RuntimeValue prop, string owner, string what = "getter/setter")
         => prop as PropertyVal ?? throw NotAProperty(prop, what, owner);
 
     private static RuntimeException NotAProperty(RuntimeValue prop, string what, string owner)
         => new($"'{owner}' 标了 by，但它的值不是 property（{prop.Type} 上没有 {what}）");
 
-    /// <summary>把内建函数的参数收成指定类型,否则报 Ravel 错误。
-    /// 直接硬转会抛 C# 的 InvalidCastException,消息里全是 Ravel.Runtime.XXXVal。</summary>
-    /// <summary>参数收束:不是 T 就报 Ravel 错误。内置那一族(`Runtime/Builtins/`)也用,
-    /// 所以是 `internal` —— 它们靠 `using static Ravel.Runtime.Interpreter;` 直接叫名字。</summary>
     internal static T As<T>(RuntimeValue v, string what) where T : RuntimeValue
         => v as T ?? throw new RuntimeException($"{what}需要{ArgNames.Of(typeof(T))}，得到 {v.Type}", ErrorKind.Type);
 
-    /// <summary>值转字符串（Ravel 语义）</summary>
-    /// <summary>值转字符串(Ravel 语义)—— 内置那一族也用,理由同 `As`</summary>
     internal static string Show(RuntimeValue v) => v.ToString();
 }

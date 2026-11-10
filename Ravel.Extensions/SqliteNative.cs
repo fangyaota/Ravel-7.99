@@ -5,18 +5,6 @@ namespace Ravel.Extensions;
 using Ravel.Runtime;
 using static Ravel.Runtime.PluginKit;
 
-/// <summary>SQLite 的原语 —— 库(`lib/sqlite.rav`)管策略,这里只负责"开一个连接、说一句 SQL"。
-/// 它住在**官方扩展**(`plugins/Ravel.Extensions.dll`)里,对外是 `Native.SqliteOpen` 那几条;
-/// `Microsoft.Data.Sqlite` 这个包也跟着搬进来了 —— 主项目从此不引用它。
-///
-/// **连接不进 Ravel 堆**:那是个要 Dispose 的本机句柄,而 Ravel 值没有析构那一套。
-/// 所以这一格存着(一张 号 → 连接 的表),交给 Ravel 的是个 **int 号** ——
-/// 库里那个 `Db` 对象拿着号,`Close ()` 时把号还回来。这也是为什么这几条原语的第一个
-/// 参数都是 `handle`。
-///
-/// 参数一律用**名字**(`@名字` + 一张 dict),不做 `?` 那种按位置的替换:
-/// SQL 里 `?` 也可能是字符串里的一个字面量,靠数问号来绑是给自己埋雷。
-/// SQL 执行失败报 `ValueError`(你给的 SQL 不对),开关连接失败报 `IoError`(库文件打不开)。</summary>
 [RavelModule("Native")]
 internal static class SqliteNative
 {
@@ -49,7 +37,6 @@ internal static class SqliteNative
         return Void;
     });
 
-    /// <summary>说一句不取结果的 SQL(建表 / 增删改 / `begin`/`commit`),交回**影响了几行**</summary>
     [RavelFn("SqliteExec")]
     public static RuntimeValue Exec(RuntimeValue handle, RuntimeValue sql, RuntimeValue args) => Sql("执行", () =>
     {
@@ -57,7 +44,6 @@ internal static class SqliteNative
         return IntVal.Of(cmd.ExecuteNonQuery());
     });
 
-    /// <summary>取结果:`{columns: [列名…] rows: [[值…]…]}` —— 列名跟着来,库那边才拼得出一行行 dict</summary>
     [RavelFn("SqliteQuery")]
     public static RuntimeValue Query(RuntimeValue handle, RuntimeValue sql, RuntimeValue args) => Sql("查询", () =>
     {
@@ -82,9 +68,6 @@ internal static class SqliteNative
         });
     });
 
-    /// <summary>刚插进去那一行的 rowid(bigint —— 主键可以是 64 位)。
-    /// **问一句 SQL** 而不是读某个属性:`Microsoft.Data.Sqlite` 这个版本没把
-    /// `last_insert_rowid()` 挂成属性,而它本来就是一条 SQL 函数。</summary>
     [RavelFn("SqliteLastId")]
     public static RuntimeValue LastId(RuntimeValue handle) => Sql("取 last_insert_rowid", () =>
     {
@@ -103,8 +86,6 @@ internal static class SqliteNative
             : throw Fail($"这个数据库已经关了（Close () 过,或者压根没开成）：句柄 {id}", ErrorKind.Value);
     }
 
-    /// <summary>拼一条命令:SQL + 按**名字**绑的参数(一张 dict;值经 `ToSql` 换算)。
-    /// 参数名写的时候就带 `@`(`@id`),和 SQL 里那个写法一模一样 —— 不再自己加前缀。</summary>
     private static SqliteCommand Command(RuntimeValue handle, RuntimeValue sql, RuntimeValue args)
     {
         var cmd = Connection(handle, "执行").CreateCommand();
@@ -120,8 +101,6 @@ internal static class SqliteNative
         return cmd;
     }
 
-    /// <summary>Ravel 值 → SQLite 能收的东西。`()` 是 **NULL**(和 Json 那边一个口径);
-    /// 字节表是 BLOB;大整数装不下 64 位就报错(不静默截断)。</summary>
     private static object? ToSql(RuntimeValue v) => v switch
     {
         VoidVal => null,
@@ -136,8 +115,6 @@ internal static class SqliteNative
             $"SQL 参数存不进 SQLite: {v.Type}（先转成 数 / 字符串 / 布尔 / ()，二进制用字节表）", ErrorKind.Type),
     };
 
-    /// <summary>SQLite 交回的东西 → Ravel 值。INTEGER 装得下 int 就给 int、否则 bigint
-    /// (和数字字面量、`Json.Extract` 一个口径)。</summary>
     private static RuntimeValue FromSql(object? o) => o switch
     {
         null or DBNull => Void,
@@ -148,8 +125,6 @@ internal static class SqliteNative
         _ => new StringVal(o.ToString() ?? ""),
     };
 
-    /// <summary>SQL 不对 / 数据库关着 —— 说人话,别把 `SqliteException` 漏到顶层
-    /// (它接不住,会把程序打掉 —— 这批原语一条老规矩)</summary>
     private static RuntimeValue Sql(string what, Func<RuntimeValue> body)
     {
         try

@@ -2,18 +2,8 @@ namespace Ravel;
 
 using System.Linq;
 
-/// <summary>`_` 占位符的消糖:解析完一个表达式后跑一趟 AST 改写,
-/// 把 `_ + 1` 变成 `(x: object) => { x + 1 }`。多个 `_` 按出现顺序变成嵌套 lambda 的参数。</summary>
 public partial class Parser
 {
-    /// <summary>这个节点的**直接**子表达式。「有没有洞」「洞在哪」两趟共用这一份——
-    /// 从前它们各写一个 switch,补新节点类型时容易只补一处:
-    /// `_` 落在 Set/Dict 字面量里就没被认出来(HoleExpr 一路带到求值器,
-    /// 用户看到的是「无法求值的节点类型: HoleExpr」)。改写那趟按类型重建节点,
-    /// 没法共用,只能自己列。
-    ///
-    /// **不列 LambdaExpr / BlockExpr**:那是闭包边界,里面的 `_` 属于内层,
-    /// 不该被外层这趟收走。</summary>
     private static IEnumerable<Expression> Children(Expression e) => e switch
     {
         BinaryExpr b => [b.Left, b.Right],
@@ -40,7 +30,6 @@ public partial class Parser
         _ => [],
     };
 
-    /// <summary>表达式里是否含占位符(不含就别做改写,省一趟遍历)</summary>
     private static bool HasHoles(Expression e)
         => e is HoleExpr || Children(e).Any(HasHoles);
 

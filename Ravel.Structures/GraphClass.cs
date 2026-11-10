@@ -1,28 +1,9 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>**图那一族的方法**(`Graph` / `Digraph` / `Weighted`)。
-///
-/// 三个类只差**构造那一下**(名字 / 有没有向 / 带不带权),所以方法**只写这一遍**、
-/// 挂在 `GraphMethods` 上;三个壳继承它、各自只声明自己的 `[ClassCtor]`。
-/// 三条依据,缺一不可:
-/// * `PluginApi.InstallClass` 扫的是 `type.GetMethods(Static | …)`,**没有 `DeclaredOnly`** ——
-///   继承来的照样在名单里;
-/// * `ClassRegistry.Bind` 只拿类对象**写报错消息**(`cls.DisplayName`),不拿它判接收者,
-///   所以同一批 `MethodInfo` 装到三个类上没问题;
-/// * 每一条方法的**第一个参数就是接收者**,三个类共用的正是它。
-///
-/// **代价**:壳不能再写成 `internal static class`(`static class` 不能被继承),
-/// 所以它们写成 `sealed class`,成员照样全是 `static`。`GraphMethods` 自己**不挂
-/// `[RavelClass]`** —— 它只是放方法的地方,不进类型树。
-///
-/// **算法都在 `GraphVal` 那份数据上算**(无权 BFS、带权 Dijkstra),这一层只负责
-/// 收参数、判"图里有没有这个顶点"、把结果包成 Ravel 的值。</summary>
 internal class GraphMethods
 {
     // ── 构造 ──
 
-    /// <summary>建一张图。`arg` 是 `()` / `default` 就建空的;是容器就照它**播种顶点**
-    /// (和 `Structures.Stack [1 2 3]` 一个读法);`Weighted` 那个 dict 是**选项**(见下)。</summary>
     protected static GraphVal Make(string kind, bool directed, bool weighted, RuntimeValue arg)
     {
         var g = new GraphVal(kind, directed, weighted);
@@ -47,7 +28,6 @@ internal class GraphMethods
         return PluginKit.Void;
     }
 
-    /// <summary>删一个顶点(连着的边一起收拾)。**不在就交回 false** —— 删东西不必非得在场。</summary>
     [ClassMethod("RemoveVertex")]
     public static RuntimeValue RemoveVertex(RuntimeValue self, RuntimeValue v)
         => new BoolVal(Val(self).RemoveVertex(PluginKit.Key(v, "RemoveVertex 的顶点")));
@@ -73,10 +53,6 @@ internal class GraphMethods
 
     // ── 边 ──
 
-    /// <summary>连一条边。**带权图上 `AddEdge a b` 先收工、再交回一枚"等着权重"的函数**:
-    /// `ClassMethod` 最多收两个实参(见 `ClassRegistry.Bind`),四参方法写不出来;
-    /// 这样写出来反而是 `w.AddEdge "a" "b" 2.5`,和别的柯里化函数一个读法。
-    /// (带权图上**忘了给权重**时那枚函数会被 `--warn` 逮住:「值是个函数」。)</summary>
     [ClassMethod("AddEdge")]
     public static RuntimeValue AddEdge(RuntimeValue self, RuntimeValue a, RuntimeValue b)
     {
@@ -102,8 +78,6 @@ internal class GraphMethods
         return new BoolVal(g.FindEdge(PluginKit.Key(a, "HasEdge 的起点"), PluginKit.Key(b, "HasEdge 的终点")) is not null);
     }
 
-    /// <summary>这条边的权重。**没权重的图当场报错** —— 不是给 1,也不是给 `()`:
-    /// 「这张图没有权重」和「权重是 1」不该长得一样。</summary>
     [ClassMethod("Weight")]
     public static RuntimeValue Weight(RuntimeValue self, RuntimeValue a, RuntimeValue b)
     {
@@ -167,7 +141,6 @@ internal class GraphMethods
 
     // ── 走一遍 ──
 
-    /// <summary>从这个顶点能走到的**访问序**(含它自己)。一层一层往外 —— 无权图上它就是"跳数序"。</summary>
     [ClassMethod("Bfs")]
     public static RuntimeValue Bfs(RuntimeValue self, RuntimeValue from)
     {
@@ -187,8 +160,6 @@ internal class GraphMethods
         return new ListVal(order);
     }
 
-    /// <summary>深度优先的访问序(含起点)。**迭代写的** —— 用递归的话一条长链就能把 C# 的栈撑爆,
-    /// 而 Ravel 的 `try` 接不住那个。</summary>
     [ClassMethod("Dfs")]
     public static RuntimeValue Dfs(RuntimeValue self, RuntimeValue from)
     {
@@ -209,8 +180,6 @@ internal class GraphMethods
         return new ListVal(order);
     }
 
-    /// <summary>拓扑排序(Kahn:一个个摘掉入度为 0 的)。**只有有向图有**;
-    /// 有环就当场报错 —— 那时"排"出来的任何顺序都是假的。</summary>
     [ClassMethod("TopoSort")]
     public static RuntimeValue TopoSort(RuntimeValue self)
     {
@@ -239,8 +208,6 @@ internal class GraphMethods
         return new ListVal(order);
     }
 
-    /// <summary>连通分量(一串一串,每串里的先后照 `Bfs`)。有向图按**弱**连通算 ——
-    /// 入边那头也算连着(强连通分量是另一回事,没做)。</summary>
     [ClassMethod("Components")]
     public static RuntimeValue Components(RuntimeValue self)
     {
@@ -285,8 +252,6 @@ internal class GraphMethods
         return new ListVal(route);
     }
 
-    /// <summary>最短路的长度:无权图 = **跳数**,带权图 = **权重和**。不连通当场报错
-    /// (要问"通不通"用 `HasPath`)。</summary>
     [ClassMethod("Distance")]
     public static RuntimeValue Distance(RuntimeValue self, RuntimeValue a, RuntimeValue b)
     {
@@ -309,7 +274,6 @@ internal class GraphMethods
         return new BoolVal(dist.ContainsKey(to));
     }
 
-    /// <summary>单源最短路:走得到的顶点 → 距离(`dict`)。走不到的不在里面。</summary>
     [ClassMethod("Distances")]
     public static RuntimeValue Distances(RuntimeValue self, RuntimeValue from)
     {
@@ -319,9 +283,6 @@ internal class GraphMethods
         return new DictVal(dist.ToDictionary(kv => kv.Key, kv => GraphVal.Number(kv.Value)));
     }
 
-    /// <summary>单源最短路那一趟:`(距离, 每个顶点是从谁过来的)`。
-    /// **无权走 BFS**(跳数)、**带权走 Dijkstra** —— 权重在 `AddEdge` 就挡了负数,
-    /// 所以 Dijkstra 那条前提成立。</summary>
     private static (Dictionary<RuntimeValue, double> Dist, Dictionary<RuntimeValue, RuntimeValue> Prev)
         Search(GraphVal g, RuntimeValue from)
     {
@@ -370,8 +331,6 @@ internal class GraphMethods
         return PluginKit.Void;
     }
 
-    /// <summary>权重:数值(五种数值类型全吃);**负数挡在这儿** —— 最短路走的是 Dijkstra,
-    /// 负权它不管。与其给个错的答案,不如当场说清楚。</summary>
     private static double WeightOf(RuntimeValue w, string kind)
     {
         var d = PluginKit.Num(w, $"{kind}.AddEdge 的权重");
@@ -383,7 +342,6 @@ internal class GraphMethods
     private static GraphVal Val(RuntimeValue self) => (GraphVal)self;
 }
 
-/// <summary>**无向无权图**。`Structures.Graph ()` / `Structures.Graph ["a" "b"]`(播种顶点)。</summary>
 [RavelModule("Structures")]
 [RavelClass("Graph")]
 internal sealed class GraphClass : GraphMethods
@@ -392,7 +350,6 @@ internal sealed class GraphClass : GraphMethods
     public static RuntimeValue New(RuntimeValue arg) => Make("Graph", directed: false, weighted: false, arg);
 }
 
-/// <summary>**有向无权图**。`Structures.Digraph ()`。</summary>
 [RavelModule("Structures")]
 [RavelClass("Digraph")]
 internal sealed class DigraphClass : GraphMethods
@@ -401,8 +358,6 @@ internal sealed class DigraphClass : GraphMethods
     public static RuntimeValue New(RuntimeValue arg) => Make("Digraph", directed: true, weighted: false, arg);
 }
 
-/// <summary>**带权图**。方向的开关在构造参数里:`Structures.Weighted {"directed": true}`
-/// (不给 `directed` 就是无向带权)。权重一律走 `AddEdge a b w`。</summary>
 [RavelModule("Structures")]
 [RavelClass("Weighted")]
 internal sealed class WeightedClass : GraphMethods

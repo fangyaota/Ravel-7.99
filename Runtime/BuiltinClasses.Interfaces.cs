@@ -1,98 +1,19 @@
 namespace Ravel.Runtime;
 
-/// <summary>接口(interface)与实现(use)—— 这一套机制全在这儿。
-///
-/// 形:
-///
-///     myTrait ::= interface { by a : int = default; by b : function = default }
-///     myImplement := myTrait myClass {
-///         by a = property (() => { instance.x; }) ((v: int) => { instance.x = v; })
-///         by b = property (() => { () => { print "b override"; } }) ((v: function) => { (); })
-///     }
-///     use myImplement            # **只在这个作用域里**生效
-///     u := myClass ()
-///     u.a = 1                    # 走 myImplement 上那条槽
-///     u.b ()
-///     myImplement.Dispose ()     # 提前取消
-///
-/// 三条要点:
-///
-/// - **`interface` 是内置类对象,parent 是 `type`**(`interface is type`)。`interface { … }` 因此造出的
-///   是**类对象** `myTrait` —— 它的**类体**就是接口的"形"(那批 `by … = default`)。
-/// - **`myTrait myClass { … }` 造出实现对象**:接口的类体与实现块**依次跑在同一个 scope 里**
-///   (先摆槽、再换槽),那个 scope 就是实现对象的成员表 —— **槽住在实现里**,建一次一直用。
-/// - **读写 `x.a` 常规查找落空时**才问接口:沿**当前作用域**的词法链找生效中的实现,把那条槽
-///   **绑到这一次的接收者 x** 上(见 <see cref="Activate"/>)再交出去,这一次读/写就用它。
-///   于是效果**随作用域在/不在** —— 出了 `use` 那个作用域,`x.a` 又回到「类型 'myClass' 没有方法 'a'」。
-/// - **`instance` 是"这一次调用"的事,不是实现身上的一格**:它是一条 `by` 槽,读的时候现场解析
-///   "此刻在服务谁"(见 <see cref="InstallInstance"/> 与 `Interpreter.ActiveInstance`)——
-///   值随那次访问的作用域走,所以留存下来的闭包永远指它自己那个实例。
-///
-/// `myClass` 这个名字**从头到尾没被动过**:不建子类、不换绑定、不往它身上加成员。
 internal static partial class BuiltinClasses
 {
     // `Interface`(接口的权威名,小写别名 `interface` 在 predefined.rav;parent 是 `type`,
     // 所以它也是类,而它造的类(接口)同样进类型树)和别的内置类一起声明在 BuiltinClasses.cs。
 
-    /// <summary>实现 scope 里那条 `instance` **槽**(`by` 槽,值是 property)。
-    ///
-    /// 它由 <see cref="InstallInstance"/> 装上,getter 每次读的时候现场解析"这一次调用在服务谁"。
-    /// 从前它是实现身上的一格**变量**,每次查找被换成接收者 —— 那一格是所有访问共用的,
-    /// 于是留存下来的东西(闭包、`by u.a` 取到的 property)会跟着后一次访问改意思。
-    /// 它**不参与**"`u.x` 能读到什么":<see cref="TraitSlot"/> 见到这个名字就退回去,否则
-    /// `u.instance` / `(5).instance`(全局 INumber 实现的目标类就是 int)会变成能读的新成员。</summary>
     internal const string InstanceMember = "instance";
-    /// <summary>这一次分发的**激活格**:临场开一层作用域,里面放"这次服务谁"(`instance$active`)
-    /// 和"这次是哪个实现在服务"(`impl$active`,拿它认身份证),槽的 getter/setter 绑到那层上跑
-    /// (见 <see cref="Activate"/>)。读 `instance` 就是沿当前调用链找最近一层激活格。
-    ///
-    /// 名字里的 `$` 不在 Ravel 标识符字符集里,用户写不出来(同 `use$impls`),永远不会撞。</summary>
     internal const string InstanceActiveMember = "instance$active";
     internal const string ImplActiveMember = "impl$active";
-    /// <summary>实现的**身份证**:一个每人一份的号(`Copy ()` 出来的副本带的是**同一个号** ——
-    /// 副本还是同一个实现,只是又一份状态)。
-    ///
-    /// 干什么用:读 `instance` 时只认"这个实现"的激活格,不然跨实现边界会静默绑到别人的接收者上。
-    /// 拿**值**当身份证而不是拿实现对象本身:副本是另一个 `ObjectVal`,`CopyScope` 逐个值拷过去,
-    /// 号是值语义的(`IntVal`),于是原件和副本认的是同一枚;而两个不同的实现各领一个号,分得开。</summary>
     internal const string ImplIdMember = "impl$id";
-    /// <summary>实现对象身上的目标类(`myTrait myClass { … }` 的那个 `myClass`)。</summary>
     internal const string TargetMember = "target";
-    /// <summary>实现的**代号**:每 `Dispose` 一次 +1,登记表里的每条都记着"登记时它几岁"。
-    /// 这样 `Dispose` 只需把自己加一岁(O(1)、幂等、在哪个作用域调都一样)—— 已经登记过的
-    /// 那些**统统作废**,而之后在哪 `use` 就在哪重新记一条新的(那个作用域于是又活了)。
-    /// 不做成"从每个登记过的作用域里摘掉":那要记一份 (实现 × 作用域) 的账,
-    /// 在循环里调一次带 `use` 的函数就会一直长,而 scope 一消失那笔账还没法销。</summary>
     internal const string GenerationMember = "generation";
-    /// <summary>登记表挂在**作用域**上。名字里的 `$` 不在 Ravel 标识符字符集里
-    /// (见 Lexer 的 ReadIdentifier:只认字母/数字/下划线),所以用户写不出这个名字,永远不会撞
-    /// (`use` 这个名字本身已经是全局只读别名了,更不能拿来做键)。</summary>
     internal const string UseRegMember = "use$impls";
-    /// <summary>实现对象上的取消方法名。</summary>
     internal const string DisposeMember = "Dispose";
 
-    /// <summary>`interface` 的 init。两分支,**`target: Type` 那支必须排在前面**:
-    /// `ClassVal : FunctionVal` 且 `Type <: Function`,反过来 `(body: Function)` 会先把
-    /// `myTrait myClass` 里的**类对象**吃掉(然后在 Install 里报「class 需要代码块参数」)。
-    ///
-    /// 第二支收满两个参数后推 <see cref="ControlKind.ImplMake"/> 控制帧:造实现要把**两段类体**
-    /// 跑在实现 scope 里,而原生闭包的体是同步的,推不了帧。</summary>
-    /// <summary>`interface` 的 init,按参数类型分流(和 `type` 那套一个路子):
-    ///
-    ///     interface { … }                  代码块 —— 不继承、不要求
-    ///     interface 某接口 { … }            接口 —— 继承一个父
-    ///     interface 某接口 [A B] { … }      接口,后面再跟一张**要求**表
-    ///     myTrait 某个类 { … }              类 —— 造实现(本体不是 `interface` 时)
-    ///
-    /// 「要求」和「父」是两回事:父是**继承**(槽并进来、`<:` 成立),要求是**前置条件** ——
-    /// 实现这个接口的类必须**已经**有那些接口的实现(槽不并、`<:` 不成立,只查在不在;
-    /// 查在造实现那一步,见 `StepImplMake`)。光有要求、没写父的 `interface [A B] { … }` **不收**。
-    ///
-    /// **顺序是载荷**:接口和类是同一支(都声明 `Type`,进到分支体里靠"谁在造"再分),
-    /// 得排在代码块那支前面 —— `ClassVal : FunctionVal`,反过来类对象和接口都会被它吃掉。
-    ///
-    /// 第二三个参数是**可选**的,所以接口那支交出去的又是**一个小分流器**(要求表 / 代码块)
-    /// —— 那是先后两次应用,不是嵌套;那条"不能嵌套"管的是同一个帧里试分支。</summary>
     private static void InstallInterfaceInit()
     {
         // ── ① 工厂的那份:挂在 `Interface` 的类体上,`interface …` 那下就是在实例化它 ──
@@ -165,7 +86,6 @@ internal static partial class BuiltinClasses
         // (`IValue` 那份要单独指过去 —— `Link` 只接类树,不接 `Members`。)
     }
 
-    /// <summary>要求表(`[A B]`)的每一项都得是个**接口**;空表就是不要求。</summary>
     private static List<ObjectVal> Requirements(ListVal list)
     {
         var reqs = new List<ObjectVal>();
@@ -179,17 +99,6 @@ internal static partial class BuiltinClasses
         return reqs;
     }
 
-    /// <summary>造一个接口:`interface { … }`(不要求)、`interface 某接口 { … }`(一个要求)、
-    /// `interface [A B] { … }`(一串要求)。
-    ///
-    /// **没有自定义的父** —— 一律挂在 `BaseInterface` 上(它就是"接口的公共基类",
-    /// `init` 那一份默认实现挂在那儿)。`requires` 记两处:<see cref="ObjectVal.Requires"/>
-    /// (给 `IsAssignableTo` —— 要求**给 `<:`**)和 Ravel 看得见的 `requires` 成员。
-    ///
-    /// **槽不并** —— 要求是前置条件,实现者得自己把每条要求的实现也登记上
-    /// (`impl (IEnumerable X { … })` 那种),引擎在造实现那一步查(`StepImplMake`)。
-    ///
-    /// 类体**就是用户写的那份**(和普通 class 一样,各层各存各的)。</summary>
     private static RuntimeValue BuildInterface(Scope scope, List<ObjectVal> requires, RuntimeValue body)
     {
         if (body is not BlockVal blk)
@@ -213,8 +122,6 @@ internal static partial class BuiltinClasses
         return trait;
     }
 
-    /// <summary>实现对象的最后一道装填:目标类、代号、`this`,以及那条 `instance` 槽
-    /// (见 <see cref="InstallInstance"/>);`Dispose` 挂在接口那份上。</summary>
     internal static void FinishImplementation(Interpreter interp, ObjectVal impl, ObjectVal target)
     {
         // `Unreadable`:引擎内部那几格之一 —— **别转发**(见 `TraitSlot` 里那两道闸)
@@ -226,18 +133,6 @@ internal static partial class BuiltinClasses
         InstallInstance(interp, impl);
     }
 
-    /// <summary>装上 `instance`:一条 `by` 槽(`Attr.By`),值是 property。
-    ///
-    /// getter 是 C# 侧的原生闭包 —— 它的体按**调用点作用域**跑(`Interpreter.Call.cs` 的
-    /// `NativeClosure` 那一臂),所以它正好落"读 `instance` 的那一帧"上,再问求值器
-    /// "这一次调用在服务谁"(<see cref="Interpreter.ActiveInstance"/>),认的是这个实现的
-    /// **身份证**(见 <see cref="ImplIdMember"/> —— 副本带着同一枚,所以 `Copy ()` 出来的
-    /// 实现照样能用)。
-    /// setter 只报错:正常写被 `Attr.Readonly` 先挡在半路(`WriteVariable` 的 `CheckWritable`),
-    /// 只有 `(by x.instance).Set v` 那种绕开 `Variable` 的路会撞上它 —— 让它出声。
-    ///
-    /// **前提**:一个实现只被它那个解释器服务 —— 实现是运行时由 `StepImplMake` 造的,
-    /// `lib/*.rav` 里那几条 `impl` 每个解释器各建一遍,所以 getter 拎着 interp 是安全的。</summary>
     private static void InstallInstance(Interpreter interp, ObjectVal impl)
     {
         if (impl.Scope.LookupField(InstanceMember) != null)
@@ -265,7 +160,6 @@ internal static partial class BuiltinClasses
 
     private static int _implCount;
 
-    /// <summary>给实现发一枚号(已经有了就沿用 —— 副本那条路是 `CopyScope` 把号当值拷过去)。</summary>
     private static IntVal ImplId(ObjectVal impl)
     {
         if (impl.Scope.LookupField(ImplIdMember)?.Value is IntVal had) return had;
@@ -275,9 +169,6 @@ internal static partial class BuiltinClasses
         return id;
     }
 
-    /// <summary>把实现登记进 `into` 那个作用域:`use` 给的是**当前作用域**(随作用域在/不在),
-    /// `impl` 给的是**全局作用域**(每个作用域链都到全局,于是处处生效)。
-    /// `caller` 只用来拼报错文案(是 `use` 还是 `impl` 写错了)。返回实现本身。</summary>
     internal static RuntimeValue Use(Interpreter interp, RuntimeValue v, Scope into, string caller)
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
@@ -289,9 +180,6 @@ internal static partial class BuiltinClasses
         return impl;
     }
 
-    /// <summary>登记一条:把 `[实现, 登记时代号]` 放进这个作用域的表里。
-    /// 同一个实现在同一个作用域只留最新那一条(重 `use` 就是"在这儿重新登记一次",
-    /// 于是被 `Dispose` 作废过的实现在这个作用域里又生效了,别的作用域不受影响)。</summary>
     internal static void RegisterUse(Scope scope, ObjectVal impl)
     {
         if (scope.LookupField(UseRegMember)?.Value is not ListVal reg)
@@ -316,10 +204,6 @@ internal static partial class BuiltinClasses
             target.IsValueLike = true;
     }
 
-
-    /// <summary>`Dispose ()`:把实现加一岁,已经登记过的那些条目统统作废。O(1)、幂等、
-    /// 在哪个作用域调都一样 —— 取消的是这个实现。
-    /// (成员表那一侧挂在 `Runtime/Members/InterfaceMembers.cs`,由它转进来。)</summary>
     internal static RuntimeValue DisposeImplementation(ObjectVal impl)
     {
         BumpRegistry();              // 作废一条 → 缓存的答案可能就变了
@@ -337,7 +221,6 @@ internal static partial class BuiltinClasses
     private static int Generation(ObjectVal impl)
         => impl.Scope.LookupField(GenerationMember)?.Value is IntVal g ? g.Value : 0;
 
-    /// <summary>这条登记还作数吗:实现还在、代号没被 `Dispose` 顶掉。</summary>
     private static bool IsLiveEntry(RuntimeValue entry, out ObjectVal impl)
     {
         impl = null!;
@@ -347,25 +230,6 @@ internal static partial class BuiltinClasses
         return e.Elements[1] is IntVal g && g.Value == Generation(o);
     }
 
-    /// <summary>接口槽的兜底查找。**常规查找先说话**:自己那层 + 类链(还有类型那层的运算符)里
-    /// 有的名字一律不接管 —— 接口只补"本来要报没有方法"的那些。
-    ///
-    /// 然后沿**当前作用域**的词法链由内到外找生效中的实现:目标类收得下 receiver、身上又有这个名字的
-    /// 那一个。同一个 scope 里后 `use` 的先试(和"后来的覆盖先前的"一个规矩)。
-    ///
-    /// 找到就交出**命中**(哪条槽、哪个实现、这次服务谁)—— 真正要用它的时候由调用点走
-    /// <see cref="Activate"/> 绑上这一次的接收者。**这里不建激活格**:有一半调用点只是
-    /// "问一句有没有"(`HasTraitOperator` 每次类型表落空的二元运算都会问),在那儿白建一层作用域
-    /// 是纯浪费。找不到返回 null,由调用点报原来的「没有方法」。</summary>
-    /// <summary>沿**当前作用域**的词法链由内到外,逐条交出生效中的实现。
-    ///
-    /// 四个人共用同一套走法(`TraitSlot` / `Implements` / `Implementors` / `HasTrait`):
-    /// `use` 是往作用域里登记一张表(`UseRegMember`),**后 `use` 的先试**;
-    /// 作用域出去、或 `Dispose` 之后就不该再看见(判据见 `IsLiveEntry`)。
-    /// 从前这四段各自抄了一遍这层两层循环 —— 改一处得记得改三处。
-    ///
-    /// 用迭代器而不是先收成一张表:`TraitSlot` 大半时候头一两个实现就返回了,
-    /// 把整条链上所有实现都收下来是白费。</summary>
     private static IEnumerable<ObjectVal> LiveImplementations(Interpreter interp)
     {
         for (var s = interp.CurrentScope; s != null; s = s.Parent)
@@ -417,16 +281,6 @@ internal static partial class BuiltinClasses
         return null;
     }
 
-    /// <summary>把一条接口槽**绑到这一次的接收者**上:临场开一层作用域,里面放着"这次服务谁"
-    /// (`instance$active`)和"这次是哪个实现在服务"(`impl$active`),再把槽的 getter/setter
-    /// 换到那层上跑。
-    ///
-    /// **值本身不落在实现身上** —— 这是这套机制的关键:槽体里造的闭包捕获的是创建处的作用域
-    /// (`Interpreter.Nodes.cs` 的 `StepLambda`),于是留存下来的闭包各自拎着自己那一层,
-    /// 永远指它自己那个实例;同一个实现也就能同时服务多个实例。
-    ///
-    /// 动的是**交出去的那一份副本**:实现 scope 里那条槽一个字没改,所以 `by u.a` 取到的还是
-    /// 原来那条 property,`Fields ()` / `Copy ()` 也照旧。</summary>
     internal static PropertyVal Activate(Interpreter interp, in TraitHit hit)
     {
         // 不是 property(`by v := 5` 那种用错)就在这一句上报出来,措辞和普通 by 成员一条路
@@ -447,25 +301,9 @@ internal static partial class BuiltinClasses
         };
     }
 
-    /// <summary>**普通成员**(不是 `by` 槽)从接口实现里交出去之前的一个动作:值若是**函数**,
-    /// 照样把它的捕获作用域换到这一次的激活格上 —— 和 <see cref="ActivateFn"/> 干的是同一件事,
-    /// 只是没有 property 可裹:值**就是**那个函数。
-    ///
-    /// 于是这两行读出来是**同一个东西**:
-    ///
-    ///     by X := property (() => { () => { …用 instance… } }) ((v) => { (); })
-    ///     internal X := () => { …用 instance… }
-    ///
-    /// 前者多一层间接 —— getter 在**读**的时候跑,所以体里得再裹一个函数才交得出手。
-    /// 只读(空 setter)的方法槽因此能整个退掉 property 和那层壳。
-    ///
-    /// **非函数原样交回**(字段那种):它没有捕获作用域可言,也没有"这一次调用"。</summary>
     internal static RuntimeValue BindPlain(in TraitHit hit)
         => hit.Slot.Value is FunctionVal f ? ActivateFn(f, null, hit) : hit.Slot.Value;
 
-    /// <summary>给这个函数体套上这一次的激活格。`shared` 是 getter/setter 共用的那一层(见上);
-    /// 函数自己没有捕获作用域(`FunctionVal.From` 造的 native、`property` 拿内置方法当 getter)
-    /// 就原样交回 —— 它们的体不看名字,套上去也只是白开一层。</summary>
     private static FunctionVal ActivateFn(FunctionVal f, Scope? shared, in TraitHit hit)
     {
         var chain = CaptureOf(f);
@@ -480,9 +318,6 @@ internal static partial class BuiltinClasses
         };
     }
 
-    /// <summary>这次分发的激活格:一层挂在原捕获作用域下面的小作用域,里面两格 ——
-    /// 这次服务谁、这次是哪个实现在服务(记的是它的身份证)。读 `instance` 找的就是它
-    /// (见 `Interpreter.ActiveInstance`)。</summary>
     private static Scope Activation(Scope chain, in TraitHit hit)
     {
         var act = new Scope(chain);
@@ -498,21 +333,6 @@ internal static partial class BuiltinClasses
         _ => null,
     };
 
-
-    /// <summary>`u is myTrait` / `myClass <: myTrait` 的兜底:当前作用域里有没有一个生效中的实现,
-    /// 目标类收得下 `cls`、而且它就是为那个接口的。传的是**类型**(`u.Type` / 左边那个类型)——
-    /// 判据是"这个类的实例在这个作用域里都算那个接口"。作用域外为假 —— 和"出去后释放"一致。</summary>
-    /// <summary>`T.GetImplements ()`:这个类型**现在**实现了哪些接口 —— 沿当前作用域找生效中的
-    /// 实现,目标类收得下 `cls` 就把那个接口记一条(判据和 `x is I` 同一个)。
-    ///
-    /// 同一个接口有好几个实现只列一次;顺序和查找一样(由内到外、后 `use` 的先),
-    /// 所以列在最前的是**当下生效**的那个。作用域外、或 `Dispose` 之后就列不出来了 ——
-    /// 接口是"在这个作用域里生效"的东西,不是烙在类型上的标记。
-    ///
-    /// 去重走线性扫:接口个数本来就是个位数,而 `ObjectVal` 的相等是身份、哈希却还是 record
-    /// 那套(会顺着成员表往下递归),不值当为它开 HashSet。
-    ///
-    /// 入口在 `CallInto` 的 `BoundImplementsQuery` 一格 —— 这活儿要当前作用域,只有求值器有。</summary>
     internal static RuntimeValue Implements(Interpreter interp, ObjectVal cls)
     {
         var found = new List<RuntimeValue>();
@@ -537,11 +357,6 @@ internal static partial class BuiltinClasses
         return new ListVal(found);
     }
 
-    /// <summary>一个接口**自己以及它继承的所有接口**,按"先自己、再往上"排。
-    ///
-    /// 沿链走(**要求**不算 —— 要求是前置条件,不是继承:一个类实现它得自己另外 impl 一条,
-    /// 那条本来就登记着,查询自然会看到)。走到 `object` 那头不是接口,滤掉,
-    /// 所以普通类拿到的是空表。</summary>
     private static List<ObjectVal> InterfaceClosure(ObjectVal type)
     {
         var found = new List<ObjectVal>();
@@ -555,11 +370,6 @@ internal static partial class BuiltinClasses
         return found;
     }
 
-    /// <summary>`I.GetImplementors ()`:`GetImplements ()` 的反面 —— **现在有哪些类型**实现了这个接口
-    /// (目标类组成的 list)。同样是一份"当下"的快照、同样只认生效中的实现。
-    ///
-    /// 普通类问它永远是空的:接口槽是"实现"挂上去的,而实现的 trait 只能是接口。
-    /// 顺序和 `GetImplements ()` 一个规矩(由内到外、后 `use` 的先),同一个目标只列一次。</summary>
     internal static RuntimeValue Implementors(Interpreter interp, ObjectVal trait)
     {
         var found = new List<RuntimeValue>();
@@ -641,22 +451,9 @@ internal static partial class BuiltinClasses
         return false;
     }
 
-    /// <summary>接口分发的**版本号**:任何一次登记(`use` / `impl`)或 `Dispose` 都 +1。
-    /// 它是缓存的失效令牌。**静态是对的** —— 多解释器之间多失效几次只是白算一遍,
-    /// 不会算错;反过来(该失效的没失效)才会算错。</summary>
     private static int _registryVersion;
 
-    /// <summary>登记动过了(给 `RegisterUse` / `Dispose` 用)。</summary>
     private static void BumpRegistry() => _registryVersion++;
 }
 
-/// <summary>一次接口分发的命中:哪一格、是**哪个实现**身上那一格、这一次服务谁。
-///
-/// **那一格不一定是 `by` 槽** —— 接口体里写的普通函数/字段也转发(见 `TraitSlot`);
-/// 那种格子的 <see cref="Slot"/> 值是**现成的**(不是 property),调用方按
-/// `Slot.HasAttr(Attr.By)` 分辨走哪条路。
-///
-/// 它只是一份"找着了"的记录,还**没有**绑接收者 —— 要真用它(读/写/用它的运算符)时由调用点走
-/// <see cref="BuiltinClasses.Activate"/> 拿"绑好这一次"的那一份。分两步是因为半数的调用点
-/// 只是问一句"有没有"(`HasTraitOperator`),在那些地方建激活格纯属浪费。</summary>
 internal readonly record struct TraitHit(ObjectVal Impl, RuntimeValue Receiver, Variable Slot);

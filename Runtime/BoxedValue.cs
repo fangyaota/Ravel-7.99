@@ -1,19 +1,9 @@
 namespace Ravel.Runtime;
 
-/// <summary>成员访问包装器:把「取成员」的门禁(unreadable / outdated / core / private-protected)
-/// 集中在这里。门禁要看当前动态作用域和 unsafe 深度,所以每个实例都持有解释器。
-///
-/// 是**结构体**:它的用法一律是"造一个、调一次、扔掉"(`new BoxedValue(obj, this).GetMember(name)`),
-/// 没人拿它当身份、也没人存它 —— 取成员是最热的一条路,每走一次多分配一个对象不值当。</summary>
 public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
 {
     public RuntimeValue Value { get; } = value;
 
-    /// <summary>若 value 的 name 成员是 by 属性,返回其 getter(已做访问控制);否则返回 null。调用方走 CallInto 派发。
-    ///
-    /// 模块和对象查的是同一张表(模块的成员表就是它的作用域),但**门禁不一样** ——
-    /// 对象那条是字段的 private/protected 访问控制,模块要的是"当前作用域能不能走到这个模块"
-    /// (CheckModuleReadAccess)。所以取值可以合并,门禁必须分开。</summary>
     public static FunctionVal? TryGetByGetter(Interpreter interp, RuntimeValue value, string name)
     {
         // 模块走 `Contains` + `Lookup`:前者只看**本层**,不让查找顺着作用域链漏到外层去。
@@ -48,11 +38,6 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         return interp.PropertyGetter(BuiltinClasses.BindProperty(prop!, value), name);
     }
 
-    /// <summary>运算符成员：`MemberScope` 那一格 → `by` 槽 → "不支持运算符"。
-    ///
-    /// 三段的**次序和判据**和 `Interpreter.BindOperator` 一模一样 —— 那是 `1 + 2` 的老路,
-    /// 脱糖之后两条路必须给出同一个答案(端口里普通成员 `+ := f` 不算运算符,
-    /// 只有 `by + := property …` 那套槽形状才算)。</summary>
     private FunctionVal ResolveOperator(string op)
     {
         if (Value.MemberScope.LookupField(op)?.Value is FunctionVal fn)
@@ -133,13 +118,6 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
             interp);
     }
 
-    /// <summary>读变量的通用门禁:unreadable / core / outdated。
-    ///
-    /// 裸标识符(`Interpreter.StepIdent`)和成员/模块访问必须走同一套,否则门禁是漏的——
-    /// 曾经 `c.secret` 被 core 拦住、而类体里直接写 `secret` 却读得到,
-    /// 因为 StepIdent 自己抄了一份门禁、漏抄了 core 那条。
-    ///
-    /// private/protected 不在这里判:那要看「当前作用域能否走到该对象/模块」,得先有 owner。</summary>
     internal static void GateRead(Variable v, string name, Interpreter interp)
     {
         if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{name}' 不可读取", ErrorKind.Access);
@@ -148,7 +126,6 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         if (v.HasAttr(Attr.Outdated)) Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
     }
 
-    /// <summary>模块成员:private/protected 要求当前作用域链能走到该模块</summary>
     private void CheckModuleReadAccess(ModuleVal mv, Variable vr, string name)
     {
         GateRead(vr, name, interp);

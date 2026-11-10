@@ -1,11 +1,5 @@
 namespace Ravel.Runtime;
 
-/// <summary>**队列**(先进先出)。`Enqueue` / `Dequeue` / `Peek` 都是 O(1)。
-///
-///     q := Queue ()
-///     q.Enqueue 1 / q.Dequeue () / q.Peek ()
-///
-/// 枚举顺序 = 出队顺序(先进先出)。空队列的 `Dequeue` / `Peek` 报错。</summary>
 [RavelModule("Structures")]
 [RavelClass("Queue")]
 internal static class QueueClass

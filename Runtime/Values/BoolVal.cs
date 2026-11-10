@@ -1,18 +1,5 @@
 namespace Ravel.Runtime;
 
-/// <summary>bool 值。它**必须是 FunctionVal** —— 类型表里 `Bool &lt;: Function`
-/// (true/false 可调用:`true {a} {b}` 选一个块跑),值这边不跟上就会出现
-/// 「类型系统说有这个方法、值却接不住」:走 inherits 查到 Function 的
-/// Name/scope/prepend,拿到 self 是 BoolVal,`(FunctionVal)s` 直接抛
-/// InvalidCastException —— 它不是 RuntimeException,Ravel 的 try 接不住,程序被打掉。
-/// BlockVal 一直是这么接的,BoolVal 是漏掉的那个。
-/// Body 不会被调用:求值器在 CallInto 里按类型分派(见 BoolVal 分支)。
-///
-/// **相等性按值**:`true` 与 `1 == 1` 算出来的 true 必须是同一个东西。
-/// 不写这两句就会落到 `ObjectVal` 的身份比较上(record 合成的那个更早是被
-/// `FunctionVal` 里那个每次新建的捕获委托挡住的),于是 `{true}.Contains (1 == 1)`
-/// 给 false —— 而 `{1 2 3}.Contains (1 + 2)` 给 true,同一个语言里两套答案。
-/// `HashSet` 先比哈希,所以 `Equals` 和 `GetHashCode` 两句都要。</summary>
 public record BoolVal : FunctionVal
 {
     public bool Value { get; init; }
@@ -25,17 +12,12 @@ public record BoolVal : FunctionVal
         Value = value;
     }
 
-    /// <summary>元类是 `Bool`。这里只是兜底:静态初始化期间 `BuiltinClasses.Bool` 可能还没造出来。</summary>
     public override ObjectVal Type => ClassType ??= BuiltinClasses.Bool;
 
-    /// <summary>bool 的成员表是**只读**的(`ValueTable`,不是 `MemberTable`):
-    /// 同一个类型下所有值共享一份成员定义,往其中一个上挂成员等于改掉整个 `Bool`。
-    /// 这一格得自己覆写 —— `ObjectVal.Scope` 默认给的是可写的对象表,而 bool 是值。</summary>
     private Scope? _table;
 
     public override Scope Scope => _table ??= new Values.ValueTable(this);
 
-    /// <summary>按值比 —— 见类文档。</summary>
     public virtual bool Equals(BoolVal? other) => other is not null && Value == other.Value;
 
     public override int GetHashCode() => Value.GetHashCode();

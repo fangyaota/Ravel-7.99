@@ -3,27 +3,10 @@ namespace Ravel.Runtime;
 using System.Linq;
 using Ravel.Runtime.Values;
 
-/// <summary>**`String` 这个类给它的实例准备什么。**
-///
-/// 从 `BuiltinClasses.Methods.cs` 的 `RegisterStringMethods` 搬过来的那一批:长度、
-/// 取字符、找、切、变。搬进这儿之后 `String` 不再靠外面那张注册表 —— 读
-/// `"abc".Length` 时 `VirtualScope` 问的是 `String.Members`(见 `ClassVal.Members`)。
-///
-/// **为什么是"每类一份"而不是一张总表**:要加一条字符串方法,就在**这个文件**里加一个
-/// 静态方法、挂上 `[ClassMethod]` —— 名字和造法由 <see cref="MemberSet.Scan"/> 反射一次收齐,
-/// 和插件(`PluginApi`)是同一套写法。
-///
-/// 运算符(`+` `*` `==` …)是**另一份**(`StringOperatorMembers`),建 `String` 时把两份接起来:
-/// `MemberSet.Combine(StringOperatorMembers.Set, StringMembers.Set)` —— 名字按给出的顺序去重,
-/// 于是同一个类的方法可以按来源分开放,不必挤进一个 `Scan`。</summary>
 internal static class StringMembers
 {
-    /// <summary>自己这一份;父指 `Object`,于是 `ToString` / `Copy` / `Fields` / `Key` 只写一遍。</summary>
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(StringMembers), ObjectMembers.Set);
 
-    /// <summary>值类型的 `init` —— "从别的值造一个"(`string 5` 之类)。
-    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
-    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
     [ClassCtor]
     private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToString(arg);
 
@@ -47,7 +30,6 @@ internal static class StringMembers
         return new CharVal(v[i]);
     }
 
-    /// <summary>拆成一串字符(想逐个处理就它,别拿 `At` 配下标手摇)。</summary>
     [ClassMethod("Chars")]
     private static RuntimeValue Chars(RuntimeValue self)
         => new ListVal([.. ((StringVal)self).Value.Select(c => (RuntimeValue)new CharVal(c))]);
@@ -66,7 +48,6 @@ internal static class StringMembers
     private static RuntimeValue EndsWith(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((StringVal)self).Value.EndsWith(BuiltinClasses.TextArg(arg, "s.EndsWith"), StringComparison.Ordinal));
 
-    /// <summary>找不到是**报错**,不是给 -1 —— 和别处"没有就是错"一个口径;明知可能没有用 `Find`。</summary>
     [ClassMethod("IndexOf")]
     private static RuntimeValue IndexOf(RuntimeValue self, RuntimeValue arg)
     {
@@ -76,7 +57,6 @@ internal static class StringMembers
         return IntVal.Of(i);
     }
 
-    /// <summary>和 `IndexOf` 差一口气:没有给 -1,不报错。</summary>
     [ClassMethod("Find")]
     private static RuntimeValue Find(RuntimeValue self, RuntimeValue arg)
         => IntVal.Of(((StringVal)self).Value.IndexOf(BuiltinClasses.TextArg(arg, "s.Find"), StringComparison.Ordinal));   // 没有给 -1
@@ -92,8 +72,6 @@ internal static class StringMembers
 
     // ── 切 ──
 
-    /// <summary>`s.Slice [1..3)` —— **收一个区间**,开闭由那对括号说了算(从前"两个数字 + 半开"
-    /// 那个写法已经删掉,只留这一种:谁想说不含哪一端,写括号就行)。</summary>
     [ClassMethod("Slice")]
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
@@ -120,14 +98,12 @@ internal static class StringMembers
     [ClassMethod("Trim")]
     private static RuntimeValue Trim(RuntimeValue self) => new StringVal(((StringVal)self).Value.Trim());
 
-    /// <summary>大小写:**不跟区域设置走**(土耳其语的 i/İ 那种会让同一段程序换台机器就换个结果)。</summary>
     [ClassMethod("ToUpper")]
     private static RuntimeValue ToUpper(RuntimeValue self) => new StringVal(((StringVal)self).Value.ToUpperInvariant());
 
     [ClassMethod("ToLower")]
     private static RuntimeValue ToLower(RuntimeValue self) => new StringVal(((StringVal)self).Value.ToLowerInvariant());
 
-    /// <summary>柯里化:第一参给了要找的那个,交回一个"再收替换值"的函数(和 `s.Replace a b` 的读法一致)。</summary>
     [ClassMethod("Replace")]
     private static RuntimeValue Replace(RuntimeValue self, RuntimeValue arg)
     {
@@ -154,9 +130,6 @@ internal static class StringMembers
             .Select(p => (RuntimeValue)new StringVal(p))]);
     }
 
-    /// <summary>把一个区间折成**半开**的 `[from, to)` —— 切片那套的通用口径:
-    /// 左端开就起点挪一格,右端闭就终点挪一格。倒过来的区间(`Start > End`)和空区间切出空串,
-    /// 越界(拿到的那个 from/to 落在字符串外面)照旧当场报错 —— 和两个数字那种写法一条规矩。</summary>
     private static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what)
     {
         // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段。

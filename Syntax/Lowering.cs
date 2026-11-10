@@ -2,51 +2,12 @@ namespace Ravel;
 
 using Ravel.Runtime;
 
-/// <summary>解析**之后**的那一趟脱糖(降阶):把语法树里还留着的糖换成直白的形式。
-///
-/// <code>
-/// f or g    →   (x) => { (f x) || (g x); }        (and 是 &amp;&amp;)
-/// a ?? b    →   NilOr (() => { a; }) (() => { b; })
-/// x ??= v   →   NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })
-/// x++       →   x += 1                            (-- 是 -=)
-/// do { … }  →   Bind 链（DoExpr 折完就没）
-/// </code>
-///
-/// **能放这儿的判据:"未脱糖的形状在 AST 里装得下"。** `BinaryExpr(l, "??", r)`、
-/// `UnaryExpr("++", x)` 都装得下,`or` / `and` 更是本来就长那个样;`do` 本来没地方站,
-/// 给它新开了一个 `DoExpr` —— 和 `BindStatement` 一样是**活不到求值期**的节点,有先例。
-/// 真装不下的就留在解析器里:
-///
-///   * `?.` —— 折的是"接收者 **+ 后面整条链**",那半截是解析期接着读出来的(要占位符代入),
-///     不是局部改写;
-///   * `_` 占位符 —— 得**先在**解析期(LambdaExpr.Sugar 那个标记就是为它存在的,
-///     同一句里后面的糖要能看穿它);
-///   * `break` / `continue` / `return` —— 要解析期的循环栈 / lambda 深度栈;
-///   * 多参 lambda `(a b) => …` —— `LambdaExpr` 只装得下一个参数,不折就没法表示;
-///   * 运算符节 `+.2`、`|>` —— 解析决策(哪个符号、挂成员还是喂实参)。
-///
-/// 顺带一个实在的好处:解析器里不再有"为了认一条糖而试读、不成再退"那种回退 ——
-/// 那正是**指数级**的温床(见 `tests/diag/152_error_report.rav` 里那 1000 层括号)。
-/// 将来**模式匹配 / 解构**那种"把一大坨语法折成现有构造"的活,也放这儿。
-///
-/// 注意它**跑在最后**:`Parser.Parse` 出树之前就折完了,所以 `AstPrinter`(打印函数体、
-/// 报错时贴代码)看到的已经是折过的样子 —— 和从前就地折时打出来的一样。
-///
-/// **次序:跑在占位符消糖(`Parser.Holes`)之后。** 那趟是解析期做的,`_` 到这儿已经换成
-/// 真参数了;反过来先折的话,`_` 会被关进刚造出来的那枚 lambda 里,再也收不到外层去。
-///
-/// 一趟而已,别指望它做优化 —— 它只认形状、换形状,不看类型、不折叠常量。
-/// (`Reject` / 方法名之类**同名不同义的**别往这儿塞:那要类型信息,是求值期的事。)</summary>
 public sealed class Lowering
 {
-    /// <summary>取一个脱糖用的名字(`__d…` 解构的中间量、`__g…` 游标、`_and…` / `_nil…` 那些
-    /// lambda 参数)。名字的形状、为什么要掺文件名、为什么不能用 `string.GetHashCode ()`,
-    /// 都写在 <see cref="TempNames"/> 抬头里。</summary>
     private string Fresh(string prefix) => TempNames.Next(prefix, _source);
 
     private static StringLiteral Lit(string s, AstNode at) => new(s) { Line = at.Line, Column = at.Column };
 
-    /// <summary>把几段拼成一串 `+`(字面量和求出来的东西混着接)。</summary>
     private static Expression Concat(AstNode at, params Expression[] parts)
     {
         var e = parts[0];
@@ -55,31 +16,22 @@ public sealed class Lowering
         return e;
     }
 
-    /// <summary>一个**类型表达式**的名字 —— 报错里说"要的是 List"用。
-    /// 直接 `string` 它(注解求出来就是类型对象;`typeof` 一道反而得到"Type")。</summary>
     private static Expression TypeName(Expression type, AstNode at)
         => Call(Ident("string", at), type);
 
-    /// <summary>一个**值**的类型名(`string (typeof v)`)—— 报错里说"得到 Integer"用。</summary>
     private static Expression ValueType(Expression v, AstNode at)
         => Call(Ident("string", at), Call(Ident("typeof", at), v));
 
-    /// <summary>报错时要写进 `SourceSpot` 的文件名。取不到(插值片段)就 null
-    /// —— `ErrorReport` 那边认这个。</summary>
     private readonly string? _source;
 
     private Lowering(string? source) => _source = source;
 
-    /// <summary>跑一趟。**每个解析出口都要过一手**(`Parser.Parse` / `Parser.ParseExpression`)。</summary>
     public static Program Apply(Program p) => new Lowering(p.Source).Run(p);
 
-    /// <summary>单个表达式那一路 —— 插值字符串的片段(`"${…}"`)走这条。</summary>
     public static Expression Apply(Expression e, string? source = null) => new Lowering(source).Lower(e);
 
     private Program Run(Program p) => p with { Statements = Stmts(p.Statements) };
 
-    /// <summary>降一串语句。**一进一出的那些直接过 `Statement`;只有解构那条会一条变好几条**
-    /// (所以这儿是 `SelectMany`,不是 `Select`)。</summary>
     private List<Statement> Stmts(List<Statement> xs) => xs.SelectMany(Expand).ToList();
 
     private IEnumerable<Statement> Expand(Statement s)
@@ -178,31 +130,17 @@ public sealed class Lowering
         _ => throw new NotSupportedException($"Lowering 没认这个节点:{e.GetType().Name}"),
     };
 
-    /// <summary>哪些二元运算符"就是左值成员表里的一格"——只有它们能折成 `a.op b`。
-    ///
-    /// 剩下的都不是成员:`&&`/`||` 短路、`:`/`<:`/`:>` 是类型判断、`|` 一个符号两种身份
-    /// (交替 / 位或)、`??`/`??=` 惰性、赋值一族要写回某个位置。求值器那边还留着
-    /// `StepBinaryOp` 给这些用。</summary>
     private static bool IsMemberOperator(string op) => op is
         "+" or "-" or "*" or "/" or "%" or "**"
         or "==" or "!=" or "<" or ">" or "<=" or ">="
         or "<<" or ">>" or "<<<" or ">>>" or "&" or "^";
 
-    /// <summary>`a op b` → `(a.op) b`。位置照抄那枚运算符的,报错才指得准。</summary>
     private Expression MemberCall(BinaryExpr b)
         => new CallExpr(
                new MemberAccess(Lower(b.Left), b.Op) { Line = b.Line, Column = b.Column },
                Lower(b.Right))
            { Line = b.Line, Column = b.Column };
 
-    /// <summary>`f or g` → `(x) => { (f x) || (g x); }`(与是 `&&`)。
-    ///
-    /// 交回的是一枚**一元函数**,和 `|` 的交替、`>>` 的组合一个口径:两边都拿同一个实参喂。
-    /// 于是短路照旧短路 —— `||` / `&&` 本来就是短路的,`(f x)` 为真时 `(g x)` 根本不求。
-    ///
-    /// 参数名固定是 `_or0` / `_and0` 这种(带序号)。**用户要是真有个变量叫这个名**,
-    /// 它在体的那两个调用点会被这枚参数遮住 —— 和别的消糖(`_0` 那套)一个口径,
-    /// 不额外防:防不住,也没人这么起名。</summary>
     private LambdaExpr Predicate(BinaryExpr b)
     {
         var f = Lower(b.Left);
@@ -219,17 +157,9 @@ public sealed class Lowering
             { Line = b.Line, Column = b.Column, Sugar = true };
     }
 
-    /// <summary>`a ?? b` → `NilOr (() => { a; }) (() => { b; })`。</summary>
     private Expression Coalesce(BinaryExpr b)
         => Call(Call(Ident("NilOr", b), Thunk(Lower(b.Left), b)), Thunk(Lower(b.Right), b));
 
-    /// <summary>`x ??= v` / `a.b ??= v` → `NilFill (() =&gt; { x; }) ((w) =&gt; { x = w; }) (() =&gt; { v; })`。
-    ///
-    /// 成员那条把**接收者先求一次**再包进闭包(`((r) => { … }) (a)`)—— 否则
-    /// `f ().b ??= v` 会把 `f` 跑两遍。
-    ///
-    /// **形状检查留在解析器里**(`left` 得是变量或成员):那是**语法**规则,
-    /// 而且在那儿报错,插入符指着的是 `??=` 那个位置,比指着整条语句准。</summary>
     private Expression CoalesceAssign(BinaryExpr b)
     {
         var fallback = Thunk(Lower(b.Right), b);
@@ -268,20 +198,6 @@ public sealed class Lowering
         }
     }
 
-    /// <summary>`do { … }` → `Bind` 链:每遇到一条 `名字 :&lt; 表达式`,就把它**后面剩下的全部**
-    /// 包成 lambda 交给 `Bind`;普通语句搁在同一个 lambda 体里,它前面。最后一条语句
-    /// (不许是 `:<`)的值就是整块的值 —— 也就是最内层那个 lambda 体的值。
-    ///
-    /// <code>
-    /// do { x :< m1; y :< m2; Some (x + y); }
-    /// ≡  m1.Bind ((x: object) =&gt; { m2.Bind ((y: object) =&gt; { Some (x + y); }); })
-    /// </code>
-    ///
-    /// 绑定出来的变量标 `object`(最宽的那个)—— 这儿对拿到什么一无所知,而 lambda 的参数
-    /// 也只知道"有东西来了"。想要具体类型就在块里自己过一手(`n: int = x`)。
-    ///
-    /// 块里的语句**先各自降一遍**再折(`or` / `??` 那些可能就在里面),于是折出来的
-    /// 那棵树里不再有糖。</summary>
     private Expression Do(DoExpr d)
     {
         var stmts = d.Statements.Select(Statement).ToList();
@@ -312,21 +228,11 @@ public sealed class Lowering
             : rest;
     }
 
-    /// <summary>把一条语句搁到已经折好的那段**前面**(`do` 里那些不是 `:<` 的语句)。</summary>
     private Expression Prepend(Statement s, Expression rest, AstNode at)
         => rest is BlockExpr b
             ? b with { Statements = [s, .. b.Statements] }
             : Block([s, new ExpressionStatement(rest) { Line = rest.Line, Column = rest.Column }], at);
 
-    /// <summary>`(…) => …` 那一枚 lambda。
-    ///
-    /// **模式参数**(`([x y]) => …`)在这一趟展开成体开头的几句解构 —— 参数本身拿的是
-    /// 合成名(`__p{n}`),真正给用户用的名字由模式绑出来。于是"形状不对"就是一次普通求值
-    /// 错误(`Bind` 报的 `TypeError`),而它发生在**这一支自己那次调用里**(第一格就判),
-    /// 所以 `|` 的交替接得住 —— 多参子句上的守卫做不到这一点(那会儿交替帧早返回了)。
-    ///
-    /// 多参 lambda 是**柯里化**折出来的(`(a b) => …` 是一层层 `LambdaExpr`),所以
-    /// 每一层各自带自己的参数、各自展开自己的模式 —— 这儿不用管层数。</summary>
     private Expression Lambda(LambdaExpr l)
     {
         // 参数的类型是**表达式**(`(x: 某个类型表达式) => …`),所以也得走一趟
@@ -357,15 +263,6 @@ public sealed class Lowering
         return l with { Param = param, Body = body };
     }
 
-    /// <summary>**最外那一格对"整个值"的要求**(没有就 `null`)—— 它能提到参数签名上去。
-    ///
-    /// 判据不是"这一格下不下沉",而是"**它在最外面**":模式的 `Type` 说的**永远是它拿到的
-    /// 那个值**,而最外那格拿到的就是整个实参。所以 `([a b] : list)` 能提(`list` 说的是整个
-    /// 参数,提上去照样是"整个参数要 list"),而 `[x: int y]` 里那个 `int` 说的是**元素**,
-    /// 提不上去 —— 参数的注解槽只有一个。
-    ///
-    /// 字面量那格的要求写在 `Domain` 上(它说的是"属于哪一族",不是某个类型名):
-    /// `1` 的域是 `INumber` —— 别收成 `int`,`1 == 1.0` 让 `1 => …` 得收 `1.0`。</summary>
     private static Expression? OuterWant(Pattern p) => p switch
     {
         LiteralPattern lit => lit.Domain,
@@ -373,32 +270,6 @@ public sealed class Lowering
         _ => p.Type,
     };
 
-    /// <summary>解构:按模式把右边那个值拆成一串普通的 `:=`。
-    ///
-    /// <code>
-    /// [x _ z ..rest] : T = e
-    /// ≡  __d0 : T = e                     ← 有注解、或对象模式,才落地(见下)
-    ///    __g0 := __d0.GetEnumerator ()
-    ///    __g0.MoveNext ()   x := __g0.Current
-    ///    __g0.MoveNext ()                 ← `_` 也要走一步:跳过 ≠ 不取
-    ///    __g0.MoveNext ()   z := __g0.Current
-    ///    rest := Generator (y: function) => { while { __g0.MoveNext (); } { y (__g0.Current); } }
-    ///
-    /// {x y z} : U = e
-    /// ≡  __d0 : U = e ; x := __d0.x ; y := __d0.y ; z := __d0.z
-    /// </code>
-    ///
-    /// **游标顺序照 `lib/iterator.rav` 那条**:`GetEnumerator` → **先 `MoveNext`** → 再 `Current`
-    /// (`foreach` 就是这个白描,`Take` 自己控 `MoveNext` 时也是这个次序)。`..rest` 交回的
-    /// 是"从这儿往后的那一串"—— 拿同一枚游标包一个 `Generator`,所以它和游标一样是**一次性的**。
-    ///
-    /// **中间量什么时候落地**(`__d{n}`):写了 `: T` 就一定落 —— 那条注解管的是**右边那个值**,
-    /// 得有地方挂它;对象模式一个值要取好几个成员,不落地的话 `{x y} := f ()` 会把 `f` 跑两遍
-    /// (`??=` 的成员那条同理,见 `CoalesceAssign`)。列表模式取一次就够(`.GetEnumerator ()`),
-    /// 右边本来就是现成的名字时也不落。
-    ///
-    /// `Attrs`(修饰符)跟着每一个拆出来的定义走 —— 包括中间量:`private [x y] : T = e` 在类体里
-    /// 拆出来的是两个私有成员,那两个中间量也不该露出去。</summary>
     private List<Statement> Unpack(Destructure d)
     {
         var outs = new List<Statement>();
@@ -425,20 +296,6 @@ public sealed class Lowering
         return outs;
     }
 
-    /// <summary>按模式往 <paramref name="outs"/> 里补语句。嵌套的那几格递归进来。
-    ///
-    /// **拆不成分两种,都报 `TypeError`**(不是引擎内部那种硬错):
-    ///
-    /// * 这一份压根不是"能按顺序取的东西" → 当场说清,`得到 Integer` 那种;
-    /// * 取到一半到底了(`MoveNext` 回 false)→ 说清"要第几格"。
-    ///
-    /// 为什么非得是 `TypeError`:**带模式的参数**就是靠它接住的 —— `([x y]) => … | (_) => …`
-    /// 里第一支形状不对时,拒收要发生在**它自己那次调用里**(第一格就判),`|` 的交替才接得住。
-    /// (多参子句上的守卫做不到这一点:那会儿交替帧早返回了。)
-    ///
-    /// 顺带把原来那两条**看不懂的错**换掉了:
-    /// `[q w] := 5` 从前报「类型 'Integer' 没有方法 'GetEnumerator'」,
-    /// `[q w] := [1]` 报「list.At 的索引 1 越界」—— 都是**脱糖内部**的词。</summary>
     private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs,
                       bool outerDone = false)
     {
@@ -672,15 +529,9 @@ public sealed class Lowering
         throw Error(at, "Lowering 没认这个模式");
     }
 
-    /// <summary>取反。**只在布尔上**用(`MoveNext` 的返回值、类型判定)——它就是一元的 `!`。</summary>
     private static UnaryExpr Not(Expression operand, AstNode at)
         => new("!", operand) { Line = at.Line, Column = at.Column };
 
-    /// <summary>这一格带了**条件**(`[u == 1]` / `a == 1 = e`):绑完之后验一次,不成**拒收**。
-    ///
-    /// 名字用 <paramref name="bound"/> 那个**已经绑好的**标识符,不重读源 ——
-    /// 所以条件里写的 `u` 就是绑出来的那个 `u`(和参数表里守卫的读法一致)。
-    /// 判据一样走拒收(不是 `throw`):`|` 的交替接得住,参数模式和它一条路。</summary>
     private void CheckGuard(Pattern p, string name, Expression bound, List<Statement> outs)
     {
         if (p.Guard is not { } guard) return;
@@ -689,20 +540,9 @@ public sealed class Lowering
             Reject(Lit($"'{name}' 这一格的条件没过 —— 这一支不收这个值", at), at), at), at));
     }
 
-    /// <summary>`条件 { 这一段; } { 0; }` —— 条件不成立才跑那一段。
-    ///
-    /// **从前是绕 `if` 走的**(`if { 条件; } { 这一段; } { 0; }`)—— 2026-10-07 把 `if`
-    /// 那个库函数删了,`true` / `false` 直接收两个块。「条件」本来就是**算好的 bool**
-    /// (调用点给的都是 `Not(…)` / `Call(…)` 这种表达式),不是 thunk,所以少一层包装。</summary>
     private Expression If(Expression cond, Expression then, AstNode at)
         => Call(Call(cond, AsBlock(then, at)), AsBlock(Num("0", at), at));
 
-    /// <summary>**拒收**:`reject "…"`。
-    ///
-    /// 为什么不是 `throw (TypeError "…")`:那条路走的是**异常处理器栈**,`|` 的交替不认它
-    /// (只有 `try` 接得住)。而带模式的参数正是靠 `|` 接住"这一支形状不对"才有用 ——
-    /// 所以要用**同一枚拒收信号**(参数守卫用的也是它):先给最近的交替接,没人接才落到 `try`。
-    /// 消息可以是拼出来的(不是序列那一条要带上实际类型)。</summary>
     private Expression Reject(Expression message, AstNode at)
         => Call(Member(Ident("System", at), "Reject"), Call(Ident("TypeError", at), message));
 
@@ -716,14 +556,6 @@ public sealed class Lowering
     private MemberAccess Member(Expression obj, string name)
         => new(obj, name) { Line = obj.Line, Column = obj.Column };
 
-    /// <summary>造中间量(`__d` / `__g`)时用的 attrs:**把 `by` 摘掉**。
-    ///
-    /// 中间量装的是**游标、容器**那种东西(`GetEnumerator ()` 的结果、右边那个值本身),
-    /// 不是属性 —— 摊上 `by` 就成了"标了 by 却不是 property",一读就报,而且报的名字是
-    /// 合成的 `__d…`(用户压根没写过这个名字)。别的修饰符照旧摊上去(`readonly` 无所谓,
-    /// 没人会给中间量赋值),反正那些名字用户写不出来。
-    ///
-    /// 于是 `by [u v] := [p m]` 成立:`u` / `v` 各是一个槽,中间的游标照旧是普通变量。</summary>
     private static List<string>? TempAttrs(List<string>? attrs)
     {
         if (attrs is null || !attrs.Contains(Attr.By)) return attrs;
@@ -733,20 +565,9 @@ public sealed class Lowering
         return rest.Count > 0 ? rest : null;
     }
 
-    /// <summary>零参调用:`x.MoveNext ()` —— 实参是 `()`(Void)。</summary>
     private static CallExpr Call0(Expression f)
         => Call(f, new VoidLiteral { Line = f.Line, Column = f.Column });
 
-    /// <summary>造一条"绑个名字"的语句。
-    ///
-    /// **光一个 `by` 的走 `SlotAssign`,不走 `VarDefinition`** —— 两者**印出来是同一行**
-    /// (`by x := v`),而解析器把它读成 `SlotAssign`(见 `Parser.Statements` 里那句
-    /// `attrs.Count == 1 && attrs.Contains(Attr.By) && IsSlotAssignStart()`)。不认这一格的话
-    /// 打印出来的源码再解析就是**另一棵树** —— `ast` 的自检当场逮到(`[by x] := …` 实测)。
-    /// 语义也对得上:裸 `by` 就是"建槽"那条路,和手写 `by x := …` 一个意思。
-    ///
-    /// 混着别的修饰符(`readonly by x`)或带注解(`by x: int = v`)时解析器本来就走
-    /// `ParseDefinition`,照旧是 `VarDefinition`。</summary>
     private static Statement Define(string name, Expression? type, Expression value, List<string>? attrs, AstNode at)
         => attrs is [Attr.By] && type is null
             ? new SlotAssign(Ident(name, at), value, Define: true) { Line = at.Line, Column = at.Column }
@@ -755,35 +576,27 @@ public sealed class Lowering
     private static Statement ExprStmt(Expression e, AstNode at)
         => new ExpressionStatement(e) { Line = at.Line, Column = at.Column };
 
-    /// <summary>`x++` → `x += 1`(`--` 是 `-=`)。目标的形状同样在解析器里查过。</summary>
     private BinaryExpr IncDec(UnaryExpr u)
         => new(Lower(u.Operand), u.Op == "++" ? "+=" : "-=",
                new NumberLiteral("1") { Line = u.Line, Column = u.Column })
         { Line = u.Line, Column = u.Column };
 
-    /// <summary>把一条表达式包成"要用才跑"的块 `() => { expr; }`。参数名是 `_`(void),
-    /// 和 `() => …` 的 AST 写法一致(见 `Parser.Atoms.ParseParen`)。</summary>
     private LambdaExpr Thunk(Expression e, AstNode at)
         => new(new Parameter("_", new IdentifierExpr("void") { Line = at.Line, Column = at.Column }), AsBlock(e, at))
             { Line = at.Line, Column = at.Column, Sugar = true };
 
-    /// <summary>折出来的那段要当 lambda 的体,得是个块:已经是就原样,不是就包一层。</summary>
     private BlockExpr AsBlock(Expression e, AstNode at)
         => e is BlockExpr b ? b : Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
 
-    /// <summary>造一块。`Source` 得跟着走 —— 报错和调用栈沿帧链找的就是它
-    /// (从前在解析器里折时,用的也是解析器记的那个 `source`)。</summary>
     private BlockExpr Block(List<Statement> stmts, AstNode at)
         => new(stmts) { Line = at.Line, Column = at.Column, Source = _source };
 
     private static CallExpr Call(Expression f, Expression arg)
         => new(f, arg) { Line = f.Line, Column = f.Column };
 
-    /// <summary>造一个标识符节点,位置借那个糖节点的(报错/调用栈指回源码那一格)。</summary>
     private static IdentifierExpr Ident(string name, AstNode at)
         => new(name) { Line = at.Line, Column = at.Column };
 
-    /// <summary>降阶阶段的报错。位置取自糖节点,文件取自 `Program.Source`。</summary>
     private SyntaxException Error(AstNode at, string message)
         => new(message, new SourceSpot(_source, at.Line, at.Column));
 }

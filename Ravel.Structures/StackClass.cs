@@ -1,12 +1,5 @@
 namespace Ravel.Runtime;
 
-/// <summary>**栈**(后进先出)。`Push` / `Pop` / `Peek` 都是 O(1)。
-///
-///     s := Stack ()            # 也可以 Stack [1 2 3] —— 从底往上垒
-///     s.Push 1 / s.Pop () / s.Peek ()
-///
-/// 枚举顺序是**栈顶在前**(= 弹出来的顺序);`ToList ()` 也是那个顺序。
-/// 空的 `Pop` / `Peek` **报错**(不是给 `()` ——「没有顶」和「顶上是个空值」不该长得一样)。</summary>
 [RavelModule("Structures")]
 [RavelClass("Stack")]
 internal static class StackClass
@@ -47,7 +40,6 @@ internal static class StackClass
     [ClassMethod("Count")]
     public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Items.Count);
 
-    /// <summary>栈顶在前(和枚举、和一个个 `Pop` 一个顺序)</summary>
     [ClassMethod("ToList")]
     public static RuntimeValue ToList(RuntimeValue self) => new ListVal([.. Val(self).Items]);
 

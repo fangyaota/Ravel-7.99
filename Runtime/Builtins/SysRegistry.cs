@@ -2,17 +2,10 @@ namespace Ravel.Runtime;
 
 using System.Reflection;
 
-/// <summary>`[Sys]` 那一族的**扫描与绑定**。
-///
-/// 扫的是**整个程序集**(不列名单 —— 列了就又回到"加一个得回去改一行"那条老路):
-/// 谁身上有 `[Sys]` 方法谁就是内置那一族,写在哪个文件、哪个类里都行。
-/// 扫描**静态缓存**(反射不便宜,而解释器是每跑一次就新建一个的),绑委托每实例做一次 ——
-/// 调用在热路上(`print` 也过它),不能留 `MethodInfo.Invoke`。</summary>
 internal static class SysRegistry
 {
     private static readonly List<(string Name, MethodInfo Method)> Found = Scan();
 
-    /// <summary>把扫出来的全登记进去。`def` 就是解释器那边的 `DefFn`(登记到 `System` 模块表里)。</summary>
     public static void Register(Interpreter self, Action<string, FunctionVal> def)
     {
         foreach (var (name, method) in Found)
@@ -42,7 +35,6 @@ internal static class SysRegistry
         return found;
     }
 
-    /// <summary>签名对不对。**建表时就报**,别等调到才发现。</summary>
     private static bool Check(MethodInfo m, out string why)
     {
         var ps = m.GetParameters();
@@ -61,6 +53,5 @@ internal static class SysRegistry
         return true;
     }
 
-    /// <summary>绑成函数值 —— 规矩只有一处(见 `ClassRegistry.Fn`,插件那趟走的是同一条)。</summary>
     private static FunctionVal Bind(Interpreter self, MethodInfo m) => ClassRegistry.Fn(self, m);
 }

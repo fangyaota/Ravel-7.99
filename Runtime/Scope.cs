@@ -2,33 +2,11 @@ namespace Ravel.Runtime;
 
 public class Scope(Scope? parent = null)
 {
-    /// <summary>本层的变量表。**懒建** —— 没往这一层装过东西就一直是 null。
-    ///
-    /// 为什么值得懒:作用域**大多数是空的**。刚量过一台裸 `while` 循环:每轮 8 层,
-    /// 其中 4 层是 `PartialBool` 白送的(`ObjectVal.Scope` 已经改成懒建,那 4 层没了),
-    /// 剩下 4 层里也有一多半一个变量都不装 —— 而每个 `Dictionary` 就是个对象,
-    /// 无条件建的话一张空表也照样进 GC。见 CONTEXT「性能:时间花在哪儿」。
-    ///
-    /// 于是本文件里每一处访问都得带判空 —— 一共八九处,都得记着。</summary>
     private Dictionary<string, Variable>? _vars;
     public Scope? Parent { get; private set; } = parent;
 
-    /// <summary>换掉词法父 —— **只给"造实现"那一处用**(见 `StepImplMake`)。
-    ///
-    /// 那个 scope 是"实例化接口"那趟(`StepClassInit`)建出来的(词法父 = **接口定义**处,
-    /// 接口体在那儿写的),而它同时要当**实现对象**的成员表 —— 实现块的自由名字得在
-    /// "实现写在哪"解析(实现体和接口体常常不在一处:`lib/keys.rav` 里 `IDict` 的实现块
-    /// 引用的 `Of` 就只在那儿可见)。所以那一处把它接到实现块的捕获作用域上。
-    ///
-    /// 别处不要再调:作用域是棵树,父能改的话读的人就没法靠它推理了。</summary>
     public void Reparent(Scope parent) => Parent = parent;
 
-    /// <summary>沿词法链找变量(当前层 → 父层 → …),找不到返回 null。
-    /// 其余查找/赋值都走这里,链式遍历只有这一份实现。
-    ///
-    /// 每一层问的是 <see cref="LookupHere"/>(虚的),不是直接翻 `_vars` ——
-    /// 于是某一层可以**代别人回答**(<see cref="BodyScope"/> 就是这么把自己的实例表
-    /// 插进链里的:类体跑在它上面,而"这一段代码属于哪个对象"由它说了算)。</summary>
     private Variable? Find(string name)
     {
         for (var current = this; current != null; current = current.Parent)
@@ -38,28 +16,11 @@ public class Scope(Scope? parent = null)
         return null;
     }
 
-    /// <summary>这一层能不能给出这个名字 —— 默认就是翻本层自己的 `_vars`。
-    ///
-    /// 覆写它的只有 <see cref="BodyScope"/>:那一层自己**不装东西**(定义都转发给实例表了),
-    /// 它的回答是"先看看实例表本层有没有"。**只问那一层**(`LookupField`,不走它的词法父):
-    /// 实例表的词法父是"最具体那个类的写法处",那正是 <see cref="BodyScope"/> 要绕开的东西。</summary>
     protected virtual Variable? LookupHere(string name)
         => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
 
-    /// <summary>这一层**是谁私有的成员表** —— 模块就是这样的:它的作用域**就是**成员表
-    /// (见 <see cref="ModuleVal.WithOwnTable"/>)。普通作用域是普通作用域,这里是 null。
-    ///
-    /// (真的全局作用域**不是**:它同时是预定义、库、脚本共用的一层命名空间,
-    ///  包着它的那一枚 `<global>` 只是"没写模块名的那些文件"的站位,不占有它。)
-    ///
-    /// 有它才能拦住 <see cref="Define"/> 里那一条:往成员表里 `:=` 一个**类型链上已经有**
-    /// 的名字,那是把继承来的成员蒙掉,不是"新开一个变量"。</summary>
     internal ObjectVal? TableOf { get; set; }
 
-    /// <summary>这一层**替哪个对象服务**(类体作用域会说"我服务那个实例")。默认没有。
-    ///
-    /// 给 `Interpreter.CheckFieldAccess` 那种"当前代码在不在这个对象的类里"的判断用:
-    /// 类体跑在 <see cref="BodyScope"/> 上之后,实例表不在词法链上,只比对 `Parent` 会漏掉它。</summary>
     internal virtual Scope? InstanceScope => null;
 
     public virtual Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
@@ -109,17 +70,11 @@ public class Scope(Scope? parent = null)
         return v;
     }
 
-    /// <summary>**删掉本层的一个名字**,找不到就什么都不做。给 `IDict` 的 `Remove` 槽用 ——
-    /// 作用域从前只有增改,没有删(`lib/keys.rav` 里那条 `impl (IDict System.Scope …)`)。
-    ///
-    /// 只删**本层**:外层同名的那个不受影响(它本来就是另一格);和 `Define` 一样,
-    /// 作用域是棵树,别处不该被牵连。</summary>
     public void RemoveHere(string name) => _vars?.Remove(name);
 
     public Variable Lookup(string name)
         => Find(name) ?? throw new RuntimeException($"未定义的变量 '{name}'", ErrorKind.Name);
 
-    /// <summary>查找变量，找不到返回 null（不抛异常）</summary>
     public Variable? TryLookup(string name) => Find(name);
 
     public virtual void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
@@ -151,24 +106,14 @@ public class Scope(Scope? parent = null)
     public Scope Push() => new(this);
     public bool Contains(string name) => _vars?.ContainsKey(name) ?? false;
 
-    /// <summary>本层**已存**的格子 —— 不含任何"按名字懒造"的成员。
-    ///
-    /// 成员表用它:列举/拷贝只该看到"真的落下来了"的那些。`Fields ()` 的名单是另一回事
-    /// (它要把注册表里"还没造出来"的名字也列出来,见 <see cref="VirtualScope.MemberNames"/>)。
-    /// 普通作用域里这两件事本来就是同一件(`Variables` 就是 `_vars`)。</summary>
     protected IEnumerable<KeyValuePair<string, Variable>> StoredHere
         => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
 
-    /// <summary>把**已经造好**的一格原样存进本层。虚表的 `Create` 用它 ——
-    /// 走 <see cref="DefineOrReplace"/> 会重新 `new` 一个 `Variable`,把 attrs
-    /// (`readonly` / `by` / `protected` …)和身份一起丢掉。</summary>
     protected void PutHere(string name, Variable v) => (_vars ??= [])[name] = v;
 
     public virtual IEnumerable<KeyValuePair<string, Variable>> Variables
         => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
 
-    /// <summary>这一层里**有哪些成员名**。本层登记的**,外加**这个类型的成员工厂
-    /// 准备好的那些(只在 <see cref="MemberOf"/> 有值时:普通作用域没有"类型")。</summary>
     public virtual IEnumerable<string> MemberNames
     {
         get
@@ -189,42 +134,21 @@ public class Scope(Scope? parent = null)
         }
     }
 
-    /// <summary>这一层是**哪个值自己的成员表** —— 模块、插件的值、`ScopeVal` 这些
-    /// 拿着"现成的作用域"当表的对象在这儿登记(`ObjectVal` 构造时顺手标上)。
-    ///
-    /// 有它,成员查找才有一层**类型兜底**:那些对象没有 <see cref="VirtualScope"/> 那张表,
-    /// 可他们照样得读得到 `Fields` / `Push` / `References` 这些引擎挂的成员 —— 问的是类
-    /// 自己那份成员工厂。没有它(普通作用域、类体那层)就只是"本层登记了哪些名字"。</summary>
     internal RuntimeValue? MemberOf { get; set; }
 
-    /// <summary>本层**已存**的那一格,不碰类型 —— 给"只认这一层"的调用点用
-    /// (换槽要落到**实例自己**那层,`obj.Scope.LookupField` 现在会兜底到类那格,
-    /// 换掉它就等于换掉整个类的槽)。</summary>
     internal Variable? OwnField(string name) => Stored(name);
 
-    /// <summary>本层**已存**的那一格,不碰类型。</summary>
     protected Variable? Stored(string name)
         => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
 
-    /// <summary>查找字段：只看本 scope 自己的变量，不走词法链、不走链式继承。
-    /// 继承来的字段在实例化时就已平铺进同一个实例 scope，所以一层就够；
-    /// 不能走词法链是因为实例 scope 的 Parent 是「类定义处的作用域」，那会泄漏外部局部变量。
-    ///
-    /// **取值的成员要走 <see cref="MemberView"/>**(它在本层之外还沿类链兜底);
-    /// 这个名字保留"只查一层"的语义,给那些**必须**看本层的调用点用:
-    /// 找构造器(`init`)、找类运算符、取 `parent`/`block`/`name` 这些类自己的数据。</summary>
     public virtual Variable? LookupField(string name)
         => Stored(name) ?? (MemberOf is { } owner ? OwnerMember(owner, name) : null);
 
-    /// <summary>一个值**类型上**给的那种成员(`Fields` / `Push` / `References` …) ——
-    /// 模块、插件值、`ScopeVal` 这些拿普通作用域当表的对象靠它读得到。
-    /// 只有两个来源:类型自己那份成员工厂,和 `Object` 那一套公共尾巴。</summary>
     private static Variable? OwnerMember(RuntimeValue owner, string name)
         => owner.Type is ClassVal type
             ? type.Members?.Create(type, name) ?? ObjectMembers.Any.Create(type, name)
             : null;
 
-    /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>
     public Variable? LookupVar(string name)
     {
         var v = TryLookup(name);

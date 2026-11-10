@@ -1,6 +1,5 @@
 namespace Ravel.Runtime;
 
-/// <summary>持久化单链表(老 SingleLinkedList):Add 头插,共享尾,纯数据</summary>
 public sealed class RList<T>
 {
     public static readonly RList<T> Empty = new();
@@ -24,7 +23,6 @@ public sealed class RList<T>
 
     public RList<T> Add(T v) => new(v, this);
 
-    /// <summary>第 i 个(0 基,最早加入的在前);i 从尾部数时用 Head</summary>
     public T At(int i)
     {
         var c = this;

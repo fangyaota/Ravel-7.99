@@ -1,18 +1,13 @@
 namespace Ravel.Runtime;
 
-/// <summary>显式持久帧栈求值器:Step() 循环逐帧推进,C# 栈恒平,递归深度=帧链长度。
-/// 本文件只放推进循环本身(取帧/推帧/返回);节点求值见 Interpreter.Nodes.cs,
-/// 调用分派见 Interpreter.Call.cs,控制帧见 Interpreter.Control.cs,模块加载见 Interpreter.Modules.cs。</summary>
 public partial class Interpreter
 {
-    /// <summary>调用栈最多列几层——深递归时帧链可能有几十万层</summary>
     private const int MaxTrace = 12;
 
     private Frame _top = null!;
     private RuntimeValue _result = VoidVal.Instance;
     private Scope _rootScope = null!;
 
-    /// <summary>顶层入口:整个程序一个块根帧(帧链包含剩余语句,callcc 续延才能完整恢复)。scope 用 _rootScope(ravel 模块切换会改它)</summary>
     private RuntimeValue RunStack(Program p)
     {
         _rootScope = _global;
@@ -26,8 +21,6 @@ public partial class Interpreter
         return _result;
     }
 
-    /// <summary>此刻"代码正落在哪个作用域里" —— 沿帧链找到最近的那个块帧。
-    /// 顶层就是主脚本那一块(它的 Scope 就是 `_global`)。</summary>
     private Scope AmbientScope()
     {
         var f = _top;
@@ -35,7 +28,6 @@ public partial class Interpreter
         return f.Scope;
     }
 
-    /// <summary>切换作用域:顶层改 _rootScope,块内改最近的 BlockExecFrame 的 scope(ravel 模块用)</summary>
     private void SetAmbientScope(Scope scope)
     {
         var f = _top;
@@ -44,18 +36,6 @@ public partial class Interpreter
         if (f.Parent == null) _rootScope = scope;
     }
 
-    /// <summary>`instance` 的解析:**这一次调用在服务谁**。找不到返回 null(由调用点报错)。
-    ///
-    /// 从 `start`(读 `instance` 那一帧的调用点作用域)沿词法链往外找一遍,再沿帧链一层层往外、
-    /// 每帧从它自己的 scope 起走词法链 —— 取最近一层激活格里的接收者。
-    ///
-    /// 两段各管一半:**词法**那一半管"槽体自己,以及槽体里造的闭包"(留存下来的闭包靠它记住
-    /// 自己属于谁 —— 从前实现身上只有一格共享的 `instance`,留存值会后漂);**帧链**那一半管
-    /// "槽体里调用的辅助函数"(它的词法链上没有激活格,但调用链上有)。
-    ///
-    /// 只认 `impl$active` 就是**这个实现**的激活格(认号不认对象:副本带的是同一枚号,
-    /// 见 `BuiltinClasses.ImplIdMember`):跨实现边界时宁可报「没有正在被服务的实例」,
-    /// 也不能静默绑到别人的接收者上。</summary>
     internal RuntimeValue? ActiveInstance(Scope? start, int implId)
     {
         for (var s = start; s != null; s = s.Parent)
@@ -68,7 +48,6 @@ public partial class Interpreter
         return null;
     }
 
-    /// <summary>这一层是不是"这个实现的"激活格:两格都在、且 `impl$active` 就是这枚号。</summary>
     private static RuntimeValue? ActiveAt(Scope s, int implId)
         => s.LookupField(BuiltinClasses.InstanceActiveMember) is { } vr
            && s.LookupField(BuiltinClasses.ImplActiveMember)?.Value is IntVal id && id.Value == implId
@@ -117,27 +96,6 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>拍一份**模块加载状态**快照:加载栈 `_loading`(谁正在加载)。
-    ///
-    /// 引擎只管它自己这两样(`_loading` / `_loaded`)—— **handler 栈不归它管**:那是库的状态,
-    /// 它就在 Ravel 里那个 list 上,库自己拍、自己还原(见 predefined.rav 的 `callcc`)。
-    ///
-    /// 为什么需要拍:续延一调用就把当前帧链整个丢掉,"跑完收尾去退 `_loading`"那一步再也不会执行 ——
-    /// 从**模块体**里逃出去,那个模块会永远停在 `_loading` 里,之后正常 `using` 被误报
-    /// 「检测到循环引用」,而且它已记进 `_loaded`,于是 `using` 变成**静默空操作**、定义缺着。
-    ///
-    /// 快照只收 `_loading`,**不拷 `_loaded`**:被中断的加载在 <see cref="RestoreLoading"/> 那侧
-    /// 按"此刻还在 `_loading` 里、快照里没有"算出来(否则每次 `callcc` 都要拷一遍已加载表)。
-    /// 空是常态(绝大多数 `callcc` 都不在模块体里跑),那时给一个共享的空表,不分配。</summary>
-    /// <summary>续延被调时,把**引擎自己那份**控制状态(模块加载栈)盖回捕获那一刻。
-    ///
-    /// **只在这真有事要干时才动** —— 绝大多数续延(循环、生成器)捕获与调用之间根本没人
-    /// 加载模块:那会儿捕获到的就是共用的空表、`_loading` 也是空的,一句比较就过去了。
-    /// 从前这是库每次调用都喊一遍 `System.RestoreLoading`(一次内置调用 ≈ 0.65 µs,
-    /// 占一轮 `while` 的 11%)—— 判断放回引擎之后那一趟是 C# 里的引用比较,不要钱。
-    ///
-    /// `null` = 不是 `System.CallCC` 交出来的那枚(`Continuation f` 包出来的、`default`),
-    /// 没什么可还原。见 <see cref="ContinuationVal.Loading"/>。</summary>
     private void RestoreLoadingIfNeeded(RuntimeValue? snap)
     {
         if (snap is null) return;
@@ -153,9 +111,6 @@ public partial class Interpreter
 
     private static readonly ListVal EmptyLoading = new([]);
 
-    /// <summary>把模块加载状态还原成快照那一份,并把"被这次还原甩掉的加载"(此刻还在 `_loading` 里、
-    /// 快照里没有的)从 `_loaded` 里摘掉 —— 不摘的话那个模块停在"loaded 一半"上,之后 `using` 只是
-    /// 静默地什么都不做。摘掉之后下次 `using` 从头再来。</summary>
     internal RuntimeValue RestoreLoading(RuntimeValue snap)
     {
         if (snap is not ListVal loading) return VoidVal.Instance;
@@ -174,10 +129,6 @@ public partial class Interpreter
         return VoidVal.Instance;
     }
 
-    /// <summary>Ravel 那边注册的"错误交给谁"的钩子(库启动时注册一次,见 predefined.rav 的 `onError`)。
-    /// 引擎**不认识** handler 栈:它只把这个函数调起来,由库决定有没有人接、没人接怎么办 ——
-    /// 于是"异常处理"整套也住在库里,和 `while` / `try` / `callcc` 一样。</summary>
-    /// <summary>库注册的"错误交给谁"。给内置那一族开 `internal` 的口(见 `SysCore.SetErrorHook`)。</summary>
     internal FunctionVal? ErrorHook
     {
         get => _errorHook;
@@ -186,26 +137,12 @@ public partial class Interpreter
 
     private FunctionVal? _errorHook;
 
-    /// <summary>「正在把错误交给库」这段区间开着的标记 —— **重入保护**。
-    ///
-    /// 库的处理代码自己读成员(`ex.message`、`e.kind`、`e.Trace` …),而成员查找那条通道
-    /// 正是这一轮改的东西。处理代码再出一错,没有这个标记就会再交给库、再错、再交给库……
-    /// **进程不返回**。开着的时候一律不再回库,直接冒泡给 CLI 渲染一次。</summary>
     private bool _reporting;
 
-    /// <summary>这一次交给钩子的那个异常:库"没人接"时调 `System.Unhandled`,由这里**原样**再抛出去
-    /// (位置与调用栈都保持一模一样 —— `Located` 已经是真,不会再被覆盖成库里的位置)。</summary>
     private RuntimeException? _handed;
 
-    /// <summary>交替接到的最后一次拒收说了什么 —— `StepAlternate` 用它拼"都不收"那句,
-    /// 拿完就清(见那儿)。</summary>
     private string? _rejectMessage;
 
-    /// <summary>把一次**拒收**送回**最近的**外层交替帧,让它接着试下一支。
-    ///
-    /// "最近"就是沿 Parent 往上头一个 —— 交替可以嵌套,内层先接。
-    /// 找不到就返回 false,那它就退化成普通错误继续冒泡(比如 `reject` 写在交替外面)。
-    /// </summary>
     private bool ResumeAlternate(RejectedException ex)
     {
         for (var f = _top; f is not null; f = f.Parent)
@@ -225,7 +162,6 @@ public partial class Interpreter
         return false;
     }
 
-    /// <summary>把冒泡上来的错误交给库注册的钩子。没注册钩子就返回 false(照旧冒泡给 CLI 打报告)。</summary>
     private bool HandToRavelHandler(RuntimeException ex)
     {
         // **重入保护**:库正在处理一个错误时,处理代码自己又出错了 —— 不再回库,
@@ -247,12 +183,8 @@ public partial class Interpreter
         return true;
     }
 
-    /// <summary>引擎刚交给 Ravel handler 的那个 C# 异常。`Unhandled` 和 `System.FormatError`
-    /// 都要它 —— **位置和调用栈只在这个 C# 异常身上**:交给 Ravel 的那份是个普通对象,
-    /// 只装了一句 message(`BuiltinClasses.NewException`)。</summary>
     internal RuntimeException? Handed => _handed;
 
-    /// <summary>`System.Unhandled e`:库在"没人接"时调它 —— 把引擎这次交出去的那个异常原样抛出。</summary>
     internal RuntimeValue Unhandled(RuntimeValue e)
     {
         var ex = _handed;
@@ -260,10 +192,6 @@ public partial class Interpreter
         throw ex ?? new RuntimeException(BuiltinClasses.ExceptionMessage(e) ?? Show(e));
     }
 
-    /// <summary>出错位置:当前正在求值的节点;它没有位置(控制帧代表「一次内建调用」而不是
-    /// 源码上的某个点,合成的块也一样)就沿帧链往上找最近一个有位置的。
-    /// 不加这个回退的话,`using` 找不到文件、类没有 init 这类错误全都报不出位置——
-    /// `Locate` 只补一次,而 StepOnce 不是递归的,没有第二层来兜底。</summary>
     private static (int Line, int Column) ErrorSpot(Frame top)
     {
         for (var f = top; f != null; f = f.Parent)
@@ -279,7 +207,6 @@ public partial class Interpreter
         return (0, 0);
     }
 
-    /// <summary>给运行时错误补上位置和 Ravel 层调用栈。帧链本身就是调用栈,沿它收集即可。</summary>
     private static RuntimeException Locate(RuntimeException ex, Frame top)
     {
         (ex.Line, ex.Column) = ErrorSpot(top);
@@ -288,7 +215,6 @@ public partial class Interpreter
         return ex;
     }
 
-    /// <summary>沿帧链收集 Ravel 层调用栈。块帧才代表一次「调用」,节点帧只是栈帧内部的步骤</summary>
     private static List<string> StackTraceOf(Frame top)
     {
         var trace = new List<string>();
@@ -304,7 +230,6 @@ public partial class Interpreter
         return trace;
     }
 
-    /// <summary>最近一个有源文件名的块——那就是「出错时在哪个文件里」</summary>
     private static string? NearestSource(Frame top)
     {
         for (var f = top; f != null; f = f.Parent)
@@ -312,7 +237,6 @@ public partial class Interpreter
         return null;
     }
 
-    /// <summary>帧在源码里的位置。块帧用块本身的位置(≈ 函数定义处)</summary>
     private static (int Line, int Column) FrameSpot(Frame f) => f switch
     {
         NodeFrame nf => (nf.Node.Line, nf.Node.Column),
@@ -320,7 +244,6 @@ public partial class Interpreter
         _ => (0, 0),
     };
 
-    /// <summary>完成帧:把结果交给父帧(父空=顶层完成)</summary>
     private void Return(Frame f, RuntimeValue v)
     {
         _top = f.Parent == null ? null! : f.Parent.WithResult(v);
@@ -330,13 +253,6 @@ public partial class Interpreter
         if (f is NodeFrame nf) Recycle(nf);
     }
 
-    /// <summary>节点帧的池子。**每个解释器一份**,不是静态的(一个进程里跑多个解释器是常态)。
-    ///
-    /// 收回时**先断链**(`Parent = null`):不断的话池子会拎着一整条死链不放,那是**泄漏**,
-    /// 而且哪天被重新发出去还会把旧链带回来。
-    ///
-    /// **`Captured` 那一格是唯一不能省的闸门** —— 续延手里的那条链还在用它
-    /// (见 `Frame.Captured`)。</summary>
     private readonly Stack<NodeFrame> _nodePool = [];
 
     private void Recycle(NodeFrame nf)
@@ -346,7 +262,6 @@ public partial class Interpreter
         _nodePool.Push(nf);
     }
 
-    /// <summary>要一个节点帧:池子里有就拿现成的(整份重设),没有才新建。</summary>
     private NodeFrame RentNode(AstNode node, Frame parent)
         => _nodePool.Count > 0 ? _nodePool.Pop().Rent(node, parent) : new NodeFrame(node) { Parent = parent, Scope = parent.Scope };
 
@@ -382,35 +297,8 @@ public partial class Interpreter
         Return(bf, v);
     }
 
-    /// <summary>警报过账:同一个位置只报一次。循环体里那一句一跑就是几千遍,
-    /// 刷屏的警告等于没有警告。(位置 = 文件 + 行列,和报告里印的是同一份。)</summary>
     private readonly HashSet<(string?, int, int)> _warnedForgotCall = [];
 
-    /// <summary>「是不是忘了调用?」—— 上一条语句(下标 `Count-1`)的值被丢掉了,而它是个函数。
-    ///
-    /// 为什么值得响一声:实参收满才成一次调用,少给一块(`if { c } { t }` 这种,少最后那个 `e`)
-    /// 不会报错,只交回一个**半成品函数**;它被丢掉之后程序照跑,只是该做的事没做。
-    /// 消息里带上那个函数本身(`<function (e: function) => { … }>`)—— 一眼就看出还缺哪个参数。
-    ///
-    /// **只认两种形状**,别的都是这门语言的常态、不算错:
-    ///
-    /// * **半成品**(`FunctionVal.IsPartial`):调了,实参没给够。`if { c } { t }`、
-    ///   `assert 条件`(消息没给)、`true { A }`(第二个块没给)、`Point 3`(还差一个)都是这一种。
-    /// * **光写了个名字,压根没调用**:`foo` / `obj.method` 这么一句。
-    ///
-    /// 两处**不响**,都是为了不误报:
-    ///
-    /// * 只认**光秃秃的一句表达式**。`x = f` 的值是那个赋值动作的副产物 —— 事情已经做了,
-    ///   丢掉的只是回显(赋值交回赋进去的那个值,见 `WriteVariable`),和"忘了调用"不是一回事。
-    ///   (`a.b := f` 是同一个东西:它在语法上是个 `BinaryExpr`,见 `OperatorSymbols.AssignOps`。)
-    /// * **完整的函数流转不算**。块的最后一个值就是块的值 —— 于是函数可以一路从里层飘出来
-    ///   (`body ()` 交回循环体的值、`HandlerStack.Remove 0` 交回被摘掉的那个 handler),
-    ///   落在哪一句上纯属碰巧。`IsPartial` 正是把这层噪音滤掉的那道闸。
-    ///
-    /// 这儿排掉的 `bool` / 续延和 <see cref="RuntimeValue.IsClosure"/> 排掉的那两样**不是一回事**:
-    /// 那边排的是"数据值"(bool、类对象),这边排的是"可调用,但不是等着实参的东西" ——
-    /// **类对象要留着**(`Point` 光写个名字正是"忘了调用"),而续延是 `callcc` 交出来的
-    /// 控制状态本身,调它不是喂参数(见 `Interpreter.Control.cs` 里那段同样的说明)。</summary>
     private void WarnIfForgotCall(BlockExecFrame bf)
     {
         if (!WarnForgotCall) return;
@@ -431,9 +319,6 @@ public partial class Interpreter
             $"这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 {Brief(fn)}", spot));
     }
 
-    /// <summary>警告是**一行一句**的:函数印出来可能很长(签名 + 已收的实参),
-    /// 而且 lambda 的 `ToString` 里可能带换行 —— 先把空白折成一个空格,再截到 80 个字符。
-    /// 就是给人扫一眼"还缺哪个参数",不必展开。</summary>
     private static string Brief(FunctionVal fn)
     {
         var sb = new System.Text.StringBuilder(80);

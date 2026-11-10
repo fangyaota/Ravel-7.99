@@ -1,7 +1,5 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>二元运算与赋值:算术/比较走类型方法表,`=` 分派给变量或成员写入。
-/// 节点状态机见 Interpreter.Nodes.cs。</summary>
 public partial class Interpreter
 {
     // ======================== 二元 ========================
@@ -89,17 +87,6 @@ public partial class Interpreter
         Return(nf, right);
     }
 
-    /// <summary>取左值类型上这个运算符的实现,并绑好接收者。`Builtin` 为真表示它是内置同步方法
-    /// ——绑完能当场算,不必推帧;用户类体里写的 `+ := f`(普通 lambda)和
-    /// by 属性的 getter/setter 不是,得走 `CallInto`。
-    ///
-    /// 查的是 `left.MemberScope` —— **和方法调用同一个入口**(值自己那层 → 类型的成员工厂)。
-    /// 所以类体里写的那份 `+ := f`(落在每个实例的 scope 里)也找得到。接收者的类型不同,
-    /// 找到的就是不同那张:
-    /// `1 + 2` 找 `Integer` 的、`C1 == C2` 找 `Type` 的、`c1 == c2` 找 `C` 的。
-    ///
-    /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
-    /// 从前报「未知的二元运算符: *」,读起来像语法写错了,其实该说的是这个类型不支持。</summary>
     private (FunctionVal Fn, bool Builtin) BindOperator(RuntimeValue left, string op)
     {
         var fn = left.MemberScope.LookupField(op)?.Value as FunctionVal;
@@ -115,32 +102,13 @@ public partial class Interpreter
         return (fn, fn is BuiltinMethodVal);
     }
 
-    /// <summary>把运算符成员绑到接收者上 —— 引擎挂的(self → 剩下)要绑;
-    /// **用户写在类体里的那份是普通 lambda**,它收的是右操作数、接收者靠捕获的作用域
-    /// (`CallInto(…, impl, arg)` 也是这么调的),原样交出去。
-    /// (`BindMethod` 会去读它的 `Body`,而 `LambdaVal.Body` 是占位 —— 见 LambdaVal 那段。)</summary>
     private static FunctionVal BindSelf(FunctionVal fn, RuntimeValue self)
         => fn is ISelfBinding ? ObjectVal.BindMethod(fn, self) : fn;
 
-    /// <summary>这个对象身上有没有**槽运算符**(`by + := property g s`)。两处:自己那层
-    /// (类体/实现体里写的),以及生效中的接口实现(`interface { by + := … }` 落在实现身上)。
-    /// 只认 `by` 槽 —— 随手定义的普通 `+ := f` 是实例 scope 里的一枚普通 lambda,
-    /// 由 `BindOperator` 那条同步路径找,这里不抢。</summary>
     private bool HasTraitOperator(ObjectVal self, string op)
         => (self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
            || BuiltinClasses.TraitSlot(this, self, op) != null;
 
-    /// <summary>区间 `[1..3]` / `(3..5)` / `[1..]` / `[..1]`:两端各推一帧(照
-    /// <see cref="StepBinary"/> 那套),收的时候造一个 <see cref="RangeVal"/>。
-    /// 两端要**数值**,别的类型当场报错。
-    ///
-    /// **省掉的那一头不去求值,直接装成对应的无穷** —— 上界省了给 `+Inf`(`[1..]`)、
-    /// 下界省了给 `-Inf`(`[..1]`)。于是 `[1..]` 和 `[1..Inf]` 造出的是**同一个值**
-    /// (record 逐字段比,相等)。两头都省就是 `[-Inf..Inf]` —— **整条数轴**,
-    /// 谁都在里头但没有起手那一站(见 <see cref="RangeVal.IsWhole"/>)。
-    /// 方向由"无穷在哪一头"定,见 <see cref="RangeVal"/>。
-    ///
-    /// **开闭由语法决定**:括号各带一半的意思,解析器已经把它记在节点上了。</summary>
     private void StepRange(NodeFrame nf, RangeExpr rng)
     {
         var wantLo = rng.Lo is not null;
@@ -216,14 +184,6 @@ public partial class Interpreter
         else CallInto(nf.Parent!, BindSelf(fn, left), right);
     }
 
-    /// <summary>变量的复合赋值 `a += v`(字段那种见 <see cref="StepCompoundAssign"/>)。
-    /// 目标必须是**变量名**,不是任意表达式 —— 要写回去,得知道写给谁。
-    ///
-    /// 内置同步方法当场算、当场写;类运算符得推 CallAssign 帧(算完由那个帧写回)。</summary>
-    /// <summary>复合赋值那个符号去掉末尾的 `=` —— `"+="` → `"+"`。
-    ///
-    /// **不能简单取第一个字符**:`"**="` 的第一个字符是 `*`,那样 `a **= 2` 会算成
-    /// `a * 2`(静默算错)。所以 `**` 得单独认。</summary>
     private static string BaseOp(string compound)
         => compound == "**=" ? "**" : compound[..1];
 
@@ -243,9 +203,6 @@ public partial class Interpreter
         Return(nf, r);
     }
 
-    /// <summary>成员复合赋值 `a.b += v`:先求对象(只求一次),再读成员、算、写回。
-    /// 普通字段:0=求对象 1=求右值 2=读成员并算(内置可直接写回) 3=类运算符算完写回。
-    /// by 属性多两步(读过 getter、写过 setter),见 StepByCompoundAssign。</summary>
     private void StepCompoundAssign(NodeFrame nf, BinaryExpr bin, MemberAccess ma)
     {
         var op = BaseOp(bin.Op);
@@ -288,23 +245,10 @@ public partial class Interpreter
         Return(nf, nf.Result(2));
     }
 
-    /// <summary>取这次要用的那份 property。**接口那条 `by` 槽**要连捕获作用域一起绑到这一次的
-    /// 接收者上(<see cref="BuiltinClasses.Activate"/>);**引擎挂在类上的那种**(`[ClassProperty]`)
-    /// 要绑那两个 `ISelfBinding` 的函数(<see cref="BuiltinClasses.BindProperty"/>);
-    /// 自己那层声明的(用户写的 `property g s`,接收者靠捕获的作用域)、以及**接口体里那些普通成员**
-    /// 一律原样交 `field.Value` ——
-    /// 普通成员(函数 / 字段)**压根不是 property**,`Activate` 到那儿会当场报
-    /// 「标了 by，但它的值不是 property」—— 而那句话说反了(它没标 `by`)。</summary>
     private RuntimeValue PropOf(Variable field, TraitHit? hit, RuntimeValue self)
         => hit is { } h && field.HasAttr(Attr.By) ? BuiltinClasses.Activate(this, h)
                                                   : BuiltinClasses.BindProperty(field.Value, self);
 
-    /// <summary>by 属性的复合赋值:左值要过 getter、结果要过 setter,两个子求值各占一个阶段
-    /// (都走 CallInto,内置和类运算符一视同仁,阶段数就固定了)。
-    /// 2=推 getter 3=读回左值再算 4=把算好的值推给 setter 5=返回算好的值。
-    ///
-    /// `prop` 是这次要用的那份 property(接口槽已经绑好接收者),`field` 是槽本身 ——
-    /// 类型约束和 readonly 在它身上(`CheckAssignable` / `CheckWritable`)。</summary>
     private void StepByCompoundAssign(NodeFrame nf, string op, Variable field, RuntimeValue prop, string member)
     {
         if (nf.Count == 2)
@@ -334,17 +278,6 @@ public partial class Interpreter
         Return(nf, nf.Result(3));
     }
 
-    /// <summary>成员写入前的门禁:core 需要 unsafe,internal 一律不许走成员写法,
-    /// private/protected 看访问控制。
-    ///
-    /// **这是唯一一处写门禁** —— 三条成员写路(`a.x = v`、`a.x += v`、`by x.a = v`)都从这儿过。
-    /// 裸名字那条(`x = v`)不经这里,**那正是 `internal` 要的**:它比 `readonly` 松一档 ——
-    /// readonly 连裸名字都不许写(`Variable.CheckWritable`),而 internal 只关**成员写法**这道门,
-    /// 于是"类体里直接写 `x = …`"照旧成立。`this.x = …` 也算成员写法,一样挡。
-    ///
-    /// **这是有意的**:判据只看**写法的形状**,不去算"这段代码在不在这个类里" ——
-    /// 前者一眼看得出、也不怕 `CheckFieldAccess` 那条作用域链有什么边角;
-    /// 想改就在自己那份代码里直接写裸名字。</summary>
     private void CheckMemberAccess(Variable field, ObjectVal obj, string member)
     {
         if (field.HasAttr(Attr.Core) && !IsUnsafe)
@@ -355,7 +288,6 @@ public partial class Interpreter
             throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}", ErrorKind.Access);
     }
 
-    /// <summary>成员写入。`=` 是赋值(字段必须已存在),`:=` 是定义(不存在就新建、存在就整条替换)。</summary>
     private void StepMemberAssign(NodeFrame nf, BinaryExpr bin, MemberAccess ma)
     {
         var isDefine = bin.Op == ":=";

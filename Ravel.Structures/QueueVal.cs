@@ -1,6 +1,5 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>队列(FIFO)。枚举顺序 = 出队顺序(先进先出)。</summary>
 public record QueueVal : ObjectVal
 {
     public Queue<RuntimeValue> Items { get; init; }

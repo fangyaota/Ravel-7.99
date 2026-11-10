@@ -1,18 +1,9 @@
 namespace Ravel.Runtime;
 
-/// <summary>**按值排序的集合**:枚举就是升序,`Min ()` / `Max ()` 是 O(log n)。
-///
-///     s := SortedSet ()
-///     s.Add 3 / s.Add 1
-///     s.Min ()      # 1
-///
-/// 里面的东西得能互相比大小(按 Ravel 的 `<`);比不了当场报错。
-/// 相等也按 `<` 算 —— `1` 与 `1.0` 在集合里是同一个(和 `set` 那边按类型分不一样)。</summary>
 [RavelModule("Structures")]
 [RavelClass("SortedSet")]
 internal static class SortedSetClass
 {
-    /// <summary>空集合;给一个容器就照它播种(`SortedSet [3 1 2]`,重复的进不去)</summary>
     [ClassCtor]
     public static RuntimeValue New(RuntimeValue arg)
     {
@@ -52,7 +43,6 @@ internal static class SortedSetClass
     [ClassMethod("IsEmpty")]
     public static RuntimeValue IsEmpty(RuntimeValue self) => new BoolVal(Val(self).Elements.Count == 0);
 
-    /// <summary>升序的一串</summary>
     [ClassMethod("ToList")]
     public static RuntimeValue ToList(RuntimeValue self) => new ListVal([.. Val(self).Elements]);
 

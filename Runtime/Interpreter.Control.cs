@@ -1,7 +1,5 @@
 namespace Ravel.Runtime;
 
-/// <summary>控制帧状态机:每个控制内建一个 ControlFrame,Args 存已收集的块/参数,
-/// Results 与 State 记录推进进度(约定:Args 全程不变,进度看 Count/State)。</summary>
 public partial class Interpreter
 {
     private void StepControl(ControlFrame cf)
@@ -27,26 +25,6 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>`with (对象: 块)` —— **进到那个对象的成员表里跑一段**,不拷任何东西。
-    ///
-    /// 从前它是"先 `Copy ()` 一份、再在副本上跑",值也交回副本 —— 那是个**隐形的拷贝**:
-    /// `with c { v = 10; }` 改的是副本,`c` 不动。两个毛病:每用一次整份拷一次(方法闭包、
-    /// attrs 全在里面),而且"改副本、原件不动"这件事 `Copy ()` 说得更明白 ——
-    /// `with` 本来该是**作用域**的事。
-    ///
-    /// 现在:块跑在**原对象成员表本身**里,那一层都不推。于是
-    /// <list type="bullet">
-    /// <item>`v = 10` 这种**赋值**沿链落回原对象的字段 —— 改的就是它;</item>
-    /// <item>`x := 1` 这种**定义**也**落在这个对象上** —— 留下来,块结束也不没
-    /// (`enum` 那种元类就靠这一条:拿个普通实例当落脚点,把一块里的名字收出来);</item>
-    /// <item>交回的是那个对象本身。</item>
-    /// </list>
-    ///
-    /// **从前是推一层再跑**,于是"块里的局部变量"不污染对象。那条改掉了:两个语义里
-    /// 只能留一个,而"定义留下来"是能拿它当工具用的那个。要临时的名字就自己开个作用域
-    /// (拿个一次性的实例当落脚点)。
-    ///
-    /// 一句话:`with` 只做一件事 —— 换一下"接下来这段代码算谁的成员"。</summary>
     private void StepWith(ControlFrame cf)
     {
         var obj = cf.Arg<RuntimeValue>(0, "with");
@@ -71,8 +49,6 @@ public partial class Interpreter
         Return(cf, obj);
     }
 
-    /// <summary>callcc:把「捕获点之后要算的东西」作为续延交给 lambda。
-    /// 续延被调用时由 CallInto 负责切回捕获点(见 ContinuationVal 分支)。</summary>
     private void StepCallCC(ControlFrame cf)
     {
         if (cf.Count == 0)
@@ -92,11 +68,6 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    /// <summary>using/ravel 的模块加载。模块体执行期间要一直把它记在 `_loading` 里,
-    /// 循环引用才检测得到——所以 push 在这里、pop 在块跑完那一步(State 存路径,顺带当已 push 的凭据)。
-    /// pop 依赖帧的正常收尾,而 callcc 逃生会把这条链整个丢掉 —— 所以 `_loading` 也跟着
-    /// 续延走:`System.CallCC` 捕获时拍一份(`ContinuationVal.Loading`),续延被调时由引擎
-    /// 自己盖回去(见 `RestoreLoadingIfNeeded`)。</summary>
     private void StepUsing(ControlFrame cf)
     {
         if (cf.Count == 0)
@@ -148,13 +119,6 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    /// <summary>函数交替 `f | g | h`:按顺序试,第一个收得下这个参数的分支胜出。
-    ///
-    /// 分支在 `|` 那边就摊平成一个列表(见 `BuiltinClasses.Operators` 的 Function.|),
-    /// 所以这里一个帧顺序试完即可。**不能嵌套着试**:`CallInto` 只推帧、不当场调用,
-    /// 内层交替的 TypeMismatchException 是在外层这个 try 之外才抛的,
-    /// 外层 catch 早返回了 —— 那样第三个分支永远试不到。
-    /// `Args = [分支…, 参数]`。</summary>
     private void StepAlternate(ControlFrame cf)
     {
         if (cf.Count > 0)
@@ -195,32 +159,11 @@ public partial class Interpreter
         throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last ?? "（没有可说的）"}）");
     }
 
-    /// <summary>跑**这一层**类体时用哪个作用域。
-    ///
-    /// 类的每层用 <see cref="BodyScope"/>(词法父 = 这一层写在哪),各层的定义转发回同一个
-    /// 实例表;而**接口**那半照旧直接跑在实例表上 —— 接口体是和实现块共环境的(实现写在哪,
-    /// 接口体就在哪解析,`use` 出去的那些实现才对它可见),由 `StepImplMake` 那次
-    /// `Reparent` 负责把它接到实现处。</summary>
     private static Scope LayerScope(ClassVal type, Scope lexical, Scope instanceScope)
         => type.IsAssignableTo(BuiltinClasses.BaseInterface)
             ? instanceScope
             : new BodyScope(lexical, instanceScope);
 
-    /// <summary>类实例化:沿祖先链(顶祖先→自身)依次跑每层类体,**全平铺在同一个 instanceScope**
-    /// (所以同名成员是"后写盖先写",没有分层的成员表)。跑完之后只做一件事:在**那一个** scope 里
-    /// 按名字取 `init` 来调 —— 拿到的自然是最后写的那条(最具体那个类声明的);没写过的落到
-    /// `Object` 那条默认构造。不是"每层各调一次 init",也不是另走一遍链去找。
-    /// ObjectVal 与 this 在第一个类体执行前就绑好(ClassType = 最终子类)。
-    /// 阶段由 Count 推进:0=建 scope/绑 this/推第一层,(0,N)=推第 Count 层,N=调 init,&gt;N=返回对象。
-    /// 只允许 CallTypeInto 构造本帧(它保证 Count==0、State==VoidVal),别处复用会破坏 State 形状假设。
-    ///
-    /// **类的每一层跑在自己的 <see cref="BodyScope"/> 上**(词法父 = 那一层**写在哪**):
-    /// 各层的定义照旧落回同一个实例表(平铺),而自由名字各按各的写法处解析 —— 从前只按
-    /// "最具体那个类"的(父类写在另一个作用域时,它的类体就看不见自己那儿的名字)。
-    ///
-    /// **接口那半不这么走**:接口体是"给实现用的"(槽要落在实现身上),它和实现块共用一个
-    /// 环境 —— 实现写在哪,接口体就在哪解析。所以它还留着"先建一个 scope、实现帧再
-    /// `Reparent` 到实现处"那条老路(见 `StepImplMake` 与 `Scope.Reparent`)。</summary>
     private void StepClassInit(ControlFrame cf)
     {
         var type = cf.Arg<ClassVal>(0, "class");
@@ -298,33 +241,11 @@ public partial class Interpreter
         Return(cf, HalfCtor(inst, cf.Last));
     }
 
-    /// <summary>init 交回的东西是"还没收齐参数的半成品构造器"吗 —— 是就包成
-    /// <see cref="PartialCtor"/> 让它接着收参数,不是就原样交出去。
-    ///
-    /// 判据是 `IsClosure`(「是个闭包形状的函数」)再排掉**可调用、但调用起来不是
-    /// "接着收构造参数"**的那几种:`bool`(收两个块)、类对象(实例化它)已经在
-    /// `IsClosure` 那边排掉了,续延也得排 —— 调续延是**跳转**,不是喂参数。
-    /// 排不掉的话 `Continuation f` 一造出来就被包成半成品,`typeof` 立刻看不出它是续延。</summary>
     private static RuntimeValue HalfCtor(ObjectVal target, RuntimeValue returned)
         => returned is FunctionVal rest && rest.IsClosure && returned is not ContinuationVal
             ? new PartialCtor(target, rest)
             : returned;
 
-    /// <summary>把**实现块**装进实现对象(`myTrait myClass { 实现体 }`)。阶段由 Count 推进:
-    /// 0=推实现块,1=收尾并交出去。
-    ///
-    /// **两类东西两处跑**(和普通类一个规矩):
-    /// - 接口那几层类体(顶祖先 → 自身)由**实例化那趟**跑(`StepClassInit` 沿 `CollectBodies`
-    ///   依次跑进它建的那个对象的 scope)—— 这些体是"配方",每造一个实现跑一遍;
-    /// - **实现块**在这儿追加:它先把 `by a : int = default` 那些槽摆好(在类体那趟里),
-    ///   实现块再用 `by a = property …` 换掉 —— 所以实现体里写的是"换"(`=`),不是"建"(`:=`)。
-    ///
-    /// 于是接口体那些副作用**只跑一次**(从前实例化那趟跑一遍、这里又跑一遍)。
-    ///
-    /// 收尾时 <see cref="BuiltinClasses.FinishImplementation"/> 往这个对象上装
-    /// `target`/`generation`/`instance`(`instance` 读的时候现场解析"这一次调用在服务谁",
-    /// 见 `BuiltinClasses.Activate`);实现块里创建的 lambda 捕获的正是这个 scope,所以它们
-    /// 看得见 `instance`。</summary>
     private void StepImplMake(ControlFrame cf)
     {
         var impl = cf.Arg<ObjectVal>(0, "ImplMake");
@@ -379,19 +300,6 @@ public partial class Interpreter
         Return(cf, impl);
     }
 
-    /// <summary>容器上"逐个跑一遍"的那批方法:Each / Map / Where / Fold / All / Any / Find / SortBy
-    /// (成员值是 <see cref="SeqMethod"/>,读出来绑好接收者就交出这个帧)。
-    ///
-    /// 一步一个元素,每步调一次用户函数,收回来的结果接着走 —— 所以它们只能是控制帧:
-    /// 原生闭包**调不了 Ravel 函数**(那是帧栈的活)。
-    ///
-    /// `Args` = [容器, 模式, 函数(+ Fold 的初值)];`State` = 一个 ListVal:
-    /// [0] = 元素表(进来时取一次就不再多问容器 —— 否则每步都重新枚举一遍),
-    /// [1] = 攒的东西(各模式:Map/Where/SortBy 攒一个 list、Fold 攒累积值、All 攒 bool、
-    /// Find 攒"找到的那个元素"、Each 不用)。`Count` = 已经调过几次函数。
-    ///
-    /// 顺序就是 `ElementsOf` 给的顺序(将来 `IEnumerable` 出来,这里改成问枚举器要)。
-    /// 提前收工:All 撞上 false、Any 撞上 true、Find 找到第一个 —— 剩下的元素不再调函数。</summary>
     private void StepSeqOp(ControlFrame cf)
     {
         var self = cf.Arg<RuntimeValue>(0, "SeqOp");
@@ -505,7 +413,6 @@ public partial class Interpreter
         Return(cf, SeqResult(mode, acc));
     }
 
-    /// <summary>各模式开局的累加器(Fold 的初值是它的第 4 个参数)。</summary>
     private static ListVal NewSeqState(SeqMode mode, string label, RuntimeValue self, ControlFrame cf)
         => new([
             new ListVal(BuiltinClasses.ElementsOf(self, label)),
@@ -519,14 +426,11 @@ public partial class Interpreter
             },
         ]);
 
-    /// <summary>谓词要交回 bool —— 不是就当场说清楚(别把 `()` 当假)。</summary>
     private static bool Yes(RuntimeValue got, string label)
         => got is BoolVal b
             ? b.Value
             : throw new RuntimeException($"{label} 的函数要交回 bool，得到 {got.Type}", ErrorKind.Type);
 
-    /// <summary>收工时交出去的东西。Find 没找到是**错误**(「没有满足的」和「找到一个是 ()」
-    /// 不该长得一样);SortBy 这时候按键排(稳定)。</summary>
     private static RuntimeValue SeqResult(SeqMode mode, RuntimeValue acc) => mode switch
     {
         SeqMode.Each => VoidVal.Instance,
@@ -540,7 +444,6 @@ public partial class Interpreter
         _ => acc,
     };
 
-    /// <summary>半成品构造器继续收参数:喂给 init 的剩余部分,应用完才交出对象</summary>
     private void StepCtorApply(ControlFrame cf)
     {
         var target = cf.Arg<ObjectVal>(2, "CtorApply");
@@ -554,21 +457,6 @@ public partial class Interpreter
         Return(cf, HalfCtor(target, cf.Result(0)));
     }
 
-    /// <summary>prepend/append 合成:先跑块再调原函数,或先调原函数再跑块</summary>
-    /// <summary>`f >> g`(函数组合):先把实参喂给 f,再把**它的结果**喂给 g。
-    ///
-    /// 形状照着 <see cref="StepCompose"/> 抄 —— 那条是"调它之前/之后插一块代码",
-    /// 这条是"调完它接着调另一个函数",都是**两步调用**。
-    ///
-    /// **收一个实参**(和 `|` 的交替一样):组合出来的一元函数。
-    /// 多参的先部分应用一手(`(+ 1)` 已经是一元的)—— 元数不是一个能静态知道的东西
-    /// (Ravel 的函数都是柯里化的一元嵌套),所以不猜。</summary>
-    /// <summary>`System.RejectStop f` —— 把 `f ()` 跑在一个**拒收边界**里。
-    /// 除了"这枚帧挡拒收"(`ResumeAlternate` 认它),和直接调 `f ()` 没两样。
-    ///
-    /// 谁在用:`lib/exceptions.rav` 的 `Try` —— **`try` 是一道拒收边界**。
-    /// 于是 Task 的 `Start` 里那句"体的错在这儿收住"对拒收也成立了:
-    /// 任务里写的 `reject` 不会再跑去把**派发它的那一支**顶掉。</summary>
     private void StepRejectStop(ControlFrame cf)
     {
         if (cf.Count == 0) { CallInto(cf, cf.Arg<RuntimeValue>(0, "RejectStop"), VoidVal.Instance); return; }
@@ -625,15 +513,6 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    /// <summary>**槽运算符**(`by + := property g s`):`a + b` 走到这儿。
-    ///
-    /// 和类运算符的区别:那一格的值是 **property** —— 读它走 getter,getter 交回的是运算符函数,
-    /// 再拿那个函数收右操作数。所以两级,一个帧里走完(阶段由 Count 推):
-    /// 0 = 找槽、推 getter;1 = 拿上一步的函数收右操作数;2 = 交出去。
-    ///
-    /// 槽在哪儿:**自己那层先说话**(类体里写的 `by + := …`),没有才问生效中的接口实现
-    /// (`interface { by + := … }`,实现体跑一遍就落在实现身上)。两处都只看 `by` 槽。
-    /// `Args = [接收者, 右操作数, 符号]`。</summary>
     private void StepTraitOp(ControlFrame cf)
     {
         var self = cf.Arg<ObjectVal>(0, "TraitOp");

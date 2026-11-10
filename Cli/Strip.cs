@@ -3,16 +3,6 @@ namespace Ravel;
 using System.Text;
 using Ravel.Runtime;
 
-/// <summary>`ravel strip <文件或目录>` —— 把 `.rav` 里的注释剥掉,**就地**改。
-///
-/// 发布产物用它:`Ravel.csproj` 的 `StripLibComments` 在 publish 之后把 `out/lib/` 过一遍,
-/// 于是发出去的标准库不带注释(为什么不用正则、换行为什么留着,见 `CommentStripper`)。
-/// **平时 `build` 拷进 `bin/` 的那份不动** —— 调试时要读那些注释。
-///
-/// 就地改是只给构建用的:每个文件都先过 `CommentStripper` 的自验(比对 token),
-/// 不过关就当场报错、那个文件**原样留着**。目录是**递归**收 `*.rav`。
-///
-/// 交回 false = 有文件没过(调用方把退出码拨 1)。</summary>
 internal static class Strip
 {
     public static bool Run(IReadOnlyList<string> paths)

@@ -8,26 +8,10 @@ namespace Ravel.Cli;
 using Ravel.Runtime;
 using Ravel.Testing;
 
-/// <summary>命令行入口。**形状照老 Ravel 那份 `Program.cs`**:一个 `CommandApp`,
-/// 每个模式一个 `Command` 类 —— 于是 `--help` / `--version` / 用法 / 每个开关的说明
-/// 全是声明式的,不用手写一遍(从前是手写的一串 `if` + 每个模式各自一个实参循环)。
-///
-/// 但有一件事框架**办不到**,所以这儿自己切一刀。Ravel 的规矩是**脚本名之后的一个字不动**
-/// 那几个字就是 `System.Args ()`(见 CONTEXT 的「System 模块」)。而 `Spectre.Console.Cli`
-/// 在**整行**任意位置认开关,不认识的还静默吞掉 —— `ravel x.rav --warn` 里那个 `--warn`
-/// 会被它抢走,脚本就再也看不见(实测:`--foo` 连报错都没有,直接没了)。
-///
-/// 所以 `Split` 先把命令行在**脚本名**处切成两半:**前半**交给框架去认,后半原样递给脚本。
-/// 也试过不动刀:`CommandArgumentAttribute` 没有 `RemainingArguments`,
-/// `ConvertFlagsToRemainingArguments` 只是把不认识的开关收进 `Remaining` —— 位置照样是乱的。</summary>
 internal static class Program
 {
-    /// <summary>框架自己 new 命令对象(没有构造注入的口子),而一个进程只跑一条命令,
-    /// 所以脚本那几个实参走静态字段。`Split` 切出来的后半段就是它。</summary>
     private static string[] _scriptArgs = [];
 
-    /// <summary>脚本名**之前**认得的开关。只用来守一条:报错一律中文(见 `CheckHead`)——
-    /// 真正的解析还是框架干,这儿只是先认一遍名字。`--help` / `--version` 是框架自带的。</summary>
     private static readonly string[] HeadSwitches =
         ["-h", "--help", "-v", "--version", "-w", "--warn", "--more-control-flow"];
 
@@ -62,12 +46,6 @@ internal static class Program
         return app.Run(head);
     }
 
-    /// <summary>脚本名**之前**那几个开关自己先认一遍。
-    ///
-    /// 框架的解析错误是**英文**的(`Error: Unknown option 'x'.`),而这儿"报错也中文" ——
-    /// 所以这一小段不交给它。只管**脚本名之前**:那之后的东西是脚本的,不进这一格。
-    ///
-    /// 认得的原样放行,不认得的当场说中文、连用法一块儿报。</summary>
     private static int CheckHead(string[] args)
     {
         for (var i = 0; i < args.Length && args[i].StartsWith('-'); i++)
@@ -84,15 +62,6 @@ internal static class Program
         return 0;
     }
 
-    /// <summary>在**脚本名**处把命令行切成两半:
-    ///
-    ///     ravel --warn x.rav a --warn   →   前半 [--warn x.rav]   后半 [a --warn]
-    ///
-    /// 切点 = 第一个**不以 `-` 开头**的词。它要是子命令(`test` / `strip` / `ast`)就**不切** ——
-    /// 那几条没有"脚本",整行的实参都是框架的。
-    ///
-    /// 子命令前面那几个开关得**挪到子命令名后面**:框架不认"子命令名之前的开关",
-    /// `ravel --warn test` 会被它当成"跑一个叫 test 的脚本"。挪一下对用户无关紧要。</summary>
     private static (string[] Head, string[] Tail) Split(string[] args)
     {
         var i = 0;
@@ -107,16 +76,6 @@ internal static class Program
         return (args[..(i + 1)], args[(i + 1)..]);                 // 前半含脚本名本身
     }
 
-    /// <summary>不带脚本 = 进 REPL。**这个 REPL 是 Ravel 自己写的**(`lib/repl.rav`,
-    /// 入口 `Repl.Run ()`)—— 引擎里那一版(C# 的 `NeoInteractor`)已经删掉:两边行为一模一样,
-    /// 而"这门语言能拿自己写自己的 REPL"正是它的门面(照它写一遍的动机、以及为什么能成,
-    /// `lib/repl.rav` 头上有)。
-    ///
-    /// 所以这儿做的事就是**跑两行脚本**,不多不少:不去查模块、不去摸它的内部 —— 那样等于
-    /// 把 REPL 的入口又编回 C# 里,下回想改就得动引擎(`lib/repl.rav` 也就不用谈"库"了)。
-    ///
-    /// 顺带白拿一条:C# 那版没有"看不见终端"这一路,而 `lib/repl.rav` 有(见它的 `Run`)——
-    /// 管道里喂进去的整段会被当成一段程序跑完,于是 `echo 'print 1' | ravel` 现在通。</summary>
     internal static int RunRepl(CliSettings s)
         => RunSource("using \"repl.rav\"\nRepl.Run ()\n", "<repl>", [], s);
 
@@ -139,8 +98,6 @@ internal static class Program
         return code;
     }
 
-    /// <summary>跑一段源码 —— **单文件和 REPL 入口都走这里**,报错就只写这一套。
-    /// 出事交回 1(和测试那条线一个规矩:说了话就是出事)。</summary>
     internal static int RunSource(string source, string path, string[] scriptArgs, CliSettings s)
     {
         try
@@ -183,9 +140,6 @@ internal static class Program
         }
     }
 
-    /// <summary>把内层异常一层层接在后面。**判断一条 C# 异常"到底为什么"常常全在内层** ——
-    /// `TypeInitializationException`(静态构造函数抛了)就是最典型的一个:它自己那句话
-    /// 什么线索都没有,真正的原因(文件不在、本机库加载不了)在下一层。</summary>
     private static string Inner(Exception ex)
     {
         var text = "";
@@ -195,10 +149,6 @@ internal static class Program
     }
 }
 
-/// <summary>三个模式共用的开关。放基类是因为 `Program.Split` 会把子命令名**前面**的开关
-/// 挪到后面去,于是每条命令都得认得它们(用不着的那条忽略掉)。
-///
-/// 说明文字里**别写方括号** —— 帮助是当 Spectre 标记渲染的,`[x]` 会被当成样式。</summary>
 internal abstract class CliSettings : CommandSettings
 {
     [CommandOption("-w|--warn")]
@@ -210,7 +160,6 @@ internal abstract class CliSettings : CommandSettings
     public bool MoreControlFlow { get; init; }
 }
 
-/// <summary>跑脚本;不给脚本就进 REPL。</summary>
 internal sealed class RunSettings : CliSettings
 {
     [CommandArgument(0, "[脚本]")]
@@ -218,19 +167,6 @@ internal sealed class RunSettings : CliSettings
     public string? Script { get; init; }
 }
 
-/// <summary>跑 golden 用例。
-///
-///     词    只跑**相对路径里带它**的(不区分大小写,子目录名也算在内)。
-///           给几个就是"含其中任意一个"。不给就是全量。
-///             ravel test http          名字/目录里带 http 的那些
-///             ravel test 29 30         29x 和 30x
-///           **迭代的时候就用它** —— 全量那份要跑几分钟,改一行不值得。
-///     --fast 跳过带 `# slow` 的(起服务器、等计时器那几条)。
-///
-/// `--warn` 传下去:每条用例都带上开关跑一遍。**比对的是 stdout**,警告走 stderr ——
-/// 所以这一趟不会让谁红掉,它就是个"整个用例库过一遍筛子"的用法:
-///     ravel --warn test 2>&1 | grep 警告
-/// (单独一条用例要**钉住**警告长什么样,在它开头写 `# warn`,见 GoldenTestRunner)</summary>
 internal sealed class TestSettings : CliSettings
 {
     [CommandArgument(0, "[词…]")]
@@ -242,8 +178,6 @@ internal sealed class TestSettings : CliSettings
     public bool Fast { get; init; }
 }
 
-/// <summary>剥注释 —— **不进解释器**,是源码加工(发布产物里的标准库就是这么来的,
-/// 见 csproj 的 StripLibComments)。`--warn` 对它没有意义。</summary>
 internal sealed class StripSettings : CliSettings
 {
     [CommandArgument(0, "<文件或目录…>")]
@@ -271,10 +205,6 @@ internal sealed class StripCommand : Command<StripSettings>
         => Strip.Run(settings.Paths) ? 0 : 1;
 }
 
-/// <summary>转储 AST —— 和 `strip` 一样**不进解释器**:它只做"读源码、出一份树"。
-
-/// 用处是**动解析器前后各跑一遍逐字节 diff**(见 `Cli/AstDump.cs` 抬头),所以实参收的是
-/// 一摞路径而不是一个文件:一次把整个语料转出去,重定向到文件再比。</summary>
 internal sealed class AstSettings : CliSettings
 {
     [CommandArgument(0, "<文件或目录…>")]

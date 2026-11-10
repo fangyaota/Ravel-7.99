@@ -2,17 +2,6 @@ namespace Ravel.Runtime;
 
 using Ravel.Runtime.Values;
 
-/// <summary>内置类对象。
-///
-/// **每个类型都是一个 <see cref="ObjectVal"/>** —— 和用户写的类用的是同一种值。
-/// 类性靠 Scope 里的成员表达：`parent`（父类对象）+ `block`（类体）。
-/// 内置类没有用户写的类体，它们给实例准备的成员在**各自那份成员工厂**里
-/// （`Runtime/Members/*Members.cs`，见 <see cref="ClassVal.Members"/>）；类体只用于构造器。
-///
-/// 静态字段名沿用旧 `RuntimeType` 的名字（`Int`/`Real`/…），三个注册文件因此可以原样搬运。
-///
-/// 建树分两趟：第一趟把所有类对象建出来（`ClassType` 先自指），第二趟回填元类并挂
-/// `parent`/`name` —— 因为建 `Object` 的时候 `Type` 还不存在，而 `Object` 的元类是 `Type`。</summary>
 internal static partial class BuiltinClasses
 {
     // 顶类型
@@ -27,32 +16,21 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal BigInt;
     public static readonly ClassVal Fraction;
     public static readonly ClassVal BigFraction;
-    /// <summary>区间(`[1..3]` / `(3..5)` …)—— `RangeVal`。
-    /// 它是**值类型**(不可变、按值比)—— 名单在 `SealBuiltins` 里,直挂 `Object` 下。</summary>
     public static readonly ClassVal Range;
 
     // 引用类型分支（可变/有行为）
     public static readonly ClassVal Function;
     public static readonly ClassVal Block;
-    /// <summary>`callcc` 交出来的那枚续延(`ContinuationVal`)。父类是 `Function` ——
-    /// 续延本来就能调、能存进字段、能当参数传;它只是**自己的类型**,好让 `typeof` /
-    /// 注解 / `is Continuation` 说得清"这是续延,不是普通函数"。
-    /// `default` 给的是"还没到手的那一枚"(一调就报错,见 ContinuationVal.Default)。</summary>
     public static readonly ClassVal Continuation;
     public static readonly ClassVal List;
     public static readonly ClassVal Set;
     public static readonly ClassVal Dict;
 
-    /// <summary>**等待句柄**(`WaitableVal`)—— "那边做完了会给一个值",`System.WaitAny` /
-    /// `HandleValue` 两条原语围着它转,调度器在 `lib/tasks.rav`。
-    /// 它是**引用类型**(句柄没有"相等"这回事,比的是最后拿到的值)。</summary>
     public static readonly ClassVal Waitable;
 
     // void — 唯一值 ()
     public static readonly ClassVal Void;
 
-    /// <summary>元类型 —— 所有类型的类型，也是"建类"这个动作本身（`class` 是它的别名）。
-    /// 它的元类是**它自己**（自指）。用户类直接挂在它下面。</summary>
     public static readonly ClassVal Type;
 
     // 底类型 — 为所有类的子类，default 是其唯一实例；不在继承树里，IsAssignableTo 全局特判
@@ -63,13 +41,6 @@ internal static partial class BuiltinClasses
 
     public static readonly ClassVal Exception;
 
-    /// <summary>**引擎报错的那一族** —— 一个 <see cref="ErrorKind"/> 一个类,全是 `Exception`
-    /// 的子类,所以 `try { … } (e: Exception) => …` 照旧接得住全部,而
-    /// `(e: TypeError) => …` 只接那一族(挑哪一类见 `BuiltinClasses.Errors.cs`)。
-    ///
-    /// 它们在**引擎**里建、不在 `lib/exceptions.rav` 里建:报错的是引擎,分类也该由引擎说了算
-    /// (库里再定义一遍就成两处各管一半)。用户在 Ravel 里照样能继承、能
-    /// `throw (TypeError "自己造的")` —— 它们和别的内置类没两样。</summary>
     public static readonly ClassVal TypeError;
     public static readonly ClassVal NameError;
     public static readonly ClassVal AttributeError;
@@ -83,44 +54,21 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal IoError;
     public static readonly ClassVal RegexError;
 
-    /// <summary>JSON 值:里面包着一棵 Newtonsoft 的 `JToken` 树,`Extract ()` 才转成
-    /// dict / list / 原生值。`predefined.rav` 给全局别名 `Json`。</summary>
     public static readonly ClassVal Json;
 
-    /// <summary>一个**任意 .NET 对象**（`DotNetVal` 的类）。方法见 `BuiltinClasses.Net.cs`。
-    /// 从前是 `Ravel.Reflect` 插件带来的 `[RavelClass]`,2026-10-07 搬进引擎 ——
-    /// `DotNetVal` 的基类 ctor 要按它挂类,不在引擎里的话没 `using` 那个插件就造不出来。</summary>
     public static readonly ClassVal DotNetObject;
 
-    /// <summary>一个 **`System.Type`**（`DotNetTypeVal` 的类）。同一个来路。</summary>
     public static readonly ClassVal DotNetType;
     public static readonly ClassVal Ravel;
     public static readonly ClassVal ScopeType;
     public static readonly ClassVal Property;
     // 接口 — `interface`(见 BuiltinClasses.Interfaces.cs)。parent 是 `type`。
     public static readonly ClassVal Interface;
-    /// <summary>**所有接口的基类**。`interface { … }` 造出来的接口,parent 挂在它下面
-    /// (不是 `object`),于是那些接口**继承它类体里的 `init`** —— 造实现(`某接口 某个类 { … }`)
-    /// 就是实例化那个接口对象,得有 `init` 才跑得起来。
-    ///
-    /// 从前没这一层:接口的 parent 直接是 `object`,继承不到 `init`,于是每个接口的类体里都被
-    /// **烤进一份** `init`。多一层基类之后那份烤就不用了 —— 一处默认,
-    /// 所有接口共用(而且实现 scope 里也不再莫名多出一个没人看的 `init`)。</summary>
     public static readonly ClassVal BaseInterface;
-    /// <summary>`IValue` —— "这个类型是个**值**"那个接口。**内置**,而且**封了**
-    /// (见 `SealBuiltins`):实现者那份名单由引擎说了算 —— 内置那 10 个值类型在
-    /// `SealBuiltins` 里直接标,插件走 `[RavelClass(Implements = "IValue")]`,
-    /// 用户代码 `impl` 不进来。
-    ///
-    /// **内置**而不是让 Ravel 侧建:引擎要拿它做**引用比较** —— 判据要跑在
-    /// `dict.SysGet` 那些**同步 C#** 里,按名字比(`DisplayName == "IValue"`)
-    /// 能跑但脆(名字被别人用了就误判),有个句柄就干净了。</summary>
     public static readonly ClassVal IValue;
 
-    /// <summary>所有已注册的类对象（内置 + 用户定义），供 Subtypes 反射</summary>
     internal static readonly List<ClassVal> AllTypes = [];
 
-    /// <summary>AllTypes 里内置类占多少——静态构造器填完后定下来，Reset 时按它切</summary>
     private static int _builtinCount;
 
     static BuiltinClasses()
@@ -264,14 +212,6 @@ internal static partial class BuiltinClasses
         SealBuiltins();
     }
 
-    /// <summary>把每个内置类的成员集挂到**它自己**身上。
-    ///
-    /// 一行一个类:`X.Members = XMembers.Set;` —— "我这类给实例准备什么"由类自己说,
-    /// 不再有外置的注册表。子类那份的 `Set` 在 `Scan` 时把父指向父类那份(见
-    /// <see cref="MemberSet.Scan"/>),所以继承是"顺着链走",不靠抄一份进来。
-    ///
-    /// 用户类在 <see cref="Install"/> 里照父类接下(`self.Members = parent.Members`);
-    /// 插件类由 `PluginApi` 扫自己的装载器类(`[RavelClass]` + `[ClassMethod]` 那套)。</summary>
     private static void AttachMembers()
     {
         // 每个类自己那份成员工厂。**父子关系写在 `MemberSet.Scan` 的第二个参数上**
@@ -319,30 +259,6 @@ internal static partial class BuiltinClasses
         IValue.Members = InterfaceMembers.Set;
     }
 
-    /// <summary>**内置的值类型、集合类型,和 `IValue` —— 到此为止,不能再往下长。**
-    ///
-    /// 理由:这几支的形状是**引擎定死的**那一份 —— `int` 的构造器认字符串、`List` 的预设类体、
-    /// "哪些类型按值比"那张表,全是 C# 侧装上去的。放进来继承只会长出一个半生不熟的子类型:
-    /// 引擎那条判据(`IsValueLike`、按类型找的运算符表、`ConvertDirect`)一个都不认它。
-    ///
-    /// 挡的是两件事(两处都问 <see cref="SealedUp"/>,判据同一份):
-    /// <list type="bullet">
-    /// <item>`class int { … }` / `interface 某接口 IValue { … }` —— 建类那一步(<see cref="Install"/>);</item>
-    /// <item>`impl (IValue 我的类 { … })` —— 造实现那一步(`Interpreter.StepImplMake`)。</item>
-    /// </list>
-    ///
-    /// **`IValue` 封了,那 10 个内置实现就不走 `impl` 了** —— 直接落
-    /// <see cref="ClassVal.IsValueLike"/> 那格**索引**(从前那 10 条 `impl` 在 `lib/values.rav`)。
-    /// 索引本来就是这格的唯一真相(见 `HasTrait` 那条短路):O(1)、不吃解释器 ——
-    /// 于是 `dict.SysGet` 那些**同步 C#** 里也问得了同一个答案。顺带省掉了
-    /// "每个解释器都重跑一遍那 10 条 `impl`"(实现登记在各解释器各自的作用域里,而这是进程级的一份)。
-    ///
-    /// **插件不受影响**:`[RavelClass(Implements = "IValue")]` 本来就是直接写那格索引,
-    /// 不走 Ravel 侧的 `impl`(见 `PluginApi`)。所以"新的值类型"仍由**引擎/插件**说了算 ——
-    /// 封的只是**用户代码**这条口子。
-    ///
-    /// **`class int { … }` 那条也因此没了**:从前靠继承内置类型白拿它的构造器
-    /// (`MyInt ::= class int { … }` 之后 `MyInt "42"` 转出个 42),现在被这条挡下。</summary>
     private static void SealBuiltins()
     {
         // **谁按值比**(`IValue` 的实现者)—— 不可变、`==` 比内容、能当字典的键。
@@ -370,18 +286,6 @@ internal static partial class BuiltinClasses
     //  预设类体 —— 内置类的"类体"
     // ============================================================
 
-    /// <summary>造一段**预设类体**:内置类的类体,里面只定义它的 `init`(构造器)。
-    ///
-    /// 内置类的成员是 C# 造好的值(转换器、默认建类函数),写不出 Ravel 源码,
-    /// 所以用 <see cref="LiteralExpr"/> 直接塞进去。这样内置类和用户类走**完全相同**的
-    /// 实例化路径:跑各层类体 → 在实例作用域里找 `init` → 调它、交出它的返回值。
-    ///
-    /// 捕获作用域给一个空 scope:体里只有 `init := <字面量值>`,不需要解析任何名字。</summary>
-    /// <summary>预设类体:一条 `init := <caster>`,而且**标成 protected**。
-    ///
-    /// protected 就是构造器该有的可见性:类体系里照旧(子类那句 `init = …` 是普通赋值,
-    /// 走的是 `Scope.Assign`,不受成员门禁拦),外面 `obj.init` / `obj.init = …` 读不到也写不了
-    /// —— 构造器不是给人从外面拨的开关。</summary>
     private static BlockVal PresetCtor(RuntimeValue caster)
         => new(
             new BlockExpr([new VarDefinition(ObjectVal.InitMember, null, new LiteralExpr(caster))
@@ -389,29 +293,12 @@ internal static partial class BuiltinClasses
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
 
-    /// <summary>给一个内置类装构造器(`[ClassCtor]` 那个方法):一条 `init := <工厂>`,
-    /// 和 `List` / `Integer` 那些预设类体一个做法(见 `PresetCtor`)。</summary>
     internal static void SetCtor(ClassVal cls, System.Reflection.MethodInfo factory)
         => BuiltinCtor(cls, FunctionVal.From(arg => ClassRegistry.Call(factory, [arg])));
 
-    /// <summary>一个内置类的**构造器**:类体那条 `init := <caster>`(实例化时照旧跑)。
-    ///
-    /// 值类型的 `init` 不在这儿挂 —— 它们从不走"实例化"那趟,类体落不到头上;那一格由
-    /// 各成员类里的 `[ClassCtor]` 提供(见 `Runtime/Members/*Members.cs`),`VirtualScope`
-    /// 读"值类型 init"时就地交出去。</summary>
     internal static void BuiltinCtor(ObjectVal type, RuntimeValue caster)
         => type.ClassBody = PresetCtor(caster);
 
-    /// <summary>把一份 property 绑到**这一次的接收者**上再交出去。
-    ///
-    /// **只有引擎挂在类上的那种 `by` 槽**(`[ClassProperty]`)需要这一步:它那两个函数是
-    /// `BuiltinMethodVal`(`ISelfBinding`),和普通类方法一个待遇 —— 读成员的那一刻才认"谁在调"。
-    /// 用户自己写的 `property g s` 是普通 lambda(接收者靠捕获的作用域),原样交回;
-    /// 接口那条槽的 getter/setter 是 `NativeClosure`(要连捕获作用域一起换,见
-    /// <see cref="Activate"/>),也不是 `ISelfBinding`,这儿认不出、也就不插手。
-    ///
-    /// **读和写都得过这里** —— 一处漏了就是"读得到、写不回"那种半瘫,而两处在两个文件里
-    /// (读:`BoxedValue.TryGetByGetter`;写:`Interpreter.PropOf`)。</summary>
     internal static RuntimeValue BindProperty(RuntimeValue prop, RuntimeValue self)
         => prop is PropertyVal pv && (pv.Getter is ISelfBinding || pv.Setter is ISelfBinding)
             ? pv with { Getter = BoundFn(pv.Getter, self), Setter = BoundFn(pv.Setter, self) }
@@ -420,37 +307,21 @@ internal static partial class BuiltinClasses
     private static FunctionVal BoundFn(FunctionVal f, RuntimeValue self)
         => f is ISelfBinding ? ObjectVal.BindMethod(f, self) : f;
 
-    /// <summary>**类那层挂的 `by` 槽** —— 插件的 `[ClassProperty]` 就落在那里(类的实例表,
-    /// 和 `Append` 那些方法一处)。调用方是"实例自己那层没找到"之后的第二步;
-    /// **只认 `by` 槽**:类那层别的东西(方法)不归读写这条路管
-    /// (读那条路 `BoxedValue.GetMember` 会去 `MemberScope` 找,而且顺带绑接收者)。
-    ///
-    /// 少了这一步,引擎挂的属性就是"看得到、摸不着":`sb.Length` 报「没有方法 'Length'」、
-    /// `sb.Length = 2` 报「对象没有字段」(实测,四条路各报各的)。</summary>
     internal static Variable? ClassBySlot(ObjectVal obj, string name)
         => obj.MemberScope.LookupField(name) is { } v && v.HasAttr(Attr.By) ? v : null;
 
-    /// <summary>挂一个**类侧**的引擎成员:读它的就是**类对象自己**(`Json.FromString s`)
-    /// —— 落类那张表(`Scope`),不进给实例的表。全库只有 `Json.FromString` 一处。</summary>
     internal static void ClassSideMember(ObjectVal type, string name, BuiltinMethodVal impl)
     {
         impl.Name = name;
         type.Scope.DefineOrReplace(name, Function, impl).SetAttr(Attr.Readonly);
     }
 
-    /// <summary>「没有体」时交出去的那个**空块** —— 类型恒定,别拿 `()` 顶替。
-    /// 见 `Function.body`。</summary>
     internal static readonly BlockVal EmptyBody =
         new(new BlockExpr([]) { Line = 1, Column = 1 }, new Scope());
 
-    /// <summary>把两个候选做成 `|` 交替(和 `Function.|` 同一个机制,只是从 C# 侧构造)。
-    /// 分流靠 TypeMismatchException —— 第一支的参数类型对不上就试第二支,见 StepAlternate。</summary>
     internal static ControlFunction Alternate(RuntimeValue a, RuntimeValue b)
         => new(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b));
 
-    /// <summary>N 个候选的交替(接口那个 init 要三支:接口表 / 一个类型 / 代码块)。
-    /// `Arity` 恒为 1:这一段是**一个**参数上的分流,分支个数由参数表长度带,
-    /// 和 `Function.|` 摊平出来的那种是同一个东西(它也是这么堆的)。</summary>
     internal static ControlFunction Alternate(params RuntimeValue[] branches)
     {
         var args = RList<RuntimeValue>.Empty;
@@ -458,15 +329,6 @@ internal static partial class BuiltinClasses
         return new ControlFunction(ControlKind.Alternate, 1, args);
     }
 
-    /// <summary>`type` 的 init —— **新建实例/新建类这件事的默认逻辑**,也是元类要委托的那一层。
-    ///
-    /// 两分支(和用户在 Ravel 里写 `(parent: Type body) => ... | (body) => ...` 完全一样):
-    /// - 第一支收 `(parent: Type, body)`。参数标成 `Type`,于是 `class { body }` 传块进来时
-    ///   类型不匹配、自动落到第二支 —— **交替机制就是靠参数类型分流的**。
-    /// - 第二支只收 `body`,parent 默认成 `object`。
-    ///
-    /// 做的事只有一件:把 (parent, block) 装到**正在构造的那个对象**上,它于是成为一个类。
-    /// `this` 从实例作用域拿 —— 这个函数是在 ClassInit 里以实例作用域为调用点被调的。</summary>
     private static void InstallTypeInit()
     {
         var twoArg = new NativeClosure("parent", Type, (scope, parent) =>
@@ -475,11 +337,6 @@ internal static partial class BuiltinClasses
         BuiltinCtor(Type, Alternate(twoArg, oneArg));
     }
 
-    /// <summary>这个类型自己**或它的任一祖先**被 `seal` 了吗。
-    ///
-    /// 两个地方问它:**建类/建接口**(<see cref="Install"/>)和**造实现**(`StepImplMake`)。
-    /// 沿 `parent` 链走而不是只看自己 —— 密封说的是"这条继承链到此为止":已经存在的那层
-    /// 子类下面也不能再长,不然密封就成了一句只挡直接子类的话。</summary>
     internal static bool SealedUp(ObjectVal t)
     {
         for (var cur = t; cur != null; cur = cur.Parent)
@@ -491,8 +348,6 @@ internal static partial class BuiltinClasses
         return false;
     }
 
-    /// <summary>被密封的那个祖先(报错要用它的名字),没有就 null。
-    /// 和 <see cref="SealedUp"/> 同一趟走法 —— 一个问有没有,一个问是哪一个。</summary>
     private static ObjectVal? SealedAncestor(ObjectVal t)
     {
         for (var cur = t; cur != null; cur = cur.Parent)
@@ -504,13 +359,6 @@ internal static partial class BuiltinClasses
         return null;
     }
 
-    /// <summary>把 (parent, body) 装到 self 上,self 于是是一个类。返回 self ——
-    /// 构造交出 init 的返回值,所以这就是"建出来的那个类"。
-    ///
-    /// 装完顺手登记进 AllTypes(`Subtypes ()` 反射要用)并扫类体里用符号定义的运算符。
-    ///
-    /// `body` 可以是**块拼出来的**(`body.Append { … }`,见 <see cref="BodyPieces"/>):
-    /// 第一块是主类体,其余记进 <see cref="ObjectVal.BodyExtras"/>,实例化时接着主块跑。</summary>
     private static ClassVal Install(Scope scope, ObjectVal parent, RuntimeValue body)
     {
         // **密封的不能再被继承** —— `class 某个密封的类 { … }`(接口同理:`interface 某个密封的接口`),
@@ -568,17 +416,9 @@ internal static partial class BuiltinClasses
         return self;
     }
 
-    /// <summary>这一串块里有没有**就是** `block` 这一个(按身份比 —— `BlockVal` 是 record,
-    /// 默认的相等是按内容,而这儿要的是"同一个块对象")。</summary>
     private static bool IsShared(List<BlockVal> pieces, BlockVal block)
         => pieces.Any(p => ReferenceEquals(p, block));
 
-    /// <summary>把"体"摊平成**一串块**(执行顺序)。`Append` / `Prepend` 交出来的是
-    /// <see cref="ComposeVal"/>(原值 + 那一块),这里把它拆开:prepend 的块排在原值前面、
-    /// append 的排在后面 —— 和调用时那套顺序一致(见 `Interpreter.StepCompose`),
-    /// 只是类体要的是"一串块",不是"一个能调的函数"。
-    ///
-    /// 别的形状照旧报「class 需要代码块参数」:类体造不出来,只能写出来或拼出来。</summary>
     private static List<BlockVal> BodyPieces(RuntimeValue body)
     {
         var pieces = new List<BlockVal>();
@@ -606,8 +446,6 @@ internal static partial class BuiltinClasses
         }
     }
 
-    /// <summary>建一个类对象(第一趟:只有名字,元类先自指)。**顺手登记进名字表** ——
-    /// `ClassOf` 就是查它,结构那一族(`[BuiltinClass]`)也靠它找父类。</summary>
     internal static ClassVal New(string name)
     {
         var t = new ClassVal(null, null);   // null → ClassType 先自指;表由 ObjectVal.Scope 懒建
@@ -616,16 +454,8 @@ internal static partial class BuiltinClasses
         return t;
     }
 
-    /// <summary>名字 → 类对象(建树那趟顺手填)。给"按名字拿类"的地方用:
-    /// 内置值类型的 `Type`(如 `StackVal`)、`[BuiltinClass]` 找父类。
-    ///
-    /// 从前每个结构要自己留一个 `internal static ClassVal` 字段 —— 那是"加一个结构就得
-    /// 记得改几处"的老毛病,一张表就够了。</summary>
     private static readonly Dictionary<string, ClassVal> ByName = [];
 
-    /// <summary>把一个**外来**的类登记进 `AllTypes`(`using "x.dll"` 插件带来的那些)。
-    /// 顺手把 `_builtinCount` 往前推 —— 那个数切的是"哪些是**装进来的**(Reset 时留着)"、
-    /// 哪些是用户 `class { … }` 现写的(Reset 时清掉);插件带来的属于前者。</summary>
     internal static void AddType(ClassVal cls)
     {
         if (!AllTypes.Contains(cls)) AllTypes.Add(cls);
@@ -637,14 +467,9 @@ internal static partial class BuiltinClasses
             ? t
             : throw new RuntimeException($"{what}: 没有 '{name}' 这个内置类", ErrorKind.Name);
 
-    /// <summary>有就交回、没有交回 `null` —— **不抛**。`ClassOf` 是"必须有"那条，这条是
-    /// "**有就用**"：生成出来的适配层拿它决定"能不能把手里这个 .NET 值包成某个 Ravel 类"
-    /// （见 `PluginKit.Wrap` —— 调用方为那个类型生成过适配器就包成它，没有就 `DotNetObject`，
-    /// 两种都是能用的值）。</summary>
     internal static ClassVal? ClassOrNull(string name)
         => ByName.TryGetValue(name, out var t) ? t : null;
 
-    /// <summary>第二趟：挂 parent、回填元类。约束这时才给得上（String/Object 已经存在）。</summary>
     internal static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
     {
         t.ClassType = meta;
@@ -656,18 +481,9 @@ internal static partial class BuiltinClasses
     //  用户自定义类
     // ============================================================
 
-    /// <summary>清掉已登记的用户类（内置的留着，见 `_builtinCount`）。
-    /// `Subtypes` 依赖这张表，而一个进程里可能跑好几个 Interpreter（测试每个文件一个、
-    /// REPL 反复 new），不清的话上一个建过的类会出现在下一个的 `Subtypes ()` 里。</summary>
     internal static void ResetUserTypes()
         => AllTypes.RemoveRange(_builtinCount, AllTypes.Count - _builtinCount);
 
-    /// <summary>沿 parent 链收集各层类体，返回「顶祖先 → 自身」。没有类体的层（内建）不入列且到此为止。
-    /// 类体创建后不可变，所以这是纯函数，可随帧推进反复调用。
-    ///
-    /// **一层可能不止一块**：`body.Append { … }` 拼上来的块跟在主块后面，同属这一层 ——
-    /// 于是 `Lexical` 给的是**主块**的写法处（拼上来的块自由名字也照这一处解析，
-    /// 和"每层各按各的写法处"那条是一个道理，见 <see cref="BodyScope"/>）。</summary>
     internal static List<BodyStep> CollectBodies(ObjectVal type)
     {
         var layers = new List<List<BodyStep>>();
@@ -687,6 +503,4 @@ internal static partial class BuiltinClasses
     }
 }
 
-/// <summary>实例化要跑的一步：跑哪一块、那一层的自由名字按哪儿解析（见 <see cref="BodyScope"/>）。
-/// 一层通常只有一步；`body.Append { … }` 拼上来的块各算一步，`Lexical` 都指着主块那一处。</summary>
 internal readonly record struct BodyStep(BlockVal Block, Scope Lexical);

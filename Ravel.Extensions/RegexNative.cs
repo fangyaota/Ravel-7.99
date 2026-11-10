@@ -5,28 +5,9 @@ namespace Ravel.Extensions;
 using Ravel.Runtime;
 using static Ravel.Runtime.PluginKit;
 
-/// <summary>**正则原语** —— 把 .NET 的 `System.Text.RegularExpressions` 包一层。
-/// 它是 `lib/regex.rav` 的本机半边,住在**官方扩展**(`plugins/Ravel.Extensions.dll`)里,
-/// 对外是 `Native.RegexMatch` 那几条(从前挂在 `System` 底下)。
-///
-/// **策略在库**(`lib/regex.rav`):这几条只做"给模式 + 文本 + 选项,交出数据"(匹配交回普通
-/// dict,由库拼成人话的对象),和文件那批 syscall 一个规矩。
-///
-/// 两条**必须在这层兜住**的:
-/// <list type="bullet">
-/// <item>**超时** —— .NET 的 `Regex` 默认没有超时,写歪一个模式(`(a+)+$` 配一长串 a)
-/// 能把进程**卡死**。卡死不是异常,Ravel 的 `try` 接不住,只能在这一层给个时限
-/// (见 <see cref="RegexTimeout"/>)—— 超了报成普通的 Ravel 错误。</item>
-/// <item>**C# 异常** —— 模式写错抛的是 `ArgumentException`,漏出去会绕过 Ravel 的 `try`
-/// 把程序打掉(和 `Guarded` 那条规矩一样);这里接住,换成说人话的 Ravel 错误。</item>
-/// </list>
-///
-/// 用的都是**静态**那组重载(`Regex.IsMatch (input, pattern, options, timeout)`):
-/// 它们走 .NET 内部那张模式缓存,同一个模式不必反复编译。</summary>
 [RavelModule("Native")]
 internal static class RegexNative
 {
-    /// <summary>一条正则最多跑多久。够日常用,又不至于让一个坏模式把程序挂死。</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
 
     // 一个匹配 → dict:`{value, index, length, groups, named}`。
@@ -136,8 +117,6 @@ internal static class RegexNative
         });
     }
 
-    /// <summary>四个参数:前三个进这一层,交回的是"还等着替换串"的那枚函数
-    /// (柯里化,和 `FunctionVal.From` 那套一个走法)。</summary>
     [RavelFn("RegexReplace")]
     public static RuntimeValue RegexReplace(RuntimeValue p, RuntimeValue t, RuntimeValue f)
         => FunctionVal.From(r =>

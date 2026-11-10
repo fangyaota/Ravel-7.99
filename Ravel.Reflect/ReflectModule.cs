@@ -2,26 +2,9 @@ using System.Reflection;
 
 namespace Ravel.Runtime;
 
-/// <summary>**`Reflect` 模块** —— 最基本的那五个函数。
-///
-///     using "plugins/Ravel.Reflect.dll"
-///
-///     t := Reflect.Type "System.Console"
-///     Reflect.Call t "WriteLine" ["hi"]        # 静态:头一个实参给**类型**
-///     sb := Reflect.New (Reflect.Type "System.Text.StringBuilder") []
-///     Reflect.Call sb "Append" ["hi"]          # 实例:头一个实参给**对象**
-///     Reflect.Text sb
-///
-/// **重载按参数个数挑**(同名、参数个数对得上的第一个)。这条规矩很粗,但够用:
-/// 它让 `WriteLine` / `Append` / `String.Join` 这些一调就通;挑错了会在**调用的那一刻**
-/// 明说"给的是什么、要的是什么",不会静默跑错一个。
-///
-/// **不在这儿的**:泛型类型实参、委托方向(Ravel 函数交给 C# —— 硬边界)、
-/// 按目标类型探路挑重载。见 `Runtime/Builtins/NetBridge.cs`。</summary>
 [RavelModule("Reflect")]
 internal static class ReflectModule
 {
-    /// <summary>类型名 → `DotNetType`。核心库里的写简称就行(`"System.Console"`)。</summary>
     [RavelFn("Type")]
     public static RuntimeValue Type(RuntimeValue name)
     {
@@ -37,7 +20,6 @@ internal static class ReflectModule
         return new DotNetTypeVal(t);
     }
 
-    /// <summary>造一个:类型 + 实参表。</summary>
     [RavelFn("New")]
     public static RuntimeValue New(RuntimeValue t, RuntimeValue args)
     {
@@ -52,8 +34,6 @@ internal static class ReflectModule
         return TryEach(ctors, c => c.Invoke(argv), "构造 " + type.Name);
     }
 
-    /// <summary>调方法 / 读属性。
-    /// **第一个实参给 `DotNetType` 就是静态**,给 `DotNetObject` 就是实例 —— 和 C# 一样。</summary>
     [RavelFn("Call")]
     public static RuntimeValue Call(RuntimeValue obj, RuntimeValue name, RuntimeValue args)
     {
@@ -68,11 +48,9 @@ internal static class ReflectModule
         return CallInstance(target!.GetType(), target, n, argv);
     }
 
-    /// <summary>`ToString ()`,基本就是"给我看看"。Ravel 值也行。</summary>
     [RavelFn("Text")]
     public static RuntimeValue Text(RuntimeValue v) => new StringVal(PluginKit.NetShow(PluginKit.ToNet(v)));
 
-    /// <summary>**脱壳**:`DotNetObject` 里的 .NET 值按 `Bridge` 的规矩交回 Ravel。别的值原样。</summary>
     [RavelFn("Unwrap")]
     public static RuntimeValue Unwrap(RuntimeValue v) => v is DotNetVal dn ? PluginKit.ToRavel(dn.Value) : v;
 
@@ -104,12 +82,6 @@ internal static class ReflectModule
         throw NoMember(type, name, argv.Length, static_: false);
     }
 
-    /// <summary>**同名、参数个数一样的重载依次试**:绑不上(`ArgumentException`,那是
-    /// `Invoke` 自己抛的)就换下一个 —— `"x".Replace ["a" "b"]` 里 `(char, char)` 排在
-    /// `(string, string)` 前面,不试就永远挑错那个。
-    ///
-    /// **被调方真抛的不吞**(`TargetInvocationException`):那是"这个方法跑了、跑出错了",
-    /// 换个重载再接一遍只会把错盖掉。</summary>
     private static RuntimeValue TryEach<T>(List<T> pick, Func<T, object?> go, string what)
         where T : MethodBase
     {
@@ -128,11 +100,6 @@ internal static class ReflectModule
         throw PluginKit.Fail($"{what} 的实参对不上（{pick.Count} 个同参数个数的重载都试过）：{last}", ErrorKind.Type);
     }
 
-    /// <summary>跑一下、把结果化成 Ravel 值。
-    ///
-    /// **`ArgumentException` 故意放过去**:那是"实参绑不上这个签名"(`Invoke` 自己抛的,
-    /// 不是被调方抛的)—— `TryEach` 靠它换下一个重载。**被调方真抛的**
-    /// (`TargetInvocationException`)在这儿翻成人话。</summary>
     private static RuntimeValue Invoke(Func<object?> go, string what)
     {
         try { return new DotNetVal(go()); }
@@ -143,7 +110,6 @@ internal static class ReflectModule
         }
     }
 
-    /// <summary>绑不上这个签名时的那句话(没有重载可换的地方自己包一下)。</summary>
     private static RuntimeException BindFail(string what, ArgumentException ex)
         => PluginKit.Fail($"{what} 的实参对不上:{ex.Message}", ErrorKind.Type);
 
@@ -171,7 +137,6 @@ internal static class ReflectModule
         _ => throw PluginKit.Fail($"{what}得是个 `DotNetType`（`Reflect.Type \"…\"` 交回的那种）", ErrorKind.Type)
     };
 
-    /// <summary>参数表:收 `list`;`()` 当空的。</summary>
     private static object?[] Args(RuntimeValue v) => v switch
     {
         ListVal l => [.. l.Elements.Select(PluginKit.ToNet)],

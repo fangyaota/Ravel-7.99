@@ -1,12 +1,7 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>节点状态机:每个 AST 节点一个 NodeFrame,按 Results.Count 分阶段推进(求子节点 → 汇总)。
-/// 需要「调用函数拿结果」的节点把 sink 传 nf.Parent(结果直接流进父帧),不再回到本帧。</summary>
 public partial class Interpreter
 {
-    /// <summary>隐式转换:失败返回 null,把失败原因从 out 带走。
-    /// 原因要带——`x: int = bigint 9999999999999` 光说「无法将 BigInt 赋值给 Integer」,
-    /// 看不出是「类型根本不支持转换」还是「转得动但这个值超出 int 范围」,后者才是真话。</summary>
     private static RuntimeValue? TryConvert(RuntimeValue val, ObjectVal target, out string? why)
     {
         try
@@ -21,17 +16,6 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>**`default` 按目标类型落地** —— 0 / "" / 空表 / 空函数 / 空续延…。
-    ///
-    /// `default` 的型是**底类型** `Every`,`IsAssignableTo` 见谁都点头,于是"收得下吗"
-    /// 那一关会把它整段放过 —— 变量里就存下一个**真的** `default`,之后 `n + 1` 报
-    /// 「Every 不支持 '+'」。所以它得单独走这一道:按目标类型**造一个本类型的空值**
-    /// (那正是 `ConvertDirect` 干的事)。
-    ///
-    /// **定义和写入两条路都过这儿**(`VarDefinition` / `WriteVariable`)—— 从前只有定义
-    /// 那边有,于是 `n: int = default` 给 0 而 `n = default` 给 `default`,一个语言两样。
-    ///
-    /// **目标类型就是 `Every` 时不转** —— 没写注解的 `x := default` 要的正是那个底值。</summary>
     private static RuntimeValue LandDefault(RuntimeValue val, ObjectVal target)
     {
         if (val is not DefaultVal || target == BuiltinClasses.Every) return val;
@@ -40,15 +24,6 @@ public partial class Interpreter
             : throw new RuntimeException($"类型不匹配: 无法将 default 变成 {target} — {why}", ErrorKind.Type);
     }
 
-    /// <summary>数字文字 → 值。
-    ///
-    /// **没写后缀**时按文本定类型:带小数点就是 real(`2.0` 也是 —— 形状说了算,不是值),
-    /// 整数装得下 int 就是 int、装不下退化成 bigint。(以前一律 (int) 硬转,
-    /// 2147483648 静默绕成 -2147483648,而且 double 中转还会丢精度。)
-    ///
-    /// **写了后缀**就是明说类型,不再猜(见 <see cref="NumberLiteral.Suffix"/>):
-    /// `2n` 大整数、`2i` 普通整数(装不下 int 当场报错,不悄悄升级)、`2.5f` / `2f` 浮点。
-    /// `2.5i` / `2.5n` 报错 —— 小数没有"整数后缀"这回事。</summary>
     private static RuntimeValue MakeNumber(NumberLiteral nn)
     {
         if (nn.Parsed is { } cached) return cached;      // 纯函数:算过一次就够了(见 NumberLiteral.Parsed)
@@ -177,8 +152,6 @@ public partial class Interpreter
         CallInto(nf.Parent!, fn, nf.Result(0));
     }
 
-    /// <summary>一元负号。每种数值类型自己翻,不走 `0 - x`——Int 的 '-' 只特判了 Real,
-    /// `0 - bigint` 会撞上「运算符 '-' 不支持 BigInt 操作数」。</summary>
     private static RuntimeValue Negate(RuntimeValue v) => v switch
     {
         // -int.MinValue 翻不过来(2147483648 装不下),别静默回绕成它自己
@@ -256,8 +229,6 @@ public partial class Interpreter
         Return(nf, new DictVal(dict));
     }
 
-    /// <summary>lambda 的参数注解是个**表达式**,在建这个 lambda 的时候求值一次。
-    /// 常见写法就是一个类型名(`int`),也可以是算出来的(`(pickType ())`)。</summary>
     private void StepLambda(NodeFrame nf, LambdaExpr lam)
     {
         if (nf.Count == 0)
@@ -275,10 +246,6 @@ public partial class Interpreter
         });
     }
 
-    /// <summary>注解求出来的值得是个类对象。
-    ///
-    /// 注解是表达式,所以"名字打错"会在求值那一步就报(未定义的变量),到这里只剩
-    /// "算出来的东西不是类型"这一种失败。</summary>
     private static ObjectVal AsClass(RuntimeValue v, string what)
         => v as ObjectVal is { IsClass: true } cls
             ? cls
@@ -369,17 +336,6 @@ public partial class Interpreter
         Return(nf, VoidVal.Instance);
     }
 
-    /// <summary>`by a` / `by a.x` —— **取槽里的那份 property 本身**(不过 getter)。
-    /// 和 `by a = X`(换槽)对称:写那边不过 setter,这边不过 getter。
-    ///
-    /// **不能把整条路径当普通表达式求** —— `by c.n` 求 `c.n` 就已经走 getter 了,
-    /// 那正是要绕开的东西(而且白调一次 getter,它有副作用的话就出鬼了)。
-    /// 所以:`by a` 连值都不求,直接查变量;`by c.n` 只求**接收者** `c`。
-    ///
-    /// 门禁和成员读一样走一遍(core 要 unsafe、private 要能走到那个对象)——
-    /// 不然 `by` 就成了绕过封装读私有字段的后门。
-    ///
-    /// 0=求接收者(只有成员那种要) 1=查那个槽。</summary>
     private void StepSlot(NodeFrame nf, SlotExpr slot)
     {
         // `by a`:变量槽
@@ -414,29 +370,15 @@ public partial class Interpreter
         Return(nf, field.Value);
     }
 
-    /// <summary>这个变量是不是 by 槽。不是就别让它从这儿过 —— `by` 只对属性有意义。</summary>
     private static void CheckSlot(Variable v, string name)
     {
         if (!v.HasAttr(Attr.By))
             throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）", ErrorKind.Type);
     }
 
-    /// <summary>要放进槽里的值:`default` 换成**属性的默认值**(一对什么都不做的 getter/setter,
-    /// 见 <see cref="BuiltinClasses.DefaultProperty"/>),其余原样。
-    ///
-    /// 别的非 property 值不在这儿管 —— `by bad := 5` 那种第一次读/写时会报出来,
-    /// 保持"当场报错、别静默"那条。**声明和换槽(四个分支)共用这一处**。</summary>
     private static RuntimeValue SlotValue(RuntimeValue v)
         => v is DefaultVal ? BuiltinClasses.DefaultProperty() : v;
 
-    /// <summary>`by a = X` / `by a.x = X` —— **换掉槽里的那份 property**(不走旧 setter);
-    /// `:=` 那种是**在那个对象上把槽建出来**(`by a.x := X`)。和 <see cref="StepSlot"/>(取槽)
-    /// 对称:同一个"槽路径",一边读一边写。
-    ///
-    /// 三段(成员那种):0=求接收者 1=求新值 2=换。变量那种少第一段。
-    /// 门禁和成员写一样(`core` 要 unsafe、`private` 要能走到那个对象);
-    /// **不带 `:=` 时目标必须已经是 by 属性** —— 不然 `by obj.nope = …` 会悄悄多出个成员,
-    /// 那正是"赋值要求字段已存在"这条规矩要挡的(`:=` 才是定义)。</summary>
     private void StepSlotAssign(NodeFrame nf, SlotAssign sa)
     {
         // 变量槽:`by a = X`
@@ -532,12 +474,6 @@ public partial class Interpreter
         Return(nf, val2);
     }
 
-    /// <summary>变量赋值 `x = v`。语句位置(<see cref="Assignment"/> 节点)和表达式位置
-    /// (BinaryExpr 的 `=`)都走这里 —— 别再各写一份:从前表达式那份**根本没赋值**
-    /// (只把右值交出去),`print (x = 5)` 会打印 5 而 `x` 一点没变。
-    ///
-    /// 0=求右值 1=写。名字找不到就交给 <see cref="Scope.Assign"/>,由它报「未定义」。
-    /// `by x = …` 那种(换槽)走的是另一条:<see cref="StepSlotAssign"/>。</summary>
     private void StepAssign(NodeFrame nf, string name, Expression value)
     {
         if (nf.Count == 0)
@@ -560,16 +496,6 @@ public partial class Interpreter
         Return(nf, val);
     }
 
-    /// <summary>写一个变量/字段:`by` 属性要把值过一遍 setter(推 CallReturn 帧,setter 跑完
-    /// 才算完),其余直接落。变量赋值(`x = v`)和成员赋值(`a.x = v`)共用这一条 ——
-    /// 从前两处各写了一遍,连"setter 不是函数"的兜底都一模一样。
-    ///
-    /// 交出去的表达式值**一律是赋进去的那个值**:从前变量赋值给 `()`、成员赋值给新值、
-    /// 而 `by` 属性那条又给新值 —— 同一个动作三个答案,现在只剩一个。
-    ///
-    /// `prop` 是这次要过的那份 property:接口那条槽得用**绑好这一次接收者**的副本
-    /// (见 `BuiltinClasses.Activate`),所以由调用方递进来;不传就是槽自己那一份
-    /// (裸变量、自己那层声明的 `by a := property …` 都是这种情况)。</summary>
     private void WriteVariable(NodeFrame nf, Variable field, RuntimeValue val, RuntimeValue? prop = null)
     {
         // **写入的每一条路都过这一道**:`default` 按**声明类型**落地(`x: int` 上写 `default`

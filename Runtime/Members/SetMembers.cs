@@ -3,17 +3,6 @@ namespace Ravel.Runtime;
 using System.Linq;
 using Ravel.Runtime.Values;
 
-/// <summary>**`Set` 这个类给它的实例准备什么。**
-///
-/// 集合**自己有**的:增删,以及集合代数(`Union` / `Intersect` / `Except` / `IsSubsetOf`)。
-/// 序列那一批(`Count` / `Contains` / `ToList` / `Distinct` …)从 `SequenceMembers` 继承 ——
-/// 集合和列表、字典共用同一份实现,不必各写一遍。
-///
-/// 集合代数**交回新的**,原集合不动:和 `Map`/`Where`/`Sort` 一个规矩
-/// (要就地改的那几条是 `Add`/`Remove`/`Clear`,它们交回 `()`)。
-///
-/// 从前这些挤在 `RegisterSetMethods` 里;搬过来之后"集合有哪些成员"就是这个类有哪几个
-/// `[ClassMethod]`。</summary>
 internal sealed class SetMembers : SequenceMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(SetMembers), ObjectMembers.Set);

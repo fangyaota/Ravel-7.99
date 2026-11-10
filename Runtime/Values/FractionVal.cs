@@ -1,14 +1,5 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>分数。**构造时就约分**,负号统一归到分子。
-///
-/// 不约分有两个后果:
-/// - 显示:`fraction 2 4` 打印成 "2/4"、`fraction 1 2 + fraction 1 2` 打印成 "4/4";
-/// - 更要命的是相等性。record 的结构相等认为 `1/2` 和 `2/4` 是**两个不同的值**,
-///   而 `==` 走的是数值比较说它们相等——Set/Dict 用结构相等,
-///   于是 `{fraction 1 2, fraction 2 4}` 有 2 个元素。同一件事两套答案。
-///
-/// 分母恒为正:`fraction 1 -2` 是 -1/2。</summary>
 public record FractionVal : RuntimeValue
 {
     public int Num { get; }

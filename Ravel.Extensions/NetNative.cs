@@ -8,21 +8,6 @@ namespace Ravel.Extensions;
 using Ravel.Runtime;
 using static Ravel.Runtime.PluginKit;
 
-/// <summary>网络 —— 只做到 HTTP 这一层(裸 TCP 以后再说)。
-/// 它是 `lib/http.rav` 的本机半边,住在**官方扩展**(`plugins/Ravel.Extensions.dll`)里,
-/// 对外是 `Native.HttpReq` 那几条。
-///
-/// 和文件系统那批一个规矩:**只做 syscall,不做策略** —— URL 怎么拼、响应怎么解、
-/// 重试几次、重定向跟不跟,全是 `lib/http.rav` 的事(和正则、随机数一个路子)。
-/// 四条原语都**收一个 dict、交回一个 dict**:加字段不用改签名,而且以后加并发时,
-/// "发请求"整个变成一次**挂起点**,库里那些 `Http.Get` 一个字都不用改。
-///
-/// 请求 dict 认这些键(缺的都走默认):
-/// `url` / `method`(默认 GET)/ `headers`(名字→值,值也能给 list)/ `body`(字节表)/
-/// `bodyFile`(从文件流式发)/ `follow`(默认 true)/ `timeout`(毫秒,默认 30 秒)/
-/// `max`(响应正文封顶,默认 16 MB)/ `insecure`(默认 false;**不校验证书**,只为连自签的)。
-/// 交回:`status` / `reason` / `headers`(小写名→值,重复的用 `, ` 连起来)/ `body`(字节表)/
-/// `url`(跟完重定向之后那个)。下载、上传那两条把 `body` 换成 `bytes`(写出去多少字节)。</summary>
 [RavelModule("Native")]
 internal static class NetNative
 {
@@ -58,9 +43,6 @@ internal static class NetNative
     public static RuntimeValue HttpUploadTask(RuntimeValue a)
         => new WaitableVal(HttpAsync("上传", () => Upload(a)));
 
-    /// <summary>下载:正文边收边落盘,**不进 Ravel 堆** —— 一个 500 MB 的东西,堆里不该
-    /// 多一个字节表。文件要开到这次传输**整个结束**,所以它在这个 async 方法里 ——
-    /// 摆在外层 `Http(...)` 的 lambda 里的话,句柄在返回的那一刻就关了。</summary>
     private static async Task<RuntimeValue> Download(RuntimeValue a)
     {
         var req = Dict(a, "HttpDownload 的请求");
@@ -79,21 +61,10 @@ internal static class NetNative
         return Send(req, null, path, OptText(req, "field", "file"));
     }
 
-    /// <summary>字节 → 文本。**认不出来的字符集不报错**、按 UTF-8 解:网上写着 `charset=utf8`、
-    /// `charset=UTF8`、甚至拼错的大把,为一个只影响显示的字段把整次请求打断不值当。</summary>
     [RavelFn("DecodeText")]
     public static RuntimeValue DecodeText(RuntimeValue a, RuntimeValue b) => Guarded("解码文本", () =>
         new StringVal(Decode(Bytes(a, "DecodeText 的字节"), Text(b, "DecodeText 的字符集").Value)));
 
-    /// <summary>进程级共享的那几台 —— **别每次请求 new 一个**:连接池挂在它们身上,
-    /// 一次请求一台的话连接永远复用不上,请求一多就把本机端口耗光(.NET 上最经典的那个坑)。
-    ///
-    /// 超时**不设在这些身上**(设了就是全进程一把尺子),每个请求自己用 CancellationToken 管。
-    /// 两个开关都在**处理器**(handler)这一级、没法按请求改,所以宁可养四台也不给用户一个
-    /// "说是不跟、其实跟了"的 `follow`,或者"说是不查证书、其实查了"的 `insecure`。
-    ///
-    /// `*Lax` 那两台**不校验证书** —— 只为连**自己签的**证书(本地起个 HTTPS 试一把)。
-    /// 拿它去连真网站等于把中间人攻击的门开着,`lib/http.rav` 那边的注释也是这么写的。</summary>
     public static readonly HttpClient Web = MakeWeb(true, false);
     public static readonly HttpClient WebNoRedirect = MakeWeb(false, false);
     public static readonly HttpClient WebLax = MakeWeb(true, true);
@@ -115,8 +86,6 @@ internal static class NetNative
         return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
-    /// <summary>发出去、等回来。`bodyOut` 不是 null 时把正文**流式写进它**(下载那条路),
-    /// `uploadPath` 不是 null 时把那个文件**流式发出去**(multipart,上传那条路)。</summary>
     public static async Task<RuntimeValue> Send(DictVal req, Stream? bodyOut, string? uploadPath = null, string field = "file")
     {
         var url = OptText(req, "url", "");
@@ -196,9 +165,6 @@ internal static class NetNative
         }
     }
 
-    /// <summary>网络错误的那句中文。**不能直接用 `ex.Message`**:那是 .NET 跟着系统语言给的
-    /// (中文机器上是一种说法、英文机器上又一种),而报错消息是要被 golden 用例**钉住**的。
-    /// 认不出来的照样把原文带上 —— 总比一句"失败了"强。</summary>
     public static string Why(HttpRequestException ex) => ex.HttpRequestError switch
     {
         HttpRequestError.NameResolutionError => "域名解析不了",
@@ -210,9 +176,6 @@ internal static class NetNative
         _ => ex.Message,
     };
 
-    /// <summary>请求头。名字撞上"内容头"(`content-type` 这类)时要加在 Content 那半边 ——
-    /// 加错地方 .NET 会抛「不能把 content header 加到 request headers 上」,而那是个
-    /// 用起来很意外的错误。</summary>
     public static void ApplyHeaders(HttpRequestMessage msg, DictVal headers)
     {
         foreach (var (k, v) in headers.Entries)
@@ -227,8 +190,6 @@ internal static class NetNative
         }
     }
 
-    /// <summary>响应头:响应那一层 + 内容那一层合成一张。名字**一律小写**(HTTP 头不区分大小写,
-    /// 给两套写法只会让查的人猜);同名的多个值用 `, ` 连起来(和 HTTP 自己的规矩一致)。</summary>
     public static DictVal HeaderDict(HttpResponseMessage resp)
     {
         var merged = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -250,8 +211,6 @@ internal static class NetNative
             kv => (RuntimeValue)new StringVal(string.Join(", ", kv.Value))));
     }
 
-    /// <summary>读正文,超过 `cap` 就停下报错。不封顶的话一个大文件会先在堆里攒成字节表,
-    /// 而堆是有上限的(测试里 256 MB)—— 那种时候该走 `Http.Download`。</summary>
     public static async Task<byte[]> ReadCapped(Stream s, long cap, string url, CancellationToken ct)
     {
         var ms = new MemoryStream();
@@ -268,14 +227,11 @@ internal static class NetNative
         return ms.ToArray();
     }
 
-    /// <summary>一个字节数怎么说人话(报错里用)。默认那 16 MB 不能印成 16777216。
-    /// (和 `Format.Bytes` 那个不一样:这儿是**上限**、不是给人看的文件大小,整数就够)</summary>
     public static string Human(long n)
         => n >= 1024 * 1024 ? $"{n / (1024 * 1024)} MB"
          : n >= 1024 ? $"{n / 1024} KB"
          : $"{n} 字节";
 
-    /// <summary>正文直接抄进别的流(下载),交回抄了多少字节 —— 中途不经过内存里那张字节表</summary>
     public static async Task<long> CopyTo(Stream from, Stream to, CancellationToken ct)
     {
         var buffer = new byte[81920];
@@ -290,8 +246,6 @@ internal static class NetNative
         return total;
     }
 
-    /// <summary>按字符集解字节。GBK 那一批要 `CodePagesEncodingProvider` 才认得
-    /// (见静态构造函数);认不出来的名字退回 UTF-8,不报错。</summary>
     public static string Decode(byte[] bytes, string charset)
     {
         if (charset.Length == 0) return LenientUtf8.GetString(bytes);
@@ -305,15 +259,11 @@ internal static class NetNative
         }
     }
 
-    /// <summary>宽松 UTF-8:坏字节变成 U+FFFD,不抛异常、也不静默丢掉 ——
-    /// 网页上出现个把乱码不值得把整次请求打断。</summary>
     public static readonly UTF8Encoding LenientUtf8 = new(false, throwOnInvalidBytes: false);
 
     private const int DefaultTimeoutMs = 30_000;
     private const int DefaultMaxBytes = 16 * 1024 * 1024;
 
-    /// <summary>网络那一批的兜底:兜住的比 <see cref="Guarded"/> 宽 —— 网络能出的岔子
-    /// (DNS、连接被拒、TLS、坏 URL)本来就不是 `IOException` 那一族,漏出去会把程序打掉。</summary>
     public static RuntimeValue Http(string what, Func<RuntimeValue> body)
     {
         try
@@ -326,11 +276,6 @@ internal static class NetNative
         }
     }
 
-    /// <summary>异步那一半的兜底 —— 和 <see cref="Http"/> **同一条口径**(判据是同一个
-    /// <see cref="IsNetFault"/>),所以同一个请求走同步还是走句柄,失败那句话**一个字不差**。
-    ///
-    /// 抛出来的 `Fail` 会以**出错的任务**的形式躺在句柄里,`System.HandleValue` 那一头
-    /// 原样抛回给 Ravel(`RuntimeException` 它不包装),于是任务里 `try` 接到的就是这句。</summary>
     public static async Task<RuntimeValue> HttpAsync(string what, Func<Task<RuntimeValue>> body)
     {
         try
@@ -343,8 +288,6 @@ internal static class NetNative
         }
     }
 
-    /// <summary>什么算"网络出的岔子"。**不能窄成 `IOException`**:DNS、连接被拒、TLS、
-    /// 坏 URL 本来就不在那一族里,漏出去会把程序打掉。</summary>
     private static bool IsNetFault(Exception ex)
         => ex is IOException or UnauthorizedAccessException or ArgumentException
            or NotSupportedException or InvalidOperationException

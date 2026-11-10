@@ -3,22 +3,6 @@ namespace Ravel.Extensions;
 using AngouriMath;
 using Ravel.Runtime;
 
-/// <summary>一个**符号表达式** —— AngouriMath 的 `Entity` 包成 Ravel 的值。
-///
-/// **继承的是 `RuntimeValue` 不是 `ObjectVal`**(和 `Range` / `fraction` / `int` 一个待遇):
-/// 它是个**值** —— `==` 比**内容**(record 逐字段比,而 `Entity.Equals` 本身就是结构比较)。
-/// `Ravel.Structures` 那几个(`StackVal` 之流)正好相反,它们继承 `ObjectVal`:那些是**容器**,
-/// 会变、按身份认。
-///
-/// 类型对象是 **`Cas.Expr`** —— `[RavelClass]` 那个名字 + 同一个类上的 `[RavelModule("Cas")]`
-/// 合起来的效果(见 `PluginApi.InstallClass`:有模块就把类名登记进那个模块)。于是:
-///
-///     e := Cas.Expr "x^2 + 1"      # 构造(类可以当构造器调)
-///     e.Diff "x"                    # 方法**交回一个新的 CasExpr**,能接着点
-///     e.Solve "x"
-///
-/// 方法和 `Cas.Diff` 那批 `[RavelFn]` 是**同一份实现**(都走 `CasNative`),
-/// 差别只在"表达式先攥在手里"还是"随手传个字符串"。</summary>
 public record CasExprVal : RuntimeValue
 {
     public Entity E { get; }
@@ -30,18 +14,6 @@ public record CasExprVal : RuntimeValue
     public override string ToString() => E.ToString();
 }
 
-/// <summary>`Cas.Expr` 这个类的方法表 —— 插件定义类的那套:`[RavelClass]` 说出类名,
-/// `[ClassCtor]` 是构造器,`[ClassMethod]` 是成员(签名一律 `(self, 0~2 个实参)`,
-/// 多出来的那个参数在 Ravel 那边是柯里化的)。
-///
-/// 每一条都**交回一个新的 `CasExpr`**(`Eval` 交 `real`、`Latex` / `Text` 交字符串)——
-/// 于是能一路点下去:`(Cas.Expr "x^2 - 1").Factor ().Solve "x"`。
-///
-/// **`Implements = "IValue"` 别省** —— 它说的是"这个类的实例是**值**"(不可变、按值比、
-/// 能当字典的键)。漏了的话 `{ e -> 1 }` 报「字典的键得是值类型…得到 Expr」——
-/// 一个不可变、按值比的东西当不了键,而 `Range` 能。**插件做值类型时这一条最容易漏。**
-/// (从前这一格写的是 `Parent = "ValueType"` —— 那是个类;2026-10-06 起改成了接口 `IValue`,
-/// 见 `lib/values.rav`。)</summary>
 [RavelModule("Cas")]
 [RavelClass("Expr", Implements = "IValue")]
 internal static class CasExprClass
@@ -69,13 +41,9 @@ internal static class CasExprClass
     [ClassOp("/")] public static RuntimeValue Div(RuntimeValue a, RuntimeValue b)
         => CasNative.Guard(() => CasNative.Wrap(CasNative.Get(a, "/") / CasNative.Get(b, "/")));
 
-    /// <summary>`**` 是乘方(`Entity` 没有那个运算符重载,走 `MathS.Pow`)。</summary>
     [ClassOp("**")] public static RuntimeValue Pow(RuntimeValue a, RuntimeValue b)
         => CasNative.Guard(() => CasNative.Wrap(MathS.Pow(CasNative.Get(a, "**"), CasNative.Get(b, "**"))));
 
-    /// <summary>`==` **覆盖掉基类那条**:`object` 上那个比的是身份/`Equals`,
-    /// 而式子的"相等"该是 AngouriMath 的**结构比较** —— 内容一样就是同一个式子
-    /// (`x^2 - 1` 与 `(x-1)*(x+1)` **不**相等:没化简过就是两棵树)。</summary>
     [ClassOp("==")] public static RuntimeValue Eq(RuntimeValue a, RuntimeValue b)
         => CasNative.Guard(() => new BoolVal(CasNative.Get(a, "==").Equals(CasNative.Get(b, "=="))));
 
@@ -116,14 +84,12 @@ internal static class CasExprClass
             CasNative.Get(self, "Subst").Substitute(CasNative.Var(v, "Subst"), CasNative.Parse(val, "Subst"))));
 
     // ---- 出去:数 / 字符串 ----
-    /// <summary>算成**数**(交 real)—— 唯一不交 `CasExpr` 的那条。</summary>
     [ClassMethod("Eval")] public static RuntimeValue Eval(RuntimeValue self)
         => CasNative.Guard(() => new RealVal(CasNative.Get(self, "Eval").EvalNumerical().RealPart.AsDouble()));
 
     [ClassMethod("Latex")] public static RuntimeValue Latex(RuntimeValue self)
         => CasNative.Guard(() => new StringVal(CasNative.Get(self, "Latex").Latexize()));
 
-    /// <summary>那套语法打印出来的样子(和 `print` / `ToString ()` 一个口径)。</summary>
     [ClassMethod("Text")] public static RuntimeValue Text(RuntimeValue self)
         => CasNative.Guard(() => new StringVal(CasNative.Get(self, "Text").ToString()));
 }

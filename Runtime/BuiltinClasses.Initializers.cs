@@ -1,12 +1,5 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>内置转换器（"调用这个类时算出什么值"）的注册。
-/// 端口自旧的 RuntimeType.Initializers.cs。
-///
-/// **没有特设的"转换器"了**：内置类和用户类一样,类体里定义 `init`,
-/// 实例化就是"跑类体 → 找 init → 调它 → 交出它的返回值"。`int 42` 得 42,
-/// 是因为 `Integer` 的预设类体里写着 `init := <CastToInt>`。
-/// 这里只剩下转换函数本身,以及 `ConvertDirect`(隐式转换走它)。</summary>
 internal static partial class BuiltinClasses
 {
 
@@ -14,7 +7,6 @@ internal static partial class BuiltinClasses
     //  类型构造器 / 转换器
     // ============================================================
 
-    /// <summary>给各内建类型装上预设类体（里面只定义 `init`，值是转换函数）</summary>
     private static void RegisterInitializers()
     {
         // 默认构造器挂在 **object** 的类体上:每个类的祖先链都到它,所以任何类只要没写
@@ -73,32 +65,19 @@ internal static partial class BuiltinClasses
         // 看见正在构造的那个对象的 `this`,而且必须在 Object/Function/Type 都挂好之后
     }
 
-    /// <summary>默认构造器 `init := () => { this; }`:什么都不做,把正在建的那个对象交回去。
-    ///
-    /// 必须是 <see cref="NativeClosure"/>:要交出的 `this` 只在**调用点作用域**里
-    /// (那正是实例作用域),C# 侧的普通 `FunctionVal` 拿不到作用域。
-    /// 参数标 `Any`(什么都收):`Bare ()` 传进来的是 void 值、`Bare default` 是 default。</summary>
     private static FunctionVal DefaultCtor()
         => new NativeClosure("_", Any, (scope, _) => scope.Lookup(ObjectVal.ThisMember).Value);
 
-    /// <summary>包装转换函数为单参构造器</summary>
-    /// <summary>`Integer` 的 `init`(类体里那份 caster);值类型的成员表直接引用这一份。</summary>
     internal static FunctionVal? IntCaster;
 
     internal static FunctionVal MakeCaster(Func<RuntimeValue, RuntimeValue> cast)
         => FunctionVal.From(cast);
 
-    /// <summary>仅支持 default → 默认值的构造器（集合等不可直接构造的类型）</summary>
     private static FunctionVal MakeDefaultCaster(ObjectVal type)
         => MakeCaster(val => val is DefaultVal
             ? ConvertDirect(type, val)
             : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用", ErrorKind.Type));
 
-    /// <summary>收进 int32，越界明确报错。以前是直接 `(int)` 硬转，两头都不对：
-    /// BigInteger 那条越界会抛 C# 的 OverflowException 一直漏到顶层（`int 9999999999999` 就崩），
-    /// double 那条在 .NET Core 里是**饱和**转换，`int 1e30` 静默变成 2147483647、
-    /// `int 0/0` 静默变成 0——一个字都不说。
-    /// int 是 32 位的类型，装不下就该报，别让调用者以为算出来了。</summary>
     private static IntVal FromBig(System.Numerics.BigInteger v)
         => v >= int.MinValue && v <= int.MaxValue
             ? IntVal.Of((int)v)
@@ -163,8 +142,6 @@ internal static partial class BuiltinClasses
             : val is StringVal s ? s
             : new StringVal(val.ToString());
 
-    /// <summary>`char x` —— 从数(码位)、字符串(长度必须是 1)或者另一个 char 转过来。
-    /// 越界/长度不对**当场报错**,不做截断 —— 悄悄给个错字符比报错难查得多。</summary>
     internal static RuntimeValue CastToChar(RuntimeValue val) => val switch
     {
         CharVal c => c,
@@ -232,16 +209,6 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction", ErrorKind.Type);
     }
 
-    /// <summary>`Exception` 的类体:一条 `Message` 字段 + 一条构造器。
-    ///
-    /// **从前这里是"转换器"** —— `Exception "msg"` 会另造一个 `ExceptionVal`(一个不是
-    /// `ObjectVal` 的原子值),于是 `Exception` 一半是内建标量型、一半是类体系里的一员,
-    /// 而"子类不写 `init`"会静默继承那个转换器、交回一个 `ExceptionVal` —— 自己的字段全丢、
-    /// `is` 也不认。现在它就是个**普通类**:实例是 `ObjectVal`(有自己的 scope 和 `Message`),
-    /// 构造器把消息写在**正在构造的那个对象**上、再交回 `this`。
-    ///
-    /// 必须是 `NativeClosure` —— `this` 只在调用点作用域(实例 scope)里,普通 `FunctionVal`
-    /// 拿不到它(和 `DefaultCtor` / 接口那两份 init 同一个理由)。</summary>
     private static BlockVal ExceptionBody()
     {
         var ctor = new NativeClosure("msg", Any, (scope, val) =>
@@ -269,26 +236,13 @@ internal static partial class BuiltinClasses
             new Scope());
     }
 
-    /// <summary>异常的消息字段名。</summary>
     internal const string MessageMember = "Message";
 
-    /// <summary>这个值是不是 `Exception` 一族?是的话交回它的 `Message`(显示和错误回传都要用)。
-    /// 不是就交回 null —— 调用方自己决定怎么显示。</summary>
     internal static string? ExceptionMessage(RuntimeValue v)
         => v is ObjectVal { IsClass: false } o && o.ClassType.IsAssignableTo(Exception)
             ? o.Scope.LookupField(MessageMember)?.Value.ToString()
             : null;
 
-    /// <summary>同步类型转换（隐式转换用）：失败抛异常，仅支持安全转换。
-    ///
-    /// **只做分发** —— 每个类型"能收什么"写在各类型的 `CastToXxx` 里,这里按目标类选一个。
-    /// 从前每个类型在这又抄了一遍,于是显式 `int (fraction 7 2)` 走得通而
-    /// `x: int = fraction 7 2` 报「类型不匹配」、`bigint 1.5` 走得通而隐式不行:
-    /// 同一件事两条路两种结果(见 `tests/159`)。隐式失败会被 `TryConvert` 吞掉变成
-    /// 「类型不匹配」,所以越界也照常走同一套检查、报同一句话。
-    ///
-    /// 这里的失败是**正常**的:`TryConvert` 靠它决定"不值一换",
-    /// 不像 `CastToXxx` 由构造器调用时那样等于直接报错。</summary>
     internal static RuntimeValue ConvertDirect(ObjectVal target, RuntimeValue val)
     {
         if (target == Int) return CastToInt(val);

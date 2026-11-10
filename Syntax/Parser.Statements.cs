@@ -3,9 +3,6 @@ namespace Ravel;
 using System.Linq;
 using Ravel.Runtime;
 
-/// <summary>递归下降解析器的分片,按职责拆文件(和 Runtime/Interpreter.*.cs 一个路子):
-/// `Parser.cs` 入口 + token 辅助,`Parser.Statements.cs` 语句,
-/// `Parser.Expressions.cs` 优先级链,`Parser.Atoms.cs` 基本单元与括号/块。</summary>
 public partial class Parser
 {
     // ========================================
@@ -15,13 +12,6 @@ public partial class Parser
     // 注意 init 不在此列:构造器是名字叫 init 的变量(类体里写 `init := ...`),不是修饰符
     private static bool IsMod(string kw) => Attr.All.Contains(kw);
 
-    /// <summary>能作为运算符定义的符号 token(`+ := f` / `a.+`)。一元 `!` 和短路 `&&`/`||` 不在内——
-    /// 它们是求值器特判的,不支持自定义。</summary>
-    /// <summary>运算符节的开头:`+.2` / `:.int` —— 运算符后面紧跟 `.`。
-    /// 节是"左操作数留空"的写法,`ParsePrimary` 认它。
-    ///
-    /// (从前这儿还认**词形**运算符 `is` / `isnot` —— 它们是"看着像标识符、只在运算符位置认"
-    ///  的。`is` 换成 `:` 之后那整套机器拆掉了,节也只剩标点这一路。)</summary>
     private bool IsSectionStart()
         => IsOperatorToken(Peek().Type)
            && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot;
@@ -41,25 +31,14 @@ public partial class Parser
         _ => false,
     };
 
-    /// <summary>定义符:四种写法都以它收尾(`:=` / `::=` / `: 注解 =` / `:: 注解 =`)。
-    /// 它紧跟在一个名字后面 = "这是一条定义,不是表达式" —— 这个判断散在四处,
-    /// 四钟写法列四遍,加一种就得记得回来补齐。
-    ///
-    /// (不在这里的是运算符定义的 `+ = f`,`=` 单独认,见 ParseOperatorDefinition。)</summary>
     private static bool IsDefinitionOp(TokenType t)
         => t is TokenType.ColonEqual or TokenType.ColonColonEqual or TokenType.ColonColon or TokenType.Colon;
 
-    /// <summary>类机制内部词——禁止作为变量名（this/init 是类内可用变量，不禁）</summary>
     private static readonly HashSet<string> ReservedWords =
         [ObjectVal.ThisTypeMember, ObjectVal.BlockMember, Attr.Core];
 
-    /// <summary>正处在多少个 `do { … }` 的语句里。`:<` 只有在这层里才算绑定,
-    /// 而**块会把它清零**(见 <see cref="ParseBlockStatements"/>)—— 块是新的语境,
-    /// 外层 do 的 `:<` 不该漏进一个 lambda 的体里。</summary>
     private int _doDepth;
 
-    /// <summary>一层循环(`while` / `foreach`,或带标签的语句)。`break` / `continue` 往
-    /// **最近一层**跳;写了标签就往**那个标签**跳(于是能跳出好几层)。</summary>
     private sealed class LoopCtx
     {
         public string? Label;
@@ -75,28 +54,16 @@ public partial class Parser
     private readonly List<LoopCtx> _loops = [];
     private int _loopCount;
 
-    /// <summary>`outer:` 刚读完,等着贴到下面那条语句上(见 ParseStatement 里那段)。</summary>
     private string? _pendingLabel;
 
-    /// <summary>那个标签的 break 出口叫什么(`__brk_<标签>`)—— 循环认领它,`break 标签` 指它。</summary>
     private string? _pendingBrk;
 
-    /// <summary>正在解析的那个标签叫**什么**。循环认领会清掉 `_pendingLabel`(免得下一个循环
-    /// 又把它认走),可名字得留着 —— 里面的 `break 标签` 要拿它比,才知道这标签被用过了。</summary>
     private string? _pendingLabelName;
 
-    /// <summary>这个标签被人 `break` 过吗(没人用过就报错 —— 顺手把 "`x: int` 想写定义却漏了 `=`" 那种笔误也逮住)。</summary>
     private bool _pendingBrkUsed;
 
-    /// <summary>"这层 lambda 体里出现过 `return` 吗" —— 每进一个**用户写的** lambda 体压一层
-    /// (见 <see cref="ParseUserLambdaBody"/>),出来按需把那层体包成 `callcc`。
-    /// 空 = 不在函数体里(那儿写 `return` 当场报错)。</summary>
     private readonly List<bool> _returnUsed = [];
 
-
-
-    /// <summary>`break [标签]` / `continue [标签]`。脱糖成对 `__brk<n>` / `__cont<n>` 的一次
-    /// 调用 —— 那两个名字由**循环那一层**包出来的 `callcc` 绑住(见 ParsePostfixRest 里那段)。</summary>
     private Statement ParseBreakContinue()
     {
         var kw = Peek();
@@ -135,21 +102,14 @@ public partial class Parser
             { Line = kw.Line, Column = kw.Column };
     }
 
-    /// <summary>`continue` 的出口:把循环的**体**包一层 `callcc` —— "跳过这一轮"就是跳出
-    /// 这个体。每轮都会新包一次,所以下一个 `continue` 照样管用。
-    ///
-    /// 体可能是**块**(`while` / `foreach` 的裸块),也可能是 **lambda**(`foreach xs (x) => {…}`)
-    /// —— 后者要换的是 **lambda 的体**,不是整个 lambda,不然那个 `x` 就没了。</summary>
     private Expression WrapLoopBody(Expression body, string cont, Token at)
         => body is LambdaExpr lam
             ? lam with { Body = AsBlock(CallCC(cont, AsBlock(lam.Body, at), at), at) }
             : AsBlock(CallCC(cont, AsBlock(body, at), at), at);
 
-    /// <summary>`break` 的出口(没标签的循环):把**整个循环调用**包一层 `callcc`。</summary>
     private Expression WrapLoopWhole(Expression loop, string brk, Token at)
         => CallCC(brk, AsBlock(loop, at), at);
 
-    /// <summary>`callcc ((<名字>) => { <体> })` —— 这三个糖的公共形状。</summary>
     private Expression CallCC(string name, BlockExpr body, Token at)
     {
         var param = new Parameter(name, new IdentifierExpr("object") { Line = at.Line, Column = at.Column });
@@ -158,8 +118,6 @@ public partial class Parser
             { Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>带标签的那条语句包一层 `callcc` —— `break 标签` 跳到这儿。
-    /// (**循环那层不包 break**:标签认领过的循环把出口留给标签,自己只管 `continue` 那条。)</summary>
     private Statement WrapLabelStmt(Statement inner, string brk, Token lbl)
     {
         var at = new SourceSpot(source, lbl.Line, lbl.Column);
@@ -170,15 +128,10 @@ public partial class Parser
         return new ExpressionStatement(call) { Line = lbl.Line, Column = lbl.Column };
     }
 
-    /// <summary>`return` 后面跟着的是"这名字"的用法而不是关键字吗 —— 判据就一条:
-    /// 接下来那个 token 是不是定义/赋值/取成员。`return := 5` / `return = 5` / `x.return`
-    /// 都照旧当普通名字走。</summary>
     private bool LooksLikeUseOfTheName()
         => IsDefinitionOp(NextType()) || CheckNext(TokenType.Equal)
            || CheckNext(TokenType.Dot) || CheckNext(TokenType.QuestionDot);
 
-    /// <summary>这个位置是 `名字 :&lt;` 吗?只在**语句开头**问,所以别处出现 `:<`
-    /// 只是个普通的语法错误("需要表达式，但得到 '&lt;'")。</summary>
     private bool IsBindStart() => Check(TokenType.Identifier) && CheckNext(TokenType.BindArrow);
 
     private Statement ParseStatement()
@@ -410,18 +363,6 @@ public partial class Parser
         return new ExpressionStatement(expr) { Line = expr.Line, Column = expr.Column };
     }
 
-    /// <summary>`x++` / `x--` —— **只在语句位置认**(上面那条分支),所以它是这条语言的
-    /// 语法糖里最薄的一枚。解析器只造一枚 `UnaryExpr(op, target)`,**折成 `x += 1` /
-    /// `x -= 1`** 是 <see cref="Lowering"/> 那趟的事。
-    ///
-    /// **它不交回值**,这是故意的: `y := x++` 是语法错误。C 里 `y = x++` 拿旧值、
-    /// `y = ++x` 拿新值 —— "看符号写在哪边猜拿到哪个值"是那门语言最经典的一个坑,
-    /// 而这两样在这儿一个都没有:当语句用的时候,`x++` 和 `x += 1` 一模一样。
-    /// (要值就明写:`y := x; x += 1`。)
-    ///
-    /// 目标只能是**变量或字段**(和 `+=` 同一类),别的形状在这儿就报 —— 等到求值期
-    /// 才报「复合赋值目标必须是变量」的话,插入符指着的是那个 `+=`,看不出是 `++` 用错了地方。
-    /// (同理,"后面得收尾"那条也是**语法**规则,留在这儿。)</summary>
     private Statement ParseIncDec(Expression target)
     {
         var op = Peek();
@@ -451,15 +392,6 @@ public partial class Parser
         return new ExpressionStatement(inc) { Line = inc.Line, Column = inc.Column };
     }
 
-    /// <summary>语句开头这一格是不是**解构定义**:`[…]` / `{…}` 配对之后跟着 `:=`,
-    /// 或者 `: 类型 =`。
-    ///
-    /// **必须是只看 token 的前瞻,不能"先试着解析一遍、不成再退"** —— 那就是
-    /// `((((…))))` 那类指数(见 `Parser.Atoms` 里那条注释):`[` / `{` 每一层都会翻一倍。
-    /// 这儿只配对括号 + 看一眼后面跟什么,一层的代价是 O(那一格的长度)。
-    ///
-    /// 判据里**要求有个 `=`**(`: T` 后面那个也算)是故意的:`[1 2] : List` 是一条
-    /// 普通的类型判断语句,不能被当成"空注解的解构"。注解可省,但省了就得写 `:=`。</summary>
     private bool LooksLikePatternDestructure()
     {
         if (Peek().Type is not (TokenType.LeftBracket or TokenType.LeftBrace or TokenType.LeftParen))
@@ -492,8 +424,6 @@ public partial class Parser
         return after >= 0 && TypeAt(after) == TokenType.Equal;
     }
 
-    /// <summary>从 off 那一格的 `[` / `{` 跳到配对的收尾符后面那一格;配不上给 -1。
-    /// 三种括号**一起数** —— `[{a b}]` 这样的嵌套也要配对得对。</summary>
     private int SkipBalanced(int off)
     {
         var depth = 0;
@@ -517,10 +447,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>`[x _ z ..rest] : T = e` / `{x y z} : U = e`。
-    ///
-    /// 解析器只把这个形状读出来(一枚 <see cref="Destructure"/>)—— **怎么拆是
-    /// `Lowering.Destructure` 的事**(和 `do` / `??` 一个规矩:造意思的活儿不留在这一层)。</summary>
     private Statement ParseDestructure(List<string> attrs)
     {
         var at = Peek();
@@ -546,12 +472,6 @@ public partial class Parser
         return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>名字后面这一格是不是"这一格完了" —— 是名字**自己**收尾的三种
-    /// (`]` `}` 换行)加"**下一格开始了**"的四种(名字 / 嵌套的 `[…]` `{…}` / `..名字`,
-    /// 还有 `:` 那个注解)。
-    ///
-    /// 这条判据是分岔口:**不是**收尾,那后面就是一格**条件**(`u == 1`)。少列一种就会
-    /// 把下一格一起读进条件里 —— `[x y]` 里的 `y` 会被当成 `x` 的条件(`x y` 是个调用)。</summary>
     private bool EndsThisPart()
         => Check(TokenType.Colon) || Check(TokenType.Identifier) || Check(TokenType.DotDot)
         || Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace)
@@ -566,22 +486,11 @@ public partial class Parser
                                                                                // `(f x)` 还是条件
         || Check(TokenType.Newline) || IsAtEnd();
 
-    /// <summary>这一格是不是**字面量**开头的(`1` / `""` / `()` / `true` / `false`)。
-    ///
-    /// 判据里**不带** `-`:参数表那头不认 `(-1) => …`(`LooksLikeLambdaParams` 拦着),
-    /// 而模式的**一格**开头放不出二元运算符 —— 所以 `-` 由 <see cref="ParsePatternBare"/>
-    /// 自己收,不进这个判据(`StartsParam` 要用它,那儿多半收不得)。</summary>
     private bool IsLiteralStart()
         => Check(TokenType.Number) || Check(TokenType.String)
         || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // `()`,不是 `(f x)`
         || (Check(TokenType.Identifier) && Peek().Lexeme is "true" or "false");
 
-    /// <summary>读一格字面量。**那一族在解析期就定下来**(<see cref="LiteralPattern.Domain"/>):
-    /// 数字 → `INumber`(五个数字类型共用一套 `==`,`1 == 1.0` 为真)、串 → `string`、
-    /// `()` → `void`、`true` / `false` → `bool`。
-    ///
-    /// 为什么非得在解析期定:降糖要拿它先过一道 `:`,而"这一格是数字吗"在运行期没有
-    /// 现成的名字可问(数字几个类型是**兄弟**,没有共同的类;`INumber` 是那个接口)。</summary>
     private Pattern ParseLiteralPattern()
     {
         var at = Peek();
@@ -608,14 +517,6 @@ public partial class Parser
             { Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>`{…}` 里这一项是不是 `键 -> 模式`(字典项),而不是老写法的一个成员名。
-    ///
-    /// 只看**这一个键词**后面跟不跟 `->` —— 不往回退着重读整项,所以不会翻倍
-    /// (键是一个**词**再接 `.成员` 链,不会嵌套)。
-    ///
-    /// 光杆名字是两边的**共用**写法:`{x}` 是"成员 x"(老写法),
-    /// `{x -> v}` 是"键**等于 `x` 那个值**的那一项"(`x` 是读出来的,不是名字)——
-    /// 就差那个 `->`,所以判据也只看它。</summary>
     private bool LooksLikeDictEntry()
     {
         var off = 0;
@@ -630,12 +531,6 @@ public partial class Parser
         return TypeAt(off) == TokenType.DictArrow;
     }
 
-    /// <summary>`名字 … = 子模式` 里,右边**光一个名字**的**不算语法** —— `[a = b]` 只是
-    /// 白绑一个 `b`(还容易看漏),没有任何拆法。
-    ///
-    /// **对象模式**是唯一例外:那儿 `=` 右边就是"取哪个成员"(`{新名 : 类型 = 成员名}`),
-    /// 由 `{…}` 那一支自己调头处理,不走这儿。
-    /// 数字 / 串 / `()` 那些**字面量**右边照收 —— 那是"这一格还得等于它",有话说的。</summary>
     private void RejectBareSub(Pattern p)
     {
         if (p is NamePattern { Sub: NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } })
@@ -644,8 +539,6 @@ public partial class Parser
                            + "（`{新名 := 成员名}`，带类型就 `{新名 : 类型 = 成员名}`）");
     }
 
-    /// <summary>读一个键:一个词(名字 / 串 / 数 / `()` / `-1`)接 `.成员` 链。
-    /// 它是**求值的** —— `k -> v` 里的 `k` 读的是**变量 `k` 的值**。</summary>
     private Expression ParseDictKey()
     {
         var at = Peek();
@@ -659,11 +552,6 @@ public partial class Parser
         return key;
     }
 
-    /// <summary>读一格模式。五种写法:名字 / `_` / `..名字` / 嵌套的 `[…]` `{…}` / 字面量。
-    ///
-    /// **每一格后面可以跟 `: 类型`**(`[x: int y: string]` / `[[a b]: list c]`),嵌套的那几格
-    /// 也能写 —— 判据和 `x : int = v` 是**同一个**,绑的时候当场验,对不上就是 `TypeError`,
-    /// 所以 `|` 的交替接得住(和解构的形状检查一条路)。</summary>
     private Pattern ParsePattern()
     {
         _patternDepth++;
@@ -671,10 +559,6 @@ public partial class Parser
         finally { _patternDepth--; }
     }
 
-    /// <summary>模式套了几层(`ParsePattern` 进出各记一次)。只有**嵌在里面**的那几层
-    /// 才认"子模式"那个 `=` —— 见 <see cref="ParsePatternHere"/> 末尾。
-    /// 最外层那一层是**语句**那个模式,它后面跟的 `=` 是这一句的**定义号**
-    /// (`[x y] : Point = v` / `{x y} : Point = v`),不是子模式的号。</summary>
     private int _patternDepth;
 
     private Pattern ParsePatternHere()
@@ -710,7 +594,6 @@ public partial class Parser
         return p;
     }
 
-    /// <summary>不带注解的那一半。</summary>
     private Pattern ParsePatternBare()
     {
         var at = Peek();
@@ -838,8 +721,6 @@ public partial class Parser
         return new NamePattern(nm) { Guard = guard, Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>`..名字` 只能写最后一项 —— 它把后面都吃了,写在中间后面的格子永远取不到
-    /// (静默地永远不跑,正是这门语言最恨的那种)。</summary>
     private void EnsureRestIsLast(List<Pattern> parts)
     {
         for (var i = 0; i < parts.Count - 1; i++)
@@ -848,7 +729,6 @@ public partial class Parser
                     new SourceSpot(source, parts[i].Line, parts[i].Column));
     }
 
-    /// <summary>`.` 后面那一段:普通成员名,或运算符符号(`2.+` / `"a".==`)</summary>
     private string ParseMemberName()
     {
         // 两段是一件事:**吃掉这个 token、把它的文本当成员名**
@@ -862,7 +742,6 @@ public partial class Parser
         throw ParseError("'.' 后需要成员名");
     }
 
-    /// <summary>`+ := f` 定义运算符;`+ = f` 覆盖已有的(父类层定义的)那个。符号即成员名。</summary>
     private Statement ParseOperatorDefinition()
     {
         var sym = Peek();
@@ -878,15 +757,6 @@ public partial class Parser
         return new Assignment(sym.Lexeme, ParseExpression()) { Line = sym.Line, Column = sym.Column };
     }
 
-    /// <summary>类型标注:**一个名字**(可带 `.` 成员访问),或**括号里的任意表达式**。
-    ///
-    /// 括号是必需的,不是可选:不带括号的 `f ()` 会和"下一个参数/字段"的写法撞上 ——
-    /// `(x: int y: int)` 里那个 `int y` 会被解析成一次调用。有了括号就能写"算出来的类型":
-    ///
-    ///     a: (CallMeToGetARandomType ()) = 0
-    ///     a: (if { flag; } { int; } { real; }) = 0
-    ///
-    /// 注解是一个**表达式**,求值发生在定义处(变量)或 lambda 创建处(参数)。</summary>
     private Expression ParseTypeAnnotation()
     {
         if (Check(TokenType.LeftParen)) return ParsePrimary();   // (任意表达式) —— ParsePrimary 自己吃掉右括号
@@ -902,7 +772,6 @@ public partial class Parser
         return e;
     }
 
-    /// <summary>name := expr  |  name: Type = expr</summary>
     private Statement ParseDefinition(List<string>? attrs = null)
     {
         string name;
@@ -972,10 +841,6 @@ public partial class Parser
         };
     }
 
-    /// <summary>这个位置是 `by 名字[.成员] = …` / `… := …` 吗?
-    ///
-    /// 只看 token、不动 AST(所以不存 `_pos` 再还回去那套):`by` 后面要么 `:`(注解,走定义)
-    /// 要么这个形状(换/建槽),看 `名字` 后面那个 token 就分得清。</summary>
     private bool IsSlotAssignStart()
     {
         // 运算符也能当槽名(`by + := property …`:接口里声明它、实现里换掉它)。符号后面
@@ -990,12 +855,6 @@ public partial class Parser
         return i < tokens.Count && tokens[i].Type is TokenType.Equal or TokenType.ColonEqual;
     }
 
-    /// <summary>`by a = 表达式` / `by a.x = 表达式`(`:=` 那种是**在那个对象上建槽**)——
-    /// 换掉槽里的那份 property:不走旧属性的 setter,也不查类型约束
-    /// (`by a: int = …` 那个约束管的是"写进属性的值",而这里换的是属性本身)。
-    /// 和 `by a` / `by a.x`(取槽)对称,左边都是同一个"槽路径"。
-    ///
-    /// 和 `a = v`(过 setter)、`by a := property …`(定义槽)是三件不同的事。</summary>
     private Statement ParseSlotAssign()
     {
         // 运算符符号本身就是成员名,所以它也能当槽路径(`by + = …` / `by + := …`)。

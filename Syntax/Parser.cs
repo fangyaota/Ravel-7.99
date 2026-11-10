@@ -3,49 +3,21 @@ namespace Ravel;
 using System.Linq;
 using Ravel.Runtime;
 
-/// <summary>递归下降解析器,按优先级链逐层收窄(见 ParseExpression 起的各层)。
-/// `_` 占位符的消糖是独立的一趟 AST 改写,在 Parser.Holes.cs。</summary>
-/// <summary>`moreControlFlow` —— `--more-control-flow`(命令行)或文件头那条
-/// `#program --more-control-flow=true` 开的那个开关。**默认为关**,关着的时候
-/// `return` / `break` / `continue` 就是三个普通名字,和从前一模一样。</summary>
 public partial class Parser(List<Token> tokens, string? source = null, bool moreControlFlow = false)
 {
     private int _pos;
 
     private int _holeCount;
 
-    /// <summary>`?.` / `??` / `??=` 脱糖时那几枚闭包的参数名(`_nil{n}`)。
-    /// 全进程单调递增,不归零 —— 名字只要不撞就行(`_holeCount` 每条语句归零是因为
-    /// 它代表"第几个洞"这个语义,这个纯粹是"取个没人用的名字")。</summary>
     private int _nilCount;
 
-    /// <summary>当前括号/块的嵌套深度(见 Nested)</summary>
     private int _depth;
-    /// <summary>嵌套上限。**这条线是护栏,不是能力** —— 递归下降靠 C# 调用栈,而
-    /// StackOverflow **捕获不了**:真撞上去,进程直接死,连个语法错误都看不到。
-    ///
-    /// 数字要**按最坏情况**留:解析器不只在顶层跑,它还会在解释器深处被调用
-    /// ( `eval` 里、Ravel 的异常 handler 里)。那儿的 C# 栈已经不浅,余量得按那儿算。
-    /// 从前是 400 —— 那是**空栈上量出来的**(注释里那句"500 层没事、1000 层爆栈"),
-    /// 一进深栈就不够用了:`class` 那批用例跑完再跑 `diag/152`(里面有一条 1000 层括号)
-    /// 必崩,而单独跑那条没事。200 是压着最坏情况取的。</summary>
     private const int MaxDepth = 200;
 
-    /// <summary>运算符链 / 调用链"挂了几节"。一条 `a + a + …`、`a.b.b…`、`a ?? a ?? …`
-    /// 在树里都是一层套一层:树有多深,后头脱糖、打印、求值那几趟的 C# 递归就有多深。
-    /// 括号那一路另有 <see cref="MaxDepth"/> 管,两边分开数。</summary>
     private int _exprDepth;
 
-    /// <summary>运算符链上限。`??` / `**` / `!` 这类右结合和前缀链从前半点护栏都没有:
-    /// 实测 `a ?? a ?? …` 到 1200 层、`!` 到 3000 层,进程直接死在 "Stack overflow." 上
-    /// —— 一个字都看不到。更早倒下的其实是**打印器/脱糖**那一侧(约 850 层)。
-    ///
-    /// 400 是照那个爆点打的折:既不挡正常代码(400 节运算/成员访问没人手写),又留出余量
-    /// 给"解析器在解释器深处被调用"那种更浅的栈。括号那条线(200)不受影响 ——
-    /// 括号只数层数,不往这个数里加。</summary>
     private const int MaxExprDepth = 400;
 
-    /// <summary>一条表达式的解析范围:出了作用域把链长还回去(语法错误抛出去也一样还)。</summary>
     private readonly struct ExprDepth : IDisposable
     {
         private readonly Parser _parser;
@@ -66,32 +38,14 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     //  入口
     // ========================================
 
-    /// <summary>词法 + 语法一步到位(调用方不必重复 new Lexer/new Parser 两行)。
-    /// fileName 会挂到块上,求值器报错时用它指出是哪个文件。</summary>
     public static Program ParseSource(string source, string? fileName = null)
         => ParseSource(source, fileName, DeclaresMoreControlFlow(source));
 
-    /// <summary>同上,但开关由调用方说了算(命令行那个 `--more-control-flow` 走这条)。</summary>
     public static Program ParseSource(string source, string? fileName, bool moreControlFlow)
         => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).Parse();
 
-    /// <summary>读文件头那条 `#program …`。`#` 是**注释**,词法器根本不看它 —— 所以在
-    /// **读源码**这一层扫,只认**代码之前**的那些行(`#` 注释和空行可以夹在中间)。
-    ///
-    ///     #program --more-control-flow=true
-    ///     #program --more-control-flow          (光写名字就是 true)
-    ///
-    /// 和命令行那个开关是**或**的关系:任一边开了就开。</summary>
     public static bool DeclaresMoreControlFlow(string source) => Declares(source, "--more-control-flow");
 
-    /// <summary>文件头那条 `#program --warn` —— **编译期**那几条警告的开关
-    /// (`--warn` 的等价物,见 <see cref="CompileWarnings"/>)。
-    ///
-    /// 非有不可的一条:那几条警告是在**开跑之前**报的,而脚本里那句
-    /// `System.WarnForgotCall true` 要跑到那儿才生效 —— 等它生效,编译那一趟早过去了。
-    /// 所以"这个文件自己要警告"得写在**文件头**,让读源码那一层先看见。
-    ///
-    /// **运行期**那条(「是不是忘了调用」)不看这个 —— 它照旧认 `System.WarnForgotCall`。</summary>
     public static bool DeclaresWarn(string source) => Declares(source, "--warn");
 
     private static bool Declares(string source, string name)
@@ -108,15 +62,9 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         return false;
     }
 
-    /// <summary>同上,但结果作为块(模块体 / eval 代码片段用)。
-    /// 位置给 1:1 而不是留 0——帧链里 Line==0 的块会被当成「没有位置」跳过,
-    /// 模块体于是不会出现在调用栈里。顶层的根块(RunStack)也是这么标 1:1 的。</summary>
     public static BlockExpr ParseBlock(string source, string? fileName = null, bool moreControlFlow = false)
         => new(ParseSource(source, fileName, moreControlFlow).Statements) { Line = 1, Column = 1, Source = fileName };
 
-    /// <summary>把一段**源码片段**当**表达式**解析 —— 插值字符串用(`"你好 ${name}"` 里那段
-    /// `name` 就是)。片段来自字符串字面量内部,所以它的 token 位置是相对的:按它在原文件里的
-    /// 行列挪回去,报错才指得对地方(片段跨行时列只修第一行,够用了)。</summary>
     internal static Expression ParseExpressionSnippet(string src, string? file, int line, int col)
     {
         var toks = new Lexer(src, file).Tokenize();
@@ -132,10 +80,6 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         return Lowering.Apply(new Parser(toks, file).ParseExpression(), file);
     }
 
-    /// <summary>把整份源码读成一棵树。
-    ///
-    /// **这是唯一的出口** —— `ParseSource` / `ParseBlock`(模块体、`eval`)都走它,
-    /// 所以脱糖那趟(<see cref="Lowering"/>)挂在这儿就够了,单独调用点不必各自记得。</summary>
     public Program Parse()
     {
         var statements = new List<Statement>();
@@ -156,17 +100,12 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
 
     private bool StartsPrimary() => StartsPrimaryAt(0);
 
-    /// <summary>往前数第 off 个 token 能不能**起一个操作数**(实参循环和"运算符后面跟什么"都用它)。</summary>
     private bool StartsPrimaryAt(int off)
         => TypeAt(off) is TokenType.Number or TokenType.String or TokenType.Char or TokenType.Identifier
             or TokenType.LeftParen or TokenType.LeftBracket
             or TokenType.LeftBrace
             or TokenType.Tilde;      // `~x` 是个操作数 —— 于是 `f ~5` 能把块当实参传
 
-    /// <summary>把 token 说成人话,给报错用。
-    /// `Token.ToString()` 是 `EndOfFile() at 1:4` 那种调试格式(类型名 + 行列),
-    /// 直接插进用户消息里就成了「需要表达式，但得到 EndOfFile() at 1:4」——
-    /// 行列号 ErrorReport 会另外画,这里只该说「看到的是什么」。</summary>
     private static string Describe(Token t) => t.Type switch
     {
         TokenType.EndOfFile => "表达式结束",
@@ -182,8 +121,6 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
 
     private bool Check(TokenType type) => !IsAtEnd() && Peek().Type == type;
 
-    /// <summary>往前数第 off 个 token 的类型(0 = 当前)。**越界当文件结束** ——
-    /// 于是所有前瞻在末尾自动为假,调用点不必各自判越界。</summary>
     private TokenType TypeAt(int off) => _pos + off < tokens.Count ? tokens[_pos + off].Type : TokenType.EndOfFile;
 
     private TokenType NextType() => TypeAt(1);
@@ -214,8 +151,6 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         }
     }
 
-    /// <summary>位置不再写进消息里——ErrorReport 会画 `--> file:line:col` 和插入符,
-    /// 重复写一遍只是噪音。`附近` 也由插入符接管(读不到源文件的 eval 片段除外)。</summary>
     private SyntaxException ParseError(string message)
     {
         var token = IsAtEnd() ? tokens[^1] : Peek();

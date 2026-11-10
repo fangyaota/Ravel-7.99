@@ -1,19 +1,9 @@
 namespace Ravel.Runtime;
 
-/// <summary>**堆 / 优先队列**:每次弹出来的都是当前最小(或最大)的那个。
-///
-///     h := Heap ()                 # 小顶堆;MaxHeap () 是大顶堆(见 lib/heap.rav)
-///     h.Push 3 / h.Push 1 / h.Pop ()   # → 1
-///
-/// 「谁在上」按 Ravel 自己的 `<` 算(见 `Less`)—— 里面装的得能互相比大小,
-/// 比不了当场报「比不了 X 与 Y」。空的 `Pop` / `Peek` 报错。
-/// `ToList ()` 是**一个个弹出来的顺序**(排好序的),不是表里的存放顺序。</summary>
 [RavelModule("Structures")]
 [RavelClass("Heap")]
 internal static class HeapClass
 {
-    /// <summary>`Heap ()` 是小顶堆;`Heap true` 是大顶堆(库里的 `MaxHeap ()` 就是这么写的);
-    /// 给一个容器就照它播种(`Heap [3 1 2]`)。</summary>
     [ClassCtor]
     public static RuntimeValue New(RuntimeValue arg)
     {
@@ -50,7 +40,6 @@ internal static class HeapClass
     [ClassMethod("Count")]
     public static RuntimeValue Count(RuntimeValue self) => IntVal.Of(Val(self).Items.Count);
 
-    /// <summary>一个个弹出来的顺序 = 排好序的那一串(弹的是**一份拷贝**,原堆不动)</summary>
     [ClassMethod("ToList")]
     public static RuntimeValue ToList(RuntimeValue self)
     {
@@ -60,7 +49,6 @@ internal static class HeapClass
         return new ListVal(out_);
     }
 
-    /// <summary>它是大顶堆吗</summary>
     [ClassMethod("Max")]
     public static RuntimeValue Max(RuntimeValue self) => new BoolVal(Val(self).Max);
 

@@ -1,19 +1,9 @@
 namespace Ravel.Runtime;
 
-/// <summary>**按键排序的字典**:`Keys ()` / `Values ()` 出来就是排好的,找头尾 O(log n)。
-///
-///     d := SortedDict ()
-///     d.Set "b" 2 / d.Set "a" 1
-///     d.Keys ()        # [a b]
-///
-/// 键得能互相比大小(按 Ravel 的 `<` 排)—— 比不了当场报错。**相等也按 `<` 算**:
-/// 所以 `1` 与 `1.0` 在这儿是同一个键(和 `dict` 那边按类型分不一样)。
-/// 键一律是**值类型**(数 / 字符串),和 `dict` 一个规矩(见 `KeyArg`)。</summary>
 [RavelModule("Structures")]
 [RavelClass("SortedDict")]
 internal static class SortedDictClass
 {
-    /// <summary>空字典;给一个 `dict`(或另一个 `SortedDict`)就照它播种</summary>
     [ClassCtor]
     public static RuntimeValue New(RuntimeValue arg)
     {
@@ -57,11 +47,9 @@ internal static class SortedDictClass
     public static RuntimeValue Remove(RuntimeValue self, RuntimeValue k)
         => new BoolVal(Val(self).Entries.Remove(PluginKit.Key(k, "SortedDict.Remove 的键")));
 
-    /// <summary>排好序的键</summary>
     [ClassMethod("Keys")]
     public static RuntimeValue Keys(RuntimeValue self) => new ListVal([.. Val(self).Entries.Keys]);
 
-    /// <summary>键的次序跟着走</summary>
     [ClassMethod("Values")]
     public static RuntimeValue Values(RuntimeValue self) => new ListVal([.. Val(self).Entries.Values]);
 

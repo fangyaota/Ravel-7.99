@@ -1,15 +1,7 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>模块文件加载:路径搜索、循环引用检测、已加载去重。
-/// 搜索目录 = `ReferencesPath` 里的用户目录(优先) + <see cref="ModuleSearchPath.Defaults"/>。</summary>
 public partial class Interpreter
 {
-    /// <summary>`using` 被执行的那一刻,把它记进**当前正在跑的那个模块**。没有命名模块在跑
-    /// (主脚本顶层、`ravel ""` 之后)就记给 `<global>` 那一枚 —— 那些名字本来就落在全局。
-    ///
-    /// 记的是**写的那一串**(`"seqs.rav"`),不是解析后的绝对路径 —— `MyMod.References ()`
-    /// 要回答的是"我这个模块引了谁",那是个源码上的关系。存路径而不是存模块,是因为
-    /// 记下的**这一瞬间**目标还没跑、模块还没建出来(见 <see cref="ResolveReferences"/>)。</summary>
     private void RecordReference(string path)
     {
         // **正在加载的那个文件优先** —— 模块体里再 `using` 一个文件时,那个文件的 `using`
@@ -23,14 +15,6 @@ public partial class Interpreter
         (_currentModule ?? GlobalModule()).ReferencePaths.Add(path);
     }
 
-    /// <summary>把一个模块那串 `using` **解析成模块** —— 查"文件 → 它装出来的那个模块"。
-    /// 那个文件要是没写模块名(`native.rav` / `enum.rav` 这种只往全局落东西的),
-    /// 一律算到 <see cref="GlobalModule"/> 那一枚上:它们落的就是同一个地方。
-    /// 文件找不到(改过名、删了)也照此办理,不给空位。
-    ///
-    /// **这里不能抛** —— 这一条路是"回看这个模块引了谁"(`References ()`),是**读**不是加载。
-    /// 所以有歧义时也当"没解析出来"(见 <see cref="FindModuleFiles"/>):由 `using` 那边报错,
-    /// 在这儿炸等于 `MyMod.References ()` 也会炸。</summary>
     internal IReadOnlyList<ModuleVal> ResolveReferences(ModuleVal mv)
     {
         var found = new List<ModuleVal>();
@@ -44,24 +28,9 @@ public partial class Interpreter
         return found;
     }
 
-    /// <summary>**没写模块名的那些文件**共用的那一枚模块,包的是全局作用域。
-    /// 主脚本顶层那些 `using` 也记在它身上 —— 那也是全局这一层引的。
-    /// 它不进 `_modules`:它没有模块名,不该被 `ravel "<global>"` 找得到。</summary>
     private ModuleVal GlobalModule()
         => _globalModule ??= new ModuleVal("<global>", _global) { Owner = this };
 
-    /// <summary>`using` 后面那一串能对上哪些文件。**每种写法挑第一个搜到的目录** ——
-    /// 同名文件在两个搜索目录里都有不算歧义,先到先得,那是搜索路径本来该有的意思
-    /// (和 `PATH` 一样)。
-    ///
-    /// 写法有三种:**写全的**、补 `.rav` 的、补 `.dll` 的 —— 于是后缀可以省:
-    ///
-    ///     using "seqs"              # → lib/seqs.rav
-    ///     using "Ravel.Extensions"  # → plugins/Ravel.Extensions.dll
-    ///
-    /// 交回**所有命中的**(写的那一串 + 绝对路径),而不是挑一个 —— "两种写法都对上"
-    /// 该怎么办得由调用方定:`using` 那边当场报错,`References ()` 那边当没解析出来。
-    /// (dll 能只写名字,是因为 `plugins/` 也在搜索目录里,见 `ModuleSearchPath`。)</summary>
     private List<(string Written, string Full)> FindModuleFiles(string path)
     {
         var refs = new List<string>();
@@ -82,15 +51,6 @@ public partial class Interpreter
         return hits;
     }
 
-    /// <summary>把模块名解析为绝对路径;找不到返回 null,**两种写法都对上就报错**。
-    ///
-    /// 报错而不是挑一个:`x.rav` 和 `x.dll` 是完全不同的两样东西(一份源码、一个程序集),
-    /// 挑谁都是瞎猜 —— 所以"不歧义"是能省后缀的前提。反过来,能省后缀也正是为了
-    /// **不用记住自己在写 `.rav` 还是 `.dll`**(那本来就是个实现细节:`Ravel.Extensions.dll`
-    /// 底下装的是 `Math` / `Native`,和 `lib/` 里的模块一样是个模块)。
-    ///
-    /// 报错信息里写的是**两种写法的样子**(`x.rav` / `x.dll`),不是绝对路径:要办的事是
-    /// "把后缀写全",摆两个长路径反而看不清;顺带让它钉得住(用例里没有机器相关的串)。</summary>
     private string? ResolveModulePath(string path)
     {
         var hits = FindModuleFiles(path);
@@ -102,17 +62,6 @@ public partial class Interpreter
             + " —— 把后缀写全再试", ErrorKind.Io);
     }
 
-    /// <summary>加载模块文件,解析为 BlockExpr;找不到抛异常,循环引用抛异常,已加载返回 null(视为空块)。
-    ///
-    /// **`.dll` 那一条是插件**:不是 Ravel 源码,而是一个编译好的扩展程序集 ——
-    /// 扫里面带 `[RavelModule]` / `[RavelFn]` / `[RavelClass]` 的类与函数,按特性上那个名字
-    /// 填进模块(见 `Runtime/Builtins/PluginApi.cs`)。它没有代码要跑,所以也交回 null。
-    ///
-    /// `_loading` 记的是「**模块体正在执行**」的集合,由调用方(StepUsing)在推块帧前进、块帧跑完后退。
-    /// 从前 push/pop 都圈在 ParseBlock 外面——而解析一个文件时不会去解析另一个文件
-    /// (`using` 是运行时构造),于是这个集合最多只有一个元素,`Contains` 永远为假:
-    /// 循环引用检测是死代码,A→B→A 会静默地什么都不做,拿到的可能是只跑了一半的模块。
-    /// 这也是 `tests/module/95_circular_ref.rav` 一直测不到东西的原因(它当时连文件都找不到)。</summary>
     private BlockExpr? LoadModuleAst(string path)
     {
         var full = ResolveModulePath(path);
@@ -137,18 +86,6 @@ public partial class Interpreter
         return ParseLibBlock(full, MoreControlFlow);
     }
 
-    /// <summary>把插件 dll 装进来。**先找已加载的同一份,找不到才 `LoadFrom`** ——
-    /// 这一条是宿主嵌进来才暴露的：Godot 的 C# 运行时**从内存**装程序集
-    /// （`Assembly.Location` 是空串、`GetLoadContext` 返回 null），而 `Assembly.LoadFrom`
-    /// 走的是 **Default** 那一格，于是磁盘上同一份 dll 会被**再装一次**。
-    /// 两个程序集两份元数据，`[RavelModule]` 就成了**两个不同的特性类型** ——
-    /// `PluginLoader` 用自己那份去 `GetCustomAttribute` 一个都查不到，
-    /// 模块建出来是空的（现象：`using "x"` 不报错，但 `x.Member` 全说未定义）。
-    /// 按简单名复用宿主已经装好的那份，特性类型才对得上。
-    ///
-    /// 名字撞了怎么办：简单名相同就是"同一个程序集"的意思，取先来的那份 ——
-    /// 宿主进程里同名程序集本来就只能有一份是被引用的，多装一份只有坏处。
-    /// </summary>
     private static System.Reflection.Assembly LoadPluginAssembly(string full)
     {
         var name = Path.GetFileNameWithoutExtension(full);
@@ -159,13 +96,6 @@ public partial class Interpreter
         return System.Reflection.Assembly.LoadFrom(full);
     }
 
-    /// <summary>ravel "M":切换到命名模块的作用域(首次访问时创建),后续语句落在该模块里。
-    /// `ravel ""` 是**回全局作用域**——文档就是这么用的(`ravel "MyMath"` … `ravel ""` … 引用它)。
-    ///
-    /// 这个函数**只管建模块、切作用域**。从前它多一件事:模块建好之后还去查一张
-    /// `CSharpModules` 表、把"C# 造的成员"填进去(`Math` 是最后一个用户)——
-    /// 那是"模块成员是 C# 写的"的**另一条路**,和现在这条(`using "x.dll"` 扫特性)
-    /// 只是历史先后不同。`Math` 搬进官方扩展之后那条路没人走了,表和查表一起删掉。</summary>
     internal RuntimeValue EnterModule(string name)
     {
         // 空名字特判成「回全局」。不特判的话会建出一个**名字叫 "" 的模块**,

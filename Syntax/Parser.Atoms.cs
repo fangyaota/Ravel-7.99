@@ -3,19 +3,12 @@ namespace Ravel;
 using System.Linq;
 using Ravel.Runtime;
 
-/// <summary>递归下降解析器的分片,按职责拆文件(和 Runtime/Interpreter.*.cs 一个路子):
-/// `Parser.cs` 入口 + token 辅助,`Parser.Statements.cs` 语句,
-/// `Parser.Expressions.cs` 优先级链,`Parser.Atoms.cs` 基本单元与括号/块。</summary>
 public partial class Parser
 {
     // ========================================
     //  Primary
     // ========================================
 
-    /// <param name="bareLambda">这一格认不认"裸模式参数"(`1 => …` / `[x y] => …`)。
-    /// 模式**里面**取字面量那一格和取字典键要传 `false` —— 那两处的值不可能是个 lambda;
-    /// 不关掉的话 `1 => …` 会自己套自己(`ParsePrimary` → 裸模式 → `ParsePattern` →
-    /// 又回到 `ParsePrimary`),当场栈溢出。</param>
     private Expression ParsePrimary(bool bareLambda = true)
     {
         // `do { … }` —— Monad 的串联糖(见 ParseDo)
@@ -102,7 +95,6 @@ public partial class Parser
                 : new StringLiteral(str.Lexeme) { Line = str.Line, Column = str.Column };
         }
 
-
         if (Match(TokenType.Char))
             return new CharLiteral(Previous().Lexeme[0])
                 { Line = Previous().Line, Column = Previous().Column };
@@ -148,13 +140,6 @@ public partial class Parser
         throw ParseError($"需要表达式，但得到{Describe(Peek())}");
     }
 
-    /// <summary>`do { … }` —— 把块读出来就行:**折成 `Bind` 链那一步归 `Lowering`**
-    /// (见 `Syntax/Lowering.cs` 的 `Do`),解析器只交一枚 <see cref="DoExpr"/>。
-    ///
-    /// 几条**语法**规矩留在这儿(和 `??=` / `++` 那两条一个口径——在那儿报错,
-    /// 插入符指得到地方):块里得有语句、最后一条得是个**值**。
-    ///
-    /// `_doDepth` 只管一件事:放行块里的 `名字 :&lt; 表达式`(`BindStatement`)。</summary>
     private Expression ParseDo()
     {
         var at = Peek();
@@ -184,22 +169,13 @@ public partial class Parser
         return new DoExpr(stmts) { Line = at.Line, Column = at.Column };
     }
 
-    /// <summary>参数表里这一格是不是**开一个模式**(`[…]` / `{…}`)。</summary>
     private bool StartsParamGroup(int off)
         => TypeAt(off) is TokenType.LeftBracket or TokenType.LeftBrace;
 
-    /// <summary>参数表还能再收一项吗(名字 / 模式 / 字面量 / 带括号的模式)。</summary>
     private bool StartsParam()
         => Check(TokenType.Identifier) || StartsParamGroup(0) || IsLiteralStart()
         || Check(TokenType.LeftParen);
 
-    /// <summary>从 <paramref name="off"/> 那一枚开始,是不是**一个绑定项**的开头
-    /// (参数表里的一格、模式里的一格 —— 两处是同一个形状)。
-    ///
-    /// "这个词是**修饰符**还是**名字**"就靠它分:`(private x: int)` 里 `private` 后面
-    /// 跟着一个参数,所以它是修饰符;`(private)` 里后面是 `)`,所以它是名字。模式那边
-    /// 一模一样:`[private x]` 是"元素 `x` 带修饰符",`[private]` 是"一个叫 `private`
-    /// 的元素"(和定义那边"下一个 token 是定义符就当名字"同一个办法)。</summary>
     private bool StartsBindingAt(int off) => TypeAt(off) switch
     {
         // 名字(`true` / `false` / `_` 也是 Identifier)、字面量那一族的开头、模式的三对括号、
@@ -210,17 +186,6 @@ public partial class Parser
         _ => false,
     };
 
-    /// <summary>收**开头那一圈修饰符**(参数 / 模式的一格,同一个规矩)。收完 `_pos` 停在
-    /// 第一个不是修饰符的地方。
-    ///
-    /// 判据只有一条:**这个词后面跟不跟得上一个绑定项**。所以 `(private)` / `[private]` 里的
-    /// `private` 是**名字**。少了这条判据,`(private x: int)` 会**静默**读成两个参数、
-    /// `[private x]` 读成两格 —— 这门语言最恨的那种静默。
-    ///
-    /// **`by` 也在内**:它就是变量定义那张表里的一个,收的是一份 `property`
-    /// (`by x := property …` 那条路),模式/参数上一样 —— 见 `Interpreter.Call` 的
-    /// `CallInto`(参数那儿现取 `SlotValue`)和 `Lowering.Bind`(拆出来的名字走
-    /// `VarDefinition`,那边本来就认)。</summary>
     private List<string>? CollectModifiers()
     {
         var attrs = new List<string>();
@@ -236,22 +201,10 @@ public partial class Parser
         return attrs.Count > 0 ? attrs : null;
     }
 
-    /// <summary>模式参数取合成名(`__p…` —— 形状和理由见 <see cref="TempNames"/>)。
-    /// 它是 **lambda 的参数**,作用域只在那个 lambda 里;不过名字照样掺进文件名标签 ——
-    /// 它会出现在**打印出来的函数体**里,统一一个规矩比"这里特殊"好记。</summary>
     private string FreshParam() => TempNames.Next("__p", source);
 
-    /// <summary>合成一个 `object` 注解节点 —— 省了注解的参数、`do` 的绑定、占位符消糖
-    /// 都用它:那些地方只知道"有东西来了",标不出更细的类型。</summary>
     private static IdentifierExpr ObjectType(Token at) => new("object") { Line = at.Line, Column = at.Column };
 
-    /// <summary>刚吃掉 '(' 之后这一段,是不是「参数表 `) =>`」。
-    ///
-    /// 参数 = `名字`,或 `名字: 类型`(**注解可省**)。所以不能像从前那样只看
-    /// `名字 :` 两格 —— `(x) =>` 也得认。**必须一路确认到 `) =>` 才认**:`(a + b)`
-    /// 那种普通的括号分组里也有名字,看到个名字就当参数会把分组吃成参数表。
-    ///
-    /// 只看 token、不动 `_pos`;不是 lambda 就还是走"括号分组"那条路,一个字符都没动过。</summary>
     private bool LooksLikeLambdaParams()
     {
         var off = 0;
@@ -279,10 +232,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>`(` 后面这一段,配对的 `)` 后面紧跟 `=>` 吗 —— 认**带守卫**的参数表用。
-    ///
-    /// 正常的参数表由 <see cref="LooksLikeLambdaParams"/> 认;那条路认不出 `(v == s)`,
-    /// 因为 `v` 后面跟的不是 `:` 也不是 `)`。守卫那条只能靠"`(...)` 后面是不是 `=>`"来认。</summary>
     private bool IsLambdaAfterParen()
     {
         var off = 0;
@@ -298,8 +247,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>从 off 跳过一段类型注解,返回它后面那格的偏移;读不动给 -1。
-    /// 两种写法:`名字(.名字)*`,或者括号里的任意表达式(`(pick ())` —— 见 ParseTypeAnnotation)。</summary>
     private int SkipTypeAnnotation(int off)
     {
         if (TypeAt(off) == TokenType.LeftParen)
@@ -323,16 +270,6 @@ public partial class Parser
     private BlockExpr Block(List<Statement> stmts, Token at)
         => new(stmts) { Line = at.Line, Column = at.Column, Source = source };
 
-    /// <summary>**用户写的** lambda 体。和 <see cref="ParseMandatoryBlock"/> 只差一件事:
-    /// 进去压一层"这段里出现过 `return` 吗",出来按需把体包成
-    /// `callcc ((__return: object) => { … })`。
-    ///
-    /// **只有用户写的 `=>` 才算一层** —— `do` / `?.` / 占位符 / 运算符节那些**内部消糖**造的
-    /// lambda 不走这儿。于是体里写 `return`,绑到的是外面那个真函数,不会被中间那些生成的
-    /// lambda 截住(它们在外层 `callcc` 的作用域里,照样跳得出去)。
-    ///
-    /// 名字**固定**成 `__return`:嵌套靠词法遮蔽自己就分开了(内层那枚绑内层的),
-    /// 用不着为每层起个新名字。</summary>
     private BlockExpr ParseUserLambdaBody(string what, Token at)
     {
         _returnUsed.Add(false);
@@ -354,13 +291,9 @@ public partial class Parser
         return Block([new ExpressionStatement(call) { Line = at.Line, Column = at.Column }], at);
     }
 
-    /// <summary>折出来的那段要当 lambda 的体,得是个块:已经是就原样,不是就包一层。</summary>
     private BlockExpr AsBlock(Expression e, Token at)
         => e is BlockExpr b ? b : Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
 
-    /// <summary>嵌套深度护栏。递归下降解析器靠 C# 调用栈,而 StackOverflow *捕获不了*——
-    /// 1000 层括号就能让进程直接死在 "Stack overflow." 上,连个语法错误都看不到。
-    /// 实测 500 层没事、1000 层爆,所以卡在 400。</summary>
     private Expression Nested(Func<Expression> parse)
     {
         if (_depth >= MaxDepth) throw ParseError($"表达式嵌套太深（超过 {MaxDepth} 层）");
@@ -380,7 +313,6 @@ public partial class Parser
     //  括号内容解析
     // ========================================
 
-    /// <summary>( ... ) — lambda / 分组（括号内与顶层一致：柯里化）</summary>
     private Expression ParseParen()
     {
         int line = Previous().Line, col = Previous().Column;
@@ -571,19 +503,6 @@ public partial class Parser
         return HasHoles(inner) ? DesugarHoles(inner) : inner;
     }
 
-    /// <summary>{ ... } —— 集合 / 字典 / 代码块。
-    ///
-    /// 判据只有两条:
-    ///   * **这一层**有 `->` → 字典（`->` 不是表达式运算符，只在这儿出现，所以见它必是字典）；
-    ///   * 没箭头但有换行（`;` 也算；**嵌进括号里的也算**）→ 代码块;
-    ///   * 都没有 → 集合。
-    ///
-    /// 换行那条不数深度，是因为块和集合本来就是同一对花括号，`{f {a;}}` 这种"一行块、
-    /// 分号全在里层"从老早就是块；字典由箭头那条先挑走，所以不会把 `{"k" -> {a; 1}}` 抢成块。
-    ///
-    /// 空的两样各有各的写法:`{}` 是空集合，`{->}` 是空字典 —— 字典的判据是那个箭头，
-    /// 没有条目也得把它写出来。空块本来就禁止（见 ParseBlockStatements），三样不打架。
-    /// </summary>
     private Expression ParseBrace()
     {
         int line = Previous().Line, col = Previous().Column;
@@ -602,16 +521,6 @@ public partial class Parser
         return ParseSet(line, col);
     }
 
-    /// <summary>扫到配对的 `}` 之前，**这一层**有没有 `->`、**任意深度**有没有换行。
-    ///
-    /// 箭头只数最外层:嵌进 `(` / `[` / `{` 之后的箭头是里面那件事的，与这个 `{` 无关 ——
-    /// `{ {"a" -> 1} }` 是"集合里放个字典"，`{ x := {"a" -> 1} }` 是"一行块里装了条字典"。
-    /// 换行反过来是**任意深度**都算:块和集合本来就不靠括号分家(`{f {a;}}` 一直是块)，
-    /// 而字典一定有最深一层之外的箭头，所以箭头那一步已经把字典挑走了，换行这条不会抢走它。
-    ///
-    /// 只看 token、不解析 —— 不动 `_holeCount`，所以"先扫一遍、再正经读一遍"没有洞编号
-    /// 错位的顾虑（早先那条判据是"先读第一个元素再看后面跟不跟箭头"，读完不能退）。
-    /// </summary>
     private (bool Arrow, bool Newline) ScanBraceBody()
     {
         int depth = 1;
@@ -640,15 +549,6 @@ public partial class Parser
         return (arrow, newline);
     }
 
-    /// <summary>插值字符串 —— 拼成 `"" + 段 + 段 …`:字面量段原样,表达式段套一层
-    /// `string (…)`(那个转换器管着"什么都转得成字符串":数、字符、对象都行)。
-    ///
-    /// 拼出来的是普通的 `+` 链,和手写 `"a" + (string x)` **一模一样** —— 求值、报错、
-    /// 显示全走现成那条路,没有第二套语义。词法只把串切开(`Token.Parts`),
-    /// 每段表达式的**源码**在这里另起一次解析,位置按它在原文件里的行列挪回去。
-    ///
-    /// (`string` 这个转换器按名字找 —— 它由 predefined.rav 放在全局;要是有谁把这个名字
-    ///  遮住,插值就跟着用他那个,和手写 `string x` 的行为保持一致。)</summary>
     private Expression Interpolated(Token str, IReadOnlyList<StringPart> parts)
     {
         Expression expr = new StringLiteral("") { Line = str.Line, Column = str.Column };
@@ -667,7 +567,6 @@ public partial class Parser
         return expr;
     }
 
-    /// <summary>{ expr expr ... } → 集合。判据在 ParseBrace：进来就是单行、没有箭头。</summary>
     private Expression ParseSet(int line, int col)
     {
         var elements = new List<Expression>();
@@ -680,12 +579,6 @@ public partial class Parser
         return new SetLiteral(elements) { Line = line, Column = col };
     }
 
-    /// <summary>{ key -> val key -> val ... } → 字典。**键是表达式**(判据见 ParseBrace:
-    /// 这一层出现 `->` 就是字典),和值一样按 `allowCall: false` 那一档读 —— 于是
-    /// `{"a" + "b": 1}` 写得出来,而 `{f x: 1}` 这种"实参里再套应用"不行(和值那边口径一致)。
-    ///
-    /// 条目之间**可以有换行**:判据已经是那个箭头了,不必再靠"一行写完"来分辨,
-    /// 于是多行字典合法。空字典写成 `{->}`(没有条目,但箭头还在),由下面循环顶上那一格收。</summary>
     private Expression ParseDict(int line, int col)
     {
         var entries = new List<DictEntry>();
@@ -712,46 +605,6 @@ public partial class Parser
         return new DictLiteral(entries) { Line = line, Column = col };
     }
 
-    /// <summary>强制解析为代码块。**单行必须用 `;` 收尾** —— 块和集合/字典在没换行时
-    /// 长得一样(`{ x }` 是集合、`{ a: 1 }` 是字典),`;` 和换行都是 Newline token,
-    /// 它才是「这是块」的标记。这条规则对 lambda 体同样成立:`=> { x }` 是错的,
-    /// `=> { x; }` 才对。(曾经去掉过这里的检查,以为 `=>` 后面块是强制的、
-    /// 没有歧义——语言规则不该按解析器好不好写来定。)</summary>
-    /// <summary>**单行 lambda 的简写**:`(x: int) => x + 1` —— 体就是**一条表达式语句**,
-    /// 交回的值就是那个表达式的值(块的值也 = 最后一条语句的值,两边一脉相承)。
-    ///
-    /// 和 `{ … }` 那条的分岔**只有一个:`=>` 后面见不见 `{`**:
-    ///   * `(x) => { x; }` 照旧是"体是一块"(老写法,一个字没变);
-    ///   * `(x) => { x }` 照旧报「lambda 体需要代码块」—— 单行花括号是**集合**,不是简写。
-    ///     **这个糖交不回一个块**,那是它的边界(也就没有"简写里再写语句"这回事)。
-    ///
-    /// 想交回集合/字典,用括号把它跟 `=>` 隔开:`() => ({1 2 3})` / `() => ({"a" -> 1})`。
-    ///
-    /// 体到哪儿为止交给 <see cref="ParseExpression"/> —— 和语句那条路一个口径
-    /// (换行 / 收尾符为止)。所以 `f := (x) => x + 1` 读到行尾,
-    /// 而 `xs.Map ((x) => x * 2)` 读到那个 `)`。</summary>
-    /// <summary>`x => 体` —— 单参 lambda 的**无括号**写法。折出来和 `(x) => 体` 一模一样
-    /// (参数按 `object` 收,体走 <see cref="ParseUserLambdaBody"/> 那条路)。
-    ///
-    /// 两处**故意不收**,各给一句说清的:
-    ///   * **不收注解** —— `x: int => …` 里那个 `x: int` 首先是**类型判断**(上一笔刚把
-    ///     `:` 统一成这个读法),两种读法挤在一行。要带类型就加括号:`(x: int) => …`。
-    ///   * **`_` 不当参数名** —— `_` 是占位符/丢弃的记号(`_ := v` 是丢掉),拿它当参数名
-    ///     那个名字根本引不到。想写"一个参数"用 `x => 体`;想用洞就直接写 `_ + 1`。
-    ///
-    /// 识别口子只有一个:**光一个标识符 + `=>`**。所以
-    ///   * `f x => e` 是 `f (x => e)`(从前的报错位,现在有了读法);
-    ///   * `a.b => e` **不是** lambda —— `b` 走的是成员链那条路,参数不能是成员。
-    /// </summary>
-    /// <summary>`1 => …` / `"yes" => …` / `[x y] => …` / `{"a" -> v} => …` —— "裸一格模式
-    /// 直接接 `=>`"的判据。
-    ///
-    /// 括号那两样用现成的 <see cref="SkipBalanced"/> 跳过去,看收尾符后面是不是 `=>` ——
-    /// **只看这一处**,不往回退着重读整项,所以不会翻倍。
-    ///
-    /// `()` 不算:那是**空参数表**,`ParseParen` 最开头就接走了(这儿也拦一道,免得
-    /// "单位那个值"和"没有参数"两件事在同一个写法上撞)。
-    /// `_` 也不算:它在**位置那一格**是洞(`x => 体` 除外),`(_) => …` 才当通配写。</summary>
     private bool BarePatternLambdaAhead(int off = 0)
     {
         switch (TypeAt(off))
@@ -772,8 +625,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>读一个"裸模式参数"的 lambda。合成名(`__p{n}`)和括号那条一个规矩,
-    /// 拆法照旧归 `Lowering`。</summary>
     private Expression ParseBarePatternLambda()
     {
         var at = Peek();
@@ -804,8 +655,6 @@ public partial class Parser
             { Line = name.Line, Column = name.Column };
     }
 
-    /// <summary>`[from, to)` 里**最左边那个标识符** —— 守卫项的参数名就是它
-    /// (`(v == s)` → `v`,`(v |> IsPrime)` → `v`)。</summary>
     private string? FirstIdentName(int from, int to)
     {
         for (var i = from; i < to && i < tokens.Count; i++)
@@ -814,19 +663,6 @@ public partial class Parser
         return null;
     }
 
-    /// <summary>把参数表的**守卫**折成体的第一句:
-    ///
-    ///     if { try { 守卫; } (e: TypeError) => { false; }; } { 0; } { reject "…"; }
-    ///
-    /// 两层意思:
-    ///   * **守卫不成立** → `reject`(抛一枚 `RejectedException`)—— `|` 的交替接住它、试下一支。
-    ///     所以守卫 + 多子句 = 多子句函数;
-    ///   * 求值期间冒出来的 **TypeError** 也算"这一支不收" —— 那正是"类型/形状对不上"的统一说法
-    ///     (`v == 1` 里 v 是个字符串、`v |> IsPrime` 里 IsPrime 不收这个实参,都是这一类)。
-    ///     用的是现成的 `try`(lib/exceptions.rav),**引擎那一侧一个字都不用添**。
-    ///
-    /// 代价:每次调用都要过一次 `try`(一次 callcc + 压一个 handler)。守卫是拿便利换的,
-    /// 热路径上宁可直接写 `if`。</summary>
     private BlockExpr PrependGuard(BlockExpr body, Expression guard, string param, Token at)
     {
         // 处理体:`(e: Exception) => { if { e: TypeError; } { false; } { System.Unhandled e; } }`
@@ -867,11 +703,6 @@ public partial class Parser
         return Block([new ExpressionStatement(e) { Line = e.Line, Column = e.Column }], at);
     }
 
-    /// <summary>前瞻:在配对的 `}` 之前**任意深度**有没有 Newline。
-    ///
-    /// 只给"已经是强制块"那条路用（<see cref="ParseMandatoryBlock"/>）—— 那儿没有歧义，
-    /// `=> { f { a; } }` 这种"块体只有一条语句、换行全在嵌套里"照样算块。普通花括号
-    /// 不能看这一条（`{"k" -> {a; 1}}` 会被误判成块，那就是 bug A），见 ScanBraceBody。</summary>
     private bool AnyNewlineBeforeClose(TokenType closing)
     {
         int depth = 1;
@@ -904,22 +735,6 @@ public partial class Parser
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }
 
-    /// <summary>刚吃掉 `[` 或 `(` 之后,试一把**区间**:`lo .. hi` 后面紧跟收尾的右括号。
-    ///
-    /// 那一对括号各带**一半的意思**(`[` `]` 含那一端、`(` `)` 不含),所以收尾**两种都收**
-    /// —— `[1..5)` 这种混着写是合法的 —— 按实际收到的那个定 `EndClosed`。
-    ///
-    /// **两头都可以省**:`[1..]` / `[..1]`,两头都省就是 `[..]`(整条数轴)。
-    /// 省掉的那头在 AST 里是 `null`,**不在解析期填成 ±∞** —— 填了转储就分不出你写的哪一头;
-    /// 求值那一步才补(见 `Interpreter.StepRange`)。省了的那头自然也没得求值。
-    ///
-    /// 不是区间就把 `_pos` 退回去,让调用点照原路走(列表字面量 / 括号分组 / lambda);
-    /// 试读半路抛语法错也退,**最后报出来的还是原来那条路的错** —— `[]`、`(a + b)`、
-    /// `(x: int) => …` 全都不受影响。
-    ///
-    /// 试读用**完整表达式**:`[1 2 3]` 会读成 `1 2 3`(一个调用链),看不见 `..` 就退,
-    /// 于是普通列表照旧;而 `[f 1..3]` 读成 `(f 1)..3` —— 和这套语言"实参吃到运算符为止"
-    /// 一个脾气。**裸的 `a..b` 不认**:这个入口只在括号里说话。</summary>
     private Expression? TryParseRange(bool startClosed)
     {
         // 先拿一眼就能看出来的便宜判据挡一道:**这一层有没有 `..`**。
@@ -966,13 +781,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>这一段括号里、**就在自己这一层**,有没有 `..`。
-    ///
-    /// 只是个"绝不可能是区间"的便宜门 —— 为什么非要有它:`TryParseRange` 的试读是拿
-    /// **完整表达式**跑一遍,而括号可以嵌套:每一层都试读一次,里面那层的试读又套一层……
-    /// 1000 层括号会直接炸成天文数字(`tests/152` 的 `171_nesting_depth` 就压在那儿,
-    /// 实测真挂住了)。这个扫描只数 token、不做任何解析,顺带把 `{}` 里、内层括号里的
-    /// `..` 都排除掉(那些不属于这一层)。</summary>
     private bool HasDotDotAhead()
     {
         var depth = 0;
@@ -1018,7 +826,6 @@ public partial class Parser
         }
     }
 
-    /// <summary>代码块 — 以换行分隔的语句，当前已在 { 之后)</summary>
     private List<Statement> ParseBlockStatements()
     {
         SkipNewlines();

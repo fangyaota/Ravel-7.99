@@ -16,47 +16,24 @@ using Ravel.Runtime.Values;
 // 规则和内置那边**一模一样**(同一套签名、同一个柯里化、同一条"比大小走 Ravel 的 `<`"),
 // 只是换了个 `public` 的门。
 
-/// <summary>这个类里的东西进哪个模块。模块名就是 Ravel 里那个名字:
-/// `using "x.dll"` 之后 `模块名.成员` 就能用;模块不存在就**建一个**。
-///
-/// **`""` 这个特例**:进**全局作用域**(不建模块,直接叫名字)。</summary>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class RavelModuleAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 }
 
-/// <summary>模块里的一个**函数**。签名和内置那边一样:
-/// `static RuntimeValue F(RuntimeValue a)`(1~3 个),要用引擎就把它当第一个参数收
-/// (`Interpreter self`)—— 用不着的那几条就是**纯函数**。</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class RavelFnAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 }
 
-/// <summary>模块里的一个**常量**(挂在 `static readonly` **字段**上,值就是那个 `RuntimeValue`)。
-///
-/// 「函数还是常量」在引擎里原来是两处(`[Sys]` 收函数、`SysModule` 那三张表摆数据),
-/// 理由是**数据一眼看全比撒在各处好读**。外置之后没有"一眼看全"的余地了,
-/// 但这条区别还在:`Math.Pi` 是个**值**、不是一枚函数 —— 拿 `[RavelFn]` 登记
-/// 就会让 `Math.Pi` 变成"要写 `Math.Pi ()` 才拿到数",那是换了个 API,不是搬了个家。
-/// 所以常量单开一条,类型槽用**值自己的类型**(和 `System.True` 那些一个写法)。</summary>
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class RavelConstAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 }
 
-/// <summary>模块里的一个**属性** —— 一个名字、两个方向(`Math.PI` 读、`Counter.N = 3` 写)。
-///
-/// 和 <see cref="RavelConstAttribute"/> 的分工:那个是**装的那一刻定值**(挂在
-/// `static readonly RuntimeValue` 字段上),适合真正的常量;这个是**每次读都重新求值**的
-/// —— `DateTime.Now` 那种要的正是后者(冻住就错了)。
-///
-/// 和 <see cref="ClassPropertyAttribute"/> 是同一件事,区别只在**没有接收者**:
-/// 签名 `static RuntimeValue Name(RuntimeValue arg)`,那一格收到 `()` 就是读、收到新值就是写。
-/// 落的还是**`by` 槽**(读走 getter、写走 setter),`ReadOnly = true` 是只给 getter 那一半。</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class RavelPropertyAttribute(string name) : Attribute
 {
@@ -64,67 +41,32 @@ public sealed class RavelPropertyAttribute(string name) : Attribute
     public bool ReadOnly { get; set; }
 }
 
-/// <summary>一个 **Ravel 类**(类型树上的节点)。里面的方法挂 <see cref="ClassMethodAttribute"/>、
-/// 构造器挂 <see cref="ClassCtorAttribute"/> —— 和引擎里那些内置类写法完全一样。
-///
-/// 旁边再挂一个 <see cref="RavelModuleAttribute"/> 的话,这个**类对象**也进那个模块
-/// (`模块.类名 ()`);不挂就只是类型(在树里、`is` 认,但得自己去拿类对象)。</summary>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class RavelClassAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 
-    /// <summary>父类叫什么(默认 `object`;名字在已有的类里找,包括别的插件带来的)。</summary>
     public string Parent { get; init; } = "Object";
 
-    /// <summary>**这个类的实例是不是"值"** —— 写 `"IValue"`(`System.IValue` 那个接口)。
-    ///
-    /// 别省。这门语言里"是不是值"**有后果**:能不能当**字典的键**、`Key ()` 有没有默认实现、
-    /// 去重那一套,判据都是它。漏了的话症状是运行期一句「字典的键得是值类型…得到 X」——
-    /// 一个**不可变、按值比**的东西当不了键,而内置的 `Range` 能(实测踩过)。
-    ///
-    /// **有状态、按身份认**的那些(`Ravel.Structures` 的 `Stack` / `Heap`…)不写这一格 ——
-    /// 它们本来就不该当键。
-    ///
-    /// 实现上它落的不是 `impl` 那条路,而是 `ClassVal.IsValueLike` 那格**物化索引** ——
-    /// 因为那个判据要跑在 `dict.SysGet` 那些**同步 C#** 操作里,那儿拿不到解释器。
-    /// 这一格是**唯一的真相**:内置那 10 个值类型也落在它上面(`BuiltinClasses.SealBuiltins`),
-    /// 而 **Ravel 侧已经写不进来了** —— `IValue` 封了,`impl (IValue 你的类 { … })` 会被挡下。
-    /// 所以要往这门语言里加一个**新的值类型**,出口就是这儿。</summary>
     public string? Implements { get; init; }
 }
 
-/// <summary>插件作者要用的几件小工具 —— 引擎里都有(而且**同一套脾气**),只是那些是 `internal`。
-///
-/// 一件都不新造:`Compare` 走 Ravel 的 `<`(比不了当场报「比不了 X 与 Y」,
-/// 不会让 .NET 的比较器在里面炸)、`Elements` 走 `foreach` 那个口径、`Key` 走 `dict` 那个规矩。</summary>
 public static class PluginKit
 {
-    /// <summary>照 Ravel 的 `<` 比大小:小于 -1、大于 1、比不了(或者一样)0 ——
-    /// 注意"比不了"和"相等"在这儿都是 0,**要比大小就先确保它们能比**。</summary>
     public static int Compare(RuntimeValue a, RuntimeValue b)
         => BuiltinClasses.Less(a, b) ? -1 : BuiltinClasses.Less(b, a) ? 1 : 0;
 
-    /// <summary>一个容器里的元素(按枚举顺序)。list / set / dict 和数据结构那一族都吃。</summary>
     public static List<RuntimeValue> Elements(RuntimeValue container, string what)
         => BuiltinClasses.ElementsOf(container, what);
 
-    /// <summary>键规范:得是**值类型**(数 / 字符串),和 `dict` 一个规矩。</summary>
     public static RuntimeValue Key(RuntimeValue k, string what) => BuiltinClasses.KeyArg(k, what);
 
-    /// <summary>按名字拿一个类对象(`Stack` / `List`…)。自己的类在 `New ("名字")` 里建,
-    /// 建完就能按名字找到。</summary>
     public static ClassVal ClassOf(string name, string what = "类型") => BuiltinClasses.ClassOf(name, what);
 
-    /// <summary>建一个类对象(还没挂父类 —— 挂父类那一步由 `[RavelClass]` 的装配做)。
-    /// 插件里自己的值类型要拿"我属于哪个类"就调它。</summary>
     public static ClassVal New(string name) => BuiltinClasses.New(name);
 
-    /// <summary>打印一个容器时的**深度护栏**:自己包含自己的容器(`d.Set "self" d`)会无限递归,
-    /// 走到第 N 层就收住(`...`)。插件的值类型写 `ToString ()` 时套一层就行。</summary>
     public static string Guard(Func<string> show) => ShowDepth.Guard(show);
 
-    /// <summary>比不了 / 空集合这类**说人话**的错误(报出来的就是 Ravel 层的类型)。</summary>
     public static RuntimeException Fail(string message, ErrorKind kind = ErrorKind.Value)
         => new(message, kind);
 
@@ -135,71 +77,37 @@ public static class PluginKit
     // 下面这一段就是把那几件重新公开一遍:一件都不新造,规矩和引擎里那条**同一个**
     // (`BytesOf` 报错时照样说清是第几个不是字节,`Guarded` 兜的还是那几类异常)。
 
-    /// <summary>`()` —— 空值。原生函数"什么都不交回"时给这个,别给 null。</summary>
     public static RuntimeValue Void => VoidVal.Instance;
 
-    /// <summary>顶类型 `Any`。造原生闭包当参数类型时用(见 <see cref="Closure"/>)</summary>
     public static ClassVal Any => BuiltinClasses.Any;
 
-    /// <summary>造一枚**原生闭包**:形状像 lambda,体是 C#。`NumberSource` 那种"交回一枚
-    /// 取数的函数"就靠它 —— `Parameter` 是它将来收的那个参数叫什么。</summary>
     public static FunctionVal Closure(string parameter, Func<RuntimeValue, RuntimeValue> body)
         => new NativeClosure(parameter, BuiltinClasses.Any, (_, v) => body(v));
 
-    /// <summary>参数收束成**字符串**;不是就报 Ravel 错误(消息里带 Ravel 的类型名)</summary>
     public static StringVal Text(RuntimeValue v, string what) => Interpreter.As<StringVal>(v, what);
 
-    /// <summary>参数收束成**字典**(`{}`)</summary>
     public static DictVal Dict(RuntimeValue v, string what) => Interpreter.As<DictVal>(v, what);
 
-    /// <summary>参数收束成**表**(`[]`)</summary>
     public static ListVal List(RuntimeValue v, string what) => Interpreter.As<ListVal>(v, what);
 
-    /// <summary>参数收束成 **int**(不是数、或者是个装不下的 bigint,都会说人话)</summary>
     public static int Int(RuntimeValue v, string what) => BuiltinClasses.IntArg(v, what);
 
-    /// <summary>参数收束成 **bool**。别的类型当场报(`Interpreter.As` 那条路)。
-    ///
-    /// 和 <see cref="Int"/> / <see cref="Text"/> / <see cref="Num"/> 一伙的 ——
-    /// 「把一个 Ravel 值收成一个 C# 标量」这件事原来只开了一半的口子,
-    /// `bool` 和 `char` 得插件自己 `(BoolVal)v` 硬转(**没有类型检查、没有消息**)。
-    /// 生成出来的适配层要写 `PluginKit.Bool (x0, "…")`,所以补上。</summary>
     public static bool Bool(RuntimeValue v, string what) => Interpreter.As<BoolVal>(v, what).Value;
 
-    /// <summary>参数收束成 **char**(单个字符)。见 <see cref="Bool"/></summary>
     public static char Char(RuntimeValue v, string what) => Interpreter.As<CharVal>(v, what).Value;
 
-    /// <summary>数值参数收成 `double` 来算 —— **五种数值类型全吃**(int / real / bigint /
-    /// fraction / bigfraction)。**这条专门是"近似那一条路"**:`sin` / `sqrt` 那些本来就按
-    /// double 算的。**别拿它去比大小** —— 比较走
-    /// <see cref="BuiltinClasses.CompareNumeric"/>(精确那一族不经过 double —— 2^53 以上的
-    /// 大整数在那儿分得开,用 double 会被抹平)。
-    /// 非数值报 `what` 归属的错误 —— 传函数名进来(`Num (a, "Sin")`)。</summary>
     public static double Num(RuntimeValue v, string what)
         => BuiltinClasses.TryAsDouble(v, out var d)
             ? d
             : throw Fail($"{what} 需要数值参数，得到 {v.Type}", ErrorKind.Type);
 
-    /// <summary>字节表(list,0..255)→ `byte[]`。元素不是字节就当场说清是**第几个**不对</summary>
     public static byte[] Bytes(RuntimeValue v, string what) => SysKit.BytesOf(v, what);
 
-    /// <summary>`byte[]` → 字节表(list)</summary>
     public static ListVal BytesList(byte[] bytes) => SysKit.BytesList(bytes);
 
-    /// <summary>算出来的整数**收窄**:装得下 `int` 就给 `int`,否则给 `bigint`。
-    /// (照 Ravel 的口径来,别自己 `(int)` 硬转 —— 那会静默回绕。)
-    ///
-    /// **它和 <see cref="BuiltinClasses.Narrow"/> 不是一条**:那边是**算术**用的,
-    /// 撞上 `int` 溢出就报「超出 int 范围（大数用 bigint）」—— 那是这门语言要的行为
-    /// (`int` 就是 32 位,要更大的自己写 `bigint`),**别改**。这一格是给**插件**用的:
-    /// 外面世界的一个 `long` 交进来,有现成的 `int` 就用、没有就升 `bigint`,
-    /// 不该因此报错。从前的实现是直接转给那边,于是文档说着"给 bigint"、
-    /// 实际抛了个 `RuntimeException`(`Ravel.Structures` 的图权重踩在这条上)。</summary>
     public static RuntimeValue Narrow(long n)
         => n >= int.MinValue && n <= int.MaxValue ? IntVal.Of((int)n) : new BigIntVal(n);
 
-    /// <summary>参数收束成 **long**:`int` 和 `bigint` 都收(装不下报错)。
-    /// <see cref="Narrow"/> 的反方向。</summary>
     public static long Long(RuntimeValue v, string what) => v switch
     {
         IntVal i => i.Value,
@@ -214,8 +122,6 @@ public static class PluginKit
     //
     // **错误里带上第几个**:一个元素类型不对,只说"某个元素不对"是没法查的。
 
-    /// <summary>Ravel `list` → `T[]`。`one` 管单个元素怎么换(顺带把
-    /// "第几个"那个 `what` 传给它)。</summary>
     public static T[] ArrOf<T>(RuntimeValue v, string what, Func<RuntimeValue, string, T> one)
     {
         var elems = List(v, what).Elements;
@@ -234,23 +140,14 @@ public static class PluginKit
 
     // ── 路径与取值 ──
 
-    /// <summary>路径收束:要一个字符串。(扩展里要收**磁盘条目**就当文件写,这一条只管字符串。)
-    ///
-    /// 叫 `PathOf` 不叫 `Path`:`using static` 进来的**方法**会把同名的**类型**盖住 ——
-    /// 叫 `Path` 的话扩展里 `Path.GetFileName (…)` 当场编不过(实测撞过)</summary>
     public static string PathOf(RuntimeValue v, string what) => SysKit.PathOf(v, what);
 
-    /// <summary>值 → 字符串(Ravel 语义,和 `print` 一个口径)</summary>
     public static string Show(RuntimeValue v) => Interpreter.Show(v);
 
-    /// <summary>"这个文件得在" —— 不在(或者是个目录)就报 `IoError`,消息里带路径</summary>
     public static void NeedFile(string p, string what) => SysKit.NeedFile(p, what);
 
-    /// <summary>"这个文件的上一级目录得在" —— 写文件前问一句,比让 .NET 抛个英文的好</summary>
     public static void NeedParentDir(string p, string what) => SysKit.NeedParentDir(p, what);
 
-    /// <summary>从一个**参数表**(dict)里取一个键;没给(或者给的是 `()`)就是 null。
-    /// 收一个 dict、缺的走默认那几条原语全靠它。</summary>
     public static RuntimeValue? Opt(DictVal d, string key) => SysKit.Opt(d, key);
 
     public static string OptText(DictVal d, string key, string dflt) => SysKit.OptText(d, key, dflt);
@@ -262,63 +159,26 @@ public static class PluginKit
     // `NetBridge` 是引擎里的（`internal`，外部 dll 看不见），所以按这个文件一贯的规矩
     // 重新公开一遍。**一件都不新造**，背后就是 `NetBridge` 那三个方向。
 
-    /// <summary>Ravel 值 → .NET 值（`list` → `object[]`；**Ravel 函数转不了**，
-    /// 那条硬边界的消息在 `NetBridge.ToNet` 里）。</summary>
     public static object? ToNet(RuntimeValue v) => NetBridge.ToNet(v);
 
-    /// <summary>.NET 值 → Ravel 值（认识的就化、不认识的兜成 `DotNetObject`）。
-    /// `.Unwrap ()` 走的就是这条。</summary>
     public static RuntimeValue ToRavel(object? o) => NetBridge.ToRavel(o);
 
-    /// <summary>它长什么样（`Reflect.Text` 和报错都用它）。</summary>
     public static string NetShow(object? o) => NetBridge.Show(o);
 
-    /// <summary>把 .NET 值包成 Ravel 值：**有那个 Ravel 类就包成它**（那一族方法才够得着），
-    /// 没有就老实 `DotNetObject`。
-    ///
-    /// 给**生成出来的适配层**用的。一个方法交回的是**别的** .NET 类型时（`DateTime.Subtract`
-    /// 交回 `TimeSpan`），生成器**不知道**调用方有没有为那个类型生成过适配器 ——
-    /// 于是别猜、**问一声**：有就包成它，没有就 `DotNetObject`。两种都是能用的值，
-    /// 只是方法多寡不同。
-    ///
-    /// 名字的约定是**那个 .NET 类型的短名**（`System.TimeSpan` → `TimeSpan`，
-    /// 也就是 `Adaptor.CsClass` 默认给的那个类名）。</summary>
     public static RuntimeValue Wrap(object? v, string className)
         => BuiltinClasses.ClassOrNull(className) is { } cls ? new DotNetVal(v, cls) : new DotNetVal(v);
 
-    /// <summary>**把一个 Ravel 值转成指定的 .NET 类型** —— 两步：
-    /// 先 `ToNet`（认识的就化、`DotNetObject` 脱壳、`list` 化 `object[]`），
-    /// 再按 `target` 收（`NetBridge.To` 那张表：数组 / 泛型容器 / 枚举 / 数值，
-    /// 加上插件用 <see cref="RegisterConverter"/> 注册的）。
-    ///
-    /// 生成出来的适配层拿它**兜底**：映射表里没有的参数类型不再整个跳过，
-    /// 照常生成、到这一步来转；转不了就是一句**调用时**能 `try` 住的报错。
-    /// （`ref struct` / `ref` / `out` / 泛型参数那几种连 `typeof` 都写不出来，
-    /// 生成阶段就跳过了。）</summary>
     public static object? ToObject(RuntimeValue v, Type target, string what)
         => NetBridge.To(NetBridge.ToNet(v), target, what);
 
-    /// <summary>给 **`.ToObject 类型`** 那张表加一条规则：目标类型 → 怎么把手里这个
-    /// .NET 值弄成它。`target` 可以是**开放泛型**（`typeof (IEnumerable<>)`）。
-    /// **后注册的先问**，所以插件能盖掉引擎自己那几条。引擎认得的（数组 / 泛型容器 /
-    /// 枚举 / 数值）见 `NetBridge.To` —— 那几条是写死的，不该在这里重加一遍。</summary>
     public static void RegisterConverter(Type target, Func<object?, Type, object?> conv)
         => NetBridge.Register(target, conv);
 
-    /// <summary>兜底:把一类 C# 异常(IO / 权限 / 参数 / 溢出 / 平台不支持…)翻成 Ravel 的
-    /// `IoError`。**别让 C# 异常漏到顶层**是这批原语一条老规矩 —— 漏出去会绕过 Ravel 的
-    /// `try` 把程序打掉。要兜别的异常族(比如 `SqliteException`)就自己写一个,别硬塞进来。</summary>
     public static RuntimeValue Guarded(string what, Func<RuntimeValue> body) => SysKit.Fs(what, body);
 }
 
-/// <summary>`[RavelModule]` / `[RavelFn]` / `[RavelClass]` 那一族的扫描与装配。
-///
-/// 和内置那两趟(`SysRegistry` / `ClassRegistry`)是**同一套规矩**,只是扫的对象换成了
-/// "`using` 进来的那个 dll":扫出来的函数进模块、类进类型树(挂了模块名的再顺手进模块)。</summary>
 internal static class PluginLoader
 {
-    /// <summary>把这个程序集里的东西装进来。`modules` 是解释器那张"名字 → 模块"的表
-    /// (和 `System` 一个地方),不存在就现建一个。</summary>
     public static void Load(Interpreter self, Assembly asm, Scope global, Dictionary<string, ModuleVal> modules)
     {
         HookDependencies(asm);
@@ -381,23 +241,14 @@ internal static class PluginLoader
         }
     }
 
-    /// <summary>扫出来的一个待装成员。三种来源(**函数 / 常量 / 属性**)在这儿只是**形状**不同
-    /// —— 收齐、排序、装配都共用一趟(反射给的先后没有保证,成员表是按登记先后列的)。
-    ///
-    /// `Property` 那两格只对属性有意义:getter/setter 是**同一个方法的两遍**
-    /// (读时那一格收到 `()`),`ReadOnly` 就是只给 getter 那一半。</summary>
     private readonly record struct Found(string Module, string Name, MethodInfo? Method, RuntimeValue? Value,
                                          bool Property = false, bool ReadOnly = false);
 
-    /// <summary>读一个 `[RavelConst]` 字段。**静态字段的初始化时机是它自己那边的事** ——
-    /// 读到 null 只可能是"字段不是 `static readonly RuntimeValue` 那个形状",当场说清楚。</summary>
     private static RuntimeValue ReadField(FieldInfo f)
         => f.GetValue(null) as RuntimeValue
            ?? throw new InvalidOperationException(
                $"常量 {f.DeclaringType?.Name}.{f.Name} 要是 static readonly RuntimeValue（现在 {f.FieldType.Name}）");
 
-    /// <summary>建一个插件带来的类:建类对象、挂父类、登记方法/构造器、进 `AllTypes`,
-    /// 挂了模块名的话再把类对象摆进那个模块。</summary>
     private static void InstallClass(Interpreter self, Type type, RavelClassAttribute cls, string? module,
                                      Scope global, Dictionary<string, ModuleVal> modules)
     {
@@ -451,26 +302,9 @@ internal static class PluginLoader
                 .DefineOrReplace(cls.Name, BuiltinClasses.Type, BuiltinClasses.ClassOf(cls.Name));
     }
 
-    /// <summary>这个名字的类已经有了吗(内置的、或者上一个解释器装进来的)</summary>
     private static bool Known(string name)
         => BuiltinClasses.AllTypes.Any(t => t.DisplayName == name);
 
-    /// <summary>插件**自己带的本机库**得找得到 —— 现在只有一个例子:扩展拖来的
-    /// `SQLitePCLRaw.lib.e_sqlite3`,也就是 `runtimes/<rid>/native/e_sqlite3.dll`。
-    ///
-    /// **托管**那几件(`Microsoft.Data.Sqlite.dll` / `SQLitePCLRaw.*.dll`)不用管:
-    /// `LoadFrom` 会从插件所在的目录解出来。本机的走另一条路 —— 默认探测看的是**主程序**的
-    /// `deps.json`,而插件带的包不在那里面。解不出来就是一句 `TypeInitializationException`
-    /// 套着 `DllNotFoundException`,连"少的是哪个文件"都不说(所以报错那条也顺手改了,
-    /// 见 `Cli/Program.cs` 的 `Inner`)。
-    ///
-    /// 试过的另一条路:`AssemblyDependencyResolver`(读插件那份 `.deps.json`)。**它对
-    /// 不带 RID 的库 deps.json 认不出 `runtimeTargets`** —— 挂上之后 `e_sqlite3` 还是
-    /// 返回 null(实测)。所以改成自己按**当前 RID** 探两处,都在插件旁边:
-    /// 平铺那一层,和 NuGet 的老规矩 `runtimes/<rid>/native/`。
-    ///
-    /// 只在**默认解析都失败之后**才轮到这儿,所以 `ravel.dll` 这类共用件从来不会
-    /// 走到这条路来,也不会被解成插件目录里的一份。</summary>
     private static void HookDependencies(Assembly asm)
     {
         Dirs.Add(Path.GetDirectoryName(asm.Location)!);
@@ -489,8 +323,6 @@ internal static class PluginLoader
         };
     }
 
-    /// <summary>插件目录下按当前 RID 找一本机库:先平铺,再 `runtimes/&lt;rid&gt;/native/`。
-    /// 后缀三种都试 —— RID 已经说了是哪个平台,不必再问一遍 `OperatingSystem.IsWindows`。</summary>
     private static string? FindNative(string dir, string name)
     {
         var rid = RuntimeInformation.RuntimeIdentifier;
@@ -506,12 +338,9 @@ internal static class PluginLoader
         return null;
     }
 
-    /// <summary>装进来那些插件各自的目录,外加"口子挂没挂"</summary>
     private static readonly List<string> Dirs = [];
     private static bool _hooked;
 
-    /// <summary>模块名 → 那个模块的作用域。没见过的名字现建一个(和 `ravel "X"` 建模块一个做法)。
-    /// 名字是 `""` 就是**全局作用域**(不建模块)。</summary>
     private static Scope ScopeOf(Interpreter self, string name, Scope global, Dictionary<string, ModuleVal> modules)
     {
         if (name.Length == 0) return global;

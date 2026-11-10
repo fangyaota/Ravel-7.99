@@ -3,22 +3,8 @@ using System.Numerics;
 
 namespace Ravel.Runtime;
 
-/// <summary>**Ravel 值 ↔ .NET 值**。三个方向：
-///
-/// * **出**（<see cref="ToNet"/>）：Ravel → `object`。认识的那几种转，`DotNetVal` 脱壳，
-///   `list` → `object[]`；**Ravel 函数转不了**（那条硬边界，见下面那一支）。
-/// * **进**（<see cref="FromNet"/> / <see cref="ToRavel"/>）：`FromNet` **一律包成
-///   `DotNetVal`**，一个都不化 —— 化了**身份就掉**（`char[]` 变成 `list` 之后就再也
-///   交不回去了）；`ToRavel` 是 `.Unwrap ()` 走的那条，认识的就化。
-/// * **按目标类型转**（<see cref="To"/>）：`DotNetVal.ToObject T` 走这条。
-///   前两条是"我按自己那套给你"，这条是"**你要什么我给你什么**" ——
-///   生成的适配层要的正是后者（一个参数要 `IEnumerable<string>`，交个 `object[]`
-///   过去就是运行期炸）。
-///
-/// 从前这三条都住在 `Ravel.Reflect` 插件里（那个 `Bridge`），2026-10-07 搬进引擎。</summary>
 internal static class NetBridge
 {
-    /// <summary>Ravel → .NET。转不过去抛。</summary>
     public static object? ToNet(RuntimeValue v) => v switch
     {
         DotNetVal dn => dn.Value,
@@ -45,11 +31,8 @@ internal static class NetBridge
         _ => throw PluginKit.Fail($"这个值转不成 .NET 的值：{v.Type}", ErrorKind.Type),
     };
 
-    /// <summary>**`.NET → Ravel` 一律是 `DotNetObject`** —— 一个都不化。见类注释第二条。</summary>
     public static RuntimeValue FromNet(object? o) => new DotNetVal(o);
 
-    /// <summary>**强制**化成 Ravel 值 —— `.Unwrap ()` 走这条。认识的就化，
-    /// 不认识的兜成 `DotNetObject`（原地不动）。数组**也化**（"我要 Ravel 值，给我化掉"）。</summary>
     public static RuntimeValue ToRavel(object? o) => o switch
     {
         null => VoidVal.Instance,
@@ -69,7 +52,6 @@ internal static class NetBridge
         _ => new DotNetVal(o)
     };
 
-    /// <summary>它长什么样（给 `Reflect.Text` 和报错用）。</summary>
     public static string Show(object? o) => o is null ? "()" : o.ToString() ?? o.GetType().Name;
 
     // ── 按目标类型转 ──
@@ -77,16 +59,11 @@ internal static class NetBridge
     // 顺序是有讲究的：**先问注册表**，注册的能盖掉引擎自己那几条；内置那几条
     // 按"具体的先试"排（已经是它 → Nullable → 数组 → 泛型容器 → 枚举 → 数值）。
 
-    /// <summary>目标类型 → 怎么转。**插件在 C# 层加**（`PluginKit.RegisterConverter`）；
-    /// 引擎自己认得的那几种在 `To` 里写死。后注册的先问。</summary>
     private static readonly List<(Type Target, Func<object?, Type, object?> Conv)> Rules = [];
 
-    /// <summary>加一条。`target` 可以是**开放泛型**（`typeof (IEnumerable<>)`）——
-    /// 那就在"泛型定义对得上"的时候用它。</summary>
     public static void Register(Type target, Func<object?, Type, object?> conv)
         => Rules.Add((target, conv));
 
-    /// <summary>把这个 .NET 值转成 `target`。转不过去**说清是什么、要什么**。</summary>
     public static object? To(object? v, Type target, string what)
     {
         if (v is null) return null;

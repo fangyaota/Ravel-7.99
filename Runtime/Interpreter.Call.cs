@@ -1,10 +1,7 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
-/// <summary>调用分派:把「函数值 + 一个参数」变成帧栈上的一步。
-/// sink 是结果接收帧——同步值走 sink.WithResult,延迟求值(块/类/控制/续延)把 sink 当作新帧的父。</summary>
 public partial class Interpreter
 {
-    /// <summary>调用函数:结果流向 sink 帧(sink.WithResult 累积,或作为推帧的父)。CallExpr 用 sink=callFrame.Parent</summary>
     private void CallInto(Frame sink, RuntimeValue fn, RuntimeValue arg)
     {
         switch (fn)
@@ -153,12 +150,6 @@ public partial class Interpreter
         }
     }
 
-    /// <summary>调用一个类对象 = 实例化它。**只有一条路**：推 ClassInit 控制帧,
-    /// 建 scope、跑各层类体、调用类体里定义的 `init`,并交出 init 的返回值。
-    ///
-    /// 内置类和用户类走的是同一条(S1 那条 "有 Initializer 就同步转换" 的分叉没有了)——
-    /// `int 42` 得 42,是因为 `Integer` 的预设类体里写着 `init := <CastToInt>`。
-    /// 没有类体的类型(Every/Any/Ravel/Scope/Property/Object…)照旧不能当构造器调。</summary>
     private void CallClassInto(Frame sink, ClassVal t, RuntimeValue arg)
     {
         if (t.ClassBody == null)
@@ -173,14 +164,12 @@ public partial class Interpreter
 
     // ======================== 合成控制帧的推帧助手 ========================
 
-    /// <summary>复合赋值通用帧:CallInto 算运算符,完成时把结果赋回目标变量</summary>
     private void PushCallAssign(NodeFrame nf, FunctionVal bound, RuntimeValue arg, string target)
     {
         var args = RList<RuntimeValue>.Empty.Add(bound).Add(arg).Add(new StringVal(target));
         _top = new ControlFrame(ControlKind.CallAssign, args, VoidVal.Instance) { Parent = nf.Parent, Scope = nf.Scope };
     }
 
-    /// <summary>调用副作用函数(setter),完成后返回固定结果。Args=[fn, arg, result]</summary>
     private void PushCallReturn(Frame parent, FunctionVal fn, RuntimeValue arg, RuntimeValue result)
     {
         var args = RList<RuntimeValue>.Empty.Add(fn).Add(arg).Add(result);

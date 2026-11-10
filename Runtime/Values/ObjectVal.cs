@@ -1,41 +1,9 @@
 namespace Ravel.Runtime;
 
-/// <summary>对象——**实例和类用的是同一个表示**。
-///
-/// 一个对象"是类" ⟺ 它的 Scope 里有 `parent`(父类对象) 和 `block`(类体) 两个成员;
-/// 没有就是普通实例。类性不另设 C# 字段,这让"类"和"实例"彻底同构,
-/// 元类要的「一个类被另一个类造出来」才有地方安放。
-///
-/// `ClassType` 是它的**元类**(创建它的那个类对象)。`typeof X` 就是取这个。
-/// `type` 的元类是它自己(自指,链的起点)。
-///
-/// 成员全在 <see cref="Scope"/> 里——方法、字段、`init`、`parent`、`block` 一视同仁。
-/// 沿原型链的查找见 <see cref="LookupInChain{T}"/>。</summary>
 public record ObjectVal : RuntimeValue
 {
-    /// <summary>元类(创建者)。**类型是 `ClassVal`** —— 能当元类的必然是类对象,
-    /// 于是"ClassType 一定是个类"由编译器看着。
-    ///
-    /// 允许为 null 的只有 `FunctionVal` 那一支(它先调基类 ctor 再填自己,静态初始化期间
-    /// `BuiltinClasses.Function` 也还没造出来),读的时候走 `Type` 就会回填。
-    /// 自指只有 <see cref="ClassVal"/> 能表达(它自己就是类),所以那里是 `?? this`。</summary>
     public ClassVal ClassType { get; internal set; }
 
-    /// <summary>这个值的成员表。**懒建**:不传就是"这个值没有自己的成员表",等**真有人读**的时候
-    /// 才开一层。
-    ///
-    /// 为什么值得懒 —— 有一大批值**从来没人读它的成员表**,而它照样每个都先建一层:
-    /// 原子值(那些 `members ?? new Scope ()` 的调用点)、以及**每求值一次条件就造一个**的
-    /// `PartialBool`(`true 块1 块2` 的中间值,`CallInto` 那一臂只读它的 `Value` / `Then`)。
-    /// 量过:一台裸 `while` 循环每轮建 8 个作用域,**其中 4 个是 `PartialBool` 白送的**
-    /// (见 CONTEXT「作用域」那节)。
-    ///
-    /// 懒建的代价是这层判空 —— 它落在取成员那条热路上,所以只值一个 `??=`,
-    /// 别在这儿加别的东西。**建出来之后身份就定了**(`??=` 只可能赋一次),
-    /// 于是 `ReferenceEquals` 那些照旧成立。</summary>
-    /// <remarks>建出来的是**这张表自己**(<see cref="MemberTable"/>),可写 ——
-    /// 类体各层实例化时把成员定义进这张表,之后成员的读写都在它上面。
-    /// 子类(值类型那些)可以覆写成自己的表。</remarks>
     public virtual Scope Scope => _scope ??= new Values.MemberTable(this);
 
     private Scope? _scope;
@@ -51,74 +19,32 @@ public record ObjectVal : RuntimeValue
         if (scope is not null) scope.MemberOf = this;
     }
 
-    /// <summary>最多列几个字段,超出用 ... 收尾</summary>
     private const int MaxFields = 8;
 
     // 成员名——机制内部用,别在 C# 里到处写字符串
     internal const string ParentMember = "parent";
-    /// <summary>接口的**要求**表(`interface 某接口 [A B] { … }`):实现这个接口的类,
-    /// **必须已经**有那些接口的实现。和 `parent` 是两回事 —— 父是**继承**(槽并进来、`<:` 成立),
-    /// 要求是**前置条件**(槽不并、只查有没有;见 `StepImplMake`)。只有写了要求的接口才有这一条。</summary>
     internal const string RequiresMember = "requires";
     internal const string BlockMember = "block";
     internal const string NameMember = "name";
-    /// <summary>构造器。**它是 protected 的**(见 `BuiltinClasses.PresetCtor` 给它挂的
-    /// `Attr.Protected`):类体系里照旧随便用 —— 子类写 `init = …` 覆盖那条走的是普通赋值,
-    /// 不受门禁拦;而 `obj.init` / `obj.init = …` 从外面读不到也写不了
-    /// (`Interpreter.CheckMemberAccess` 那一层:protected 只放行"当前作用域在这个类体系里")。</summary>
     internal const string InitMember = "init";
     internal const string ThisMember = "this";
-    /// <summary>属性(`by x := property g s`)的两个函数:读走 `Get`、写走 `Set`。
-    /// 它们**不是作用域里的成员** —— `BoxedValue.GetMember` 对 <see cref="PropertyVal"/>
-    /// 特判这两个名字。收成常量的理由和上面那几个一样:拼错一个字母编译器一句话不说。</summary>
     internal const string GetterMember = "Get";
     internal const string SetterMember = "Set";
-    /// <summary>`thistype` 只是**保留字**(见 Parser 的 ReservedWords),不定义一个成员:
-    /// 从前它由 `type` 的建类逻辑装到类对象上,和 `base` 一起随那套机制删了。</summary>
     internal const string ThisTypeMember = "thistype";
 
     public override ObjectVal Type => ClassType;
 
-    /// <summary>取成员 = 读**自己这张成员表**。"自己那层"与"类链上那些"是同一张表:
-    /// 类体各层实例化时已经平铺进来,引擎给这一类挂的成员在注册表里按名兜底
-    /// (见 <see cref="VirtualScope"/>) —— 没有第二次跳转,也没有只读视图。
-    ///
-    /// **类对象读的是它自己那张表**:类这侧的数据(`name`/`parent`/`block`/类侧方法)
-    /// 与给实例的成员分在两个地方,所以 `list.Add 2` 报的是「类型 'Type' 没有方法 'Add'」。
-    /// 这是结构决定的,不靠标记。</summary>
     public override Scope MemberScope => Scope;
 
     public override bool HasOwnMembers => true;
-
 
     // ============================================================
     //  类性:读 Scope 里的成员
     // ============================================================
 
-    /// <summary>这个对象是个类吗?判据是**它的元类继承自 `type`**。
-    ///
-    /// - `C := class {...}` 的元类是 `type` ✓
-    /// - 元类建的类,元类是那个元类(它也继承自 `type`)✓
-    /// - `type` 自己元类自指 ✓
-    /// - 实例的元类是它的类,而那个类的 parent 链走到 `Object` 就停、够不着 `type` ✗
-    ///
-    /// 走的是**类型关系**,不是"某个成员名在不在"——后者是鸭子类型该管的事,
-    /// 会跟 interface/shape 的判据混在一起。
-    ///
-    /// 走 <see cref="RuntimeValue.Type"/> 而不是 `ClassType`:`FunctionVal` 的 ClassType
-    /// 是懒回填的,直接读可能拿到 null(`Brief` 会对每个 ObjectVal 型字段求这个值)。</summary>
     public bool IsClass => Type.IsAssignableTo(BuiltinClasses.Type);
-    /// <summary>父类对象(原型链的上游)。自引用(如 `object`/`Every`/`Any`)表示链到头。</summary>
     public ObjectVal? Parent => Scope.LookupField(ParentMember)?.Value as ObjectVal;
 
-    /// <summary>类体——实例化时重跑的配方。内置类的预设类体是 C# 侧装上去的
-    /// (见 BuiltinClasses.PresetBody),用户类的类体由 `type` 的 init 装(见 Install)。
-    ///
-    /// 装好之后**只读**(和 `parent` 一个道理:换类体等于把类换一个)。引擎侧那些装类体的
-    /// 地方都在造类的那一刻写一次,所以这里挂着 `Readonly` 不影响它们。
-    ///
-    /// 名字不叫 `Body`:`FunctionVal` 已经占了那一个(函数的同步体),而类对象现在**也是**
-    /// `FunctionVal`(见 <see cref="ClassVal"/>)。两个"体"住同一个类型上,各叫各的。</summary>
     public BlockVal? ClassBody
     {
         get => Scope.LookupField(BlockMember)?.Value as BlockVal;
@@ -129,43 +55,12 @@ public record ObjectVal : RuntimeValue
         }
     }
 
-    /// <summary>**拼在类体后面的那些块** —— `body.Append { … }` 交给建类那一步时,主块
-    /// (<see cref="ClassBody"/>)之外的每一块都记在这儿(摊平见 `BuiltinClasses.Install`)。
-    ///
-    /// 它们和主块**同属一层**:实例化时接着主块跑、落进同一张实例表,作用域也照**主块的写法处**
-    /// 解析(见 `Interpreter.StepClassInit` 那个 `LayerScope`)。所以"往一个类体里补几条成员"
-    /// 不必动语法、也不必改类体本身 —— 元类(`class type { … }`)就是靠这个注入的:
-    ///
-    ///     dataclass ::= class type {
-    ///         private parentInit := init;
-    ///         init = (body: function) => { parentInit object (body.Append 注入); this; }
-    ///     }
-    ///
-    /// 和 <see cref="ClassBody"/> 一样是**建类时一次**的事(那时才写),之后只读着用。</summary>
     internal IReadOnlyList<BlockVal> BodyExtras { get; set; } = [];
 
-    /// <summary>**密封了吗** —— `seal 某个类` 之后为真:此后不能再被继承
-    /// (接口则是**不能再被实现**)。见 `BuiltinClasses.SealedUp` 与 `SysReflection.Seal`。
-    ///
-    /// 判据是"自己**或任一祖先**密封了" —— 密封一个类,意思是**它的继承链到此为止**:
-    /// 已经存在的那层子类下面也不能再长(`C <: B <: A`,A 密封之后 C 一样进不来)——
-    /// 不然密封就成了一句只挡直接子类的话。接口同理:实现了**子接口**照样是在实现它。</summary>
     internal bool IsSealed;
 
-    /// <summary>这个接口的**要求表**(`interface [A B] { … }`)—— 没有要求就是 `null`。
-    ///
-    /// 要求是**前置条件**,不是继承:**槽不并**(实现者得像 `impl (IEnumerable X { … })`
-    /// 那样自己登记一条,引擎在造实现那一步查"有没有"),但**`<:` 成立** ——
-    /// 实现了 `IList` 也就是 `IEnumerable`,`IsAssignableTo` 会顺着这张表走。
-    ///
-    /// 存这一格(而不是只存 Ravel 看得见的 `requires` 成员)是因为 `IsAssignableTo`
-    /// 在每个类型判断的路径上,那儿不能去查作用域。</summary>
     internal List<ObjectVal>? Requires;
 
-    /// <summary>类名/函数名。`C := class {...}` 建的类**没有名字**(只有 `::=` 会命名)。
-    ///
-    /// 是成员表里的一个普通成员,所以函数和类对象一视同仁地有它
-    /// (`::=` 命名、`F.name` 读写都落在这一条上)—— 不需要另立一个接口来统一两者。</summary>
     public string? Name
     {
         get => (Scope.LookupField(NameMember)?.Value as StringVal)?.Value;
@@ -175,41 +70,15 @@ public record ObjectVal : RuntimeValue
         }
     }
 
-    /// <summary>显示用的名字。空名字会让报错变成「类型 '' 不支持运算符」,所以退化成 "class"</summary>
-    /// <summary>**虚的**:模块要盖掉它(见 <see cref="ModuleVal"/>)—— 模块的类对象统一是
-    /// `Ravel`,照这条走的话 `System.Class` 打错一个字会报「类型 'Ravel' 没有方法 'Class'」,
-    /// 而用户写的是 `System`,从头到尾没提过 Ravel。</summary>
     internal virtual string DisplayName => Name is { Length: > 0 } n ? n : "class";
 
     // ============================================================
     //  成员查找 / 类型判定
     // ============================================================
 
-    /// <summary>机制成员名 —— 它们**不是方法**:是类对象自己身上的数据(原型链指针、类体、
-    /// 构造器、`this`)。实例不该沿类型链把它们"继承"到,理由和"对象是扁平的"一致。
-    ///
-    /// `Fields ()` 列成员(<see cref="ClassVal.MethodNames"/>)时排掉它们、沿类链查找
-    /// (<see cref="MemberView.LookupInClassChain"/>)时也要排掉 —— **两处必须同一份定义**。
-    ///
-    /// 从前这条是**主判据**(机制成员和内置方法住在同一张表里,只能按名字挑);两张表分开
-    /// 之后,机制成员根本不进**给实例的那张表**,结构上就漏不出去 —— 留着它是保险:
-    /// 机制成员一旦被沿链找到、再被当方法绑到非对象 receiver 上,`(ObjectVal)self` 硬转
-    /// 就是打穿程序的 C# InvalidCastException,而这条只有几个字符串比较的代价。
-    ///
-    /// `this` 是**类对象**才会有的一个:类对象就是 `type` 的实例,而实例化时
-    /// `instanceScope.Define("this", …)` —— 那份实例作用域**正是这个类对象的成员表**。
-    /// 从前它没被列成方法是撞运气:那个值不是 FunctionVal。类对象现在也是 FunctionVal 了
-    /// (见 <see cref="ClassVal"/>),不排掉的话 `Fields ()` 会多出一个 `this`。
-    ///
-    /// `call` 从前也在这个名单里 —— 它现在是普通成员名了(类对象不再靠它表示"可调用"),
-    /// 用户叫 `call` 的方法照常列出来。</summary>
     internal static bool IsMethodName(string n)
         => n is not (BlockMember or ParentMember or RequiresMember or NameMember or InitMember or ThisMember);
 
-    /// <summary>this 是否兼容 target?即 this &lt;: target。底类型 Every 全局特判(它是所有类的子类)。
-    ///
-    /// 两根都走:**parent 原型链**(类那一支),以及链上每一层的**要求表**
-    /// (接口那一支,`interface [A B] { … }` —— 要求给 `<:`,只是不给槽)。</summary>
     public bool IsAssignableTo(ObjectVal target)
     {
         if (this == BuiltinClasses.Every) return true;
@@ -239,9 +108,6 @@ public record ObjectVal : RuntimeValue
         }
     }
 
-    /// <summary>绑定方法 self:方法值存为 Curried(self, arg),绑 self 得等待 arg 的函数。
-    /// 顺带把名字带上 —— 绑完的仍是个普通 `FunctionVal`,名字是它能显示的唯一线索
-    /// (`print (1.+)` → `<function +>` 而不是光秃秃的 `<function>`)。</summary>
     public static FunctionVal BindMethod(FunctionVal methodFn, RuntimeValue self)
     {
         var bound = (FunctionVal)methodFn.Body(self);
@@ -253,9 +119,6 @@ public record ObjectVal : RuntimeValue
     //  显示
     // ============================================================
 
-    /// <summary>类是打印它的名字(`print C` → `class`);实例打印字段列表(`class { x = 1 }`)。
-    /// **异常一族例外**:显示成它的 `Message`(从前 `ExceptionVal.ToString` 那条规矩,现在挪到
-    /// 这儿 —— `"E: " + string e` 那一片都靠它)。</summary>
     public override string ToString()
         => IsClass ? DisplayName
          : BuiltinClasses.ExceptionMessage(this) is { } msg ? msg
@@ -282,8 +145,6 @@ public record ObjectVal : RuntimeValue
         return fields.Count == 0 ? name + " {}" : name + " { " + string.Join(", ", fields) + " }";
     }
 
-    /// <summary>字段值的短形式:嵌套的对象/集合不再展开。列表本身就展开元素,
-    /// 这里跟着展开的话,`a.Add a` 这种自引用会直接把栈打爆。</summary>
     private static string Brief(RuntimeValue v) => v switch
     {
         // 类对象显示名字,实例显示 `类名 {...}`
@@ -303,9 +164,6 @@ public record ObjectVal : RuntimeValue
     //  相等性 = 身份
     // ============================================================
 
-    /// <summary>**必须按身份比**,不能用 record 自动生成的相等:那会递归比较 `ClassType`,
-    /// 而 `type` 的 ClassType 是它自己——比较两个类对象会直接转不出来。
-    /// 这也正是要的语义:对象(含类)在集合里按身份算,标量才比值。</summary>
     public virtual bool Equals(ObjectVal? other) => ReferenceEquals(this, other);
 
     public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);

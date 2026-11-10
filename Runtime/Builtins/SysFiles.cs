@@ -3,13 +3,6 @@ namespace Ravel.Runtime;
 using static Ravel.Runtime.Interpreter;
 using static Ravel.Runtime.SysKit;
 
-/// <summary>`System` 的文件系统原语 —— **只做 syscall,不做策略**。
-///
-/// 失败就报 Ravel 错误(中文、带路径);"要不要先问一句"交给 `FileExists` / `DirExists`
-/// 那两个探针,它们**不报错**。路径基准 = 进程当前目录;不做沙箱 —— 和 `using` 找模块
-/// 一个待遇,用户自己负责。那些预检查是为了消息说人话;`Fs` 那层兜底是为了不让 C# 异常
-/// 漏到顶层(目录不存在、没权限、路径里有非法字符…… 漏出去会绕过 Ravel 的 try 把程序打掉,
-/// 和这批原语一条道理)。</summary>
 internal static class SysFiles
 {
     [Sys("FileExists")]
@@ -46,8 +39,6 @@ internal static class SysFiles
         return VoidVal.Instance;
     });
 
-    /// <summary>字节那两条:和文本那三条对称 —— 字节表就是 `Encoding` / `Random.Bytes` / `Bits`
-    /// 用的那串 0..255。加它之前那些字节表只能在自己肚子里转,存不下来也读不回来。</summary>
     [Sys("ReadBytes")]
     public static RuntimeValue ReadBytes(RuntimeValue a) => Fs("读字节", () =>
     {
@@ -129,7 +120,6 @@ internal static class SysFiles
         }));
     }
 
-    /// <summary>删文件,或删**空**目录 —— 不提供递归删除(那是个危险默认值)</summary>
     [Sys("DeletePath")]
     public static RuntimeValue DeletePath(RuntimeValue a) => Fs("删除", () =>
     {
@@ -147,7 +137,6 @@ internal static class SysFiles
         return VoidVal.Instance;
     });
 
-    /// <summary>父目录一并建;已存在不算错</summary>
     [Sys("CreateDir")]
     public static RuntimeValue CreateDir(RuntimeValue a) => Fs("建目录", () =>
     {
@@ -221,9 +210,6 @@ internal static class SysFiles
         return VoidVal.Instance;
     });
 
-    /// <summary>按行切开。Ravel 的字符串是不透明的(只有 Length 和拼接),这事只能在这层做:
-    /// 按换行符切,顺手去掉每行末尾那个回车(Windows 的换行是回车+换行);
-    /// 末尾的空行不产出(文件最后有个换行是常态,不该多出一行空的),中间的空行保留。</summary>
     [Sys("SplitLines")]
     public static RuntimeValue SplitLines(RuntimeValue a) => Fs("按行切", () =>
     {
@@ -244,9 +230,6 @@ internal static class SysFiles
     // ── 路径函数 ──
     // 交给 .NET 的 Path(分隔符、盘符、`..` 这些自己写容易错)。
 
-    /// <summary>规整路径:去掉末尾的分隔符(`sub/` 和 `sub` 当同一个)。**不转绝对路径** ——
-    /// 组件里存的是用户给的那个,打印出来才是人看的(代价是中途 ChDir 会让早先的条目走样)。
-    /// `TrimEndingDirectorySeparator` 会保住根(`/`、`C:/`)。</summary>
     [Sys("PathClean")]
     public static RuntimeValue PathClean(RuntimeValue a) => Fs("规整路径", () =>
         new StringVal(Path.TrimEndingDirectorySeparator(PathOf(a, "PathClean"))));

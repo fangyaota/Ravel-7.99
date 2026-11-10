@@ -5,14 +5,6 @@ namespace Ravel.Runtime;
 using static Ravel.Runtime.Interpreter;
 using static Ravel.Runtime.SysKit;
 
-/// <summary>`System.Cmd` —— 跑外部命令。
-///
-/// 走**系统 shell**(Windows 上是 `cmd.exe /c`,别处 `/bin/sh -c`):管道、重定向、通配符
-/// 这些都归它管,我们不解析。**非零退出码不是错误** —— 程序失败是常事,原样放在 `code` 里
-/// 交给调用方判断(真正起不来进程才是错)。
-///
-/// 交回的是一张 dict:`out`(标准输出)/ `err`(标准错误)/ `code`(退出码)。
-/// 两路输出**同时**抽走(各自一个线程)—— 顺序读会在大输出时死锁。</summary>
 internal static class SysCmd
 {
     // 两条路,同一个实现 —— 和 HTTP 那边一个规矩:
@@ -63,15 +55,6 @@ internal static class SysCmd
         return ms.ToArray();
     }
 
-    /// <summary>`System.Open x` —— **交给系统去打开**:文件用默认程序(网页就开默认浏览器),
-    /// 网址也一样。是"打开它"而不是"跑它",所以**不等它关掉**,立刻交回来。
-    ///
-    /// 为什么要引擎里出一条:这件事**每台机器做法都不一样**(Windows `start` / macOS `open` /
-    /// Linux `xdg-open`),而库里要判平台只能去嗅环境变量 —— 判错了就是"什么都没发生",
-    /// 静默失败。.NET 那一条 `UseShellExecute = true` 正好是"让系统自己决定拿谁开"的
-    /// 跨平台说法,而且**不走 shell**:路径里的空格、中文、`&` 都不用自己转义。
-    ///
-    /// 打不开就报 `IoError` —— 目标不存在、没有默认程序、被策略挡了,都落这儿。</summary>
     [Sys("Open")]
     public static RuntimeValue Open(RuntimeValue a)
     {
@@ -103,9 +86,6 @@ internal static class SysCmd
         return VoidVal.Instance;
     }
 
-    /// <summary>外部命令的输出按什么编码解?——**先按 UTF-8 试,不合法就退回控制台编码**。
-    /// 两边都常见:git / python 那些吐 UTF-8,而 `dir` 这类走的是控制台那套(中文 Windows
-    /// 上就是 GBK)。合法的 UTF-8 里出现 GBK 字节的概率极低,所以这个判据够用。</summary>
     public static string DecodeOutput(byte[] bytes)
     {
         try

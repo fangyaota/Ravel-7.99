@@ -3,29 +3,12 @@ namespace Ravel.Runtime;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
-/// <summary>内置类的一个实例方法,名字就是 Ravel 里那个成员名。
-///
-/// 签名:**第一个参数是接收者**(`RuntimeValue self`),后面 0~2 个 `RuntimeValue` ——
-/// 多参自动柯里化(和 `[Sys]` 那边一样,交给 `FunctionVal`)。</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class ClassMethodAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 }
 
-/// <summary>这个类的一个**属性** —— 一个名字、两个方向(`sb.Length` 读、`sb.Length = 10` 写)。
-///
-/// 签名和 <see cref="ClassMethodAttribute"/> 同一个形状:
-/// `static RuntimeValue Name(RuntimeValue self, RuntimeValue arg)` ——
-/// **读的时候那一格收到的是 `()`**(和 [ClassCtor] 一样,"没给"就是 `()`),写的时候收到新值。
-/// 所以**一份方法**就够,不必发明 `GetLength` / `SetLength` 两个名字 —— 那正是 `by` 要免掉的。
-///
-/// 装进实例表时那格是 `by` 槽(`Attr.By`)、值是 getter/setter 一对 —— 和 Ravel 里
-/// `by x := property g s`、接口那条槽是**同一个机制**。用户看到的就是普通属性:
-/// 读、写、`+=` 都按属性那套走。
-///
-/// <see cref="ReadOnly"/> 只给 getter 那一半:写进不来,由引擎在**槽上**拦
-/// (`Variable.CheckWritable`),不指望生成的那段体自己报错。</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class ClassPropertyAttribute(string name) : Attribute
 {
@@ -33,55 +16,23 @@ public sealed class ClassPropertyAttribute(string name) : Attribute
     public bool ReadOnly { get; set; }
 }
 
-/// <summary>这个类的构造器 —— `Stack ()` / `Heap [3 1 2]` 走的就是它。
-/// 签名 `static RuntimeValue New(RuntimeValue arg)`(不给实参时收到的是 `()`)。</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class ClassCtorAttribute : Attribute;
 
-/// <summary>这个类的一个**运算符** —— `a + b` / `a == b` 走的就是它。
-///
-/// 签名和 <see cref="ClassMethodAttribute"/> **同一个形状**:`(RuntimeValue a, RuntimeValue b)`,
-/// 两个操作数都递进来。区别在**认不认接收者**:普通方法第一个参数是"谁在调",
-/// 运算符没有"谁" —— 两边地位一样(`Interpreter.BindOperator` 查的也是
-/// `left.MemberScope`,查到了直接 `Impl(left, right)`,不绑 self)。
-///
-/// 名字得在 `OperatorSymbols.All` 里(`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=`
-/// `&` `|` `^` `<<` `>>` `<<<` `>>>` …)—— **装的时候就查**,
-/// 写错了当场报,不留到运行期(`a <> b` 那种根本解析不出来)。
-///
-/// `:` / `!` / `&&` / `||` **不在**那一档:它们归求值器特判,类型这一层插不了手。</summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class ClassOpAttribute(string op) : Attribute
 {
     public string Op { get; } = op;
 }
 
-/// <summary>这个类的一个**现成的值成员** —— 打在 `private static readonly RuntimeValue`
-/// 字段上,字段里那个值**就是**成员(`SeqMethod` / `TraitQuery` 这类不是普通方法的成员)。
-///
-/// 为什么要有这一条:`[ClassMethod]` 表达的是"一个静态方法,调用时把 self 递进去";
-/// 而容器的高阶方法(`list.Map f`)和 `Type` 的 `GetImplements` 是**已经做好的函数值**
-/// (各自知道自己吃几参、怎么推帧),包一层方法只会多一道转发。字段在静态初始化时
-/// 建好,`MemberSet.Scan` 收名字、`Create` 直接把那个值交出去。
-///
-/// 造出来那格只读 —— 和 `[ClassMethod]` 那些一样,成员不是拿来重新赋值的。</summary>
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class ClassValueAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
 }
 
-/// <summary>类的**绑定**那一格:把 `[ClassMethod]` / `[ClassCtor]` 的方法变成 Ravel 认的东西
-/// (实例成员 / 预设类体),外加两件反射的杂活。
-///
-/// 从前这里还有"扫整个程序集建内置类"那一趟(`[BuiltinClass]`)—— 数据结构搬进插件之后,
-/// 主项目里已经没有用那条路声明出来的类了,那一趟就删了。**装配现在只有一条路**:
-/// `PluginLoader` 在 `using "x.dll"` 时跑(见 `PluginApi.cs`)。</summary>
 internal static class ClassRegistry
 {
-    /// <summary>把一个"模块里的函数"方法(`[Sys]` / `[RavelFn]` 那些)绑成函数值:
-    /// 1~3 个 `RuntimeValue`,**开头可以是 `Interpreter`**(要用引擎的那种)。
-    /// 内置那趟和插件那趟共用这一条 —— 规矩只有一处。</summary>
     internal static FunctionVal Fn(Interpreter? self, MethodInfo m)
     {
         var ps = m.GetParameters();
@@ -112,10 +63,6 @@ internal static class ClassRegistry
         };
     }
 
-    /// <summary>调那个方法。**要把反射那层壳剥掉**:`MethodInfo.Invoke` 会把方法里抛的
-    /// 异常包成 `TargetInvocationException` —— 那玩意儿不是 `RuntimeException`,
-    /// 求值器接不住、Ravel 层更接不住,一路打成「解释器内部错误」。
-    /// (`ExceptionDispatchInfo` 是为了把栈保住。)</summary>
     internal static RuntimeValue Call(MethodInfo m, object?[] args)
     {
         try
@@ -129,22 +76,12 @@ internal static class ClassRegistry
         }
     }
 
-    /// <summary>把一个 `[ClassProperty]` / `[RavelProperty]` 方法包成 getter/setter **一对**
-    /// —— **同一个方法的两遍**:调用方读的时候递 `()`、写的时候递新值(那一格收到什么就是什么,
-    /// 和 `[ClassCtor]` 一个口径)。所以一份方法就够,不必发明 `GetX` / `SetX` 两个名字。
-    ///
-    /// 那两个函数**不是** `ISelfBinding`:
-    ///   * 模块那条(`[RavelProperty]`)**没有接收者**,原样交出去正好;
-    ///   * 类那条(`[ClassProperty]`)的接收者由 `BuiltinClasses.BindProperty` 在
-    ///     **读成员的那一刻**绑(那儿用的就是 `Bind` 出来的 `BuiltinMethodVal`)。</summary>
     internal static PropertyVal PropertyOf(Interpreter? self, MethodInfo m)
     {
         var acc = Fn(self, m);
         return new PropertyVal(acc, acc);
     }
 
-    /// <summary>把一个 `[ClassMethod]` 方法包成实例成员:第一个参数是接收者,
-    /// 后面 0~2 个实参(多参柯里化,和 `[Sys]` 那套一个走法)。</summary>
     internal static BuiltinMethodVal Bind(ClassVal cls, MethodInfo m, string name)
     {
         var ps = m.GetParameters();

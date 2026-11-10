@@ -2,18 +2,6 @@ namespace Ravel.Runtime;
 
 using Ravel.Runtime.Values;
 
-/// <summary>**`Dict` 这个类给它的实例准备什么。**
-///
-/// 字典自己那几条:按键取/放/问/删,把键、值铺成表,以及"明知可能没有"的 `GetOr`。
-/// 序列那一批从 `SequenceMembers` 继承 —— 字典在序列这个身份下给的是**值**
-/// (按键找用 `Has` / `Keys ()`)。
-///
-/// 几条带 `Sys` 前缀的是**底层**名字(`dict.SysGet` 之类):语法的下标写法
-/// (`d "k"` / `d "k" = v`)和 `lib/` 里的实现都落到它们身上,普通用户的读法是
-/// `d "k"`。前缀就是提醒"这是我让你别直接调的"。
-///
-/// 从前这些挤在 `RegisterDictMethods` 里;搬过来之后字典有哪些成员就是这个类有哪几个
-/// `[ClassMethod]`。</summary>
 internal sealed class DictMembers : SequenceMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(DictMembers), ObjectMembers.Set);
@@ -48,7 +36,6 @@ internal sealed class DictMembers : SequenceMembers
     [ClassMethod("Values")]
     private static RuntimeValue Values(RuntimeValue self) => new ListVal([.. ((DictVal)self).Entries.Values]);
 
-    /// <summary>有没有删掉(C# 也交回 bool)。</summary>
     [ClassMethod("SysRemove")]
     private static RuntimeValue SysRemove(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.Remove(BuiltinClasses.KeyArg(arg, "dict.SysRemove 的键")));
@@ -57,9 +44,6 @@ internal sealed class DictMembers : SequenceMembers
     private static RuntimeValue HasValue(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.ContainsValue(arg));
 
-    /// <summary>`d.GetOr "k" 0` —— 有就取值,没有就给替代值(C# 的 GetValueOrDefault)。
-    /// 默认的 `Get` 是**响亮**的(键不存在就报错),这个是"明知可能没有"时用的。
-    /// 柯里化:第一参是键,交回的函数再收替代值。</summary>
     [ClassMethod("SysGetOr")]
     private static RuntimeValue SysGetOr(RuntimeValue self, RuntimeValue arg)
     {

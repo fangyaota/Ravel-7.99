@@ -5,11 +5,6 @@ namespace Ravel.Runtime;
 using static Ravel.Runtime.Interpreter;
 using static Ravel.Runtime.SysKit;
 
-/// <summary>`System` 的时间原语。
-///
-/// 一个时刻就是"1970-01-01 00:00:00 UTC 起的**毫秒数**"(bigint —— 毫秒那个数量级 int 装不下)。
-/// 原语只做换算,不做判断:显示成什么样、哪天算一周开头,都是库(lib/time.rav)的事。
-/// 时区一律**本地**;格式串按 .NET 那一套(`yyyy-MM-dd HH:mm:ss`),这几条只负责转交。</summary>
 internal static class SysTime
 {
     [Sys("NowMs")]
@@ -46,8 +41,6 @@ internal static class SysTime
         return new BigIntVal(new DateTimeOffset(t).ToUnixTimeMilliseconds());
     });
 
-    /// <summary>睡一会儿。0 或负数就是"什么都不等"(`retries` 退避算出来是 0 很正常,别为这个报错),
-    /// 拿它限速也是这个用法 —— 「别把人家服务器打疼了」。</summary>
     [Sys("Sleep")]
     public static RuntimeValue Sleep(RuntimeValue a) => Fs("等待", () =>
     {
@@ -74,8 +67,6 @@ internal static class SysTime
         return new BigIntVal(new DateTimeOffset(t).ToUnixTimeMilliseconds());
     });
 
-    /// <summary>把 Ravel 那个"毫秒数"收成 <see cref="DateTime"/>(本地时区)。
-    /// 收 int 也收 bigint —— 手写 `Time 0` 那种小常量不该被迫写 `bigint 0`。</summary>
     public static DateTime LocalTime(RuntimeValue v, string what) => v switch
     {
         BigIntVal b => DateTimeOffset.FromUnixTimeMilliseconds((long)b.Value).LocalDateTime,
