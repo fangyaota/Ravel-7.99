@@ -81,6 +81,44 @@ internal sealed class MemberSet : IMemberSet
         return set;
     }
 
+    /// <summary>把几份成员集**接成一条**:先问第一份,没有再问第二份……
+    ///
+    /// 一个类的成员可以按来源分开放(`String` 的运算符在 `Operators.cs` 那份、方法在
+    /// `Methods.cs` 那份),建类时把它们接起来就行 —— 不用为"一个类只能有一份"把两个
+    /// 源文件塞进同一个 `Scan`。名字按给出的顺序去重。</summary>
+    internal static IMemberSet Combine(params IMemberSet[] sets) => new Combined(sets);
+
+    private sealed class Combined(IMemberSet[] sets) : IMemberSet
+    {
+        public IEnumerable<string> Names
+        {
+            get
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var set in sets)
+                    foreach (var name in set.Names)
+                        if (seen.Add(name)) yield return name;
+            }
+        }
+
+        public FunctionVal? Ctor
+        {
+            get
+            {
+                foreach (var set in sets)
+                    if (set.Ctor is { } ctor) return ctor;
+                return null;
+            }
+        }
+
+        public Variable? Create(ClassVal owner, string name)
+        {
+            foreach (var set in sets)
+                if (set.Create(owner, name) is { } v) return v;
+            return null;
+        }
+    }
+
     /// <summary>这个方法是哪种成员。没标特性(或者标了个不认识的)就是 null。</summary>
     private static (string? Name, MemberKind Kind, bool ReadOnly) Classify(MethodInfo m)
     {
