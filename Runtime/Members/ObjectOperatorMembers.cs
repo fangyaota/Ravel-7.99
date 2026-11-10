@@ -3,7 +3,8 @@ namespace Ravel.Runtime;
 using Ravel.Runtime.Values;
 
 /// <summary>**`Object` 这个类给它的实例准备什么** —— 运算符那一份(通用方法在
-/// `ObjectMembers` 里,建类时用 `MemberSet.Combine` 把两份接成一条)。
+/// `ObjectMembers` 里,`AttachMembers` 里 `Object.Members` 接的是**这一份**,它的父
+/// 就是 `ObjectMembers`,所以通用方法跟着来,不必再 `Combine` 一遍)。
 ///
 /// 这一份放的是**每个值都够得着**的那几个:`:`(类型判定)、`==` / `!=`(按值或按身份),
 /// 以及类型之间的 `&lt;:` / `:>`。它们挂在 `Object` 上是因为运算符查的是 `MemberScope`
