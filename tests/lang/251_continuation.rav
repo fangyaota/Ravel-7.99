@@ -102,7 +102,7 @@ print "end"
 # 7
 # [7]
 # true
-# 4: Continuation 收一枚函数（或 ()），得到 Integer
+# 4: Continuation 收一枚函数，得到 Integer
 # [1 2]
 # <续延 default>
 # true

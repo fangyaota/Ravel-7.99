@@ -266,7 +266,7 @@ readonly SysTask ::= class TaskBase {
 # 用闸的那版一个字段都不碰 —— 而跑出来一模一样。
 readonly Signal ::= class TaskBase {
     # 谁在等我 —— 有人来等的时候记下来。**所以 `Open` 的人不需要组。**
-    Holder : object = _
+    Holder : object = ()
     Waiting: list = []
 
     init = () => { Holder = (); Waiting = []; this; }
@@ -413,7 +413,7 @@ impl (IMonad TaskBase {;})
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
 readonly private Pending ::= class {
-    Who : object = _
+    Who : object = ()
     Job: object = ()
     init = (who: Task job: object) => { Who = who; Job = job; this; }
 }
@@ -426,7 +426,7 @@ TaskGroup ::= class {
     All: list = []                 # 组里所有任务(含跑着加进来的),给死锁检查用
     Ready: list = []               # 就绪队列:挑到谁就跑谁
     Waiting: list = []             # 等着 OS 句柄的:每项一个 `Pending`
-    Current : object = _      # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
+    Current : object = ()      # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
     Back: Continuation = _   # 任务让出时跳回来的那一枚(见 `Run`)
 
     init = (tasks: list) => {

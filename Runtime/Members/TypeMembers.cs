@@ -15,7 +15,7 @@ internal static class TypeMembers
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(TypeMembers), FunctionMembers.Set);
 
     [ClassMethod("Default")]
-    private static RuntimeValue Default(RuntimeValue self) => BuiltinClasses.ConvertDirect((ObjectVal)self, VoidVal.Instance);
+    private static RuntimeValue Default(RuntimeValue self) => BuiltinClasses.DefaultValue((ObjectVal)self);
 
     [ClassMethod("Subtypes")]
     private static RuntimeValue Subtypes(RuntimeValue self)

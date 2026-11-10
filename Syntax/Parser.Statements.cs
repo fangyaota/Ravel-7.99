@@ -828,20 +828,18 @@ public partial class Parser
         _holeCount = 0;
         var value = ParseExpression();
         SkipNewlines();
-        // 定义处的 `_` 是"填空"：`x: T = _` 就是 `x: T = T ()`；
-        // `by a: T = _` 填的是**属性**那一格，所以是 `property ()`（一对什么都不做的 getter/setter）。
-        if (value is HoleExpr)
+        // 定义处的 `_` 只在 `by` 那一格有特殊意思：填的是**属性**,所以是 `property ()`
+        // (一对什么都不做的 getter/setter)。带注解的那一格(`x: T = _`)原样留着,
+        // 由 lowering 换成 `default T` —— `_` 不是 `T ()`。
+        if (value is HoleExpr && attrs?.Contains("by") == true)
         {
-            var arg = new LiteralExpr(VoidVal.Instance) { Line = value.Line, Column = value.Column };
-            Expression? box = null;
-            if (attrs?.Contains("by") == true)
-                box = new CallExpr(new IdentifierExpr("property") { Line = value.Line, Column = value.Column }, arg)
-                    { Line = value.Line, Column = value.Column };
-            else if (typeAnnotation != null)
-                box = new CallExpr(typeAnnotation, arg) { Line = value.Line, Column = value.Column };
-            if (box != null) value = box;
+            value = new CallExpr(new IdentifierExpr("property") { Line = value.Line, Column = value.Column },
+                new LiteralExpr(VoidVal.Instance) { Line = value.Line, Column = value.Column })
+                { Line = value.Line, Column = value.Column };
         }
-        if (HasHoles(value)) value = DesugarHoles(value);
+        // 带注解的 `x : T = _` 不进洞脱糖:那一格交给 lowering,变成 `default T`。
+        var bare = value is HoleExpr && typeAnnotation != null && attrs?.Contains("by") != true;
+        if (!bare && HasHoles(value)) value = DesugarHoles(value);
         SkipNewlines();
 
         if (name == "_")

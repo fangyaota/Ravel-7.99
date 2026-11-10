@@ -47,7 +47,8 @@ internal static partial class BuiltinClasses
         IoError.ClassBody = ExceptionBody();
         RegexError.ClassBody = ExceptionBody();
         BuiltinCtor(Json, MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
-        // `function ()` 就是空函数(`_` 落在这一格:`x: function = _`)。
+        // `function ()` 就是空函数。函数没有"零值"之外的内容,这一格留着;
+        // 值类型(`int` / `string` …)那些不留 —— 它们的 `()` 不是默认值,默认值走 `default`。
         BuiltinCtor(Function, FunctionVal.From(v => v is VoidVal
             ? EmptyFunction()
             : throw new RuntimeException($"function 收一枚函数，得到 {v.Type}", ErrorKind.Type)));
@@ -55,13 +56,13 @@ internal static partial class BuiltinClasses
         // `Continuation f` —— 把一枚函数**当成**续延(调它 = 调那枚函数)。
         // 库里的 `callcc` 靠这条把"先还原控制状态、再跳回去"那层也做成续延:
         // 于是用户手里那枚**类型上**就是 `Continuation`,而不是一个说不清的 lambda。
-        // `Continuation default` 走的是"还没到手的那一枚"(见 ContinuationVal.Default)。
+        // `Continuation ()` 是"还没到手的那一枚"(见 ContinuationVal.Default);这一格留着。
         BuiltinCtor(Continuation, FunctionVal.From(val => val switch
         {
             VoidVal => ContinuationVal.Default,
             ContinuationVal c => c,                                  // 已经是续延,原样(包两层没意义)
             FunctionVal f => new ContinuationVal((Frame?)null, f),
-            _ => throw new RuntimeException($"Continuation 收一枚函数（或 ()），得到 {val.Type}", ErrorKind.Type),
+            _ => throw new RuntimeException($"Continuation 收一枚函数，得到 {val.Type}", ErrorKind.Type),
         }));
         BuiltinCtor(Set, MakeDefaultCaster(Set));
         BuiltinCtor(Dict, MakeDefaultCaster(Dict));
@@ -78,9 +79,7 @@ internal static partial class BuiltinClasses
         => FunctionVal.From(cast);
 
     private static FunctionVal MakeDefaultCaster(ObjectVal type)
-        => MakeCaster(val => val is VoidVal
-            ? ConvertDirect(type, val)
-            : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用", ErrorKind.Type));
+        => MakeCaster(_ => throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用", ErrorKind.Type));
 
     private static IntVal FromBig(System.Numerics.BigInteger v)
         => v >= int.MinValue && v <= int.MaxValue
@@ -98,7 +97,6 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToInt(RuntimeValue val)
     {
-        if (val is VoidVal) return IntVal.Of(0);
         if (val is IntVal i) return i;
         // 字符就是它的码位(`int 'A'` → 65),反过来的 `char 65` 在 CastToChar 那边
         if (val is CharVal ch) return IntVal.Of(ch.Value);
@@ -119,7 +117,6 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToFloat(RuntimeValue val)
     {
-        if (val is VoidVal) return new RealVal(0);
         if (val is IntVal i) return new RealVal(i.Value);
         if (val is RealVal f) return f;
         // bigint → real 是拓宽,顺手接上(以前 `real (bigint 5)` 报「无法转换为 real」,
@@ -137,19 +134,16 @@ internal static partial class BuiltinClasses
     // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型
     // 分发到这几个 CastToXxx 上),会转不出来。
     internal static RuntimeValue CastToBool(RuntimeValue val)
-        => val is VoidVal ? new BoolVal(false)
-            : val is BoolVal b ? b
+        => val is BoolVal b ? b
             : throw new RuntimeException($"无法将 {val.Type} 转换为 bool", ErrorKind.Type);
 
     internal static RuntimeValue CastToString(RuntimeValue val)
-        => val is VoidVal ? new StringVal("")
-            : val is StringVal s ? s
+        => val is StringVal s ? s
             : new StringVal(val.ToString());
 
     internal static RuntimeValue CastToChar(RuntimeValue val) => val switch
     {
         CharVal c => c,
-        VoidVal => new CharVal('\0'),
         IntVal i => i.Value is >= 0 and <= char.MaxValue
             ? new CharVal((char)i.Value)
             : throw new RuntimeException($"char: 码位 {i.Value} 超出范围（0..65535）", ErrorKind.Value),
@@ -160,7 +154,6 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToBigInt(RuntimeValue val)
     {
-        if (val is VoidVal) return new BigIntVal(0);
         if (val is IntVal i) return new BigIntVal(i.Value);
         if (val is BigIntVal bi) return bi;
         if (val is StringVal s)
@@ -180,7 +173,6 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToFraction(RuntimeValue val)
     {
-        if (val is VoidVal) return new FractionVal(0, 1);
         // int 当分子,再收一个 int 分母
         if (val is IntVal i)
             return FunctionVal.From(d =>
@@ -201,7 +193,6 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToBigFraction(RuntimeValue val)
     {
-        if (val is VoidVal) return new BigFractionVal(0, 1);
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;
         if (val is IntVal || val is BigIntVal)
             return FunctionVal.From(d =>
@@ -255,24 +246,40 @@ internal static partial class BuiltinClasses
         if (target == String) return CastToString(val);
         if (target == Json) return CastToJson(val);      // `x: Json = …` 的隐式转换
         if (target == BigInt) return CastToBigInt(val);
-        // 容器和函数没有"从一个值转换过来"这回事,只认 default(空容器 / 空函数)。
-        // 分数那两条也在这一格:**它们对别的值有别的意思**(`fraction 3` 是"还等一个分母",
-        // 交出的是半个构造器),不能像上面那样按目标类整批委派。
+        // 容器、分数这些没有"从一个值转换过来"这回事;要空的那只走 `default`
+        // (`BuiltinClasses.DefaultValue`)。函数和续延的 `()` 例外,留着。
+        // 分数那两条也别按目标类整批委派:**它们对别的值有别的意思**
+        // (`fraction 3` 是"还等一个分母",交出的是半个构造器)。
         if (val is VoidVal)
         {
-            if (target == List) return new ListVal([]);
-            if (target == Set) return new SetVal([]);
-            if (target == Dict) return new DictVal([]);
             if (target == Function) return EmptyFunction();
             // 续延的"空值"不是"什么都不做",而是"还没到手的那一枚" —— 它一调就报错
             // (续延调用是跳转,没有目的地就该响;见 ContinuationVal.Default)
             if (target == Continuation) return ContinuationVal.Default;
-            if (target == Fraction) return new FractionVal(0, 1);
-            if (target == BigFraction) return new BigFractionVal(0, 1);
-            return val;
         }
 
         throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}", ErrorKind.Type);
+    }
+
+    // `default T` 的全部内容:每个"有零值"的类型造一个空的。
+    //   · 只有这些有零值;别的类型(用户类 / `object` / 异常族…)没有,直接报错 ——
+    //     `()` 不是空值,拿 `()` 去调一个值类型也不再是"给我默认值"。
+    internal static RuntimeValue DefaultValue(ObjectVal type)
+    {
+        if (type == Int) return IntVal.Of(0);
+        if (type == Real) return new RealVal(0);
+        if (type == Bool) return new BoolVal(false);
+        if (type == String) return new StringVal("");
+        if (type == Char) return new CharVal('\0');
+        if (type == BigInt) return new BigIntVal(0);
+        if (type == Fraction) return new FractionVal(0, 1);
+        if (type == BigFraction) return new BigFractionVal(0, 1);
+        if (type == List) return new ListVal([]);
+        if (type == Set) return new SetVal([]);
+        if (type == Dict) return new DictVal([]);
+        if (type == Function) return EmptyFunction();
+        if (type == Continuation) return ContinuationVal.Default;
+        throw new RuntimeException($"类型 {type.DisplayName} 没有默认值", ErrorKind.Type);
     }
 
 }

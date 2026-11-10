@@ -1,4 +1,4 @@
-﻿# 启动时第一个加载的文件(见 Interpreter.LoadPredefined):别名 + 控制流 + 把标准库几个子模块拉进来。
+# 启动时第一个加载的文件(见 Interpreter.LoadPredefined):别名 + 控制流 + 把标准库几个子模块拉进来。
 #
 # 别名必须排在最前面 —— 后面的东西(包括子模块)都用它们。
 # 子模块用 `using` 拉进来,名字都落在**全局作用域**上(和从前写在同一个文件里一样),
@@ -30,6 +30,10 @@ readonly Continuation := System.Continuation   # callcc 交出来的续延(是�
 readonly type := System.Type
 readonly void := System.Void
 readonly Exception := System.Exception
+# `default T` —— 问一个类型要它的零值(`default int` 是 0、`default string` 是 "")。
+# 只有"有零值"的类型配得上:用户类 / `object` 没有,会报「类型 X 没有默认值」。
+# 定义处的 `_` 就是它:`x : int = _` 脱糖成 `x : int = default int`。
+readonly default := System.Default
 # 错误那一族(引擎报错时挑的就是它们,见 Runtime/BuiltinClasses.Errors.cs):
 # 都挂在 Exception 下面,所以老的 `(e: Exception)` 一个都没坏,新的能按类型接。
 readonly TypeError := System.TypeError

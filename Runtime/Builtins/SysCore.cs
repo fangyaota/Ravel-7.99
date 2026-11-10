@@ -70,6 +70,13 @@ internal static class SysCore
 
     // 定义处注解没过 —— 拒收,和模式那一格同一条口径(`|` 接得住、`try` 接不住)。
     // 文案在这儿拼,不走 `string`/`typeof`:那两个名字用户可能遮蔽掉(`string := C`)。
+    // `x : T = _` 的值:`default T`。只有"有零值"的类型配得上 —— 别的当场报错,
+    // 而不是拿 `T ()` 当零值(`()` 是"没给实参",不是"要一个空的 T")。
+    [Sys("Default")]
+    public static RuntimeValue Default(RuntimeValue type)
+        => type is ObjectVal t ? BuiltinClasses.DefaultValue(t)
+            : throw new RuntimeException($"default 要一个类型，得到 {type.Type}", ErrorKind.Type);
+
     [Sys("RejectType")]
     public static RuntimeValue RejectType(RuntimeValue value, RuntimeValue type)
         => throw new RejectedException($"这一格要的是 {type}，得到 {value.Type}");

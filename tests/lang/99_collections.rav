@@ -55,7 +55,7 @@ d.Set "a" 1
 print d
 print (d.Count ())
 print ([])
-print (set ())
+print (default set)
 ravel ""
 
 # ═══ 188_hole_in_containers(并入) ═══

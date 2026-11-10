@@ -46,9 +46,14 @@ public sealed class Lowering
 
     // 定义 + 一次 `x : T`。**这里就是脱糖的全部**:引擎那边收到的只是普通定义
     // 和一条 `x : T` 表达式(判据、能不能自定义,全看 `:` 那枚成员)。
+    // `x : T = _` 那一格的值是 `default T` —— `_` 的意思就是"给我 T 的空值",
+    // 而"空值"只有 `default` 知道(`()` 不是空值,拿 `()` 去调 T 也不再是默认值)。
     private IEnumerable<Statement> Typed(VarDefinition v, Expression want)
     {
-        yield return v with { TypeAnnotation = null, Value = Checked(v, Lower(want)) };
+        var value = v.Value is HoleExpr
+            ? Call(Ident("default", (AstNode)v), Lower(want))
+            : Checked(v, Lower(want));
+        yield return v with { TypeAnnotation = null, Value = value };
     }
 
     // 值只求一次:先交给一个临时参数,在里头用 `:` 问一次,过了才交出去。

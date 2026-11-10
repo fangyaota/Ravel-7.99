@@ -247,7 +247,6 @@ public partial class Interpreter
         // 注解不在这儿判:`x : T = v` 在 lowering 里已经拆成 `x := v` 加一句 `x : T` 的守卫
         // (见 `Syntax/Lowering.cs` 的 `Typed`),到这一步只剩普通定义。
         // `by a: T = _`:槽里那一份本来就是**属性**,`_` 在这儿的意思是"什么都不做的空属性对"。
-        if (isBy) val = SlotValue(val);
 
         var vr = v.Preset
             ? nf.Scope.DefineOrReplace(v.Name, val)   // 预设类体:每层覆盖上一层
@@ -305,9 +304,6 @@ public partial class Interpreter
             throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）", ErrorKind.Type);
     }
 
-    private static RuntimeValue SlotValue(RuntimeValue v)
-        => v is VoidVal ? BuiltinClasses.DefaultProperty() : v;
-
     private void StepSlotAssign(NodeFrame nf, SlotAssign sa)
     {
         // 变量槽:`by a = X`
@@ -329,7 +325,6 @@ public partial class Interpreter
             if (v == null)
             {
                 if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
-                val = SlotValue(val);
                 v = nf.Scope.DefineOrReplace(id.Name, val);
                 v.SetAttr(Attr.By);
                 Return(nf, val);
@@ -339,7 +334,7 @@ public partial class Interpreter
             if (v.HasAttr(Attr.Core) && !IsUnsafe)
                 throw new RuntimeException($"字段 '{id.Name}' 是核心字段，需要 unsafe", ErrorKind.Access);
             CheckSlot(v, id.Name);
-            v.ReplaceSlot(SlotValue(val));
+            v.ReplaceSlot(val);
             Return(nf, val);
             return;
         }
@@ -365,7 +360,6 @@ public partial class Interpreter
         if (sa.Define)
         {
             // `:=`:在那个对象上建槽(成员不存在也行,和 `obj.a := v` 一条规矩:定义不查门禁)
-            val2 = SlotValue(val2);
             var made = obj.Scope.DefineOrReplace(ma.Member, val2);
             made.SetAttr(Attr.By);
             Return(nf, val2);
@@ -390,7 +384,7 @@ public partial class Interpreter
         {
             CheckMemberAccess(clsSlot, obj, ma.Member);
             clsSlot.CheckWritable();
-            var made = obj.Scope.DefineOrReplace(ma.Member, SlotValue(val2));
+            var made = obj.Scope.DefineOrReplace(ma.Member, val2);
             made.SetAttr(Attr.By);
             Return(nf, val2);
             return;
@@ -399,7 +393,7 @@ public partial class Interpreter
         if (field == null) throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
-        field.ReplaceSlot(SlotValue(val2));
+        field.ReplaceSlot(val2);
         Return(nf, val2);
     }
 
