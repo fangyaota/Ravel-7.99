@@ -3,6 +3,7 @@ namespace Ravel.Runtime;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using Ravel.Runtime.Values;
 
 // ============================================================
 //  插件那一套:**公开**的口子
@@ -411,7 +412,8 @@ internal static class PluginLoader
         if (!Known(cls.Name))
         {
             var klass = BuiltinClasses.New(cls.Name);
-            BuiltinClasses.Link(klass, BuiltinClasses.ClassOf(cls.Parent, $"类 {cls.Name} 的父类"), BuiltinClasses.Type);
+            var parent = BuiltinClasses.ClassOf(cls.Parent, $"类 {cls.Name} 的父类");
+            BuiltinClasses.Link(klass, parent, BuiltinClasses.Type);
             BuiltinClasses.AddType(klass);
 
             // **"这个类是值类型"** —— 插件建不了 Ravel 的 `impl`,所以直接落那格索引
@@ -426,47 +428,22 @@ internal static class PluginLoader
                 klass.IsValueLike = true;
             }
 
-            // **`FlattenHierarchy` 不能省**:没有它反射**不返回基类上的 static** —— 于是
-            // "几个类共用一套方法、方法写在基类上、壳只各自声明 `[ClassCtor]`"就落空了
-            // (实测:壳的实例表里一个方法都没有)。它只摊平 **public / protected** 的 static,
-            // 所以基类上那些没有标记的方法照样会被下面两个 `GetCustomAttribute` 滤掉。
-            foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public
-                                            | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy))
-            {
-                if (m.GetCustomAttribute<ClassMethodAttribute>() is { } method)
-                    BuiltinClasses.EngineMember(klass, method.Name, ClassRegistry.Bind(klass, m, method.Name));
-                else if (m.GetCustomAttribute<ClassOpAttribute>() is { } oper)
-                {
-                    // **装的时候就查符号** —— 不在 `OperatorSymbols.All` 里的,
-                    // 用户根本写不出来(`a <> b` 解析就错),留到运行期就成了个够不着的成员
-                    if (!OperatorSymbols.IsSymbol(oper.Op))
-                        throw new InvalidOperationException(
-                            $"类 {cls.Name} 的运算符 '{oper.Op}' 不认 —— 得是 Ravel 那批里的一个"
-                            + "（`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=` `&` `|` `^` "
-                            + "`<<` `>>` `<<<` `>>>` / `is` `isnot` / `<:` `:>`）");
-                    BuiltinClasses.EngineMember(klass, oper.Op, ClassRegistry.Bind(klass, m, oper.Op));
-                }
-                else if (m.GetCustomAttribute<ClassPropertyAttribute>() is { } prop)
-                {
-                    // 形状和 [ClassMethod] 一样:`self` + 那一格实参。**读时那格收到 `()`、
-                    // 写时收到新值** —— 所以一份方法就够,getter/setter 是它的两遍。
-                    var ps = m.GetParameters();
-                    if (ps.Length != 2 || ps[0].ParameterType != typeof(RuntimeValue)
-                                       || ps[1].ParameterType != typeof(RuntimeValue))
-                        throw new InvalidOperationException(
-                            $"类属性 {cls.Name}.{prop.Name} 的签名不对:要收 (self, 一个实参)");
+            // **一份 `Scan` 收齐**:这个装载器类(C# 基类一并扫)上标了 `[ClassMethod]` /
+            // `[ClassOp]` / `[ClassProperty]` / `[ClassCtor]` 的静态方法就是它的成员 ——
+            // 和内置类同一套写法、同一个绑定(`ClassRegistry.Bind`)、同一份成员工厂
+            // (`ClassVal.Members`)。从前这里是一段手写的 foreach,把每一格 `EngineMember`
+            // 塞进外置注册表;现在类自己带着,实例读成员时问自己。
+            //
+            // 父类那份**按引用接下**(`MemberSet.Scan` 的第二个参数):插件类照样白得
+            // `Object` 的 `ToString` / `Fields`,以及它 C# 父类链上声明的那些。
+            var members = MemberSet.Scan(type, (parent as ClassVal)?.Members ?? ObjectMembers.Set);
+            klass.Members = members;
 
-                    var acc = ClassRegistry.Bind(klass, m, prop.Name);
-                    // **类型约束给 `Any`**:那格存的是 property,写进来的是属性值(见 EngineMember)
-                    var slot = BuiltinClasses.EngineMember(klass, prop.Name, new PropertyVal(acc, acc),
-                                                           readOnly: prop.ReadOnly, declared: BuiltinClasses.Any);
-                    // **这一格是 `by` 槽**:读走 getter、写走 setter —— 和用户写的
-                    // `by x := property g s` 一条路(见 TryGetByGetter / PropOf)
-                    slot.SetAttr(Attr.By);
-                }
-                else if (m.GetCustomAttribute<ClassCtorAttribute>() is not null)
-                    BuiltinClasses.SetCtor(klass, m);
-            }
+            // 构造器是**类体**那份(`ClassBody`),不是成员表里的一格 —— 对象实例化时
+            // 沿祖先链跑类体、最后调它(见 `StepClassInit`);值类型不走那趟,得直接把
+            // `init` 当成员交出去(`(某个值).init …`),所以那类才 `exposeInit`。
+            if (members.Ctor is { } ctor)
+                BuiltinClasses.BuiltinCtor(klass, ctor, exposeInit: klass.IsValueLike);
         }
 
         if (module is not null)
