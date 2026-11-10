@@ -85,8 +85,38 @@ internal static class ClassRegistry
     internal static BuiltinMethodVal Bind(ClassVal cls, MethodInfo m, string name)
     {
         var ps = m.GetParameters();
+        var takesInterp = ps.Length > 0 && ps[0].ParameterType == typeof(Interpreter);
+        if (takesInterp) ps = ps[1..];
         if (ps.Length == 0 || ps[0].ParameterType != typeof(RuntimeValue) || ps.Length > 3)
             throw new InvalidOperationException($"类方法 {cls.DisplayName}.{name} 的签名不对:要收 (self, 0~2 个实参)");
+
+        // **要解释器的成员**:签名第一个参数写 `Interpreter`,体里就能问 `HasTrait`、`SawScopedUse`
+        // 这些只有解释器才知道的事(`:` 判"值是不是某个接口"就靠它)。
+        // 普通那条路(`Impl`)拿不到解释器,所以只留一句"走错了"的兜底 —— 所有运算符调用点
+        // 都走 `BuiltinMethodVal.Invoke(interp, …)`,不会落到这儿。
+        if (takesInterp)
+        {
+            Func<Interpreter, RuntimeValue, RuntimeValue, RuntimeValue> withInterp = ps.Length switch
+            {
+                1 => (Interpreter i, RuntimeValue s, RuntimeValue a) => a is VoidVal
+                    ? Call(m, [i, s])
+                    : throw new RuntimeException(
+                        $"类方法 {cls.DisplayName}.{name} 不收实参(它只有 self)—— 多给了 {a.Type}",
+                        ErrorKind.Argument),
+                2 => (Interpreter i, RuntimeValue s, RuntimeValue a) => Call(m, [i, s, a]),
+                _ => (Interpreter i, RuntimeValue s, RuntimeValue a)
+                    => FunctionVal.From(b => Call(m, [i, s, a, b])),
+            };
+
+            // **不传解释器那条路**(运算符被当值调:`x.: int`):借当前解释器。
+            return new BuiltinMethodVal((s, a) => withInterp(
+                    Interpreter.Current ?? throw new RuntimeException(
+                        $"'{name}' 要在解释器里调用", ErrorKind.Error), s, a))
+            {
+                Name = name,
+                WithInterp = withInterp,
+            };
+        }
 
         return new BuiltinMethodVal(ps.Length switch
         {

@@ -102,8 +102,18 @@ public partial class Interpreter
     public RuntimeValue Interpret(Program p)
     {
         if (WarnForgotCall || DeclaresWarnIn(p.Source)) ReportCompileWarnings(p.Statements, p.Source);
-        return RunStack(p);
+        // **当前解释器**:内置运算符的体是纯 C#,签名里写 `Interpreter` 头参的那几个
+        // (`:`)通过这一格拿到"是哪一个解释器在跑" —— 运算符当值用(`x.: int`、`f := :.int`)
+        // 走的是普通调用那条路,没有别的办法把 `this` 递进去。
+        var prev = _current;
+        _current = this;
+        try { return RunStack(p); }
+        finally { _current = prev; }
     }
+
+    [System.ThreadStatic] private static Interpreter? _current;
+
+    internal static Interpreter? Current => _current;
 
     private void ReportCompileWarnings(IReadOnlyList<Statement> statements, string? file)
     {
@@ -141,9 +151,7 @@ public partial class Interpreter
     }
 
     private bool Accepts(RuntimeValue value, ObjectVal target)
-        => value.Type.IsAssignableTo(target) || BuiltinClasses.HasTrait(this, value.Type, target);
-
-    private Func<ObjectVal, bool> ViaTrait(RuntimeValue value) => t => BuiltinClasses.HasTrait(this, value.Type, t);
+        => BuiltinClasses.Matches(this, value, target);
 
     internal FunctionVal PropertyGetter(RuntimeValue prop, string owner)
         => (prop as PropertyVal)?.Getter ?? throw NotAProperty(prop, "getter", owner);

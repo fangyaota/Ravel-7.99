@@ -492,7 +492,7 @@ public partial class Interpreter
             return;
         }
 
-        nf.Scope.Assign(name, val, ViaTrait(val));
+        nf.Scope.Assign(name, val);
         Return(nf, val);
     }
 
@@ -510,12 +510,11 @@ public partial class Interpreter
             // readonly 也在这侧:赋值走的是 setter,不经过 `Variable.Assign`,
             // 不问的话"只读"在属性上就是句空话。
             field.CheckWritable();
-            field.CheckAssignable(val, ViaTrait(val));
             PushCallReturn(nf.Parent!, PropertySetter(prop ?? field.Value, field.Name), val, val);
             return;
         }
 
-        field.Assign(val, ViaTrait(val));
+        field.Assign(val);
         Return(nf, val);
     }
 

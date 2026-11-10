@@ -79,7 +79,7 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
             ? base.DefineOrReplace(name, typeConstraint, initialValue)
             : throw new RuntimeException($"值类型的成员表是只读的：不能改写 '{name}'", ErrorKind.Access);
 
-    public override void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
+    public override void Assign(string name, RuntimeValue value)
     {
         if (!Writable)
             throw new RuntimeException($"值类型的成员表是只读的：不能改写 '{name}'", ErrorKind.Access);
@@ -88,7 +88,7 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
         if (slot is null)
             throw new RuntimeException($"无法给未定义变量 '{name}' 赋值", ErrorKind.Name);
 
-        slot.Assign(value, alsoAccepts);
+        slot.Assign(value);
     }
 }
 

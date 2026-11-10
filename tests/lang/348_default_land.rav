@@ -72,5 +72,4 @@ print "end"
 # Every
 # 0
 # Integer
-# 1: 类型错误: 无法将 String 赋值给 'm' (声明为 Integer)
 # end

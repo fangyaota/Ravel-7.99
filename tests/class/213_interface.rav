@@ -374,7 +374,7 @@ ravel ""
 # 4: 参数 'v' 需要 myTrait，得到 otherClass
 # 99
 # 7
-# 5: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
+# 5: 参数 'v' 需要 Integer，得到 String
 # 6: 类型 'myClass' 没有方法 'a'
 # false
 # 7: 类型不匹配: 无法将 myClass 赋值给 myTrait（不是父子）—— 要转就明写 `myTrait …`

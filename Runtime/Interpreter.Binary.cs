@@ -163,24 +163,17 @@ public partial class Interpreter
         //
         // `:` 不给自定义(不在 `OperatorSymbols.All` 里),所以这一支只有内置这一种来路 ——
         // 要取反就写 `!(x: T)`(从前有个专门的 `isnot`)。
-        if (builtin && right is ObjectVal rt)
+        if (builtin && bin.Op is "<:" or ":>" && right is ObjectVal rt
+            && left is ObjectVal { IsClass: true } lt && rt.IsClass)
         {
-            if (bin.Op == ":")
-            {
-                Return(nf, new BoolVal(left.Type.IsAssignableTo(rt) || BuiltinClasses.HasTrait(this, left.Type, rt)));
-                return;
-            }
-
-            if (bin.Op is "<:" or ":>" && left is ObjectVal { IsClass: true } lt && rt.IsClass)
-            {
-                var (x, y) = bin.Op == "<:" ? (lt, rt) : (rt, lt);
-                Return(nf, new BoolVal(x.IsAssignableTo(y) || BuiltinClasses.HasTrait(this, x, y)));
-                return;
-            }
+            var (x, y) = bin.Op == "<:" ? (lt, rt) : (rt, lt);
+            Return(nf, new BoolVal(BuiltinClasses.MatchesType(this, x, y)));
+            return;
         }
 
-        // 内置那台直接算(见 BindOperator):`Impl(left, right)` 就是绑完再调的结果
-        if (fn is BuiltinMethodVal bm) Return(nf, bm.Impl(left, right));
+        // 内置那台直接算(见 BindOperator):`Invoke(interp, left, right)` 就是绑完再调的结果。
+        // **解释器要传进去** —— 少数运算符(`:`)的体要问"当前作用域里有没有生效的实现"。
+        if (fn is BuiltinMethodVal bm) Return(nf, bm.Invoke(this, left, right));
         else CallInto(nf.Parent!, BindSelf(fn, left), right);
     }
 
@@ -198,8 +191,8 @@ public partial class Interpreter
             return;
         }
 
-        var r = bm.Impl(left, right);
-        nf.Scope.Assign(target.Name, r, ViaTrait(r));
+        var r = bm.Invoke(this, left, right);
+        nf.Scope.Assign(target.Name, r);
         Return(nf, r);
     }
 
@@ -230,8 +223,8 @@ public partial class Interpreter
             var (fn, _) = BindOperator(field.Value, op);
             if (fn is BuiltinMethodVal bm)
             {
-                var r = bm.Impl(field.Value, nf.Result(1));
-                field.Assign(r, ViaTrait(r));
+                var r = bm.Invoke(this, field.Value, nf.Result(1));
+                field.Assign(r);
                 Return(nf, r);
                 return;
             }
@@ -241,7 +234,7 @@ public partial class Interpreter
         }
 
         // count 3:类运算符算完了 → 写回
-        field.Assign(nf.Result(2), ViaTrait(nf.Result(2)));
+        field.Assign(nf.Result(2));
         Return(nf, nf.Result(2));
     }
 
@@ -266,10 +259,9 @@ public partial class Interpreter
 
         if (nf.Count == 4)
         {
-            // 算好的新值也要过 `by a: int` 那道约束、以及 readonly
+            // 算好的新值只过 readonly —— 类型不再查(赋值一律不查)
             // (和普通赋值一条路,见 WriteVariable)
             field.CheckWritable();
-            field.CheckAssignable(nf.Result(3), ViaTrait(nf.Result(3)));
             CallInto(nf, PropertySetter(prop, member), nf.Result(3));
             return;
         }

@@ -199,7 +199,7 @@ ravel ""
 # true
 # true
 # each 5
-# 3: 类型错误: 无法将 String 赋值给 'a' (声明为 Integer)
+# 3: 参数 'v' 需要 Integer，得到 String
 # 5
 # 4: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），得到 Integer
 # 5: 接口的体得是个代码块（`interface … { … }`），得到 List

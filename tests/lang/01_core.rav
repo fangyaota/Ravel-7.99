@@ -1,4 +1,4 @@
-﻿# 核心:定义/运算符/优先级/类型方法/列表/位运算/_占位符(合并 01-09/10/14/22-24/26-39/109-112)
+# 核心:定义/运算符/优先级/类型方法/列表/位运算/_占位符(合并 01-09/10/14/22-24/26-39/109-112)
 A := 1
 print A
 B: int = 42
@@ -70,7 +70,7 @@ _ : int = 99
 print "ok"
 
 # ═══ 17_type_error(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "X17: int = 1\nX17 = true"; } (e: Exception) => { print ("17_type_error: " + string e); }
+try { eval "X17: int = true"; } (e: Exception) => { print ("17_type_error: " + string e); }
 
 # ═══ 25_empty_block(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
 try { eval "X := {\n}\nprint X"; } (e: Exception) => { print ("25_empty_block: " + string e); }
@@ -298,7 +298,7 @@ ravel ""
 # 3
 # hello
 # ok
-# 17_type_error: 类型错误: 无法将 Bool 赋值给 'X17' (声明为 Integer)
+# 17_type_error: 类型不匹配: 无法将 Bool 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
 # 25_empty_block: 不允许空的 '{ }'
 # 10
 # 7

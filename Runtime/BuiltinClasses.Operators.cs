@@ -162,10 +162,11 @@ internal static partial class BuiltinClasses
                 ? $"'{op}' 的{side}边得是个类型，得到模块 '{m.Label}'"
                 : $"'{op}' 的{side}边得是个类型，得到 {v.Type} 的实例", ErrorKind.Type);
 
-    internal static bool IsA(RuntimeValue v, RuntimeValue type, string op)
-        => type is ObjectVal t
-            ? v.Type.IsAssignableTo(t)
-            : throw new RuntimeException($"'{op}' 的右边要是一个类型，得到 {type.Type}", ErrorKind.Type);
+    internal static bool Matches(Interpreter interp, RuntimeValue v, ObjectVal t)
+        => v.Type.IsAssignableTo(t) || HasTrait(interp, v.Type, t);
+
+    internal static bool MatchesType(Interpreter interp, ObjectVal sub, ObjectVal sup)
+        => sub.IsAssignableTo(sup) || HasTrait(interp, sub, sup);
 
     internal static System.Numerics.BigInteger AsBigInt(RuntimeValue v, string op) => v switch
     {

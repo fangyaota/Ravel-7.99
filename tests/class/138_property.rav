@@ -1,4 +1,4 @@
-﻿# property C# factory
+# property C# factory
 C := class {
     init = () => { this._val = 0; this; }
     _val: int = 0
@@ -313,8 +313,7 @@ ravel ""
 # 1
 # 7
 # 9
-# 6: 类型错误: 无法将 String 赋值给 'n' (声明为 Integer)
-# 7: 类型错误: 无法将 Real 赋值给 'm' (声明为 Integer)
+# 6: 参数 'q' 需要 Integer，得到 String
 # anything
 # 42
 # 5

@@ -12,10 +12,9 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
     public void SetAttr(string a) => _attrs.Add(a);
     public IEnumerable<string> Attrs => _attrs;
 
-    public void Assign(RuntimeValue newValue, Func<ObjectVal, bool>? alsoAccepts = null)
+    public void Assign(RuntimeValue newValue)
     {
         CheckWritable();
-        CheckAssignable(newValue, alsoAccepts);
         Value = newValue;
     }
 
@@ -28,14 +27,6 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
     {
         CheckWritable();
         Value = newValue;
-    }
-
-    public void CheckAssignable(RuntimeValue newValue, Func<ObjectVal, bool>? alsoAccepts = null)
-    {
-        if (TypeConstraint == BuiltinClasses.Any || newValue.Type.IsAssignableTo(TypeConstraint)) return;
-        if (alsoAccepts != null && alsoAccepts(TypeConstraint)) return;
-        throw new RuntimeException(
-            "类型错误: 无法将 " + newValue.Type + " 赋值给 '" + Name + "' (声明为 " + TypeConstraint + ")", ErrorKind.Type);
     }
 
     public override string ToString() => Name + ": " + TypeConstraint + " = " + Value;

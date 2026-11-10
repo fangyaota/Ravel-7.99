@@ -77,11 +77,11 @@ public class Scope(Scope? parent = null)
 
     public Variable? TryLookup(string name) => Find(name);
 
-    public virtual void Assign(string name, RuntimeValue value, Func<ObjectVal, bool>? alsoAccepts = null)
+    public virtual void Assign(string name, RuntimeValue value)
     {
         if (Find(name) is { } v)
         {
-            v.Assign(value, alsoAccepts);
+            v.Assign(value);
             return;
         }
 
@@ -95,7 +95,6 @@ public class Scope(Scope? parent = null)
         // 类对象上那一格原样不动,`readonly` 保护的是它。
         if (TableOf is { } owner && owner.MemberScope.LookupField(name) is { } inherited)
         {
-            inherited.CheckAssignable(value, alsoAccepts);   // 类型约束照旧
             (_vars ??= [])[name] = new Variable(name, inherited.TypeConstraint, value);
             return;
         }
