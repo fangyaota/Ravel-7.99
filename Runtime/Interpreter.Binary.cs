@@ -90,12 +90,12 @@ public partial class Interpreter
     }
 
     /// <summary>取左值类型上这个运算符的实现,并绑好接收者。`Builtin` 为真表示它是内置同步方法
-    /// ——绑完能当场算,不必推帧;类运算符(`BuiltinClasses.DefineClassOperator`)和
+    /// ——绑完能当场算,不必推帧;用户类体里写的 `+ := f`(普通 lambda)和
     /// by 属性的 getter/setter 不是,得走 `CallInto`。
     ///
-    /// 查的是 `left.MemberScope` —— **和方法调用同一个入口**(值自己那层 → 沿类的 `parent`
-    /// 链读实例表)。所以类体里写的那份 `+ := f`(落在每个实例的 scope 里)也找得到,
-    /// `ClassOp` 帧只在"类那张表上的工厂"被找到时才走。接收者的类型不同,找到的就是不同那张:
+    /// 查的是 `left.MemberScope` —— **和方法调用同一个入口**(值自己那层 → 类型的成员工厂)。
+    /// 所以类体里写的那份 `+ := f`(落在每个实例的 scope 里)也找得到。接收者的类型不同,
+    /// 找到的就是不同那张:
     /// `1 + 2` 找 `Integer` 的、`C1 == C2` 找 `Type` 的、`c1 == c2` 找 `C` 的。
     ///
     /// 找不到只可能是**左边的类型**没定义这个运算符:运算符本身总是先过词法/语法的。
@@ -117,15 +117,15 @@ public partial class Interpreter
 
     /// <summary>把运算符成员绑到接收者上 —— 引擎挂的(self → 剩下)要绑;
     /// **用户写在类体里的那份是普通 lambda**,它收的是右操作数、接收者靠捕获的作用域
-    /// (`ClassOp` 帧里 `CallInto(cf, impl, arg)` 也是这么调的),原样交出去。
+    /// (`CallInto(…, impl, arg)` 也是这么调的),原样交出去。
     /// (`BindMethod` 会去读它的 `Body`,而 `LambdaVal.Body` 是占位 —— 见 LambdaVal 那段。)</summary>
     private static FunctionVal BindSelf(FunctionVal fn, RuntimeValue self)
         => fn is ISelfBinding ? ObjectVal.BindMethod(fn, self) : fn;
 
     /// <summary>这个对象身上有没有**槽运算符**(`by + := property g s`)。两处:自己那层
     /// (类体/实现体里写的),以及生效中的接口实现(`interface { by + := … }` 落在实现身上)。
-    /// 只认 `by` 槽 —— 随手定义的普通 `+ := f` 仍归类运算符那条路(由 `Install` 静态扫出来
-    /// 装成 `ClassOperatorFactory`),这里不抢。</summary>
+    /// 只认 `by` 槽 —— 随手定义的普通 `+ := f` 是实例 scope 里的一枚普通 lambda,
+    /// 由 `BindOperator` 那条同步路径找,这里不抢。</summary>
     private bool HasTraitOperator(ObjectVal self, string op)
         => (self.Scope.LookupField(op) is { } own && own.HasAttr(Attr.By))
            || BuiltinClasses.TraitSlot(this, self, op) != null;
@@ -190,7 +190,7 @@ public partial class Interpreter
 
         // 判定类运算符的接口兜底:实现住在**当前作用域**里,而内置运算符的体是纯 C#(拿不到解释器),
         // 所以这一半只能挂在这儿 —— 判据本身在 BuiltinClasses.HasTrait,和实现那条查找共用一份。
-        // 只接**内置**那一支:类里写过 `<: := f` 的照旧走它自己的实现(ClassOp 帧)。
+        // 只接**内置**那一支:类里写过 `<: := f` 的照旧走它自己的实现(实例 scope 里那枚)。
         // `:` 看**值**,`<:` / `:>` 看**类型**(两边都得是类型对象)。
         //
         // `:` 不给自定义(不在 `OperatorSymbols.All` 里),所以这一支只有内置这一种来路 ——

@@ -17,6 +17,12 @@ internal static class CharMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(CharMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`char 65` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToChar(arg);
+
     [ClassMethod("IsDigit")]
     private static RuntimeValue IsDigit(RuntimeValue self, RuntimeValue _) => new BoolVal(char.IsDigit(((CharVal)self).Value));
 

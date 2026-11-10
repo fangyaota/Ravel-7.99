@@ -17,6 +17,12 @@ internal static class IntegerMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(IntegerMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`(5).init "12"` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToInt(arg);
+
     private static RuntimeValue Op(string symbol, RuntimeValue a, RuntimeValue b)
         => (BuiltinClasses.IntegerOperator(symbol)
             ?? throw new InvalidOperationException($"int 声称有运算符 '{symbol}',但那张表里没有"))(a, b);

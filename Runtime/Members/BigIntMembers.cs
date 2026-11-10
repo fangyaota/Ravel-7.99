@@ -15,6 +15,12 @@ internal static class BigIntMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(BigIntMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`bigint 5` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToBigInt(arg);
+
     /// <summary>`bigint ** n`:指数非负时是**精确**的(bigint 不会溢出);负指数落回 real
     /// —— 和 int 那条一个规矩(总规矩见 `RealMembers` 的 `**`)。
     ///

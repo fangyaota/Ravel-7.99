@@ -513,7 +513,7 @@ public partial class Interpreter
         //
         // 换槽**不能改类那张表**:那是整个类共用的，动一下所有实例跟着变。
         // 所以换到**这个实例自己那层**去（遮住类那格）—— 和 `by a.x := …` 的落点一致。
-        // 只读的那些（值类型的数据成员，`EngineMember(readOnly: true)`）在 `CheckWritable`
+        // 只读的那些（值类型的数据成员，成员集里造出来就带 `Readonly`）在 `CheckWritable`
         // 那一句挡下 —— 这也是"值类型改不了"该有的那句话。
         if (field == null && BuiltinClasses.ClassBySlot(obj, ma.Member) is { } clsSlot)
         {

@@ -20,13 +20,21 @@ using Ravel.Runtime.Values;
 ///   (`C.Is (C ())` 从前静默给 false,读起来还像"这个实例是不是 C")。要问类型之间的关系
 ///   就用运算符(`int <: object` / `object :> int`);要问值就用 `x is T`。
 ///
-/// `GetImplements` / `GetImplementors` 这两条**仍留在 `BuiltinClasses`,不搬**:
-/// 它们不是普通的 `BuiltinMethodVal`,挂的是 `TraitQuery`(`SeqMethod` 那个家族)——
-/// 真正算它们的是求值器(实现登记在作用域里),`[ClassMethod]` 表达不了那种值。
-/// 挂的位置不能变:在 `Type` 的**实例表**上,于是 `Option.GetImplements ()` 里的
-/// `Option`(是 `type` 的实例)沿 `parent` 往上兜到这一张。</summary>
+/// `GetImplements` / `GetImplementors` 挂的是 `TraitQuery`(`SeqMethod` 那个家族)——
+/// 它们不是普通的 `BuiltinMethodVal`,真正算它们的是求值器(实现登记在作用域里),
+/// `[ClassMethod]` 只能绑 `MethodInfo`,表达不了那种值 —— 所以走 `[ClassValue]`
+/// (字段里那个现成的值直接当成员交出去)。挂的位置没变:还是 `Type` 给实例的一格,
+/// `Option.GetImplements ()` 里的 `Option`(是 `type` 的实例)沿 `parent` 往上兜到这一张。</summary>
 internal static class TypeMembers
 {
+    // **声明必须排在 `Set` 之前** —— `Set` 是 `MemberSet.Scan` 靠反射读这两格建的,
+    // 字段还没初始化就读到 null 了。
+    [ClassValue("GetImplements")]
+    private static readonly RuntimeValue GetImplements = new TraitQuery("GetImplements", TraitQueryKind.Implements);
+
+    [ClassValue("GetImplementors")]
+    private static readonly RuntimeValue GetImplementors = new TraitQuery("GetImplementors", TraitQueryKind.Implementors);
+
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(TypeMembers), FunctionMembers.Set);
 
     /// <summary>`int default` 之类:这个类型的"没给值时的那个值",由 `ConvertDirect` 说了算

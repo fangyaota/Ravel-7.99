@@ -16,6 +16,12 @@ internal static class RealMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(RealMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`real "1.5"` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToFloat(arg);
+
     /// <summary>`real + real` —— 全程 `double`(理由见类注释)。右操作数交给 `AsDouble`
     /// 收:左边由方法表保证是 real,右边掺个 int / bigint 也照样升上来。</summary>
     [ClassOp("+")]

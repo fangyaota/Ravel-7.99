@@ -385,8 +385,8 @@ internal static partial class BuiltinClasses
         // 槽体里读的是**裸名字**,词法链直接命中实现 scope,不走这儿。
         if (name == InstanceMember) return null;
         // 常规查找先说话:就是"这个值能读到哪些成员"(`MemberScope`)——对象是"自己那层 +
-        // 沿类链的实例表",**标量借的正是同一个视图**(它们不是 ObjectVal、没有自己那层,
-        // `MemberScope` 对它们就是 `Type.InstanceMembers`)。
+        // 类型的成员工厂",**标量借的正是同一个视图**(它们不是 ObjectVal、没有自己那层,
+        // `MemberScope` 对它们就是 `Type.Members`)。
         if (receiver.MemberScope.LookupField(name) != null) return null;
 
         foreach (var impl in LiveImplementations(interp))

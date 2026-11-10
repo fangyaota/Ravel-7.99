@@ -21,6 +21,12 @@ internal static class StringMembers
     /// <summary>自己这一份;父指 `Object`,于是 `ToString` / `Copy` / `Fields` / `Key` 只写一遍。</summary>
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(StringMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`string 5` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToString(arg);
+
     // ── 长度 ──
 
     [ClassMethod("Length")]

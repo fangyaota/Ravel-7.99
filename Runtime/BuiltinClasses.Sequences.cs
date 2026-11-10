@@ -8,12 +8,13 @@ using System.Linq;
 /// (个数、查找、切片、聚合、变换)。写一份注册给三种容器,以后加 `IEnumerable` 时
 /// 把注册点从三处挪到一处就行,**方法体一个字不用改**。
 ///
-/// 分两批:
-/// - **不收函数**的(`Count` / `IsEmpty` / `Any` / `Contains` / `First` / `Last` / `Sum` /
-///   `Min` / `Max` / `Join` / `ToList` / `ToSet` / `Distinct` / `Reverse` / `Take` / `Skip` /
-///   `Concat`)在这个文件里,C# 当场算;
-/// - **收函数**的(`Each` / `Map` / `Where` / `Fold` / `All` / `Find` / `Sort p`)**不在这儿** ——
-///   原生闭包不能同步调 Ravel 函数(那是帧栈的活),它们得走控制帧,见 BuiltinClasses.HigherOrder.cs。
+/// 现在这个文件只剩**C# 这一侧要用的帮手**(取元素 / 排序键 / 取整 / 比大小) ——
+/// 方法本体已经搬进 `Runtime/Members/` 的成员工厂:
+/// - 不收函数的(`Count` / `IsEmpty` / `Any` / `Contains` / `First` / …)在 `SequenceMembers` 里,
+///   `[ClassMethod]`,C# 当场算;
+/// - 收函数的(`Foreach` / `Map` / `Where` / `Fold` / `All` / `Any` / `Find` / `SortBy`)
+///   同在那个类里,但值是 `SeqMethod`(`[ClassValue]`),得走控制帧 ——
+///   原生闭包不能同步调 Ravel 函数(那是帧栈的活)。
 ///
 /// 名字照 C# 的集合 / Linq API 起(`Select` → `Map`、`Aggregate` → `Fold`、`ToHashSet` → `ToSet`),
 /// 语义也对齐:
@@ -25,111 +26,6 @@ using System.Linq;
 ///   数值之间能混着比、字符串按序比,别的类型**当场报错**,不静默给个 false。
 internal static partial class BuiltinClasses
 {
-    /// <summary>把这一批方法注册到一种容器上。`elems` 就是将来 `IEnumerable` 要接口实现
-    /// 回答的那个问题:「按枚举顺序把元素给我」。
-    ///
-    /// **借的是容器自己那一份,不拷**(`IReadOnlyCollection`:既有 O(1) 的 `Count`,
-    /// 又是 `IEnumerable`)。从前这儿收的是 `List&lt;RuntimeValue&gt;`,而三个调用点都写成
-    /// `[.. ((ListVal)s).Elements]` —— 于是**每调一次就整张拷一遍**:
-    /// `xs.Count ()` 在 20 万元素的表上要 **434 µs**(100 元素 15 µs —— 和长度成正比,
-    /// 一眼就是 O(n))。换掉之后 `Count` / `IsEmpty` 是 O(1),别的也不再白拷一遍。
-    ///
-    /// `IReadOnlyCollection` 是**只读的承诺,不是只读的实现** —— 下面**不许就地改**
-    /// (从前 `Reverse` 那句 `xs.Reverse ()` 在副本上翻,现在会翻到用户那张表上,
-    /// 所以改成 `Enumerable.Reverse`:惰性、不动原表)。</summary>
-    private static void RegisterSequenceMethods(ObjectVal type,
-                                                Func<RuntimeValue, IReadOnlyCollection<RuntimeValue>> elems)
-    {
-        // `Count` / `IsEmpty` / `Any` —— 三种容器本来各有一份 `Count`,现在并到这儿
-        type.DefineMethod("Count", (s, _) => IntVal.Of(elems(s).Count));
-        type.DefineMethod("IsEmpty", (s, _) => new BoolVal(elems(s).Count == 0));
-        type.DefineMethod("First", (s, _) => FirstOf(elems(s), "First"));
-        type.DefineMethod("Last", (s, _) => LastOf(elems(s), "Last"));
-        // 元素里有没有它:原子值按值比、容器按身份比(和 Set 本身的判据一致)。
-        // 字典的"元素"是**值**(见 elems),按键找用 `Has k`。
-        type.DefineMethod("Contains", (s, a) => new BoolVal(elems(s).Contains(a)));
-
-        type.DefineMethod("ToList", (s, _) => new ListVal([.. elems(s)]));
-        type.DefineMethod("ToSet", (s, _) => new SetVal([.. elems(s)]));
-        type.DefineMethod("Distinct", (s, _) =>
-        {
-            var seen = new HashSet<RuntimeValue>();
-            var kept = new List<RuntimeValue>();
-            foreach (var x in elems(s))
-                if (seen.Add(x))
-                    kept.Add(x);
-            return new ListVal(kept);
-        });
-        // **惰性翻,不就地翻** —— "借来的"那张表是用户的(见抬头)
-        type.DefineMethod("Reverse", (s, _) => new ListVal([.. Enumerable.Reverse(elems(s))]));
-        type.DefineMethod("Take", (s, a) => new ListVal([.. Enumerable.Take(elems(s), IntArg(a, "Take"))]));
-        type.DefineMethod("Skip", (s, a) => new ListVal([.. Enumerable.Skip(elems(s), IntArg(a, "Skip"))]));
-        type.DefineMethod("Concat", (s, a) => new ListVal([.. elems(s), .. ElementsOf(a, "Concat")]));
-
-        type.DefineMethod("Join", (s, a) =>
-        {
-            if (a is not StringVal sep) throw new RuntimeException("Join 需要 string 分隔符", ErrorKind.Argument);
-            return new StringVal(string.Join(sep.Value, elems(s).Select(x => x.ToString())));
-        });
-        type.DefineMethod("Sum", (s, _) =>
-        {
-            RuntimeValue acc = IntVal.Of(0);          // 空集合求和给 0(C# 的 Sum() 也是这样)
-            foreach (var x in elems(s)) acc = ApplyOp("+", acc, x);
-            return acc;
-        });
-        type.DefineMethod("Min", (s, _) => Extreme(elems(s), "Min", keepLess: true));
-        type.DefineMethod("Max", (s, _) => Extreme(elems(s), "Max", keepLess: false));
-    }
-
-    /// <summary>头一个 / 末一个元素。**空集合报的是同一句话** ——
-    /// 从前走 `Nth(xs, 0/-1)` 那条:`Nth` 要按下标取,而借来的表不该要求 `IList`
-    /// (`HashSet` / `Dictionary.Values` 都不是)。措辞一个字没改。</summary>
-    private static RuntimeValue FirstOf(IEnumerable<RuntimeValue> xs, string what)
-    {
-        foreach (var x in xs) return x;
-        throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
-    }
-
-    private static RuntimeValue LastOf(IEnumerable<RuntimeValue> xs, string what)
-    {
-        if (xs is IReadOnlyList<RuntimeValue> list)          // List —— 直取末一个,O(1)
-        {
-            if (list.Count == 0) throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
-            return list[^1];
-        }
-
-        var found = false;
-        RuntimeValue last = VoidVal.Instance;
-        foreach (var x in xs) { last = x; found = true; }
-        if (!found) throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
-        return last;
-    }
-
-    /// <summary>高阶那批:收 Ravel 函数的那些。它们的成员值不是普通内置方法,而是
-    /// <see cref="SeqMethod"/> —— 读出来绑好接收者,交出去的是个**控制帧**
-    /// (原生闭包调不了 Ravel 函数),见 Interpreter.Control.cs 的 `StepSeqOp`。
-    ///
-    /// 名字照 Linq:`Select` → `Map`、`Aggregate(seed, f)` → `Fold`、`OrderBy` → `SortBy`、
-    /// `Any(pred)` → `Any p`(和 `Any ()` 共用一个名字)、`First(pred)` → `Find`。</summary>
-    private static void RegisterHigherOrderMethods(ObjectVal type)
-    {
-        // `Foreach` —— 2026-10-07 从 `Each` 改名:序列那一族现在只有这一个"每元素跑一遍"
-        // 的名字(`序列.Foreach 体`),解析器按它认循环(`break` / `continue` / `@标签`)。
-        DefineSeq(type, "Foreach", SeqMode.Each, 3);
-        DefineSeq(type, "Map", SeqMode.Map, 3);
-        DefineSeq(type, "Where", SeqMode.Where, 3);
-        DefineSeq(type, "All", SeqMode.All, 3);
-        DefineSeq(type, "Any", SeqMode.Any, 3);
-        DefineSeq(type, "Find", SeqMode.Find, 3);
-        DefineSeq(type, "SortBy", SeqMode.SortBy, 3);
-        DefineSeq(type, "Fold", SeqMode.Fold, 4);      // 收两个:初值 + 函数(和 Aggregate(seed, f) 一致)
-    }
-
-    /// <summary>高阶方法也是**引擎给这一类挂的成员**:走 <see cref="EngineMember"/> 落到
-    /// 实例表(`SeqMethod` 不是 `BuiltinMethodVal`,所以没走 DefineMethod 那条路)。</summary>
-    private static void DefineSeq(ObjectVal type, string name, SeqMode mode, int arity)
-        => EngineMember(type, name, new SeqMethod(mode, arity) { Name = name });
-
     /// <summary>任何容器的元素(按枚举顺序)。`Concat` 收别的容器时用它 ——
     /// 这是"C# 里接受 `IEnumerable`"这一步的临时形状,等接口出来了就换成接口。</summary>
     internal static List<RuntimeValue> ElementsOf(RuntimeValue v, string what) => v switch
@@ -177,14 +73,6 @@ internal static partial class BuiltinClasses
             ? i.Value
             : throw new RuntimeException($"{what} 需要 int 参数，得到 {a.Type}", ErrorKind.Argument);
 
-    /// <summary>把内置运算符当普通函数用(只在 C# 这一侧)。成员表里那格是
-    /// <see cref="BuiltinMethodVal"/>,它的体是同步的可以直接调;查不到、或者被类运算符
-    /// 换成了要推帧的东西(用户类自己写的 `+`)就当场报错 —— 别静默给个错答案。</summary>
-    private static RuntimeValue ApplyOp(string op, RuntimeValue a, RuntimeValue b)
-        => a.MemberScope.LookupField(op)?.Value is BuiltinMethodVal m
-            ? m.Impl(a, b)
-            : throw new RuntimeException($"'{op}' 不支持 {a.Type}（{a.Type} 与 {b.Type} 之间）", ErrorKind.Type);
-
     /// <summary>比大小:走 `<` 那个内置运算符 —— `Min` / `Max` / `Sort` / `SortBy` 同一个口径。
     /// 比不了就**报错**(不是给个 false、也不是给个元素),而且**两边都说出来**:
     /// 底下的运算符只会说"我不支持 X 操作数",而调用方问的是"这两个能不能比",
@@ -202,19 +90,5 @@ internal static partial class BuiltinClasses
             }
 
         throw new RuntimeException($"比不了 {a.Type} 与 {b.Type}", ErrorKind.Type);
-    }
-
-    /// <summary>最小 / 最大。相等时留**先出现**的那个(稳定)。</summary>
-    private static RuntimeValue Extreme(IEnumerable<RuntimeValue> xs, string what, bool keepLess)
-    {
-        var have = false;
-        RuntimeValue best = VoidVal.Instance;
-        foreach (var x in xs)
-        {
-            if (!have) { best = x; have = true; continue; }
-            if (keepLess ? Less(x, best) : Less(best, x)) best = x;
-        }
-        if (!have) throw new RuntimeException($"{what}: 空集合没有{what}", ErrorKind.Index);
-        return best;
     }
 }

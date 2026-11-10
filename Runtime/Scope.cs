@@ -167,7 +167,7 @@ public class Scope(Scope? parent = null)
     public virtual IEnumerable<KeyValuePair<string, Variable>> Variables
         => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
 
-    /// <summary>这一层里**有哪些成员名**。本层登记的**,外加**这个类型在引擎注册表里
+    /// <summary>这一层里**有哪些成员名**。本层登记的**,外加**这个类型的成员工厂
     /// 准备好的那些(只在 <see cref="MemberOf"/> 有值时:普通作用域没有"类型")。</summary>
     public virtual IEnumerable<string> MemberNames
     {
@@ -178,8 +178,6 @@ public class Scope(Scope? parent = null)
             if (MemberOf is not { } owner) yield break;
 
             var seen = _vars is { } stored ? new HashSet<string>(stored.Keys) : new HashSet<string>();
-            foreach (var name in BuiltinClasses.MemberNamesOf(owner.Type))
-                if (seen.Add(name)) yield return name;
             if (owner.Type is ClassVal type)
             {
                 if (type.Members is { } members)
@@ -194,17 +192,17 @@ public class Scope(Scope? parent = null)
     /// <summary>这一层是**哪个值自己的成员表** —— 模块、插件的值、`ScopeVal` 这些
     /// 拿着"现成的作用域"当表的对象在这儿登记(`ObjectVal` 构造时顺手标上)。
     ///
-    /// 有它,成员查找才有一层**注册表兜底**:那些对象没有 <see cref="VirtualScope"/> 那样的
-    /// `Create`,可他们照样得读得到 `Fields` / `Push` / `References` 这些引擎挂的成员。
-    /// 没有它(普通作用域、类体那层)就只是"本层登记了哪些名字"。</summary>
+    /// 有它,成员查找才有一层**类型兜底**:那些对象没有 <see cref="VirtualScope"/> 那张表,
+    /// 可他们照样得读得到 `Fields` / `Push` / `References` 这些引擎挂的成员 —— 问的是类
+    /// 自己那份成员工厂。没有它(普通作用域、类体那层)就只是"本层登记了哪些名字"。</summary>
     internal RuntimeValue? MemberOf { get; set; }
 
-    /// <summary>本层**已存**的那一格,不碰注册表 —— 给"只认这一层"的调用点用
+    /// <summary>本层**已存**的那一格,不碰类型 —— 给"只认这一层"的调用点用
     /// (换槽要落到**实例自己**那层,`obj.Scope.LookupField` 现在会兜底到类那格,
     /// 换掉它就等于换掉整个类的槽)。</summary>
     internal Variable? OwnField(string name) => Stored(name);
 
-    /// <summary>本层**已存**的那一格,不碰注册表。</summary>
+    /// <summary>本层**已存**的那一格,不碰类型。</summary>
     protected Variable? Stored(string name)
         => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
 
@@ -220,13 +218,11 @@ public class Scope(Scope? parent = null)
 
     /// <summary>一个值**类型上**给的那种成员(`Fields` / `Push` / `References` …) ——
     /// 模块、插件值、`ScopeVal` 这些拿普通作用域当表的对象靠它读得到。
-    /// 先问类型自己那份成员工厂,再问旧的注册表(迁移中,两边都还在)。</summary>
+    /// 只有两个来源:类型自己那份成员工厂,和 `Object` 那一套公共尾巴。</summary>
     private static Variable? OwnerMember(RuntimeValue owner, string name)
         => owner.Type is ClassVal type
-            ? type.Members?.Create(type, name)
-              ?? BuiltinClasses.InstanceMemberOf(owner.Type, name)
-              ?? ObjectMembers.Any.Create(type, name)
-            : BuiltinClasses.InstanceMemberOf(owner.Type, name);
+            ? type.Members?.Create(type, name) ?? ObjectMembers.Any.Create(type, name)
+            : null;
 
     /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>
     public Variable? LookupVar(string name)

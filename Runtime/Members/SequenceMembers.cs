@@ -23,6 +23,48 @@ using Ravel.Runtime.Values;
 /// `First` 也只取一个。要拷由用户明说(`ToList` / `ToSet`)。</summary>
 internal abstract class SequenceMembers
 {
+    // ── 高阶方法:值本身就是成员(`[ClassValue]`) ──
+    //
+    // 这批**不是** `BuiltinMethodVal`:`Map f` 要调用户函数,而原生闭包是同步的 C# 调用 ——
+    // 调不了(`SeqMethod` 绑完交出去一个 `ControlFunction`,求值器推 `SeqOp` 帧、一个元素一步地走)。
+    // 从前它们在 `BuiltinClasses.Sequences.cs` 的 `RegisterHigherOrderMethods` 里靠
+    // `EngineMember` 往注册表写,现在字段就在这儿、名字挂在特性上。
+    //
+    // **字段声明必须排在 `Set` 之前**:`Set = MemberSet.Scan(...)` 是靠反射读这些字段建成员集的,
+    // 还没初始化就读到 null 了(见 `MemberSet.Scan` 里那条检查)。
+
+    /// <summary>逐个跑一遍 —— 不收返回值,只要副作用。</summary>
+    [ClassValue("Foreach")]
+    private static readonly RuntimeValue Foreach = new SeqMethod(SeqMode.Each, 3) { Name = "Foreach" };
+
+    /// <summary>逐个跑一遍,收结果 —— 交回新的 `list`。</summary>
+    [ClassValue("Map")]
+    private static readonly RuntimeValue Map = new SeqMethod(SeqMode.Map, 3) { Name = "Map" };
+
+    /// <summary>留下那些函数给 true 的 —— 交回同种的容器。</summary>
+    [ClassValue("Where")]
+    private static readonly RuntimeValue Where = new SeqMethod(SeqMode.Where, 3) { Name = "Where" };
+
+    /// <summary>全都给 true 吗。</summary>
+    [ClassValue("All")]
+    private static readonly RuntimeValue All = new SeqMethod(SeqMode.All, 3) { Name = "All" };
+
+    /// <summary>有一个给 true 吗。</summary>
+    [ClassValue("Any")]
+    private static readonly RuntimeValue Any = new SeqMethod(SeqMode.Any, 3) { Name = "Any" };
+
+    /// <summary>第一个给 true 的那个元素;没有就是 `()`。</summary>
+    [ClassValue("Find")]
+    private static readonly RuntimeValue Find = new SeqMethod(SeqMode.Find, 3) { Name = "Find" };
+
+    /// <summary>按函数交回的键排序,交回新的 `list`。</summary>
+    [ClassValue("SortBy")]
+    private static readonly RuntimeValue SortBy = new SeqMethod(SeqMode.SortBy, 3) { Name = "SortBy" };
+
+    /// <summary>折叠:收**两个**函数实参(初值 + 函数),所以是 4 格。</summary>
+    [ClassValue("Fold")]
+    private static readonly RuntimeValue Fold = new SeqMethod(SeqMode.Fold, 4) { Name = "Fold" };
+
     /// <summary>**按枚举顺序取出元素** —— 三种容器各自的那一份,不拷。
     /// 别的类型走到这儿说明"序列方法挂在不该有的类上了",当场报类型错(不是静默空序列)。</summary>
     private static IEnumerable<RuntimeValue> Items(RuntimeValue s) => s switch

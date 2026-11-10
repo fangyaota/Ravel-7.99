@@ -87,9 +87,6 @@ public partial class Interpreter
                 _top = new ControlFrame(ControlKind.Compose, cargs, VoidVal.Instance) { Parent = sink, Scope = sink.Scope, CallSite = (_top as NodeFrame)?.Node };
                 break;
             }
-            case BoundClassOp bco:
-                PushClassOp(sink, bco.OpName, bco.Self, arg);
-                break;
             case BoundTraitOp bto:
                 _top = new ControlFrame(ControlKind.TraitOp,
                     RList<RuntimeValue>.Empty.Add(bto.Self).Add(arg).Add(new StringVal(bto.OpName)),
@@ -98,7 +95,7 @@ public partial class Interpreter
                 break;
             // `T.GetImplements ()` / `I.GetImplementors ()` —— 类型与接口之间那两个方向的问题。
             // **当场算**:实现是登记在作用域里的,而求值器手里正好有当前作用域(内置方法的体没有),
-            // 所以和 BoundClassOp 一样做成"按值分派"的一格。
+            // 所以做成"按值分派"的一格。
             case BoundTraitQuery q:
                 _top = sink.WithResult(q.Kind == TraitQueryKind.Implements
                     ? BuiltinClasses.Implements(this, q.Self)
@@ -175,15 +172,6 @@ public partial class Interpreter
     }
 
     // ======================== 合成控制帧的推帧助手 ========================
-
-    /// <summary>推 ClassOp 帧:到实例里找同名成员(符号就是成员名)并调,结果返回 parent 帧。
-    /// 作用域取当前帧(调用发起处)的,不是 parent 的——运算符体应按调用点作用域求值。</summary>
-    private void PushClassOp(Frame parent, string op, ObjectVal self, RuntimeValue arg)
-    {
-        var callerScope = _top.Scope;
-        var args = RList<RuntimeValue>.Empty.Add(self).Add(arg).Add(new StringVal(op));
-        _top = new ControlFrame(ControlKind.ClassOp, args, VoidVal.Instance) { Parent = parent, Scope = callerScope };
-    }
 
     /// <summary>复合赋值通用帧:CallInto 算运算符,完成时把结果赋回目标变量</summary>
     private void PushCallAssign(NodeFrame nf, FunctionVal bound, RuntimeValue arg, string target)

@@ -16,6 +16,12 @@ internal static class BigFractionMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(BigFractionMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`bigfraction 0.5` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToBigFraction(arg);
+
     /// <summary>`bigfraction ** n`:负次幂照样是分数(上下颠倒),不受"整数的负次幂交回
     /// real"那条影响。走 `BuiltinClasses.BigFractionPow` —— 底数本身就是 `BigInteger`,
     /// 乘方一路精确。</summary>

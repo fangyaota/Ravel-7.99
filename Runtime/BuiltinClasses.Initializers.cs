@@ -26,14 +26,14 @@ internal static partial class BuiltinClasses
         // 它跑在 object 之后,所以 `MyList default` 走的还是 List 那一份。
         BuiltinCtor(Object, DefaultCtor());
         IntCaster = MakeCaster(CastToInt);
-        BuiltinCtor(Int, IntCaster, exposeInit: true);
-        BuiltinCtor(Real, MakeCaster(CastToFloat), exposeInit: true);
-        BuiltinCtor(Bool, MakeCaster(CastToBool), exposeInit: true);
-        BuiltinCtor(String, MakeCaster(CastToString), exposeInit: true);
-        BuiltinCtor(Char, MakeCaster(CastToChar), exposeInit: true);
-        BuiltinCtor(BigInt, MakeCaster(CastToBigInt), exposeInit: true);
-        BuiltinCtor(Fraction, MakeCaster(CastToFraction), exposeInit: true);
-        BuiltinCtor(BigFraction, MakeCaster(CastToBigFraction), exposeInit: true);
+        BuiltinCtor(Int, IntCaster);
+        BuiltinCtor(Real, MakeCaster(CastToFloat));
+        BuiltinCtor(Bool, MakeCaster(CastToBool));
+        BuiltinCtor(String, MakeCaster(CastToString));
+        BuiltinCtor(Char, MakeCaster(CastToChar));
+        BuiltinCtor(BigInt, MakeCaster(CastToBigInt));
+        BuiltinCtor(Fraction, MakeCaster(CastToFraction));
+        BuiltinCtor(BigFraction, MakeCaster(CastToBigFraction));
         Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
         // 错误那一族各拿**自己的一份**(Message 字段 + 那个构造器)。
         //
@@ -134,7 +134,7 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 int", ErrorKind.Type);
     }
 
-    private static RuntimeValue CastToFloat(RuntimeValue val)
+    internal static RuntimeValue CastToFloat(RuntimeValue val)
     {
         if (val is DefaultVal) return new RealVal(0);
         if (val is IntVal i) return new RealVal(i.Value);
@@ -153,19 +153,19 @@ internal static partial class BuiltinClasses
 
     // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型
     // 分发到这几个 CastToXxx 上),会转不出来。
-    private static RuntimeValue CastToBool(RuntimeValue val)
+    internal static RuntimeValue CastToBool(RuntimeValue val)
         => val is DefaultVal ? new BoolVal(false)
             : val is BoolVal b ? b
             : throw new RuntimeException($"无法将 {val.Type} 转换为 bool", ErrorKind.Type);
 
-    private static RuntimeValue CastToString(RuntimeValue val)
+    internal static RuntimeValue CastToString(RuntimeValue val)
         => val is DefaultVal ? new StringVal("")
             : val is StringVal s ? s
             : new StringVal(val.ToString());
 
     /// <summary>`char x` —— 从数(码位)、字符串(长度必须是 1)或者另一个 char 转过来。
     /// 越界/长度不对**当场报错**,不做截断 —— 悄悄给个错字符比报错难查得多。</summary>
-    private static RuntimeValue CastToChar(RuntimeValue val) => val switch
+    internal static RuntimeValue CastToChar(RuntimeValue val) => val switch
     {
         CharVal c => c,
         DefaultVal => new CharVal('\0'),
@@ -177,7 +177,7 @@ internal static partial class BuiltinClasses
         _ => throw new RuntimeException($"char: 转不了 {val.Type}", ErrorKind.Type),
     };
 
-    private static RuntimeValue CastToBigInt(RuntimeValue val)
+    internal static RuntimeValue CastToBigInt(RuntimeValue val)
     {
         if (val is DefaultVal) return new BigIntVal(0);
         if (val is IntVal i) return new BigIntVal(i.Value);
@@ -197,7 +197,7 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 bigint", ErrorKind.Type);
     }
 
-    private static RuntimeValue CastToFraction(RuntimeValue val)
+    internal static RuntimeValue CastToFraction(RuntimeValue val)
     {
         if (val is DefaultVal) return new FractionVal(0, 1);
         // int 当分子,再收一个 int 分母
@@ -218,7 +218,7 @@ internal static partial class BuiltinClasses
         throw new RuntimeException($"无法将 {val.Type} 转换为 fraction", ErrorKind.Type);
     }
 
-    private static RuntimeValue CastToBigFraction(RuntimeValue val)
+    internal static RuntimeValue CastToBigFraction(RuntimeValue val)
     {
         if (val is DefaultVal) return new BigFractionVal(0, 1);
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;

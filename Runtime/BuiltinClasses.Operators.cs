@@ -10,15 +10,6 @@
 internal static partial class BuiltinClasses
 {
 
-    /// <summary>把二元运算符注册为名字是符号的方法（op 如 "+"、"=="）。
-    ///
-    /// **这是老的那条路，现在没有调用点** —— 运算符全搬进了
-    /// `Runtime/Members/*OperatorMembers.cs`（每个类自己带一份成员工厂）。
-    /// 留着是因为它仍是"往类对象上写一格符号名"的最小形状，装配 / 实验代码还叫得到；
-    /// **新加运算符别写这儿**，去对应的 `XxxMembers` 里挂 `[ClassOp("…")]`。</summary>
-    internal static void DefineOp(ObjectVal type, string op, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => type.DefineMethod(op, impl);
-
     /// <summary>把操作数收成想要的运行时值类型。类型不对时报 Ravel 错误——
     /// 直接写 `((IntVal)b)` 会抛 C# 的 InvalidCastException,消息里全是
     /// `Ravel.Runtime.BoolVal` 这种实现细节,`1 + true` 就长这样。

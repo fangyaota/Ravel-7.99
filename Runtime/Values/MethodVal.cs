@@ -4,26 +4,13 @@
 public sealed record BuiltinMethodVal(Func<RuntimeValue, RuntimeValue, RuntimeValue> Impl)
     : FunctionVal(null!, (_, self) => FunctionVal.From(arg => Impl(self, arg))), ISelfBinding;
 
-/// <summary>类运算符工厂:存的是"self → BoundClassOp",读成员时要绑接收者。
-/// 和 BuiltinMethodVal 一样是自绑定成员,区别是它不直接算而是推 ClassOp 帧到实例里找实现 ——
-/// 所以它**不吃**同步快路径,两个标记因此不能合并(见 <see cref="ISelfBinding"/>)。</summary>
-public sealed record ClassOperatorFactory(string OpName)
-    : FunctionVal(null!, (_, self) => new BoundClassOp((ObjectVal)self, OpName)), ISelfBinding;
-
-/// <summary>绑定的类运算符(a.+ 的值):调用时推 ClassOp 帧,到实例里按符号名找实现</summary>
-public sealed record BoundClassOp(ObjectVal Self, string OpName) : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("BoundClassOp"))
-{
-    /// <summary>盖掉 record 的自动 dump(否则会把 Self 整个对象打出来)</summary>
-    public override string ToString() => "<function " + OpName + ">";
-}
-
 /// <summary>绑定的**槽运算符**(`by + := property g s`):调用时推 TraitOp 帧。
 ///
-/// 和 <see cref="BoundClassOp"/> 的区别在于那一格的**值是 property**:用它的运算符要两级 ——
-/// 先读槽(推 getter)拿到运算符函数,再拿那个函数收右操作数。所以它单独占一个帧,
-/// 别去挤 ClassOp 那条(那边一级就够,但两条路的阶段数不一样,合在一起就得靠旗子分辨)。
+/// 它单独占一个帧的理由:那一格的**值是 property**,用它的运算符要两级 —— 先读槽(推 getter)
+/// 拿到运算符函数,再拿那个函数收右操作数。一级就够的那条(用户类体里直接写的 `+ := f`)
+/// 走 `BindOperator` 的同步路径,不占帧。
 ///
-/// 槽在哪儿由 TraitOp 帧自己重新找(自己的那层 → 生效中的接口实现),和 ClassOp 一个路子。</summary>
+/// 槽在哪儿由 TraitOp 帧自己重新找(自己的那层 → 生效中的接口实现)。</summary>
 public sealed record BoundTraitOp(ObjectVal Self, string OpName) : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("BoundTraitOp"))
 {
     public override string ToString() => "<function " + OpName + ">";
@@ -35,7 +22,7 @@ public sealed record BoundTraitOp(ObjectVal Self, string OpName) : FunctionVal(n
 public enum TraitQueryKind { Implements, Implementors }
 
 /// <summary>`T.GetImplements ()` / `I.GetImplementors ()` 挂在 `Type` 上的那个成员值。
-/// 和 <see cref="ClassOperatorFactory"/> 一个路子:读出来先绑接收者(得到
+/// 和 <see cref="BuiltinMethodVal"/> 一样是自绑定成员:读出来先绑接收者(得到
 /// <see cref="BoundTraitQuery"/>),调用时由 `CallInto` 认出它当场算。
 ///
 /// 为什么不能像别的方法那样写个纯 C# 闭包:**这两个问题都要当前作用域** ——

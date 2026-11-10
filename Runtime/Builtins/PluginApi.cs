@@ -368,7 +368,7 @@ internal static class PluginLoader
             {
                 // 那一格是 **`by` 槽** —— 和 Ravel 里 `by x := property g s` 一个机制。
                 // **类型约束给 `Any`**:写进来的是**属性值**,不是那个 property 本身
-                // (同 `ClassProperty`,见 `EngineMember` 那段)。
+                // (同 `ClassProperty`,见 `MemberSet.Create` 那段)。
                 var slot = scope.DefineOrReplace(f.Name, BuiltinClasses.Any,
                                                  ClassRegistry.PropertyOf(self, f.Method!));
                 slot.SetAttr(Attr.By);
@@ -431,8 +431,8 @@ internal static class PluginLoader
             // **一份 `Scan` 收齐**:这个装载器类(C# 基类一并扫)上标了 `[ClassMethod]` /
             // `[ClassOp]` / `[ClassProperty]` / `[ClassCtor]` 的静态方法就是它的成员 ——
             // 和内置类同一套写法、同一个绑定(`ClassRegistry.Bind`)、同一份成员工厂
-            // (`ClassVal.Members`)。从前这里是一段手写的 foreach,把每一格 `EngineMember`
-            // 塞进外置注册表;现在类自己带着,实例读成员时问自己。
+            // (`ClassVal.Members`)。从前这里是一段手写的 foreach,把每一格塞进一张外置
+            // 注册表;那张注册表已经删了 —— 类自己带着,实例读成员时问自己。
             //
             // 父类那份**按引用接下**(`MemberSet.Scan` 的第二个参数):插件类照样白得
             // `Object` 的 `ToString` / `Fields`,以及它 C# 父类链上声明的那些。
@@ -440,10 +440,10 @@ internal static class PluginLoader
             klass.Members = members;
 
             // 构造器是**类体**那份(`ClassBody`),不是成员表里的一格 —— 对象实例化时
-            // 沿祖先链跑类体、最后调它(见 `StepClassInit`);值类型不走那趟,得直接把
-            // `init` 当成员交出去(`(某个值).init …`),所以那类才 `exposeInit`。
+            // 沿祖先链跑类体、最后调它(见 `StepClassInit`);值类型不走那趟,它们的 `init`
+            // 由装载器类上的 `[ClassCtor]` 提供(`VirtualScope` 就地交出去)。
             if (members.Ctor is { } ctor)
-                BuiltinClasses.BuiltinCtor(klass, ctor, exposeInit: klass.IsValueLike);
+                BuiltinClasses.BuiltinCtor(klass, ctor);
         }
 
         if (module is not null)

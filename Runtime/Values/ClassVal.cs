@@ -15,9 +15,9 @@ using Ravel.Runtime.Values;
 /// 那个 Body 永远不会被读到。
 ///
 /// 类对象的成员(`parent`/`block`/`name`/各层方法/类侧 API)全在自己的成员表里,和别的对象
-/// 一样 —— 类对象没有第二张表。给**实例**的成员由 `BuiltinClasses` 按类记着,实例自己那张表
-/// 读不到时才按名字取一格(见 <see cref="VirtualScope"/>) —— 所以 `list.Add 2` 从类这一侧
-/// 找不到,报的是「类型 'Type' 没有方法 'Add'」,结构决定的,不靠标记。</summary>
+/// 一样 —— 类对象没有第二张表。给**实例**的成员由类自己那份成员工厂给出(`Members`),
+/// 实例自己那张表读不到时才按名字取一格(见 <see cref="VirtualScope"/>) —— 所以
+/// `list.Add 2` 从类这一侧找不到,报的是「类型 'Type' 没有方法 'Add'」,结构决定的,不靠标记。</summary>
 public record ClassVal : FunctionVal
 {
     /// <param name="classType">元类(创建它的那个类对象)。`null` 表示**自指** ——

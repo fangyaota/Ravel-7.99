@@ -19,7 +19,6 @@ public partial class Interpreter
             case ControlKind.SeqOp: StepSeqOp(cf); break;
             case ControlKind.Compose: StepCompose(cf); break;
             case ControlKind.Then: StepThen(cf); break;
-            case ControlKind.ClassOp: StepClassOp(cf); break;
             case ControlKind.TraitOp: StepTraitOp(cf); break;
             case ControlKind.CallAssign: StepCallAssign(cf); break;
             case ControlKind.CallReturn: StepCallReturn(cf); break;
@@ -626,23 +625,6 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    /// <summary>类运算符:在实例作用域里找同名的成员(符号就是成员名),调它</summary>
-    private void StepClassOp(ControlFrame cf)
-    {
-        var self = cf.Arg<ObjectVal>(0, "ClassOp");
-        var arg = cf.Arg<RuntimeValue>(1, "ClassOp");
-        var op = cf.Arg<StringVal>(2, "ClassOp").Value;
-        if (cf.Count == 0)
-        {
-            var impl = FindClassOperator(self.Scope, op)
-                       ?? throw new RuntimeException($"对象没有运算符 '{op}'", ErrorKind.Attribute);
-            CallInto(cf, impl, arg);
-            return;
-        }
-
-        Return(cf, cf.Result(0));
-    }
-
     /// <summary>**槽运算符**(`by + := property g s`):`a + b` 走到这儿。
     ///
     /// 和类运算符的区别:那一格的值是 **property** —— 读它走 getter,getter 交回的是运算符函数,
@@ -706,8 +688,4 @@ public partial class Interpreter
         Return(cf, cf.Arg<RuntimeValue>(2, "CallReturn"));
     }
 
-    /// <summary>找实例里这个符号的运算符实现。符号就是成员名(`+ := f` 定义的就是 `+`),
-    /// 各层类体平铺在同一个实例 scope、子类覆盖父类,所以只有一个,查一层就够。</summary>
-    private static FunctionVal? FindClassOperator(Scope scope, string symbol)
-        => scope.LookupField(symbol)?.Value as FunctionVal;
 }

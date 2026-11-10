@@ -125,8 +125,8 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
         if (Value is ObjectVal obj) CheckObjectReadAccess(obj, member, name);
         // 内置方法存的是"self → 结果",读出来要先绑接收者;
         // 实例 scope 里的是已经捕获好作用域的 lambda,原样返回。
-        // 判据是 ISelfBinding 而**不是** `is BuiltinMethodVal`:类运算符工厂也要绑,
-        // 但绑完是 `BoundClassOp`(推 ClassOp 帧的标记)而不是能直接算的值。
+        // 判据是 ISelfBinding 而**不是** `is BuiltinMethodVal`:`TraitQuery` / `SeqMethod`
+        // 也要绑,但绑完是推控制帧的标记而不是能直接算的值。
         var v = member.Value;
         return new BoxedValue(
             v is ISelfBinding && v is FunctionVal sf ? ObjectVal.BindMethod(sf, Value) : v,

@@ -33,18 +33,21 @@ internal enum MemberKind
     Operator,
     /// <summary>`[ClassProperty]`:一个名字两个方向,落 `by` 槽。</summary>
     Property,
+    /// <summary>`[ClassValue]`:**现成的值**,字段里那个函数值本身就是成员。</summary>
+    Value,
 }
 
 /// <summary>**反射出来的一组成员** —— 静态方法上挂 `[ClassMethod]` / `[ClassOp]` /
-/// `[ClassProperty]` / `[ClassCtor]`,和插件那套(`PluginApi`)是**同一批特性、同一个绑定**
-/// (`ClassRegistry.Bind`)。内置类和插件类从此没有第二种写法。
+/// `[ClassProperty]` / `[ClassCtor]`,静态字段上挂 `[ClassValue]`,和插件那套(`PluginApi`)
+/// 是**同一批特性、同一个绑定**(`ClassRegistry.Bind`)。内置类和插件类从此没有第二种写法。
 ///
 /// 继承照 Ravel 的类树走:`StringMembers` 的父是 `ObjectMembers`,名字和造法都按
 /// "自己的在前、父类的在后"接上去 —— 只接一层句柄(`_parent`),不拷表。
 /// 反射**只做一次**(建成员集的时候),之后每次造一格都是字典命中 + 建一个 `Variable`。</summary>
 internal sealed class MemberSet : IMemberSet
 {
-    private readonly record struct Spec(MethodInfo Method, MemberKind Kind, bool ReadOnly);
+    /// <summary>一条成员:方法那条存 `Method`,`[ClassValue]` 那条存**现成的值**,两者只有一个是非 null。</summary>
+    private readonly record struct Spec(MethodInfo? Method, RuntimeValue? Value, MemberKind Kind, bool ReadOnly);
 
     private readonly Dictionary<string, Spec> _own = new(StringComparer.Ordinal);
     private readonly List<string> _order = [];
@@ -73,8 +76,20 @@ internal sealed class MemberSet : IMemberSet
                 }
 
                 var (name, kind, readOnly) = Classify(m);
-                if (name is null || !set._own.TryAdd(name, new Spec(m, kind, readOnly))) continue;
+                if (name is null || !set._own.TryAdd(name, new Spec(m, null, kind, readOnly))) continue;
                 set._order.Add(name);
+            }
+
+            // 字段那一档:`[ClassValue]` —— 值在静态初始化时就建好了,这里只收名字和它。
+            foreach (var f in t.GetFields(BindingFlags.Static | BindingFlags.Public
+                                        | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            {
+                if (f.GetCustomAttribute<ClassValueAttribute>() is not { } value) continue;
+                if (f.GetValue(null) is not RuntimeValue built)
+                    throw new InvalidOperationException(
+                        $"`[ClassValue(\"{value.Name}\")]` 得打在 RuntimeValue 字段上：{t.Name}.{f.Name}");
+                if (!set._own.TryAdd(value.Name, new Spec(null, built, MemberKind.Value, false))) continue;
+                set._order.Add(value.Name);
             }
         }
 
@@ -158,9 +173,18 @@ internal sealed class MemberSet : IMemberSet
     {
         if (!_own.TryGetValue(name, out var spec)) return _parent?.Create(owner, name);
 
+        if (spec.Kind == MemberKind.Value)
+        {
+            // `[ClassValue]` 那条:值本身已经是成员,不用再绑 —— 直接交出去。
+            // 造出来的一格和其它成员一样只读(成员不是拿来重新赋值的)。
+            var given = new Variable(name, BuiltinClasses.Function, spec.Value!);
+            given.SetAttr(Attr.Readonly);
+            return given;
+        }
+
         // 类和插件两条路在这儿合流:`ClassRegistry.Bind` 就是 `[ClassMethod]` 那套绑定
         // (多参会柯里化,只收 self 的那个多给实参要报错 —— 见那边的注释)。
-        var acc = ClassRegistry.Bind(owner, spec.Method, name);
+        var acc = ClassRegistry.Bind(owner, spec.Method!, name);
 
         if (spec.Kind == MemberKind.Property)
         {

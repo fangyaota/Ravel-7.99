@@ -250,31 +250,6 @@ public record ObjectVal : RuntimeValue
     }
 
     // ============================================================
-    //  注册(S1 阶段内置成员仍走这里,S2 会改成往类体的 Scope 里定义)
-    // ============================================================
-
-    /// <summary>注册内置同步方法:BuiltinMethodVal 标记,分派走快速同步路径。
-    ///
-    /// 落点是**给实例的那张表**(<see cref="ClassVal.InstanceTable"/>,见
-    /// <see cref="BuiltinClasses.EngineMember"/>)——内置实例方法本来就只属于实例,
-    /// 从类对象那一侧读不到(`list.Add 2` 报「类型 'Type' 没有方法 'Add'」)。
-    ///
-    /// 这是**引擎内部**的注册口:那一串 `X.DefineMethod (…)` 一个字符都不用改。
-    /// 用户代码碰不到它(它不在语言里,只有 C# 侧调得到)。</summary>
-    internal Variable DefineMethod(string name, Func<RuntimeValue, RuntimeValue, RuntimeValue> impl)
-        => BuiltinClasses.EngineMember(this, name, new BuiltinMethodVal(impl) { Name = name });
-
-    /// <summary>注册类运算符:op 为符号("+")。绑 self 得 <see cref="BoundClassOp"/>,再走 CallInto 推 ClassOp 帧
-    /// 到实例里找实现 —— 所以它**不**吃同步快路径(绑完不再是 BuiltinMethodVal)。
-    ///
-    /// **不进 readonly**:这条路上走的是**用户**类体里那句 `+ := f`
-    /// (见 `BuiltinClasses.Install` 扫类体),不是内置实现,得留出覆盖的余地。
-    /// 落点照旧是给实例的那张表 —— 运算符就是在"以左值为身份"的那张表上找的
-    /// (`BindOperator`),`1 + 2`、`c1 + c2` 走的都是它。</summary>
-    internal void DefineClassOperator(string op)
-        => BuiltinClasses.EngineMember(this, op, new ClassOperatorFactory(op) { Name = op }, readOnly: false);
-
-    // ============================================================
     //  显示
     // ============================================================
 

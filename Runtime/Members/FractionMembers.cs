@@ -16,6 +16,12 @@ internal static class FractionMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(FractionMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`fraction 0.5` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToFraction(arg);
+
     /// <summary>`fraction ** n`:负次幂**照样是分数**(上下颠倒而已,分数本来就装得下)——
     /// 不受"整数的负次幂交回 real"那条影响(乘方总规矩见 `RealMembers` 的 `**`)。
     /// 走 `BuiltinClasses.FractionPow`:乘方涨得太快,中间那一步 `long` 就装不下了,

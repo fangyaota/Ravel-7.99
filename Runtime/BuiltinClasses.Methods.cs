@@ -16,14 +16,8 @@ internal static partial class BuiltinClasses
         // `Scope` → ScopeMembers,`Property` → PropertyMembers,
         // `list`/`set`/`dict` 的序列方法 → SequenceMembers(三种容器共用一份实现)。
         // 那些名字现在由 `ClassVal.Members` 那份成员工厂给出,这里不再注册。
-        //
-        // 下面这两批**必须留在注册表里**:它们挂的不是普通 `BuiltinMethodVal`,而是
-        // `SeqMethod` / `TraitQuery` 这类"求值器要认出"的值 —— `[ClassMethod]` 只能绑方法,
-        // 表达不了它们,只能在类型表上直接放一个值。
-        RegisterHigherOrderMethods(List);
-        RegisterHigherOrderMethods(Set);
-        RegisterHigherOrderMethods(Dict);
-        RegisterTypeMethods();
+        // 高阶序列方法(`SeqMethod`)与类型查询(`TraitQuery`)也一样 —— 见
+        // `SequenceMembers` / `TypeMembers` 里那些 `[ClassValue]` 字段。
     }
 
     // `Object` / `Ravel` 的成员搬到了 `Runtime/Members/ObjectMembers.cs`（按类型自己管）。
@@ -43,21 +37,6 @@ internal static partial class BuiltinClasses
         CharVal c => c.Value.ToString(),
         _ => throw new RuntimeException($"{what} 需要 string 或 char 参数，得到 {a.Type}", ErrorKind.Argument),
     };
-
-    /// <summary>类型上那两条**不能用 `[ClassMethod]` 表达**的成员,只能留在这张注册表里。
-    ///
-    /// 其余(`Default` / `Subtypes`)已搬进 `Runtime/Members/TypeMembers.cs` —— 那是普通方法。
-    /// 这两条挂的是 `TraitQuery`(和 `SeqMethod` 同一个家族):它们**不是** `BuiltinMethodVal`,
-    /// 真正算它们的是求值器(实现登记在作用域里),`[ClassMethod]` 只能绑 `MethodInfo`。
-    ///
-    /// 挂的位置不能变:`Type` 的**实例表**上 —— `Option.GetImplements ()` 里的 `Option`
-    /// 是 `type` 的实例,沿 `parent` 往上兜到这一张(`Option` 自己的表里没有,`Type` 那张里有)✓</summary>
-    private static void RegisterTypeMethods()
-    {
-        EngineMember(Type, "GetImplements", new TraitQuery("GetImplements", TraitQueryKind.Implements));
-        EngineMember(Type, "GetImplementors", new TraitQuery("GetImplementors", TraitQueryKind.Implementors));
-    }
-
 
     /// <summary>**能不能当字典的键** —— 判据只有这一处,`KeyArg` 和 `Object` 上那条默认的
     /// `Key` 都问它;`lib/keys.rav` 的 `Of` 是同一句话在 Ravel 那边,改要一起改。

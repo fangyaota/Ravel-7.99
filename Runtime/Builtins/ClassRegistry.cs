@@ -56,6 +56,21 @@ public sealed class ClassOpAttribute(string op) : Attribute
     public string Op { get; } = op;
 }
 
+/// <summary>这个类的一个**现成的值成员** —— 打在 `private static readonly RuntimeValue`
+/// 字段上,字段里那个值**就是**成员(`SeqMethod` / `TraitQuery` 这类不是普通方法的成员)。
+///
+/// 为什么要有这一条:`[ClassMethod]` 表达的是"一个静态方法,调用时把 self 递进去";
+/// 而容器的高阶方法(`list.Map f`)和 `Type` 的 `GetImplements` 是**已经做好的函数值**
+/// (各自知道自己吃几参、怎么推帧),包一层方法只会多一道转发。字段在静态初始化时
+/// 建好,`MemberSet.Scan` 收名字、`Create` 直接把那个值交出去。
+///
+/// 造出来那格只读 —— 和 `[ClassMethod]` 那些一样,成员不是拿来重新赋值的。</summary>
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class ClassValueAttribute(string name) : Attribute
+{
+    public string Name { get; } = name;
+}
+
 /// <summary>类的**绑定**那一格:把 `[ClassMethod]` / `[ClassCtor]` 的方法变成 Ravel 认的东西
 /// (实例成员 / 预设类体),外加两件反射的杂活。
 ///

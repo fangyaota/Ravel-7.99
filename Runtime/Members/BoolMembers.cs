@@ -17,6 +17,12 @@ internal static class BoolMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(BoolMembers), ObjectMembers.Set);
 
+    /// <summary>值类型的 `init` —— "从别的值造一个"(`bool 0` 之类)。
+    /// 从前它由 `BuiltinCtor(..., exposeInit: true)` 往注册表写一格,现在就在这儿:
+    /// `MemberSet.Scan` 收成 `Ctor`,`VirtualScope` 那条"值类型 init"把它交出去(可见性也是那儿定的)。</summary>
+    [ClassCtor]
+    private static RuntimeValue Init(RuntimeValue arg) => BuiltinClasses.CastToBool(arg);
+
     /// <summary>`true == true` —— **按值比**,不是按引用:`1 == 1` 算出来的 true 和字面量
     /// `true` 必须是同一个答案(值相等,不是那一枚对象相同)。</summary>
     [ClassOp("==")]
