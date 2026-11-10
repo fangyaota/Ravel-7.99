@@ -355,6 +355,7 @@ internal static partial class BuiltinClasses
     {
         Object.Members = ObjectMembers.Set;
         Ravel.Members = ModuleMembers.Set;
+        Int.Members = IntegerMembers.Set;
     }
 
     /// <summary>**内置的值类型、集合类型,和 `IValue` —— 到此为止,不能再往下长。**

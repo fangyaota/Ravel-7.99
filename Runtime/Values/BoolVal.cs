@@ -28,12 +28,12 @@ public record BoolVal : FunctionVal
     /// <summary>元类是 `Bool`。这里只是兜底:静态初始化期间 `BuiltinClasses.Bool` 可能还没造出来。</summary>
     public override ObjectVal Type => ClassType ??= BuiltinClasses.Bool;
 
+    /// <summary>bool 的成员表是**只读**的(`ValueTable`,不是 `MemberTable`):
+    /// 同一个类型下所有值共享一份成员定义,往其中一个上挂成员等于改掉整个 `Bool`。
+    /// 这一格得自己覆写 —— `ObjectVal.Scope` 默认给的是可写的对象表,而 bool 是值。</summary>
     private Scope? _table;
 
-    /// <summary>bool 的成员表是**只读**的:同一个类型下所有值共享一份成员定义,
-    /// 往其中一个上挂成员等于改掉整个 `Bool`。用 <see cref="BoolTable"/> 而不是
-    /// <see cref="MemberTable"/>(后者可写)。</summary>
-    public override Scope Scope => _table ??= new BoolTable(this);
+    public override Scope Scope => _table ??= new Values.ValueTable(this);
 
     /// <summary>按值比 —— 见类文档。</summary>
     public virtual bool Equals(BoolVal? other) => other is not null && Value == other.Value;
@@ -42,5 +42,3 @@ public record BoolVal : FunctionVal
 
     public override string ToString() => Value.ToString().ToLower();
 }
-
-internal sealed class BoolTable(BoolVal self) : Values.ValueTable(self);
