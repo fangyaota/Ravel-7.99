@@ -64,5 +64,5 @@ print ((try { 1: 5; } (e: Exception) => { "3: " + (string e); }))
 # 7
 # 3
 # 1: 类型不匹配: 无法将 String 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
-# 2: 'q' 的类型注解要是个类型，得到 Integer
+# 2: ':' 的右边要是一个类型，得到 Integer
 # 3: ':' 的右边要是一个类型，得到 Integer

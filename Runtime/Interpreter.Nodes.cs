@@ -229,21 +229,11 @@ public partial class Interpreter
             ? cls
             : throw new RuntimeException($"'{what}' 的类型注解要是个类型，得到 {v.Type}", ErrorKind.Type);
 
-    private static RuntimeException Mismatch(RuntimeValue val, ObjectVal want)
-        => new($"类型不匹配: 无法将 {val.Type} 赋值给 {want}（不是父子）—— 要转就明写 `{want} …`", ErrorKind.Type);
-
     private void StepVarDef(NodeFrame nf, VarDefinition v)
     {
-        // 有注解就先求注解(它是个表达式,可能算出一个类),再求值 —— 阶段由 Count 推进
-        var hasType = v.TypeAnnotation != null;
-        if (hasType && nf.Count == 0)
-        {
-            PushChild(nf, v.TypeAnnotation!);
-            return;
-        }
-
-        var valueAt = hasType ? 1 : 0;
-        if (nf.Count == valueAt)
+        // 注解不在这儿:`x : T = v` 在 lowering 里就变成"值过一次 `x : T` 才绑名"
+        // (见 `Syntax/Lowering.cs` 的 `Typed`/`Checked`),到这里只剩"求值、定义"。
+        if (nf.Count == 0)
         {
             PushChild(nf, v.Value);
             return;
@@ -253,32 +243,9 @@ public partial class Interpreter
         // 所以两边都不按普通字段那套办(见下面两处注释)。
         var isBy = v.Attrs?.Contains(Attr.By) ?? false;
 
-        var val = nf.Result(valueAt);
-        // 注解就是一次 `x : T` —— 走的就是运算符那条路(在值的成员表里找 `:`、绑 self、调),
-        // 所以用户在类里自己写了 `:` 也会被用上,判据与报错位置都跟写 `(x : T)` 一样。
-        if (hasType && !isBy)
-        {
-            var checkAt = valueAt + 1;
-            var test = val.MemberScope.LookupField(":")?.Value as FunctionVal
-                ?? throw new RuntimeException($"类型 '{val.Type}' 没有方法 ':'", ErrorKind.Attribute);
-
-            // 内置那一份是同步的:和 `BinaryExpr` 的快速路一样当场算(`Invoke` 要带解释器)。
-            if (test is BuiltinMethodVal bm)
-            {
-                if (bm.Invoke(this, val, AsClass(nf.Result(0), v.Name)) is not BoolVal { Value: true })
-                    throw Mismatch(val, AsClass(nf.Result(0), v.Name));
-            }
-            else if (nf.Count == checkAt)
-            {
-                // 用户类自己写的 `:`:真调一次,结果下一轮回来看。
-                CallInto(nf, BindSelf(test, val), AsClass(nf.Result(0), v.Name));
-                return;
-            }
-            else if (nf.Result(checkAt) is not BoolVal { Value: true })
-            {
-                throw Mismatch(val, AsClass(nf.Result(0), v.Name));
-            }
-        }
+        var val = nf.Result(0);
+        // 注解不在这儿判:`x : T = v` 在 lowering 里已经拆成 `x := v` 加一句 `x : T` 的守卫
+        // (见 `Syntax/Lowering.cs` 的 `Typed`),到这一步只剩普通定义。
         // `by a: T = _`:槽里那一份本来就是**属性**,`_` 在这儿的意思是"什么都不做的空属性对"。
         if (isBy) val = SlotValue(val);
 

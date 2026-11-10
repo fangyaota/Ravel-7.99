@@ -342,7 +342,7 @@ ravel ""
 # true
 # 右边不是类型: ':' 的右边要是一个类型，得到 Integer
 # done
-# 1: 'y' 的类型注解要是个类型，得到 Integer
+# 1: ':' 的右边要是一个类型，得到 Integer
 # 2: 类型不匹配: 无法将 Integer 赋值给 C（不是父子）—— 要转就明写 `C …`
 # 3: 7
 # Block
@@ -363,7 +363,7 @@ ravel ""
 # Integer
 # Real
 # Integer
-# 1: 'z' 的类型注解要是个类型，得到 Integer
+# 1: ':' 的右边要是一个类型，得到 Integer
 # 2: 未定义的变量 'nope'
 # done
 # true

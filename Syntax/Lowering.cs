@@ -34,8 +34,39 @@ public sealed class Lowering
 
     private List<Statement> Stmts(List<Statement> xs) => xs.SelectMany(Expand).ToList();
 
-    private IEnumerable<Statement> Expand(Statement s)
-        => s is Destructure d ? Unpack(d) : [Statement(s)];
+    private IEnumerable<Statement> Expand(Statement s) => s switch
+    {
+        Destructure d => Unpack(d),
+        // `x : T = v` —— 注解就是一次普通的 `x : T`(和 `==` / `!=` 一个待遇),
+        // 所以拆成"定义 + 断言":定义那条不带注解,后面跟一句只在检查不过时说话的守卫。
+        VarDefinition { TypeAnnotation: { } want } v when !(v.Attrs?.Contains(Attr.By) ?? false)
+            => Typed(v, want),
+        _ => [Statement(s)],
+    };
+
+    // 定义 + 一次 `x : T`。**这里就是脱糖的全部**:引擎那边收到的只是普通定义
+    // 和一条 `x : T` 表达式(判据、能不能自定义,全看 `:` 那枚成员)。
+    private IEnumerable<Statement> Typed(VarDefinition v, Expression want)
+    {
+        yield return v with { TypeAnnotation = null, Value = Checked(v, Lower(want)) };
+    }
+
+    // 值只求一次:先交给一个临时参数,在里头用 `:` 问一次,过了才交出去。
+    // 这样守卫问的是**值**,不是刚定义的名——不早定义,也就不留半截、不碰核心字段。
+    private Expression Checked(VarDefinition v, Expression want)
+    {
+        var at = (AstNode)v;
+        var p = Ident("__v", at);
+        var check = new BinaryExpr(p, ":", want) { Line = at.Line, Column = at.Column };
+        // 用 `System.TypeMismatch`(真错误)而不是 `Reject`(那是"这一支不收",`|` 会接走)
+        var body = Block([
+            ExprStmt(If(Not(check, at), TypeMismatch(p, want, at), at), at),
+            ExprStmt(p, at),
+        ], at);
+        var lam = new LambdaExpr(new Parameter("__v", Ident("object", at)), body)
+            { Line = at.Line, Column = at.Column, Sugar = true };
+        return Call(lam, Lower(v.Value));
+    }
 
     // ========================================
     //  语句
@@ -542,6 +573,9 @@ public sealed class Lowering
 
     private Expression If(Expression cond, Expression then, AstNode at)
         => Call(Call(cond, AsBlock(then, at)), AsBlock(Num("0", at), at));
+
+    private Expression TypeMismatch(Expression value, Expression type, AstNode at)
+        => Call(Call(Member(Ident("System", at), "TypeMismatch"), value), type);
 
     private Expression Reject(Expression message, AstNode at)
         => Call(Member(Ident("System", at), "Reject"), Call(Ident("TypeError", at), message));
