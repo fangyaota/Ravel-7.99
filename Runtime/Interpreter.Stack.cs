@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 /// <summary>显式持久帧栈求值器:Step() 循环逐帧推进,C# 栈恒平,递归深度=帧链长度。
 /// 本文件只放推进循环本身(取帧/推帧/返回);节点求值见 Interpreter.Nodes.cs,
@@ -186,6 +186,13 @@ public partial class Interpreter
 
     private FunctionVal? _errorHook;
 
+    /// <summary>「正在把错误交给库」这段区间开着的标记 —— **重入保护**。
+    ///
+    /// 库的处理代码自己读成员(`ex.message`、`e.kind`、`e.Trace` …),而成员查找那条通道
+    /// 正是这一轮改的东西。处理代码再出一错,没有这个标记就会再交给库、再错、再交给库……
+    /// **进程不返回**。开着的时候一律不再回库,直接冒泡给 CLI 渲染一次。</summary>
+    private bool _reporting;
+
     /// <summary>这一次交给钩子的那个异常:库"没人接"时调 `System.Unhandled`,由这里**原样**再抛出去
     /// (位置与调用栈都保持一模一样 —— `Located` 已经是真,不会再被覆盖成库里的位置)。</summary>
     private RuntimeException? _handed;
@@ -221,11 +228,22 @@ public partial class Interpreter
     /// <summary>把冒泡上来的错误交给库注册的钩子。没注册钩子就返回 false(照旧冒泡给 CLI 打报告)。</summary>
     private bool HandToRavelHandler(RuntimeException ex)
     {
+        // **重入保护**:库正在处理一个错误时,处理代码自己又出错了 —— 不再回库,
+        // 让这次错误一路冒泡到 CLI 渲染。否则处理代码一读成员就再进来一次,成环。
+        if (_reporting) return false;
         if (_errorHook is not { } hook) return false;
 
         _handed = ex;
-        // 钩子体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
-        CallInto(_top.Parent ?? _top, hook, BuiltinClasses.NewException(ex.Message, ex.Kind));
+        _reporting = true;
+        try
+        {
+            // 钩子体内一般会 escape 回 try 的 callcc,所以 sink 取冒泡点即可
+            CallInto(_top.Parent ?? _top, hook, BuiltinClasses.NewException(ex.Message, ex.Kind));
+        }
+        finally
+        {
+            _reporting = false;
+        }
         return true;
     }
 
