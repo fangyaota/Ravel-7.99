@@ -14,7 +14,7 @@
 # 前者多一层间接 —— getter 在**读**的时候跑,所以体里得再裹一个函数才交得出手。
 # 只读(空 setter)的方法槽因此能整个退掉 property 和那层壳。
 #
-# 后半段钉的是**另一个统一**:`= default` 那对默认 getter/setter,getter 现在交回的
+# 后半段钉的是**另一个统一**:`= _` 那对默认 getter/setter,getter 现在交回的
 # 是**空函数**(和 `function default` 那份同一个),不再是 `()` —— 于是"用 `by` 声明"
 # 和"用普通成员声明"这两条路,没实现时读出来一个样。
 
@@ -35,8 +35,8 @@ print (sv.whom ())
 
 # ── `= default` 的两条路:没实现时都是"一个能调的空函数" ──
 Proto ::= interface {
-    by a : function = default
-    b : function = default
+    by a : function = _
+    b : function = _
 }
 P ::= class { init = () => { this; } }
 pa := Proto P {

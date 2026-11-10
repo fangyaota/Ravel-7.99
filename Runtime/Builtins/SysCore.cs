@@ -6,11 +6,14 @@ using static Ravel.Runtime.SysKit;
 internal static class SysCore
 {
     [Sys("Property")]
-    public static RuntimeValue MakeProperty(RuntimeValue g, RuntimeValue s)
+    public static RuntimeValue MakeProperty(RuntimeValue g)
     {
+        // `property ()` 就是那一对什么都不做的 getter/setter(`by a: int = _` 脱糖落在这里)。
+        if (g is VoidVal) return BuiltinClasses.DefaultProperty();
         if (g is not FunctionVal gf) throw new RuntimeException("property 需要 getter 函数", ErrorKind.Argument);
-        if (s is not FunctionVal sf) throw new RuntimeException("property 需要 setter 函数", ErrorKind.Argument);
-        return new PropertyVal(gf, sf);
+        return FunctionVal.From(s => s is FunctionVal sf
+            ? new PropertyVal(gf, sf)
+            : throw new RuntimeException("property 需要 setter 函数", ErrorKind.Argument));
     }
 
     [Sys("Assert")]

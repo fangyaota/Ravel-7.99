@@ -18,7 +18,7 @@
 # 用 `impl` 不用 `use`:只有前者走全局、缓存才是开着的 —— 拿 `use` 测等于测"缓存关掉了"。
 
 T ::= interface {
-    by f : function = default
+    by f : function = _
 }
 C ::= class {
     init = () => { this; }

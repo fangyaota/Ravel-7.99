@@ -32,8 +32,8 @@ public partial class Interpreter
                         ? $"参数 {AstPrinter.Describe(pat)} 需要 {lam.ParamType}，得到 {arg.Type}"
                         : $"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
                 var lamScope = lam.CaptureScope.Push();
-                lamScope.Define("self", BuiltinClasses.Function, lam);
-                var paramVar = lamScope.Define(lam.ParamName, lam.ParamType, arg);
+                lamScope.Define("self", lam);
+                var paramVar = lamScope.Define(lam.ParamName, arg);
                 // 修饰符装到**那个绑定**上 —— 和变量定义一个待遇(`Interpreter.Nodes` 里
                 // VarDefinition 那段)。于是 `readonly` 真有检查:下面体里给这个参数赋值,
                 // 走的是同一个 `CheckWritable`,报「无法给只读变量 'y' 赋值」。
@@ -61,8 +61,8 @@ public partial class Interpreter
                 if (!Accepts(arg, nc.ParamType))
                     throw new TypeMismatchException($"参数 '{nc.ParamName}' 需要 {nc.ParamType}，得到 {arg.Type}");
                 var ncScope = _top.Scope.Push();
-                ncScope.Define("self", BuiltinClasses.Function, nc);
-                ncScope.Define(nc.ParamName, nc.ParamType, arg);
+                ncScope.Define("self", nc);
+                ncScope.Define(nc.ParamName, arg);
                 _top = sink.WithResult(nc.Fn(ncScope, arg));
                 break;
             }

@@ -78,11 +78,11 @@ Bag ::= class {
 }
 # 要求是前置条件,一条一个:`IList` 要 `IEnumerable`,`IEnumerable` 又要 `IMonad`。
 # 一条都不省 —— 这就是"槽不并"的代价(也是它的意思:每一条都明明白白)。
-impl (IMonad Bag default)
+impl (IMonad Bag {;})
 impl (IEnumerable Bag {
     GetEnumerator = () => { Enumerator (instance.Items); }
 })
-impl (IList Bag default)
+impl (IList Bag {;})
 b := Bag [1 2 3]
 c := Bag [10 20]
 print (b : IEnumerable)

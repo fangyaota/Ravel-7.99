@@ -25,8 +25,8 @@ internal static partial class BuiltinClasses
         var obj = new ObjectVal(type, null);
         var scope = obj.Scope;
         if (type.ClassBody is { } body) scope.Reparent(body.CaptureScope);
-        scope.Define(ObjectVal.ThisMember, type, obj);
-        scope.Define(MessageMember, String, new StringVal(message));
+        scope.Define(ObjectVal.ThisMember, obj);
+        scope.Define(MessageMember, new StringVal(message));
         return obj;
     }
 }

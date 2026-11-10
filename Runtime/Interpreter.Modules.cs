@@ -121,7 +121,7 @@ public partial class Interpreter
             // 只有"**从模块里** `using` 一个模块文件"那条路不一样 —— 那条从前是坏的。
             mv = ModuleVal.WithOwnTable(name, AmbientScope(), this);
             _modules[name] = mv;
-            _global.Define(name, BuiltinClasses.Ravel, mv);
+            _global.Define(name, mv);
         }
 
         // 引擎塞给模块的两样(和"成员"无关),放在 `if` **外面**:模块可能是**别的来路

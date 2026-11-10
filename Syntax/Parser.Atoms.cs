@@ -829,6 +829,16 @@ public partial class Parser
     private List<Statement> ParseBlockStatements()
     {
         SkipNewlines();
+        // `{;}` 是**空体**的字面写法，展开成 `{();}` —— 一个"什么都不做"的表达式语句。
+        // （`{ }` 仍然不许：分号才是那个"我故意写了个空语句"的记号。）
+        if (Previous().Type == TokenType.Newline && Check(TokenType.RightBrace))
+        {
+            var at = Previous();
+            _pos++;
+            return [new ExpressionStatement(new LiteralExpr(VoidVal.Instance) { Line = at.Line, Column = at.Column })
+                { Line = at.Line, Column = at.Column }];
+        }
+
         var list = new List<Statement>();
         // 块是新的语境:外层 do 的 `:<` 不该漏进来。漏了的话
         // `(y: int) => { y :< m; }` 会被当成绑定,而绑定只活在 do 的折叠过程里 ——

@@ -17,16 +17,16 @@
 # —— 槽不用现装,它们本来就有 `Object` 那条。
 
 readonly IComparable ::= interface {
-    by CompareTo : function = default       # (other) => int
+    by CompareTo : function = _       # (other) => int
 }
 
-impl (IComparable int default)
-impl (IComparable real default)
-impl (IComparable bigint default)
-impl (IComparable fraction default)
-impl (IComparable bigfraction default)
-impl (IComparable char default)
-impl (IComparable string default)
+impl (IComparable int {;})
+impl (IComparable real {;})
+impl (IComparable bigint {;})
+impl (IComparable fraction {;})
+impl (IComparable bigfraction {;})
+impl (IComparable char {;})
+impl (IComparable string {;})
 
 
 ravel "Sorting"

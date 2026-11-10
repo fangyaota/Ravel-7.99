@@ -4,8 +4,8 @@
 # 别人提供的那个才不是 `()`。
 
 T ::= interface {
-    by a : int = default
-    by z : int = default
+    by a : int = _
+    by z : int = _
 }
 
 C ::= class {
@@ -68,7 +68,7 @@ print c.a
 try { use 5; } (e: Exception) => { print ("3: " + string e); }
 # `interface 某个类型 { … }`:类型是**接口**就是**一个要求**,是**类**就报错(要求只能是接口)。
 # 这里给的是 `int`(一个类),所以报的是"只能继承接口"。
-try { eval "interface int {\n    by q : int = default\n}"; } (e: Exception) => { print ("4: " + string e); }
+try { eval "interface int {\n    by q : int = _\n}"; } (e: Exception) => { print ("4: " + string e); }
 
 # `impl` = 全局的 `use`:登记在**全局作用域**上(每个作用域链都到全局,于是处处生效)。
 # 对比上面那个 `scoped`:那里是 `use`,出了那次调用就没了。

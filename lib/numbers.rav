@@ -11,8 +11,8 @@ readonly INumber ::= interface {
     ()
 }
 
-impl (INumber int default)
-impl (INumber real default)
-impl (INumber bigint default)
-impl (INumber fraction default)
-impl (INumber bigfraction default)
+impl (INumber int {;})
+impl (INumber real {;})
+impl (INumber bigint {;})
+impl (INumber fraction {;})
+impl (INumber bigfraction {;})

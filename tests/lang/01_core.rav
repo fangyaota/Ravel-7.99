@@ -48,7 +48,7 @@ print (3 | 1)
 print (true | false)
 print (false | false)
 g := (x: int) => { 1; }
-h := (x: Any) => { 2; }
+h := (x: object) => { 2; }
 alt := g | h
 print (alt 10)
 print (alt "str")
@@ -299,7 +299,7 @@ ravel ""
 # hello
 # ok
 # 17_type_error: 类型不匹配: 无法将 Bool 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
-# 25_empty_block: 不允许空的 '{ }'
+# 25_empty_block: 'X' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 10
 # 7
 # 42

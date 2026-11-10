@@ -828,6 +828,19 @@ public partial class Parser
         _holeCount = 0;
         var value = ParseExpression();
         SkipNewlines();
+        // 定义处的 `_` 是"填空"：`x: T = _` 就是 `x: T = T ()`；
+        // `by a: T = _` 填的是**属性**那一格，所以是 `property ()`（一对什么都不做的 getter/setter）。
+        if (value is HoleExpr)
+        {
+            var arg = new LiteralExpr(VoidVal.Instance) { Line = value.Line, Column = value.Column };
+            Expression? box = null;
+            if (attrs?.Contains("by") == true)
+                box = new CallExpr(new IdentifierExpr("property") { Line = value.Line, Column = value.Column }, arg)
+                    { Line = value.Line, Column = value.Column };
+            else if (typeAnnotation != null)
+                box = new CallExpr(typeAnnotation, arg) { Line = value.Line, Column = value.Column };
+            if (box != null) value = box;
+        }
         if (HasHoles(value)) value = DesugarHoles(value);
         SkipNewlines();
 
@@ -875,6 +888,11 @@ public partial class Parser
         _holeCount = 0;
         var value = ParseExpression();
         SkipNewlines();
+        // `by a := _` / `by a = _` —— 槽里填的是**属性**那一格，所以是 `property ()`。
+        if (value is HoleExpr)
+            value = new CallExpr(new IdentifierExpr("property") { Line = value.Line, Column = value.Column },
+                new LiteralExpr(VoidVal.Instance) { Line = value.Line, Column = value.Column })
+                { Line = value.Line, Column = value.Column };
         if (HasHoles(value)) value = DesugarHoles(value);
         return new SlotAssign(path, value, define) { Line = path.Line, Column = path.Column };
     }

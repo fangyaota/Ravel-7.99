@@ -16,7 +16,6 @@ print (x: int)
 print (x: real)          # Integer 与 Real 是兄弟,不是子类型
 print (x: object)         # Integer <: Object(接口 IValue 不在继承链上)
 print ("a": IValue)
-print (default: int)      # default 的类型就是 Every(底类型)
 print ([1]: list)
 
 # ── 取反 ──
@@ -50,7 +49,6 @@ print ((try { 1: 5; } (e: Exception) => { "3: " + (string e); }))
 # --- expected ---
 # true
 # false
-# true
 # true
 # true
 # true

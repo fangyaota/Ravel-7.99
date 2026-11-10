@@ -313,7 +313,7 @@ print obj.n
 
 # ---- ③ 接口槽里捕获：恢复之后 `instance` 还是原来那个实例 ----
 T ::= interface {
-    by f : function = default
+    by f : function = _
 }
 C ::= class {
     x : int = 0

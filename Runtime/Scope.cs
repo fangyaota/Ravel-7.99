@@ -23,8 +23,7 @@ public class Scope(Scope? parent = null)
 
     internal virtual Scope? InstanceScope => null;
 
-    public virtual Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
-                                    Statement? site = null)
+    public virtual Variable Define(string name, RuntimeValue initialValue, Statement? site = null)
     {
         // **`:=` 是定义,不是覆盖**:同一个作用域里同名再定义就是错。
         //
@@ -51,12 +50,12 @@ public class Scope(Scope? parent = null)
             && owner.MemberScope.LookupField(name) is not null)
             throw new RuntimeException(
                 $"'{name}' 是 {owner.Type} 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）");
-        var v = new Variable(name, typeConstraint, initialValue) { Site = site };
+        var v = new Variable(name, initialValue) { Site = site };
         (_vars ??= [])[name] = v;
         return v;
     }
 
-    public virtual Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
+    public virtual Variable DefineOrReplace(string name, RuntimeValue initialValue)
     {
         // **只读变量不许重新定义** —— `:=` 换掉的是整个 Variable,attrs(readonly/core/private…)
         // 跟着老的那个一起没,于是"只读"就成了一道能随手绕过的门:
@@ -65,7 +64,7 @@ public class Scope(Scope? parent = null)
         // 只查**本层**:在外层作用域里 `x := 1` 是新开一个局部变量(遮蔽),不是重新定义。
         if (_vars is { } had && had.TryGetValue(name, out var old) && old.HasAttr(Attr.Readonly))
             throw new RuntimeException($"无法重新定义只读变量 '{name}'", ErrorKind.Access);
-        var v = new Variable(name, typeConstraint, initialValue);
+        var v = new Variable(name, initialValue);
         (_vars ??= [])[name] = v;
         return v;
     }
@@ -95,7 +94,7 @@ public class Scope(Scope? parent = null)
         // 类对象上那一格原样不动,`readonly` 保护的是它。
         if (TableOf is { } owner && owner.MemberScope.LookupField(name) is { } inherited)
         {
-            (_vars ??= [])[name] = new Variable(name, inherited.TypeConstraint, value);
+            (_vars ??= [])[name] = new Variable(name, value);
             return;
         }
 

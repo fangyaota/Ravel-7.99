@@ -20,54 +20,54 @@ using "Ravel.Structures"
 # 名字都带 `Structures.` 前缀(它们在那个模块里,不是全局名)。
 # 枚举顺序就是各自的 `ToList ()`:栈是"顶在前"、堆是"一个个弹出来的顺序"、有序表是排好的。
 # (`SortedDict` 枚举的是**值**,和 `dict` 枚举值一个口径。)
-impl (IMonad Structures.Stack default)
+impl (IMonad Structures.Stack {;})
 impl (IEnumerable Structures.Stack {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-impl (IList Structures.Stack default)
-impl (IMonad Structures.Queue default)
+impl (IList Structures.Stack {;})
+impl (IMonad Structures.Queue {;})
 impl (IEnumerable Structures.Queue {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-impl (IList Structures.Queue default)
-impl (IMonad Structures.Deque default)
+impl (IList Structures.Queue {;})
+impl (IMonad Structures.Deque {;})
 impl (IEnumerable Structures.Deque {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-impl (IList Structures.Deque default)
-impl (IMonad Structures.Heap default)
+impl (IList Structures.Deque {;})
+impl (IMonad Structures.Heap {;})
 impl (IEnumerable Structures.Heap {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-impl (IList Structures.Heap default)
-impl (IMonad Structures.SortedSet default)
+impl (IList Structures.Heap {;})
+impl (IMonad Structures.SortedSet {;})
 impl (IEnumerable Structures.SortedSet {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-impl (IList Structures.SortedSet default)
-impl (IMonad Structures.SortedDict default)
+impl (IList Structures.SortedSet {;})
+impl (IMonad Structures.SortedDict {;})
 impl (IEnumerable Structures.SortedDict {
     GetEnumerator = () => { Enumerator (instance.Values ()); }
 })
-impl (IList Structures.SortedDict default)
+impl (IList Structures.SortedDict {;})
 
 # 图那一族(`Graph` / `Digraph` / `Weighted`):`.Foreach` 一个图就是**枚举它的顶点**。
 # (顶点之间的路要"走一遍"用 `Bfs` / `Dfs`;`.Foreach` 只按加进来的先后点名。)
-impl (IMonad Structures.Graph default)
+impl (IMonad Structures.Graph {;})
 impl (IEnumerable Structures.Graph {
     GetEnumerator = () => { Enumerator (instance.Vertices ()); }
 })
-impl (IList Structures.Graph default)
-impl (IMonad Structures.Digraph default)
+impl (IList Structures.Graph {;})
+impl (IMonad Structures.Digraph {;})
 impl (IEnumerable Structures.Digraph {
     GetEnumerator = () => { Enumerator (instance.Vertices ()); }
 })
-impl (IList Structures.Digraph default)
-impl (IMonad Structures.Weighted default)
+impl (IList Structures.Digraph {;})
+impl (IMonad Structures.Weighted {;})
 impl (IEnumerable Structures.Weighted {
     GetEnumerator = () => { Enumerator (instance.Vertices ()); }
 })
-impl (IList Structures.Weighted default)
+impl (IList Structures.Weighted {;})
 
 # 排序字典也**是个字典**:`Get` / `Set` / `Has` / `Remove` / `GetOr` 它自己就有。
-impl (IDict Structures.SortedDict default)
+impl (IDict Structures.SortedDict {;})

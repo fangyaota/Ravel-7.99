@@ -1,6 +1,6 @@
 # 接口(interface)+ 实现 + use。带用法和期望输出的草稿是 myMetaClass.rav。
 #
-# `myTrait ::= interface { by a : int = default … }` —— interface 内置、继承于 type,
+# `myTrait ::= interface { by a : int = _ … }` —— interface 内置、继承于 type,
 # 所以造出来的 myTrait 也是个**类对象**(`myTrait is type`),它的类体就是接口的"形"。
 # `myTrait myClass { … }` 造一个**实现**:**实例化那趟**把接口那几层类体(顶祖先 → 自己)
 # 沿链依次跑,之后**实现帧**再把实现块追加进去 —— 全都落进同一个 scope(先摆槽、再换槽),
@@ -15,8 +15,8 @@
 # 当前作用域里有生效中的实现把它接上)。
 
 myTrait ::= interface {
-    by a : int = default
-    by b : function = default
+    by a : int = _
+    by b : function = _
 }
 
 myClass ::= class {
@@ -100,8 +100,8 @@ ravel "221_instance_lifetime"
 
 # ---- 1. 留存下来的闭包永远指它自己那个实例 ----
 T ::= interface {
-    by f : function = default
-    by a : int = default
+    by f : function = _
+    by a : int = _
 }
 C ::= class {
     x : int = 0
@@ -125,8 +125,8 @@ print (g ())            # 还是 1（从前这里会跟着 w 漂成 2）
 
 # ---- 2. 一次实现同时服务两个实例：槽体里插一次别的实例的访问，回来还得是自己 ----
 N ::= interface {
-    by peek : int = default
-    by c : int = default
+    by peek : int = _
+    by c : int = _
 }
 D ::= class {
     y : int = 0
@@ -143,7 +143,7 @@ print (p.c)             # 先 20（q 的），再 10（p 自己的）
 
 # ---- 3. 读写交错：写要落回左边那个 ----
 A ::= interface {
-    by n : int = default
+    by n : int = _
 }
 E ::= class {
     z : int = 0
@@ -161,7 +161,7 @@ print (r.z)
 
 # ---- 4. 槽体里调用的辅助函数也看得见（帧链那一半）----
 H ::= interface {
-    by c : int = default
+    by c : int = _
 }
 F ::= class {
     w : int = 0
@@ -182,7 +182,7 @@ try { print s.instance; } (e: Exception) => { print ("2: " + string e); }
 
 # ---- 6. instance 只读（它由引擎指到这次服务的实例）----
 R ::= interface {
-    by c : int = default
+    by c : int = _
 }
 G ::= class {
     v4 : int = 0
@@ -201,7 +201,7 @@ print (s.c)
 # ---- 8. 两条边界 ----
 # ① 接口不能自己占 `instance` 这个名字（那是引擎的）
 Bad ::= interface {
-    by instance : int = default
+    by instance : int = _
 }
 K ::= class {
     x : int = 0
@@ -253,9 +253,9 @@ ravel "222_interface_access"
 # (换槽要过 CheckWritable)—— 也就是这种槽形同没法实现,报的是「无法给只读变量 'r' 赋值」。
 
 P ::= interface {
-    private by a : int = default
-    protected by p : int = default
-    by b : int = default
+    private by a : int = _
+    protected by p : int = _
+    by b : int = _
 }
 
 C ::= class {
@@ -301,7 +301,7 @@ try {
 # 实现体里**新建**槽可以带修饰符(`by … := …` 那条路)——"新建"指接口**没声明过**的名字;
 # 接口声明过的那个只能换(光秃秃的 `by x = …`),再 `:=` 一次就是重复定义,当场报错
 Q ::= interface {
-    by s : int = default
+    by s : int = _
 }
 D ::= class {
     k : int = 0
@@ -322,7 +322,7 @@ try { print (d.extra); } (e: Exception) => { print ("7: " + string e); }
 
 # `readonly` 的槽:实现体换不了它(现状如此,钉住)
 R ::= interface {
-    readonly by r : int = default
+    readonly by r : int = _
 }
 E ::= class {
     m : int = 0
@@ -339,7 +339,7 @@ try {
 # 可见性和"能不能读"是两道判据(同一个接口的另一个实现,可见性上让过,但它那次分发不在这儿,
 # 于是落到「此刻没有正在被服务的实例」)。
 T2 ::= interface {
-    by a : int = default
+    by a : int = _
 }
 C2 ::= class {
     x : int = 0

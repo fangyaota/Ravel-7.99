@@ -140,7 +140,7 @@ internal static class ReflectModule
     private static object?[] Args(RuntimeValue v) => v switch
     {
         ListVal l => [.. l.Elements.Select(PluginKit.ToNet)],
-        VoidVal or DefaultVal => [],
+        VoidVal => [],
         _ => throw PluginKit.Fail($"参数表得写成 `list`（比如 `[\"hi\" 42]`，空的写 `[]`），得到 {v.Type}", ErrorKind.Argument)
     };
 }

@@ -31,7 +31,7 @@ public partial class Interpreter
         var module = ModuleVal.WithOwnTable("System", _global, this);
         SysModule.Fill(this, module.Scope);
         _modules["System"] = module;
-        _global.Define("System", BuiltinClasses.Ravel, module);
+        _global.Define("System", module);
     }
 
     public Interpreter(IEnumerable<string>? scriptArgs = null)

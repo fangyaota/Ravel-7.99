@@ -1,10 +1,9 @@
 namespace Ravel.Runtime;
 
-public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
+public class Variable(string name, RuntimeValue initialValue)
 {
     public string Name { get; } = name;
     public Statement? Site { get; internal set; }
-    public ObjectVal TypeConstraint { get; internal set; } = typeConstraint;
     public RuntimeValue Value { get; private set; } = initialValue;
     private readonly HashSet<string> _attrs = [];
 
@@ -29,5 +28,5 @@ public class Variable(string name, ObjectVal typeConstraint, RuntimeValue initia
         Value = newValue;
     }
 
-    public override string ToString() => Name + ": " + TypeConstraint + " = " + Value;
+    public override string ToString() => Name + " = " + Value;
 }

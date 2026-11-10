@@ -76,18 +76,18 @@ ravel "Tasks"
 # (实现类是普通字段 / 普通方法就能满足这些槽,不必写成 property —— 实测。)
 readonly ITask ::= interface {
     # 收尾那几格:组要读(`Run` 末尾那两道检查)、也要写(`Await` 认领)
-    by Done : function = default
-    by Ok : function = default
-    by Err : function = default
-    by Claimed : function = default
+    by Done : function = _
+    by Ok : function = _
+    by Err : function = _
+    by Claimed : function = _
 
     # 用户读的那两个 —— 都不阻塞
-    by IsDone : function = default
-    by Value : function = default
+    by IsDone : function = _
+    by Value : function = _
 
     # **怎么被等**:值是一个 `(group) => …`。这是"两种任务不一样"的唯一一处,
     # 子类各写各的,组只管调它(`t.WaitOn this`)。
-    by WaitOn : function = default
+    by WaitOn : function = _
 
     # **怎么先起跑**:`(group) => …`。和 `WaitOn` 是配对的另一半。
     #
@@ -98,7 +98,7 @@ readonly ITask ::= interface {
     #
     # 自动推进的那一类(句柄/计时器)**不用排**:它们的 Job 在**造出来的时候**就已经
     # 在操作系统那边跑了 —— 所以 `TaskBase` 这儿的默认是"什么都不做"。
-    by Schedule : function = default
+    by Schedule : function = _
 }
 
 # 共用那一半。**它自己不该被实例化** —— `WaitOn` 那份只会报错的默认体就是拦这个的。
@@ -171,8 +171,8 @@ readonly TaskBase ::= class {
 # `Step` 是"我停在哪儿"那一枚续延,起手是 `default`(还没到手的哨兵:一调就报错,
 # 不会静默什么都不做 —— 见 `predefined.rav` 的 callcc)。
 Task ::= class TaskBase {
-    Body: function = default
-    Step: Continuation = default
+    Body: function = _
+    Step: Continuation = _
     Started: bool = false
 
     # 谁在等我。自动推进的那一类用不上 —— 它等着的是组的等待集合(`Waiting`)。
@@ -190,7 +190,7 @@ Task ::= class TaskBase {
 
     init = (body: function) => {
         Body = body
-        Step = default
+        Step = ()
         Started = false
         Queued = false
         Where = ""
@@ -266,10 +266,10 @@ readonly SysTask ::= class TaskBase {
 # 用闸的那版一个字段都不碰 —— 而跑出来一模一样。
 readonly Signal ::= class TaskBase {
     # 谁在等我 —— 有人来等的时候记下来。**所以 `Open` 的人不需要组。**
-    Holder: TaskGroup = default
+    Holder : object = _
     Waiting: list = []
 
-    init = () => { Holder = default; Waiting = []; this; }
+    init = () => { Holder = (); Waiting = []; this; }
 
     # 和自创任务的 `WaitOn` 一样挂上去,但**不 `group.Add this`** ——
     # 一个闸不是"要跑的活儿",它不该轮到就绪队列里去。
@@ -402,18 +402,18 @@ readonly Any := (ts: list) => {
 # `Task` / `SysTask` / `Signal` 三个子类跟着认这两个接口 —— 基类登记一次就够
 # (实测子类继承那句 `impl`)。
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
-impl (ITask TaskBase default)
+impl (ITask TaskBase {;})
 
 # 也在 monad 那一族里(`IMonad` 见 `lib/monad.rav`,predefined 加载,所以是全局名)。
 # 用 `impl` 不是 `use`:这一族是**类型层面**的事实,不随作用域来去 —— 和 `IoMonad` 那边
 # 一条规矩。`Map` / `Bind` 在 `TaskBase` 上,三个子类都作数。
 #
 # (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
-impl (IMonad TaskBase default)
+impl (IMonad TaskBase {;})
 
 # 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
 readonly private Pending ::= class {
-    Who: Task = default
+    Who : object = _
     Job: object = ()
     init = (who: Task job: object) => { Who = who; Job = job; this; }
 }
@@ -426,15 +426,15 @@ TaskGroup ::= class {
     All: list = []                 # 组里所有任务(含跑着加进来的),给死锁检查用
     Ready: list = []               # 就绪队列:挑到谁就跑谁
     Waiting: list = []             # 等着 OS 句柄的:每项一个 `Pending`
-    Current: Task = default        # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
-    Back: Continuation = default   # 任务让出时跳回来的那一枚(见 `Run`)
+    Current : object = _      # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
+    Back: Continuation = _   # 任务让出时跳回来的那一枚(见 `Run`)
 
     init = (tasks: list) => {
         All = []
         Ready = []
         Waiting = []
-        Current = default
-        Back = default
+        Current = ()
+        Back = ()
         # 走 `Add` 而不是直接往队列里塞 —— 那道"一个任务只能跑一遍"的闸在那儿
         tasks.Foreach (t: Task) => { Add t; }
         this;

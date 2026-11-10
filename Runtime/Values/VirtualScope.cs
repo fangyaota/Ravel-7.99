@@ -25,7 +25,7 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
             // 所以构造器得由**它自己那份**成员直接交出来(可见性同 `PresetCtor` 那条)。
             if (name == ObjectVal.InitMember && type.IsValueLike && type.Members?.Ctor is { } ctor)
             {
-                var slot = new Variable(name, BuiltinClasses.Function, ctor);
+                var slot = new Variable(name, ctor);
                 slot.SetAttr(Attr.Protected);
                 _made[name] = slot;
                 return slot;
@@ -68,15 +68,14 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
 
     public override IEnumerable<KeyValuePair<string, Variable>> Variables => StoredHere;
 
-    public override Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
-                                    Statement? site = null)
+    public override Variable Define(string name, RuntimeValue initialValue, Statement? site = null)
         => Writable
-            ? base.Define(name, typeConstraint, initialValue, site)
+            ? base.Define(name, initialValue, site)
             : throw new RuntimeException($"值类型的成员表是只读的：不能定义 '{name}'", ErrorKind.Access);
 
-    public override Variable DefineOrReplace(string name, ObjectVal typeConstraint, RuntimeValue initialValue)
+    public override Variable DefineOrReplace(string name, RuntimeValue initialValue)
         => Writable
-            ? base.DefineOrReplace(name, typeConstraint, initialValue)
+            ? base.DefineOrReplace(name, initialValue)
             : throw new RuntimeException($"值类型的成员表是只读的：不能改写 '{name}'", ErrorKind.Access);
 
     public override void Assign(string name, RuntimeValue value)

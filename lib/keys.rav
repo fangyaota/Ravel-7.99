@@ -21,20 +21,20 @@
 # .NET 的 `Dictionary` 内部,那儿插不进帧。所以"规范化"只能发生在 Ravel 里、进表之前。
 
 readonly IKey ::= interface {
-    by Key : function = default       # () => 值类型(数 / 字符串)
+    by Key : function = _       # () => 值类型(数 / 字符串)
 }
 
 # 内建那几个**值类型**也登记一遍(空实现体:槽不用现装,它们本来就有 `Object` 那条)。
 # `Bool` / `Void` / `Range` 没有这一条 —— 它们的键就是自己,走 `Of` 里那道兜底。
 # (`IValue` 那份名单在引擎侧,见 `BuiltinClasses.SealBuiltins`;这份是 `Key ()` 那条协议,
 #  两码事,别混。)
-impl (IKey int default)
-impl (IKey real default)
-impl (IKey bigint default)
-impl (IKey fraction default)
-impl (IKey bigfraction default)
-impl (IKey char default)
-impl (IKey string default)
+impl (IKey int {;})
+impl (IKey real {;})
+impl (IKey bigint {;})
+impl (IKey fraction {;})
+impl (IKey bigfraction {;})
+impl (IKey char {;})
+impl (IKey string {;})
 
 
 # 「像字典那样按值找」。字典那五个吃键的操作(`Get` / `Set` / `Has` / `Remove` / `GetOr`)
@@ -43,11 +43,11 @@ impl (IKey string default)
 # 注意**不往里加** `Keys` / `Values` / `Count` / `Clear`:那些不吃键、名字也还在类链上,
 # 而按 `TraitSlot` 的规矩,类链上有名字时接口槽是**够不着且静默**的 —— 加了也只是死槽。
 readonly IDict ::= interface {
-    internal Get : function = default
-    internal Set : function = default
-    internal Has : function = default
-    internal Remove : function = default
-    internal GetOr : function = default
+    internal Get : function = _
+    internal Set : function = _
+    internal Has : function = _
+    internal Remove : function = _
+    internal GetOr : function = _
 }
 
 
@@ -153,7 +153,7 @@ readonly Keyed ::= class {
 }
 
 # 登记(实现体是空的:它自己那五条方法就是形状本身 —— 类链先说话,槽不用现装)
-impl (IDict Keyed default)
+impl (IDict Keyed {;})
 
 
 ravel ""

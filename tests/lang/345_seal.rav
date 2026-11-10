@@ -41,7 +41,7 @@ I ::= interface {
 C1 ::= class {
     init = () => { this; }
 }
-impl (I C1 default)
+impl (I C1 {;})
 c1 := C1 ()
 print (c1 : I)               # seal 之前建好的实现照常
 seal I
@@ -118,7 +118,7 @@ print (d.Get 1)
 # 继承: `Base` 被 seal 了 —— 不能再被继承
 # hi
 # true
-# [Every]
+# []
 # true
 # 实现: `I` 被 seal 了 —— 不能再被实现
 # true

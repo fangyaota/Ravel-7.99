@@ -14,13 +14,13 @@
 # 谁是谁全看要求。
 
 myTrait ::= interface {
-    by a : int = default
-    by b : function = default
+    by a : int = _
+    by b : function = _
 }
 
 supTrait ::= interface myTrait {
-    by c : int = default
-    by d : function = default
+    by c : int = _
+    by d : function = _
 }
 
 masterTrait ::= interface [supTrait IEnumerable] {
@@ -48,7 +48,7 @@ try {
 
 # ---- 一条条补上。要求是**递归**的:`supTrait` 又要求 `myTrait`,
 #      `IEnumerable` 又要求 `IMonad` ----
-impl (IMonad C default)
+impl (IMonad C {;})
 impl (IEnumerable C {
     GetEnumerator = () => { Enumerator [instance.x]; }
 })
@@ -60,7 +60,7 @@ impl (supTrait C {
     by c = property (() => { instance.x * 2; }) ((v: int) => { instance.x = v; })
     by d = property (() => { instance.x + 2; }) ((v: int) => { instance.x = v; })
 })
-impl (masterTrait C default)
+impl (masterTrait C {;})
 
 u := C ()
 u.a = 5
@@ -119,7 +119,7 @@ ravel "219_interface_operator"
 # 类体那边是 `this`。
 
 T ::= interface {
-    by a : int = default
+    by a : int = _
     by + := property (() => { (o: object) => { instance.a + 100; }; }) ((v: function) => { (); })
 }
 
@@ -158,10 +158,10 @@ print ((D ()) * 3)
 # 只有默认值(`= default`,那对什么都不做的 getter/setter):getter 交回**空函数**
 # (见 `BuiltinClasses.EmptyFunction`),所以 `+ 1` 调的就是它 —— 得到 `()`。
 # 2026-10-06 之前 getter 交 `()`、`+ 1` 报「值 () 不是函数，不能调用」;改成空函数
-# 是为了让**两条默认值的路一个读法**(`by Map : function = default` 和普通成员写的
-# `Map : function = default` 从前一个报错一个给空函数)。代价写在眼前:这条**静默**了。
+# 是为了让**两条默认值的路一个读法**(`by Map : function = _` 和普通成员写的
+# `Map : function = _` 从前一个报错一个给空函数)。代价写在眼前:这条**静默**了。
 Loose ::= class {
-    by + := default
+    by + := _
 }
 try { print ((Loose ()) + 1); } (err: Exception) => { print ("1: " + string err); }
 

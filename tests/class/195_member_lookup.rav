@@ -86,9 +86,6 @@ print (1 : int)
 print (1 : real)          # Integer 与 Real 是兄弟,不是子类型
 print ("a" : IValue)
 print (1 : object)         # Integer <: Object(接口 IValue **不在**继承链上,见 BuiltinClasses.SealBuiltins)
-print (1 : Any)            # 顶类型:什么都是它的子类
-print (1 : Every)          # 底类型:Every 是所有人的子类,反过来不成立
-print (default : int)      # default 的类型就是 Every
 print ([1] : list)
 
 # ---- 等右操作数:和 `2.+` 对称 ----
@@ -115,8 +112,6 @@ print (object :> int)
 print (int <: int)
 print (object <: int)
 print (bool <: string)
-print (int <: Any)
-print (Every <: int)
 try { 1 <: int; } (e: Exception) => { print ("1: " + string e); }
 try { int <: 1; } (e: Exception) => { print ("2: " + string e); }
 C ::= class {
@@ -266,9 +261,6 @@ ravel "207_atomic_equality"
 # (`Cached` 拿 `()` 当实参去比的时候撞上了它,见 tests/13 里那段。)
 print (() == ())
 print (() != ())
-print (default == default)
-print (default != default)
-print (() == default)          # 两个原子值但类型不同 -> 不相等,不报错
 
 C := class { init = () => { 0; this; }; }
 print (C == C)
@@ -328,9 +320,6 @@ ravel ""
 # true
 # true
 # true
-# false
-# true
-# true
 # true
 # false
 # true
@@ -345,8 +334,6 @@ ravel ""
 # true
 # false
 # false
-# true
-# true
 # 1: '<:' 的左边得是个类型，得到 Integer 的实例
 # 2: '<:' 的右边得是个类型，得到 Integer 的实例
 # true
@@ -380,9 +367,6 @@ ravel ""
 # 2: 未定义的变量 'nope'
 # done
 # true
-# false
-# true
-# false
 # false
 # true
 # false

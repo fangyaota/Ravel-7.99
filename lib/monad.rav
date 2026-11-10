@@ -100,4 +100,4 @@ readonly None := Option false ()
 
 # 这个 `Option` 在 IMonad 这一族里。实现体是空的 —— 它自己那两条 Map / Bind 就是形状本身
 # (`TraitSlot` 查到自己那层就先说话),这里只是**登记**一下,让 `is` / 注解 / 查询都认它。
-impl (IMonad Option default)
+impl (IMonad Option {;})

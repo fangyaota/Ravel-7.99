@@ -34,10 +34,8 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Type;
 
     // 底类型 — 为所有类的子类，default 是其唯一实例；不在继承树里，IsAssignableTo 全局特判
-    public static readonly ClassVal Every;
 
     // 顶类型 — 任何类型都可赋值给它
-    public static readonly ClassVal Any;
 
     public static readonly ClassVal Exception;
 
@@ -115,8 +113,6 @@ internal static partial class BuiltinClasses
         Json = New("Json");
         DotNetObject = New("DotNetObject");
         DotNetType = New("DotNetType");
-        Every = New("Every");
-        Any = New("Any");
 
         // ---- 第二趟：挂 parent 链 + 回填元类 ----
         // Function 必须早于 Bool / Block（它们的父类）
@@ -176,8 +172,6 @@ internal static partial class BuiltinClasses
         Link(IValue, BaseInterface, Interface);
         Link(Interface, Type, Type);
         // 底类型/顶类型：parent 自引用（链到自己就停）
-        Link(Every, Every, Type);
-        Link(Any, Any, Type);
 
         // ---- 每个内置类自己那份成员(要在注册之前:注册里有些地方要读成员) ----
         AttachMembers();
@@ -198,7 +192,7 @@ internal static partial class BuiltinClasses
                      Object, Int, Real, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
                      List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface, IValue,
-                     Ravel, Any, Every, Exception, Json, DotNetObject, DotNetType, ScopeType, Property,
+                     Ravel, Exception, Json, DotNetObject, DotNetType, ScopeType, Property,
                      TypeError, NameError, AttributeError, IndexError, KeyError,
                      ZeroDivisionError, AssertionError, AccessError, ArgumentError, ValueError,
                      IoError, RegexError
@@ -313,7 +307,7 @@ internal static partial class BuiltinClasses
     internal static void ClassSideMember(ObjectVal type, string name, BuiltinMethodVal impl)
     {
         impl.Name = name;
-        type.Scope.DefineOrReplace(name, Function, impl).SetAttr(Attr.Readonly);
+        type.Scope.DefineOrReplace(name, impl).SetAttr(Attr.Readonly);
     }
 
     internal static readonly BlockVal EmptyBody =
@@ -403,9 +397,9 @@ internal static partial class BuiltinClasses
         // `parent` / `block` **只读**:它们是"这个类是什么"的定义,改它等于把类换一个
         // (`C.parent = int` 之后 `C ()` 就去跑 Integer 的构造器了)。装类是**一次**的事
         // —— 想换个父类就再造一个类,别改这一个。
-        self.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
-        self.Scope.DefineOrReplace(ObjectVal.BlockMember, Block, blk).SetAttr(Attr.Readonly);
-        self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
+        self.Scope.DefineOrReplace(ObjectVal.ParentMember, parent).SetAttr(Attr.Readonly);
+        self.Scope.DefineOrReplace(ObjectVal.BlockMember, blk).SetAttr(Attr.Readonly);
+        self.Scope.Define(ObjectVal.NameMember, new StringVal(""));
         self.BodyExtras = pieces.Count > 1 ? pieces[1..] : [];
         AllTypes.Add(self);
         // 父类给实例准备的那份**成员工厂**按引用接下(不是抄):`class (P) { … }` 白得 P 的
@@ -449,7 +443,7 @@ internal static partial class BuiltinClasses
     internal static ClassVal New(string name)
     {
         var t = new ClassVal(null, null);   // null → ClassType 先自指;表由 ObjectVal.Scope 懒建
-        t.Scope.Define(ObjectVal.NameMember, null!, new StringVal(name));
+        t.Scope.Define(ObjectVal.NameMember, new StringVal(name));
         ByName[name] = t;
         return t;
     }
@@ -473,8 +467,7 @@ internal static partial class BuiltinClasses
     internal static void Link(ObjectVal t, ObjectVal parent, ClassVal meta)
     {
         t.ClassType = meta;
-        t.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
-        t.Scope.LookupField(ObjectVal.NameMember)!.TypeConstraint = String;
+        t.Scope.DefineOrReplace(ObjectVal.ParentMember, parent).SetAttr(Attr.Readonly);
     }
 
     // ============================================================

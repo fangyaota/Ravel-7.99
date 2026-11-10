@@ -2,28 +2,6 @@ namespace Ravel.Runtime;
 
 public partial class Interpreter
 {
-    private static RuntimeValue? TryConvert(RuntimeValue val, ObjectVal target, out string? why)
-    {
-        try
-        {
-            why = null;
-            return BuiltinClasses.ConvertDirect(target, val);
-        }
-        catch (RuntimeException ex)
-        {
-            why = ex.Message;
-            return null;
-        }
-    }
-
-    private static RuntimeValue LandDefault(RuntimeValue val, ObjectVal target)
-    {
-        if (val is not DefaultVal || target == BuiltinClasses.Every) return val;
-        return TryConvert(val, target, out var why) is { } dv
-            ? dv
-            : throw new RuntimeException($"类型不匹配: 无法将 default 变成 {target} — {why}", ErrorKind.Type);
-    }
-
     private static RuntimeValue MakeNumber(NumberLiteral nn)
     {
         if (nn.Parsed is { } cached) return cached;      // 纯函数:算过一次就够了(见 NumberLiteral.Parsed)
@@ -273,56 +251,21 @@ public partial class Interpreter
         var isBy = v.Attrs?.Contains(Attr.By) ?? false;
 
         var val = nf.Result(valueAt);
-        // `by a: T = default`:那个 `default` 是**属性的默认值**(一对什么都不做的
-        // getter/setter),不是 int 的 0 —— 注解管的是写进来的值,和这一份无关。
+        // `by a: T = _`:槽里那一份本来就是**属性**,`_` 在这儿的意思是"什么都不做的空属性对"。
         if (isBy) val = SlotValue(val);
-        // 普通字段:注解管的是这一份值,当场比对/隐式转换。
-        // `by`:值是个 PropertyVal,注解管的是**属性那个值** ——
-        // 拿它去比的话,`by n: int = property …` 一实例化就报「无法将 Property 赋值给 Integer」,
-        // 而写的人根本没写过 Property。没写注解就记 Any:写什么都行(不然后面写入会被
-        // `Property` 这个约束全挡回去)。
-        var dt = hasType ? AsClass(nf.Result(0), v.Name) : isBy ? BuiltinClasses.Any : val.Type;
-        // 没写注解时 dt 就是值自己的类型,一定"可赋值" —— 不必再判一次注解在不在
-        // (Accepts 里那半"接口也算数"正是 `x : myTrait = u` 需要的)
-        //
-        // `default` 要单独认一下:它的类型是**底类型** Every,`IsAssignableTo` 见谁都点头,
-        // 于是上面那条捷径会把它整段放过 —— 结果是 `n: int = default` 把 `default` 原样存下,
-        // 之后 `n + 1` 报「Every 不支持 '+'」。它要的是"按注解变成本类型的那个空值"
-        // (0 / "" / 空表 / 空函数 / 空续延…),而那正是 ConvertDirect 干的事。
-        // **只认父子,不做隐式转换。**
-        //
-        // `Accepts` 那两条就是"这个值本来就属于这个类型":继承链够得着,或者当前作用域里
-        // 有生效的实现把它接到目标上。**数值/字符串那种"能转就转"没有了** ——
-        // `x: real = 1` 不再悄悄变成 1.0(Integer 和 Real 是兄弟,不是父子);
-        // 要转就明写 `real 1`。
-        //
-        // 参数表一直就是这么判的(`Interpreter.Call`:只问 `Accepts`,不问转换)——
-        // 定义这边从前多一道,两边不一致,现在统一。
-        //
-        // **`default` 是唯一例外**:它要的本来就不是"转换",而是"按注解造一个本类型的空值"
-        // (0 / "" / 空表 / 空函数…),那正是 ConvertDirect 干的事。它的类型是底类型 Every,
-        // 见谁都点头,所以上面那条捷径放它过去会留下一个真的 `default` 值。
-        if (!isBy)
+        else if (hasType)
         {
-            // `default` 先按注解落地(`x: int = default` → 0);目标就是 `Every` 时原样留着。
-            val = LandDefault(val, dt);
-            if (!Accepts(val, dt))
+            // 注解就是一次 `:` —— 判据和 `:` 运算符同一处(`Matches`:父子,或者当前作用域里有生效的实现)。
+            var dt = AsClass(nf.Result(0), v.Name);
+            if (!BuiltinClasses.Matches(this, val, dt))
                 throw new RuntimeException(
                     $"类型不匹配: 无法将 {val.Type} 赋值给 {dt}（不是父子）—— 要转就明写 `{dt} …`",
                     ErrorKind.Type);
         }
 
-        // **`:=` 是定义,不是覆盖** —— 同一个作用域里同名再 `:=` 就报错(`Scope.Define` 本来
-        // 就是这个规矩,从前这里用 `DefineOrReplace` 把它绕过去了)。
-        //
-        // 类体那一支尤其要紧:各层类体**平铺进同一个实例作用域**(见 `StepClassInit`),
-        // 所以"子类的字段盖掉父类的字段""子类的 init 把父类的 init 顶掉(而父类 init 里的
-        // 初始化静默不跑)"从前都是静默发生 —— 现在一律当场报出来。要覆盖就写 `=`:
-        //     init = (…) => { … }        # 换掉继承来的那条(= 是赋值/覆盖)
-        // 类的**实例成员**没有别的覆盖写法,重名就是错(换个名字,或者在 `=` 那侧写)。
         var vr = v.Preset
-            ? nf.Scope.DefineOrReplace(v.Name, dt, val)   // 预设类体:每层覆盖上一层
-            : nf.Scope.Define(v.Name, dt, val, v);
+            ? nf.Scope.DefineOrReplace(v.Name, val)   // 预设类体:每层覆盖上一层
+            : nf.Scope.Define(v.Name, val, v);
         if (v.Attrs != null)
             foreach (var a in v.Attrs)
                 vr.SetAttr(a);
@@ -377,7 +320,7 @@ public partial class Interpreter
     }
 
     private static RuntimeValue SlotValue(RuntimeValue v)
-        => v is DefaultVal ? BuiltinClasses.DefaultProperty() : v;
+        => v is VoidVal ? BuiltinClasses.DefaultProperty() : v;
 
     private void StepSlotAssign(NodeFrame nf, SlotAssign sa)
     {
@@ -401,7 +344,7 @@ public partial class Interpreter
             {
                 if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
                 val = SlotValue(val);
-                v = nf.Scope.DefineOrReplace(id.Name, BuiltinClasses.Any, val);
+                v = nf.Scope.DefineOrReplace(id.Name, val);
                 v.SetAttr(Attr.By);
                 Return(nf, val);
                 return;
@@ -437,7 +380,7 @@ public partial class Interpreter
         {
             // `:=`:在那个对象上建槽(成员不存在也行,和 `obj.a := v` 一条规矩:定义不查门禁)
             val2 = SlotValue(val2);
-            var made = obj.Scope.DefineOrReplace(ma.Member, BuiltinClasses.Any, val2);
+            var made = obj.Scope.DefineOrReplace(ma.Member, val2);
             made.SetAttr(Attr.By);
             Return(nf, val2);
             return;
@@ -461,7 +404,7 @@ public partial class Interpreter
         {
             CheckMemberAccess(clsSlot, obj, ma.Member);
             clsSlot.CheckWritable();
-            var made = obj.Scope.DefineOrReplace(ma.Member, BuiltinClasses.Any, SlotValue(val2));
+            var made = obj.Scope.DefineOrReplace(ma.Member, SlotValue(val2));
             made.SetAttr(Attr.By);
             Return(nf, val2);
             return;
@@ -501,8 +444,6 @@ public partial class Interpreter
         // **写入的每一条路都过这一道**:`default` 按**声明类型**落地(`x: int` 上写 `default`
         // 给 0)。和定义那边(`VarDefinition`)一个口径 —— 从前这边只查不转,而 `default` 的型
         // 是底类型 `Every`、那一查拦不住它,于是变量里存进一个真的 `default`。
-        val = LandDefault(val, field.TypeConstraint);
-
         if (field.HasAttr(Attr.By))
         {
             // `by a: int = …` 的注解在这一侧执行 —— 和普通字段一样,约束的是**写进来的值**。

@@ -24,7 +24,7 @@ internal static class ScopeMembers
         {
             if (tv is not ObjectVal t)
                 throw new RuntimeException("scope.Define 需要 type 参数", ErrorKind.Argument);
-            scope.Define(name.Value, t, VoidVal.Instance);
+            scope.Define(name.Value, VoidVal.Instance);
             return VoidVal.Instance;
         });
     }

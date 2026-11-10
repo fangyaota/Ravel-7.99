@@ -49,7 +49,6 @@ try { print (Json.Kind); } (e: Exception) => { print ("5: " + string e); }
 print (1 + 2)
 print (1 == 2)
 print (5.: int)
-print (default : int)
 
 # ⑥ 值**自己**那层照旧留给用户挂的东西:只影响那一个值
 j := Json {"a"-> 1}
@@ -177,7 +176,6 @@ ravel ""
 # 5: 类型 'Type' 没有方法 'Kind'
 # 3
 # false
-# true
 # true
 # 1
 # 6: 类型 'Json' 没有方法 'tag'

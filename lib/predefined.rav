@@ -29,8 +29,6 @@ readonly function := System.Function
 readonly Continuation := System.Continuation   # callcc 交出来的续延(是个函数的子类型)
 readonly type := System.Type
 readonly void := System.Void
-readonly Any := System.Any
-readonly Every := System.Every
 readonly Exception := System.Exception
 # 错误那一族(引擎报错时挑的就是它们,见 Runtime/BuiltinClasses.Errors.cs):
 # 都挂在 Exception 下面,所以老的 `(e: Exception)` 一个都没坏,新的能按类型接。
@@ -59,7 +57,6 @@ readonly true := System.True
 readonly false := System.False
 readonly NaN := System.NaN
 readonly Inf := System.Inf
-readonly default := System.Default
 readonly typeof := System.TypeOf
 readonly cmd := System.Cmd        # 跑外部命令(走系统 shell),交回 {out err code}
 readonly assert := System.Assert

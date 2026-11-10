@@ -58,11 +58,11 @@ Pair ::= class {
     At := (i: int) => { i == 0 { A; } { B; }; }
 }
 # 要求是前置条件,一条一个:`IList` 要 `IEnumerable`,`IEnumerable` 又要 `IMonad`
-impl (IMonad Pair default)
+impl (IMonad Pair {;})
 impl (IEnumerable Pair {
     GetEnumerator = () => { Enumerator instance; }
 })
-impl (IList Pair default)
+impl (IList Pair {;})
 # 括号不能省:`Pair 7 8 : IList` 是 `Pair 7 (8 : IList)` —— 实参吃到运算符为止
 print ((Pair 7 8) : IList)
 print ((Pair 7 8) : IEnumerable)

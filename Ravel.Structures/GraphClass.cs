@@ -14,7 +14,7 @@ internal class GraphMethods
     private static List<RuntimeValue> Seeded(RuntimeValue arg, string kind, bool options)
         => arg switch
         {
-            DefaultVal or VoidVal => [],
+            VoidVal => [],
             DictVal when options => [],                 // `Weighted {"directed": true}` —— 那是选项,不是顶点
             _ => Structure.Seed(arg, kind),
         };
@@ -326,7 +326,7 @@ internal class GraphMethods
 
     private static RuntimeValue Link(GraphVal g, RuntimeValue from, RuntimeValue to, RuntimeValue w)
     {
-        var weight = w is VoidVal or DefaultVal ? 1.0 : WeightOf(w, g.Kind);
+        var weight = w is VoidVal ? 1.0 : WeightOf(w, g.Kind);
         g.Link(from, to, weight);
         return PluginKit.Void;
     }

@@ -40,7 +40,7 @@ internal static partial class BuiltinClasses
         var factoryBody = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, [], body));
 
         // 别的:把能写什么说全(不然只会得到「| 的 N 个分支都不收这个参数」)
-        var factoryJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
+        var factoryJunk = new NativeClosure("_", Object, (_, v) => throw new RuntimeException(
             "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，"
             + "`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），"
             + $"得到 {v.Type}", ErrorKind.Argument));
@@ -69,7 +69,7 @@ internal static partial class BuiltinClasses
                 Declared = [null, null, ("实现体", Block)],
             });
 
-        var implJunk = new NativeClosure("_", Any, (_, v) => throw new RuntimeException(
+        var implJunk = new NativeClosure("_", Object, (_, v) => throw new RuntimeException(
             "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
             + $"得到 {v.Type}", ErrorKind.Argument));
 
@@ -109,7 +109,7 @@ internal static partial class BuiltinClasses
         if (requires.Count > 0)
         {
             trait.Requires = requires;
-            trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, List, new ListVal([.. requires]))
+            trait.Scope.DefineOrReplace(ObjectVal.RequiresMember, new ListVal([.. requires]))
                 .SetAttr(Attr.Unreadable);
         }
 
@@ -125,11 +125,11 @@ internal static partial class BuiltinClasses
     internal static void FinishImplementation(Interpreter interp, ObjectVal impl, ObjectVal target)
     {
         // `Unreadable`:引擎内部那几格之一 —— **别转发**(见 `TraitSlot` 里那两道闸)
-        impl.Scope.Define(TargetMember, Type, target).SetAttr(Attr.Unreadable);
-        impl.Scope.Define(GenerationMember, Int, IntVal.Of(0)).SetAttr(Attr.Unreadable);
+        impl.Scope.Define(TargetMember, target).SetAttr(Attr.Unreadable);
+        impl.Scope.Define(GenerationMember, IntVal.Of(0)).SetAttr(Attr.Unreadable);
         // `this` 用 OrReplace:这个对象是**实例化那趟**造的(`StepClassInit` 已经绑过 `this`),
         // 实现帧只是在它身上继续装填。
-        impl.Scope.DefineOrReplace(ObjectVal.ThisMember, impl.Type, impl);
+        impl.Scope.DefineOrReplace(ObjectVal.ThisMember, impl);
         InstallInstance(interp, impl);
     }
 
@@ -140,14 +140,14 @@ internal static partial class BuiltinClasses
                 + " —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个", ErrorKind.Argument);
 
         var id = ImplId(impl);
-        var getter = new NativeClosure(InstanceMember, Any, (scope, _) =>
+        var getter = new NativeClosure(InstanceMember, Object, (scope, _) =>
             interp.ActiveInstance(scope, id.Value) ?? throw new RuntimeException(
                 "`instance` 只在实现体的槽里有效：此刻没有正在被服务的实例"
                 + "（它指的是「这一次调用在服务谁」，离开那次调用就没有了）", ErrorKind.Name));
-        var setter = new NativeClosure(InstanceMember, Any, (_, _) => throw new RuntimeException(
+        var setter = new NativeClosure(InstanceMember, Object, (_, _) => throw new RuntimeException(
             "`instance` 是只读的：它由引擎指到这一次服务的实例，不能赋值", ErrorKind.Access));
 
-        var vr = impl.Scope.Define(InstanceMember, Any, new PropertyVal(getter, setter));
+        var vr = impl.Scope.Define(InstanceMember, new PropertyVal(getter, setter));
         vr.SetAttr(Attr.By);
         vr.SetAttr(Attr.Readonly);
         // protected:它是**实现这一族**的东西 —— `im.instance` / `by im.instance` 从外面碰就报
@@ -165,7 +165,7 @@ internal static partial class BuiltinClasses
         if (impl.Scope.LookupField(ImplIdMember)?.Value is IntVal had) return had;
 
         var id = IntVal.Of(++_implCount);
-        impl.Scope.Define(ImplIdMember, Int, id).SetAttr(Attr.Unreadable);
+        impl.Scope.Define(ImplIdMember, id).SetAttr(Attr.Unreadable);
         return id;
     }
 
@@ -185,7 +185,7 @@ internal static partial class BuiltinClasses
         if (scope.LookupField(UseRegMember)?.Value is not ListVal reg)
         {
             reg = new ListVal([]);
-            scope.DefineOrReplace(UseRegMember, List, reg).SetAttr(Attr.Unreadable);
+            scope.DefineOrReplace(UseRegMember, reg).SetAttr(Attr.Unreadable);
         }
 
         reg.Elements.RemoveAll(x => x is ListVal e && e.Elements.Count > 0 && ReferenceEquals(e.Elements[0], impl));
@@ -321,8 +321,8 @@ internal static partial class BuiltinClasses
     private static Scope Activation(Scope chain, in TraitHit hit)
     {
         var act = new Scope(chain);
-        act.Define(InstanceActiveMember, Any, hit.Receiver);
-        act.Define(ImplActiveMember, Int, ImplId(hit.Impl)).SetAttr(Attr.Unreadable);
+        act.Define(InstanceActiveMember, hit.Receiver);
+        act.Define(ImplActiveMember, ImplId(hit.Impl)).SetAttr(Attr.Unreadable);
         return act;
     }
 

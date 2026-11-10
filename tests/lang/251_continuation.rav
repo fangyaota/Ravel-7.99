@@ -12,7 +12,7 @@
 
 # 拿一枚真的续延:得**存进变量**再用 —— `callcc (k) => { k 1; }` 那整个表达式的值
 # 是 1(调用续延 = 从捕获点继续,后面那些不接着算)
-esc: Continuation = default
+esc: Continuation = _
 print (typeof esc)
 print esc
 r := callcc (k: function) => { esc = k; "先给个值"; }
@@ -40,10 +40,10 @@ print (Continuation.name)
 d := Continuation.Default ()
 print (typeof d)
 print d
-blank: Continuation = default
+blank: Continuation = _
 print (typeof blank)
 print (blank == d)                       # 全语言就那一枚
-print ((Continuation default) == d)      # 走构造器那条路也是它（那层括号不能省：实参只吃主表达式）
+print ((Continuation ()) == d)      # 走构造器那条路也是它（那层括号不能省：实参只吃主表达式）
 print (d : Continuation)
 print (d == esc)
 try { d (); } (e: Exception) => { print ("1: " + string e); }
@@ -102,8 +102,7 @@ print "end"
 # 7
 # [7]
 # true
-# 4: Continuation 收一枚函数（或 default），得到 Integer
-# 5: Continuation 收一枚函数（或 default），得到 Void
+# 4: Continuation 收一枚函数（或 ()），得到 Integer
 # [1 2]
 # <续延 default>
 # true

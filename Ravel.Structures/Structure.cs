@@ -4,7 +4,7 @@ internal static class Structure
 {
     public static List<RuntimeValue> Seed(RuntimeValue arg, string what) => arg switch
     {
-        DefaultVal or VoidVal => [],
+        VoidVal => [],
         _ => Elements(arg, $"{what} 的构造参数"),
     };
 

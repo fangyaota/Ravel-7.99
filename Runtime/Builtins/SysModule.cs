@@ -10,7 +10,7 @@ internal static class SysModule
         SysRegistry.Register(self, (name, fn) => Def(scope, name, BuiltinClasses.Function, fn));
     }
 
-    private static void Def(Scope scope, string name, ObjectVal type, RuntimeValue value) => scope.Define(name, type, value);
+    private static void Def(Scope scope, string name, ObjectVal type, RuntimeValue value) => scope.Define(name, value);
 
     // 类对象自己就是那个值,不再包一层
     private static void DefType(Scope scope, string name, ObjectVal type) => Def(scope, name, BuiltinClasses.Type, type);
@@ -46,8 +46,6 @@ internal static class SysModule
         DefType(scope, "Interface", BuiltinClasses.Interface);
         DefType(scope, "IValue", BuiltinClasses.IValue);
         DefType(scope, "BaseInterface", BuiltinClasses.BaseInterface);   // 所有接口的基类
-        DefType(scope, "Any", BuiltinClasses.Any);
-        DefType(scope, "Every", BuiltinClasses.Every);
         DefType(scope, "Exception", BuiltinClasses.Exception);
         // 错误那一族 —— 引擎报错时挑的就是它们(见 Runtime/BuiltinClasses.Errors.cs)
         DefType(scope, "TypeError", BuiltinClasses.TypeError);
@@ -73,7 +71,6 @@ internal static class SysModule
         // (`-Inf` 不用另设,一元 `-` 对 Real 就是取负)
         Def(scope, "NaN", BuiltinClasses.Real, new RealVal(double.NaN));
         Def(scope, "Inf", BuiltinClasses.Real, new RealVal(double.PositiveInfinity));
-        Def(scope, "Default", BuiltinClasses.Every, DefaultVal.Instance);
     }
 
     private static void Controls(Scope scope)

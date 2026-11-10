@@ -79,10 +79,10 @@ public static class PluginKit
 
     public static RuntimeValue Void => VoidVal.Instance;
 
-    public static ClassVal Any => BuiltinClasses.Any;
+    public static ClassVal Any => BuiltinClasses.Object;
 
     public static FunctionVal Closure(string parameter, Func<RuntimeValue, RuntimeValue> body)
-        => new NativeClosure(parameter, BuiltinClasses.Any, (_, v) => body(v));
+        => new NativeClosure(parameter, BuiltinClasses.Object, (_, v) => body(v));
 
     public static StringVal Text(RuntimeValue v, string what) => Interpreter.As<StringVal>(v, what);
 
@@ -229,15 +229,13 @@ internal static class PluginLoader
                 // 那一格是 **`by` 槽** —— 和 Ravel 里 `by x := property g s` 一个机制。
                 // **类型约束给 `Any`**:写进来的是**属性值**,不是那个 property 本身
                 // (同 `ClassProperty`,见 `MemberSet.Create` 那段)。
-                var slot = scope.DefineOrReplace(f.Name, BuiltinClasses.Any,
-                                                 ClassRegistry.PropertyOf(self, f.Method!));
+                var slot = scope.DefineOrReplace(f.Name, ClassRegistry.PropertyOf(self, f.Method!));
                 slot.SetAttr(Attr.By);
                 if (f.ReadOnly) slot.SetAttr(Attr.Readonly);
                 continue;
             }
 
-            scope.DefineOrReplace(f.Name, f.Value?.Type ?? BuiltinClasses.Function,
-                                  f.Method is null ? f.Value! : ClassRegistry.Fn(self, f.Method));
+            scope.DefineOrReplace(f.Name, f.Method is null ? f.Value! : ClassRegistry.Fn(self, f.Method));
         }
     }
 
@@ -299,7 +297,7 @@ internal static class PluginLoader
 
         if (module is not null)
             ScopeOf(self, module, global, modules)
-                .DefineOrReplace(cls.Name, BuiltinClasses.Type, BuiltinClasses.ClassOf(cls.Name));
+                .DefineOrReplace(cls.Name, BuiltinClasses.ClassOf(cls.Name));
     }
 
     private static bool Known(string name)
@@ -351,7 +349,7 @@ internal static class PluginLoader
         // 认领的就是它(那时候引擎才接上引用那串)。
         mv = ModuleVal.WithOwnTable(name, global, self);
         modules[name] = mv;
-        global.Define(name, BuiltinClasses.Ravel, mv);
+        global.Define(name, mv);
         return mv.Scope;
     }
 }

@@ -141,7 +141,7 @@ internal sealed class MemberSet : IMemberSet
         {
             // `[ClassValue]` 那条:值本身已经是成员,不用再绑 —— 直接交出去。
             // 造出来的一格和其它成员一样只读(成员不是拿来重新赋值的)。
-            var given = new Variable(name, BuiltinClasses.Function, spec.Value!);
+            var given = new Variable(name, spec.Value!);
             given.SetAttr(Attr.Readonly);
             return given;
         }
@@ -154,13 +154,13 @@ internal sealed class MemberSet : IMemberSet
         {
             // **`by` 槽**:读走 getter、写走 setter,和用户写的 `by x := property g s` 一条路。
             // 类型约束给 `Any`:那格存的是 property,写进来的是**属性值**(见 `Variable.CheckAssignable`)
-            var slot = new Variable(name, BuiltinClasses.Any, new PropertyVal(acc, acc));
+            var slot = new Variable(name, new PropertyVal(acc, acc));
             slot.SetAttr(Attr.By);
             if (spec.ReadOnly) slot.SetAttr(Attr.Readonly);
             return slot;
         }
 
-        var v = new Variable(name, BuiltinClasses.Function, acc);
+        var v = new Variable(name, acc);
         v.SetAttr(Attr.Readonly);
         return v;
     }

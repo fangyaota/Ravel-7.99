@@ -51,7 +51,7 @@ public record ObjectVal : RuntimeValue
         set
         {
             if (value != null)
-                Scope.DefineOrReplace(BlockMember, BuiltinClasses.Block, value).SetAttr(Attr.Readonly);
+                Scope.DefineOrReplace(BlockMember, value).SetAttr(Attr.Readonly);
         }
     }
 
@@ -66,7 +66,7 @@ public record ObjectVal : RuntimeValue
         get => (Scope.LookupField(NameMember)?.Value as StringVal)?.Value;
         set
         {
-            if (value != null) Scope.DefineOrReplace(NameMember, BuiltinClasses.String, new StringVal(value));
+            if (value != null) Scope.DefineOrReplace(NameMember, new StringVal(value));
         }
     }
 
@@ -81,8 +81,6 @@ public record ObjectVal : RuntimeValue
 
     public bool IsAssignableTo(ObjectVal target)
     {
-        if (this == BuiltinClasses.Every) return true;
-        if (target == BuiltinClasses.Any) return true;
         return ChainOrRequires(this, target, null);
 
         // 已访问集合是**惰性**建的:有要求表才可能绕圈(`A 要求 B`、`B 要求 A`),
@@ -101,7 +99,7 @@ public record ObjectVal : RuntimeValue
                                 return true;
                 }
 
-                if (t.Parent == t) break;   // 自引用(object/Every/Any)= 链到头
+                if (t.Parent == t) break;   // 自引用(object)= 链到头
             }
 
             return false;

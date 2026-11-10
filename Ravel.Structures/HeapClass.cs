@@ -8,7 +8,7 @@ internal static class HeapClass
     public static RuntimeValue New(RuntimeValue arg)
     {
         var h = new HeapVal(arg is BoolVal b && b.Value);
-        if (arg is BoolVal or VoidVal or DefaultVal) return h;
+        if (arg is BoolVal or VoidVal) return h;
         foreach (var x in PluginKit.Elements(arg, "Heap 的构造参数")) h.Push(x);
         return h;
     }

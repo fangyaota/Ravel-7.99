@@ -20,7 +20,6 @@ internal static class NetBridge
         StringVal s => s.Value,
         CharVal c => c.Value,
         VoidVal => null,
-        DefaultVal => null,
         ListVal l => l.Elements.Select(ToNet).ToArray(),
         // **Ravel 函数交给 C#：做不到。** 引擎里写着三遍"原生闭包调不了 Ravel 函数
         // （那是帧栈的活）" —— 反过来（.NET 委托 → Ravel 函数）才行。这是那道硬边界

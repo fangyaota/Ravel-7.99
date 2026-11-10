@@ -189,7 +189,7 @@ public partial class Interpreter
             // 词法父接"类体写在哪" —— 类体里的自由名字要在那儿解析,而不是在成员表链上。
             var instanceScope = obj.Scope;
             instanceScope.Reparent(type.ClassBody!.CaptureScope);
-            instanceScope.Define(ObjectVal.ThisMember, type, obj);
+            instanceScope.Define(ObjectVal.ThisMember, obj);
             _top = new BlockExecFrame(bodies[0].Block.Block)
             {
                 Parent = cf with { State = obj },

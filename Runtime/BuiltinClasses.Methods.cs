@@ -85,11 +85,11 @@ internal static partial class BuiltinClasses
             var value = Rebind(kv.Value.Value, dst);
             // attrs 也要带过去:丢了 by 的话副本上的 `v = x` 不走 setter,
             // 丢了 readonly/private/core 就等于副本绕过了这些约束
-            var v = dst.DefineOrReplace(kv.Key, kv.Value.TypeConstraint, value);
+            var v = dst.DefineOrReplace(kv.Key, value);
             foreach (var a in kv.Value.Attrs) v.SetAttr(a);
         }
 
-        dst.DefineOrReplace(ObjectVal.ThisMember, src.ClassType, copy);
+        dst.DefineOrReplace(ObjectVal.ThisMember, copy);
         return copy;
     }
 }

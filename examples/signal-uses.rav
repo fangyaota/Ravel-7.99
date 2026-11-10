@@ -18,7 +18,7 @@ print "── 1. Latch:等三件事都做完 ──"
 
 Latch ::= class {
     Left: int = 0
-    Gate: Tasks.Signal = default
+    Gate: Tasks.Signal = _
 
     init = (n: int) => {
         Left = n
@@ -52,7 +52,7 @@ Tasks.Cycle [
 print "── 2. Once:只做一次,三个人都拿到 ──"
 
 Once ::= class {
-    Gate: Tasks.Signal = default
+    Gate: Tasks.Signal = _
     Value: object = ()
     Doing: bool = false
 
@@ -99,7 +99,7 @@ print ("  (三个人都拿到,而 `Load` 跑了 " + (string (Loads.At 0)) + " �
 print "── 3. Race:谁先答用谁 ──"
 
 Race ::= class {
-    Gate: Tasks.Signal = default
+    Gate: Tasks.Signal = _
     init = () => { Gate = Tasks.Signal (); this; }
 
     # 交回"我是不是第一个到的"

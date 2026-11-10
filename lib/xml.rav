@@ -229,7 +229,7 @@ readonly XmlNode ::= class {
     ChildNamed := (name: string) => { List () |> .Get name; }
 }
 
-impl (IEntry XmlNode default)
-impl (IFile XmlNode default)
-impl (IEntry XmlNode default)
-impl (IDir XmlNode default)
+impl (IEntry XmlNode {;})
+impl (IFile XmlNode {;})
+impl (IEntry XmlNode {;})
+impl (IDir XmlNode {;})

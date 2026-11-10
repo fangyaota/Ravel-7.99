@@ -47,6 +47,10 @@ internal static partial class BuiltinClasses
         IoError.ClassBody = ExceptionBody();
         RegexError.ClassBody = ExceptionBody();
         BuiltinCtor(Json, MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
+        // `function ()` 就是空函数(`_` 落在这一格:`x: function = _`)。
+        BuiltinCtor(Function, FunctionVal.From(v => v is VoidVal
+            ? EmptyFunction()
+            : throw new RuntimeException($"function 收一枚函数，得到 {v.Type}", ErrorKind.Type)));
         BuiltinCtor(List, MakeDefaultCaster(List));
         // `Continuation f` —— 把一枚函数**当成**续延(调它 = 调那枚函数)。
         // 库里的 `callcc` 靠这条把"先还原控制状态、再跳回去"那层也做成续延:
@@ -54,10 +58,10 @@ internal static partial class BuiltinClasses
         // `Continuation default` 走的是"还没到手的那一枚"(见 ContinuationVal.Default)。
         BuiltinCtor(Continuation, FunctionVal.From(val => val switch
         {
-            DefaultVal => ContinuationVal.Default,
+            VoidVal => ContinuationVal.Default,
             ContinuationVal c => c,                                  // 已经是续延,原样(包两层没意义)
             FunctionVal f => new ContinuationVal((Frame?)null, f),
-            _ => throw new RuntimeException($"Continuation 收一枚函数（或 default），得到 {val.Type}", ErrorKind.Type),
+            _ => throw new RuntimeException($"Continuation 收一枚函数（或 ()），得到 {val.Type}", ErrorKind.Type),
         }));
         BuiltinCtor(Set, MakeDefaultCaster(Set));
         BuiltinCtor(Dict, MakeDefaultCaster(Dict));
@@ -66,7 +70,7 @@ internal static partial class BuiltinClasses
     }
 
     private static FunctionVal DefaultCtor()
-        => new NativeClosure("_", Any, (scope, _) => scope.Lookup(ObjectVal.ThisMember).Value);
+        => new NativeClosure("_", Object, (scope, _) => scope.Lookup(ObjectVal.ThisMember).Value);
 
     internal static FunctionVal? IntCaster;
 
@@ -74,7 +78,7 @@ internal static partial class BuiltinClasses
         => FunctionVal.From(cast);
 
     private static FunctionVal MakeDefaultCaster(ObjectVal type)
-        => MakeCaster(val => val is DefaultVal
+        => MakeCaster(val => val is VoidVal
             ? ConvertDirect(type, val)
             : throw new RuntimeException($"类型 {type.DisplayName} 不能作为构造器调用", ErrorKind.Type));
 
@@ -94,7 +98,7 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToInt(RuntimeValue val)
     {
-        if (val is DefaultVal) return IntVal.Of(0);
+        if (val is VoidVal) return IntVal.Of(0);
         if (val is IntVal i) return i;
         // 字符就是它的码位(`int 'A'` → 65),反过来的 `char 65` 在 CastToChar 那边
         if (val is CharVal ch) return IntVal.Of(ch.Value);
@@ -115,7 +119,7 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToFloat(RuntimeValue val)
     {
-        if (val is DefaultVal) return new RealVal(0);
+        if (val is VoidVal) return new RealVal(0);
         if (val is IntVal i) return new RealVal(i.Value);
         if (val is RealVal f) return f;
         // bigint → real 是拓宽,顺手接上(以前 `real (bigint 5)` 报「无法转换为 real」,
@@ -133,19 +137,19 @@ internal static partial class BuiltinClasses
     // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型
     // 分发到这几个 CastToXxx 上),会转不出来。
     internal static RuntimeValue CastToBool(RuntimeValue val)
-        => val is DefaultVal ? new BoolVal(false)
+        => val is VoidVal ? new BoolVal(false)
             : val is BoolVal b ? b
             : throw new RuntimeException($"无法将 {val.Type} 转换为 bool", ErrorKind.Type);
 
     internal static RuntimeValue CastToString(RuntimeValue val)
-        => val is DefaultVal ? new StringVal("")
+        => val is VoidVal ? new StringVal("")
             : val is StringVal s ? s
             : new StringVal(val.ToString());
 
     internal static RuntimeValue CastToChar(RuntimeValue val) => val switch
     {
         CharVal c => c,
-        DefaultVal => new CharVal('\0'),
+        VoidVal => new CharVal('\0'),
         IntVal i => i.Value is >= 0 and <= char.MaxValue
             ? new CharVal((char)i.Value)
             : throw new RuntimeException($"char: 码位 {i.Value} 超出范围（0..65535）", ErrorKind.Value),
@@ -156,7 +160,7 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToBigInt(RuntimeValue val)
     {
-        if (val is DefaultVal) return new BigIntVal(0);
+        if (val is VoidVal) return new BigIntVal(0);
         if (val is IntVal i) return new BigIntVal(i.Value);
         if (val is BigIntVal bi) return bi;
         if (val is StringVal s)
@@ -176,7 +180,7 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToFraction(RuntimeValue val)
     {
-        if (val is DefaultVal) return new FractionVal(0, 1);
+        if (val is VoidVal) return new FractionVal(0, 1);
         // int 当分子,再收一个 int 分母
         if (val is IntVal i)
             return FunctionVal.From(d =>
@@ -197,7 +201,7 @@ internal static partial class BuiltinClasses
 
     internal static RuntimeValue CastToBigFraction(RuntimeValue val)
     {
-        if (val is DefaultVal) return new BigFractionVal(0, 1);
+        if (val is VoidVal) return new BigFractionVal(0, 1);
         static System.Numerics.BigInteger GetBi(RuntimeValue v) => v is IntVal i ? i.Value : ((BigIntVal)v).Value;
         if (val is IntVal || val is BigIntVal)
             return FunctionVal.From(d =>
@@ -211,16 +215,16 @@ internal static partial class BuiltinClasses
 
     private static BlockVal ExceptionBody()
     {
-        var ctor = new NativeClosure("msg", Any, (scope, val) =>
+        var ctor = new NativeClosure("msg", Object, (scope, val) =>
         {
             var self = (ObjectVal)scope.Lookup(ObjectVal.ThisMember).Value;
             var msg = val switch
             {
-                DefaultVal => "",
+                VoidVal => "",
                 StringVal s => s.Value,
                 _ => val.ToString() ?? "",
             };
-            self.Scope.DefineOrReplace(MessageMember, String, new StringVal(msg));
+            self.Scope.DefineOrReplace(MessageMember, new StringVal(msg));
             return self;                    // ← 交回 this:子类不写 init 也保住自己
         });
 
@@ -254,7 +258,7 @@ internal static partial class BuiltinClasses
         // 容器和函数没有"从一个值转换过来"这回事,只认 default(空容器 / 空函数)。
         // 分数那两条也在这一格:**它们对别的值有别的意思**(`fraction 3` 是"还等一个分母",
         // 交出的是半个构造器),不能像上面那样按目标类整批委派。
-        if (val is DefaultVal)
+        if (val is VoidVal)
         {
             if (target == List) return new ListVal([]);
             if (target == Set) return new SetVal([]);

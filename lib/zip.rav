@@ -194,8 +194,8 @@ readonly private Archive ::= class {
     Close := () => { Native.ZipClose Handle; (); }
 }
 
-impl (IEntry Archive default)
-impl (IDir Archive default)
+impl (IEntry Archive {;})
+impl (IDir Archive {;})
 
 # ── 成员:一个文件 ──
 #
@@ -225,8 +225,8 @@ readonly private ZipEntry ::= class {
     Info := () => { (Members Handle).Get Full; }
 }
 
-impl (IEntry ZipEntry default)
-impl (IFile ZipEntry default)
+impl (IEntry ZipEntry {;})
+impl (IFile ZipEntry {;})
 
 # ── 一件小事:要写进去的东西按 UTF-8 变字节 ──
 # 字符串走 UTF-8;字节表原样(要塞二进制就自己给字节表)

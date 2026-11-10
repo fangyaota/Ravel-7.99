@@ -235,7 +235,7 @@ print ("  do:   " + (string mDo))
 # false
 # 没完就读:这个任务还没完 —— 要等它就用 `group.Await t`,只想探一下就 `t.IsDone`
 # true
-# 读完:()
+# 读完:
 # 主:开帮手
 # 帮手:完
 # 主:帮手回来了

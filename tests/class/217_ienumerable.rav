@@ -1,8 +1,8 @@
 # `IEnumerable` / `IEnumerator` —— 用 `interface` 写出来的库级接口(predefined.rav),形状照 C#:
 #
-#     IEnumerable ::= interface { internal GetEnumerator : function = default }
-#     IEnumerator ::= interface { internal MoveNext : function = default
-#                                 by Current    : object   = default }
+#     IEnumerable ::= interface { internal GetEnumerator : function = _ }
+#     IEnumerator ::= interface { internal MoveNext : function = _
+#                                 by Current    : object   = _ }
 #
 # `GetEnumerator ()` 交回一个**枚举器**;枚举器 `MoveNext ()` 往前走一步(返回还有没有),
 # `Current` 是当前那个(C# 里它是属性,这边也做成属性)。库里的 `Enumerator` 就是拿一串值
@@ -76,7 +76,7 @@ Sub ::= class Seq {
 # ---- I.GetImplementors ():反过来问 —— 现在哪些**类型**实现了这个接口 ----
 
 MyIface ::= interface {
-    by Go : function = default
+    by Go : function = _
 }
 MyThing ::= class {
     x : int = 0
@@ -176,7 +176,7 @@ Rec ::= class {
     init = (k: int n: string) => { K = k; N = n; this; }
     CompareTo := (o: Rec) => { K < o.K { -1; } { K > o.K { 1; } { 0; } } }
 }
-impl (IComparable Rec default)
+impl (IComparable Rec {;})
 rs := []
 rs.Add (Rec 3 "c")
 rs.Add (Rec 1 "a")
@@ -260,7 +260,7 @@ Rec ::= class {
     init = (x: int n: string) => { X = x; N = n; this; }
     Key := () => { X; }
 }
-impl (IKey Rec default)
+impl (IKey Rec {;})
 print ((Rec 1 "a") : IKey)
 print (Keys.Of (Rec 7 "x"))
 

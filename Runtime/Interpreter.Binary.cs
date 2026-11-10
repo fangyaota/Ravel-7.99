@@ -336,7 +336,7 @@ public partial class Interpreter
         // 定义:不存在就新建,已存在就整条替换(类型约束/属性随之更新,与变量层的 x := v 一致)
         if (isDefine)
         {
-            ov2.Scope.DefineOrReplace(ma.Member, rv.Type, rv);
+            ov2.Scope.DefineOrReplace(ma.Member, rv);
             Return(nf, rv);
             return;
         }

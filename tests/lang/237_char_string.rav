@@ -14,7 +14,7 @@ print ('\n' == '\n')
 print ('\t' == '\t')
 print ('\\')
 print ('\'')
-print ((char default) == '\0')
+print ((char ()) == '\0')
 
 # ── 比较、拼接、重复 ──
 print ('a' == 'a')

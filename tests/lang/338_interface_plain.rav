@@ -22,7 +22,7 @@ Fruit ::= interface {
     color := () => { "?"; }
     kind: string = "unknown"
     readonly fixed: int = 7
-    by name : string = default
+    by name : string = _
 }
 
 Apple ::= class { init = () => { this; } }
