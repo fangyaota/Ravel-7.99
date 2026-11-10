@@ -9,348 +9,55 @@ internal static partial class BuiltinClasses
     /// <summary>注册各内置类型的方法(按类型分组,加方法时直接跳对应那块)</summary>
     private static void RegisterMethods()
     {
-        RegisterIntMethods();
-        RegisterStringMethods();
-        RegisterRangeMethods();
         RegisterJsonMethods();
-        RegisterNetMethods();
-        RegisterListMethods();
-        RegisterSetMethods();
-        RegisterDictMethods();
-        // 序列方法:三种容器共用那一份(将来 IEnumerable 的落点)。
-        // `items` = 「按枚举顺序取出元素」——字典给的是**值**(按键找用 `Has` / `Keys ()`)
-        // **借容器自己那一份,不拷** —— 见 `RegisterSequenceMethods` 抬头
-        RegisterSequenceMethods(List, s => ((ListVal)s).Elements);
-        RegisterSequenceMethods(Set, s => ((SetVal)s).Elements);
-        RegisterSequenceMethods(Dict, s => ((DictVal)s).Entries.Values);
+        // 其余各内置类的方法已经搬进 `Runtime/Members/*.cs`(每类一份,跟着类走):
+        // `Object`/`Ravel` → ObjectMembers,`String` → StringMembers,`Char` → CharMembers,
+        // `Range` → RangeMembers,`Type` → TypeMembers,`Function` → FunctionMembers,
+        // `Scope` → ScopeMembers,`Property` → PropertyMembers,
+        // `list`/`set`/`dict` 的序列方法 → SequenceMembers(三种容器共用一份实现)。
+        // 那些名字现在由 `ClassVal.Members` 那份成员工厂给出,这里不再注册。
+        //
+        // 下面这两批**必须留在注册表里**:它们挂的不是普通 `BuiltinMethodVal`,而是
+        // `SeqMethod` / `TraitQuery` 这类"求值器要认出"的值 —— `[ClassMethod]` 只能绑方法,
+        // 表达不了它们,只能在类型表上直接放一个值。
         RegisterHigherOrderMethods(List);
         RegisterHigherOrderMethods(Set);
         RegisterHigherOrderMethods(Dict);
         RegisterTypeMethods();
-        RegisterFunctionMethods();
-        RegisterScopeMethods();
-        RegisterPropertyMethods();
     }
 
     // `Object` / `Ravel` 的成员搬到了 `Runtime/Members/ObjectMembers.cs`（按类型自己管）。
     // 这里不再有它们的注册 —— 那些名字由 `ClassVal.Members` 那份成员工厂给出。
 
 
-    private static void RegisterIntMethods()
-    {
-    }
 
     /// <summary>字符串的参数:要字符串,或者**一个字符**(`"abc".Contains 'b'` 一样通)。
-    /// 拼接、查找、切分这些地方两种写法都自然,所以都收。</summary>
-    private static string TextArg(RuntimeValue a, string what) => a switch
+    /// 拼接、查找、切分这些地方两种写法都自然,所以都收。
+    ///
+    /// **留在 `BuiltinClasses` 而不是搬进 `StringMembers`**:`BuiltinClasses.Json.cs`
+    /// 也在用它(JSON 取成员时那些按名字查的入口),两处共用这一份规矩就没分叉。
+    /// 所以是 `internal` 不是 `private` —— 新文件里写 `BuiltinClasses.TextArg`。</summary>
+    internal static string TextArg(RuntimeValue a, string what) => a switch
     {
         StringVal s => s.Value,
         CharVal c => c.Value.ToString(),
         _ => throw new RuntimeException($"{what} 需要 string 或 char 参数，得到 {a.Type}", ErrorKind.Argument),
     };
 
-    /// <summary>区间那几条。都只跟那**一对边界 + 开闭**打交道,所以都是 O(1)
-    /// (只有 `ToList ()` 是 O(n) —— 那是用户自己要铺成表的)。
+    /// <summary>类型上那两条**不能用 `[ClassMethod]` 表达**的成员,只能留在这张注册表里。
     ///
-    /// 它同时也是一个 `IEnumerable`(impl 在 lib/iterator.rav,枚举走生成器的光标、惰性),
-    /// 所以 `Map` / `Where` / `Fold` / `Take` 那整套是白拿的;这里只把**该更快或者
-    /// 该更直白**的几条先摆出来(`Count` / `Contains` / `ToList` 与接口那份语义一致,
-    /// 只是不必走一遍迭代)。</summary>
-    private static void RegisterRangeMethods()
+    /// 其余(`Default` / `Subtypes`)已搬进 `Runtime/Members/TypeMembers.cs` —— 那是普通方法。
+    /// 这两条挂的是 `TraitQuery`(和 `SeqMethod` 同一个家族):它们**不是** `BuiltinMethodVal`,
+    /// 真正算它们的是求值器(实现登记在作用域里),`[ClassMethod]` 只能绑 `MethodInfo`。
+    ///
+    /// 挂的位置不能变:`Type` 的**实例表**上 —— `Option.GetImplements ()` 里的 `Option`
+    /// 是 `type` 的实例,沿 `parent` 往上兜到这一张(`Option` 自己的表里没有,`Type` 那张里有)✓</summary>
+    private static void RegisterTypeMethods()
     {
-        // 端点:写出来那两个数(**任意数值** —— 开区间的那端不在元素里,要元素用 First / Last)
-        Range.DefineMethod("Start", (s, _) => ((RangeVal)s).Start);
-        Range.DefineMethod("End", (s, _) => ((RangeVal)s).End);
-        // 个数:装得下给 int、装不下给 bigint
-        Range.DefineMethod("Count", (s, _) =>
-        {
-            var n = ((RangeVal)s).CountValue();
-            return n >= int.MinValue && n <= int.MaxValue ? IntVal.Of((int)n) : new BigIntVal(n);
-        });
-        Range.DefineMethod("IsEmpty", (s, _) => new BoolVal(((RangeVal)s).IsEmpty()));
-        // 两头都定得下来吗(`[1..]` / `[..1]` 不是)—— `Count` / `Last` / `ToList` 答不出来
-        // 就是因为这个,所以给它一个问法,别让人靠"试试看会不会报错"去猜。
-        Range.DefineMethod("IsBounded", (s, _) => new BoolVal(((RangeVal)s).IsBounded()));
-        // 整条数轴(`[..]`):谁都在里头,可没有起手那一头 —— 比"无界"还少一样东西
-        Range.DefineMethod("IsWhole", (s, _) => new BoolVal(((RangeVal)s).IsWhole()));
-        // 往哪个方向数:1 正着、-1 倒着。无界也答得出来(方向由无穷在哪一头定,见 RangeVal)
-        Range.DefineMethod("Step", (s, _) => IntVal.Of(((RangeVal)s).Step()));
-        Range.DefineMethod("Contains", (s, a) =>
-            new BoolVal(((RangeVal)s).ContainsValue(a)));
-
-        // 和 `Contains` 分开的两个问法:`Contains` 是"里头有没有这个**元素**"(和别的容器
-        // 一个意思,元素是那些整数),`Covers` 是"这个值**落不落在这段里**"(按端点比,
-        // 小数也算数)。Ruby 也是这么分的(`include?` / `cover?`)。
-        Range.DefineMethod("Covers", (s, a) =>
-            new BoolVal(((RangeVal)s).CoversValue(a)));
-
-        // 铺成表 —— 只有这一条是 O(n)。空区间给空表(不是报错),**无限长的报错**(铺不完)
-        Range.DefineMethod("ToList", (s, _) =>
-        {
-            var r = (RangeVal)s;
-            if (!r.IsBounded())
-                throw new RuntimeException(
-                    r.IsWhole()
-                        ? $"整条数轴铺不成表（{r} —— 它谁都在里头，但没有起手那一头）"
-                        : $"无限长的区间铺不成表（{r}）—— 用 Take 取前几个",
-                    ErrorKind.Value);
-            var (first, last, up) = r.Walk();
-            var out_ = new List<RuntimeValue>();
-            for (var i = first; up ? i <= last : i >= last; i += up ? 1 : -1) out_.Add(r.Element(i));
-            return new ListVal(out_);
-        });
-
-        // `Text ()` 就是那个记号本身(和 `print` 一致)
-        Range.DefineMethod("Text", (s, _) => new StringVal(s.ToString()!));
-
-        // 头一个 / 末一个**元素**(不是那两个端点 —— 开区间的端点在区间外)。
-        // 接口默认那份要迭代一遍,这两条 O(1);空的照旧报错,措辞和默认那份一致。
-        Range.DefineMethod("First", (s, _) =>
-        {
-            var r = (RangeVal)s;
-            if (r.IsEmpty()) throw new RuntimeException("First: 元素不够（一共 0 个）", ErrorKind.Index);
-            return r.FirstElement();
-        });
-        Range.DefineMethod("Last", (s, _) =>
-        {
-            var r = (RangeVal)s;
-            if (r.IsEmpty()) throw new RuntimeException("Last: 元素不够（一共 0 个）", ErrorKind.Index);
-            return r.LastElement();
-        });
+        EngineMember(Type, "GetImplements", new TraitQuery("GetImplements", TraitQueryKind.Implements));
+        EngineMember(Type, "GetImplementors", new TraitQuery("GetImplementors", TraitQueryKind.Implementors));
     }
 
-    /// <summary>把一个区间折成**半开**的 `[from, to)` —— 切片那套(字符串的 `Slice`)的通用口径:
-    /// 左端开就起点挪一格,右端闭就终点挪一格。倒过来的区间(`Start > End`)和空区间切出空串,
-    /// 越界(拿到的那个 from/to 落在字符串外面)照旧当场报错 —— 和两个数字那种写法一条规矩。</summary>
-    private static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what)
-    {
-        // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段。
-        // 区间是**降序**的话(`[4..0]`)拿到的是同一段、但**倒着**切 —— 方向也照区间的意思走。
-        var (first, last, up) = rng.Walk();
-        if (up ? first > last : first < last) return (0, 0, false);      // 空区间 → 空的一段
-
-        var lo = System.Numerics.BigInteger.Min(first, last);
-        var hi = System.Numerics.BigInteger.Max(first, last);
-        if (lo < 0 || hi + 1 > length)
-            throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）", ErrorKind.Index);
-
-        return ((int)lo, (int)(hi + 1), !up);           // 半开:`hi` 那个元素也要,所以 +1
-    }
-
-    private static void RegisterStringMethods()
-    {
-        String.DefineMethod("Length", (s, _) => IntVal.Of(((StringVal)s).Value.Length));
-        String.DefineMethod("IsEmpty", (s, _) => new BoolVal(((StringVal)s).Value.Length == 0));
-
-        // ── 取字符 ──
-        // `At i` 给**字符**(和 `[1 2].At 0` 给元素对称);越界当场报错,不悄悄给个 `()`
-        String.DefineMethod("At", (s, a) =>
-        {
-            var v = ((StringVal)s).Value;
-            var i = IntArg(a, "s.At");
-            if (i < 0 || i >= v.Length)
-                throw new RuntimeException($"s.At: 索引 {i} 超出范围（长度 {v.Length}）", ErrorKind.Index);
-            return new CharVal(v[i]);
-        });
-        // 拆成一串字符(想逐个处理就它,别拿 `At` 配下标手摇)
-        String.DefineMethod("Chars", (s, _) =>
-            new ListVal([.. ((StringVal)s).Value.Select(c => (RuntimeValue)new CharVal(c))]));
-
-        // ── 找 ──
-        String.DefineMethod("Contains", (s, a) =>
-            new BoolVal(((StringVal)s).Value.Contains(TextArg(a, "s.Contains"), StringComparison.Ordinal)));
-        String.DefineMethod("StartsWith", (s, a) =>
-            new BoolVal(((StringVal)s).Value.StartsWith(TextArg(a, "s.StartsWith"), StringComparison.Ordinal)));
-        String.DefineMethod("EndsWith", (s, a) =>
-            new BoolVal(((StringVal)s).Value.EndsWith(TextArg(a, "s.EndsWith"), StringComparison.Ordinal)));
-        // 找不到是**报错**,不是给 -1 —— 和别处"没有就是错"一个口径;明知可能没有用 `Find`
-        String.DefineMethod("IndexOf", (s, a) =>
-        {
-            var v = ((StringVal)s).Value;
-            var i = v.IndexOf(TextArg(a, "s.IndexOf"), StringComparison.Ordinal);
-            if (i < 0) throw new RuntimeException($"s.IndexOf: 找不到 {TextArg(a, "s.IndexOf")}", ErrorKind.Value);
-            return IntVal.Of(i);
-        });
-        String.DefineMethod("Find", (s, a) =>
-            IntVal.Of(((StringVal)s).Value.IndexOf(TextArg(a, "s.Find"), StringComparison.Ordinal)));   // 没有给 -1
-        String.DefineMethod("LastIndexOf", (s, a) =>
-        {
-            var v = ((StringVal)s).Value;
-            var i = v.LastIndexOf(TextArg(a, "s.LastIndexOf"), StringComparison.Ordinal);
-            if (i < 0) throw new RuntimeException($"s.LastIndexOf: 找不到 {TextArg(a, "s.LastIndexOf")}", ErrorKind.Value);
-            return IntVal.Of(i);
-        });
-
-        // ── 切 ──
-        // `s.Slice [1..3)` —— **收一个区间**,开闭由那对括号说了算(从前"两个数字 + 半开"
-        // 那个写法已经删掉,只留这一种:谁想说不含哪一端,写括号就行)。
-        String.DefineMethod("Slice", (s, a) =>
-        {
-            if (a is not RangeVal rng)
-                throw new RuntimeException($"s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {a.Type}", ErrorKind.Argument);
-
-            var v = ((StringVal)s).Value;
-            var (from, to, reverse) = SliceBounds(rng, v.Length, "s.Slice");
-            var part = v[from..to];
-            if (reverse) part = string.Concat(part.Reverse());
-            return new StringVal(part);
-        });
-        String.DefineMethod("Take", (s, a) => new StringVal(((StringVal)s).Value[..Math.Clamp(IntArg(a, "s.Take"), 0, ((StringVal)s).Value.Length)]));
-        String.DefineMethod("Skip", (s, a) => new StringVal(((StringVal)s).Value[Math.Clamp(IntArg(a, "s.Skip"), 0, ((StringVal)s).Value.Length)..]));
-
-        // ── 变 ──
-        String.DefineMethod("Trim", (s, _) => new StringVal(((StringVal)s).Value.Trim()));
-        // 大小写:**不跟区域设置走**(土耳其语的 i/İ 那种会让同一段程序换台机器就换个结果)
-        String.DefineMethod("ToUpper", (s, _) => new StringVal(((StringVal)s).Value.ToUpperInvariant()));
-        String.DefineMethod("ToLower", (s, _) => new StringVal(((StringVal)s).Value.ToLowerInvariant()));
-        String.DefineMethod("Replace", (s, a) =>
-        {
-            var from = TextArg(a, "s.Replace");
-            return FunctionVal.From(b => new StringVal(((StringVal)s).Value.Replace(from, TextArg(b, "s.Replace"), StringComparison.Ordinal)));
-        });
-        String.DefineMethod("Repeat", (s, a) => new StringVal(string.Concat(
-            Enumerable.Repeat(((StringVal)s).Value, Math.Max(0, IntArg(a, "s.Repeat"))))));
-        String.DefineMethod("Reverse", (s, _) =>
-            new StringVal(new string([.. ((StringVal)s).Value.Reverse()])));
-        String.DefineMethod("Split", (s, a) =>
-        {
-            var sep = TextArg(a, "s.Split");
-            if (sep.Length == 0)
-                throw new RuntimeException("s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）", ErrorKind.Value);
-            return new ListVal([.. ((StringVal)s).Value
-                .Split(sep, StringSplitOptions.None)
-                .Select(p => (RuntimeValue)new StringVal(p))]);
-        });
-
-        // ── 字符自己那几个 ──(判类不管大小写:数字/字母就是数字/字母)
-        static RuntimeValue CharMethod(string name, Func<char, bool> f)
-        {
-            Char.DefineMethod(name, (s, _) => new BoolVal(f(((CharVal)s).Value)));
-            return VoidVal.Instance;
-        }
-
-        CharMethod("IsDigit", char.IsDigit);
-        CharMethod("IsLetter", char.IsLetter);
-        CharMethod("IsUpper", char.IsUpper);
-        CharMethod("IsLower", char.IsLower);
-        CharMethod("IsSpace", char.IsWhiteSpace);
-        Char.DefineMethod("Code", (s, _) => IntVal.Of(((CharVal)s).Value));          // `int c` 的显式版
-        Char.DefineMethod("ToString", (s, _) => new StringVal(((CharVal)s).Value.ToString()));
-    }
-
-    /// <summary>取下标之前的统一检查:收下索引、卡边界,顺手把列表交回去。
-    /// 以前五处各写一遍检查、消息都只有「索引超出范围」四个字——越的是哪个界、
-    /// 在几号元素上越的,全看不出来。allowEnd 给 Insert 用(插到末尾是合法的)。</summary>
-    private static ListVal Indexed(RuntimeValue s, RuntimeValue a, string what, bool allowEnd = false)
-    {
-        if (a is not IntVal i) throw new RuntimeException($"{what} 需要 int 参数", ErrorKind.Argument);
-        var lst = (ListVal)s;
-        var n = lst.Elements.Count;
-        if (i.Value < 0 || i.Value > (allowEnd ? n : n - 1))
-            throw new RuntimeException($"{what} 的索引 {i.Value} 越界 (列表长度 {n})", ErrorKind.Index);
-        return lst;
-    }
-
-    private static void RegisterListMethods()
-    {
-        // 「按下标摘掉一个、交出摘掉的那个」—— `Remove` 与 `RemoveAt` 是同一件事,
-        // 只差越界报错时那句名字。
-        static RuntimeValue RemoveAt(RuntimeValue s, RuntimeValue a, string what)
-        {
-            var lst = Indexed(s, a, what);
-            var idx = ((IntVal)a).Value;
-            var v = lst.Elements[idx];
-            lst.Elements.RemoveAt(idx);
-            return v;
-        }
-
-        List.DefineMethod("At", (s, a) =>
-        {
-            var lst = Indexed(s, a, "list.At");
-            return lst.Elements[((IntVal)a).Value];
-        });
-        List.DefineMethod("Add", (s, a) =>
-        {
-            ((ListVal)s).Elements.Add(a);
-            return VoidVal.Instance;
-        });
-        List.DefineMethod("Remove", (s, a) => RemoveAt(s, a, "list.Remove"));
-        List.DefineMethod("Insert", (s, a) =>
-        {
-            var lst = Indexed(s, a, "list.Insert", allowEnd: true);
-            var idx = ((IntVal)a).Value;
-            return FunctionVal.From(v =>
-            {
-                lst.Elements.Insert(idx, v);
-                return VoidVal.Instance;
-            });
-        });
-        List.DefineMethod("Set", (s, a) =>
-        {
-            var lst = Indexed(s, a, "list.Set");
-            var idx = ((IntVal)a).Value;
-            return FunctionVal.From(v =>
-            {
-                lst.Elements[idx] = v;
-                return VoidVal.Instance;
-            });
-        });
-
-        // 下面这些是**列表才有**的:要么带下标,要么依赖"顺序是有意义的"
-        // (集合/字典没有这条 —— 所以它们只在序列方法那一批里出现,见 BuiltinClasses.Sequences.cs)
-        List.DefineMethod("IndexOf", (s, a) => IntVal.Of(((ListVal)s).Elements.IndexOf(a)));
-        // `RemoveAt i` 和 `Remove i` 是同一件事:名字对齐 C#(`List.RemoveAt` 按下标、
-        // `List.Remove` 按值),老名字留着 —— 库和好几个用例都在用。体也共用一份(见下面)。
-        List.DefineMethod("RemoveAt", (s, a) => RemoveAt(s, a, "list.RemoveAt"));
-        List.DefineMethod("AddRange", (s, a) =>
-        {
-            ((ListVal)s).Elements.AddRange(ElementsOf(a, "AddRange"));
-            return VoidVal.Instance;
-        });
-        List.DefineMethod("Clear", (s, _) =>
-        {
-            ((ListVal)s).Elements.Clear();
-            return VoidVal.Instance;
-        });
-        // 排序**交回新的**(和 Map/Where 那批一个规矩),稳定的,比不了当场说人话(见 SortByKey)
-        List.DefineMethod("Sort", (s, _) => SortByKey(((ListVal)s).Elements, x => x));
-    }
-
-    private static void RegisterSetMethods()
-    {
-        Set.DefineMethod("Add", (s, a) =>
-        {
-            ((SetVal)s).Elements.Add(a);
-            return VoidVal.Instance;
-        });
-        Set.DefineMethod("Remove", (s, a) =>
-        {
-            ((SetVal)s).Elements.Remove(a);
-            return VoidVal.Instance;
-        });
-        Set.DefineMethod("Clear", (s, _) =>
-        {
-            ((SetVal)s).Elements.Clear();
-            return VoidVal.Instance;
-        });
-        // 集合代数(C# 的 HashSet 同名方法):交回**新的 set**,原集合不动
-        Set.DefineMethod("Union", (s, a) => new SetVal([.. ((SetVal)s).Elements, .. ElementsOf(a, "Union")]));
-        Set.DefineMethod("Intersect", (s, a) =>
-        {
-            var other = ElementsOf(a, "Intersect").ToHashSet();
-            return new SetVal([.. ((SetVal)s).Elements.Where(other.Contains)]);
-        });
-        Set.DefineMethod("Except", (s, a) =>
-        {
-            var other = ElementsOf(a, "Except").ToHashSet();
-            return new SetVal([.. ((SetVal)s).Elements.Where(x => !other.Contains(x))]);
-        });
-        Set.DefineMethod("IsSubsetOf", (s, a) =>
-        {
-            var other = ElementsOf(a, "IsSubsetOf").ToHashSet();
-            return new BoolVal(((SetVal)s).Elements.All(other.Contains));
-        });
-    }
 
     /// <summary>**能不能当字典的键** —— 判据只有这一处,`KeyArg` 和 `Object` 上那条默认的
     /// `Key` 都问它;`lib/keys.rav` 的 `Of` 是同一句话在 Ravel 那边,改要一起改。
@@ -378,202 +85,6 @@ internal static partial class BuiltinClasses
             ? a
             : throw new RuntimeException($"{what}得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 {a.Type}", ErrorKind.Type);
 
-    /// <summary>字典的**底层**操作,名字一律带 `Sys` —— 它们只吃**值类型**键(见 <see cref="KeyArg"/>),
-    /// 因为这里是同步的 C#:`Key ()` 是 Ravel 函数,调它要推帧,这儿调不了。
-    ///
-    /// 日常敲的 `d.Get k` / `d.Set k v` 是**库注入**上来的(`lib/keys.rav` 的 `IDict` 接口槽):
-    /// 它先把键**规范**成值类型、再转到这几个 `Sys*` 上 —— 于是"内容一样的两个对象"是同一条。
-    /// **名字腾出来是前提**:成员查找先看类链,链上没有 `Get` 才轮到接口槽(`TraitSlot`)。
-    /// `Keys` / `Values` / `HasValue` / `Count` / `Clear` 不吃键,不用注入,就留在这一层。
-    /// </summary>
-    private static void RegisterDictMethods()
-    {
-        Dict.DefineMethod("SysGet", (s, a) =>
-        {
-            var key = KeyArg(a, "dict.SysGet 的键");
-            var d = (DictVal)s;
-            if (d.Entries.TryGetValue(key, out var v)) return v;
-            throw new RuntimeException($"键不存在: {key}", ErrorKind.Key);
-        });
-        Dict.DefineMethod("SysSet", (s, a) =>
-        {
-            var key = KeyArg(a, "dict.SysSet 的键");
-            return FunctionVal.From(v =>
-            {
-                ((DictVal)s).Entries[key] = v;
-                return VoidVal.Instance;
-            });
-        });
-        Dict.DefineMethod("SysHas", (s, a) =>
-            new BoolVal(((DictVal)s).Entries.ContainsKey(KeyArg(a, "dict.SysHas 的键"))));
-        Dict.DefineMethod("Keys", (s, _) => new ListVal([.. ((DictVal)s).Entries.Keys]));
-        Dict.DefineMethod("Values", (s, _) => new ListVal([.. ((DictVal)s).Entries.Values]));
-        Dict.DefineMethod("SysRemove", (s, a) =>
-            // 有没有删掉(C# 也交回 bool)
-            new BoolVal(((DictVal)s).Entries.Remove(KeyArg(a, "dict.SysRemove 的键"))));
-        Dict.DefineMethod("HasValue", (s, a) => new BoolVal(((DictVal)s).Entries.ContainsValue(a)));
-        // `d.GetOr "k" 0` —— 有就取值,没有就给替代值(C# 的 GetValueOrDefault)。
-        // 默认的 `Get` 是**响亮**的(键不存在就报错),这个是"明知可能没有"时用的。
-        Dict.DefineMethod("SysGetOr", (s, a) =>
-        {
-            var key = KeyArg(a, "dict.SysGetOr 的键");
-            var d = (DictVal)s;
-            return d.Entries.TryGetValue(key, out var v)
-                ? FunctionVal.From(_ => v)        // 有:替代值收下但不用
-                : FunctionVal.From(fallback => fallback);
-        });
-        Dict.DefineMethod("Clear", (s, _) =>
-        {
-            ((DictVal)s).Entries.Clear();
-            return VoidVal.Instance;
-        });
-    }
-
-    private static void RegisterTypeMethods()
-    {
-        // 这里**不能**再注册 `name` 方法:类名现在是类对象 Scope 里的 `name` 成员
-        // (见 ObjectVal.Name),和它同住一个作用域的方法会把它覆盖掉。
-        // 而且那个方法本来就是死代码 —— GetMember 的 `name` 伪成员排在方法查找之前,
-        // 读 `int.name` 永远走伪成员,够不着方法。读走伪成员、写走成员赋值,行为不变。
-        //
-        // `Parent ()` 那个**方法**也删掉了:它和 `parent` 成员是同一格数据
-        // (`C.parent` / `C.Parent ()` 都返回 `Object`),留两个名字只会让人以为
-        // 一个给类、一个给实例。要读父类就是 `C.parent`(机制成员,类自己那层;
-        // 实例上读不到 —— 它不沿链继承)。
-        // `Is` 这个**方法**删掉了:它问类型、`is` 问值,两个长得像的东西各管一头,
-        // 最常踩的是拿实例去调(`C.Is (C ())` 从前静默给 false,读起来还像"这个实例是不是 C")。
-        // 要问类型之间的关系就用运算符:`int <: object` / `object :> int`(两边都得是类型);
-        // 要问值就用 `x is T`。
-        // 类型与接口之间的两个方向:`T.GetImplements ()`(这个类型实现了哪些接口)与
-        // `I.GetImplementors ()`(哪些类型实现了这个接口)。实现登记在作用域里,所以真正算它们的
-        // 是求值器 —— 这里只挂上那个"绑好接收者、调用时由 CallInto 认出"的成员值。
-        Type.DefineMethod("Default", (s, _) => ConvertDirect((ObjectVal)s, DefaultVal.Instance));
-        // 挂在 `Type` 的**实例表**上:`Option.GetImplements ()` 里的 `Option` 是 `type` 的实例,
-        // 沿 `parent` 往上兜到这一张(`Option` 自己的表里没有,`Type` 那张里有)✓
-        EngineMember(Type, "GetImplements", new TraitQuery("GetImplements", TraitQueryKind.Implements));
-        EngineMember(Type, "GetImplementors", new TraitQuery("GetImplementors", TraitQueryKind.Implementors));
-        Type.DefineMethod("Subtypes", (s, _) =>
-        {
-            var t = (ObjectVal)s;
-            var subs = new List<RuntimeValue>();
-            foreach (var sub in AllTypes)
-            {
-                if (sub != t && sub.IsAssignableTo(t))
-                    subs.Add(sub);
-            }
-
-            return new ListVal(subs);
-        });
-    }
-
-    /// <summary>取接收者当函数用。**不能硬转 `(FunctionVal)s`**:类对象往上查到 `Function` 那层
-    /// (type <: function),所以 `Fields ()` 会把 Function 的方法列成类的可用方法,
-    /// 而类对象是 `ObjectVal` —— 硬转就抛 InvalidCastException 漏到顶层。
-    /// 换句话说,这是 BoolVal 那个「类型说有、值却接不住」的**反向**同款。</summary>
-    private static FunctionVal AsFunction(RuntimeValue s, string what)
-        => s as FunctionVal ?? throw new RuntimeException($"{what} 只对函数有意义，{s.Type} 不行", ErrorKind.Type);
-
-    private static void RegisterFunctionMethods()
-    {
-        // Name 落在成员表里(ObjectVal.Name),函数和类对象都有,不用转
-        Function.DefineMethod("Name", (s, a) =>
-        {
-            var f = (ObjectVal)s;
-            if (a is StringVal sv)
-            {
-                f.Name = sv.Value;
-                return VoidVal.Instance;
-            }
-
-            return new StringVal(f.Name ?? "");
-        });
-        // 捕获作用域是**函数独有**的:对象没有捕获作用域,它那半边叫 MemberScope。
-        // 没有捕获作用域的值(类对象不是闭包)给一个**空 Scope** —— **类型恒定是 Scope**,
-        // 不拿 `()` 顶替,也不报错:`x.scope ()` 拿到的东西该始终能当作用域用。
-        Function.DefineMethod("Scope", (s, _) => new ScopeVal(AsFunction(s, "Scope").CaptureScope ?? new Scope()));
-        // body:这个函数/类的**体**。同样类型恒定是 Block —— 没有体的(内置方法、
-        // 原生闭包、没类体的内建类)给一个**空块**,而不是 `()`:`f.body` 始终能当块用
-        // (`(f.body) 1` 就是跑一遍它)。
-        Function.DefineMethod("Body", (s, _) => s switch
-        {
-            LambdaVal lam => new BlockVal(lam.Block, lam.CaptureScope),
-            ClassVal c => c.ClassBody ?? EmptyBody,
-            BlockVal b => b,
-            _ => EmptyBody,
-        });
-        // 换作用域 / prepend / append 只有真函数能做(类对象的作用域是它的实例作用域,不能换)
-        Function.DefineMethod("SetScope", (s, a) =>
-        {
-            if (a is not ScopeVal sv) throw new RuntimeException("setScope 需要 Scope 参数", ErrorKind.Argument);
-            AsFunction(s, "SetScope").CaptureScope = sv.Inner;
-            return VoidVal.Instance;
-        });
-        Function.DefineMethod("Prepend", (s, a) =>
-        {
-            if (a is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数", ErrorKind.Argument);
-            return AsFunction(s, "Prepend").Prepend(p);
-        });
-        Function.DefineMethod("Append", (s, a) =>
-        {
-            if (a is not BlockVal p) throw new RuntimeException("append 需要代码块参数", ErrorKind.Argument);
-            return AsFunction(s, "Append").Append(p);
-        });
-    }
-
-    private static void RegisterScopeMethods()
-    {
-        ScopeType.DefineMethod("Push", (s, _) =>
-        {
-            var scope = ((ScopeVal)s).Inner;
-            return new ScopeVal(scope.Push());
-        });
-        ScopeType.DefineMethod("Define", (s, a) =>
-        {
-            if (a is not StringVal name)
-                throw new RuntimeException("scope.Define 需要字符串名称", ErrorKind.Argument);
-            var scope = ((ScopeVal)s).Inner;
-            return FunctionVal.From(tv =>
-            {
-                if (tv is not ObjectVal t)
-                    throw new RuntimeException("scope.Define 需要 type 参数", ErrorKind.Argument);
-                scope.Define(name.Value, t, VoidVal.Instance);
-                return VoidVal.Instance;
-            });
-        });
-        ScopeType.DefineMethod("Lookup", (s, a) =>
-        {
-            if (a is not StringVal name)
-                throw new RuntimeException("scope.Lookup 需要字符串参数", ErrorKind.Argument);
-            return Wrap(((ScopeVal)s).Inner.Lookup(name.Value));
-        });
-        // **删掉本层的一个名字** —— `IDict` 的 `Remove` 槽要它(作用域从前只有增改,没有删)。
-        // 和 `Lookup` 不同:找不到**不报错**,当"本来就没有" —— `Remove` 的语义就是这个。
-        ScopeType.DefineMethod("Remove", (s, a) =>
-        {
-            if (a is not StringVal name)
-                throw new RuntimeException("scope.Remove 需要字符串名称", ErrorKind.Argument);
-            ((ScopeVal)s).Inner.RemoveHere(name.Value);
-            return VoidVal.Instance;
-        });
-        ScopeType.DefineMethod("Keys", (s, _) =>
-            new ListVal([.. ((ScopeVal)s).Inner.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
-        ScopeType.DefineMethod("Values", (s, _) =>
-            new ListVal([.. ((ScopeVal)s).Inner.Variables.Select(kv => Wrap(kv.Value))]));
-        ScopeType.DefineMethod("Count", (s, _) => IntVal.Of(((ScopeVal)s).Inner.MemberNames.Count()));
-        ScopeType.DefineMethod("Variables", (s, _) =>
-        {
-            var scope = ((ScopeVal)s).Inner;
-            var d = new Dictionary<RuntimeValue, RuntimeValue>();
-            foreach (var kv in scope.Variables)
-            {
-                if (kv.Key is ObjectVal.ThisMember or ObjectVal.BlockMember or ObjectVal.ThisTypeMember) continue;
-                d[new StringVal(kv.Key)] = Wrap(kv.Value);      // 变量名本来就是字符串
-            }
-
-            return new DictVal(d);
-        });
-    }
-
     /// <summary>**属性的默认值** —— 一对什么都不做的函数:
     ///
     ///     Get = () => { 空函数; }
@@ -600,28 +111,6 @@ internal static partial class BuiltinClasses
     /// 两处共用:`function default`(见 `ConvertDirect`)和 `by X = default` 那条默认属性的
     /// getter —— "这条槽还没有实现"读出来就该是个**能调**的东西,不是 `()`。</summary>
     internal static FunctionVal EmptyFunction() => FunctionVal.From(_ => VoidVal.Instance);
-
-    /// <summary>把一个变量包成 property(getter 读、setter 写),attrs 原样带上。
-    /// `scope.Lookup` 和 `scope.Variables` 都要这一套 —— 从前各写了一遍。
-    ///
-    /// 直接收 `Variable`(而不是名字)是故意的:`Variables` 正在遍历的那份变量就是它,
-    /// 再 `Lookup` 一次等于把同一个名字查两遍(而且是沿链查,不是查那层那一格)。</summary>
-    private static PropertyVal Wrap(Variable vr)
-        => new(
-            FunctionVal.From(_ => vr.Value),
-            FunctionVal.From(v =>
-            {
-                vr.Assign(v);
-                return VoidVal.Instance;
-            }),
-            vr);
-
-    private static void RegisterPropertyMethods()
-    {
-        // attrs 只有一份,在变量上(见 PropertyVal.Var);裸的 property 没挂变量 -> 空表
-        Property.DefineMethod("Attrs", (s, _) =>
-            new ListVal([.. (((PropertyVal)s).Var?.Attrs ?? []).Select(a => new StringVal(a))]));
-    }
 
     /// <summary>拷贝作用域（with / Copy 用）：逐字段浅拷贝，词法父照搬。
     /// 字段已平铺在同一个 scope 里，所以不再需要沿继承链递归深拷贝。</summary>

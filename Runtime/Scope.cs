@@ -185,7 +185,7 @@ public class Scope(Scope? parent = null)
                 if (type.Members is { } members)
                     foreach (var name in members.Names)
                         if (seen.Add(name)) yield return name;
-                foreach (var name in ObjectMembers.Set.Names)
+                foreach (var name in ObjectMembers.Any.Names)
                     if (seen.Add(name)) yield return name;
             }
         }
@@ -225,7 +225,7 @@ public class Scope(Scope? parent = null)
         => owner.Type is ClassVal type
             ? type.Members?.Create(type, name)
               ?? BuiltinClasses.InstanceMemberOf(owner.Type, name)
-              ?? ObjectMembers.Set.Create(type, name)
+              ?? ObjectMembers.Any.Create(type, name)
             : BuiltinClasses.InstanceMemberOf(owner.Type, name);
 
     /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>

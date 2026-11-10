@@ -76,7 +76,7 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
             }
 
             // 最后才是 `Object` 那一套:一切类的公共尾巴。
-            if (ObjectMembers.Set.Create(type, name) is { } inherited)
+            if (ObjectMembers.Any.Create(type, name) is { } inherited)
             {
                 _made[name] = inherited;
                 return inherited;
@@ -112,7 +112,7 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
                 foreach (var name in BuiltinClasses.MemberNamesOf(Owner.Type))
                     if (seen.Add(name)) yield return name;
 
-                foreach (var name in ObjectMembers.Set.Names)
+                foreach (var name in ObjectMembers.Any.Names)
                     if (seen.Add(name)) yield return name;
             }
         }

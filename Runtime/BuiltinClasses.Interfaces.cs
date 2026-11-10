@@ -159,10 +159,10 @@ internal static partial class BuiltinClasses
         // 没有它,`impl (IValue int { … })` 会报「类型 IValue 不能作为构造器调用」。
         IValue.ClassBody = BaseInterface.ClassBody;
 
-        // `IValue` 是**内置接口**:它不在 `BuildInterface` 那条路上走,所以那条
-        // "接口都带一个 `Dispose`"的收尾得在这儿补一次 —— `impl (IValue int { … })`
-        // 造出来的实现对象要靠它(`i.Dispose ()`)。
-        IValue.DefineMethod(DisposeMember, (self, _) => DisposeImplementation((ObjectVal)self));
+        // `Dispose` 不再在这儿标一条:`IValue` 是**内置接口**、不在 `BuildInterface` 那条路上走,
+        // 而如今所有接口共用**一份**成员(`BaseInterface` 的成员工厂,
+        // 见 `Runtime/Members/InterfaceMembers.cs`),`Install` 会把那份按引用传下来。
+        // (`IValue` 那份要单独指过去 —— `Link` 只接类树,不接 `Members`。)
     }
 
     /// <summary>要求表(`[A B]`)的每一项都得是个**接口**;空表就是不要求。</summary>
@@ -204,10 +204,12 @@ internal static partial class BuiltinClasses
                 .SetAttr(Attr.Unreadable);
         }
 
-        // `impl.Dispose ()` 挂在**接口**上,所有实现共用这一份(不必每个实现塞一个闭包)。
-        // DefineMethod 存的是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
+        // `impl.Dispose ()` 挂在**接口**上:所有实现共用一份,不必每个实现塞一个闭包。
+        // 那一份现在在 `BaseInterface` 的成员工厂里(`Runtime/Members/InterfaceMembers.cs`),
+        // 接口由 `Install` 造成、`Members` 按引用从父接下 —— 所以这儿不必再挂。
+        //
+        // 它仍是 ISelfBinding 的内置方法:读成员时才绑接收者,于是 self 就是
         // **拿到的那个实现** —— `Copy ()` / `with` 出来的副本绑的是它自己,不会误伤原件。
-        trait.DefineMethod(DisposeMember, (self, _) => DisposeImplementation((ObjectVal)self));
         return trait;
     }
 
@@ -316,8 +318,9 @@ internal static partial class BuiltinClasses
 
 
     /// <summary>`Dispose ()`:把实现加一岁,已经登记过的那些条目统统作废。O(1)、幂等、
-    /// 在哪个作用域调都一样 —— 取消的是这个实现。</summary>
-    private static RuntimeValue DisposeImplementation(ObjectVal impl)
+    /// 在哪个作用域调都一样 —— 取消的是这个实现。
+    /// (成员表那一侧挂在 `Runtime/Members/InterfaceMembers.cs`,由它转进来。)</summary>
+    internal static RuntimeValue DisposeImplementation(ObjectVal impl)
     {
         BumpRegistry();              // 作废一条 → 缓存的答案可能就变了
 

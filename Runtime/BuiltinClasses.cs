@@ -1,5 +1,7 @@
 namespace Ravel.Runtime;
 
+using Ravel.Runtime.Values;
+
 /// <summary>内置类对象。
 ///
 /// **每个类型都是一个 <see cref="ObjectVal"/>** —— 和用户写的类用的是同一种值。
@@ -353,9 +355,46 @@ internal static partial class BuiltinClasses
     /// 插件类由 `PluginApi` 扫自己的装载器类(`[RavelClass]` + `[ClassMethod]` 那套)。</summary>
     private static void AttachMembers()
     {
-        Object.Members = ObjectMembers.Set;
+        // 每个类自己那份成员工厂。**父子关系写在 `MemberSet.Scan` 的第二个参数上**
+        // (`StringMembers` 的父是 `ObjectMembers` …),这里只把类接上去。
+        //
+        // `Object` 接的是**运算符那份** —— 它的父就是 `ObjectMembers`,所以一条
+        // 通用成员只写一遍,`:` / `==` / `<:` 也一并跟着来。
+        Object.Members = ObjectOperatorMembers.Set;
         Ravel.Members = ModuleMembers.Set;
         Int.Members = IntegerMembers.Set;
+
+        Real.Members = RealMembers.Set;
+        BigInt.Members = BigIntMembers.Set;
+        Fraction.Members = FractionMembers.Set;
+        BigFraction.Members = BigFractionMembers.Set;
+
+        // `Function` 那套(`Name` / `Scope` / `Body` / `SetScope` / `Prepend` / `Append`)
+        // 是**函数这一类**的公共尾巴:类对象、布尔、代码块、续体都是它的实例。
+        // `Function` 自己也有运算符(`|` 组合、`>>` 喂一个实参),所以它那份是两半合起来的。
+        Function.Members = MemberSet.Combine(FunctionOperatorMembers.Set, FunctionMembers.Set);
+        var function = Function.Members;
+        Type.Members = MemberSet.Combine(TypeMembers.Set, function);
+        Bool.Members = MemberSet.Combine(BoolMembers.Set, function);
+        Block.Members = function;
+        Continuation.Members = function;
+
+        String.Members = MemberSet.Combine(StringOperatorMembers.Set, StringMembers.Set);
+        Char.Members = MemberSet.Combine(CharOperatorMembers.Set, CharMembers.Set);
+        Range.Members = RangeMembers.Set;
+        List.Members = ListMembers.Set;
+        Set.Members = SetMembers.Set;
+        Dict.Members = DictMembers.Set;
+        ScopeType.Members = ScopeMembers.Set;
+        Property.Members = PropertyMembers.Set;
+
+        Json.Members = JsonMembers.Set;
+        DotNetObject.Members = DotNetObjectMembers.Set;
+        DotNetType.Members = DotNetTypeMembers.Set;
+        // 接口:`Link` 不接 `Members`,而且接口的实例就是**实现对象自己**,
+        // 所以这儿的工厂得把 `Dispose` 递到每一个接口实现上去。
+        BaseInterface.Members = InterfaceMembers.Set;
+        IValue.Members = InterfaceMembers.Set;
     }
 
     /// <summary>**内置的值类型、集合类型,和 `IValue` —— 到此为止,不能再往下长。**

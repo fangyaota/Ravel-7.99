@@ -18,9 +18,14 @@ internal static partial class BuiltinClasses
     /// 把栈转爆 —— 和 Newtonsoft 解析那边的 `MaxDepth` 一个量级。</summary>
     private const int MaxJsonDepth = 64;
 
+    /// <summary>`TextArg` 的一个口子 —— 它在 `Methods.cs` 里是 private,而 Json 的成员
+    /// 已经搬到 `Runtime/Members/JsonMembers.cs` 去了。收法和消息都还是 `TextArg` 那份。</summary>
+    internal static string TextOf(RuntimeValue a, string what) => TextArg(a, what);
+
     /// <summary>原生值 → JToken。**JSON 里没有的东西当场报错**(自有类、分数、函数……),
-    /// 不悄悄降级成字符串 —— 那会让往返丢形状、而且没人发现。</summary>
-    private static JToken ToJson(RuntimeValue v, int depth = 0)
+    /// 不悄悄降级成字符串 —— 那会让往返丢形状、而且没人发现。
+    /// (`JsonMembers` 也用它:交进去的值和 `Json v` 走同一张换算表。)</summary>
+    internal static JToken ToJson(RuntimeValue v, int depth = 0)
     {
         if (depth > MaxJsonDepth)
             throw new RuntimeException($"Json: 嵌套超过 {MaxJsonDepth} 层（是不是有容器包含自己？）", ErrorKind.Value);
@@ -107,7 +112,7 @@ internal static partial class BuiltinClasses
     }
 
     /// <summary>写回文本:`indent` 为空(即 `t.Text ()`)就紧凑,给了格数就缩进。</summary>
-    private static string WriteJson(JToken t, int? indent)
+    internal static string WriteJson(JToken t, int? indent)
     {
         if (indent is not { } n) return t.ToString(Formatting.None);
 
@@ -125,18 +130,22 @@ internal static partial class BuiltinClasses
         return sw.ToString();
     }
 
-    private static JsonVal JsonOf(RuntimeValue v) => new(ToJson(v));
+    internal static JsonVal JsonOf(RuntimeValue v) => new(ToJson(v));
 
-    /// <summary>Json 那一批成员(按类型分组,和别处一样)—— 实例方法走 `DefineMethod`,
-    /// 落进 `Json` 的**实例表**:实例读得到(`j.Kind ()`)、类对象那一侧读不到
-    /// (`Json.Kind` → 「类型 'Type' 没有方法 'Kind'」)。这是两张表的结构带来的,不靠标记。
+    /// <summary>Json **类对象自己**的成员 —— 眼下只有 `Json.FromString s`。
     ///
-    /// 从前这批成员是**每个 Json 值一张表**(`NewJsonMembers`):那时类那一侧没法拦,
+    /// 给**实例**的那十几条(`Kind` / `Get` / `At` / `Set` ……)已经搬到
+    /// `Runtime/Members/JsonMembers.cs`:每个类自己带一份成员工厂,`MemberSet.Scan`
+    /// 反射一次收齐。它们进的是 `Json` 的**实例表**(实例读得到 `j.Kind ()`、
+    /// 类对象那一侧读不到 `Json.Kind`),和"类对象自己的表"是两张表,见
+    /// `ClassVal.InstanceTable`。
+    ///
+    /// (从前这批成员是**每个 Json 值一张表**(`NewJsonMembers`):那时类那一侧没法拦,
     /// `Json.Kind` 会被解析成"类上的方法",调用时 `self` 是那个 `ClassVal`、方法体里
     /// `((JsonVal)s)` 当场炸成 `!! 解释器内部错误 InvalidCastException`。
     /// 两张表分开之后那条理由就没了 —— 而每个值一张表是要付钱的:`Get` / `At` 每取一次子节点
     /// 就造一个新 Json 值,每个都带一份 Scope + 十来个 BuiltinMethodVal。
-    /// 现在和容器那批(`List` / `Set` / `Dict`)一个形状,见 `ClassVal.InstanceTable`。</summary>
+    /// 现在和容器那批(`List` / `Set` / `Dict`)一个形状。)</summary>
     private static void RegisterJsonMethods()
     {
         // 唯一的解析入口:挂在**类对象**上(即 `Json.FromString s`,和 `Type.Default` 那条同款)——
@@ -144,123 +153,23 @@ internal static partial class BuiltinClasses
         ClassSideMember(Json, "FromString",
             new BuiltinMethodVal((_, a) => ParseJson(TextArg(a, "Json.FromString"))));
 
-        Json.DefineMethod("Kind", (s, _) => new StringVal(((JsonVal)s).Token.Type switch
-        {
-            JTokenType.Object => "object",
-            JTokenType.Array => "array",
-            JTokenType.String => "string",
-            JTokenType.Integer or JTokenType.Float => "number",
-            JTokenType.Boolean => "bool",
-            _ => "null",
-        }));
-
-        Json.DefineMethod("IsNull", (s, _) => new BoolVal(
-            ((JsonVal)s).Token.Type is JTokenType.Null or JTokenType.Undefined));
-
-        Json.DefineMethod("Get", (s, a) =>
-        {
-            var key = TextArg(a, "Json.Get 的键");
-            return ((JsonVal)s).Token is JObject o && o.TryGetValue(key, out var child)
-                ? new JsonVal(child)
-                : throw new RuntimeException($"Json.Get: 没有这个键 '{key}'（对象里有 {KeysOf((JsonVal)s).Count} 个键）", ErrorKind.Key);
-        });
-
-        // `t.GetOr "k" 0` —— 没有就给替代值;替代值也包成 Json,免得"取到的"和"给的"两种形状
-        Json.DefineMethod("GetOr", (s, a) =>
-        {
-            var key = TextArg(a, "Json.GetOr 的键");
-            return FunctionVal.From(dflt =>
-                ((JsonVal)s).Token is JObject o && o.TryGetValue(key, out var child)
-                    ? new JsonVal(child)
-                    : JsonOf(dflt));
-        });
-
-        Json.DefineMethod("At", (s, a) =>
-        {
-            var i = IntArg(a, "Json.At");
-            var arr = ((JsonVal)s).Token as JArray
-                ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)s).Token.Type}，不是数组", ErrorKind.Type);
-            if (i < 0 || i >= arr.Count)
-                throw new RuntimeException($"Json.At: 索引 {i} 超出范围（长度 {arr.Count}）", ErrorKind.Index);
-            return new JsonVal(arr[i]);
-        });
-
-        Json.DefineMethod("Count", (s, _) => IntVal.Of(((JsonVal)s).Token switch
-        {
-            JObject o => o.Count,
-            JArray a => a.Count,
-            var t => throw new RuntimeException($"Json.Count: 这是 {t.Type}，没有「个数」", ErrorKind.Type),
-        }));
-
-        Json.DefineMethod("Keys", (s, _) => new ListVal([
-            .. KeysOf((JsonVal)s).Select(k => (RuntimeValue)new StringVal(k))]));
-
-        // `t.Text ()` 紧凑(实参是 ());`t.Text 2` 缩进两格
-        Json.DefineMethod("Text", (s, a) => new StringVal(a is IntVal n
-            ? WriteJson(((JsonVal)s).Token, n.Value)
-            : WriteJson(((JsonVal)s).Token, null)));
-
-        Json.DefineMethod("Extract", (s, _) => FromJson(((JsonVal)s).Token));
-
-        // ── 改 ──
-        // 这层原本只有"看"的成员 —— 「先看再转」,改是 `Extract ()` 那一步的事。加这几条是因为
-        // **改一个字段别让整棵树往返一趟**(Extract → 改 → `Json` 再包回去);
-        // 而且底下那棵树(`JObject` / `JArray`)本来就是可变的,不给它一条路只是白白绕远。
-        //
-        // 交出去的**值**是原生值(走 `ToJson`,和 `Json v` 同一张换算表),也可以直接给一个
-        // Json 值。改的是**这一个 Json 值自己**(和 dict / list 一样按身份看),不是那份原始 dict ——
-        // `Json v` 建的时候就把树拷出来了。
-        Json.DefineMethod("Set", (s, a) =>
-        {
-            var key = TextArg(a, "Json.Set 的键");
-            return FunctionVal.From(v =>
-            {
-                ObjOf(s, "Set")[key] = ToToken(v);
-                return VoidVal.Instance;
-            });
-        });
-
-        Json.DefineMethod("SetAt", (s, a) =>
-        {
-            var i = IntArg(a, "Json.SetAt");
-            return FunctionVal.From(v =>
-            {
-                ArrOf(s, "SetAt")[InRange(s, i, "Json.SetAt")] = ToToken(v);
-                return VoidVal.Instance;
-            });
-        });
-
-        // 数组尾巴上接一个(`Add` 只对数组说得通;对象那边是 `Set`)
-        Json.DefineMethod("Add", (s, a) =>
-        {
-            ArrOf(s, "Add").Add(ToToken(a));
-            return VoidVal.Instance;
-        });
-
-        // 删一个键 / 删一个下标 —— 交回"有没有删掉"(和 `dict.Remove` 一个口径)
-        Json.DefineMethod("Remove", (s, a) =>
-            new BoolVal(ObjOf(s, "Remove").Remove(TextArg(a, "Json.Remove 的键"))));
-
-        Json.DefineMethod("RemoveAt", (s, a) =>
-        {
-            var i = IntArg(a, "Json.RemoveAt");
-            ArrOf(s, "RemoveAt").RemoveAt(InRange(s, i, "Json.RemoveAt"));
-            return VoidVal.Instance;
-        });
+        // 给实例的那十几条(Kind / IsNull / Get / GetOr / At / Count / Keys / Text / Extract /
+        // Set / SetAt / Add / Remove / RemoveAt)都在 `Runtime/Members/JsonMembers.cs` ——
+        // 和 `Object` 的成员一个写法:静态方法 + `[ClassMethod]`,由 `MemberSet.Scan` 一次收齐。
     }
 
-    private static List<string> KeysOf(JsonVal j) => j.Token is JObject o
+    internal static List<string> KeysOf(JsonVal j) => j.Token is JObject o
         ? [.. o.Properties().Select(p => p.Name)]
         : throw new RuntimeException($"Json.Keys: 这是 {j.Token.Type}，不是对象", ErrorKind.Type);
 
-    private static JObject ObjOf(RuntimeValue s, string what) => ((JsonVal)s).Token as JObject
+    internal static JObject ObjOf(RuntimeValue s, string what) => ((JsonVal)s).Token as JObject
         ?? throw new RuntimeException($"Json.{what}: 这是 {((JsonVal)s).Token.Type}，不是对象", ErrorKind.Type);
 
-    private static JArray ArrOf(RuntimeValue s, string what) => ((JsonVal)s).Token as JArray
+    internal static JArray ArrOf(RuntimeValue s, string what) => ((JsonVal)s).Token as JArray
         ?? throw new RuntimeException($"Json.{what}: 这是 {((JsonVal)s).Token.Type}，不是数组", ErrorKind.Type);
 
     /// <summary>下标越界当场报错(读的那条 `At` 就是这么办的),交回那个下标本身好接着用</summary>
-    private static int InRange(RuntimeValue s, int i, string what)
+    internal static int InRange(RuntimeValue s, int i, string what)
     {
         var n = ((JArray)((JsonVal)s).Token).Count;
         if (i < 0 || i >= n)
@@ -270,5 +179,5 @@ internal static partial class BuiltinClasses
 
     /// <summary>要写进去的那个值:Json 值原样用它的树,别的走 `ToJson`(和 `Json v` 一张表)。
     /// 给不出来的(自有类、函数……)在那儿当场报错,不悄悄降级。</summary>
-    private static JToken ToToken(RuntimeValue v) => v is JsonVal j ? j.Token : ToJson(v);
+    internal static JToken ToToken(RuntimeValue v) => v is JsonVal j ? j.Token : ToJson(v);
 }

@@ -18,6 +18,15 @@ internal static class ObjectMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(ObjectMembers));
 
+    /// <summary>类链最后的兜底 —— **一切类都有的那套**(含 `:` / `==` / `<:` 这些在
+    /// `ObjectOperatorMembers` 里的)。值类型的表造成员、模块/插件值借普通作用域当表,
+    /// 走到哪儿都没有时都问这一份。
+    ///
+    /// 问的是 `Object.Members`(`Object` 自己那张工厂),不是本类的 `Set`:运算符搬出
+    /// `RegisterOperators` 之后只在 `ObjectOperatorMembers` 里,直接问 `Set` 会漏掉它们
+    /// (`1 : int`、`() == ()` 就都读不到了)。接线之前 `Object.Members` 还是 null,退回 `Set`。</summary>
+    internal static IMemberSet Any => BuiltinClasses.Object.Members ?? Set;
+
     /// <summary>`print` 出来的那个样子。子类在自己类体里写一条 `ToString` 就把它盖掉。</summary>
     [ClassMethod("ToString")]
     private static RuntimeValue ToString(RuntimeValue self) => new StringVal(self.ToString()!);
@@ -54,6 +63,11 @@ internal static class ObjectMembers
             : throw new RuntimeException(
                 $"Key: {self.Type} 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。"
                 + "要拿它当键，就在类里写一条 Key，交回一个值类型的键", ErrorKind.Type);
+
+    /// <summary>`ToDot ()` —— Ravel 值 → `DotNetObject`。转不过去的那一支(Ravel 函数)
+    /// 照样抛,消息在 `NetBridge.ToNet` 里。</summary>
+    [ClassMethod("ToDot")]
+    private static RuntimeValue ToDot(RuntimeValue self) => new DotNetVal(NetBridge.ToNet(self));
 }
 
 /// <summary>**`Ravel` 这个类给它的实例(所有模块)准备什么。**
