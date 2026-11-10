@@ -1,6 +1,9 @@
 # 成员表重构：一个对象一张表
 
-状态：**已实施**（`8db986d` 改造 + `eec44a5` 测试调整，全量 `150 passed, 0 failed`，`--warn` / `--rebuild` 均绿）
+状态：**已实施，且第二轮（成员集）也已完成**
+- 第一轮 `8db986d` + `eec44a5`：一对象一张 `VirtualScope`,`MemberView`/`InstanceTable` 消失。
+- 第二轮 `1763e4d` → `38e9e60` → `f657be4`：外置注册表与 `EngineMember` 全删,
+  每个类自己带一份成员工厂 `ClassVal.Members`(见文末「十、第二轮」)。全量 `150 passed, 0 failed`。
 基线：`0a89c1f`（`Integer` 的 `VirtualScope` 已落地，全量 `150 passed, 0 failed`）
 
 > 实施记录见文末「九、实施记录」：实际落地与设计稿有出入的地方都在那里，**以代码为准**。
@@ -170,3 +173,41 @@ Real / BigInt / Fraction / BigFraction / String / Char / Bool / Void / Range / D
 `DefineOp`/`DefineMethod` 本来就都经 `EngineMember` 落进注册表，再拆九个类是重复。
 只有 `Integer`（`IntegerScope`）和 `Bool`（`BoolTable`，因为 `BoolVal` 是 `FunctionVal`，
 `Scope` 得覆写）保留自己的表类。
+
+## 十、第二轮：成员不再由引擎"注册",每类自己管
+
+第一轮虽然统一了"表",但"表里有什么"仍由 `BuiltinClasses` 用 `EngineMember` 往一张
+外置注册表 `Dictionary<ObjectVal, Dictionary<string, Variable>>` 里写 —— 表统一了,
+**来源**还是集中的。第二轮把来源也拆到类自己身上。
+
+- `Runtime/Values/MemberSet.cs`：`IMemberSet { Names; Ctor; Create(owner, name) }`；
+  `MemberSet.Scan(Type spec, IMemberSet? parent)` 用反射扫一个装载器类上的特性,
+  沿 C# 基类往上收,父子关系**写在 C# 继承里**(`StringMembers` 的父是 `ObjectMembers`);
+  `MemberSet.Combine(...)` 把几份拼起来(`Function` = 运算符那份 + 方法那份)。
+- 特性就是插件那套(`Runtime/Builtins/ClassRegistry.cs`)：`[ClassMethod]`、`[ClassOp]`、
+  `[ClassProperty]`、`[ClassCtor]`。第二轮另加了 `[ClassValue("名字")]`,打在
+  `static readonly RuntimeValue` 字段上 —— `TraitQuery`(`GetImplements`)和
+  `SeqMethod`(容器的高阶方法)不是普通方法,只能这么交。
+- `Runtime/Members/*.cs`：每个内置类型一个 `internal static class XxxMembers`,
+  `Set = MemberSet.Scan(typeof(XxxMembers), ObjectMembers.Set)`,成员就是普通静态方法。
+  `AttachMembers()` 把类接上;用户类 `Install` 里 `self.Members = parent.Members`(按引用继承);
+  插件类的 `PluginApi.InstallClass` 直接 `MemberSet.Scan(type, …)` —— 内置与插件现在是同一条路。
+- 查找(只这一条)：本层已存 → `type.Members.Create` → 值类型的 `init`(`type.Members.Ctor`)
+  → `ObjectMembers.Any`(=`Object.Members`)兜底 → null。没有注册表、没有 `Create`/`AllNames` 钩子。
+- 值类型的 `init` 不再由 `BuiltinCtor(..., exposeInit: true)` 写注册表,改成各自成员类里的
+  `[ClassCtor] Init`(转 `BuiltinClasses.CastToX`)。
+- 顺带删掉类运算符的旧路由(`ClassOperatorFactory` / `PushClassOp` / `StepClassOp`)：
+  类体里的 `+ := f` 实例化时本来就落进实例自己那张表,工厂只是"这个类有运算符"的标记,
+  第二轮开头实验确认删掉不坏事。
+
+坑(第二轮)：
+1. `Object` 的 `:`/`==`/`<:`/`:>` 搬到 `ObjectOperatorMembers` 之后,**兜底不能直接问
+   `ObjectMembers.Set`** —— 否则 Void/default/异常值读不到这些运算符。兜底要问
+   `ObjectMembers.Any`(=`Object.Members`)。
+2. `Type` 的父是 `Function` 不是 `Object`,而 `Bool`/`Block`/`Continuation` 都是
+   `FunctionVal`:这几类必须把 `Function.Members` 拼进来,否则丢 `Name`/`Scope`/`Body`。
+3. `Interface` 的父是 `Type`,以前靠 `InheritTable` 抄表;删掉之后要
+   `Interface.Members = Type.Members;`(否则 `IValue.GetImplementors` 读不到)。
+4. `MemberSet.Scan` 收名字的顺序就是 `Fields ()` 的顺序,所以**按原注册顺序**排;
+   `KeepLess`/`Max` 那类"留小的还是留大的"的比法方向会体现在报错文字里的类型先后,
+   照抄原实现别顺手"简化"。
