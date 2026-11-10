@@ -1,5 +1,7 @@
 namespace Ravel.Runtime;
 
+using Ravel.Runtime.Values;
+
 /// <summary>类对象 —— 一个类就是一个 `ClassVal`。实例仍然是 <see cref="ObjectVal"/>。
 ///
 /// **类对象是一种函数**(`ClassVal : FunctionVal`),所以"能不能调用"落回**类型关系**
@@ -43,6 +45,15 @@ public record ClassVal : FunctionVal
     /// (从前这是类型树上 `ValueType` 那一支,靠 `IsAssignableTo` 问 —— 那也正是
     /// `bool` / `()` 进不来的原因:单继承链放不下两个正交的分类。)</summary>
     internal bool IsValueLike;
+
+    /// <summary>**这个类给它的实例准备什么** —— 一份成员工厂(见 <see cref="IMemberSet"/>),
+    /// 不是表:它只记"名字 → 怎么造",造出来的那一格落在**值自己的成员表**里。
+    ///
+    /// 每个类自己带着它:内置类在 `BuiltinClasses` 里一句 `X.Members = XMembers.Set;` 挂上,
+    /// 用户类在 `Install` 里照父类**按引用**接下(`self.Members = parent.Members`),
+    /// 插件类由 `PluginApi` 扫它自己那个装载器类。谁也不去外面那张注册表问。</summary>
+    internal IMemberSet? Members { get; set; }
+
 
     /// <summary>类对象打印自己的名字(`print C` → `C`,没名字就是 `class`)。
     ///

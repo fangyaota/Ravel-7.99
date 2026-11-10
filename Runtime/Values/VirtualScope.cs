@@ -52,18 +52,43 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
             return made;
         }
 
-        // 注册表:类在收尾时已经把"父类 + 自己"并成一份,这里一次命中。
-        if (BuiltinClasses.InstanceMemberOf(Owner.Type, name) is { } registered)
+        // "我是谁"自己管:类型带着一份成员(见 `ClassVal.Members`),按名字造一格。
+        if (Owner.Type is ClassVal type)
         {
-            _made[name] = registered;
-            return registered;
+            if (type.Members?.Create(type, name) is { } own) { _made[name] = own; return own; }
+
+            // 值类型那条 `init`:**值不会被实例化**,类体跑不到它们头上,
+            // 所以构造器得由**它自己那份**成员直接交出来(可见性同 `PresetCtor` 那条)。
+            if (name == ObjectVal.InitMember && type.IsValueLike && type.Members?.Ctor is { } ctor)
+            {
+                var slot = new Variable(name, BuiltinClasses.Function, ctor);
+                slot.SetAttr(Attr.Protected);
+                _made[name] = slot;
+                return slot;
+            }
+
+            // 过渡:注册表还没迁完的那几类。**排在 `Object` 前面** ——
+            // 插件类往注册表里挂的 `ToString` 要盖掉 `Object` 的那一条。
+            if (BuiltinClasses.InstanceMemberOf(Owner.Type, name) is { } registered)
+            {
+                _made[name] = registered;
+                return registered;
+            }
+
+            // 最后才是 `Object` 那一套:一切类的公共尾巴。
+            if (ObjectMembers.Set.Create(type, name) is { } inherited)
+            {
+                _made[name] = inherited;
+                return inherited;
+            }
         }
 
         return null;
     }
 
-    /// <summary>列名单:`AllNames`(值类型的静态清单)→ 已存的格子 → 注册表。
-    /// 顺序稳定、去重(同一个名字在清单里和注册表里都有时取先出现的那个位置)。</summary>
+    /// <summary>列名单:`AllNames`(值类型的静态清单)→ 已存的格子 → 类型那份成员
+    /// (自己的在前、父类的在后)→ `init`(值类型才有)→ 注册表(过渡)。
+    /// 顺序稳定、去重(同一个名字在清单里和别处都有时取先出现的那个位置)。</summary>
     public override IEnumerable<string> MemberNames
     {
         get
@@ -73,8 +98,23 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
                 if (seen.Add(name)) yield return name;
             foreach (var name in StoredHere.Select(kv => kv.Key))
                 if (name != ObjectVal.ThisMember && seen.Add(name)) yield return name;
-            foreach (var name in BuiltinClasses.MemberNamesOf(Owner.Type))
-                if (seen.Add(name)) yield return name;
+
+            if (Owner.Type is ClassVal type)
+            {
+                if (type.Members is { } own)
+                {
+                    foreach (var name in own.Names)
+                        if (seen.Add(name)) yield return name;
+                    if (type.IsValueLike && own.Ctor is not null && seen.Add(ObjectVal.InitMember))
+                        yield return ObjectVal.InitMember;
+                }
+
+                foreach (var name in BuiltinClasses.MemberNamesOf(Owner.Type))
+                    if (seen.Add(name)) yield return name;
+
+                foreach (var name in ObjectMembers.Set.Names)
+                    if (seen.Add(name)) yield return name;
+            }
         }
     }
 

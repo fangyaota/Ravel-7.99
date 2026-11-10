@@ -9,7 +9,6 @@ internal static partial class BuiltinClasses
     /// <summary>注册各内置类型的方法(按类型分组,加方法时直接跳对应那块)</summary>
     private static void RegisterMethods()
     {
-        RegisterObjectMethods();
         RegisterIntMethods();
         RegisterStringMethods();
         RegisterRangeMethods();
@@ -33,55 +32,9 @@ internal static partial class BuiltinClasses
         RegisterPropertyMethods();
     }
 
-    private static void RegisterObjectMethods()
-    {
-        Object.DefineMethod("ToString", (s, _) => new StringVal(s.ToString()));
-        Object.DefineMethod("Copy", (s, _) => CopyValue(s));
-        // **枚举那个 Scope** —— 所有成员(字段和方法一视同仁)都在它里面,
-        // 没有"猜哪张表"这一步。这里从前是两圈:一圈扫实例作用域里的**数据字段**,
-        // 一圈沿类型链扫**方法名**,于是同一个类体里定义的东西一个列得出、一个列不出
-        // (运算符恰好在类对象表里另有一份,所以它在;用户写的方法就凭空消失了)。
-        // 现在两段判据只有一份,和成员查找共用(见 MemberView)。
-        // **`Ravel` 身上那一条**:所有模块都是 `Ravel` 的实例,所以这一条每个模块都有。
-        // 交回这个模块**自己写着的那些 `using`**,而且是**模块本身**、不是那串路径
-        // (见 `ModuleVal.ReferencePaths`)—— 要的是"我这个模块直接引了谁"这张图,
-        // 不是磁盘上的位置;那个文件要是没写模块名,统一算到 `<global>` 那一枚上。
-        // 不是全局的已加载表,也不是传递闭包。
-        // 模块以外的东西(只要它有这个类)给空表,不报错 —— 和 `Fields ()` 一个脾气。
-        Ravel.DefineMethod("References", (s, _) => new ListVal(
-            s is ModuleVal { Owner: { } engine } m ? [.. engine.ResolveReferences(m)] : []));
-        Object.DefineMethod("Fields", (s, _) =>
-            new ListVal([.. s.MemberScope.MemberNames.Select(n => (RuntimeValue)new StringVal(n))]));
-        // **成员表本身**,交回一个 `Scope` 值。有它才能按**动态名字**读写成员:
-        //     (o.MemberScope ()).Lookup n     读
-        //     (o.MemberScope ()).Define n t   挂
-        // 元类要用 —— `enum` 的名字来自类体的正文,写不死在代码里。
-        //
-        // **给的是那一个值自己的那张表**(`ObjectVal.Scope`),不是 `MemberScope` 那个**合并视图**:
-        // 视图是"以值的身份取成员",自己那层之外还并上类型链(`Fields ()` 用的就是它);
-        // 而读写要落在**本层**,落进视图等于没落。原子值(数、字符串)自己没有表,才退回视图。
-        //
-        // 和 `Scope ()` **不是一回事**:那个是**捕获作用域**(函数独有,类对象给空 Scope)。
-        Object.DefineMethod("MemberScope", (s, _) =>
-            new ScopeVal(s is ObjectVal o ? o.Scope : s.MemberScope));
-        // 谁大谁小 —— 库里的 `IComparable`(`lib/sorting.rav`)就架在这条上:内建那些(数值、字符串)
-        // 由引擎那把尺子(`Less`,也就是 `<` 的口径)说话,用户类在自己类体里写一条 `CompareTo`
-        // 就把它盖掉 —— 和 `ToString` 一个规矩。交回 -1 / 0 / 1,和 C# 的 IComparable 同约定,
-        // 比不了照样当场说人话(`Less` 那句「比不了 X 与 Y」)。
-        Object.DefineMethod("CompareTo", (s, a) => IntVal.Of(
-            Less(s, a) ? -1 : Less(a, s) ? 1 : 0));
-        // `Key` —— "**我当键时等于什么**"。默认这把尺子只对值类型有话说:数、字符串交回**它自己**
-        // (于是 `1`/`"1"`/`1.0` 是三个键,相等的两个字符串是同一个键);别的类型当场报错 ——
-        // 对象没有天然的"值形式",要拿它当键就得自己讲清楚(在类里写一条 `Key`,和 `CompareTo`
-        // / `ToString` 一个规矩)。**必须是这一条**(同步、只看类型)才够得着:引擎没有"同步调
-        // Ravel 函数"的路,用户那条 `Key` 只能由库(`lib/keys.rav`)在 Ravel 里调。
-        Object.DefineMethod("Key", (s, _) =>
-            CanBeKey(s.Type)
-                ? s
-                : throw new RuntimeException(
-                    $"Key: {s.Type} 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。"
-                    + "要拿它当键，就在类里写一条 Key，交回一个值类型的键", ErrorKind.Type));
-    }
+    // `Object` / `Ravel` 的成员搬到了 `Runtime/Members/ObjectMembers.cs`（按类型自己管）。
+    // 这里不再有它们的注册 —— 那些名字由 `ClassVal.Members` 那份成员工厂给出。
+
 
     private static void RegisterIntMethods()
     {

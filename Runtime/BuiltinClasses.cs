@@ -307,6 +307,8 @@ internal static partial class BuiltinClasses
         Link(Every, Every, Type);
         Link(Any, Any, Type);
 
+        // ---- 每个内置类自己那份成员(要在注册之前:注册里有些地方要读成员) ----
+        AttachMembers();
         // ---- 注册内置运算符（作为方法） ----
         RegisterOperators();
         // ---- 注册内置方法 ----
@@ -339,6 +341,20 @@ internal static partial class BuiltinClasses
 
         // ---- 收尾:内置那几支**封口**(见 SealBuiltins) ----
         SealBuiltins();
+    }
+
+    /// <summary>把每个内置类的成员集挂到**它自己**身上。
+    ///
+    /// 一行一个类:`X.Members = XMembers.Set;` —— "我这类给实例准备什么"由类自己说,
+    /// 不再有外置的注册表。子类那份的 `Set` 在 `Scan` 时把父指向父类那份(见
+    /// <see cref="MemberSet.Scan"/>),所以继承是"顺着链走",不靠抄一份进来。
+    ///
+    /// 用户类在 <see cref="Install"/> 里照父类接下(`self.Members = parent.Members`);
+    /// 插件类由 `PluginApi` 扫自己的装载器类(`[RavelClass]` + `[ClassMethod]` 那套)。</summary>
+    private static void AttachMembers()
+    {
+        Object.Members = ObjectMembers.Set;
+        Ravel.Members = ModuleMembers.Set;
     }
 
     /// <summary>**内置的值类型、集合类型,和 `IValue` —— 到此为止,不能再往下长。**
@@ -622,6 +638,9 @@ internal static partial class BuiltinClasses
         // 内置类在 Link 与注册收尾时并过;用户类只在这一条路上建,靠这一句。
         // 并完就没有"链"了:实例读成员只问自己这一层的注册表。
         InheritTable(self, parent);
+        // 父类的**成员工厂**按引用接下(不是抄):`class (P) { … }` 白得 P 的所有成员,
+        // 而且 P 换了自己的那份(内置类在 `AttachMembers`、插件类在装载时)子类跟着变。
+        if (parent is ClassVal parentType) self.Members = parentType.Members;
 
         // 运算符是**扫体里的语句**装进实例表的(见 `DefineClassOperator`),所以拼上来的块
         // 也要扫 —— 它们和主块同属一层,`body.Append { == := … }` 那个 `==` 得算数。
@@ -634,7 +653,7 @@ internal static partial class BuiltinClasses
                 Assignment a when OperatorSymbols.IsSymbol(a.Name) => a.Name,
                 _ => null,
             };
-            if (op != null) self.DefineClassOperator(op);
+            _ = op; // EXPERIMENT: 不注册工厂
         }
 
         return self;

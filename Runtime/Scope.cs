@@ -180,6 +180,14 @@ public class Scope(Scope? parent = null)
             var seen = _vars is { } stored ? new HashSet<string>(stored.Keys) : new HashSet<string>();
             foreach (var name in BuiltinClasses.MemberNamesOf(owner.Type))
                 if (seen.Add(name)) yield return name;
+            if (owner.Type is ClassVal type)
+            {
+                if (type.Members is { } members)
+                    foreach (var name in members.Names)
+                        if (seen.Add(name)) yield return name;
+                foreach (var name in ObjectMembers.Set.Names)
+                    if (seen.Add(name)) yield return name;
+            }
         }
     }
 
@@ -208,8 +216,17 @@ public class Scope(Scope? parent = null)
     /// 这个名字保留"只查一层"的语义,给那些**必须**看本层的调用点用:
     /// 找构造器(`init`)、找类运算符、取 `parent`/`block`/`name` 这些类自己的数据。</summary>
     public virtual Variable? LookupField(string name)
-        => Stored(name)
-           ?? (MemberOf is { } owner ? BuiltinClasses.InstanceMemberOf(owner.Type, name) : null);
+        => Stored(name) ?? (MemberOf is { } owner ? OwnerMember(owner, name) : null);
+
+    /// <summary>一个值**类型上**给的那种成员(`Fields` / `Push` / `References` …) ——
+    /// 模块、插件值、`ScopeVal` 这些拿普通作用域当表的对象靠它读得到。
+    /// 先问类型自己那份成员工厂,再问旧的注册表(迁移中,两边都还在)。</summary>
+    private static Variable? OwnerMember(RuntimeValue owner, string name)
+        => owner.Type is ClassVal type
+            ? type.Members?.Create(type, name)
+              ?? BuiltinClasses.InstanceMemberOf(owner.Type, name)
+              ?? ObjectMembers.Set.Create(type, name)
+            : BuiltinClasses.InstanceMemberOf(owner.Type, name);
 
     /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>
     public Variable? LookupVar(string name)
