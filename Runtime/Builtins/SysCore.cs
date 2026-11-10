@@ -68,14 +68,11 @@ internal static class SysCore
         throw new RejectedException(BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
     }
 
-    // 类型对不上,但**不是**"这一支不收"(`Reject` 那条会让 `|` 接走、`try` 接不住)——
-    // 它是真错误,和引擎自己报的那些一路走(所以 `try` / 错误钩子照接)。
-    // 收 `TypeError` 实例或字符串:前者给全字段,后者就是那句消息。
-    [Sys("TypeMismatch")]
-    public static RuntimeValue TypeMismatch(RuntimeValue value, RuntimeValue type)
-        => throw new RuntimeException(
-            $"类型不匹配: 无法将 {value.Type} 赋值给 {type}（不是父子）—— 要转就明写 `{type} …`",
-            ErrorKind.Type);
+    // 定义处注解没过 —— 拒收,和模式那一格同一条口径(`|` 接得住、`try` 接不住)。
+    // 文案在这儿拼,不走 `string`/`typeof`:那两个名字用户可能遮蔽掉(`string := C`)。
+    [Sys("RejectType")]
+    public static RuntimeValue RejectType(RuntimeValue value, RuntimeValue type)
+        => throw new RejectedException($"这一格要的是 {type}，得到 {value.Type}");
 
     [Sys("Unhandled")]
     public static RuntimeValue HandBack(Interpreter self, RuntimeValue e) => self.Unhandled(e);

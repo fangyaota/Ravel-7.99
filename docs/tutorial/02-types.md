@@ -47,7 +47,7 @@ f ()
 执行以上程序会输出如下结果：
 
 ```
-Error: 类型不匹配: 无法将 Integer 赋值给 C（不是父子）—— 要转就明写 `C …`
+Error: 这一格要的是 C，得到 Integer
 ```
 
 遮蔽写在内层作用域里（顶层 `string := C` 报「已经定义过」），之后注解 `z: string` 指的就是 `C`。
@@ -133,9 +133,9 @@ tries.Foreach (t: string) => { print t; }
 执行以上程序会输出如下结果：
 
 ```
-1: 类型不匹配: 无法将 Integer 赋值给 Real（不是父子）—— 要转就明写 `Real …`
-2: 类型不匹配: 无法将 Integer 赋值给 BigInt（不是父子）—— 要转就明写 `BigInt …`
-3: 类型不匹配: 无法将 Real 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
+1: 这一格要的是 Real，得到 Integer
+2: 这一格要的是 BigInt，得到 Integer
+3: 这一格要的是 Integer，得到 Real
 ```
 
 要转就**明写**：`x: real = real 1`。好处是"这里发生了一次转换"永远写在脸上 ——

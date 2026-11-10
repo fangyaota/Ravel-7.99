@@ -298,7 +298,7 @@ ravel ""
 # 3
 # hello
 # ok
-# 17_type_error: 类型不匹配: 无法将 Bool 赋值给 Integer（不是父子）—— 要转就明写 `Integer …`
+# 17_type_error: 这一格要的是 Integer，得到 Bool
 # 25_empty_block: 'X' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 10
 # 7

@@ -357,7 +357,7 @@ try { im2.instance = 5; } (e: Exception) => { print ("11: " + string e); }
 ravel ""
 # --- expected ---
 # 1: 类型 'myClass' 没有方法 'a'
-# 2: 类型不匹配: 无法将 myClass 赋值给 myTrait（不是父子）—— 要转就明写 `myTrait …`
+# 2: 这一格要的是 myTrait，得到 myClass
 # 0
 # 7
 # 7
@@ -377,7 +377,7 @@ ravel ""
 # 5: 参数 'v' 需要 Integer，得到 String
 # 6: 类型 'myClass' 没有方法 'a'
 # false
-# 7: 类型不匹配: 无法将 myClass 赋值给 myTrait（不是父子）—— 要转就明写 `myTrait …`
+# 7: 这一格要的是 myTrait，得到 myClass
 # 7
 # 1
 # 2

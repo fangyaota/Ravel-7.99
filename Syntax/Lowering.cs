@@ -58,9 +58,9 @@ public sealed class Lowering
         var at = (AstNode)v;
         var p = Ident("__v", at);
         var check = new BinaryExpr(p, ":", want) { Line = at.Line, Column = at.Column };
-        // 用 `System.TypeMismatch`(真错误)而不是 `Reject`(那是"这一支不收",`|` 会接走)
+        // 不过就是**拒收**,和模式里那一格一个字不差(`|` 接得住、`try` 接不住)
         var body = Block([
-            ExprStmt(If(Not(check, at), TypeMismatch(p, want, at), at), at),
+            ExprStmt(If(Not(check, at), RejectType(p, want, at), at), at),
             ExprStmt(p, at),
         ], at);
         var lam = new LambdaExpr(new Parameter("__v", Ident("object", at)), body)
@@ -574,8 +574,8 @@ public sealed class Lowering
     private Expression If(Expression cond, Expression then, AstNode at)
         => Call(Call(cond, AsBlock(then, at)), AsBlock(Num("0", at), at));
 
-    private Expression TypeMismatch(Expression value, Expression type, AstNode at)
-        => Call(Call(Member(Ident("System", at), "TypeMismatch"), value), type);
+    private Expression RejectType(Expression value, Expression type, AstNode at)
+        => Call(Call(Member(Ident("System", at), "RejectType"), value), type);
 
     private Expression Reject(Expression message, AstNode at)
         => Call(Member(Ident("System", at), "Reject"), Call(Ident("TypeError", at), message));

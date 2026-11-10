@@ -122,7 +122,7 @@ ravel ""
 # 10
 # 20
 # 1: 值 1 不是函数，不能调用
-# 2: 类型不匹配: 无法将 Integer 赋值给 Bool（不是父子）—— 要转就明写 `Bool …`
+# 2: 这一格要的是 Bool，得到 Integer
 # 3: 类型 'Integer' 没有方法 'Foreach'
 # after
 # 1: with 的第 2 个参数需要代码块，得到 Integer
