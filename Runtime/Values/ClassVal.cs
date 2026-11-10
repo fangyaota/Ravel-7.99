@@ -12,39 +12,20 @@ namespace Ravel.Runtime;
 /// 求值器在 `CallInto` 里按 `ClassVal` 这个类型先分派掉(推 ClassInit 帧),
 /// 那个 Body 永远不会被读到。
 ///
-/// 类对象的成员(`parent`/`block`/`name`/各层方法)全在自己的成员表里,和别的对象一样。</summary>
+/// 类对象的成员(`parent`/`block`/`name`/各层方法/类侧 API)全在自己的成员表里,和别的对象
+/// 一样 —— 类对象没有第二张表。给**实例**的成员由 `BuiltinClasses` 按类记着,实例自己那张表
+/// 读不到时才按名字取一格(见 <see cref="VirtualScope"/>) —— 所以 `list.Add 2` 从类这一侧
+/// 找不到,报的是「类型 'Type' 没有方法 'Add'」,结构决定的,不靠标记。</summary>
 public record ClassVal : FunctionVal
 {
     /// <param name="classType">元类(创建它的那个类对象)。`null` 表示**自指** ——
     /// 只有根元类 `type` 是这样:建它的时候它还不存在,先自指、之后由 `BuiltinClasses.Link` 回填。</param>
-    /// <param name="members">成员表。</param>
-    public ClassVal(ClassVal? classType, Scope members)
+    /// <param name="members">成员表(调用方已建好的那种);`null` = 让 `ObjectVal.Scope` 懒建。</param>
+    public ClassVal(ClassVal? classType, Scope? members)
         : base(null!, (_, _) => VoidVal.Instance, members)
     {
         ClassType = classType ?? this;
     }
-
-    /// <summary>**给实例的表** —— 「以我为类型的那些值读得到的成员」。
-    ///
-    /// 一个类对象有**两张表**,分工是结构性的(不用标记、不用过滤):
-    ///
-    /// - <see cref="ObjectVal.Scope"/>(基类那张)＝**类对象自己**的成员:它是元类 `type` 的
-    ///   实例,建类时平铺进来的 `name` / `parent` / `block` / `init` / `==` / `!=`,用户事后
-    ///   挂上去的(`C.func := …`),以及类那一侧的 API(`Json.FromString`)。从**类对象**上
-    ///   读成员读的就是这张;
-    /// - **这一张**＝给它那些**实例**用的成员:内置方法(`Add` / `Map` / `Kind`…)、类运算符、
-    ///   序列方法、`GetImplements ()` 这类查询。只有**引擎**往里写
-    ///   (`BuiltinClasses.EngineMember`:内置方法 / 类运算符 / 序列方法 / `TraitQuery`;
-    ///   用户类体里那句 `+ := f` 也由 `Install` 扫出来落到这儿),只有**实例**读得到
-    ///   (`MemberView.LookupInClassChain` 沿 `parent` 链读的就是它)。
-    ///
-    /// 于是 `list.Add 2` 从**类那一侧**根本找不到(`Add` 不在 `List.Scope` 里,
-    /// 再往上也没有),报的是干净的「类型 'Type' 没有方法 'Add'」——从前得靠
-    /// `forInstance` + `private` 两个标记去挡,而那两个标记的判据其实就是"住哪张表"。
-    ///
-    /// 每张表一个类一份、内容是空的直到引擎挂东西,所以便宜;`Copy ()` 也不需要管它
-    /// (类对象走 `CopyValue` 的恒等分支,按身份拷)。</summary>
-    public Scope InstanceTable { get; } = new();
 
     /// <summary>这个类型的值**是不是"值类型"**(不可变、按值比、能当字典的键)。
     ///
@@ -62,21 +43,6 @@ public record ClassVal : FunctionVal
     /// (从前这是类型树上 `ValueType` 那一支,靠 `IsAssignableTo` 问 —— 那也正是
     /// `bool` / `()` 进不来的原因:单继承链放不下两个正交的分类。)</summary>
     internal bool IsValueLike;
-
-    /// <summary>这张表里**有哪些方法名**(给 `Fields ()` 和类链查找共用同一份判据)。
-    ///
-    /// 机制名照旧排掉(`IsMethodName`):这张表里理论上不会有它们,留着这条是保险
-    /// —— `this` / `parent` 那种被当方法绑到非对象 receiver 上,是会打穿程序的 C# 异常。
-    /// 只要 `FunctionVal` **和 `by` 槽**:表里本该全是方法,数据成员读出去没法绑 `self`
-    /// —— 而 `by` 槽(`[ClassProperty]`)交出去的是一对 getter/setter,读成员时才按接收者绑
-    /// (见 <see cref="BuiltinClasses.BindProperty"/>),和函数一个待遇。
-    ///
-    /// **这条和 `MemberView.LookupInClassChain` 的判据必须一字不差** ——
-    /// "查得到"和"列得出"(`Fields ()`)是同一个问题的两个问法。</summary>
-    internal IEnumerable<string> MethodNames => InstanceTable.Variables
-        .Where(kv => (kv.Value.Value is FunctionVal || kv.Value.HasAttr(Attr.By))
-                     && ObjectVal.IsMethodName(kv.Key))
-        .Select(kv => kv.Key);
 
     /// <summary>类对象打印自己的名字(`print C` → `C`,没名字就是 `class`)。
     ///

@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 /// <summary>对象——**实例和类用的是同一个表示**。
 ///
@@ -33,7 +33,10 @@ public record ObjectVal : RuntimeValue
     /// 懒建的代价是这层判空 —— 它落在取成员那条热路上,所以只值一个 `??=`,
     /// 别在这儿加别的东西。**建出来之后身份就定了**(`??=` 只可能赋一次),
     /// 于是 `ReferenceEquals` 那些照旧成立。</summary>
-    public Scope Scope => _scope ??= new Scope();
+    /// <remarks>建出来的是**这张表自己**(<see cref="MemberTable"/>),可写 ——
+    /// 类体各层实例化时把成员定义进这张表,之后成员的读写都在它上面。
+    /// 子类(值类型那些)可以覆写成自己的表。</remarks>
+    public virtual Scope Scope => _scope ??= new Values.MemberTable(this);
 
     private Scope? _scope;
 
@@ -41,6 +44,11 @@ public record ObjectVal : RuntimeValue
     {
         ClassType = classType!;
         _scope = scope;
+        // 传进来的那张表**就是这个值的成员表**(模块、插件的值、`ScopeVal` 都是这么给的)——
+        // 在这儿登记,它才能在"本层没有"时兜底去 `BuiltinClasses` 的注册表里拿
+        // `Fields` / `Push` / `References` 这些引擎挂上去的成员。
+        // 没传表(稍后懒造 <see cref="Values.MemberTable"/>)的不标:那张表自己有 `Create`。
+        if (scope is not null) scope.MemberOf = this;
     }
 
     /// <summary>最多列几个字段,超出用 ... 收尾</summary>
@@ -71,30 +79,14 @@ public record ObjectVal : RuntimeValue
 
     public override ObjectVal Type => ClassType;
 
-    /// <summary>取成员:先自己那层(对象是扁平的),miss 了沿类链兜底(实例成员住在类那层)。
-    /// 两段合成一个只读视图,见 <see cref="MemberView"/>。
+    /// <summary>取成员 = 读**自己这张成员表**。"自己那层"与"类链上那些"是同一张表:
+    /// 类体各层实例化时已经平铺进来,引擎给这一类挂的成员在注册表里按名兜底
+    /// (见 <see cref="VirtualScope"/>) —— 没有第二次跳转,也没有只读视图。
     ///
-    /// 注意它**不是** <see cref="Scope"/> 本身:后者是"只查一层"的实例作用域,
-    /// 写路径(定义/赋值)仍然直接对 `Scope` 走,视图只是读的门面。
-    ///
-    /// **自己是类对象时读的是"类那一侧"**:自己那张表是类自己的成员(见
-    /// <see cref="ClassVal.InstanceTable"/> 那段),里面没有给实例的方法 —— 所以
-    /// `list.Add 2` 报的是「类型 'Type' 没有方法 'Add'」,而不是拿类对象当 `self` 去炸。
+    /// **类对象读的是它自己那张表**:类这侧的数据(`name`/`parent`/`block`/类侧方法)
+    /// 与给实例的成员分在两个地方,所以 `list.Add 2` 报的是「类型 'Type' 没有方法 'Add'」。
     /// 这是结构决定的,不靠标记。</summary>
-    public override Scope MemberScope => _memberScope ??= new MemberView(Scope, Type);
-
-    private Scope? _memberScope;
-
-    /// <summary>「**以我为类型**的那些值」的成员表:沿 `parent` 链收集各层的
-    /// <see cref="ClassVal.InstanceTable"/>。
-    ///
-    /// 和 <see cref="MemberScope"/> 不是一回事 —— 那是"以**值**的身份取成员",
-    /// 所以自己那层之外还要再往我的**元类**链上找(`C.Fields ()` 能看到 `type` 那层的方法)。
-    /// 原子值(它没有自己的成员表)借的是这一个;`BindOperator` 那类"以类型为单位找运算符"
-    /// 也用它(`1 + 2` 找的正是 `Integer` 那张给实例的表)。</summary>
-    internal Scope InstanceMembers => _instanceMembers ??= new MemberView(null, this);
-
-    private Scope? _instanceMembers;
+    public override Scope MemberScope => Scope;
 
     public override bool HasOwnMembers => true;
 

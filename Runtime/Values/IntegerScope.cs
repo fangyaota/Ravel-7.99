@@ -1,7 +1,7 @@
 ﻿namespace Ravel.Runtime;
 
 /// <summary>`int` 自己的成员表 —— 一个整数一张，算子按名字懒建。</summary>
-internal sealed class IntegerScope(IntVal self) : VirtualScope(self)
+internal sealed class IntegerScope(IntVal self) : Values.ValueTable(self)
 {
     protected override IEnumerable<string> AllNames =>
     [

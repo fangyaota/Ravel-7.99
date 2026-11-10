@@ -1,4 +1,7 @@
-﻿namespace Ravel.Runtime;
+using System.Runtime.CompilerServices;
+using Ravel.Runtime.Values;
+
+namespace Ravel.Runtime;
 
 /// <summary>运行时值的抽象基类</summary>
 public abstract record RuntimeValue
@@ -31,18 +34,19 @@ public abstract record RuntimeValue
     public bool IsClosure => this is FunctionVal and not (BoolVal or ClassVal);
 
     /// <summary>取成员的唯一入口 —— 「我作为一个对象」的那半边:我身上挂着哪些成员。
-    /// 一次 <see cref="Scope.LookupField"/> 走完"自己那层 → 沿类对象的 parent 链兜底",
-    /// 细节在 <see cref="MemberView"/>。
+    /// 一次 <see cref="Scope.LookupField"/> 走完"本表已存的格子 → `Create` 造一格 →
+    /// 这个类的注册表 → 没有",细节在 <see cref="VirtualScope"/>。
     ///
     /// **不是 `FunctionVal.CaptureScope`(捕获作用域)**,两个概念不同、字段也分开:
     /// 捕获作用域是 lambda 定义处的词法作用域,闭包靠它(调用时 Push、`Copy` 时重绑);
     /// 成员作用域是"这个值能读到哪些成员"。混成一个字段的话,给函数挂个成员就会写进
     /// 它捕获的那个作用域,泄漏给共用该作用域的其它闭包、甚至漏进外围局部变量。
     ///
-    /// 默认实现是**伪 Scope** —— 原子值(`IntVal`/`DefaultVal`/…)自己没有成员表,
-    /// 借的是 `Type` 那条链,而那是算出来的视图、不落地。它只读:
-    /// `HasOwnMembers` 为假时写路径会把写入挡回去,免得"挂到借用来的表上"等于改掉整个类型。</summary>
-    public virtual Scope MemberScope => Type.InstanceMembers;
+    /// 原子值没有 `ObjectVal.Scope` 那个字段,表就记在这儿:一个值一张,懒建、只读
+    /// (同名成员在同一个类型里是同一份定义,值不可能各写各的)。</summary>
+    public virtual Scope MemberScope => ValueTables.GetValue(this, static v => new ValueTable(v));
+
+    private static readonly ConditionalWeakTable<RuntimeValue, Scope> ValueTables = new();
 
     /// <summary>这个值有**自己**的成员表吗?有才能往它身上写成员
     /// (对象有;原子值和借类成员表的那些没有)。</summary>

@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 public class Scope(Scope? parent = null)
 {
@@ -150,12 +150,55 @@ public class Scope(Scope? parent = null)
 
     public Scope Push() => new(this);
     public bool Contains(string name) => _vars?.ContainsKey(name) ?? false;
+
+    /// <summary>本层**已存**的格子 —— 不含任何"按名字懒造"的成员。
+    ///
+    /// 成员表用它:列举/拷贝只该看到"真的落下来了"的那些。`Fields ()` 的名单是另一回事
+    /// (它要把注册表里"还没造出来"的名字也列出来,见 <see cref="VirtualScope.MemberNames"/>)。
+    /// 普通作用域里这两件事本来就是同一件(`Variables` 就是 `_vars`)。</summary>
+    protected IEnumerable<KeyValuePair<string, Variable>> StoredHere
+        => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
+
+    /// <summary>把**已经造好**的一格原样存进本层。虚表的 `Create` 用它 ——
+    /// 走 <see cref="DefineOrReplace"/> 会重新 `new` 一个 `Variable`,把 attrs
+    /// (`readonly` / `by` / `protected` …)和身份一起丢掉。</summary>
+    protected void PutHere(string name, Variable v) => (_vars ??= [])[name] = v;
+
     public virtual IEnumerable<KeyValuePair<string, Variable>> Variables
         => _vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>();
 
-    /// <summary>这一层里**有哪些成员名**。取值的成员清单要走 <see cref="MemberView"/>
-    /// (它在本层之外还并上类链的方法);这里只是"本层登记了哪些名字"。</summary>
-    public virtual IEnumerable<string> MemberNames => _vars?.Keys ?? Enumerable.Empty<string>();
+    /// <summary>这一层里**有哪些成员名**。本层登记的**,外加**这个类型在引擎注册表里
+    /// 准备好的那些(只在 <see cref="MemberOf"/> 有值时:普通作用域没有"类型")。</summary>
+    public virtual IEnumerable<string> MemberNames
+    {
+        get
+        {
+            if (_vars is { } d)
+                foreach (var name in d.Keys) yield return name;
+            if (MemberOf is not { } owner) yield break;
+
+            var seen = _vars is { } stored ? new HashSet<string>(stored.Keys) : new HashSet<string>();
+            foreach (var name in BuiltinClasses.MemberNamesOf(owner.Type))
+                if (seen.Add(name)) yield return name;
+        }
+    }
+
+    /// <summary>这一层是**哪个值自己的成员表** —— 模块、插件的值、`ScopeVal` 这些
+    /// 拿着"现成的作用域"当表的对象在这儿登记(`ObjectVal` 构造时顺手标上)。
+    ///
+    /// 有它,成员查找才有一层**注册表兜底**:那些对象没有 <see cref="VirtualScope"/> 那样的
+    /// `Create`,可他们照样得读得到 `Fields` / `Push` / `References` 这些引擎挂的成员。
+    /// 没有它(普通作用域、类体那层)就只是"本层登记了哪些名字"。</summary>
+    internal RuntimeValue? MemberOf { get; set; }
+
+    /// <summary>本层**已存**的那一格,不碰注册表 —— 给"只认这一层"的调用点用
+    /// (换槽要落到**实例自己**那层,`obj.Scope.LookupField` 现在会兜底到类那格,
+    /// 换掉它就等于换掉整个类的槽)。</summary>
+    internal Variable? OwnField(string name) => Stored(name);
+
+    /// <summary>本层**已存**的那一格,不碰注册表。</summary>
+    protected Variable? Stored(string name)
+        => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
 
     /// <summary>查找字段：只看本 scope 自己的变量，不走词法链、不走链式继承。
     /// 继承来的字段在实例化时就已平铺进同一个实例 scope，所以一层就够；
@@ -165,7 +208,8 @@ public class Scope(Scope? parent = null)
     /// 这个名字保留"只查一层"的语义,给那些**必须**看本层的调用点用:
     /// 找构造器(`init`)、找类运算符、取 `parent`/`block`/`name` 这些类自己的数据。</summary>
     public virtual Variable? LookupField(string name)
-        => _vars is { } d && d.TryGetValue(name, out var v) ? v : null;
+        => Stored(name)
+           ?? (MemberOf is { } owner ? BuiltinClasses.InstanceMemberOf(owner.Type, name) : null);
 
     /// <summary>查找变量/字段：先词法链（方法体内能直接读写实例字段），再兜底查 this 对象的实例 scope</summary>
     public Variable? LookupVar(string name)

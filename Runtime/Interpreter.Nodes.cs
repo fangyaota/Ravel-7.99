@@ -502,7 +502,9 @@ public partial class Interpreter
         }
 
         // 同 StepSlot:这里只**换槽**,不走 getter/setter,所以不绑接收者
-        var field = obj.Scope.LookupField(ma.Member)
+        // **只看实例自己那层**:`LookupField` 现在会兜底到类注册表那格,那是全类共用的,
+        // 换掉它等于换掉这个类的槽(别的实例一起变)—— 换槽要落到实例自己身上。
+        var field = obj.Scope.OwnField(ma.Member)
                     ?? BuiltinClasses.TraitSlot(this, obj, ma.Member)?.Slot;
 
         // **引擎挂在类上的那些槽**（`[ClassProperty]` —— 生成出来的属性/数据成员）:

@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 /// <summary>控制帧状态机:每个控制内建一个 ControlFrame,Args 存已收集的块/参数,
 /// Results 与 State 记录推进进度(约定:Args 全程不变,进度看 Count/State)。</summary>
@@ -232,7 +232,6 @@ public partial class Interpreter
 
         if (cf.Count == 0)
         {
-            var instanceScope = new Scope(type.ClassBody!.CaptureScope);
             // 造出来的东西是类还是实例,取决于**被实例化的那个类**是不是 `type` 的子类
             // (走 `parent` 原型链,不是"元类"那条):
             //   `type { body }` → `type <: type` 自反 → 造出来的就是类对象(ClassVal)
@@ -241,8 +240,13 @@ public partial class Interpreter
             // 注意这只定下**中间对象**的类型:构造最终交出的是 init 的返回值(见下面 Return),
             // 所以只有"init 以 this 收尾"的用户类/元类才真把这个对象交出去。
             ObjectVal obj = type.IsAssignableTo(BuiltinClasses.Type)
-                ? new ClassVal(type, instanceScope)
-                : new ObjectVal(type, instanceScope);
+                ? new ClassVal(type, null)
+                : new ObjectVal(type, null);
+            // 对象自己的成员表就是实例作用域:类体各层的定义都落进这张表(从前是先另建一个
+            // `new Scope(捕获处)` 再让各层往里写;现在那张表本身干这件事)。
+            // 词法父接"类体写在哪" —— 类体里的自由名字要在那儿解析,而不是在成员表链上。
+            var instanceScope = obj.Scope;
+            instanceScope.Reparent(type.ClassBody!.CaptureScope);
             instanceScope.Define(ObjectVal.ThisMember, type, obj);
             _top = new BlockExecFrame(bodies[0].Block.Block)
             {

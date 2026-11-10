@@ -57,8 +57,9 @@ internal static partial class BuiltinClasses
     internal static ObjectVal NewException(string message, ErrorKind kind = ErrorKind.Error)
     {
         var type = ErrorClass(kind);
-        var scope = new Scope(type.ClassBody?.CaptureScope);
-        var obj = new ObjectVal(type, scope);
+        var obj = new ObjectVal(type, null);
+        var scope = obj.Scope;
+        if (type.ClassBody is { } body) scope.Reparent(body.CaptureScope);
         scope.Define(ObjectVal.ThisMember, type, obj);
         scope.Define(MessageMember, String, new StringVal(message));
         return obj;

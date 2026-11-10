@@ -31,8 +31,15 @@ internal sealed class BodyScope(Scope lexical, Scope instance) : Scope(lexical)
 
     internal override Scope? InstanceScope => instance;
 
+    /// <summary>**只看实例表本层**那几格(不看类注册表兜底)。
+    ///
+    /// 这条区分是必要的:类体里"这个名字存在吗"问的是**用户/注入真的落下来没有**
+    /// (`valueOf n` → `cs.Lookup n`)。注册表那半是"这个类型天然有什么"
+    /// (`==`、`Fields`、`Add` …),拿它当"已经定义过",`dataclass` 那种
+    /// "用户没写才注入"的判断就全失效了(实测:`mine "=="` 永远跳过)。
+    /// 读成员值的那条路(`obj.x`、方法体里的 `x`)走的是 `LookupVar`/成员访问,不受影响。</summary>
     protected override Variable? LookupHere(string name)
-        => instance.LookupField(name) ?? base.LookupHere(name);
+        => instance.OwnField(name) ?? base.LookupHere(name);
 
     public override Variable Define(string name, ObjectVal typeConstraint, RuntimeValue initialValue,
                                      Statement? site = null)

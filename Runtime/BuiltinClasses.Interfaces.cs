@@ -124,7 +124,7 @@ internal static partial class BuiltinClasses
             + "`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），"
             + $"得到 {v.Type}", ErrorKind.Argument));
 
-        Interface.ClassBody = PresetCtor(Alternate(factoryList, factoryOf, factoryBody, factoryJunk));
+        BuiltinCtor(Interface, Alternate(factoryList, factoryOf, factoryBody, factoryJunk));
 
         // ── ② 接口那一支的那份:挂在 `BaseInterface` 的类体上,所有接口(它的子类)继承 ──
         // 干的事完全不同:**造实现**。`某接口 某个类 { … }` 是实例化那个接口,而"谁在被实例化"
@@ -152,7 +152,7 @@ internal static partial class BuiltinClasses
             "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
             + $"得到 {v.Type}", ErrorKind.Argument));
 
-        BaseInterface.ClassBody = PresetCtor(Alternate(implOf, implJunk));
+        BuiltinCtor(BaseInterface, Alternate(implOf, implJunk));
 
         // `IValue` 是内置接口、**没走 `Install`**,所以类体不会从 `BaseInterface` 那儿
         // 继承过来(继承发生在 `Install` 那一趟)—— 直接借它那份。

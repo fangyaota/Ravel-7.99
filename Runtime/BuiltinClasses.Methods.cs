@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 using System.Linq;
 
@@ -705,12 +705,12 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue CopyValue(RuntimeValue v) => v switch
     {
         // 容器的成员表跟着副本走 —— 和 CopyObject 一个道理(它们也是 ObjectVal)
-        ListVal l => new ListVal([.. l.Elements], CopyScope(l.Scope)),
-        SetVal s => new SetVal([.. s.Elements], CopyScope(s.Scope)),
-        DictVal d => new DictVal(new Dictionary<RuntimeValue, RuntimeValue>(d.Entries), CopyScope(d.Scope)),
+        ListVal l => CopyTableInto(new ListVal([.. l.Elements]), l),
+        SetVal s => CopyTableInto(new SetVal([.. s.Elements]), s),
+        DictVal d => CopyTableInto(new DictVal(new Dictionary<RuntimeValue, RuntimeValue>(d.Entries)), d),
         // Json 值:**浅拷**——那棵 `JToken` 树一起用(Ravel 这边没有改它的手段,`Get`/`At`
         // 也是包个新 Json 指向同一棵树),要拷的是**成员表**(副本上 `tag = …` 才找得到)
-        JsonVal j => new JsonVal(j.Token, CopyScope(j.Scope)),
+        JsonVal j => CopyTableInto(new JsonVal(j.Token), j),
         // 必须排在 ObjectVal 之前:这四类现在也是 ObjectVal
         FunctionVal or ModuleVal or PropertyVal or ScopeVal => v,
         ObjectVal o => CopyObject(o),
@@ -725,31 +725,35 @@ internal static partial class BuiltinClasses
     internal static bool HasOwnTable(RuntimeValue v)
         => v is ObjectVal and not (FunctionVal or ModuleVal or PropertyVal or ScopeVal);
 
-    /// <summary>拷贝一个对象:新实例 scope(方法闭包重绑,见 CopyScope)+ `this` 指向副本。
+    /// <summary>拷贝一个对象:新对象先建出来(成员表跟着 `Scope` 懒建),再把原表逐格搬过去
+    /// (方法闭包重绑,见 <see cref="CopyTableInto"/>)+ `this` 指向副本。
     /// 漏掉重绑 `this` 的话,副本里写 `this.v = n` 会落到原对象上,
     /// 而裸写 `v = n` 却是对的,行为自相矛盾。</summary>
     internal static ObjectVal CopyObject(ObjectVal src)
-    {
-        var copy = new ObjectVal(src.ClassType, CopyScope(src.Scope));
-        copy.Scope.DefineOrReplace(ObjectVal.ThisMember, src.ClassType, copy);
-        return copy;
-    }
+        => CopyTableInto(new ObjectVal(src.ClassType, null), src);
 
-    internal static Scope CopyScope(Scope src)
+    /// <summary>把 <paramref name="src"/> 那张成员表逐格搬进 <paramref name="copy"/> 的表。
+    ///
+    /// 表必须**先有对象才有**(`MemberTable` 的 owner 就是那个对象),所以拷的顺序是
+    /// "建对象 → 搬格子",不是从前的"先拷一张 Scope 再塞进构造器"。
+    ///
+    /// 词法父照搬(类体自由名字要按原来那处解析);方法闭包重绑到新表 —— 浅共享会让
+    /// 副本上调方法读写到原对象的字段,`with` 就白拷了。</summary>
+    private static T CopyTableInto<T>(T copy, ObjectVal src) where T : ObjectVal
     {
-        var dst = new Scope(src.Parent);
-        foreach (var kv in src.Variables)
+        var dst = copy.Scope;
+        // 源表可能没有词法父(顶层对象):这时副本也就不挂父,别拿 null 去 Reparent
+        if (src.Scope.Parent is { } lexical) dst.Reparent(lexical);
+        foreach (var kv in src.Scope.Variables)
         {
-            var value = kv.Value.Value;
-            // 方法(lambda)的闭包 Scope 指向原实例。浅拷贝共享它的话,
-            // 在副本上调方法会读写到原对象的字段——`with` 就白拷了。
-            value = Rebind(value, dst);
+            var value = Rebind(kv.Value.Value, dst);
             // attrs 也要带过去:丢了 by 的话副本上的 `v = x` 不走 setter,
             // 丢了 readonly/private/core 就等于副本绕过了这些约束
-            var v = dst.Define(kv.Key, kv.Value.TypeConstraint, value);
+            var v = dst.DefineOrReplace(kv.Key, kv.Value.TypeConstraint, value);
             foreach (var a in kv.Value.Attrs) v.SetAttr(a);
         }
 
-        return dst;
+        dst.DefineOrReplace(ObjectVal.ThisMember, src.ClassType, copy);
+        return copy;
     }
 }

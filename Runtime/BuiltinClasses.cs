@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 /// <summary>内置类对象。
 ///
@@ -120,6 +120,84 @@ internal static partial class BuiltinClasses
 
     /// <summary>AllTypes 里内置类占多少——静态构造器填完后定下来，Reset 时按它切</summary>
     private static int _builtinCount;
+
+    /// <summary>**类 → 该类给实例准备的成员**。从前它是 `ClassVal.InstanceTable`(类对象身上
+    /// 的第二张表);现在类对象只有一张表(它自己这个值的成员),给实例的成员在引擎这一侧
+    /// 按类记着,实例自己的成员表读不到时才按名字来这里取一格(见 <see cref="VirtualScope"/>)。</summary>
+    /// <summary>键必须是**引用相等**:`ClassVal` 是 record,它合成的 `GetHashCode` 会算上
+    /// `IsValueLike`、`ClassType` 这些**注册之后还会变**的字段;用默认比较器的话,
+    /// 建表时算的哈希和读表时算的对不上,整类的方法就"凭空没了"。</summary>
+    private static readonly Dictionary<ObjectVal, Dictionary<string, Variable>> InstanceMembers =
+        new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>这个类(还没并上父类时)给实例准备的成员表。</summary>
+    private static Dictionary<string, Variable> TableOf(ObjectVal type)
+    {
+        if (!InstanceMembers.TryGetValue(type, out var table))
+            InstanceMembers[type] = table = [];
+        return table;
+    }
+
+    /// <summary>按名字取一类给实例准备的成员 —— **一次命中,不沿 parent 链走**。
+    /// 父类那份在 <see cref="InheritTable"/> 里已经并进来了。</summary>
+    internal static Variable? InstanceMemberOf(ObjectVal type, string name)
+        => InstanceMembers.TryGetValue(type, out var table) && table.TryGetValue(name, out var v) ? v : null;
+
+    /// <summary>这类给实例准备了哪些名字(已并上父类)。</summary>
+    internal static IEnumerable<string> MemberNamesOf(ObjectVal type)
+        => InstanceMembers.TryGetValue(type, out var table) ? table.Keys : Enumerable.Empty<string>();
+
+    /// <summary>把**父类**那份实例成员浅拷进子类:Variable 引用共享,子类自己注册过的名字优先。
+    ///
+    /// 只发生一次(建类 / 内置注册收尾),之后读路径上没有"链"这回事 —— 每个类的表都是全的。
+    /// 为什么是浅拷:那一格的身份不该因为继承换一份(`readonly`、`by`、函数体都是一样的)。</summary>
+    internal static void InheritTable(ObjectVal child, ObjectVal parent)
+    {
+        // **Every / Any 的 parent 是它自己**(`Link(Every, Every, Type)`),照字面走会原地打转;
+        // 但它们照样得读得到 Object 那层的机制成员(`:` `<:` `ToString` `Fields` …) ——
+        // 从前是 `MemberView` 在链尾补一个 Object,这里照旧接到 Object。
+        if (ReferenceEquals(child, parent))
+        {
+            if (Object is { } root && !ReferenceEquals(child, root)) InheritTable(child, root);
+            return;
+        }
+
+        if (!InstanceMembers.TryGetValue(parent, out var src)) return;
+
+        var dst = TableOf(child);
+        foreach (var (name, v) in src)
+        {
+            // `init` **不继承**:构造器是每一类自己的一份(类体那条 `init := …` 落到实例表里),
+            // 并进来会让"这个类没有构造器"变成"白拿父类那一条",`:= init` 这种顶层的
+            // 重新定义还会被"类型链上已有"拦住。`this` 同理 —— 它是每个实例自己的格子。
+            if (name is ObjectVal.InitMember or ObjectVal.ThisMember) continue;
+            dst.TryAdd(name, v);                                 // 子类自己先注册的留着
+        }
+    }
+
+    /// <summary>内置类这一趟的收尾:类对象在建 Linked 之后才注册成员(先建类、后注册),
+    /// 所以"父类那份并进子类"不能只在 Link 那一刻做。这里按 parent 链**父先子后**
+    /// 走一遍 AllTypes,把整棵树补成"每个类的表都是全的"。</summary>
+    private static void BakeInstanceMembers()
+    {
+        var done = new HashSet<ObjectVal>();
+        foreach (var type in AllTypes) Bake(type);
+
+        void Bake(ObjectVal t)
+        {
+            if (!done.Add(t)) return;
+            if (t.Parent is not { } p) return;
+            if (ReferenceEquals(p, t))
+            {
+                // Every / Any 自指 —— 照 <see cref="InheritTable"/> 的口径接到 Object
+                if (Object is { } root && !ReferenceEquals(t, root)) InheritTable(t, root);
+                return;
+            }
+
+            Bake(p);
+            InheritTable(t, p);
+        }
+    }
 
     static BuiltinClasses()
     {
@@ -256,6 +334,9 @@ internal static partial class BuiltinClasses
         // 数据类型和插件`using "x.dll"`带来的类都由 `BuiltinClasses.AddType` 自己往前推这个数
         _builtinCount = AllTypes.Count;
 
+        // ---- 注册都做完了:父类那份实例成员并进子类(先建类后注册,只能这时候补) ----
+        BakeInstanceMembers();
+
         // ---- 收尾:内置那几支**封口**(见 SealBuiltins) ----
         SealBuiltins();
     }
@@ -330,10 +411,28 @@ internal static partial class BuiltinClasses
                 { Line = 1, Column = 1, Source = "<preset>" },
             new Scope());
 
-    /// <summary>给一个内置类装**构造器**(`[ClassCtor]` 那个方法):一条 `init := <工厂>`,
+    /// <summary>给一个内置类装构造器(`[ClassCtor]` 那个方法):一条 `init := <工厂>`,
     /// 和 `List` / `Integer` 那些预设类体一个做法(见 `PresetCtor`)。</summary>
     internal static void SetCtor(ClassVal cls, System.Reflection.MethodInfo factory)
-        => cls.ClassBody = PresetCtor(FunctionVal.From(arg => ClassRegistry.Call(factory, [arg])));
+        => BuiltinCtor(cls, FunctionVal.From(arg => ClassRegistry.Call(factory, [arg])));
+
+    /// <summary>一个内置类的**构造器**:类体那条 `init := <caster>`(实例化时照旧跑),
+    /// 外加注册表里同一条 `init`。
+    ///
+    /// 为什么两处都要:**值也有 `init`**。类对象是一种值,`(5).init "12"` 也是一种值 ——
+    /// 值不会被"实例化",类体那趟跑不到它们头上,于是注册表这份才是它们读得到的。
+    /// 对象实例化时类体把 `init` 落进自己的表,读的是那一格(注册表只当兜底)。</summary>
+    /// <param name="exposeInit">要不要把 `init` 也挂进**注册表**。只有**值类型**要:
+    /// 它们的实例从不走"跑类体"那趟,类体里那条 `init` 落不到它们头上(`(1.5).init "2"`)。
+    /// 对象/类/集合的实例化照旧从类体拿,注册表里再挂一份反而会让 `Fields ()` 多出一条,
+    /// 还会让 `:= init` 在模块顶层被"类型链上已有"拦住。</param>
+    internal static void BuiltinCtor(ObjectVal type, RuntimeValue caster, bool exposeInit = false)
+    {
+        type.ClassBody = PresetCtor(caster);
+        if (!exposeInit) return;
+        var v = EngineMember(type, ObjectVal.InitMember, caster, declared: Function);
+        v.SetAttr(Attr.Protected);   // 和 PresetCtor 那条一个口径:类体系里随便用,外面读不到
+    }
 
     /// <summary>往一个**类对象**的**实例表**里挂引擎成员 —— `ClassVal.InstanceTable` 那张
     /// "给实例的成员表"。内置方法、类运算符、序列方法(`SeqMethod`)、`GetImplements ()`
@@ -353,8 +452,10 @@ internal static partial class BuiltinClasses
     internal static Variable EngineMember(ObjectVal type, string name, RuntimeValue impl,
                                           bool readOnly = true, ObjectVal? declared = null)
     {
-        // 只有类对象有实例表。挂错了是 C# 侧的程序错误 —— 当场炸比静默挂到别处好
-        var v = ((ClassVal)type).InstanceTable.DefineOrReplace(name, declared ?? Function, impl);
+        // 落点是**引擎这一侧按类记的注册表**(不是类对象身上那张表) —— 那些成员是
+        // "这类给它的实例准备的",类对象自己读不到它们(见 `242_class_two_tables.rav`)。
+        var v = new Variable(name, declared ?? Function, impl);
+        TableOf(type)[name] = v;
         if (readOnly) v.SetAttr(Attr.Readonly);
         return v;
     }
@@ -429,7 +530,7 @@ internal static partial class BuiltinClasses
         var twoArg = new NativeClosure("parent", Type, (scope, parent) =>
             FunctionVal.From(body => Install(scope, (ObjectVal)parent, body)));
         var oneArg = new NativeClosure("body", Function, (scope, body) => Install(scope, Object, body));
-        Type.ClassBody = PresetCtor(Alternate(twoArg, oneArg));
+        BuiltinCtor(Type, Alternate(twoArg, oneArg));
     }
 
     /// <summary>这个类型自己**或它的任一祖先**被 `seal` 了吗。
@@ -517,6 +618,10 @@ internal static partial class BuiltinClasses
         self.Scope.Define(ObjectVal.NameMember, String, new StringVal(""));
         self.BodyExtras = pieces.Count > 1 ? pieces[1..] : [];
         AllTypes.Add(self);
+        // 建类那一刻把父类给实例准备的那份**并进来**(浅拷,Variable 引用共享)。
+        // 内置类在 Link 与注册收尾时并过;用户类只在这一条路上建,靠这一句。
+        // 并完就没有"链"了:实例读成员只问自己这一层的注册表。
+        InheritTable(self, parent);
 
         // 运算符是**扫体里的语句**装进实例表的(见 `DefineClassOperator`),所以拼上来的块
         // 也要扫 —— 它们和主块同属一层,`body.Append { == := … }` 那个 `==` 得算数。
@@ -577,7 +682,7 @@ internal static partial class BuiltinClasses
     /// `ClassOf` 就是查它,结构那一族(`[BuiltinClass]`)也靠它找父类。</summary>
     internal static ClassVal New(string name)
     {
-        var t = new ClassVal(null, new Scope());   // null → ClassType 先自指
+        var t = new ClassVal(null, null);   // null → ClassType 先自指;表由 ObjectVal.Scope 懒建
         t.Scope.Define(ObjectVal.NameMember, null!, new StringVal(name));
         ByName[name] = t;
         return t;
@@ -617,6 +722,8 @@ internal static partial class BuiltinClasses
         t.ClassType = meta;
         t.Scope.DefineOrReplace(ObjectVal.ParentMember, Object, parent).SetAttr(Attr.Readonly);
         t.Scope.LookupField(ObjectVal.NameMember)!.TypeConstraint = String;
+        // 父类已经注册好的成员并进子类 —— 用户类走这条;内置类注册在 Link 之后,由收尾那趟补
+        InheritTable(t, parent);
     }
 
     // ============================================================

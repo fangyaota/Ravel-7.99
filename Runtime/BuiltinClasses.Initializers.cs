@@ -24,16 +24,16 @@ internal static partial class BuiltinClasses
         // 空函数(`() => { (); }`)是一个道理。
         // 更具体的层写了就覆盖它:比如 List 的预设类体里那个只认 default 的构造器,
         // 它跑在 object 之后,所以 `MyList default` 走的还是 List 那一份。
-        Object.ClassBody = PresetCtor(DefaultCtor());
+        BuiltinCtor(Object, DefaultCtor());
         IntCaster = MakeCaster(CastToInt);
-        Int.ClassBody = PresetCtor(IntCaster);
-        Real.ClassBody = PresetCtor(MakeCaster(CastToFloat));
-        Bool.ClassBody = PresetCtor(MakeCaster(CastToBool));
-        String.ClassBody = PresetCtor(MakeCaster(CastToString));
-        Char.ClassBody = PresetCtor(MakeCaster(CastToChar));
-        BigInt.ClassBody = PresetCtor(MakeCaster(CastToBigInt));
-        Fraction.ClassBody = PresetCtor(MakeCaster(CastToFraction));
-        BigFraction.ClassBody = PresetCtor(MakeCaster(CastToBigFraction));
+        BuiltinCtor(Int, IntCaster, exposeInit: true);
+        BuiltinCtor(Real, MakeCaster(CastToFloat), exposeInit: true);
+        BuiltinCtor(Bool, MakeCaster(CastToBool), exposeInit: true);
+        BuiltinCtor(String, MakeCaster(CastToString), exposeInit: true);
+        BuiltinCtor(Char, MakeCaster(CastToChar), exposeInit: true);
+        BuiltinCtor(BigInt, MakeCaster(CastToBigInt), exposeInit: true);
+        BuiltinCtor(Fraction, MakeCaster(CastToFraction), exposeInit: true);
+        BuiltinCtor(BigFraction, MakeCaster(CastToBigFraction), exposeInit: true);
         Exception.ClassBody = ExceptionBody();   // 普通类:字段 + 构造器(见下)
         // 错误那一族各拿**自己的一份**(Message 字段 + 那个构造器)。
         //
@@ -54,21 +54,21 @@ internal static partial class BuiltinClasses
         ValueError.ClassBody = ExceptionBody();
         IoError.ClassBody = ExceptionBody();
         RegexError.ClassBody = ExceptionBody();
-        Json.ClassBody = PresetCtor(MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
-        List.ClassBody = PresetCtor(MakeDefaultCaster(List));
+        BuiltinCtor(Json, MakeCaster(CastToJson));   // 原生值 → Json(见 BuiltinClasses.Json.cs)
+        BuiltinCtor(List, MakeDefaultCaster(List));
         // `Continuation f` —— 把一枚函数**当成**续延(调它 = 调那枚函数)。
         // 库里的 `callcc` 靠这条把"先还原控制状态、再跳回去"那层也做成续延:
         // 于是用户手里那枚**类型上**就是 `Continuation`,而不是一个说不清的 lambda。
         // `Continuation default` 走的是"还没到手的那一枚"(见 ContinuationVal.Default)。
-        Continuation.ClassBody = PresetCtor(FunctionVal.From(val => val switch
+        BuiltinCtor(Continuation, FunctionVal.From(val => val switch
         {
             DefaultVal => ContinuationVal.Default,
             ContinuationVal c => c,                                  // 已经是续延,原样(包两层没意义)
             FunctionVal f => new ContinuationVal((Frame?)null, f),
             _ => throw new RuntimeException($"Continuation 收一枚函数（或 default），得到 {val.Type}", ErrorKind.Type),
         }));
-        Set.ClassBody = PresetCtor(MakeDefaultCaster(Set));
-        Dict.ClassBody = PresetCtor(MakeDefaultCaster(Dict));
+        BuiltinCtor(Set, MakeDefaultCaster(Set));
+        BuiltinCtor(Dict, MakeDefaultCaster(Dict));
         // 建类不在这里:`type` 的 init 由 InstallTypeInit 装 —— 它要用 NativeClosure
         // 看见正在构造的那个对象的 `this`,而且必须在 Object/Function/Type 都挂好之后
     }
