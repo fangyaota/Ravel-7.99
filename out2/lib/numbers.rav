@@ -1,9 +1,0 @@
-readonly INumber ::= interface {
-    ()
-}
-
-impl (INumber int {;})
-impl (INumber real {;})
-impl (INumber bigint {;})
-impl (INumber fraction {;})
-impl (INumber bigfraction {;})
