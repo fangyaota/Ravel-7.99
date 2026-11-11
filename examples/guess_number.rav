@@ -23,7 +23,7 @@ won := false
 parse := (s: string) => { try { int s; } (e: Exception) => { 0; } }
 
 say := 0 => { "要一个 1 到 100 的整数。"; }
-     | target => { tries += 1; won = true; "猜对了，用了 " + (string tries) + " 次。"; }
+     | (_ == target) => { tries += 1; won = true; "猜对了，用了 " + (string tries) + " 次。"; }
      | (_ < target) => { tries += 1; "小了。"; }
      | _ => { tries += 1; "大了。"; }
 

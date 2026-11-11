@@ -46,7 +46,34 @@ public record FunctionVal : ObjectVal
     private static FunctionVal Partial(Func<RuntimeValue, RuntimeValue> f)
         => new(null!, (_, a) => f(a)) { IsPartial = true };
 
-    public FunctionVal Prepend(FunctionVal prefix) => new ComposeVal(this, prefix, true);
+    // **`>>` / `<<` 没有"一个"调用作用域** —— 两侧各自开一层,所以前缀/后缀要发到
+    // 每一枚叶子上,各拿一份自己的作用域。不发下去的话,`(say << parse).Prepend inj`
+    // 落在 `ComposeVal` 上,`CallScopeOf` 只认 lambda、给出一枚 `Void`,
+    // `inj` 里的 `sc.Define` 当场炸。
+    //
+    // 已经套起来的 `ComposeVal` 不再往下发 —— 那是"这一层的前缀",该紧贴着它跑一次;
+    // 发进两侧会让同一段前缀跑两遍(实参、副作用都跟着变)。
+    public FunctionVal Prepend(FunctionVal prefix) => this switch
+    {
+        ControlFunction { Kind: ControlKind.Then } c => new ControlFunction(ControlKind.Then, 1, Spread(c.Args, f => f.Prepend(prefix))),
+        _ => new ComposeVal(this, prefix, true),
+    };
 
-    public FunctionVal Append(FunctionVal suffix) => new ComposeVal(this, suffix, false);
+    public FunctionVal Append(FunctionVal suffix) => this switch
+    {
+        ControlFunction { Kind: ControlKind.Then } c => new ControlFunction(ControlKind.Then, 1, Spread(c.Args, f => f.Append(suffix))),
+        _ => new ComposeVal(this, suffix, false),
+    };
+
+    private static RList<RuntimeValue> Spread(RList<RuntimeValue> args, Func<FunctionVal, FunctionVal> f)
+    {
+        var outArgs = RList<RuntimeValue>.Empty;
+        for (var i = 0; i < args.Count; i++)
+        {
+            var a = args.At(i);
+            outArgs = outArgs.Add(a is FunctionVal fn ? f(fn) : a);
+        }
+
+        return outArgs;
+    }
 }
