@@ -1,0 +1,152 @@
+# **一个"能等的队列",两版写法对着看**:手搓的,和用 `Tasks.Signal` 写的。
+#
+#     ravel examples/signal.rav
+#
+# 要看的就一件事:**同一个队列,两版跑出来一模一样,但一版伸手进了调度器,另一版没有。**
+#
+# `Signal` 在 `lib/tasks.rav` 里(不是这个例子造的)—— 这个例子的用处是让你看见
+# **它凭什么值得收进库**:下面第 1 节那两处 `↓↓↓`,是每个"等别人说一声"的东西都要
+# 自己抄一遍的东西。
+using "tasks.rav"
+
+# ═══ 1. 手搓版:一个"能等的队列" ═══
+#
+# 情形:一个任务在爬网页、往队列里放;另一个在解析、从队列里拿。**解析比爬快**,
+# 所以它迟早会**拿空** —— 那时候它不该空转,该挂在那儿等下一次放货。
+#
+# "能等的队列"干的就是这个:拿不到就真的睡下,来货了被叫醒。
+#
+# 而在这门语言的 `Tasks` 上,想"睡下"只有一条路:自己写下标着 `↓↓↓` 的那两处。
+# 它们动的是 `TaskGroup` 的**调度内脏** —— 一个队列库本来不该知道这些。
+print "── 1. 手搓版:两处伸手进调度器 ──"
+
+Chan1 ::= class {
+    Items: list = []
+    Waiting: list = []
+    init = () => { Items = []; Waiting = []; this; }
+
+    # ↓↓↓ 一:叫醒等在队首的那个人 —— 往**组的就绪队列**里塞一个
+    Put := (g: Tasks.TaskGroup v: object) => {
+        Items.Add v
+        (Waiting.Count ()) > 0 { g.Ready.Add (Waiting.Remove 0); } { 0; }
+        ();
+    }
+
+    # ↓↓↓ 二:自己睡下 —— 把"我停在哪儿"那一枚续延存进**组里此刻在跑的那个任务**,
+    #          再跳回调度器(`g.Back ()`),让它去挑别人
+    Take := (g: Tasks.TaskGroup) => {
+        Items.IsEmpty () {
+            callcc (kp: Continuation) => {
+                g.Current.Step = kp
+                Waiting.Add g.Current
+                g.Back ()
+            }
+            Items.Remove 0;
+        } { Items.Remove 0; }
+    }
+}
+
+ch1 := Chan1 ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; g.Await (Tasks.After 20); ch1.Put g ("货" + (string i)); }
+        ch1.Put g "收工"
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        got := ""
+        while { got != "收工"; } { got = ch1.Take g; print ("  消 " + (string got)); }
+    })
+]
+
+# ═══ 2. `Tasks.Signal` —— 库里的那只闸 ═══
+#
+# 一只**闸**:它自己不起任何作用,谁攥着它谁说了算 —— `Open` 一声,等在它上面的人全醒。
+#
+# 它管的是第三种"会完":
+#
+#     `Tasks.Task (g) => {…}`   等的是「那段代码跑完」
+#     `Tasks.After ms`          等的是「那个计时器走完」
+#     `Tasks.Signal ()`         等的是「**别人跟我说一声**」
+#
+# 用法三行 —— 有人等、有人开、开过之后还能再等(开过就一直开着了)。
+print "── 2. Tasks.Signal:等 · 开 · 开完再来等 ──"
+
+sig := Tasks.Signal ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        print "  甲:等这闸";
+        print ("  甲:拿到了 " + (string (g.Await sig)));
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        g.Await (Tasks.After 10);
+        print "  乙:开闸";
+        sig.Open "给甲的东西";
+    })
+]
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { print ("  丙(开过之后才来):" + (string (g.Await sig))); })
+]
+
+# ═══ 3. 同一个队列,用 Signal 重写 ═══
+#
+# 对着第 1 节看两处差别:
+#   * 两处都不碰 `Ready` / `Current.Step` / `Back` 了;
+#   * **`Put` 的参数表里少了一个 `g`** —— 它不再需要组。
+print "── 3. 用 Signal 重写:一个字段都不碰调度器 ──"
+
+Chan2 ::= class {
+    Items: list = []
+    Waiting: list = []
+    init = () => { Items = []; Waiting = []; this; }
+
+    Put := (v: object) => {
+        Items.Add v
+        (Waiting.Count ()) > 0 { (Waiting.Remove 0).Open v; } { 0; }
+        ();
+    }
+
+    Take := (g: Tasks.TaskGroup) => {
+        # 第三个块不能省:`if { c; } { t; }` 只给两块,交回的是**半成品函数**,
+        # 什么都不跑 —— 静默空转。(`--warn` 逮的就是这种"少给一块"。)
+        Items.IsEmpty () {
+            sig := Tasks.Signal ()
+            Waiting.Add sig
+            g.Await sig              # ← 等一只闸,不碰内脏
+        } { 0; }
+        Items.Remove 0;
+    }
+}
+
+ch2 := Chan2 ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; g.Await (Tasks.After 20); ch2.Put ("货" + (string i)); }
+        ch2.Put "收工"
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        got := ""
+        while { got != "收工"; } { got = ch2.Take g; print ("  消 " + (string got)); }
+    })
+]
+
+# ═══ 4. 那个少掉的 `g` 为什么是要紧的 ═══
+#
+# 两版**跑起来一模一样**(上面自己看)。差别在"这 6 行握手和它旁边那点账,摊在谁身上"。
+#
+# `Chan1.Put` 要一个 `g`,因为叫醒的动作(`g.Ready.Add w`)得有个组指着。
+# 你当然可以不给它 `g` —— 让**等待者在挂起的时候把自己的组也记下来**,`Put` 再去取。
+# 但那正是 `Signal.Holder` 干的事:**你得再抄一份**。
+#
+# 而这一份抄错了不会报"你传错组了",它会**死锁** —— 叫醒了别的组里的任务,该醒的那个
+# 一直睡着,而它那个组手里没活可干了,于是 `Run` 收尾报"还有任务没完"。查起来要翻
+# 两个组的就绪队列。
+#
+# 所以 `Signal` 不是省了几行 —— 是把"**这只闸归哪个组管**"这件事**从每个调用点
+# 收进闸自己身上**,让它只有一处写法、只抄一遍。全库写着那段握手的现在有三处
+# (`Task.WaitOn` / `SysTask.WaitOn` / `Signal.WaitOn`,都在 `lib/tasks.rav` 里),
+# 而 `Signal` 是**唯一一处给外面用的**。
+print "── 4. 差别在参数表上:`Put (g …)` 对 `Put (…)` ──"
+print "  Chan1.Put 要 g —— 叫醒的动作得有个组指着(或者你自己再记一份等待者的组)"
+print "  Chan2.Put 不要 g —— 闸自己记着谁在等"

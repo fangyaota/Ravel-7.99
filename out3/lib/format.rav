@@ -1,0 +1,147 @@
+using "math.rav"
+
+ravel "Format"
+
+readonly Cell := (v: object) => { (typeof v) == string { v; } { string v; } }
+
+readonly Fmt := (tpl: string args: object) => {
+    out := ""
+    cur := 0
+    i := 0
+    n := tpl.Length ()
+
+    take := (k: string) => {
+        (typeof args) == dict {
+            assert (args.Has k) ("Format.Fmt: 没有 '" + k + "' 这个位置（模板里有 {" + k + "}）")
+            args.Get k
+        } {
+            idx := k.IsEmpty () { mine := cur; cur += 1; mine; } { int k; }
+            assert ((idx >= 0) && (idx < (args.Count ()))) ("Format.Fmt: 第 " + (string idx) + " 个位置没有实参（一共 " + (string (args.Count ())) + " 个）")
+            args.At idx
+        }
+    }
+
+    while { i < n; } {
+        c := tpl.At i
+        c == '{' {
+            ((i + 1) < n) && ((tpl.At (i + 1)) == '{') {
+                out += "{"
+                i += 2
+            } {
+                j := i + 1
+                while { (j < n) && ((tpl.At j) != '}'); } { j += 1; }
+                assert (j < n) ("Format.Fmt: '{' 没有闭合 —— " + tpl)
+                key := tpl.Slice [(i + 1)..j)
+                out += (Cell (take key))
+                i = j + 1
+            }
+        } {
+            (c == '}') && (((i + 1) < n) && ((tpl.At (i + 1)) == '}')) {
+                out += "}"
+                i += 2
+            } {
+                out += (string c)
+                i += 1
+            }
+        }
+    }
+
+    out
+}
+
+readonly Pad := (s: string n: int fill: string) => {
+    assert (!(fill.IsEmpty ())) "Format.Pad: 填充串不能是空的（填不满会死循环）"
+    (Filler n (s.Length ()) fill) + s
+}
+
+readonly PadL := (s: string n: int) => { s + (Filler n (s.Length ()) " "); }
+
+readonly PadR := (s: string n: int) => { (Filler n (s.Length ()) " ") + s; }
+
+readonly Center := (s: string n: int fill: string) => {
+    need := n - (s.Length ())
+    need <= 0 { s; } {
+        left := (Filler (need / 2) 0 fill)
+        rightN := need - (left.Length ())
+        left + s + (Filler rightN 0 fill)
+    }
+}
+
+readonly private Filler := (n: int have: int fill: string) => {
+    need := n - have
+    need <= 0 { ""; } {
+        pad := fill
+        while { (pad.Length ()) < need; } { pad += fill; }
+        pad.Slice [0..need)
+    }
+}
+
+readonly Num := (x: real digits: int) => {
+    assert ((digits >= 0) && (digits <= 15)) ("Format.Num: 小数位要在 0..15，得到 " + (string digits))
+    text := string (Math.RoundTo x digits)
+    hasDot := text.Contains "."
+    digits == 0 {
+        hasDot { text.Slice [0..(text.IndexOf '.')); } { text; }
+    } {
+        hasDot {
+            frac := digits - ((text.Length ()) - (text.IndexOf '.') - 1)
+            frac <= 0 { text; } { text + (("0").Repeat frac); }
+        } {
+            (text + ".") + (("0").Repeat digits)
+        }
+    }
+}
+
+readonly Thousands := (x: object) => {
+    text := Cell x
+    neg := text.StartsWith "-"
+    body := neg { text.Skip 1; } { text; }
+    hasDot := body.Contains "."
+    intPart := hasDot { body.Slice [0..(body.IndexOf '.')); } { body; }
+    frac := hasDot { body.Skip (body.IndexOf '.'); } { ""; }
+
+    out := ""
+    i := 0
+    n := intPart.Length ()
+    while { i < n; } {
+        (i > 0) && (((n - i) % 3) == 0) { out += ","; } { 0; }
+        out += (string (intPart.At i))
+        i += 1
+    }
+
+    (neg { "-"; } { ""; }) + out + frac
+}
+
+readonly private Digits := "0123456789abcdef"
+
+readonly private InBase := (n: object base: int) => {
+    assert ((base >= 2) && (base <= 16)) ("Format: 进制要在 2..16，得到 " + (string base))
+    left := bigint n
+    zero := bigint 0
+    left == zero { "0"; } {
+        neg := left < zero
+        neg { left = zero - left; } { 0; }
+        step := bigint base
+        out := ""
+        while { left > zero; } {
+            out = (string (Digits.At (int (left % step)))) + out
+            left = left / step;
+        }
+        (neg { "-"; } { ""; }) + out
+    }
+}
+
+readonly Hex := (n: object) => { InBase n 16; }
+readonly Bin := (n: object) => { InBase n 2; }
+readonly Oct := (n: object) => { InBase n 8; }
+
+readonly Bytes := (n: int) => {
+    units := ["B" "KB" "MB" "GB" "TB"]
+    v := real n
+    k := 0
+    while { (v >= 1024.0) && (k < ((units.Count ()) - 1)); } {
+        v = v / 1024.0
+        k += 1
+    }
+    k == 0 { (string n) + " B"; } { ((Num v 1) + " ") + (units.At k); }
+}

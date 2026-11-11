@@ -1,0 +1,95 @@
+readonly dataclass ::= class type {
+    private parentInit := init
+
+    private inject := {
+        (() => {
+            cs := currentScope ()
+            valueOf := (n: string) => { (cs.Lookup n).Get (); }
+
+            mine := (n: string) => {
+                try { (valueOf n); true; } (e: Exception) => { false; }
+            }
+
+            fieldsNow := () => {
+                out := []
+                (this.Fields ()).Foreach (n: string) => {
+                    ok := try { (valueOf n); true; } (e: Exception) => { false; }
+                    ok && ((typeof (valueOf n)) != function) { out.Add n; } { 0; }
+                }
+                out
+            }
+
+            base := (cs.Lookup "init").Get ()
+
+            mine "Values" { 0; } {
+                this.Values := () => {
+                    out := []
+                    (fieldsNow ()).Foreach (n: string) => { out.Add (valueOf n); }
+                    out
+                }
+            }
+
+            mine "Text" { 0; } {
+                this.Text := () => {
+                    nm := (typeof this).name
+                    nm.IsEmpty () { nm = "class"; } { 0; }
+                    out := nm + "("
+                    i := 0
+                    names := fieldsNow ()
+                    while { i < (names.Count ()); } {
+                        i > 0 { out = out + ", "; } { 0; }
+                        out = out + (names.At i) + "=" + (string (valueOf (names.At i)))
+                        i += 1
+                    }
+                    out + ")"
+                }
+            }
+
+            mine "Eq" { 0; } {
+                this.Eq := (o: object) => {
+                    (typeof o) != (typeof this) { false; } {
+                        mine1 := this.Values ()
+                        theirs := o.Values ()
+                        (mine1.Count ()) != (theirs.Count ()) { false; } {
+                            same := true
+                            i := 0
+                            while { i < (mine1.Count ()); } {
+                                (mine1.At i) != (theirs.At i) { same = false; } { 0; }
+                                i += 1
+                            }
+                            same
+                        }
+                    }
+                }
+            }
+
+            mine "==" { 0; } { this.== := (o: object) => { this.Eq o; }; }
+            mine "!=" { 0; } { this.!= := (o: object) => { !(this.Eq o); }; }
+
+            apply := (names: list vals: list) => {
+                i := 0
+                while { (i < (vals.Count ())) && (i < (names.Count ())); } {
+                    v := vals.At i
+
+                    (typeof v) != void { (cs.Lookup (names.At i)).Set v; } { 0; }
+                    i += 1
+                }
+                this
+            }
+
+            take := (names: list i: int vals: list) => {
+                (v) => {
+                    vals.Add v
+                    (i + 1) >= (names.Count ()) { apply names vals; } { take names (i + 1) vals; }
+                }
+            }
+
+            this.init := (first) => {
+                names := fieldsNow ()
+                (typeof first) == void { base (); } { take names 0 [] first; }
+            }
+        }) ()
+    }
+
+    init = (parent: type body: function) => { parentInit parent (body.Append inject); this; } | (body: function) => { parentInit object (body.Append inject); this; }
+}

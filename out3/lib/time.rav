@@ -1,0 +1,49 @@
+readonly IsoFormat := "yyyy-MM-dd HH:mm:ss"
+
+readonly Time ::= class {
+    Ms: bigint = bigint 0
+    Parts: dict = {->}
+
+    Year := () => { Parts.Get "year"; }
+    Month := () => { Parts.Get "month"; }
+    Day := () => { Parts.Get "day"; }
+    Hour := () => { Parts.Get "hour"; }
+    Minute := () => { Parts.Get "minute"; }
+    Second := () => { Parts.Get "second"; }
+    Millisecond := () => { Parts.Get "millisecond"; }
+    Weekday := () => { Parts.Get "weekday"; }
+    WeekdayName := () => {
+        ["周日" "周一" "周二" "周三" "周四" "周五" "周六"].At (Weekday ());
+    }
+
+    Text := (fmt: object) => {
+        fmt : string { System.FormatTime Ms fmt; } { System.FormatTime Ms IsoFormat; }
+    }
+
+    AddDays := (n: int) => { Time (Ms + ((bigint n) * (bigint 86400000))); }
+    AddHours := (n: int) => { Time (Ms + ((bigint n) * (bigint 3600000))); }
+    AddMinutes := (n: int) => { Time (Ms + ((bigint n) * (bigint 60000))); }
+    AddSeconds := (n: int) => { Time (Ms + ((bigint n) * (bigint 1000))); }
+
+    CompareTo := (o: Time) => {
+        Ms < o.Ms { -1; } { Ms > o.Ms { 1; } { 0; } }
+    }
+
+    < := (o: Time) => { (CompareTo o) < 0; }
+    <= := (o: Time) => { (CompareTo o) <= 0; }
+    > := (o: Time) => { (CompareTo o) > 0; }
+    >= := (o: Time) => { (CompareTo o) >= 0; }
+    == := (o: Time) => { (CompareTo o) == 0; }
+    != := (o: Time) => { (CompareTo o) != 0; }
+
+    init = (ms: object) => {
+        Ms = bigint ms
+        Parts = System.TimeParts Ms
+        this
+    }
+}
+
+impl (IComparable Time {;})
+
+readonly Now := () => { Time (System.NowMs ()); }
+readonly TimeFrom := (text: string fmt: string) => { Time (System.ParseTime text fmt); }

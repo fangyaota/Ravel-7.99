@@ -1,0 +1,121 @@
+using "native.rav"
+using "enum.rav"
+using "io.rav"
+
+ravel "Terminal"
+
+readonly Render := (markup: object) => { Native.TerminalRender (string markup) (Tty ()); }
+
+readonly Plain := (markup: object) => { Native.TerminalRender (string markup) false; }
+
+readonly Strip := (markup: string) => { Native.TerminalStrip markup; }
+
+readonly Write := (markup: object) => { System.Write (Render markup); (); }
+readonly Line := (markup: object) => { System.WriteLine (Render markup); (); }
+readonly ToErr := (markup: object) => { System.WriteLineErr (Render markup); (); }
+
+readonly Panel := (lines: list) => { Native.TerminalPanel lines (Tty ()); }
+
+readonly Tty := () => { Native.TerminalTty (); }
+
+readonly Width := () => { Native.TerminalWidth (); }
+
+readonly Ask := (prompt: string) => { Native.TerminalAsk prompt; }
+readonly Confirm := (prompt: string) => { Native.TerminalConfirm prompt; }
+readonly Choose := (question: string choices: list) => { Native.TerminalChoose question choices; }
+
+readonly AskDefault := (prompt: string dflt: string) => { Native.TerminalAskDefault prompt dflt; }
+readonly ConfirmDefault := (prompt: string dflt: bool) => { Native.TerminalConfirmDefault prompt dflt; }
+readonly Menu := (title: string items: list) => { Native.TerminalMenu title items; }
+
+readonly private Color ::= enum {
+    Red := "red"
+    Green := "green"
+    Yellow := "yellow"
+    Blue := "blue"
+    Magenta := "magenta"
+    Cyan := "cyan"
+    Grey := "grey"
+    Bold := "b"
+    Dim := "dim"
+    Underline := "u"
+}
+
+readonly Wrap := (c: object s: object) => { "[" + c.Value + "]" + (Escape (string s)) + "[/]"; }
+readonly Escape := (s: string) => { Native.TerminalEscape s; }
+
+readonly Red := Wrap Color.Red
+readonly Green := Wrap Color.Green
+readonly Yellow := Wrap Color.Yellow
+readonly private Blue := Wrap Color.Blue
+readonly private Magenta := Wrap Color.Magenta
+readonly private Cyan := Wrap Color.Cyan
+readonly private Grey := Wrap Color.Grey
+readonly Bold := Wrap Color.Bold
+readonly private Dim := Wrap Color.Dim
+readonly private Underline := Wrap Color.Underline
+
+readonly Good := Wrap Color.Green
+readonly Warn := Wrap Color.Yellow
+readonly Bad := Wrap Color.Red
+readonly private Hint := Wrap Color.Grey
+
+readonly Rule := (n: int) => { ("─").Repeat n; }
+
+readonly Bar := (done: int total: int width: int) => {
+    w := width < 4 { 4; } { width; }
+    frac := total <= 0 { 0.0; } { (real done) / (real total); }
+    frac < 0.0 { frac = 0.0; } { 0; }
+    frac > 1.0 { frac = 1.0; } { 0; }
+    n := (int (frac * (real w)))
+    pct := (int (frac * 100.0))
+    ("[" + (("#").Repeat n)) + ((".").Repeat (w - n)) + ("] " + (string pct) + "%");
+}
+
+readonly Tick := (done: int total: int) => {
+    w := (Width ()) - 8
+    System.Write ("\r" + (Bar done total w))
+    ();
+}
+
+readonly ConsoleOut ::= class {
+    Label: string = "stdout"
+    ToErr: bool = false
+
+    init = (label: string toErr: bool) => { Label = label; ToErr = toErr; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Size := () => { throw (Exception ("控制台没有大小：" + Label)); }
+    Read := () => { throw (Exception ("这是只写的（" + Label + "），读不了")); }
+    Delete := () => { throw (Exception ("控制台删不掉：" + Label)); }
+    Write := (text: string) => {
+        ToErr { System.WriteErr text; } { System.Write text; }
+        ();
+    }
+    Append := (text: string) => { Write text; }
+}
+
+readonly ConsoleIn ::= class {
+    Name := () => { "stdin"; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Size := () => { throw (Exception "控制台没有大小：stdin"); }
+    Delete := () => { throw (Exception "控制台删不掉：stdin"); }
+    Write := (text: string) => { throw (Exception "这是只读的（stdin），写不了"); }
+    Append := (text: string) => { throw (Exception "这是只读的（stdin），写不了"); }
+
+    Read := () => { System.ReadAllInput (); }
+    ReadLine := () => { System.ReadLine (); }
+    Lines := () => { System.SplitLines (System.ReadAllInput ()); }
+}
+
+impl (IEntry ConsoleOut {;})
+impl (IFile ConsoleOut {;})
+impl (IEntry ConsoleIn {;})
+impl (IFile ConsoleIn {;})
+
+readonly Stdout := ConsoleOut "stdout" false
+readonly Stderr := ConsoleOut "stderr" true
+readonly Stdin := ConsoleIn ()

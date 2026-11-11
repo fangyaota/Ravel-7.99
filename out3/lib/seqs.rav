@@ -1,0 +1,62 @@
+
+ravel "Seqs"
+
+readonly Gather := (xs: IEnumerable) => {
+    out := []
+    xs.Foreach (x: object) => { out.Add x; }
+    out
+}
+
+readonly Flatten := (xss: IEnumerable) => {
+    out := []
+    xss.Foreach (xs: IEnumerable) => { xs.Foreach (x: object) => { out.Add x; } }
+    out
+}
+
+readonly Chunk := (xs: IEnumerable) => {
+    (n: int) => {
+        assert (n >= 1) ("Chunk 的每组个数至少是 1，得到 " + string n)
+        out := []
+        cur := []
+        xs.Foreach (x: object) => {
+            cur.Add x
+
+            (cur.Count ()) == n { out.Add cur; cur = []; } { 0; }
+        }
+        (cur.Count ()) > 0 { out.Add cur; } { 0; }
+        out
+    }
+}
+
+readonly Zip := (a: IEnumerable) => {
+    (b: IEnumerable) => {
+        left := Gather a
+        right := Gather b
+        n := (left.Count ()) < (right.Count ()) { left.Count (); } { right.Count (); }
+        out := []
+        i := 0
+
+        while { i < n; } { out.Add [(left.At i) (right.At i)]; i += 1; }
+        out
+    }
+}
+
+readonly Group := (xs: IEnumerable) => {
+    (key: function) => {
+        out := {->}
+        xs.Foreach (x: object) => {
+            k := (key x).Key ()
+            out.Has k { (out.Get k).Add x; } { out.Set k [x]; }
+        }
+        out
+    }
+}
+
+readonly Frequency := (xs: IEnumerable) => {
+    out := {->}
+    xs.Foreach (x: object) => {
+        k := x.Key ()
+        out.Has k { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
+    }
+    out
+}

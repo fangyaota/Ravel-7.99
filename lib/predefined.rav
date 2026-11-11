@@ -61,6 +61,7 @@ readonly seal := System.Seal
 readonly currentScope := System.CurrentScope
 readonly property := System.Property
 
+
 readonly while := (c: function body: function) => {
     again := (x: int) => { x; }
     callcc (k: function) => { again = k; }
@@ -68,6 +69,7 @@ readonly while := (c: function body: function) => {
     cond : bool = c ()
     cond { body (); again 0; } { 0; }
 }
+
 
 using "numbers.rav"
 

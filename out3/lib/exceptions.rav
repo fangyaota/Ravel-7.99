@@ -1,0 +1,45 @@
+ravel "Ex"
+
+HandlerStack: list = []
+
+readonly Throw := (e: Exception) => {
+    (HandlerStack.Count ()) == 0 {
+        exit (e.ToString ())
+    } {
+        top := HandlerStack.At 0
+        HandlerStack = HandlerStack.Skip 1
+        top e
+    }
+}
+
+readonly Try := (body: function) => {
+    (handler: function) => {
+        result := callcc (ok: function) => {
+            mine := (e: Exception) => {
+                ok (handler e)
+            }
+            HandlerStack = [mine].Concat HandlerStack
+
+            r := body ()
+
+            (HandlerStack.Count ()) == 0 { 0; } {
+                (HandlerStack.At 0) == mine { HandlerStack = HandlerStack.Skip 1; } { 0; }
+            }
+            ok r
+        }
+        result
+    }
+}
+
+ravel ""
+
+readonly onError := (e: Exception) => {
+    (Ex.HandlerStack.Count ()) > 0 && (typeof (Ex.HandlerStack.At 0)) == function {
+        top := Ex.HandlerStack.At 0
+        Ex.HandlerStack = Ex.HandlerStack.Skip 1
+        top e
+    } {
+        System.Unhandled e
+    }
+}
+System.SetErrorHook onError

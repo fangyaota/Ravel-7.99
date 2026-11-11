@@ -1,0 +1,228 @@
+﻿ravel "Encoding"
+
+readonly Utf8 := (s: string) => {
+    out := []
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        cp := int (s.At i)
+
+        (cp >= 55296) && (cp <= 56319) && ((i + 1) < n) {
+            lo := int (s.At (i + 1))
+            (lo >= 56320) && (lo <= 57343) {
+                cp = 65536 + (((cp - 55296) * 1024) + (lo - 56320))
+                i += 1
+            } { 0; }
+        } { 0; }
+
+        (cp < 128) {
+            out.Add cp
+        } {
+            (cp < 2048) {
+                out.Add (192 + (cp / 64))
+                out.Add (128 + (cp % 64))
+            } {
+                (cp < 65536) {
+                    out.Add (224 + (cp / 4096))
+                    out.Add (128 + ((cp / 64) % 64))
+                    out.Add (128 + (cp % 64))
+                } {
+                    out.Add (240 + (cp / 262144))
+                    out.Add (128 + ((cp / 4096) % 64))
+                    out.Add (128 + ((cp / 64) % 64))
+                    out.Add (128 + (cp % 64))
+                }
+            }
+        }
+        i += 1
+    }
+    out
+}
+
+readonly Utf8Text := (bytes: list) => {
+    out := ""
+    i := 0
+    n := bytes.Count ()
+    while { i < n; } {
+        b := int (bytes.At i)
+        (b < 128) {
+            out += (string (char b))
+            i += 1
+        } {
+            wide := 0
+            cp := 0
+            (b >= 240) { wide = 4; cp = b - 240; } {
+                (b >= 224) { wide = 3; cp = b - 224; } {
+                    (b >= 192) { wide = 2; cp = b - 192; } {
+                        out += (string (char 65533))
+                        i += 1
+                    }
+                }
+            }
+
+            ok := ((i + wide) <= n)
+            k := 1
+            while { ok && (k < wide); } {
+                more := int (bytes.At (i + k))
+                ((more >= 128) && (more <= 191)) { cp = ((cp * 64) + (more - 128)); } { ok = false; }
+                k += 1
+            }
+            ok {
+                (cp < 65536) {
+                    out += (string (char cp))
+                } {
+                    p := cp - 65536
+                    out += (string (char (55296 + (p / 1024))))
+                    out += (string (char (56320 + (p % 1024))))
+                }
+                i += wide
+            } {
+                out += (string (char 65533))
+                i += 1
+            }
+        }
+    }
+    out
+}
+
+readonly private B64Table := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+readonly Base64 := (bytes: list) => {
+    out := ""
+    i := 0
+    n := bytes.Count ()
+    while { i < n; } {
+        b0 := int (bytes.At i)
+        b1 := ((i + 1) < n) { int (bytes.At (i + 1)); } { 0; }
+        b2 := ((i + 2) < n) { int (bytes.At (i + 2)); } { 0; }
+        left := n - i
+        out += (string (B64Table.At (b0 / 4)))
+        out += (string (B64Table.At (((b0 % 4) * 16) + (b1 / 16))))
+        left > 1 { out += (string (B64Table.At (((b1 % 16) * 4) + (b2 / 64)))); } { out += "="; }
+        left > 2 { out += (string (B64Table.At (b2 % 64))); } { out += "="; }
+        i += 3
+    }
+    out
+}
+
+readonly Unbase64 := (s: string) => {
+    out := []
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        b0 := B64Table.IndexOf (s.At i)
+        b1 := ((i + 1) < n) && ((s.At (i + 1)) != '=') { B64Table.IndexOf (s.At (i + 1)); } { 0 - 1; }
+        b2 := ((i + 2) < n) && ((s.At (i + 2)) != '=') { B64Table.IndexOf (s.At (i + 2)); } { 0 - 1; }
+        b3 := ((i + 3) < n) && ((s.At (i + 3)) != '=') { B64Table.IndexOf (s.At (i + 3)); } { 0 - 1; }
+
+        assert (b0 >= 0) ("Encoding.Unbase64: 不是合法的 Base64（'" + (string (s.At i)) + "'）")
+        out.Add (((b0 * 4) + (b1 < 0 { 0; } { b1 / 16; })) % 256)
+
+        b2 >= 0 {
+            out.Add ((((b1 % 16) * 16) + (b2 < 0 { 0; } { b2 / 4; })) % 256)
+        } { 0; }
+
+        b3 >= 0 {
+            out.Add ((((b2 % 4) * 64) + (b3 < 0 { 0; } { b3; })) % 256)
+        } { 0; }
+        i += 4
+    }
+    out
+}
+
+readonly Base64Text := (s: string) => { Base64 (Utf8 s); }
+readonly Unbase64Text := (s: string) => { Utf8Text (Unbase64 s); }
+
+readonly private HexDigits := "0123456789abcdef"
+readonly private HexUpper := "0123456789ABCDEF"
+
+readonly private DigitOf := (c: char) => {
+    t := string c
+
+    HexDigits.Contains t { HexDigits.IndexOf c; } {
+        HexUpper.Contains t { HexUpper.IndexOf c; } { 0 - 1; }
+    }
+}
+
+readonly Hex := (bytes: list) => {
+    out := ""
+    bytes.Foreach (b: object) => {
+        v := int b
+        out += (string (HexDigits.At (v / 16)))
+        out += (string (HexDigits.At (v % 16)))
+    }
+    out
+}
+
+readonly Unhex := (s: string) => {
+    out := []
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        hi := DigitOf (s.At i)
+        assert (((hi >= 0) && ((i + 1) < n))) ("Encoding.Unhex: 不是合法的十六进制（'" + s + "'）")
+        lo := DigitOf (s.At (i + 1))
+        assert (lo >= 0) ("Encoding.Unhex: 不是合法的十六进制（'" + s + "'）")
+        out.Add (((hi * 16) + lo))
+        i += 2
+    }
+    out
+}
+
+readonly private UrlSafe := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
+
+readonly UrlEncode := (s: string) => {
+    out := ""
+    (Utf8 s).Foreach (b: object) => {
+        c := string (char (int b))
+        UrlSafe.Contains c { out += c; } {
+            v := int b
+
+            out += (("%" + (string (HexUpper.At (v / 16)))) + (string (HexUpper.At (v % 16))))
+        }
+    }
+    out
+}
+
+readonly UrlDecode := (s: string) => {
+    out := []
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        c := s.At i
+        (c == '%') {
+            assert ((i + 2) < n) ("Encoding.UrlDecode: '%' 后面要跟两位十六进制（'" + s + "'）")
+            hi := DigitOf (s.At (i + 1))
+            lo := DigitOf (s.At (i + 2))
+            assert ((hi >= 0) && (lo >= 0)) ("Encoding.UrlDecode: 不是合法的转义（'" + s + "'）")
+            out.Add (((hi * 16) + lo))
+            i += 3
+        } {
+            (c == '+') { out.Add 32; } { out.Add (int c); }
+            i += 1
+        }
+    }
+    Utf8Text out
+}
+
+readonly HtmlEscape := (s: string) => {
+    out := ""
+    i := 0
+    n := s.Length ()
+    while { i < n; } {
+        c := s.At i
+        (c == '&') { out += "&amp;"; } {
+            (c == '<') { out += "&lt;"; } {
+                (c == '>') { out += "&gt;"; } {
+                    (c == '"') { out += "&quot;"; } {
+                        (c == '\'') { out += "&#39;"; } {
+                            out += (string c)
+                        }
+                    }
+                }
+            }
+        }
+        i += 1
+    }
+    out
+}

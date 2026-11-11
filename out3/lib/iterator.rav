@@ -1,0 +1,330 @@
+﻿readonly private SeekIn := (xs: object p: function) => {
+    hit: object = ()
+    found := false
+    callcc (done: function) => {
+        xs.Foreach (x: object) => {
+            (p x) { found = true; hit = x; done (); } { 0; }
+        }
+    }
+    found { Some hit; } { None; }
+}
+
+readonly private ExtremeOf := (xs: object what: string keepLess: bool) => {
+    got := false
+    best: object = ()
+    xs.Foreach (x: object) => {
+        (!got) {
+            got = true
+            best = x
+        } {
+            keepLess { (x < best) { best = x; } { 0; } } { (best < x) { best = x; } { 0; } }
+        }
+    }
+    got { 0; } { throw (IndexError (what + ": 空集合没有" + what)); }
+    best
+}
+
+readonly IEnumerable ::= interface IMonad {
+    internal GetEnumerator : function = _
+
+    internal Where := (p: function) => {
+        Generator (y: function) => {
+            instance.Foreach (x: object) => {
+                (p x) { y x; } { 0; }
+            }
+        }
+    }
+
+    internal Bind := (f: function) => {
+        Generator (y: function) => {
+            instance.Foreach (x: object) => {
+                (f x).Foreach (v: object) => { y v; }
+            }
+        }
+    }
+
+    internal Take := (n: int) => {
+        Generator (y: function) => {
+            e := instance.GetEnumerator ()
+            i := 0
+            while { (i < n) && e.MoveNext (); } {
+                y e.Current
+                i += 1
+            }
+        }
+    }
+
+    internal Skip := (n: int) => {
+        Generator (y: function) => {
+            i := 0
+            instance.Foreach (x: object) => {
+                (i >= n) { y x; } { 0; }
+                i += 1
+            }
+        }
+    }
+
+    internal Slice := (rng: Range) => {
+        n := rng.Count ()
+
+        n <= 0 { (instance.Skip 0).Take 0; } {
+            a := rng.First ()
+            b := rng.Last ()
+
+            lo := a <= b { a; } { b; }
+            kept := (instance.Skip lo).Take n
+            a > b { kept.Reverse (); } { kept; }
+        }
+    }
+
+    internal Concat := (xs) => {
+        Generator (y: function) => {
+            instance.Foreach (x: object) => { y x; }
+            xs.Foreach (x: object) => { y x; }
+        }
+    }
+
+    internal Distinct := () => {
+        Generator (y: function) => {
+            xs := instance.ToList ()
+            (xs.Distinct ()).Foreach (x: object) => { y x; }
+        }
+    }
+
+    internal Reverse := () => {
+        Generator (y: function) => {
+            xs := instance.ToList ()
+            (xs.Reverse ()).Foreach (x: object) => { y x; }
+        }
+    }
+
+    internal SortBy := (key: function) => {
+        Generator (y: function) => {
+            xs := instance.ToList ()
+            (Sorting.SortBy xs key).Foreach (x: object) => { y x; }
+        }
+    }
+
+    internal IsEmpty := () => {
+        e := instance.GetEnumerator ()
+        !(e.MoveNext ())
+    }
+
+    internal ToList := () => {
+        out := []
+        instance.Foreach (x: object) => { out.Add x; }
+        out
+    }
+
+    internal ToSet := () => { (instance.ToList ()).ToSet (); }
+
+    internal ToGenerator := () => {
+        Generator (y: function) => {
+            instance.Foreach (x: object) => { y x; }
+        }
+    }
+
+    internal Foreach := (f: function) => {
+        e := instance.GetEnumerator ()
+        while { e.MoveNext (); } { f (e.Current); }
+        ()
+    }
+
+    internal Fold := (init: object f: function) => {
+        acc := init
+        instance.Foreach (x: object) => { acc = (f acc) x; }
+        acc
+    }
+
+    internal Sum := () => {
+        acc := 0
+        instance.Foreach (x: object) => { acc = acc + x; }
+        acc
+    }
+
+    internal Min := () => { ExtremeOf instance "Min" true; }
+    internal Max := () => { ExtremeOf instance "Max" false; }
+
+    internal Join := (sep: string) => {
+        out := ""
+        first := true
+        instance.Foreach (x: object) => {
+            first { first = false; } { out += sep; }
+            out += string x
+        }
+        out
+    }
+
+    internal First := () => {
+        o := SeekIn instance (x: object) => { true; }
+        o.IsSome () { 0; } { throw (IndexError "First: 元素不够（一共 0 个）"); }
+        o.Value ()
+    }
+
+    internal TryFirst := () => { SeekIn instance (x: object) => { true; }; }
+
+    internal Last := () => {
+        got := false
+        last: object = ()
+        instance.Foreach (x: object) => { got = true; last = x; }
+        got { 0; } { throw (IndexError "Last: 元素不够（一共 0 个）"); }
+        last
+    }
+
+    internal Contains := (v: object) => {
+        o := SeekIn instance (x: object) => { x == v; }
+        o.IsSome ()
+    }
+
+    internal Any := (p) => {
+        p : function {
+            o := SeekIn instance p
+            o.IsSome ()
+        } {
+            !(instance.IsEmpty ())
+        }
+    }
+
+    internal All := (p: function) => {
+        o := SeekIn instance (x: object) => { !(p x); }
+        !(o.IsSome ())
+    }
+
+    internal Find := (p: function) => {
+        o := SeekIn instance p
+        assert (o.IsSome ()) "Find: 没有满足条件的元素"
+        o.Value ()
+    }
+
+    internal TryFind := (p: function) => { SeekIn instance p; }
+}
+
+readonly IEnumerator ::= interface IEnumerable {
+    internal MoveNext : function = _
+    by Current : object = _
+
+    internal GetEnumerator : function = _
+
+    GetEnumerator = () => { instance; }
+}
+
+IList ::= interface IEnumerable {
+    internal Count := () => {
+        n := 0
+        instance.Foreach (x: object) => { n += 1; }
+        n
+    }
+    internal At := (k: int) => {
+        i := 0
+        o := SeekIn instance (x: object) => { mine := i; i += 1; mine == k; }
+        o.IsSome () { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
+    }
+}
+
+impl (IMonad list {;})
+impl (IEnumerable list {
+    GetEnumerator = () => { Enumerator instance; }
+})
+impl (IList list {;})
+
+impl (IMonad string {;})
+impl (IEnumerable string {
+    GetEnumerator = () => { Enumerator instance; }
+})
+impl (IList string {
+    Count = () => { instance.Length (); }
+})
+
+readonly Enumerator ::= class {
+    Items : IList = []
+    N : int = 0
+    Index : int = -1
+    init = (items: IList) => { Items = items; N = items.Count (); this; }
+    MoveNext := () => { Index += 1; Index < N; }
+
+    Count := () => {
+        n := 0
+        this.Foreach (x: object) => { n += 1; }
+        n
+    }
+    At := (k: int) => {
+        i := 0
+        o := SeekIn this (x: object) => { mine := i; i += 1; mine == k; }
+        o.IsSome () { o.Value (); } { throw (IndexError ("At: 元素不够（一共 " + (string i) + " 个）")); }
+    }
+    by Current := property (() => { Items.At Index; }) ((v: object) => { (); })
+}
+
+readonly RangeCursor ::= class {
+    Cur: object = 0
+    Top: object = 0
+    Step: int = 1
+    Started: bool = false
+    Empty: bool = true
+
+    Open: bool = false
+
+    init = (r: Range) => {
+        Empty = r.IsEmpty ()
+        Empty { 0; } {
+            Cur = r.First ()
+            Step = r.Step ()
+            Open = !(r.IsBounded ())
+            Open { 0; } { Top = r.Last (); }
+        }
+        this;
+    }
+
+    MoveNext := () => {
+        Empty { false; } {
+            Started { Cur += Step; } { Started = true; }
+            Open { true; } { Step > 0 { Cur <= Top; } { Cur >= Top; } }
+        }
+    }
+
+    by Current := property (() => { Cur; }) ((v: object) => { (); })
+}
+
+impl (IMonad set {;})
+impl (IEnumerable set {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList set {;})
+impl (IMonad dict {;})
+impl (IEnumerable dict {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList dict {;})
+
+impl (IMonad System.Scope {;})
+impl (IEnumerable System.Scope {
+    GetEnumerator = () => { Enumerator ((instance.Variables ()).Values ()); }
+})
+impl (IList System.Scope {;})
+
+impl (IMonad Option {;})
+impl (IEnumerable Option {
+    GetEnumerator = () => {
+        instance.IsSome () {
+            v := instance.Value ()
+            Enumerator [v];
+        } {
+            Enumerator [];
+        }
+    }
+})
+impl (IList Option {;})
+
+impl (IMonad Range {;})
+impl (IEnumerable Range {
+    GetEnumerator = () => { RangeCursor instance; }
+})
+
+impl (IMonad Enumerator {;})
+impl (IEnumerable Enumerator {
+    GetEnumerator = () => { instance; }
+})
+impl (IEnumerator Enumerator {
+    MoveNext = () => { instance.MoveNext (); }
+    by Current = property (() => { instance.Current; }) ((v: object) => { (); })
+})

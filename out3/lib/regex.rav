@@ -1,0 +1,79 @@
+
+readonly RegexMatch ::= class {
+    Hit: string = ""
+    Index: int = 0
+    Span: int = 0
+    Captured: list = []
+    Named: dict = {->}
+
+    init = (d: dict) => {
+        Hit = d.Get "value"
+        Index = d.Get "index"
+        Span = d.Get "length"
+        Captured = d.Get "groups"
+        Named = d.Get "named"
+        this;
+    }
+
+    Value := () => { Hit; }
+    At := () => { Index; }
+    Length := () => { Span; }
+    Groups := () => { Captured; }
+
+    Group := (k) => {
+        (typeof k) == string {
+            assert (Named.Has k) ("Group: 没有叫 '" + k + "' 的组（命名组要在模式里写成 (?<" + k + ">…)）")
+            Named.Get k
+        } {
+            i := int k
+
+            assert ((i >= 0) && (i < (Captured.Count ()))) ("Group: 第 " + (string i) + " 组没有（一共 " + (string (Captured.Count ())) + " 组）")
+            Captured.At i
+        }
+    }
+}
+
+readonly private RegexPattern ::= class {
+    Pattern: string = ""
+    Flags: string = ""
+
+    init = (pattern: string flags: string) => { Pattern = pattern; Flags = flags; this; }
+
+    IsMatch := (text: string) => { Native.RegexIsMatch Pattern text Flags; }
+
+    TryMatch := (text: string) => {
+        d := Native.RegexMatch Pattern text Flags
+        (typeof d) == dict { Some (RegexMatch d); } { None; }
+    }
+
+    Match := (text: string) => {
+        o := this.TryMatch text
+        assert (o.IsSome ()) ("Match: 没有匹配 —— 模式 " + Pattern)
+        o.Value ()
+    }
+
+    FindAll := (text: string) => {
+        out := []
+        (Native.RegexFindAll Pattern text Flags).Foreach (d: dict) => { out.Add (RegexMatch d); }
+        out
+    }
+
+    Replace := (text: string replacement: string) => { Native.RegexReplace Pattern text Flags replacement; }
+
+    Split := (text: string) => { Native.RegexSplit Pattern text Flags; }
+}
+
+using "native.rav"
+ravel "Regex"
+
+readonly C := (pattern: string) => { RegexPattern pattern ""; }
+readonly With := (pattern: string flags: string) => {
+
+    ok := ["i" "m" "s" "x"]
+    (flags.Chars ()).Foreach (c: char) => {
+        assert (ok.Contains (string c)) ("Regex.With: 不认识的选项 '" + (string c) + "'（有 i / m / s / x）")
+    }
+    RegexPattern pattern flags;
+}
+
+readonly Escape := (text: string) => { Native.RegexEscape text; }

@@ -1,0 +1,53 @@
+readonly Expected ::= class {
+    Has: bool = false
+    Inner: object = ()
+    Err: object = ()
+
+    IsOk := () => { Has; }
+    IsErr := () => { !Has; }
+
+    Value := () => {
+        assert Has ("Expected.Value: 这次调用是失败的（先 IsOk 问一句，或改用 ValueOr / Error）")
+        Inner
+    }
+
+    ValueOr := (d: object) => { Has { Inner; } { d; } }
+
+    Error := () => {
+        assert (!Has) ("Expected.Error: 这次调用没出错（要值请用 Value）")
+        Err
+    }
+
+    Message := () => { string (Error ()); }
+
+    Map := (f: function) => { Has { Ok (f Inner); } { this; } }
+
+    Bind := (f: function) => { Has { f Inner; } { this; } }
+
+    Exists := (p: function) => { Has && p Inner; }
+
+    init = (has: bool v: object e: object) => {
+        Has = has
+        Inner = v
+        Err = e
+        this
+    }
+}
+
+readonly Ok := (v: object) => { Expected true v (); }
+readonly Err := (e: object) => { Expected false () e; }
+
+impl (IMonad Expected {;})
+
+readonly Expect := (argCount: int f: function) => {
+    Step := (n: int partial: function) => {
+        (a: object) => {
+            (n + 1) == argCount {
+                try { Ok (partial a); } (e: Exception) => { Err e; }
+            } {
+                try { Step (n + 1) (partial a); } (e: Exception) => { Err e; }
+            }
+        }
+    }
+    Step 0 f
+}

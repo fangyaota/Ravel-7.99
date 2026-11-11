@@ -1,0 +1,465 @@
+# 4、控制流
+
+## 4.1 条件：`bool` 自己收两个块
+
+**没有 `if`** —— `Bool` 挂在 `Function` 下，`true` / `false` 本身就是"收两个块、选中那个"的函数：
+
+```ravel
+x > 0 {
+    print "positive";
+} {
+    print "non-positive";
+}
+```
+
+那个 `{ … }` **绑的是整条 `x > 0`**（不是 `0`）—— 块字面量比运算符松，判据在 `Parser.ParseBlockArgs`。
+所以括号可有可无，`(x > 0) { … } { … }` 一样。
+
+#### 实例
+
+```ravel
+print (true  { "then"; } { "else"; })
+print (false { "then"; } { "else"; })
+print ((1 < 2) { "yes"; } { "no"; })
+```
+
+执行以上程序会输出如下结果：
+
+```
+then
+else
+yes
+```
+
+从**条件**那一格拿到的值必须是 `bool` —— 拿别的东西去收块，报的是「值 X 不是函数，不能调用」。
+
+（`if` 那个三参库函数 **2026-10-07 删了**。它把条件包成一个 thunk、自己再多进一次调用：
+同一次条件分派量下来 **111 步 vs 直接写 75 步（贵 48%）**。代价是"条件得是个 bool"
+少了一道**专门的**检查 —— `while` 里那句 `cond : bool = c ()` 还在，报得准。）
+
+## 4.2 while
+
+```ravel
+i := 0
+while { i < 5; } {
+    print i;
+    i += 1;
+}
+```
+
+## 4.3 Foreach
+
+```ravel
+[1 2 3].Foreach (x: int) => { print x; }
+```
+
+`Foreach` 是 **`IEnumerable` 上的方法**（`lib/iterator.rav`，接口照 C# 那个形状写的），三种容器各有它：
+
+| 写法 | 迭代的是 |
+|------|----------|
+| `[1 2 3].Foreach (x) => { … }` | 元素 |
+| `{1 2 3}.Foreach (x) => { … }` | 元素（集合）|
+| `{"a"->1}.Foreach (v) => { … }` | **值**（不是键）|
+
+**它同时是个循环** —— 解析器和 `while` 一样**按名字认**它，所以体里 `break` / `continue` / `@标签` 都照常。体是个 lambda，所以在里面写 `return` 出的是**那一趟**。
+
+不是 `IEnumerable` 的东西报错（**没有这个方法**）：
+
+#### 实例
+
+```ravel
+5.Foreach (x: int) => { print x; }
+```
+
+执行以上程序会输出如下结果：
+
+```
+Error: 类型 'Integer' 没有方法 'Foreach'
+```
+
+（从前写 `foreach 5 …`：那是**库函数**，报的是说全了的那句「foreach 需要 IEnumerable（能按顺序交出一串的东西：…），得到 Integer」。改成方法之后没有兜底那一层了，换来的是下面这件事。）
+
+**容器上它走引擎那条路**（每元素 ~1 µs），别的 `IEnumerable`（`Generator` / `Option` / 自己实现的 `IList`）走接口里那条默认实现 —— 展开就是枚举器那个循环：
+
+```ravel
+e := instance.GetEnumerator ()
+while { e.MoveNext (); } { f (e.Current); }
+```
+
+**每次进来都新开一个枚举器**，所以嵌套遍历同一串值互不打扰（和 C# 一样）。
+
+### 枚举器自己也是一串 —— 走一遍就消耗掉
+
+`IEnumerator <: IEnumerable`，它交回的枚举器就是它自己（像 C# 里 `yield` 生成的那个类）。于是**两条语义**：遍历的是「还没走完的那一段」，而且走一遍就把它**吃掉**了。
+
+#### 实例
+
+```ravel
+e := Enumerator [1 2 3]
+print (e.Count ())
+print (e.Count ())
+```
+
+执行以上程序会输出如下结果：
+
+```
+3
+0
+```
+
+生成器的光标也一样：
+
+#### 实例
+
+```ravel
+c := (Generator (y: function) => { y 1; y 2; y 3; }).GetEnumerator ()
+print (c.First ())
+print (c.ToList ())
+```
+
+执行以上程序会输出如下结果：
+
+```
+1
+[2 3]
+```
+
+### 实现了 `IEnumerable`，就白拿一整套
+
+接口的类体里写着整套方法的默认实现（接口的类体会在每个实现对象上跑一遍，所以"实现体不填就用它"）：
+
+```ravel
+G := Generator (y: function) => { y 1; y 2; y 3; }
+G.Count ()      # 3
+G.Sum ()        # 6
+G.Join "-"      # 1-2-3
+G.Max ()        # 3
+G.Fold 0 (acc: int x: int) => { acc + x; }   # 6
+```
+
+**分界线**：交回**一串**的惰性，要**一个值 / 容器**的当场算。
+
+| 惰性（一串进、一串出） | 急切（要值 / 容器） |
+|---|---|
+| `Map` `Where` `Bind` `Take` `Skip` `Concat` `Distinct` `Reverse` `SortBy` | `Count` `IsEmpty` `First` `Last` `At` `Contains` `Sum` `Min` `Max` `Join` `ToList` `ToSet` `ToGenerator` `Each` `All` `Any` `Find` `Fold` `TryFind` `TryFirst` |
+
+无限流上只有惰性那批用得起来：
+
+#### 实例
+
+```ravel
+Nats := Generator (y: function) => { n := 0; while { true; } { y n; n += 1 } }
+print (Seqs.Gather (Nats.Take 4))
+doubled := Nats.Map ((n: int) => { n * 2; })
+print (Seqs.Gather (doubled.Take 3))
+```
+
+执行以上程序会输出如下结果：
+
+```
+[0 1 2 3]
+[0 2 4]
+```
+
+注意：容器上那几个**同名方法**是引擎给的（在类链上先命中），行为一样、只是**急切** —— `[1 2 3].Map f` 交回 `list`，`G.Map f` 交回 `Generator`。要转就 `ToList ()` / `ToGenerator ()`。
+
+自己的类交回一个枚举器（库里的 `Enumerator` 拿来就能用）也能用 `.Foreach`：
+
+```ravel
+use (IEnumerable MyThing {
+    GetEnumerator = () => { Enumerator [1 2 3]; }
+})
+```
+
+**有下标就更省事**：类里摆上 `At` / `Count`，标一个 `IList`，枚举和白拿的那整套一起到手 ——
+`IList <: IEnumerable`，它的接口体只填 `GetEnumerator = () => { Enumerator instance; }`，
+也就是"拿**自己**当枚举器的元素表"，不再抄一份：
+
+```ravel
+Pair ::= class {
+    A : int = 0
+    B : int = 0
+    init = (a: int b: int) => { A = a; B = b; this; }
+    Count := () => { 2; }
+    At := (i: int) => { i == 0 { A; } { B; }; }
+}
+use (IList Pair {
+    ()
+})
+```
+
+注意 `At` / `Count` **不写在 `IList` 里**：`IEnumerable` 的接口体本来就有这两条的默认实现（**数一遍 /
+走一遍**，任何一串都答得出来，代价 O(n)）—— `IList` 承诺的是"这个类型的这两条**不用数**"，
+所以它只是个标记。（`Count` 那条对字符串要自己填一次：`String` 的个数叫 `Length`，类链上够不着。）
+
+### 自己造一串：`Generator`
+
+把「往外送值」的那段代码交给 `Generator`，体的参数 `y` 是投喂口：**`y v` 送出一个值并挂起**，消费者再要下一个才接着跑。
+
+#### 实例
+
+```ravel
+Nats := Generator (y: function) => {
+    n := 0
+    while { true; } { y n; n += 1 }
+}
+five := callcc (stop: function) => {
+    i := 0
+    out := []
+    Nats.Foreach (x: int) => {
+        i >= 5 { stop out; } { 0; }
+        out.Add x
+        i += 1
+    }
+}
+print five
+```
+
+执行以上程序会输出如下结果：
+
+```
+[0 1 2 3 4]
+```
+
+注意：**每次 `.Foreach` 都从头跑一遍体**（体是配方，和类体一个规矩）—— 同一个 `Generator` 遍历两次，两次各自从头。要"一次性"就在外面用变量兜住。
+
+注意：能 `.Foreach` 的东西都能包成生成器（`Generator (y) => { xs.Foreach (x) => { y x; } }`），生成器也能套生成器做扁平化。
+
+## 4.4 按模式分派
+
+「喂进去、按**模式**分派」就一行 —— 值 `|>` 一串 `模式 => 结果`：
+
+#### 实例
+
+```ravel
+kind := (v: object) => {
+    v |> (x: int)    => { "整数"; }
+      |  (x: bool)   => { "布尔"; }
+      |  (x: string) => { "字符串"; }
+      |  _           => { "别的"; }
+}
+print (kind 3)
+print (kind true)
+print (kind 1.5)
+```
+
+执行以上程序会输出如下结果：
+
+```
+整数
+布尔
+别的
+```
+
+`|` **比 `|>` 松** —— 所以 `v |> A | B` 读成 `v |> (A | B)`：值喂给**整条**函数，
+不是喂给第一格。（加括号也一样，多一层看得清楚而已。）
+
+**模式比谓词宽** —— 类型、字面量、条件、结构都能写。想比值就写字面量：
+
+#### 实例
+
+```ravel
+IsNeg := (n: int) => { n < 0; }
+IsZero := (n: int) => { n == 0; }
+sign := (n: int) => {
+    n |> ((x: int) |> IsNeg)  => { "负"; }
+      |  ((x: int) |> IsZero) => { "零"; }
+      |  _                     => { "正"; }
+}
+print (sign (0 - 5))
+print (sign 0)
+print (sign 5)
+```
+
+执行以上程序会输出如下结果：
+
+```
+负
+零
+正
+```
+
+三件事记着：
+
+- **结果写成块**（或 `~表达式`）—— 命中那一支才跑，没命中的不跑（和条件那个 `bool` 收两块一个规矩）；
+- **第一个命中的胜出**，所以顺序有讲究（宽的那支写后面）；
+- **兜底那支写 `_`**。不写也行 —— 那就没有兜底，真都不中会当场报错（最后一支自己的
+  那句：`参数 'x' 需要 …，得到 …`）。
+
+参数位**类型不符**会落到下一支（那是一次**拒收**，`|` 接得住）—— 这就是"按类型挑"。
+
+## 4.5 早期退出
+
+### `return`：函数里提前交回一个值
+
+函数里"提前交回"太常见，所以有专门的糖。**它归一个开关管，默认关着**（`break` / `continue` 同理）：
+
+- 命令行：`ravel --more-control-flow 你的脚本.rav`（整次运行都开）
+- 文件头：`#program --more-control-flow=true`（只这个文件开）
+
+#### 实例
+
+```ravel
+#program --more-control-flow=true
+f := (n: int) => {
+    n < 0 { return 0; } { 0; }
+    n * 2
+}
+print (f 5)
+print (f (-3))
+```
+
+执行以上程序会输出如下结果：
+
+```
+10
+0
+```
+
+它是**上下文关键字** —— 只在**语句开头**认：`return := 5` 还是定义，`x.return` 还是成员。裸写 `return` 交回 `()`。
+
+出的是**最近一层用户写的函数**。两条推论：`.Foreach` 的体本身就是一个 lambda，所以在那儿写 `return` 只出那一趟的体；而 `do` / `?.` 那些**内部消糖**造的 lambda 不算一层（它们只是把表达式挪个地方），`return` 不会被截住。
+
+关着的时候，`return` / `break` / `continue` 就是三个**普通名字**（能拿来做变量、做成员），和从前一模一样 —— 加了三个糖，但不动老代码的写法。
+
+它脱糖成对 `__return` 的一次调用 + 在函数体外面包一层 `callcc` —— 也就是下面那个通用做法，只是不用你手写。要跳出循环、或者跳出好几层，还是得自己用 `callcc`。
+
+### `break` / `continue`：循环里的两个跳转
+
+同一个开关（`--more-control-flow`）下还有这两个。语法是熟的：`break` 跳出循环，`continue` 跳过这一轮。
+
+#### 实例
+
+```ravel
+#program --more-control-flow=true
+i := 0
+while { i < 10; } {
+    i += 1
+    i == 3 { break; } { 0; }
+}
+print i
+
+s := 0
+[1 2 3 4 5].Foreach (x: int) => {
+    (x % 2) == 0 { continue; } { 0; }
+    s += x
+}
+print s
+```
+
+执行以上程序会输出如下结果：
+
+```
+3
+9
+```
+
+**要跳出好几层就给标签** —— `@标签 <语句>`，然后 `break 标签` / `continue 标签`：
+
+#### 实例
+
+```ravel
+#program --more-control-flow=true
+@outer while { true; } {
+    [1 2 3].Foreach (x: int) => {
+        x == 2 { break outer; } { 0; }
+        print x
+    }
+}
+print "跳出来了"
+```
+
+执行以上程序会输出如下结果：
+
+```
+1
+跳出来了
+```
+
+注意：**解析器是按名字认循环的** —— 它知道"哪个调用算循环"的**唯一依据**就是 `while` 和 `.Foreach` 这两个名字。自己写的循环函数（比如 `Repeat n { … }`）**不在内**，而且**标签也救不了它**：`@l Repeat 3 { … }` 里写 `break l` 报的是「找不到标签 'l' 标的那个循环」。
+
+标签管的是另一件事 —— **跨层指哪一个**：`@outer while { … xs.Foreach (…) => { … break outer; } }` 里 `break outer` 跳的是那个**贴着标签的真循环**。
+
+注意：`continue 标签` 跳的是**那个循环的这一轮**，`break 标签` 跳的是**整个那条语句**。标签没人指会当场报错。
+
+注意：`.Foreach` 的体是个 lambda，所以在那儿写 `return` 出的是**那一趟的体**，`continue` 才是"跳过这一轮"。
+
+### 通用做法：`callcc`
+
+调一个续延会**丢弃当前帧链**、把值当作 `callcc` 表达式的返回值从捕获点继续 —— 所以它是逃出多层嵌套的办法。
+
+#### 实例
+
+```ravel
+five := callcc (exit: function) => {
+    i := 0
+    while { true; } {
+        i >= 5 { exit i; } { 0; }
+        i += 1
+    }
+}
+print five
+```
+
+执行以上程序会输出如下结果：
+
+```
+5
+```
+
+### 续延是它自己的类型
+
+`Continuation <: function`，起手那枚是 `default`。
+
+#### 实例
+
+```ravel
+esc: Continuation = default
+print (typeof esc)
+callcc (k: function) => { esc = k; "先给个值"; }
+print (typeof esc)
+print (esc : Continuation)
+print ((typeof esc) == function)
+print (esc : function)
+```
+
+执行以上程序会输出如下结果：
+
+```
+Continuation
+Continuation
+true
+false
+true
+```
+
+注意：**要和普通函数区分开就 `k: Continuation`**；`(typeof k) == function` 在续延上**不成立**了（它现在报 `Continuation`）—— 那种写法要改成 `k: function`。（括号不能省：`typeof k == function` 是 `typeof (k == function)`。）
+
+注意：`default` 那枚是**哨兵** —— 照样能存、能传，一调**当场报错**。做成"什么都不做"不行：那会静默地把控制权留在原地，调用方还以为跳走了。
+
+注意：`Continuation f` 是把一枚函数**当成**续延（调它 = 调那枚函数）。库里的 `callcc` 就是用它把"先还原控制状态、再跳回去"那层包成续延的。
+
+### 续延调用是「从捕获点继续」
+
+**`callcc` 之后的语句会被重新执行。**
+
+#### 实例
+
+```ravel
+saved := (x: int) => { x; }
+n := 0
+n = 1 + callcc (k: function) => { saved = k; 0; }
+print n
+n < 10 { saved 10; } { 0; }
+```
+
+执行以上程序会输出如下结果：
+
+```
+1
+11
+```
+
+注意：**同一枚**续延反复调用不是"一次产出多个值" —— 它每次都从捕获点重来，所以调用点本身也在被重跑的代码里时要加守卫，否则会一直转下去。**两枚**续延来回跳就能写生成器（每吐一个值就把控制权交给对方，两边每轮各自重抓自己的续延 —— 见 `tests/40`）。
+
+注意：**不跟**着续延走的是普通那点数据 —— 列表、字段、对象上的改动都是原地改的，恢复不回滚它们。

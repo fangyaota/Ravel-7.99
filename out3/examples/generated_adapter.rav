@@ -1,0 +1,136 @@
+# **生成出来的适配层** —— `.rav` 一路交给 .NET，拿回来一个真 dll。
+#
+# 这条链是：
+#
+#     规格（Ravel）→ ①生成 .cs → ②编译 → ③`using` 用上
+#                     ↑                ↑
+#              tools/mkadaptor.rav   两条路，见下
+#
+# 1) 生成：
+#
+#     dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath \
+#         Max Min Abs Sign Clamp Sqrt Pow Sin Cos Floor Ceiling Round Exp Log BigMul
+#     → Ravel.Generated/NMath.cs        # 一个 [RavelModule] / [RavelFn] 的插件源码
+#
+#     不想开命令行也行 —— 生成逻辑是个**库**（`lib/adaptor.rav`，模块 `Adaptor`），
+#     `using "adaptor.rav"` 之后 `Adaptor.Cs 类型 模块 成员` 直接拿源码字符串。
+#     见 `examples/adaptor_from_ravel.rav`（生成 → 编译 → 用，一份脚本走完）。
+#
+# 2) 编译 —— **看现场有没有 SDK**：
+#
+#    a. 在仓库里（有 SDK）：`bash build.sh` 连它一起编（见 `Ravel.csproj` 的 `BuildPlugins`）
+#    b. 手上只有 `out/`（**只有 runtime**）：生成时加 `--dll <路径>`，用 `Ravel.Compile`
+#       那个插件**就地**编 —— `out/` 是 framework-dependent 发布，那种机器上
+#       `dotnet build` 这个命令根本不存在，这就是 `--dll` 存在的全部理由：
+#
+#         dotnet out/ravel.dll tools/mkadaptor.rav System.Math NMath Max Min Sqrt BigMul \
+#             --dll out/plugins/Ravel.Generated.dll
+#
+#        （两条路编出来的是**同一个东西**：同一个 `.cs`、同一个模块名。Roslyn 在那条路上
+#          是**当库调**的，引用集直接从当前进程取 —— 框架那一套走
+#          `TRUSTED_PLATFORM_ASSEMBLIES`，引擎自己走 `typeof(RuntimeValue).Assembly.Location`。
+#          于是编出来的 dll 引用的就是**跑着的那个 `Ravel.dll`**，版本天然对齐。）
+#
+# 3) 用：
+using "plugins/Ravel.Generated.dll"
+
+# ── 重载是**编译期**挑好的，而且挑"丢信息最少"的那个 ──
+#
+# `Math.Max` 有 11 个同名重载（byte / decimal / double / short / int / long …），
+# 生成器按「参数少 → 丢的信息少 → 签名」排，`Int32` 排在最前、`Double` 在后，
+# 于是挑中的是 `(int, int) -> int` —— 交回一个真 `int`：
+print (NMath.Max 3 7)
+print (NMath.Min 3 7)
+print (NMath.Abs (0 - 5))
+print (NMath.Sign (0 - 9))
+print (NMath.Clamp 3 1 5)          # 三个实参的那个（值, 最小, 最大）
+print ((NMath.Max 3 7) + 1)        # 接着算也行
+
+# ── `real` 也进来了（`PluginKit.Num` 把五种数值类型全收成一个 `double`）──
+print (NMath.Sqrt 16)
+print (NMath.Pow 2 10)
+print (NMath.Floor 2.7)
+print (NMath.Ceiling 2.1)
+print (NMath.Round 2.6)
+print (NMath.Sin 0)
+print (NMath.Exp 1)
+
+# ── **`const` 字段也是成员**：`Math.PI` 连 `get_X` 都没有（它压根不是方法）──
+#
+# 生成的是 `[RavelProperty]`，落到**模块里的一格 `by` 槽** —— 所以读的时候**不用括号**
+# （它是数据，不是函数）。`Math.PI` / `Math.E` / `Math.Tau` 都是 `const` **字段**，
+# `String.Empty` 是 `static readonly` 字段。只读的那些由**引擎在槽上**拦写。
+#
+# 静态属性（`DateTime.Now` 那种）走的是同一条路 —— 而且它是**每次读都重新求值**的，
+# 不像 `[RavelConst]` 会冻在装的那一刻。
+print (NMath.PI)
+print (NMath.Tau)
+print ("[" + NStr.Empty + "]")
+
+# ── 比 `int` 大的整数**自动升 `bigint`**，不是报错也不是回绕 ──
+#
+# `Math.BigMul` 交回一个 `long`；`PluginKit.Narrow` 装得下就给 `int`、
+# 装不下升 `bigint`。这条对"字节数 / ticks / 文件大小"那一族很关键 ——
+# 从前是**当场抛错**（文档说着"给 bigint"，实现却转给了算术语义那条）。
+print (NMath.BigMul 3 7)           # 21（装得下 int）
+print (NMath.BigMul 2000000000 2)  # 4000000000（装不下，升 bigint）
+
+# ── 同一个 dll 里装好几个模块 ──
+#
+# `Ravel.Generated/` 是**一个**插件项目，加适配器 = 多跑一次生成器，不用动 csproj。
+using "plugins/Ravel.Generated.dll"
+print (NStr.IsNullOrEmpty "")
+print (NStr.Concat "生成" " 的")
+print (NStr.Compare "a" "b")
+print (NStr.IsNullOrWhiteSpace "   ")
+
+# **数组参数**：Ravel 侧给 `list`，`PluginKit.Strs` 逐个换成 `string[]`。
+# 这一格一开，`Join` / `Path.Combine` / `File.WriteAllLines` 那一大族就都进来了。
+print (NStr.Join "-" ["a" "b" "c"])
+
+# 同样是 `Join`，挑中的是 `(string, string[])` 而不是 `(char, string[])` ——
+# 排位键先比"要几个数组"、再比参数个数、再比"丢信息多少"。
+
+# **`object` 参数**：交给那座桥（`PluginKit.ToNet`）—— 于是 `String.Format`
+# 那 15 个重载也进来了（从前它们被整个跳过）。
+#
+# 挑中的是 **`(string, object)`** 那个（排位键第 2 段"参数少的在前"），所以是**两个**实参
+# —— 想要三个占位就得要 `(string, object, object)`，那是**另一格**，得自己补。
+print (NStr.Format "{0}" 42)
+
+# ── 被调方抛的也接得住 ──
+#
+# 生成的每个方法外面都套着 `PluginKit.Guarded` —— 引擎那条"别让 C# 异常漏到顶层"
+# 的老规矩（不兜的话会绕过 Ravel 的 `try`，直接打成"解释器内部错误"）。
+# 这条**不是可选项**，是实测踩出来的：没兜的时候 `Math.Clamp` 一句
+# `ArgumentException` 把整个脚本打掉了。
+try {
+    NMath.Clamp 1 5 3;             # 最小 > 最大，`Math.Clamp` 自己要抛
+} (e: Exception) => {
+    print ("接住了：" + e.Message);
+}
+
+# ── 跟 `Reflect.Call` 那条路比一比 ──
+#
+# 同一件事，`Reflect.Call` 是**运行期**挨个试重载：
+using "plugins/Ravel.Reflect.dll"
+print (Reflect.Unwrap (Reflect.Call (Reflect.Type "System.Math") "Max" [3 7]))
+
+# 生成的这条是**编译期**定死的：`Math.Max(x0, x1)` 直接写进 C#，Roslyn 早就挑好了，
+# 而且不走 `Invoke` + 装箱 + `DotNetObject` 那圈绕行。代价是它只认生成时挑中的那个
+# 重载 —— `NMath.Max 3.5 7.5` 会当场报类型错，而 `Reflect` 那条路能接住。
+
+# ── 生成器拒绝的东西，写在产物里 ──
+#
+# 类型对不上的（`ref struct` / 委托 / 泛型参数）逐条跳过。`System.String` 那 177 个
+# 静态方法扫一遍，只剩两条：
+#
+#     // 跳过 Create：挑中的那个签名是 IFormatProvider,DefaultInterpolatedStringHandler& -> String，…
+#     // 跳过 GetHashCode：挑中的那个签名是 ReadOnlySpan`1 -> Int32，…
+#
+# 两条都是 **`ref struct`**（`DefaultInterpolatedStringHandler` / `ReadOnlySpan<char>`）
+# —— 那玩意儿不能装箱、不能当字段，**结构上就转不了**，不是"还没做"。
+#
+# **挑不中就明说，不猜** —— 猜错比不生成难查得多。真要它们，就把那份 `.cs` 挪出
+# `Ravel.Generated/` 自己补：产物是**脚手架**，不是构建产物。
+print "生成出来的适配层跑通了"

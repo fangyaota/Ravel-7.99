@@ -1,0 +1,10 @@
+
+using "native.rav"
+
+ravel "Math"
+
+readonly Square := (x: INumber) => { x * x; }
+readonly Cube := (x: INumber) => { x * x * x; }
+
+readonly Deg := (rad: INumber) => { rad * 180 / Pi; }
+readonly Rad := (deg: INumber) => { deg * Pi / 180; }
