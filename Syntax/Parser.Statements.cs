@@ -347,7 +347,7 @@ public partial class Parser
         //
         // 走的是**解构那条路**(一个只有一格的模式,那一格带条件)—— 检查只写在 `Lowering.Bind`
         // 一处。`=` 而不是 `:=`:约束本身就说明了这是个定义(见 myMetaClass 草稿那句)。
-        if (expr is BinaryExpr { Op: "=", Left: not (IdentifierExpr or MemberAccess) } cd)
+        if (expr is BinaryExpr { Op: ":=", Left: not (IdentifierExpr or MemberAccess) } cd)
         {
             var nm = FirstIdentName(startTok, _pos)
                 ?? throw ParseError("'=' 左边不是左值 —— 那它得是条**条件**，而条件里要有个名字");
@@ -359,10 +359,10 @@ public partial class Parser
         // 求值期一定会报「赋值的左边得是个变量名或字段」,可树已经造出来了 —— 而打印器把它印回
         // `<表达式> := <表达式>`,那个形状在语句位置**读不出赋值**(先掉进模式那条路,报
         // 「模式括号没闭上」)。错在左边不是左值,指在这儿比等求值准。
-        if (expr is BinaryExpr { Op: ":=" or "+=" or "-=" or "*=" or "**=" or "/=" or "%=" } bad
+        if (expr is BinaryExpr { Op: "=" or ":=" or "+=" or "-=" or "*=" or "**=" or "/=" or "%=" } bad
             && bad.Left is not (IdentifierExpr or MemberAccess))
             throw new SyntaxException(
-                $"'{bad.Op}' 的左边得是变量或成员（和 '=' 一样）",
+                $"'{bad.Op}' 的左边得是变量或成员",
                 new SourceSpot(source, bad.Line, bad.Column));
 
         // `x++` / `x--`。**紧贴着**刚算完的表达式看,不跨换行 —— `x` 一行、`++` 一行
@@ -413,6 +413,10 @@ public partial class Parser
         var off = SkipBalanced(0);
         if (off < 0) return false;                          // 括号没闭上
         if (TypeAt(off) == TokenType.ColonEqual) return true;
+        // 括号对后面紧跟一个 `=`：想解构却写错了号。定义一律 `:=`,
+        // 只有带类型注解时才能缩写成 `=` —— 这儿指出来比落到"先把 `[a b]` 求值"准。
+        if (TypeAt(off) == TokenType.Equal)
+            throw ParseError("解构定义需要 ':='（带类型时才可缩写成 '='：`[x y] : T = e`）");
 
         // `[a b] |> f := e` / `[a b] |> f = e` —— 模式后面挂了「整块」条件。
         // `|>` 后面那条谓词一直到行尾,中间那个 `:=` / `=` 就是"这是个定义"的证据
@@ -427,13 +431,13 @@ public partial class Parser
                 if (t is TokenType.EndOfFile or TokenType.Newline) return false;
                 if (t is TokenType.LeftParen or TokenType.LeftBracket or TokenType.LeftBrace) depth++;
                 else if (t is TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace) depth--;
-                else if (depth == 0 && t is TokenType.ColonEqual or TokenType.Equal) return true;
+                else if (depth == 0 && t is TokenType.ColonEqual) return true;
             }
         }
 
         if (TypeAt(off) != TokenType.Colon) return false;
         var after = SkipTypeAnnotation(off + 1);
-        return after >= 0 && TypeAt(after) == TokenType.Equal;
+        return after >= 0 && TypeAt(after) is TokenType.Equal or TokenType.ColonEqual;
     }
 
     private int SkipBalanced(int off)
@@ -473,8 +477,9 @@ public partial class Parser
         var pattern = ParsePattern();
         RejectBareSub(pattern);
 
-        if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
-            throw ParseError("解构定义需要 '=' 或 ':='（`[x y] : T = e` / `[x y] := e`）");
+        var typed = pattern.Type is not null;
+        if (!Match(TokenType.ColonEqual) && !(typed && Match(TokenType.Equal)))
+            throw ParseError("解构定义需要 ':='（带类型时才可缩写成 '='：`[x y] : T = e`）");
 
         _holeCount = 0;
         var value = ParseExpression();
@@ -825,7 +830,8 @@ public partial class Parser
         {
             autoName = true;
             typeAnnotation = ParseTypeAnnotation();
-            Consume(TokenType.Equal, "类型注解后需要 '='");
+            if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
+                throw ParseError("类型注解后需要 '=' 或 ':='");
         }
         else if (Match(TokenType.ColonEqual))
         {
@@ -834,7 +840,8 @@ public partial class Parser
         else if (Match(TokenType.Colon))
         {
             typeAnnotation = ParseTypeAnnotation();
-            Consume(TokenType.Equal, "类型注解后需要 '='");
+            if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
+                throw ParseError("类型注解后需要 '=' 或 ':='");
         }
         else
         {
