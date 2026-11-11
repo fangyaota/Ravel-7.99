@@ -97,6 +97,16 @@ public record StringLiteral(string Value) : Expression
     internal StringVal? Packed;
 }
 public record CharLiteral(char Value) : Expression;
+
+// 插值字符串:`f"共 {n} 件"`(老的 `"${n}"` 也走这一个节点)。
+// **这里只把原料摆好** —— 折成 `"" + "共 " + string(n) + " 件"` 是 `Lowering` 的事,
+// 解析器不替它做(`f"…"` 是语法糖,糖纸就撕在 lowering 那一层)。
+public record FStringExpr(List<FStringPart> Parts) : Expression;
+
+// 一段:要么是字面量(`Interp` 为空),要么是 `{…}` 里那个表达式。字面量的 `Text`
+// 已经是**解码后**的文本(转义、`{{` 都在词法器里落定)。
+public record FStringPart(string Text, Expression? Interp);
+
 public record IdentifierExpr(string Name) : Expression;
 public record CallExpr(Expression Function, Expression Argument) : Expression
 {

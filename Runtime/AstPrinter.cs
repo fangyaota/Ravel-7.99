@@ -109,6 +109,12 @@ internal static class AstPrinter
     {
         NumberLiteral n => n.Lexeme,
         StringLiteral s => StringLiteralText(s.Value),
+        // 活不过 `Lowering`(它折成 `+` 链),留着是为了"万一"时印得对。
+        FStringExpr f => "f\""
+            + string.Concat(f.Parts.Select(p => p.Interp is { } x
+                ? "{" + Expr(x, indent) + "}"
+                : p.Text.Replace("{", "{{").Replace("}", "}}")))
+            + "\"",
         CharLiteral c => "'" + EscapeChar(c.Value) + "'",
         IdentifierExpr i => i.Name,
         VoidLiteral => "()",
@@ -208,7 +214,7 @@ internal static class AstPrinter
         IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr
-            or LiteralExpr => Expr(e, indent),
+            or FStringExpr or LiteralExpr => Expr(e, indent),
         _ => "(" + Expr(e, indent) + ")",
     };
 
@@ -217,7 +223,7 @@ internal static class AstPrinter
         IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess
-            or LiteralExpr => Expr(e, indent),
+            or FStringExpr or LiteralExpr => Expr(e, indent),
         _ => "(" + Expr(e, indent) + ")",
     };
 

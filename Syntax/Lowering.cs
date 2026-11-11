@@ -120,6 +120,12 @@ public sealed class Lowering
         // ── `do { … }` ──
         DoExpr d => Do(d),
 
+        // ── 插值字符串 ──
+        // `f"共 {n} 件"` 就是 `"" + "共 " + string(n) + " 件"`,一句不多、一句不少。
+        // 解析器只把段摆好(字面量 / 表达式),拼串在这儿 —— 之后它和手写的 `+` 链
+        // 走同一条路(下面那个 `BinaryExpr` 分支),求值器根本不知道有过 f-string。
+        FStringExpr f => FString(f),
+
         // ── `x++` / `x--` ──
         // 折出来的就是一条 `BinaryExpr(x, "+=", 1)`,和手写的 `x += 1` 走**同一条路**
         // (变量一条、字段一条,见 `Interpreter.Binary` 的 StepCompoundAssign*)——
@@ -632,6 +638,22 @@ public sealed class Lowering
 
     private static CallExpr Call(Expression f, Expression arg)
         => new(f, arg) { Line = f.Line, Column = f.Column };
+
+    // `f"共 {n} 件"` → `"" + "共 " + string(n) + " 件"`。**整门语言只有这一处**
+    // 认识 f-string:上面那个 switch 把节点换成一棵 `+` 树,之后全是老路
+    // (拼完再 `Lower` 一遍,`+` 就折成成员调用了)。
+    private Expression FString(FStringExpr f)
+    {
+        Expression chain = Lit("", f);
+        foreach (var part in f.Parts)
+        {
+            Expression piece = part.Interp is { } x
+                ? Call(Ident("string", (AstNode)x), x)
+                : Lit(part.Text, f);
+            chain = new BinaryExpr(chain, "+", piece) { Line = f.Line, Column = f.Column };
+        }
+        return Lower(chain);
+    }
 
     private static IdentifierExpr Ident(string name, AstNode at)
         => new(name) { Line = at.Line, Column = at.Column };

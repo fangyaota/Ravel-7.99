@@ -133,6 +133,19 @@ public class Lexer(string source, string? file = null)
                 continue;
             }
 
+            // f-string:`f"…"`。前缀**紧贴**引号 —— `f "x"` 仍然是"拿 f 去叫 x",
+            // 中间那个空格就是分水岭。`f"""…"""` 不认(原始字符串里 `{` 不该有身份)。
+            if (c == 'f' && _pos + 1 < source.Length && source[_pos + 1] == '"'
+                && !(_pos + 3 < source.Length && source[_pos + 2] == '"' && source[_pos + 3] == '"'))
+            {
+                int fLine = _line, fCol = _col;
+                _pos++;                                  // 吃掉前缀,引号留给 ReadString
+                _col++;
+                var fstr = ReadString(fstring: true);
+                tokens.Add(fstr.At(fLine, fCol, fstr.Length + 1));
+                continue;
+            }
+
             // 字符串
             if (c == '"')
             {
@@ -306,7 +319,7 @@ public class Lexer(string source, string? file = null)
         return new Token(TokenType.Number, num, line, col, _pos - start);
     }
 
-    private Token ReadString()
+    private Token ReadString(bool fstring = false)
     {
         int start = _pos, line = _line, col = _col;
         Advance(); // skip "
@@ -325,21 +338,40 @@ public class Lexer(string source, string? file = null)
         {
             char c = source[_pos];
 
-            // 插值:`${表达式}` —— **只有这一种写法**(要任意表达式,索性只有一种更好记)。
-            // `$` 后面不是 `{` 就是**字面量**(`"$5"` / `"$name"` 都不用转义);
-            // 真要 `${` 本身,写 `\${`。
-            if (c == '$' && _pos + 1 < source.Length && source[_pos + 1] == '{')
+            // 插值。两种糖纸,同一颗糖:
+            //   `"…${表达式}…"` —— `$` 后面不是 `{` 就是字面量(`"$5"` 不用转义)
+            //   `f"…{表达式}…"` —— `{` 就是插值(`{{` / `}}` 才是字面量花括号)
+            // 要 `${` 本身,写 `\${`(f-string 里要 `{`,写 `\{` 或 `{{`)。
+            if (fstring ? c == '{' : c == '$' && _pos + 1 < source.Length && source[_pos + 1] == '{')
             {
+                if (fstring && _pos + 1 < source.Length && source[_pos + 1] == '{')
+                {
+                    sb.Append('{');                      // `{{` = 一个真的花括号
+                    _pos += 2;
+                    _col += 2;
+                    continue;
+                }
+
                 parts ??= [];
                 FlushLiteral();
-                _pos += 2;
-                _col += 2;
+                _pos += fstring ? 1 : 2;
+                _col += fstring ? 1 : 2;
 
                 int exprLine = _line, exprCol = _col;
                 var text = ReadBracedInterpolation(line, col);
                 parts.Add(new StringPart(text, IsExpr: true, exprLine, exprCol));
                 litLine = _line;
                 litCol = _col;
+                continue;
+            }
+
+            // `}}` = 一个字面量的右花括号(和 `{{` 成对)。单个 `}` 也当字面量 ——
+            // 这里不学 Python 那样报错,少一处让人踩的地方。
+            if (fstring && c == '}' && _pos + 1 < source.Length && source[_pos + 1] == '}')
+            {
+                sb.Append('}');
+                _pos += 2;
+                _col += 2;
                 continue;
             }
 
@@ -358,6 +390,9 @@ public class Lexer(string source, string? file = null)
                     '\\' => "\\",
                     '"' => "\"",
                     '$' => "$",          // 插值记号本身
+                    // f-string 里花括号有身份,想写字面量就转义(`{{` 也行)
+                    '{' when fstring => "{",
+                    '}' when fstring => "}",
                     // 不认识的转义原样保留,免得把已有文本里的反斜杠吃掉
                     _ => "\\" + esc,
                 });

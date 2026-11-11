@@ -91,7 +91,7 @@ public partial class Parser
         {
             var str = Previous();
             return str.Parts is { } parts
-                ? Interpolated(str, parts)
+                ? new FStringExpr(FStringParts(parts)) { Line = str.Line, Column = str.Column }
                 : new StringLiteral(str.Lexeme) { Line = str.Line, Column = str.Column };
         }
 
@@ -549,22 +549,16 @@ public partial class Parser
         return (arrow, newline);
     }
 
-    private Expression Interpolated(Token str, IReadOnlyList<StringPart> parts)
+    // 把词法器切好的段摆成"字面量 / 插值表达式"两种原料。**别在这里拼串** ——
+    // 折成 `"" + … + string(x)` 是 `Lowering` 的活(`f"…"` 是糖,糖纸在那儿撕)。
+    private List<FStringPart> FStringParts(IReadOnlyList<StringPart> parts)
     {
-        Expression expr = new StringLiteral("") { Line = str.Line, Column = str.Column };
+        var list = new List<FStringPart>(parts.Count);
         foreach (var p in parts)
-        {
-            Expression piece = p.IsExpr
-                ? new CallExpr(
-                    new IdentifierExpr("string") { Line = p.Line, Column = p.Column },
-                    Parser.ParseExpressionSnippet(p.Text, source, p.Line, p.Column))
-                    { Line = p.Line, Column = p.Column }
-                : new StringLiteral(p.Text) { Line = p.Line, Column = p.Column };
-
-            expr = new BinaryExpr(expr, "+", piece) { Line = p.Line, Column = p.Column };
-        }
-
-        return expr;
+            list.Add(p.IsExpr
+                ? new FStringPart("", Parser.ParseExpressionSnippet(p.Text, source, p.Line, p.Column))
+                : new FStringPart(p.Text, null));
+        return list;
     }
 
     private Expression ParseSet(int line, int col)
