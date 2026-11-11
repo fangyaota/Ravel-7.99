@@ -733,6 +733,18 @@ public partial class Parser
 
         var saveAt = _pos;
         var name = Consume(TokenType.Identifier, "模式里要写一个名字、`_`、`..名字`、还是一个字面量（`1` / `\"看\"` / `()` / `true`）");
+
+        // `[l[2] l[1] l[0]] = xs` —— 这一格是个**位置**(下标 / 成员):名字后面紧贴着
+        // `[` 或 `.` 就是它。整条当表达式读下来,只有真读到下标/成员才算。
+        if (name.Lexeme != "_" && AdjacentToPrevious()
+            && (Check(TokenType.LeftBracket) || Check(TokenType.Dot)))
+        {
+            _pos = saveAt;
+            var place = ParseClimb(allowCall: false, 0);
+            if (place is IndexExpr or MemberAccess)
+                return new PlacePattern(place) { Line = at.Line, Column = at.Column };
+            throw ParseError("这一格要么是名字、字面量，要么是一个位置（`l[2]` / `a.b`）");
+        }
         if (name.Lexeme == "_")
         {
             // `_` 什么都不绑,所以它**挂不了任何东西**:`: 类型` 和 `|> 条件` 都是"对着

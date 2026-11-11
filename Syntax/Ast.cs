@@ -92,6 +92,9 @@ public record SkipPattern : Pattern;
 
 public record RestPattern(string Name) : Pattern;
 
+// 这一格是个**位置**(`l[2]` / `a.b`)—— 只有赋值(`=`)时才成立,定义(`:=`)只给名字。
+public record PlacePattern(Expression Place) : Pattern;
+
 public record ListPattern(List<Pattern> Parts) : Pattern;
 
 public record MemberPattern(List<NamePattern> Names) : Pattern;

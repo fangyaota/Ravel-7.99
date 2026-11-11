@@ -536,6 +536,11 @@ public sealed class Lowering
                 if (n.Sub is { } sub) Bind(sub, Ident(n.Name, at), eff, outs, who: who);
                 return;
 
+            // **位置那格**(`[l[2] l[1]] = xs`):赋值才有意义 —— 定义只给名字。
+            case PlacePattern pp:
+                outs.Add(BindPlace(pp.Place, source, at));
+                return;
+
             case RestPattern r:
                 // 剩下的 = 同一枚游标继续走到底。包成 `Generator` 才是个 `IEnumerable`
                 // (`y` 是"往外送一个"的那个函数,和 `lib/generator.rav` 里各处一个写法)。
@@ -651,6 +656,11 @@ public sealed class Lowering
                             // **走 `Bind` 那道口子**(不是就地 Define)—— 类型检查在它的入口
                             Bind(n, Member(gid, "Current"), eff, outs);
                             break;
+                        case PlacePattern pp:
+                            // 位置那格不用中间量:游标上这一格直接写过去。
+                            BindPlace(pp.Place, Member(gid, "Current"), at);
+                            outs.Add(BindPlace(pp.Place, Member(gid, "Current"), at));
+                            break;
                         default:
                         {
                             // 嵌套:先落到一个中间量上,再拿它当下一次解构的源
@@ -714,6 +724,22 @@ public sealed class Lowering
         => Call(f, new VoidLiteral { Line = f.Line, Column = f.Column });
 
     // 一个名字怎么落地:定义(`:=`)还是赋值(`=`)。解构赋值里那几格走后者。
+    // 一个**位置**怎么落地:下标走 `Set`,成员走槽赋值。`:=` 底下没有这条路。
+    private Statement BindPlace(Expression place, Expression value, AstNode at)
+    {
+        if (!_assignMode)
+            throw Error(at, "这一格是个位置（`l[2]` / `a.b`）—— 定义只给名字，写回要用 '='");
+
+        return place switch
+        {
+            IndexExpr ix => ExprStmt(IndexWrite(ix, "=", value), at),
+            // 成员那格:`p.x = v` 本来就是一条赋值表达式,照原样发出去。
+            MemberAccess ma => ExprStmt(
+                new BinaryExpr(Lower(ma), "=", value) { Line = at.Line, Column = at.Column }, at),
+            _ => throw Error(at, "这一格要么是名字、字面量，要么是一个位置（`l[2]` / `a.b`）"),
+        };
+    }
+
     private Statement BindName(string name, Expression value, List<string>? attrs, AstNode at)
     {
         if (!_assignMode) return Define(name, null, value, attrs, at);

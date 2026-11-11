@@ -1,0 +1,31 @@
+# 位置模式:解构赋值那几格可以写 `l[2]` / `p.x`
+l := [0 0 0]
+[l[2] l[1] l[0]] = [1 2 3]
+print l
+P ::= class {
+    x: int = 0
+    y: int = 0
+}
+p := P ()
+q := P ()
+[p.x q.y] = [7 8]
+print (p.x + q.y)
+m := {"a" -> 0 "b" -> 0}
+[m["a"] m["b"]] = [10 20]
+print ((m["a"]) + (m["b"]))
+[l[0] p.x] = [5 6]
+print (l[0] + p.x)
+nested := [0 [0 0]]
+[nested[1][1] nested[0]] = [41 40]
+print nested
+try { eval "[l[0]] := [9]"; } (e: Exception) => { print ("定义位置: " + (e.Message)); }
+try { eval "[l[0] l[1]] = [1]"; } (e: Exception) => { print ("数量不对: " + (e.Message)); }
+
+# --- expected ---
+# [3 2 1]
+# 15
+# 30
+# 11
+# [40 [0 41]]
+# 定义位置: 这一格是个位置（`l[2]` / `a.b`）—— 定义只给名字，写回要用 '='
+# 数量不对: 要第 2 格，可这一串已经到底了
