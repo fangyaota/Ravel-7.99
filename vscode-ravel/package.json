@@ -1,10 +1,13 @@
 {
     "name": "ravel-language",
     "displayName": "Ravel",
-    "description": "Ravel 语言支持：语法高亮（含原始字符串与字符字面量）、折叠（按 {} 分块 + 注释段）、跳转定义 / 悬停、运行 .rav 文件与全量测试、打开 REPL",
+    "description": "Ravel 语言支持：语法高亮（含原始字符串与字符字面量）、折叠（按 {} 分块 + 注释段）、补全 / 签名提示 / 大纲、跳转定义 / 悬停、运行 .rav 文件与全量测试、打开 REPL",
     "version": "0.4.0",
     "publisher": "ravel",
     "license": "MIT",
+    "activationEvents": [
+        "onLanguage:ravel"
+    ],
     "engines": {
         "vscode": "^1.74.0"
     },
