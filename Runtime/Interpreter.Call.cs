@@ -2,6 +2,22 @@ namespace Ravel.Runtime;
 
 public partial class Interpreter
 {
+    // 一切"这一格收不下"都走这条路:**这一层自己摆着 `reject` 就叫它**(`|` 每次调用会
+    // 用 `Prepend` 往被接函数那一层塞一枚),没摆就抛 `TypeMismatchException` ——
+    // 于是它成了一枚普通错误,谁接错误就是谁接(`try`)。
+    private void Reject(Frame sink, Scope? scope, string message)
+    {
+        // 这一层**自己**摆着 `reject` 吗(`|` 摆的就是这一格)?摆了就直接叫它 ——
+        // 参数类型对不上是**同步**发生的,当场换支最省事。没摆就走错误那条路。
+        if (scope?.OwnField("reject")?.Value is FunctionVal fn)
+        {
+            CallInto(sink, fn, BuiltinClasses.NewException(message, ErrorKind.Type));
+            return;
+        }
+
+        throw new TypeMismatchException(message);
+    }
+
     private void CallInto(Frame sink, RuntimeValue fn, RuntimeValue arg, Scope? callScope = null)
     {
         switch (fn)
@@ -11,7 +27,10 @@ public partial class Interpreter
                 // (`Alternate` 靠它挑下一支)。没声明的格子照旧 —— 控制帧本来就是按**个数**收的。
                 if (cf.Declared is { } decls && cf.Args.Count < decls.Count
                     && decls[cf.Args.Count] is { } d && !Accepts(arg, d.Type))
-                    throw new TypeMismatchException($"参数 '{d.Name}' 需要 {d.Type}，得到 {arg.Type}");
+                {
+                    Reject(sink, null, $"参数 '{d.Name}' 需要 {d.Type}，得到 {arg.Type}");
+                    return;
+                }
 
                 if (cf.IsFinalAfter(1))
                     _top = new ControlFrame(cf.Kind, cf.Args.Add(arg), VoidVal.Instance) { Parent = sink, Scope = sink.Scope, CallSite = (_top as NodeFrame)?.Node };
@@ -19,17 +38,9 @@ public partial class Interpreter
                     _top = sink.WithResult(cf.Accumulate(arg));
                 break;
             case LambdaVal lam:
-                // **`by` 参数收的是一份 property**(`(by x) => …`),和变量定义那条路一个规矩
-                // (见 `Interpreter.Nodes` 里 VarDefinition 那段):`default` 换成该属性的默认值、
-                // 别的原样留着(第一次读写时报"值不是属性"),**注解管的是写进来的值** ——
-                // 所以对实参本身不判类型(`by a: int = property …` 里那份 property 当然不是 int)。
-                var isBy = lam.ParamAttrs?.Contains(Attr.By) ?? false;
-                if (!isBy && !Accepts(arg, lam.ParamType))
-                    // **模式参数按模式说** —— 它的名字是合成的(`__p3f9c2_0`),印出来等于
-                    // 什么都没说;印模式本人(`1` / `([x y])`)才说得清是哪个参数。
-                    throw new TypeMismatchException(lam.ParamPattern is { } pat
-                        ? $"参数 {AstPrinter.Describe(pat)} 需要 {lam.ParamType}，得到 {arg.Type}"
-                        : $"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
+                // 参数的类型注解**不在这里判** —— 它是一次普通的 `x : T`,由 `Lowering` 发在
+                // 体最前头(`(x: int) => …` 展开成 `{ x : int | reject; … }`)。所以引擎里只有
+                // 一份判据(`:` 自己),绑参数这步只管绑。
                 var lamScope = callScope ?? lam.CaptureScope.Push();
                 lamScope.Define("self", lam);
                 var paramVar = lamScope.Define(lam.ParamName, arg);
@@ -58,7 +69,10 @@ public partial class Interpreter
             {
                 // 和 LambdaVal 同款:先查参数类型(交替机制靠它分流),再在**调用点作用域**里跑
                 if (!Accepts(arg, nc.ParamType))
-                    throw new TypeMismatchException($"参数 '{nc.ParamName}' 需要 {nc.ParamType}，得到 {arg.Type}");
+                {
+                    Reject(sink, null, $"参数 '{nc.ParamName}' 需要 {nc.ParamType}，得到 {arg.Type}");
+                    return;
+                }
                 var ncScope = _top.Scope.Push();
                 ncScope.Define("self", nc);
                 ncScope.Define(nc.ParamName, arg);

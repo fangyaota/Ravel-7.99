@@ -51,23 +51,6 @@ internal static class SysCore
         return VoidVal.Instance;
     }
 
-    [Sys("Reject")]
-    public static RuntimeValue Reject(Interpreter self, RuntimeValue msg)
-    {
-        // **只要 `TypeError`** —— 和 `throw`(要一个 `Exception`)一个口径,只是更窄:
-        // "这一支不收这个参数"就是**类型/形状对不上**那一类(引擎那边 `|` 的交替接的
-        // 也正是 `ErrorKind.Type`,两者是同一件事)。
-        //
-        // 收字符串 / 收随便什么的话,写错的人只会看到那句通用的「这一支不收这个参数」——
-        // 他要说的那句话被**静默**吞掉(守卫生成的就是字符串,消息一直是丢的)。
-        if (msg is not ObjectVal { IsClass: false } o || !o.ClassType.IsAssignableTo(BuiltinClasses.TypeError))
-            throw new RuntimeException(
-                $"System.Reject 要一个 TypeError（`System.Reject (TypeError \"…\")`），得到 {msg.Type}",
-                ErrorKind.Argument);
-
-        throw new RejectedException(BuiltinClasses.ExceptionMessage(msg) ?? "这一支不收这个参数");
-    }
-
     // 定义处注解没过 —— 拒收,和模式那一格同一条口径(`|` 接得住、`try` 接不住)。
     // 文案在这儿拼,不走 `string`/`typeof`:那两个名字用户可能遮蔽掉(`string := C`)。
     // `x : T = _` 的值:`default T`。只有"有零值"的类型配得上 —— 别的当场报错,
@@ -79,7 +62,7 @@ internal static class SysCore
 
     [Sys("RejectType")]
     public static RuntimeValue RejectType(RuntimeValue value, RuntimeValue type)
-        => throw new RejectedException($"这一格要的是 {type}，得到 {value.Type}");
+        => BuiltinClasses.NewException($"这一格要的是 {type}，得到 {value.Type}", ErrorKind.Type);
 
     [Sys("Unhandled")]
     public static RuntimeValue HandBack(Interpreter self, RuntimeValue e) => self.Unhandled(e);

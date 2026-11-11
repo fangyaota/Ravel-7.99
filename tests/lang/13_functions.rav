@@ -371,10 +371,10 @@ print "end"
 # int
 # str
 # bool
-# none: | 的 3 个分支都不收这个参数（最后试的：参数 'a' 需要 Bool，得到 Real）
+# none: 参数 'a' 需要 Bool，得到 Real
 # int
 # str
-# none: | 的 2 个分支都不收这个参数（最后试的：参数 'a' 需要 String，得到 Bool）
+# none: 参数 'a' 需要 String，得到 Bool
 # 0
 # 3
 # 2

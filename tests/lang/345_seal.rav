@@ -131,7 +131,7 @@ print (d.Get 1)
 # true
 # impl: `IValue` 被 seal 了 —— 不能再被实现
 # [IValue BaseInterface IKey IComparable INumber]
-# [IValue BaseInterface]
+# [IValue BaseInterface IFunctionAlt]
 # true
 # true
 # true

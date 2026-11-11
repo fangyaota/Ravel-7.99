@@ -677,7 +677,7 @@ public partial class Parser
             { Line = at.Line, Column = at.Column, Sugar = true };
         var checkedOk = Call(Call(Ident("try", at), AsBlock(guard, at), at), caught, at);
         // 拒收是**引擎内部机制**,不挂小写全局名(免得诱人乱用 —— 见 System.Reject 那段注解)
-        var rejected = Call(new MemberAccess(Ident("System", at), "Reject") { Line = at.Line, Column = at.Column },
+        var rejected = Call(Ident("reject", at),
                             Call(Ident("TypeError", at),
                                  new StringLiteral($"实参不满足 '{param}' 的守卫") { Line = at.Line, Column = at.Column },
                                  at), at);

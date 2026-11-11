@@ -154,6 +154,15 @@ readonly callcc := (f: function) => {
 readonly try := Ex.Try
 readonly throw := Ex.Throw
 
+# **拒收**:和 `throw` 一样是"把这一件事停下",区别只在**谁接** ——
+# `throw` 交给 `try`(错误钩子那一路),`reject` 交给最近的那个 `|` 分支。
+# 不用 `|` 时它就是个普通 throw;用了 `|`,`|` 会在这次调用的作用域里把 `reject`
+# 换成"跳到下一支"的那个(见下面 `|` 的实现)。
+readonly reject := (e) => {
+    throw (e);
+}
+
+
 # ── 空值那三条:`.?` / `??` / `??=` 的落点 ──
 #
 # 词法和语法在引擎那层(`TokenType.QuestionDot` / `Coalesce` / `CoalesceEqual`,
@@ -197,3 +206,35 @@ readonly NilFill := (get: function set: function fallback: function) => {
     v := get ()
     (IsNothing v) { set (fallback ()); } { v; }
 }
+
+# ── `|`：两个函数二选一（用 Ravel 写）──
+#
+# `f | g` 交给一个函数:先拿 `f` 收这一枚实参;`f` 里拒收(`reject`)就**跳到** `g`,
+# 用同一枚实参再来一次。换支靠**换名字**:这次调用的作用域里 `reject` 被换成了
+# "跳回 `|` 之外、带着 `g` 的结果出来"的那个闭包 —— 所以 `f` 体里(以及它调到的
+# 任何东西里)写的 `reject` 都算"这一支不收"。
+#
+# 分支表不是数据、也不折平:`f | g | h` 是 `(f | g) | h` —— 左边先选出结果,
+# 结果不收再由外层的 `|` 交给 `h`。实参与副作用不回收(和函数调用一样)。
+IFunctionAlt ::= interface {
+    by | := default function
+}
+
+impl (IFunctionAlt function {
+    by | = property (
+        () => {
+            (g: function) => (x) => {
+                callcc (h) => {
+                    instance.Prepend ((sc) => {
+                        sc.Define "reject" ((v) => {
+                            sc.Remove "reject"        # 用过就摘掉:本层不再接
+                            # 下一支换上**外面那层**的 reject —— 它拒收时就继续往外走,
+                            # 所以 `(f|g)|h` 里 g 不收会落到外层、由外层去试 h
+                            h ((g.Prepend ((sc2) => { sc2.Define "reject" reject; })) x)
+                        })
+                    }) x
+                }
+            }
+        }
+    ) ((v: function) => { (); })
+})

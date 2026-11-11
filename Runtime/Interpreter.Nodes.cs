@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 public partial class Interpreter
 {

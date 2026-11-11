@@ -277,40 +277,59 @@ public sealed class Lowering
 
     private Expression Lambda(LambdaExpr l)
     {
-        // 参数的类型是**表达式**(`(x: 某个类型表达式) => …`),所以也得走一趟
+        // 参数的类型是**表达式**(`(x: 某个类型表达式) => …`),所以也得走一趟。
         var body = (BlockExpr)Lower(l.Body);
-        // **`Pattern` 留着别扔** —— `AstPrinter` 靠它把签名印回人写的样子
-        // (`([x y]) => …` 印成 `([x y]) => …`,而不是脱糖之后那一坨 `__p…` + 拒收检查)。
-        var param = l.Param with { Type = Lower(l.Param.Type) };
+        // 引擎绑参数那一刻**不判类型** —— 判断是体里那条 `x : T`(见下)。
+        // `Pattern` 留着:签名要照着印回人写的样子。
+        var param = l.Param with { Type = Ident("object", l) };
+        var isBy = l.Param.Attrs?.Contains(Attr.By) ?? false;
+
+        // `()` 的参数只有一个取值 —— 判据是 `__p : void`,别的照 `()` 拆(什么也不拆)。
+        if (l.Param.Pattern is { } unit && AstPrinter.IsUnitPattern(unit))
+        {
+            var u = Ident(l.Param.Name, l);
+            var unitCheck = CheckParam(u, "()", unit, Ident("void", l), l);
+            return l with
+            {
+                Param = param with { Type = Lower(l.Param.Type) },
+                Body = body with { Statements = [unitCheck, .. body.Statements] },
+            };
+        }
 
         if (l.Param.Pattern is { } p)
         {
-            // **最外那一格对"整个值"的要求 → 提到签名上去。** 引擎在**调用那一刻**就判
-            // (`CallInto` 那条路),体里不必再判一道。要求的**出处**还是模式那一处
-            // (只有一处,不会漂),变的只是**发射点** —— 提前了。
-            // 这就是 `() => …` 能既走"字面量模式"那条路、又印得和从前一样干净的原因。
-            var want = OuterWant(p);
-            if (want is not null) param = param with { Type = Lower(want) };
-
-            // **修饰符再发一份给模式** —— 模式拆出来的那些名字才是用户看得见、写得动的
-            // (`(readonly [a b]) => …` 里 `a` / `b` 各带一份 `readonly`)。
-            // 参数自己那份**留着**:签名要照着印回人写的样子(`(readonly [a b]) => …`),
-            // 摘掉往返就断了。它调用时落在那个**合成名**(`__p…`)上 —— 用户写不出这个名字,
-            // 所以那份装了也够不着,只是"一个待遇"这条规矩顺带盖到它。
+            // **修饰符再发一份给模式** —— 模式拆出来的那些名字才是用户看得见、写得动的。
+            // 检查由 `Bind` 自己发(它会为每格带类型的名字生成 `source : want | reject`)。
             var binds = new List<Statement>();
-            Bind(p, Ident(l.Param.Name, l), l.Param.Attrs, binds, outerDone: want is not null);
+            Bind(p, Ident(l.Param.Name, l), l.Param.Attrs, binds, outerDone: false,
+                 who: AstPrinter.Describe(p));
             body = body with { Statements = [.. binds, .. body.Statements] };
+            return l with { Param = param, Body = body };
         }
 
-        return l with { Param = param, Body = body };
-    }
+        // `()` 的参数就是 `void` —— 它只有一个值,没什么可判的。
+        if (isBy || l.Param.Type is IdentifierExpr { Name: "object" or "void" })
+            return l with { Param = param with { Type = Lower(l.Param.Type) }, Body = body };
 
-    private static Expression? OuterWant(Pattern p) => p switch
-    {
-        LiteralPattern lit => lit.Domain,
-        WholePattern w => w.Type ?? OuterWant(w.Inner),
-        _ => p.Type,
-    };
+        // **参数上的注解也只是一次 `x : T`** —— 和变量定义那条路一个待遇。
+        // 实参先落在合成名 `__p` 上,体里先判、过了再把用户那个名字绑上去:
+        // 判定发生在 `x` 绑上之前,所以 `(list: list) => …` 右边那个 `list`
+        // 解析到的还是外层那个类型,不会被实参遮蔽。
+        var fresh = Fresh("__p");
+        var typeRef = Lower(l.Param.Type);
+        var check = CheckParam(Ident(fresh, l), l.Param.Name, null, typeRef, l);
+        var define = new VarDefinition(l.Param.Name, null, Ident(fresh, l), l.Param.Attrs)
+        {
+            Line = l.Line, Column = l.Column, Synthetic = true,
+        };
+        body = body with { Statements = [check, define, .. body.Statements] };
+        // 签名靠 `Pattern` 印回人写的样子(`(x: int) => …`),而不是那个合成名。
+        var shown = new NamePattern(l.Param.Name)
+        {
+            Type = l.Param.Type, Line = l.Line, Column = l.Column,
+        };
+        return l with { Param = param with { Name = fresh, Pattern = shown }, Body = body };
+    }
 
     private List<Statement> Unpack(Destructure d)
     {
@@ -338,8 +357,24 @@ public sealed class Lowering
         return outs;
     }
 
+    // `参数 'n' 需要 Integer，得到 String` —— 判据就是 `:` 本身(`n : Integer`),
+    // 不过就拒收:谁摆着 `reject` 谁接(`|` 的每次调用会摆一枚),没人摆就是普通错误。
+    private Statement CheckParam(Expression value, string shownName, Pattern? pat, Expression typeRef, AstNode at)
+    {
+        var check = new BinaryExpr(value, ":", typeRef) { Line = at.Line, Column = at.Column };
+        // 模式参数的名字是合成的(`__p…`),印出来等于什么都没说 —— 印模式本人。
+        var what = pat is { } p
+            ? Lit($"参数 {AstPrinter.Describe(p)} 需要 ", at)
+            : Lit($"参数 '{shownName}' 需要 ", at);
+        var msg = Concat(at, what, TypeName(typeRef, at), Lit("，得到 ", at), ValueType(value, at));
+        return new ExpressionStatement(If(Not(check, at), Reject(msg, at), at))
+        {
+            Line = at.Line, Column = at.Column, Synthetic = true,
+        };
+    }
+
     private void Bind(Pattern p, Expression source, List<string>? attrs, List<Statement> outs,
-                      bool outerDone = false)
+                      bool outerDone = false, string? who = null)
     {
         var at = p;
 
@@ -360,17 +395,21 @@ public sealed class Lowering
         //
         // 判据用的是 `:`(不是注解那套"能转就转"):模式说的是**形状**,`[a: real] := [1]`
         // 该说"不是 real",而不是悄悄转成 1.0。
-        // 提到参数签名上去的那一道(见 `Lambda` 与 `OuterWant`):这一格的要求已经由**注解**
-        // 在**调用那一刻**判过了,体里不必再判 —— 出处还是这一处,只是发射点提前了。
+        // 参数模式这一格:要求在**体里**判(`outerDone` 只用来避免同一条要求发两遍),
+        // 判不过就拒收,`|` 接得住 —— 参数模式当"分派头一格"就靠这条。
         var ownType = p.Type;
         if (p.Type is { } want)
         {
             if (!outerDone)
             {
                 var isType = new BinaryExpr(source, ":", Lower(want)) { Line = at.Line, Column = at.Column };
-                var msg = Concat(at, Lit("这一格要的是 ", at), TypeName(Lower(want), at),
-                                     Lit("，得到 ", at), ValueType(source, at));
-                outs.Add(ExprStmt(If(Not(isType, at), Reject(msg, at), at), at));
+                var msg = Concat(at, Lit(who is null ? "这一格要的是 " : $"参数 {who} 需要 ", at),
+                                     TypeName(Lower(want), at), Lit("，得到 ", at), ValueType(source, at));
+                // 脱糖造出来的那道 —— 求值照跑,印出来时跳过(它是"体里的检查",不是体)
+                outs.Add(new ExpressionStatement(If(Not(isType, at), Reject(msg, at), at))
+                {
+                    Line = at.Line, Column = at.Column, Synthetic = true,
+                });
             }
             p = p with { Type = null };                  // 验过了(或提上去了),下面按形状拆
         }
@@ -401,7 +440,7 @@ public sealed class Lowering
             case WholePattern w:
                 // 提上去的要是**里面那格**的要求(外层自己没要求),就传下去让它别再判一道;
                 // 外层**自己**有要求的话,里面那格的照旧得判(`(x: int) : string` 两个都算数)。
-                Bind(w.Inner, source, eff, outs, outerDone && ownType is null);
+                Bind(w.Inner, source, eff, outs, outerDone && ownType is null, who);
                 return;
 
             // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
@@ -411,10 +450,14 @@ public sealed class Lowering
                 {
                     var sameKind = new BinaryExpr(source, ":", Lower(lit.Domain))
                         { Line = at.Line, Column = at.Column };
-                    outs.Add(ExprStmt(If(Not(sameKind, at),
-                        Reject(Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at), Lit("，得到 ", at),
-                                     Call(Ident("string", at), source),
-                                     Lit("（", at), ValueType(source, at), Lit("）", at)), at), at), at));
+                    var head = who is null
+                        ? Concat(at, Lit("这一格要的是 ", at), Lit(lit.Text, at))
+                        : Concat(at, Lit($"参数 {who} 需要 ", at), TypeName(Lower(lit.Domain), at));
+                    var msg = who is null
+                        ? Concat(at, head, Lit("，得到 ", at), Call(Ident("string", at), source),
+                                 Lit("（", at), ValueType(source, at), Lit("）", at))
+                        : Concat(at, head, Lit("，得到 ", at), ValueType(source, at));
+                    outs.Add(ExprStmt(If(Not(sameKind, at), Reject(msg, at), at), at));
                 }
 
                 // **`void` 只有一个值。** 域验过了(那一格要的是 `()`,而 `()` 是 `void` 唯一
@@ -435,7 +478,7 @@ public sealed class Lowering
                 CheckGuard(n, n.Name, Ident(n.Name, at), outs);
                 // **值和它的拆法都要**:绑完名字,再拿**这个名字**当源按子模式拆一遍。
                 // 用名字而不是重读 `source` —— 那边可能是一枚游标或一次调用,重读要出事。
-                if (n.Sub is { } sub) Bind(sub, Ident(n.Name, at), eff, outs);
+                if (n.Sub is { } sub) Bind(sub, Ident(n.Name, at), eff, outs, who: who);
                 return;
 
             case RestPattern r:
@@ -585,11 +628,13 @@ public sealed class Lowering
     private Expression If(Expression cond, Expression then, AstNode at)
         => Call(Call(cond, AsBlock(then, at)), AsBlock(Num("0", at), at));
 
+    // 拒收 = `System.Reject`:它**抛**一枚"不收"(引擎那边的 `RejectedException`),
+    // 谁接由在场的 `reject` 决定 —— `|` 的每次调用会摆一枚,没人摆就是普通错误。
     private Expression RejectType(Expression value, Expression type, AstNode at)
-        => Call(Call(Member(Ident("System", at), "RejectType"), value), type);
+        => Call(Ident("reject", at), Call(Call(Member(Ident("System", at), "RejectType"), value), type));
 
     private Expression Reject(Expression message, AstNode at)
-        => Call(Member(Ident("System", at), "Reject"), Call(Ident("TypeError", at), message));
+        => Call(Ident("reject", at), Call(Ident("TypeError", at), message));
 
     private static StringLiteral Str(string v) => new(v);
 

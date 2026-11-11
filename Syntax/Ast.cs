@@ -32,11 +32,20 @@ public record VarDefinition(string Name, Expression? TypeAnnotation, Expression 
     public bool IsOperator => OperatorSymbols.IsSymbol(Name);
 
     public bool Preset { get; init; }
+
+    // 脱糖造出来的那条(`(x: int) => …` 体里把 `x` 绑到实参上) —— 印签名时跳过。
+    public bool Synthetic { get; init; }
 }
 public record Assignment(string Name, Expression Value) : Statement;
 
 public record SlotAssign(Expression Path, Expression Value, bool Define = false) : Statement;
-public record ExpressionStatement(Expression Expr) : Statement;
+// `Synthetic` = 脱糖造出来的,不是用户写的(`(x: int) => …` 体最前头那条注解检查)
+// ——**求值时照跑**,只是印出来(AST 转储 / 函数签名)时跳过,
+// 不然 `print f` 会印出 `!(x : int) (…)` 那一坨。
+public record ExpressionStatement(Expression Expr) : Statement
+{
+    public bool Synthetic { get; init; }
+}
 
 public record BindStatement(string Name, Expression Monad) : Statement;
 
@@ -135,7 +144,10 @@ public record BlockExpr(List<Statement> Statements) : Expression
 {
     public string? Source { get; init; }
 
-    public bool Curried => Statements is [ExpressionStatement { Expr: LambdaExpr }];
+    // 「这一块是柯里化的中间层」= **最后一句**是交给下一层的东西(lambda)。
+    // 前面可以挂着注解检查(`(x: int y) => …` 的 `x` 那条跑完再把 `y` 那支交出去),
+    // 所以不再要求"只有一句"。
+    public bool Curried => Statements is [.., ExpressionStatement { Expr: LambdaExpr }];
 }
 
 // --- 辅助 ---

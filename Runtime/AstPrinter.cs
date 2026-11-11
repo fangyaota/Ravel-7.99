@@ -32,7 +32,11 @@ internal static class AstPrinter
         => Join("\n", p.Statements.Select(s => Statement(s, 0)));
 
     private static LambdaExpr? Next(BlockExpr body)
-        => body.Statements is [ExpressionStatement { Expr: LambdaExpr inner }] ? inner : null;
+        => Visible(body) is [.., ExpressionStatement { Expr: LambdaExpr inner }] ? inner : null;
+
+    // 合成语句(注解检查)不印 —— 求值时照跑,只是别让它漏进签名/转储里。
+    private static List<Statement> Visible(BlockExpr b)
+        => b.Statements.Where(s => s is not (ExpressionStatement { Synthetic: true } or VarDefinition { Synthetic: true })).ToList();
 
     private static string Param(string name, Expression type, Pattern? pattern, int indent,
                                 List<string>? attrs = null)
@@ -41,7 +45,7 @@ internal static class AstPrinter
           : IsUnitPattern(pattern) ? "()"                    // 见下:两种写法一个构造,挑短的印
           : Pattern(pattern, indent));
 
-    private static bool IsUnitPattern(Pattern p) => p switch
+    internal static bool IsUnitPattern(Pattern p) => p switch
     {
         LiteralPattern { Value: VoidLiteral } => true,
         WholePattern w => IsUnitPattern(w.Inner),
@@ -57,9 +61,10 @@ internal static class AstPrinter
 
     private static string BlockInner(BlockExpr b, int indent)
     {
-        if (b.Statements is []) return "{ }";
+        var stmts = Visible(b);
+        if (stmts is []) return "{ }";
 
-        var inline = "{ " + Join("; ", b.Statements.Select(s => Statement(s, -1))) + "; }";
+        var inline = "{ " + Join("; ", stmts.Select(s => Statement(s, -1))) + "; }";
         // `indent < 0` 是显示那条路,**一律**单行(它自己带截断)
         if (indent < 0) return inline;
 
@@ -68,9 +73,9 @@ internal static class AstPrinter
         // **当前这一档**再走一遍 —— 两档印出来的东西**不完全一样**(模式参数:显示档是 `()`、
         // 源码档是 `__p…: void`),直接复用那个量的结果会把显示档的样子漏进源码里。
         if (inline.Length <= InlineMax && !inline.Contains('\n'))
-            return "{ " + Join("; ", b.Statements.Select(s => Statement(s, indent))) + "; }";
+            return "{ " + Join("; ", stmts.Select(s => Statement(s, indent))) + "; }";
 
-        var lines = b.Statements.Select(s => Pad(indent + 1) + Statement(s, indent + 1) + ";");
+        var lines = stmts.Select(s => Pad(indent + 1) + Statement(s, indent + 1) + ";");
         return "{\n" + Join("\n", lines) + "\n" + Pad(indent) + "}";
     }
 

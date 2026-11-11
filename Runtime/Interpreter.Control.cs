@@ -149,6 +149,8 @@ public partial class Interpreter
             catch (TypeMismatchException ex)
             {
                 last = ex.Message;
+                if (Environment.GetEnvironmentVariable("RAVEL_DBG_ALT") == "1")
+                    Console.Error.WriteLine("[DBG-ALT-CATCH] branch " + i + ": " + ex.Message);
             }
             catch (RejectedException ex)
             {
@@ -527,6 +529,7 @@ public partial class Interpreter
     private static Scope? CallScopeOf(RuntimeValue fn) => fn switch
     {
         LambdaVal lam => lam.CaptureScope.Push(),
+        BlockVal b => b.CaptureScope.Push(),
         _ => null,
     };
 

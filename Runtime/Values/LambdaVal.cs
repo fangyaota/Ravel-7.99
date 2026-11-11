@@ -5,6 +5,7 @@ public sealed record LambdaVal(string ParamName, Expression ParamTypeExpr, Objec
 {
     public Pattern? ParamPattern { get; init; }
 
+    // `Lowering` 造出来的外框(`((__t) => (x) => …)(注解)`),不是用户写的那个函数。
     public List<string>? ParamAttrs { get; init; }
 
     public override string ToString()
@@ -26,6 +27,8 @@ public sealed record LambdaVal(string ParamName, Expression ParamTypeExpr, Objec
             if (scope.LookupField("self")?.Value is not FunctionVal caller) break;
             var name = caller switch
             {
+                // 带注解的参数落在合成名上,印给用户看的得是它"叫的那个名字"
+                LambdaVal { ParamPattern: NamePattern np } => np.Name,
                 LambdaVal l => l.ParamName,
                 NativeClosure nc => nc.ParamName,
                 _ => null,
