@@ -1,0 +1,37 @@
+# 猜数字 —— 交互式小例子:随机挑一个 1..100 的整数,让用户一直猜。
+#
+# 跑法:`dotnet out/ravel.dll examples/guess_number.rav`
+#
+# 全篇只有一种分派方式 —— **按形状认**,不写"是不是 q"/"大了小了"那种条件链：
+#   * `using "random.rav"` → `Random.Shared ()` 是一条共享随机源,`.Int rng` 取区间里的数;
+#     `[1..100]` 的方括号管端点含不含:闭区间 100 个,`(1..100)` 两端都不含是 98 个。
+#   * `(模式) => { … } | (模式) => { … }` 是一串分支;模式可以写**守卫**:
+#     参数表里直接写一条表达式(`(g == target)`、`(x > 5)`),最左边那个标识符就是参数名,
+#     条件真了才算这一支。字面量模式 `(0)` / `("q")` 则是按值认。
+#   * `input ""` 是 `System.ReadLine` 的别名(收一个提示串,现在不打印);EOF 读回空串。
+
+using "random.rav"
+
+rng := Random.Shared ()
+target := rng.Int [1..100]
+
+tries := 0
+won := false
+
+# 输入不是整数就归零。0 不在 1..100 里，正好当"没听懂"的记号 ——
+# 于是"是不是数字"也不用单独问，交给下面 `(0)` 那一格。
+parse := (s: string) => { try { int s; } (e: Exception) => { 0; } }
+
+say := (0) => { "要一个 1 到 100 的整数。"; }
+     | (g == target) => { tries = tries + 1; won = true; "猜对了，用了 " + (string tries) + " 次。"; }
+     | (g < target) => { tries = tries + 1; "小了。"; }
+     | (g) => { tries = tries + 1; "大了。"; }
+
+act := (s == "q") => { won = true; "不玩了。答案是 " + (string target) + "。"; }
+     | (s == "") => { won = true; "没有输入了，再见。"; }
+     | (s: string) => { say (parse s); }
+
+while { !won; } {
+    System.Write "猜> "
+    print (act (input ""))
+}
