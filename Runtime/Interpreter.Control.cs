@@ -11,7 +11,6 @@ public partial class Interpreter
             case ControlKind.CallCC: StepCallCC(cf); break;
             case ControlKind.Using: StepUsing(cf); break;
             case ControlKind.Eval: StepEval(cf); break;
-            case ControlKind.Alternate: StepAlternate(cf); break;
             case ControlKind.ClassInit: StepClassInit(cf); break;
             case ControlKind.ImplMake: StepImplMake(cf); break;
             case ControlKind.SeqOp: StepSeqOp(cf); break;
@@ -21,7 +20,6 @@ public partial class Interpreter
             case ControlKind.CallAssign: StepCallAssign(cf); break;
             case ControlKind.CallReturn: StepCallReturn(cf); break;
             case ControlKind.CtorApply: StepCtorApply(cf); break;
-            case ControlKind.RejectStop: StepRejectStop(cf); break;
         }
     }
 
@@ -119,48 +117,6 @@ public partial class Interpreter
         Return(cf, cf.Result(0));
     }
 
-    private void StepAlternate(ControlFrame cf)
-    {
-        if (cf.Count > 0)
-        {
-            Return(cf, cf.Result(0));
-            return;
-        }
-
-        var arg = cf.Args.Last;
-        var n = cf.Args.Count - 1;          // 前面全是候选分支
-        // **从第几支接着试**:参数类型对不上是**同步**抛的,一趟 for 就试完了;
-        // 但**守卫**(`(v == T) => …`)是在**体里**拒收的,那是异步的 —— 错误冒泡时
-        // `StepOnce` 把 `_top` 挪回这一帧(见 ResumeAlternate),于是从下一支接着走。
-        // 走到第几支记在 `State` 上:帧是不可变的,推分支时顺手带上(见下面那个 `next`)。
-        var start = cf.State is IntVal iv ? iv.Value : 0;
-        string? last = _rejectMessage;
-        _rejectMessage = null;
-
-        for (var i = start; i < n; i++)
-        {
-            var next = cf with { State = IntVal.Of(i + 1) };
-            try
-            {
-                // 参数类型对不上会在 CallInto 里**同步**抛出,于是就地接着试下一支
-                CallInto(next, next.Args.At(i), arg);
-                return;
-            }
-            catch (TypeMismatchException ex)
-            {
-                last = ex.Message;
-                if (Environment.GetEnvironmentVariable("RAVEL_DBG_ALT") == "1")
-                    Console.Error.WriteLine("[DBG-ALT-CATCH] branch " + i + ": " + ex.Message);
-            }
-            catch (RejectedException ex)
-            {
-                last = ex.Message;
-            }
-        }
-
-        throw new TypeMismatchException($"| 的 {n} 个分支都不收这个参数（最后试的：{last ?? "（没有可说的）"}）");
-    }
-
     private static Scope LayerScope(ClassVal type, Scope lexical, Scope instanceScope)
         => type.IsAssignableTo(BuiltinClasses.BaseInterface)
             ? instanceScope
@@ -226,8 +182,8 @@ public partial class Interpreter
             // 那种写法只换了 sink 的 scope,而 `CallInto` 里取调用点作用域的两条路走的是
             // **`_top.Scope`**(NativeClosure 与类运算符),不是 sink 的 —— 于是直接拿
             // NativeClosure 当 init 的类(比如 object 那个默认构造器)会报「未定义的变量 'this'」。
-            // (从前 `type` 的 init 没露馅只是碰巧:它被 `Alternate` 包着,中间那个控制帧
-            //  是拿 `sink.Scope` 建的,scope 因此蒙对了。)
+            // (从前 `type` 的 init 没露馅只是碰巧:它被一层控制帧包着,那个帧是拿 `sink.Scope`
+            //  建的,scope 因此蒙对了。)
             cf.Scope = inst.Scope;
             CallInto(cf, init, arg);
             return;
@@ -457,12 +413,6 @@ public partial class Interpreter
 
         // 和 StepClassInit 一个规则:交出 init 的返回值(半成品构造器继续柯里化)
         Return(cf, HalfCtor(target, cf.Result(0)));
-    }
-
-    private void StepRejectStop(ControlFrame cf)
-    {
-        if (cf.Count == 0) { CallInto(cf, cf.Arg<RuntimeValue>(0, "RejectStop"), VoidVal.Instance); return; }
-        Return(cf, cf.Result(0));
     }
 
     private void StepThen(ControlFrame cf)

@@ -50,7 +50,7 @@ internal static class SysKit
         // 占位越界,整个脚本当场没了)。生成的适配层会调**任意** .NET,这个兜不能少。
         //
         // **引擎自己那几个当控制流使的放行** —— 它们不是"被调方抛的",重新包一层
-        // 会把 `exit`(`ExitException`)和模式拒收(`RejectedException` ← `RuntimeException`)
+        // 会把 `exit`(`ExitException`)和拒收上游那些错误(`RuntimeException`)
         // 吃掉,那是把控制流嚼了。
         catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
         {
@@ -75,7 +75,7 @@ internal static class SysKit
         // 占位越界,整个脚本当场没了)。生成的适配层会调**任意** .NET,这个兜不能少。
         //
         // **引擎自己那几个当控制流使的放行** —— 它们不是"被调方抛的",重新包一层
-        // 会把 `exit`(`ExitException`)和模式拒收(`RejectedException` ← `RuntimeException`)
+        // 会把 `exit`(`ExitException`)和拒收上游那些错误(`RuntimeException`)
         // 吃掉,那是把控制流嚼了。
         catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
         {

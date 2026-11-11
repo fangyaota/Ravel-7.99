@@ -12,4 +12,4 @@
 # 它就是让别人一眼看见「System 变了」的那份清单。
 print ((System.Fields ()).Count ())
 # --- expected ---
-# 134
+# 133

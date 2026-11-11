@@ -72,11 +72,6 @@ public partial class Interpreter
             if (ex.Located) throw;
 
             Locate(ex, _top);
-            // **拒收排在交给 Ravel 钩子之前**:它是控制流(和 `return` 一个道理),不是"出事了",
-            // 先给**最近的交替帧**接(见 ResumeAlternate);没有交替可接才走到这儿,
-            // 于是外面有 `try` 就 `try` 接住,谁都没有就报给用户。
-            // (别和 `throw` 搞混:`throw` 直接走处理器栈,`|` 不认它。)
-            if (ex is RejectedException rej && ResumeAlternate(rej)) return;
             if (HandToRavelHandler(ex)) return;   // 交给 Ravel 的 handler,异常到此为止
             throw;                                // 没人接 → 冒泡给 CLI 打报告
         }
@@ -140,27 +135,6 @@ public partial class Interpreter
     private bool _reporting;
 
     private RuntimeException? _handed;
-
-    private string? _rejectMessage;
-
-    private bool ResumeAlternate(RejectedException ex)
-    {
-        for (var f = _top; f is not null; f = f.Parent)
-        {
-            // **拒收边界**(`try` 套的那一层,见 `System.RejectStop`):到这儿就停,
-            // 不再往外找。再往外就越过了"这段错归谁"——比如**任务**里写的 `reject`
-            // 会一路追到派发它的那一支去,把好端端的一支顶掉(实测过)。
-            if (f is ControlFrame { Kind: ControlKind.RejectStop }) return false;
-
-            if (f is ControlFrame { Kind: ControlKind.Alternate } alt)
-            {
-                _rejectMessage = ex.Message;
-                _top = alt;
-                return true;
-            }
-        }
-        return false;
-    }
 
     private bool HandToRavelHandler(RuntimeException ex)
     {

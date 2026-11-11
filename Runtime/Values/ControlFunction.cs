@@ -1,6 +1,6 @@
 namespace Ravel.Runtime;
 
-public enum ControlKind { With, CallCC, Using, Eval, Alternate, ClassInit, ImplMake, SeqOp, Compose, Then, TraitOp, CallAssign, CallReturn, CtorApply, RejectStop }
+public enum ControlKind { With, CallCC, Using, Eval, ClassInit, ImplMake, SeqOp, Compose, Then, TraitOp, CallAssign, CallReturn, CtorApply }
 
 public sealed record ControlFunction(ControlKind Kind, int Arity, RList<RuntimeValue> Args)
     : FunctionVal(null!, (_, _) => FunctionVal.PlaceholderBody("ControlFunction"))

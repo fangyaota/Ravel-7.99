@@ -183,7 +183,7 @@ internal static partial class BuiltinClasses
         RegisterInitializers();
         // ---- type 的 init:默认的建类逻辑(必须在 Type/Object/Function 都挂好之后) ----
         InstallTypeInit();
-        // ---- interface 的 init:借着上面那套(它的类体也要 Alternate/Install) ----
+        // ---- interface 的 init:借着上面那套(它的类体也要建类那趟) ----
         InstallInterfaceInit();
 
         // ---- 收集所有内置类（供 Subtypes 反射） ----
@@ -313,22 +313,18 @@ internal static partial class BuiltinClasses
     internal static readonly BlockVal EmptyBody =
         new(new BlockExpr([]) { Line = 1, Column = 1 }, new Scope());
 
-    internal static ControlFunction Alternate(RuntimeValue a, RuntimeValue b)
-        => new(ControlKind.Alternate, 1, RList<RuntimeValue>.Empty.Add(a).Add(b));
-
-    internal static ControlFunction Alternate(params RuntimeValue[] branches)
-    {
-        var args = RList<RuntimeValue>.Empty;
-        foreach (var b in branches) args = args.Add(b);
-        return new ControlFunction(ControlKind.Alternate, 1, args);
-    }
-
     private static void InstallTypeInit()
     {
-        var twoArg = new NativeClosure("parent", Type, (scope, parent) =>
-            FunctionVal.From(body => Install(scope, (ObjectVal)parent, body)));
-        var oneArg = new NativeClosure("body", Function, (scope, body) => Install(scope, Object, body));
-        BuiltinCtor(Type, Alternate(twoArg, oneArg));
+        // 两种写法:`某个类 (父类) { 体 }` / `某个类 { 体 }`。
+        // 从前靠 `Alternate` 逐支试,现在看一眼参数直接选 —— 类是 `Function` 的子类,先认类。
+        BuiltinCtor(Type, new NativeClosure("_", Object, (scope, param) => param switch
+        {
+            ObjectVal { IsClass: true } parent => FunctionVal.From(body => Install(scope, parent, body)),
+            FunctionVal => Install(scope, Object, param),
+            _ => throw new RuntimeException(
+                "`某个类` 后面要跟一个父类（`某个类 (父类) { … }`）或一个代码块（`某个类 { … }`）"
+                + $"，得到 {param.Type}", ErrorKind.Argument),
+        }));
     }
 
     internal static bool SealedUp(ObjectVal t)

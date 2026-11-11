@@ -26,26 +26,28 @@ internal static partial class BuiltinClasses
         //
         // 这里**不需要**判"谁在造":走得进这个类体的只有 `interface …` 一种写法。
         // 顺序是载荷:**要求表在最前**,不然那张 List 会掉进"一个要求"那支。
-        var factoryList = new NativeClosure("requires", List, (scope, rs) =>
-            FunctionVal.From(body => BuildInterface(scope, Requirements((ListVal)rs), body)));
+        // 从前靠 `Alternate` 逐支试,现在看一眼参数直接选。
+        // 顺序是载荷:**要求表在最前**,类(`Function` 的子类)排在代码块前面。
+        BuiltinCtor(Interface, new NativeClosure("_", Object, (scope, param) => param switch
+        {
+            ListVal rs => FunctionVal.From(body => BuildInterface(scope, Requirements(rs), body)),
 
-        var factoryOf = new NativeClosure("of", Type, (scope, of) =>
-            of is ObjectVal { Type: var meta } o && meta.IsAssignableTo(Interface)
-                ? FunctionVal.From(body => BuildInterface(scope, [o], body))
-                : throw new RuntimeException($"`interface` 后面只能跟接口（一个要求：`interface 某接口 {{ … }}`）"
-                    + $"或一张要求表（`interface [A B] {{ … }}`）—— {of} 是个类；"
-                    + "要给某个类实现接口就写成 `某个接口 那个类 { … }`", ErrorKind.Type));
+            ObjectVal { IsClass: true } of when of.Type.IsAssignableTo(Interface)
+                => FunctionVal.From(body => BuildInterface(scope, [of], body)),
 
-        // 代码块:不要求
-        var factoryBody = new NativeClosure("body", Function, (scope, body) => BuildInterface(scope, [], body));
+            // 是类但不是接口:说清该写成"某个接口 那个类 { … }",别掉进下面那条通用兜底
+            ObjectVal { IsClass: true } of => throw new RuntimeException(
+                $"`interface` 后面只能跟接口（一个要求：`interface 某接口 {{ … }}`）"
+                + $"或一张要求表（`interface [A B] {{ … }}`）—— {of} 是个类；"
+                + "要给某个类实现接口就写成 `某个接口 那个类 { … }`", ErrorKind.Type),
 
-        // 别的:把能写什么说全(不然只会得到「| 的 N 个分支都不收这个参数」)
-        var factoryJunk = new NativeClosure("_", Object, (_, v) => throw new RuntimeException(
-            "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，"
-            + "`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），"
-            + $"得到 {v.Type}", ErrorKind.Argument));
+            FunctionVal => BuildInterface(scope, [], param),
 
-        BuiltinCtor(Interface, Alternate(factoryList, factoryOf, factoryBody, factoryJunk));
+            _ => throw new RuntimeException(
+                "`interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，"
+                + "`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），"
+                + $"得到 {param.Type}", ErrorKind.Argument),
+        }));
 
         // ── ② 接口那一支的那份:挂在 `BaseInterface` 的类体上,所有接口(它的子类)继承 ──
         // 干的事完全不同:**造实现**。`某接口 某个类 { … }` 是实例化那个接口,而"谁在被实例化"
@@ -62,18 +64,16 @@ internal static partial class BuiltinClasses
         //   * `impl (某个接口 某个类 default)` —— `default` 的型是 `Every`(底类型),收得下,
         //     意思是"空体"(在 `StepImplMake` 里认);
         //   * 别的(`5`、一个 lambda…)当场拒收,报「参数 '实现体' 需要 Block，得到 Integer」。
-        var implOf = new NativeClosure("of", Type, (scope, of) =>
-            new ControlFunction(ControlKind.ImplMake, 3,
-                RList<RuntimeValue>.Empty.Add(scope.Lookup(ObjectVal.ThisMember).Value).Add(of))
-            {
-                Declared = [null, null, ("实现体", Block)],
-            });
+        BuiltinCtor(BaseInterface, new NativeClosure("_", Object, (scope, param) => param switch
+        {
+            ObjectVal { IsClass: true } of => new ControlFunction(ControlKind.ImplMake, 3,
+                    RList<RuntimeValue>.Empty.Add(scope.Lookup(ObjectVal.ThisMember).Value).Add(of))
+                { Declared = [null, null, ("实现体", Block)] },
 
-        var implJunk = new NativeClosure("_", Object, (_, v) => throw new RuntimeException(
-            "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
-            + $"得到 {v.Type}", ErrorKind.Argument));
-
-        BuiltinCtor(BaseInterface, Alternate(implOf, implJunk));
+            _ => throw new RuntimeException(
+                "造实现要写成 `某个接口 那个类 { … }`（接口后面跟一个**类对象**），"
+                + $"得到 {param.Type}", ErrorKind.Argument),
+        }));
 
         // `IValue` 是内置接口、**没走 `Install`**,所以类体不会从 `BaseInterface` 那儿
         // 继承过来(继承发生在 `Install` 那一趟)—— 直接借它那份。

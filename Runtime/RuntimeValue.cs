@@ -50,7 +50,6 @@ public class RuntimeException(string message, ErrorKind kind = ErrorKind.Error) 
 
 public sealed class TypeMismatchException(string message) : RuntimeException(message, ErrorKind.Type);
 
-public sealed class RejectedException(string message) : RuntimeException(message, ErrorKind.Type);
 
 public class ExitException(string message) : Exception(message);
 

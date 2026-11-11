@@ -388,10 +388,9 @@ public sealed class Lowering
 
         // **这一格自己带了类型**(`[x: int]` / `{n: int}` / `[[a b]: list]`):当场验,不成**拒收**。
         //
-        // 为什么不是"给它挂个带注解的定义(`x : int = v`)让引擎去验":那条路的错误是
-        // **体里异步**抛出来的,而 `|` 的交替只认**调用那一刻同步**抛的类型错
-        // (`StepAlternate` 的 C# `catch`)+ 异步的 `RejectedException`(`ResumeAlternate`)。
-        // 用拒收就和别的形状检查一条路,`|` 接得住 —— 参数模式当"分派头一格"就靠这条。
+        // 为什么不是"给它挂个带注解的定义(`x : int = v`)让引擎去验":那条路发的是**注解**的
+        // 说法,而模式说的是**形状**;这里统一走拒收(`reject`),和别的形状检查一条路,
+        // `|` 接得住 —— 参数模式当"分派头一格"就靠这条。
         //
         // 判据用的是 `:`(不是注解那套"能转就转"):模式说的是**形状**,`[a: real] := [1]`
         // 该说"不是 real",而不是悄悄转成 1.0。
@@ -628,8 +627,8 @@ public sealed class Lowering
     private Expression If(Expression cond, Expression then, AstNode at)
         => Call(Call(cond, AsBlock(then, at)), AsBlock(Num("0", at), at));
 
-    // 拒收 = `System.Reject`:它**抛**一枚"不收"(引擎那边的 `RejectedException`),
-    // 谁接由在场的 `reject` 决定 —— `|` 的每次调用会摆一枚,没人摆就是普通错误。
+    // 拒收 = 调 `reject`:谁接由在场的 `reject` 决定 —— `|` 的每次调用会摆一枚,
+    // 没人摆就是普通错误(那条 `reject` 自己把值交给 `throw`)。
     private Expression RejectType(Expression value, Expression type, AstNode at)
         => Call(Ident("reject", at), Call(Call(Member(Ident("System", at), "RejectType"), value), type));
 
