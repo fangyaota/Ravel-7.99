@@ -101,7 +101,7 @@ C = class {
 c = C ()
 c.check ()
 s := currentScope ()
-s.Define "x" int
+s.Define "x" ()
 p := s.Lookup "x"
 p.Set 42
 print (p.Get ())
