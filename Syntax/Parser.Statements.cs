@@ -413,10 +413,9 @@ public partial class Parser
         var off = SkipBalanced(0);
         if (off < 0) return false;                          // 括号没闭上
         if (TypeAt(off) == TokenType.ColonEqual) return true;
-        // 括号对后面紧跟一个 `=`：想解构却写错了号。定义一律 `:=`,
-        // 只有带类型注解时才能缩写成 `=` —— 这儿指出来比落到"先把 `[a b]` 求值"准。
-        if (TypeAt(off) == TokenType.Equal)
-            throw ParseError("解构定义需要 ':='（带类型时才可缩写成 '='：`[x y] : T = e`）");
+        // 括号对后面紧跟一个 `=` 也是解构 —— 但这回是**赋值**:里面的名字必须已经存在,
+        // 也不许带修饰符。(带类型注解的 `[x y] : T = e` 仍是定义的缩写,走下面那条。)
+        if (TypeAt(off) == TokenType.Equal) return true;
 
         // `[a b] |> f := e` / `[a b] |> f = e` —— 模式后面挂了「整块」条件。
         // `|>` 后面那条谓词一直到行尾,中间那个 `:=` / `=` 就是"这是个定义"的证据
@@ -478,15 +477,31 @@ public partial class Parser
         RejectBareSub(pattern);
 
         var typed = pattern.Type is not null;
-        if (!Match(TokenType.ColonEqual) && !(typed && Match(TokenType.Equal)))
-            throw ParseError("解构定义需要 ':='（带类型时才可缩写成 '='：`[x y] : T = e`）");
+        var assign = false;
+        if (Match(TokenType.ColonEqual))
+        {
+            // 定义
+        }
+        else if (Match(TokenType.Equal))
+        {
+            // 带注解的 `=`:定义的缩写;不带注解的 `=`:解构**赋值**
+            assign = !typed;
+        }
+        else
+        {
+            throw ParseError("解构需要 ':=' 或 '='（`[x y] := e` 是定义、`[x y] = e` 是赋值；`[x y] : T = e` 是带注解的定义）");
+        }
 
         _holeCount = 0;
         var value = ParseExpression();
         SkipNewlines();
         if (HasHoles(value)) value = DesugarHoles(value);
 
-        return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column };
+        if (assign && attrs.Count > 0)
+            throw new SyntaxException($"解构赋值里不能加修饰符 '{attrs[0]}' —— 修饰符只属于定义（要定义就写 ':='）",
+                new SourceSpot(source, at.Line, at.Column));
+
+        return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column, Assign = assign };
     }
 
     private bool EndsThisPart()

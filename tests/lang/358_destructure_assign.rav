@@ -1,0 +1,37 @@
+#
+# `[x y] := e` 是**定义**(名字全是新的);`[x y] = e` 是**赋值** ——
+# 同样的拆法,但每个名字都走 `=`:必须已经存在,也不许带修饰符。
+# 带注解的 `[x y] : T = e` 仍是定义(`:=` 的缩写)。
+#
+a := 1
+b := 2
+[a b] = [10 20]
+print [a b]
+
+x := 0
+y := 0
+[x y] = [3 4]
+print [x y]
+
+head := 0
+rest := ()
+[head ..rest] = [5 6 7]
+print head
+print (rest.ToList ())
+
+try { [p q] = [1 2]; } (e: Exception) => { print ("1: " + e.Message); }
+try { eval "[private m] = [1 2]"; } (e: Exception) => { print ("2: " + e.Message); }
+try { eval "private [m n] = [1 2]"; } (e: Exception) => { print ("3: " + e.Message); }
+
+[s1 s2] : list = [8 9]
+print [s1 s2]
+
+# --- expected ---
+# [10 20]
+# [3 4]
+# 5
+# [6 7]
+# 1: 无法给未定义变量 'p' 赋值
+# 2: 解构赋值里不能加修饰符 'private' —— 修饰符只属于定义（要定义就写 ':='）
+# 3: 解构赋值里不能加修饰符 'private' —— 修饰符只属于定义（要定义就写 ':='）
+# [8 9]

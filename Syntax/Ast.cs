@@ -57,6 +57,9 @@ public record DoExpr(List<Statement> Statements) : Expression;
 public record Destructure(List<string> Attrs, Pattern Pattern, Expression Value) : Statement
 {
     public bool HasAttrs => Attrs.Count > 0;
+
+    // `[a b] = e`(没有类型注解的那种):里面的名字用**赋值**落,不是定义。
+    public bool Assign { get; init; }
 }
 
 public abstract record Pattern : AstNode

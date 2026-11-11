@@ -354,7 +354,24 @@ public sealed class Lowering
         return l with { Param = param with { Name = fresh, Pattern = shown }, Body = body };
     }
 
+    // 解构**赋值**(`[a b] = e`)期间为 true:里面的名字用 `=` 落,不许带修饰符。
+    private bool _assignMode;
+
     private List<Statement> Unpack(Destructure d)
+    {
+        var prevAssign = _assignMode;
+        _assignMode = d.Assign;
+        try
+        {
+            return UnpackCore(d);
+        }
+        finally
+        {
+            _assignMode = prevAssign;
+        }
+    }
+
+    private List<Statement> UnpackCore(Destructure d)
     {
         var outs = new List<Statement>();
         List<string>? attrs = d.HasAttrs ? d.Attrs : null;
@@ -497,7 +514,7 @@ public sealed class Lowering
                 return;
 
             case NamePattern n:
-                outs.Add(Define(n.Name, null, source, eff, at));
+                outs.Add(BindName(n.Name, source, eff, at));
                 CheckGuard(n, n.Name, Ident(n.Name, at), outs);
                 // **值和它的拆法都要**:绑完名字,再拿**这个名字**当源按子模式拆一遍。
                 // 用名字而不是重读 `source` —— 那边可能是一枚游标或一次调用,重读要出事。
@@ -514,7 +531,7 @@ public sealed class Lowering
                 drain = Call(drain, Block([ExprStmt(Call(yid, Member(source, "Current")), at)], at));
                 var gen = new LambdaExpr(new Parameter(y, Ident("function", at)), AsBlock(drain, at))
                     { Line = at.Line, Column = at.Column, Sugar = true };
-                outs.Add(Define(r.Name, null, Call(Ident("Generator", at), gen), eff, at));
+                outs.Add(BindName(r.Name, Call(Ident("Generator", at), gen), eff, at));
                 CheckGuard(r, r.Name, Ident(r.Name, at), outs);
                 return;
 
@@ -680,6 +697,15 @@ public sealed class Lowering
 
     private static CallExpr Call0(Expression f)
         => Call(f, new VoidLiteral { Line = f.Line, Column = f.Column });
+
+    // 一个名字怎么落地:定义(`:=`)还是赋值(`=`)。解构赋值里那几格走后者。
+    private Statement BindName(string name, Expression value, List<string>? attrs, AstNode at)
+    {
+        if (!_assignMode) return Define(name, null, value, attrs, at);
+        if (attrs is [.., var bad])
+            throw Error(at, $"解构赋值里不能加修饰符 '{bad}' —— 修饰符只属于定义（要定义就写 ':='）");
+        return new Assignment(name, value) { Line = at.Line, Column = at.Column };
+    }
 
     private static Statement Define(string name, Expression? type, Expression value, List<string>? attrs, AstNode at)
         => attrs is [Attr.By] && type is null
