@@ -1,0 +1,98 @@
+# Brainfuck 解释器:8 位单元、指针可负、带循环配对表。
+# 用法:`ravel brainfuck.rav 程序.bf`(不给参数就跑内嵌的 Hello World);
+# 程序里的非指令字符(注释、空白)一律忽略;`,` 读标准输入,读尽给 0。
+
+using "io.rav"
+
+demo := "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++."
+
+isOp := (c) => { "+-<>[].,".Contains c; }
+
+source := () => {
+    a := System.Args ()
+    ((a.Count ()) == 0) { demo; } {
+        f := (Io.Dir ".").Child (a.At 0)
+        (f.Exists ()) { f.Read (); } {
+            print ("没有这个文件: " + (a.At 0))
+            demo
+        }
+    }
+}
+
+strip := (src) => {
+    out := ""
+    i := 0
+    while { i < (src.Length ()); } {
+        c := src.At i
+        (isOp c) { out += string c; } { 0; }
+        i += 1
+    }
+    out
+}
+
+jumps := (code) => {
+    table := {->}
+    stack := []
+    i := 0
+    while { i < (code.Length ()); } {
+        c := code.At i
+        (c == '[') { stack.Add i; } {
+            (c == ']') {
+                o := stack.At ((stack.Count ()) - 1)
+                stack.RemoveAt ((stack.Count ()) - 1)
+                table.Set o i
+                table.Set i o
+            } { 0; }
+        }
+        i += 1
+    }
+    table
+}
+
+run := (code table) => {
+    cells := {->}
+    at := (k) => { (cells.Has k) { cells.Get k; } { 0; } }
+    put := (k v) => { cells.Set k ((((v % 256) + 256) % 256)); }
+    p := 0
+    ip := 0
+    pending := ""
+    eof := false
+    nextChar := () => {
+        (eof) { 0; } {
+            while { ((((pending.Length ())) == 0) & (!eof)); } {
+                line := input ""
+                (line == "") { eof = true; } { pending = line + "\n"; }
+            }
+            (eof) { 0; } {
+                c := (pending.At 0).Code ()
+                ln := pending.Length ()
+                pending = pending.Slice [1..ln)
+                c
+            }
+        }
+    }
+    n := code.Length ()
+    while { ip < n; } {
+        c := code.At ip
+        (c == '+') { put p ((at p) + 1); } {
+            (c == '-') { put p ((at p) - 1); } {
+                (c == '>') { p += 1; } {
+                    (c == '<') { p -= 1; } {
+                        (c == '.') { System.Write (string (char (at p))); } {
+                            (c == ',') { put p (nextChar ()); } {
+                                (c == '[') { ((at p) == 0) { ip = table.Get ip; } { 0; } } {
+                                    (c == ']') { ((at p) != 0) { ip = table.Get ip; } { 0; } } { 0; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ip += 1
+    }
+    System.Write "\n"
+}
+
+code := strip (source ())
+run code (jumps code)

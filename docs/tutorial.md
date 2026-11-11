@@ -32,7 +32,7 @@ ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 
 
 - **[CONTEXT.md](../CONTEXT.md)** —— 这个语言**为什么**长这样（求值器架构、每一处取舍的来龙去脉）。教程只管"怎么用"。
 - **[docs/adr/](adr/)** —— 几条大决定（类与类型系统、显式帧栈）。
-- **[examples/](../examples/)** —— 能跑的例子：`guess_number.rav`（猜数字，交互/管道都能跑）、`lambda0.rav`（无类型 lambda 演算求值器 + REPL）、`tasks.rav`（协作式任务八节）、`signal.rav`（闸：两版能等的队列对着看）、`http.rav`（真出网）、`refgraph.rav`（画模块引用图）、`type_tree.rav`（画类型树）。
+- **[examples/](../examples/)** —— 能跑的例子：`guess_number.rav`（猜数字，交互/管道都能跑）、`lambda0.rav`（无类型 lambda 演算求值器 + REPL）、`brainfuck.rav`（Brainfuck 解释器，`ravel examples/brainfuck.rav 程序.bf`）、`tasks.rav`（协作式任务八节）、`signal.rav`（闸：两版能等的队列对着看）、`http.rav`（真出网）、`refgraph.rav`（画模块引用图）、`type_tree.rav`（画类型树）。
 - **`tests/`** —— golden 用例，一份源码 + 一份期望输出。想找某个特性的**边界**，那儿最全。
 
 ## 每一段代码都跑过
