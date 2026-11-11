@@ -98,6 +98,12 @@ public sealed class Lowering
         // `by a = X` / `by a.x = X` 两条路都带表达式;`Define` 那些开关是 `with` 自动带过去的
         SlotAssign sa => sa with { Path = Lower(sa.Path), Value = Lower(sa.Value) },
 
+        // `xs[i] = v` / `xs[i] += v`:对象和下标各求**一次**,再用 `Set` 落。
+        // 走两个参数的 lambda:求值次序就是 `x`、`i`、体,天然不重不漏。
+        ExpressionStatement { Expr: BinaryExpr { Left: IndexExpr ix } b }
+            when b.Op is "=" or "+=" or "-=" or "*=" or "/=" or "%=" or "**="
+            => ExprStmt(IndexWrite(ix, b.Op, b.Right), b),
+
         ExpressionStatement es => es with { Expr = Lower(es.Expr) },
 
         // 只有解析器里手写的 `do` 深度护栏能放行;`ParseDo` 折完就没它了(mk 见 Ast.cs 的注解)
@@ -153,9 +159,15 @@ public sealed class Lowering
         BinaryExpr b when IsMemberOperator(b.Op) => MemberCall(b),
 
         // ── 别的只是"往下走、原样重建" ──
+        // `xs[i] = v` 在**表达式**位置:和语句位置走同一个写回帮手(值是写进去的那个)。
+        BinaryExpr { Left: IndexExpr ix } b
+            when b.Op is "=" or "+=" or "-=" or "*=" or "/=" or "%=" or "**="
+            => IndexWrite(ix, b.Op, b.Right),
         BinaryExpr b => b with { Left = Lower(b.Left), Right = Lower(b.Right) },
         CallExpr c => c with { Function = Lower(c.Function), Argument = Lower(c.Argument) },
         MemberAccess m => m with { Object = Lower(m.Object) },
+        // 读:`xs[i]` 就是 `xs.At i`(区间也走 `At` —— 那几个成员的 `At` 认区间并切片)
+        IndexExpr ix => Call(Member(Lower(ix.Object), "At"), Lower(ix.Index)),
         UnaryExpr u => u with { Operand = Lower(u.Operand) },
         PipeExpr p => p with { Left = Lower(p.Left), Right = Lower(p.Right) },
         SlotExpr sl => sl with { Path = Lower(sl.Path) },
@@ -711,6 +723,33 @@ public sealed class Lowering
         => attrs is [Attr.By] && type is null
             ? new SlotAssign(Ident(name, at), value, Define: true) { Line = at.Line, Column = at.Column }
             : new VarDefinition(name, type, value, attrs) { Line = at.Line, Column = at.Column };
+
+    private Expression IndexWrite(IndexExpr ix, string op, Expression value)
+    {
+        var o = Fresh("__o");
+        var i = Fresh("__i");
+        var oid = Ident(o, ix);
+        var iid = Ident(i, ix);
+        var slot = Ident(Fresh("__v"), ix);
+
+        Expression newValue = op == "="
+            ? value
+            : new BinaryExpr(Call(Member(oid, "At"), iid), op[..^1], value) { Line = ix.Line, Column = ix.Column };
+
+        // 体:`__v := <新值>; (__o.Set __i) __v; __v;`
+        var body = new List<Statement>
+        {
+            Define(slot.Name, null, newValue, null, ix),
+            ExprStmt(Call(Call(Member(oid, "Set"), iid), slot), ix),
+            ExprStmt(slot, ix),
+        };
+
+        var inner = new LambdaExpr(new Parameter(i, Ident("object", ix)), Block(body, ix))
+            { Line = ix.Line, Column = ix.Column };
+        var outer = new LambdaExpr(new Parameter(o, Ident("object", ix)), Block([ExprStmt(inner, ix)], ix))
+            { Line = ix.Line, Column = ix.Column };
+        return Call(Call(outer, Lower(ix.Object)), Lower(ix.Index));
+    }
 
     private static Statement ExprStmt(Expression e, AstNode at)
         => new ExpressionStatement(e) { Line = at.Line, Column = at.Column };

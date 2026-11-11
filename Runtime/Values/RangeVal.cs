@@ -125,7 +125,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
         return true;
     }
 
-    private static bool Infinite(RuntimeValue v, out int sign)
+    internal static bool Infinite(RuntimeValue v, out int sign)
     {
         if (v is RealVal f && double.IsInfinity(f.Value)) { sign = f.Value > 0 ? 1 : -1; return true; }
         sign = 0;

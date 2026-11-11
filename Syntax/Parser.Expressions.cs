@@ -99,6 +99,67 @@ public partial class Parser
         return e;
     }
 
+    private bool AdjacentToPrevious()
+    {
+        var prev = Previous();
+        var next = Peek();
+        return prev.Line == next.Line && prev.Column + prev.Length == next.Column;
+    }
+
+    private Expression ParseIndex(Expression expr)
+    {
+        var opener = Peek();
+        _pos++;                                     // `[` 或 `(`
+
+        Expression index;
+        if (opener.Type == TokenType.LeftParen)
+        {
+            // `(` 开:起点不含。收尾的 `]` / `)` 由 `TryParseRange` 吃掉。
+            index = TryParseRange(false)
+                ?? throw ParseError("'(' 开头的索引得是区间（`xs(0..3)`）");
+        }
+        else
+        {
+            // `[` 开:区间(收尾 `]` 含、`)` 不含)或者一个普通的表达式。
+            index = TryParseRange(true) ?? ParseIndexExpression();
+        }
+
+        return new IndexExpr(expr, index) { Line = expr.Line, Column = expr.Column };
+    }
+
+    private Expression ParseIndexExpression()
+    {
+        var index = ParseExpression();
+        SkipNewlines();
+        Consume(TokenType.RightBracket, "索引要一个 ']' 收尾（`xs[0]`）");
+        return index;
+    }
+
+    // 紧跟的这个 `(` 里面(这一层)有没有 `..` —— 有才是区间索引,不然是普通调用。
+    private bool RangeInsideParens()
+    {
+        var depth = 0;
+        for (var i = _pos + 1; i < tokens.Count; i++)
+        {
+            switch (tokens[i].Type)
+            {
+                case TokenType.LeftParen or TokenType.LeftBracket or TokenType.LeftBrace:
+                    depth++;
+                    break;
+                case TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace:
+                    if (depth == 0) return false;
+                    depth--;
+                    break;
+                case TokenType.DotDot when depth == 0:
+                    return true;
+                case TokenType.EndOfFile:
+                    return false;
+            }
+        }
+
+        return false;
+    }
+
     private LambdaExpr Thunk(Expression e, Token at)
         => new(new Parameter("_", new IdentifierExpr("void") { Line = at.Line, Column = at.Column }), AsBlock(e, at))
             { Line = at.Line, Column = at.Column, Sugar = true };
@@ -231,6 +292,15 @@ public partial class Parser
         // (`allowPipe: true`):**不吃并列的实参**(不然 `(x < 0 y: int)` 里那个 `y: int`
         // 会被当成 `0` 的实参吃进去,"守卫 + 下一个参数"静默变成一个参数的 lambda),
         // 但 `|>` **照收** —— 它是运算符,不是并列的应用(`(v |> IsPrime)` 靠它)。
+        // 下标是**后缀**,和"并列的实参"不是一回事 —— 所以放在 `allowCall` 这道门**外面**:
+        // `print l[0]` 里那个 `[0]` 得挂在 `l` 上,不能被外层当成"再喂一个实参"。
+        //
+        // 四种区间写法都在这一条路上:`xs[1..2]` / `xs[1..3)` / `xs(0..2]` / `xs(0..3)`。
+        // `(` 只有"紧挨着、里面是区间"才当索引 —— 否则 `f(x)` 还是普通的调用。
+        while (AdjacentToPrevious()
+               && (Check(TokenType.LeftBracket) || (Check(TokenType.LeftParen) && RangeInsideParens())))
+            expr = ParseIndex(expr);
+
         if (!allowCall && !allowPipe) return expr;
 
         // 这一串里正在开的那个循环。**得跨实参活下来** —— `while` / `foreach` 的体是
@@ -244,6 +314,9 @@ public partial class Parser
         //  实参本来就吃运算符,不拦一手,运算符永远轮不到。)
         while (true)
         {
+            // `xs[i]` —— **紧挨着**才算索引(`xs [1 2]` 仍是"把列表当实参")。
+            // 空格在这门语言里本来就是"应用"的意思,拿它分开这两件事最省事,
+            // 也不给列表字面量挖坑(`print [1 2]` / `f [1 2]` 一个字都不用改)。
             // `|>` —— **把左边交给右边**。右边是什么,决定了交法:
             //
             //     x.f () |> .g ()   ≡   (x.f ()).g ()    ← `.成员`:挂到左边那个值上

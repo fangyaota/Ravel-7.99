@@ -23,6 +23,7 @@ internal static class StringMembers
     [ClassMethod("At")]
     private static RuntimeValue At(RuntimeValue self, RuntimeValue arg)
     {
+        if (arg is RangeVal) return Slice(self, arg);      // `s[1..3]` = `s.Slice [1..3)`
         var v = ((StringVal)self).Value;
         var i = BuiltinClasses.IntArg(arg, "s.At");
         if (i < 0 || i >= v.Length)
@@ -130,11 +131,35 @@ internal static class StringMembers
             .Select(p => (RuntimeValue)new StringVal(p))]);
     }
 
-    private static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what)
+    internal static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what)
     {
         // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段。
         // 区间是**降序**的话(`[4..0]`)拿到的是同一段、但**倒着**切 —— 方向也照区间的意思走。
-        var (first, last, up) = rng.Walk();
+        System.Numerics.BigInteger first, last;
+        bool up;
+        if (rng.IsBounded())
+        {
+            (first, last, up) = rng.Walk();
+        }
+        else if (RangeVal.Infinite(rng.Start, out _) && RangeVal.Infinite(rng.End, out _))
+        {
+            throw new RuntimeException($"{what}: {rng} 两头都没给,切不出这一段", ErrorKind.Index);
+        }
+        else if (RangeVal.Infinite(rng.End, out _))
+        {
+            // `xs[1..]`:一直切到末尾
+            (first, up) = rng.Head();
+            last = length - 1;
+        }
+        else
+        {
+            // `xs[..2]`:从头切到那一头 —— 起点那头的 ∞ 让 `Walk` 折不出来,
+            // 但"定得下来的那一端"就是 `Head()` 给的那一格。
+            (last, _) = rng.Head();
+            first = 0;
+            up = true;
+        }
+
         if (up ? first > last : first < last) return (0, 0, false);      // 空区间 → 空的一段
 
         var lo = System.Numerics.BigInteger.Min(first, last);

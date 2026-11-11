@@ -360,9 +360,9 @@ public partial class Parser
         // `<表达式> := <表达式>`,那个形状在语句位置**读不出赋值**(先掉进模式那条路,报
         // 「模式括号没闭上」)。错在左边不是左值,指在这儿比等求值准。
         if (expr is BinaryExpr { Op: "=" or ":=" or "+=" or "-=" or "*=" or "**=" or "/=" or "%=" } bad
-            && bad.Left is not (IdentifierExpr or MemberAccess))
+            && bad.Left is not (IdentifierExpr or MemberAccess or IndexExpr))
             throw new SyntaxException(
-                $"'{bad.Op}' 的左边得是变量或成员",
+                $"'{bad.Op}' 的左边得是变量、成员或下标",
                 new SourceSpot(source, bad.Line, bad.Column));
 
         // `x++` / `x--`。**紧贴着**刚算完的表达式看,不跨换行 —— `x` 一行、`++` 一行

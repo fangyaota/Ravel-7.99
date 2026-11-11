@@ -45,6 +45,17 @@ internal static class JsonMembers
     [ClassMethod("At")]
     private static RuntimeValue At(RuntimeValue self, RuntimeValue arg)
     {
+        // 区间:数组切片(`j[1..3]`)。
+        if (arg is RangeVal rng)
+        {
+            var arr0 = ((JsonVal)self).Token as JArray
+                ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
+            var (from, to, reverse) = StringMembers.SliceBounds(rng, arr0.Count, "Json.At");
+            var items = arr0.Skip(from).Take(to - from).Select(t => (RuntimeValue)new JsonVal(t));
+            if (reverse) items = items.Reverse();
+            return new JsonVal(new JArray([.. items]));
+        }
+
         var i = BuiltinClasses.IntArg(arg, "Json.At");
         var arr = ((JsonVal)self).Token as JArray
             ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);

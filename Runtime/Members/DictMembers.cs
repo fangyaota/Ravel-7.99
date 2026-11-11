@@ -15,6 +15,10 @@ internal sealed class DictMembers : SequenceMembers
         throw new RuntimeException($"键不存在: {key}", ErrorKind.Key);
     }
 
+    // `d[k]` —— 和 `d.Get k` 一条路(键一起归一化)。
+    [ClassMethod("At")]
+    private static RuntimeValue At(RuntimeValue self, RuntimeValue arg) => SysGet(self, arg);
+
     [ClassMethod("SysSet")]
     private static RuntimeValue SysSet(RuntimeValue self, RuntimeValue arg)
     {

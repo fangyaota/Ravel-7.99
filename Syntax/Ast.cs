@@ -131,6 +131,9 @@ public record CallExpr(Expression Function, Expression Argument) : Expression
     public bool BareUnitArg { get; init; }
 }
 public record MemberAccess(Expression Object, string Member) : Expression;
+
+// `xs[i]` —— 读:`xs.At i`;写:`xs[i] = v`(见 Lowering);切片:`xs[a..b]`
+public record IndexExpr(Expression Object, Expression Index) : Expression;
 public record BinaryExpr(Expression Left, string Op, Expression Right) : Expression;
 public record UnaryExpr(string Op, Expression Operand) : Expression;
 public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression
