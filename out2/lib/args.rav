@@ -1,0 +1,143 @@
+
+ravel "Args"
+
+readonly private Rest := "_"
+readonly private IsOpt := (v: string) => {
+    (v.Length ()) < 2 { false; } {
+        !(v.StartsWith "-") { false; } { !((v.At 1).IsDigit ()); }
+    }
+}
+
+readonly private Peel := (arg: string) => {
+    arg.StartsWith "--" { arg.Skip 2; } { arg.Skip 1; }
+}
+
+readonly Parse := (argv: list) => { ParseWith argv (); }
+
+readonly ParseWith := (argv: list spec: object) => {
+    given := (typeof spec) == dict
+    n := argv.Count ()
+    out := {->}
+    out.Set Rest []
+    i := 0
+    tail := false
+    addRest := (v: object) => { (out.Get Rest).Add v; (); }
+
+    isFlag := (name: string) => {
+        given { ((SpecOf spec name) == "flag"); } { true; }
+    }
+
+    put := (name: string raw: object) => {
+        given && (!(spec.Has name)) {
+
+            known := ((spec.Keys ()).Sort ()).Join " "
+            throw (Exception ("Args.Parse: 不认识的选项 '" + name + "'（规格里有：" + known + "）"))
+        } { 0; }
+        t := given { SpecOf spec name; } { "string"; }
+        v := Coerce t name raw
+        t == "list" {
+            out.Has name { (out.Get name).Add v; } { out.Set name [v]; }
+        } { out.Set name v; }
+        ();
+    }
+
+    take := (name: string) => {
+        isFlag name { put name true; } {
+            (i < n) && (!(IsOpt (argv.At i))) {
+                put name (argv.At i)
+                i += 1
+            } { throw (Exception ("Args.Parse: '" + name + "' 缺一个值")); }
+        }
+        ();
+    }
+
+    merge := (body: string) => {
+        (body.Chars ()).Foreach (c: object) => {
+            nm := string c
+            given && (!(isFlag nm)) {
+                throw (Exception ("Args.Parse: 合并的短开关不能带值 —— '-" + body + "' 里的 '" + nm + "' 是带值的，请写 '-" + nm + " 值'"))
+            } { 0; }
+            put nm true
+        }
+        ();
+    }
+
+    assign := (name: string raw: string) => {
+        name.IsEmpty () {
+            throw (Exception ("Args.Parse: 选项名是空的 —— " + raw))
+        } { put name raw; }
+        ();
+    }
+
+    while { i < n; } {
+        arg := argv.At i
+        i += 1
+        tail { addRest arg; } {
+            arg == "--" {
+                tail = true
+            } {
+                IsOpt arg {
+                    body := Peel arg
+
+                    eq := body.Find "="
+                    eq >= 0 {
+                        assign (body.Slice [0..eq)) (body.Skip (eq + 1))
+                    } {
+
+                        (!(arg.StartsWith "--")) && ((body.Length ()) > 1) {
+                            merge body
+                        } { take body; }
+                    }
+                } { addRest arg; }
+            }
+        }
+    }
+
+    out
+}
+
+readonly private SpecOf := (spec: dict name: string) => {
+    spec.Has name { spec.Get name; } { "string"; }
+}
+
+readonly private Coerce := (t: string name: string v: object) => {
+    t == "flag" { true; } {
+        t == "int" { AsInt name v; } {
+            t == "real" { AsReal name v; } { v; }
+        }
+    }
+}
+
+readonly private AsInt := (name: string v: object) => {
+    (typeof v) == string {
+        s := v.StartsWith "-" { v.Skip 1; } { v; }
+        ok := (s.Length ()) > 0
+        (s.Chars ()).Foreach (c: object) => {
+            !(c.IsDigit ()) { ok = false; } { 0; }
+        }
+        ok { int v; } { throw (Exception ("Args.Parse: '--" + name + "' 要一个整数，得到 '" + v + "'")); }
+    } { v; }
+}
+
+readonly private AsReal := (name: string v: object) => {
+    (typeof v) == string {
+        try { real v; } (e: Exception) => { throw (Exception ("Args.Parse: '--" + name + "' 要一个数，得到 '" + v + "'")); }
+    } { v; }
+}
+
+readonly Get := (a: dict name: string dflt: object) => {
+    a.Has name { a.Get name; } { dflt; }
+}
+
+readonly Has := (a: dict name: string) => { a.Has name; }
+
+readonly Positional := (a: dict) => { a.Get Rest; }
+
+readonly Usage := (spec: dict) => {
+    parts := []
+    ((spec.Keys ()).Sort ()).Foreach (k: string) => {
+        t := spec.Get k
+        parts.Add (t == "flag" { "--" + k; } { (("--" + k) + " <") + (t + ">"); })
+    }
+    (parts).Join " "
+}

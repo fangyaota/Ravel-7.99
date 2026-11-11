@@ -1,0 +1,224 @@
+using "native.rav"
+using "encoding.rav"
+using "io.rav"
+using "tasks.rav"
+
+readonly Response ::= class {
+    status: int = 0
+    reason: string = ""
+    headers: dict = {->}
+    body: list = []
+    url: string = ""
+    size: int = 0
+
+    init = (raw: dict) => {
+        status = raw.Get "status"
+        reason = raw.Get "reason"
+        headers = raw.Get "headers"
+        url = raw.Get "url"
+
+        body = raw.Has "body" { raw.Get "body"; } { []; }
+        size = raw.Has "bytes" { raw.Get "bytes"; } { (body.Count ()); }
+        this;
+    }
+
+    Ok := () => { (status >= 200) && (status < 300); }
+    Bytes := () => { body; }
+    Size := () => { size; }
+
+    Text := () => { Native.DecodeText body (Charset ()); }
+
+    Json := () => { System.Json.FromString (Text ()); }
+
+    Header := (name: string) => { HeaderOr name ""; }
+    HeaderOr := (name: string dflt: string) => { headers.GetOr (name.ToLower ()) dflt; }
+
+    Charset := () => {
+        ct := HeaderOr "content-type" ""
+        (ct.Contains "charset=") {
+            rest := ct.Skip ((ct.IndexOf "charset=") + 8)
+            head := (rest.Split ";").At 0
+            trimmed := head.Trim ()
+            trimmed.ToLower ()
+        } { "utf-8"; }
+    }
+
+    Save := (path: string) => { System.WriteBytes path body; (); }
+}
+
+ravel "Http"
+
+readonly private IntOr := (d: dict k: string dflt: int) => { (d.Has k) { d.Get k; } { dflt; } }
+
+readonly private BodyOf := (body: object) => {
+    ((typeof body) == string) {
+        {"bytes"-> (Encoding.Utf8 body) "contentType"-> ""};
+    } {
+        {"bytes"-> (Encoding.Utf8 ((Json body).Text ())) "contentType"-> "application/json"};
+    }
+}
+
+readonly private Spec := (url: string method: string opts: dict) => {
+    s := opts.Copy ()
+    s.Set "url" url
+    s.Set "method" method
+    (s.Has "body") {
+        b := BodyOf (s.Get "body")
+        s.Set "body" (b.Get "bytes")
+        ((b.Get "contentType") != "") {
+            h := (s.Has "headers") { s.Get "headers"; } { {->}; }
+            (h.Has "content-type") { 0; } { h.Set "content-type" (b.Get "contentType"); }
+            s.Set "headers" h
+        } { 0; }
+    } { 0; }
+    s
+}
+
+readonly Once := (spec: dict) => { Response (Native.HttpReq spec); }
+
+readonly private TrySpec := (spec: dict n: int) => {
+    r := try { Once spec; } (e: Exception) => {
+        (n <= 0) { throw e; } {
+            System.Sleep (IntOr spec "backoff" 0)
+            TrySpec spec (n - 1)
+        }
+    }
+    ((r.status >= 500) && (n > 0)) {
+        System.Sleep (IntOr spec "backoff" 0)
+        TrySpec spec (n - 1)
+    } { r; }
+}
+
+readonly private Send := (url: string method: string opts: dict) => {
+    spec := Spec url method opts
+    TrySpec spec (IntOr spec "retries" 0)
+}
+
+readonly Get := (url: string) => { Send url "GET" {->}; }
+readonly Post := (url: string body: object) => { Send url "POST" {"body"-> body}; }
+readonly Put := (url: string body: object) => { Send url "PUT" {"body"-> body}; }
+readonly Patch := (url: string body: object) => { Send url "PATCH" {"body"-> body}; }
+readonly Delete := (url: string) => { Send url "DELETE" {->}; }
+readonly Head := (url: string) => { Send url "HEAD" {->}; }
+
+readonly Request := (spec: dict) => {
+    Send (spec.Get "url") ((spec.Has "method") { spec.Get "method"; } { "GET"; }) spec
+}
+
+readonly private PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }
+
+readonly Download := (url: string path: object) => {
+    Response (Native.HttpDownload {"url"-> url "path"-> (PathOr path)});
+}
+
+readonly Upload := (url: string path: object) => {
+    Response (Native.HttpUpload {"url"-> url "path"-> (PathOr path)});
+}
+
+readonly private UploadTo := (url: string path: object field: string) => {
+    Response (Native.HttpUpload {"url"-> url "path"-> (PathOr path) "field"-> field});
+}
+
+readonly private OnceTask := (g: Tasks.TaskGroup spec: dict) => {
+    Response (g.Await (Tasks.Of (Native.HttpReqTask spec)));
+}
+
+readonly private TrySpecTask := (g: Tasks.TaskGroup spec: dict n: int) => {
+    r := try { OnceTask g spec; } (e: Exception) => {
+        (n <= 0) { throw e; } {
+            g.Await (Tasks.After (IntOr spec "backoff" 0))
+            TrySpecTask g spec (n - 1)
+        }
+    }
+    ((r.status >= 500) && (n > 0)) {
+        g.Await (Tasks.After (IntOr spec "backoff" 0))
+        TrySpecTask g spec (n - 1)
+    } { r; }
+}
+
+readonly RequestTask := (spec: dict) => {
+    Tasks.Task (g: Tasks.TaskGroup) => { TrySpecTask g spec (IntOr spec "retries" 0); }
+}
+
+readonly private SendTask := (url: string method: string opts: dict) => { RequestTask (Spec url method opts); }
+
+readonly GetTask := (url: string) => { SendTask url "GET" {->}; }
+readonly PostTask := (url: string body: object) => { SendTask url "POST" {"body"-> body}; }
+readonly private PutTask := (url: string body: object) => { SendTask url "PUT" {"body"-> body}; }
+readonly private PatchTask := (url: string body: object) => { SendTask url "PATCH" {"body"-> body}; }
+readonly private DeleteTask := (url: string) => { SendTask url "DELETE" {->}; }
+readonly private HeadTask := (url: string) => { SendTask url "HEAD" {->}; }
+
+readonly DownloadTask := (url: string path: object) => {
+    Tasks.Task (g: Tasks.TaskGroup) => {
+        Response (g.Await (Tasks.Of (Native.HttpDownloadTask {"url"-> url "path"-> (PathOr path)})));
+    }
+}
+
+readonly private UploadTask := (url: string path: object) => {
+    Tasks.Task (g: Tasks.TaskGroup) => {
+        Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url"-> url "path"-> (PathOr path)})));
+    }
+}
+
+readonly private UploadToTask := (url: string path: object field: string) => {
+    Tasks.Task (g: Tasks.TaskGroup) => {
+        Response (g.Await (Tasks.Of (Native.HttpUploadTask {"url"-> url "path"-> (PathOr path) "field"-> field})));
+    }
+}
+
+readonly Query := (url: string params: dict) => {
+    (params.IsEmpty ()) { url; } {
+        pairs := []
+        (params.Keys ()).Foreach (k: object) => {
+            pairs.Add ((string k) + "=" + (Encoding.UrlEncode (string (params.Get k))));
+        }
+        url + ((url.Contains "?") { "&"; } { "?"; }) + (pairs.Join "&")
+    }
+}
+
+readonly Expect := (r: Response) => {
+    (r.Ok ()) { r; } {
+        text := r.Text ()
+        throw (Exception ("Http " + (string (r.status)) + " " + (r.reason) + "：" + (text.Take 200)))
+    }
+}
+
+readonly Url ::= class {
+    Link: string = ""
+
+    init = (link: string) => { Link = link; this; }
+
+    Name := () => {
+        parts := Link.Split "/"
+        last := parts.At ((parts.Count ()) - 1)
+        (last.IsEmpty ()) { parts.At ((parts.Count ()) - 2); } { last; }
+    }
+
+    IsDir := () => { false; }
+
+    Exists := () => {
+        r := Probe ()
+        ((r.status >= 400) && (r.status < 500)) { false; } { true; }
+    }
+
+    Size := () => {
+        cl := (Probe ()).HeaderOr "content-length" ""
+        (cl.IsEmpty ()) { (Http.Get Link).Size (); } { int cl; }
+    }
+
+    Read := () => { (Http.Get Link).Text (); }
+    Write := (text: string) => { Send Link "PUT" {"body"-> text}; (); }
+    Delete := () => { Send Link "DELETE" {->}; (); }
+    Append := (text: string) => { throw (Exception ("网络文件没得追写（HTTP 里没有这回事）：" + Link)); }
+
+    Probe := () => {
+        h := try { Some (Http.Head Link); } (e: Exception) => { None; }
+        ((h.IsNone ()) || ((h.Value ()).status == 405) || ((h.Value ()).status == 501)) {
+            Http.Get Link;
+        } { h.Value (); }
+    }
+}
+
+impl (IEntry Url {;})
+impl (IFile Url {;})

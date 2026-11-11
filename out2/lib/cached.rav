@@ -1,0 +1,46 @@
+readonly Cached ::= (count: int f: function) => {
+    assert (count >= 1) ("Cached 的参数个数至少是 1，得到 " + string count)
+
+    keys: list = []
+    vals: list = []
+
+    same := (a: list b: list) => {
+        ((a.Count ()) != (b.Count ())) { false; } {
+            ok := true
+            i := 0
+            while { i < a.Count (); } {
+                ((typeof (a.At i)) != (typeof (b.At i)) || (a.At i) != (b.At i)) { ok = false; } { 0; }
+                i += 1
+            }
+            ok
+        }
+    }
+
+    compute := (args: list) => {
+        r: object = f
+        args.Foreach (a: object) => { r = r a; }
+        keys.Add args
+        vals.Add r
+        r
+    }
+
+    step := (got: list) => {
+        (x: object) => {
+            more := got.Copy ()
+            more.Add x
+            ((more.Count ()) == count) {
+                found := -1
+                i := 0
+                while { i < keys.Count (); } {
+                    (found < 0 && same (keys.At i) more) { found = i; } { 0; }
+                    i += 1
+                }
+                (found >= 0) { vals.At found; } { compute more; }
+            } {
+                step more;
+            }
+        }
+    }
+
+    step []
+}

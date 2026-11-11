@@ -1,0 +1,288 @@
+using "tasks.rav"
+
+using "iomonad.rav"
+
+readonly IEntry ::= interface {
+    by Exists : function = _
+    by IsDir : function = _
+    by Delete : function = _
+    by Name : function = _
+}
+
+readonly IFile ::= interface IEntry {
+    by Read : function = _
+    by Write : function = _
+    by Append : function = _
+    by Size : function = _
+}
+
+readonly IDir ::= interface IEntry {
+    by List : function = _
+}
+
+ravel "Io"
+
+readonly PathOf := (p: object) => {
+    (typeof (p)) == string { p; } { p.Path; }
+}
+
+readonly private EntryAt := (path: string isDir: bool) => {
+    isDir { Dir path; } { File path; }
+}
+
+readonly File ::= class {
+    Path: string = ""
+
+    init = (path: string) => { Path = System.PathClean path; this; }
+
+    Name := () => { System.PathBase Path; }
+    Exists := () => { System.FileExists Path; }
+    IsDir := () => { false; }
+    Size := () => { System.PathSize Path; }
+    LastWrite := () => { System.PathTime Path; }
+    Read := () => { System.ReadText Path; }
+    Lines := () => { System.SplitLines (System.ReadText Path); }
+    Write := (text: string) => { System.WriteText Path text; (); }
+    Append := (text: string) => { System.AppendText Path text; (); }
+
+    ReadTask := () => { Tasks.Of (System.ReadTextTask Path); }
+    WriteTask := (text: string) => { Tasks.Of (System.WriteTextTask Path text); }
+    AppendTask := (text: string) => { Tasks.Of (System.AppendTextTask Path text); }
+    Delete := () => { System.DeletePath Path; (); }
+
+    CopyTo := (dest: object) => {
+        d := PathOf dest
+        System.CopyPath Path d
+        File d;
+    }
+    MoveTo := (dest: object) => {
+        d := PathOf dest
+        System.MovePath Path d
+        Path = System.PathClean d
+        this;
+    }
+    Rename := (name: string) => { MoveTo (System.PathJoin (System.PathDir Path) name); }
+}
+
+readonly Dir ::= class {
+    Path: string = ""
+
+    init = (path: string) => { Path = System.PathClean path; this; }
+
+    Name := () => { System.PathBase Path; }
+    Exists := () => { System.DirExists Path; }
+    IsDir := () => { true; }
+    Create := () => { System.CreateDir Path; this; }
+    Delete := () => { System.DeletePath Path; (); }
+
+    Child := (name: string) => {
+        p := System.PathJoin Path name
+        EntryAt p (System.DirExists p);
+    }
+    Parent := () => { Dir (System.PathDir Path); }
+
+    Mkdir := (name: string) => {
+        d := Dir (System.PathJoin Path name)
+        d.Create ()
+        d;
+    }
+
+    List := () => {
+        raw := System.ListDir Path
+
+        names := (raw.Keys ()).Sort ()
+        out := {->}
+
+        names.Foreach (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
+        out
+    }
+
+    Files := () => { Pick false; }
+    Dirs := () => { Pick true; }
+
+    Pick := (wantDir: bool) => {
+        out := {->}
+        all := List ()
+        (all.Keys ()).Foreach (n: string) => {
+            e := all.Get n
+            (e.IsDir ()) == wantDir { out.Set n e; } { 0; }
+        }
+        out
+    }
+}
+
+impl (IEntry File {;})
+impl (IFile File {;})
+impl (IEntry Dir {;})
+impl (IDir Dir {;})
+
+readonly ReadAction := (f: IFile) => { IoMonad.Action (() => { f.Read (); }); }
+readonly WriteAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Write text; (); }); }
+readonly AppendAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Append text; (); }); }
+readonly WriteLineAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Append (text + "
+"); (); }); }
+
+readonly EachLineAction := (f: IFile g: function) => {
+    IoMonad.Action (() => { (Lines f).Foreach (l: string) => { g l; }; (); });
+}
+
+readonly MemFile ::= class {
+    Label: string = ""
+    Text: string = ""
+
+    init = (label: string text: string) => { Label = label; Text = text; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { false; }
+    Read := () => { Text; }
+    Write := (t: string) => { Text = t; (); }
+    Append := (t: string) => { Text = Text + t; (); }
+    Size := () => { Text.Length (); }
+    Delete := () => { Text = ""; (); }
+}
+
+readonly MemDir ::= class {
+    Label: string = ""
+    Kids: dict = {->}
+
+    init = (label: string) => { Label = label; this; }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+    IsDir := () => { true; }
+    Delete := () => { Kids = {->}; (); }
+
+    Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
+
+    List := () => {
+        names := (Kids.Keys ()).Sort ()
+        out := {->}
+        names.Foreach (n: string) => { out.Set n (Kids.Get n); }
+        out
+    }
+    Files := () => { Filter (false); }
+    Dirs := () => { Filter (true); }
+
+    Filter := (wantDir: bool) => {
+        out := {->}
+        all := List ()
+        (all.Keys ()).Foreach (n: string) => {
+            e := all.Get n
+            ((e.IsDir ()) == wantDir) { out.Set n e; } { 0; }
+        }
+        out
+    }
+}
+
+impl (IEntry MemFile {;})
+impl (IFile MemFile {;})
+impl (IEntry MemDir {;})
+impl (IDir MemDir {;})
+
+readonly JsonNode ::= class {
+    Label: string = ""
+    Value: Json = Json ()
+    Parent: object = ()
+
+    init = (label: string value: Json parent: object) => {
+        Label = label
+        Value = value
+        Parent = parent
+        this;
+    }
+
+    Name := () => { Label; }
+    Exists := () => { true; }
+
+    IsDir := () => { ((Value.Kind ()) == "object") || ((Value.Kind ()) == "array"); }
+
+    Read := () => { Value.Text (); }
+    Size := () => { (Read ()).Length (); }
+
+    Write := (t: string) => { Replace (Json.FromString t); (); }
+    Append := (t: string) => { throw (Exception ("JSON 的节点没有追写这回事：" + Label)); }
+
+    Delete := () => {
+        ((typeof Parent) == JsonNode) {
+            (Parent).Drop Label
+            ();
+        } { throw (Exception ("这是个根节点，没有爹可摘：" + Label)); }
+    }
+
+    Replace := (v: Json) => {
+        ((typeof Parent) == JsonNode) { (Parent).Put Label v; } { Value = v; }
+        ();
+    }
+
+    Put := (name: string v: Json) => {
+        ((Value.Kind ()) == "array") { Value.SetAt (int name) v; } { Value.Set name v; }
+        ();
+    }
+    Drop := (name: string) => {
+        ((Value.Kind ()) == "array") { Value.RemoveAt (int name); } { Value.Remove name; }
+        ();
+    }
+
+    Child := (name: string) => { Kid name; }
+
+    List := () => {
+        out := {->}
+        ((Value.Kind ()) == "array") {
+            i := 0
+            while { i < (Value.Count ()); } {
+                n := string i
+                out.Set n (JsonNode n (Value.At i) this)
+                i += 1
+            }
+        } {
+            ((Value.Keys ()).Sort ()).Foreach (k: string) => { out.Set k (Kid k); }
+        }
+        out
+    }
+
+    Kid := (name: string) => {
+        (IsDir ()) {
+            ((Value.Kind ()) == "array") { JsonNode name (Value.At (int name)) this; } { JsonNode name (Value.Get name) this; }
+        } { throw (Exception ("JSON 的节点 '" + Label + "' 不是目录（" + (Value.Kind ()) + "），没有孩子可取")); }
+    }
+}
+
+impl (IEntry JsonNode {;})
+impl (IFile JsonNode {;})
+impl (IEntry JsonNode {;})
+impl (IDir JsonNode {;})
+
+readonly JsonFile := (p: object) => { JsonNode (BaseName (PathOf p)) (Json.FromString ((File (PathOf p)).Read ())) (); }
+readonly JsonOf := (v: Json) => { JsonNode "json" v (); }
+
+readonly Current := () => { System.CurrentDir (); }
+readonly ChDir := (p: string) => { System.ChDir p; (); }
+
+readonly Join := (a: string b: string) => { System.PathJoin a b; }
+readonly DirName := (p: string) => { System.PathDir p; }
+readonly BaseName := (p: string) => { System.PathBase p; }
+readonly Ext := (p: string) => { System.PathExt p; }
+
+readonly Lines := (f: IFile) => {
+    Generator (y: function) => {
+        (System.SplitLines (f.Read ())).Foreach (l: string) => { y l; }
+    }
+}
+
+readonly CopyTo := (from: IFile to: IFile) => { to.Write (from.Read ()); (); }
+
+readonly EachDir := (d: IDir f: function) => {
+    walk := (dir: IDir prefix: string) => {
+        all := dir.List ()
+        (all.Keys ()).Foreach (name: string) => {
+            e := all.Get name
+            here := prefix == "" { name; } { Join prefix name; }
+            f here e
+            e.IsDir () { walk e here; } { 0; }
+        }
+    }
+    walk d ""
+}
+
+ravel ""

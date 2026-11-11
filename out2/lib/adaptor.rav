@@ -1,0 +1,644 @@
+ravel "Adaptor"
+
+using "plugins/Ravel.Reflect.dll"
+using "plugins/Ravel.Compile.dll"
+
+readonly private RankOf := "Int32"     => ~0
+                         | "Int64"     => ~1
+                         | "String"    => ~2
+                         | "Boolean"   => ~3
+                         | "Char"      => ~4
+                         | "Double"    => ~5
+                         | "Single"    => ~6
+                         | "String[]"  => ~10
+                         | "Char[]"    => ~11
+                         | "Int32[]"   => ~12
+                         | "Int64[]"   => ~13
+                         | "Boolean[]" => ~14
+                         | "Double[]"  => ~15
+
+                         | "Object"    => ~50
+                         | (_)         => ~99
+
+readonly private GetterOf := ("Int32" e: string what: string)     => { "PluginKit.Int (" + e + ", \"" + what + "\")"; }
+                           | ("Int64" e: string what: string)     => { "PluginKit.Long (" + e + ", \"" + what + "\")"; }
+                           | ("String" e: string what: string)    => { "PluginKit.Text (" + e + ", \"" + what + "\").Value"; }
+                           | ("Boolean" e: string what: string)   => { "PluginKit.Bool (" + e + ", \"" + what + "\")"; }
+                           | ("Char" e: string what: string)      => { "PluginKit.Char (" + e + ", \"" + what + "\")"; }
+                           | ("Double" e: string what: string)    => { "PluginKit.Num (" + e + ", \"" + what + "\")"; }
+                           | ("Single" e: string what: string)    => { "(float)PluginKit.Num (" + e + ", \"" + what + "\")"; }
+                           | ("String[]" e: string what: string)  => { "PluginKit.Strs (" + e + ", \"" + what + "\")"; }
+                           | ("Char[]" e: string what: string)    => { "PluginKit.Chars (" + e + ", \"" + what + "\")"; }
+                           | ("Int32[]" e: string what: string)   => { "PluginKit.Ints (" + e + ", \"" + what + "\")"; }
+                           | ("Int64[]" e: string what: string)   => { "PluginKit.Longs (" + e + ", \"" + what + "\")"; }
+                           | ("Boolean[]" e: string what: string) => { "PluginKit.Bools (" + e + ", \"" + what + "\")"; }
+                           | ("Double[]" e: string what: string)  => { "PluginKit.Reals (" + e + ", \"" + what + "\")"; }
+
+    | ("Object" e: string what: string)    => { "PluginKit.ToNet (" + e + ")"; }
+    | (_ e: string what: string)           => { "?"; }
+
+readonly private FallbackOf := (ty: object e: string what: string) => {
+    TypeUsable ty {
+        full := CsName ty
+
+        "(" + full + ") PluginKit.ToObject (" + e + ", typeof (" + full + "), \"" + what + "\")";
+    } { "?"; }
+}
+
+readonly private GetterOfType := (ty: object e: string what: string) => {
+    g := GetterOf (Reflect.Unwrap (Reflect.Call ty "Name" [])) e what
+    g == "?" { FallbackOf ty e what; } { g; }
+}
+
+readonly private MakerOf := ("Int32" e: string)   => { "IntVal.Of (" + e + ")"; }
+                          | ("Int64" e: string)   => { "PluginKit.Narrow (" + e + ")"; }
+                          | ("String" e: string)  => { "new StringVal (" + e + ")"; }
+                          | ("Boolean" e: string) => { "new BoolVal (" + e + ")"; }
+                          | ("Char" e: string)    => { "new CharVal (" + e + ")"; }
+                          | ("Double" e: string)  => { "new RealVal (" + e + ")"; }
+                          | ("Single" e: string)  => { "new RealVal (" + e + ")"; }
+                          | ("Void" e: string)    => { "PluginKit.Void"; }
+
+                          | ("Object" e: string)  => { "new DotNetVal (" + e + ")"; }
+                          | (_ e: string)         => { "?"; }
+
+readonly private Known  := (tn: string) => { (RankOf tn) < 90; }
+readonly private InOk   := (tn: string) => { Known tn; }
+readonly private OutOk  := (tn: string) => { (Known tn) || (tn == "Void"); }
+
+readonly private NameOf   := (m: object) => { Reflect.Unwrap (Reflect.Call m "Name" []); }
+readonly private StaticOf := (m: object) => { Reflect.Unwrap (Reflect.Call m "IsStatic" []); }
+readonly private RetOf    := (m: object) => {
+    Reflect.Unwrap (Reflect.Call (Reflect.Call m "ReturnType" []) "Name" []);
+}
+readonly private ParamsOf := (m: object) => {
+    ps := Reflect.Unwrap (Reflect.Call m "GetParameters" [])
+    ps.Map (p: object) => {
+        Reflect.Unwrap (Reflect.Call (Reflect.Call p "ParameterType" []) "Name" []);
+    }
+}
+
+readonly private ParamTypesOf := (m: object) => {
+    ps := Reflect.Unwrap (Reflect.Call m "GetParameters" [])
+    ps.Map (p: object) => { Reflect.Call p "ParameterType" []; }
+}
+
+readonly private CsName := (ty: object) => {
+    (Reflect.Unwrap (Reflect.Call ty "IsArray" [])) {
+        (CsName (Reflect.Call ty "GetElementType" [])) + "[]";
+    } {
+        (Reflect.Unwrap (Reflect.Call ty "IsGenericType" [])) {
+            d := Reflect.Call ty "GetGenericTypeDefinition" []
+            基 := string (Reflect.Unwrap (Reflect.Call d "FullName" []))
+            cut := 基.IndexOf "`"
+            cut < 0 { 基; } {
+                args := Reflect.Unwrap (Reflect.Call ty "GetGenericArguments" [])
+
+                实参 := (args.Map (a: object) => { CsName a; }).Join ", "
+
+                (基.Slice [0..cut)) + "<" + 实参 + ">";
+            }
+        } {
+            (string (Reflect.Unwrap (Reflect.Call ty "FullName" []))).Replace "+" ".";
+        }
+    }
+}
+
+readonly private TypeUsable := (ty: object) => {
+    (Reflect.Unwrap (Reflect.Call ty "IsByRefLike" [])) { false; } {
+        (Reflect.Unwrap (Reflect.Call ty "IsGenericParameter" [])) { false; } {
+            (Reflect.Unwrap (Reflect.Call ty "IsGenericTypeDefinition" [])) { false; } {
+                full := string (Reflect.Unwrap (Reflect.Call ty "FullName" []))
+                (full.Contains "&") { false; } {
+                    (full.Contains "*") { false; } { true; }
+                }
+            }
+        }
+    }
+}
+
+readonly private Names := (n: int) => {
+    i := 0
+    out := []
+    while { i < n; } {
+        out.Add ("x" + (string i))
+        i += 1
+    }
+    out
+}
+
+readonly private Pad2 := (n: int) => { n < 10 { "0" + (string n); } { string n; } }
+
+readonly private RankKey := (m: object) => {
+    ps := ParamsOf m
+    ranks := ps.Map (t: string) => { RankOf t; }
+
+    arrCount := ranks.Fold 0 ((acc: int r: int) => { (r >= 10) { acc + 1; } { acc; } })
+    arrStr := Pad2 arrCount
+    nStr := Pad2 (ranks.Count ())
+    rsStr := (ranks.Map (r: int) => { Pad2 r; }).Join ""
+    retStr := Pad2 (RankOf (RetOf m))
+    sig := ps.Join ","
+
+    arrStr + "|" + nStr + "|" + rsStr + "|" + retStr + "|" + sig;
+}
+
+readonly private CallThen := (call: string value: string) => {
+    "() => { " + call + "; return " + value + "; }";
+}
+
+readonly private Wrapped := (rt: string body: string) => {
+    rt == "Void" { CallThen body "PluginKit.Void"; } { "() => " + (MakeExpr rt body); }
+}
+
+readonly private MakeExpr := (rt: string body: string) => {
+    mk := MakerOf rt body
+
+    mk == "?" {
+        rt.EndsWith "[]" { "PluginKit.ToRavel (" + body + ")"; } {
+            "PluginKit.Wrap (" + body + ", \"" + rt + "\")";
+        }
+    } { mk; }
+}
+
+readonly private EmitOne := (m: object nm: string mod: string full: string) => {
+    真名 := NameOf m
+    ps := ParamsOf m
+    names := Names (ps.Count ())
+    ts := ParamTypesOf m
+
+    i := 0
+    gets := []
+    while { i < (ps.Count ()); } {
+        e := names.At i
+        label := mod + "." + 真名 + " 的第 " + (string (i + 1)) + " 个实参"
+        gets.Add (GetterOfType (ts.At i) e label)
+        i += 1
+    }
+
+    decls := names.Map (a: string) => { "RuntimeValue " + a; }
+    decl := decls.Join (", ")
+    args := gets.Join (", ")
+    lam := Wrapped (RetOf m) (full + "." + 真名 + " (" + args + ")")
+
+    guarded := "PluginKit.Guarded (\"" + mod + "." + 真名 + "\", " + lam + ")"
+
+    one := "    [RavelFn(\"" + nm + "\")]"
+    one = one + "\n    public static RuntimeValue " + nm + " (" + decl + ")"
+    one = one + "\n        => " + guarded + ";"
+    one + "\n"
+}
+
+readonly private SkipNote := (m: object w: string why: string) => {
+    ps := (ParamsOf m).Join ","
+    sign := ps + " -> " + (RetOf m)
+    "    // 跳过 " + w + "（" + sign + "）：" + why + "\n";
+}
+
+readonly private ArityOk := (m: object 上限: int) => {
+    ((ParamsOf m).Count ()) <= 上限;
+}
+
+readonly private Usable := (m: object) => {
+    (Reflect.Unwrap (Reflect.Call m "IsGenericMethod" [])) { false; } {
+        ArityOk m 3 {
+            (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+        } { false; }
+    }
+}
+
+readonly private EmitMember := (all: list T: object w: string mod: string full: string) => {
+    fHit := (StaticFields T).Where (f: object) => { (NameOf f) == w; }
+    pHit := (StaticProps T).Where (p: object) => { (NameOf p) == w; }
+
+    fHit.IsEmpty () {
+        pHit.IsEmpty () { EmitStaticMethod all w mod full; } { EmitStaticProp (pHit.First ()) mod full; }
+    } {
+        EmitStaticField (fHit.First ()) mod full;
+    }
+}
+
+readonly private EmitStaticMethod := (all: list w: string mod: string full: string) => {
+    same := all.Where (m: object) => { (NameOf m) == w; }
+    statics := same.Where (m: object) => { StaticOf m; }
+
+    good := statics.Where (m: object) => { Usable m; }
+    ranked := good.SortBy (m: object) => { RankKey m; }
+
+    nSame := string (same.Count ())
+    nSt := string (statics.Count ())
+
+    ranked.IsEmpty () {
+        "    // 跳过 " + w + "：没有能生成的静态重载（同名方法 " + nSame + " 个，静态 " + nSt + " 个）\n"
+    } {
+        out := []
+        i := 0
+        while { i < (ranked.Count ()); } {
+            nm := i == 0 { w; } { w + "_" + (string (i + 1)); }
+            out.Add (EmitOne (ranked.At i) nm mod full)
+            i += 1
+        }
+        (out.Join "")
+    }
+}
+
+readonly private UsableClass := (m: object selfName: string val: bool) => {
+    (Reflect.Unwrap (Reflect.Call m "IsGenericMethod" [])) { false; } {
+        ArityOk m 2 {
+            val && ((RetOf m) == "Void") { false; } {
+                (ParamTypesOf m).All (t: object) => { TypeUsable t; };
+            }
+        } { false; }
+    }
+}
+
+readonly private CtorKey := (c: object) => {
+    ps := ParamsOf c
+    ranks := ps.Map (t: string) => { RankOf t; }
+    arrCount := ranks.Fold 0 ((acc: int r: int) => { (r >= 10) { acc + 1; } { acc; } })
+    arrStr := Pad2 arrCount
+    nStr := Pad2 (ranks.Count ())
+    rsStr := (ranks.Map (r: int) => { Pad2 r; }).Join ""
+    sig := ps.Join ","
+    arrStr + "|" + nStr + "|" + rsStr + "|" + sig;
+}
+
+readonly private EmitCtor := (c: object mod: string net: string cls: string) => {
+    ps := ParamsOf c
+    n := ps.Count ()
+
+    tail := ", PluginKit.ClassOf (\"" + cls + "\"))"
+
+    n > 1 {
+        "    // 跳过构造器：它要 " + (string n) + " 个参数，而 `[ClassCtor]` 那格"
+        + "只有一格实参（Ravel 那边 `类 a` 递一个）—— 要它就自己补一个收 `list` 再拆的\n"
+    } {
+        n == 0 {
+            "    [ClassCtor]\n    public static RuntimeValue New (RuntimeValue arg)"
+            + "\n        => arg is VoidVal"
+            + "\n            ? new DotNetVal (new " + net + " ()" + tail
+            + "\n            : throw PluginKit.Fail (\""
+            + net + " 的 .NET 构造器是 0 个参数的 —— 像 `类 ()` 那样调，别给实参\", ErrorKind.Argument);\n"
+        } {
+            ty := (ParamsOf c).First ()
+            g := GetterOfType ((ParamTypesOf c).First ()) "arg" (mod + " 的构造器参数")
+            g == "?" {
+                "    // 跳过构造器：那个参数是 " + ty + "，连 `typeof` 都写不出来"
+                + "（`ref struct` / `ref` / 泛型参数）\n"
+            } {
+                "    [ClassCtor]\n    public static RuntimeValue New (RuntimeValue arg)"
+                + "\n        => new DotNetVal (new " + net + " (" + g + ")" + tail + ";\n"
+            }
+        }
+    }
+}
+
+readonly private SameAsSelf := (call: string cls: string) => {
+    "() => new DotNetVal (" + call + ", PluginKit.ClassOf (\"" + cls + "\"))";
+}
+
+readonly private EmitClassOne := (m: object nm: string mod: string net: string selfName: string cls: string) => {
+    真名 := NameOf m
+    ps := ParamsOf m
+    names := Names (ps.Count ())
+    ts := ParamTypesOf m
+
+    i := 0
+    gets := []
+    while { i < (ps.Count ()); } {
+        e := names.At i
+        label := mod + "." + 真名 + " 的第 " + (string (i + 1)) + " 个实参"
+        gets.Add (GetterOfType (ts.At i) e label)
+        i += 1
+    }
+
+    decls := names.Map (a: string) => { "RuntimeValue " + a; }
+    selfArgs := (decls.Map (a: string) => { ", " + a; }).Join ""
+    args := gets.Join ", "
+
+    rt := RetOf m
+    call := "Me (self)." + 真名 + " (" + args + ")"
+    lam := rt == selfName { SameAsSelf call cls; } { Wrapped rt call; }
+
+    one := "    [ClassMethod(\"" + nm + "\")]"
+    one = one + "\n    public static RuntimeValue " + nm + " (RuntimeValue self" + selfArgs + ")"
+    one = one + "\n        => PluginKit.Guarded (\"" + mod + "." + 真名 + "\", " + lam + ");"
+    one + "\n"
+}
+
+readonly private EmitClassMember := (all: list w: string mod: string net: string selfName: string cls: string val: bool) => {
+    same := all.Where (m: object) => { (NameOf m) == w; }
+    inst := same.Where (m: object) => { !(StaticOf m); }
+    good := inst.Where (m: object) => { UsableClass m selfName val; }
+    ranked := good.SortBy (m: object) => { RankKey m; }
+
+    nSame := string (same.Count ())
+    nIn := string (inst.Count ())
+
+    ranked.IsEmpty () {
+        val && !(inst.IsEmpty ()) {
+            "    // 跳过 " + w + "：值类型上返回 void 的就是**改原地**的方法 ——"
+            + "改的是装箱那份副本，白做\n"
+        } {
+            "    // 跳过 " + w + "：没有能生成的实例重载（同名方法 " + nSame + " 个，实例 " + nIn + " 个）\n"
+        }
+    } {
+        out := []
+        i := 0
+        while { i < (ranked.Count ()); } {
+            nm := i == 0 { w; } { w + "_" + (string (i + 1)); }
+            out.Add (EmitClassOne (ranked.At i) nm mod net selfName cls)
+            i += 1
+        }
+        (out.Join "")
+    }
+}
+
+readonly private DataText := (静态: bool mod: string nm: string 访问: string ty: object 能写: bool 注释: string) => {
+    rt := Reflect.Unwrap (Reflect.Call ty "Name" [])
+    label := mod + "." + nm
+
+    read := MakeExpr rt 访问
+    write := GetterOfType ty "arg" label
+
+    可写 := 能写 && (write != "?")
+
+    特性 := 静态 { "RavelProperty"; } { "ClassProperty"; }
+
+    收者 := 静态 { ""; } { "RuntimeValue self, "; }
+
+    attr := "    [" + 特性 + "(\"" + nm + "\")]"
+    attr = 可写 { attr; } { "    [" + 特性 + "(\"" + nm + "\", ReadOnly = true)]"; }
+
+    body := "() => " + read
+    可写 {
+        body = "() =>"
+        body = body + "\n        {"
+        body = body + "\n            if (arg is VoidVal) return " + read + ";"
+        body = body + "\n            " + 访问 + " = " + write + ";"
+        body = body + "\n            return PluginKit.Void;"
+        body = body + "\n        }"
+    } { (); }
+
+    one := 注释
+    one = one + attr
+    one = one + "\n    public static RuntimeValue " + nm + " (" + 收者 + "RuntimeValue arg)"
+
+    one = one + "\n        => PluginKit.Guarded (\"" + label + "\", " + body + ");"
+    one + "\n"
+}
+
+readonly private NoteOf := ("值类型" nm: string cls: string) => {
+    "    // " + nm + "：`.NET` 那边有 setter，但 " + cls + " 是**值类型** ——\n"
+    + "    //   写回的是**装箱那份副本**（改完丢掉，和「返回 void 的实例方法」同一档），\n"
+    + "    //   所以这一格只给读。要写就 `d.AddYears 1` 那种「交回新值」的方法。\n";
+} | ("值类型字段" nm: string cls: string) => {
+    "    // " + nm + "：`.NET` 那边这个字段是**可写**的，但 " + cls + " 是**值类型** ——\n"
+    + "    //   写回的是**装箱那份副本**（改完丢掉），所以这一格只给读。\n";
+} | (_ nm: string cls: string) => {
+    "";
+}
+
+readonly private PropWritable := (p: object) => {
+    (Reflect.Unwrap (Reflect.Call p "CanWrite" []))
+    && (Reflect.Unwrap (Reflect.Call (Reflect.Call p "SetMethod" []) "IsPublic" []));
+}
+
+readonly private FieldWritable := (f: object) => {
+    !((Reflect.Unwrap (Reflect.Call f "IsLiteral" [])) || (Reflect.Unwrap (Reflect.Call f "IsInitOnly" [])));
+}
+
+readonly private 理由Of := (能写: bool val: bool 字段: bool) => {
+    能写 {
+        理由 := ""
+
+        val { 理由 = 字段 { "值类型字段"; } { "值类型"; }; } { (); }
+        理由;
+    } {
+        "";
+    }
+}
+
+readonly private PropsRaw := (T: object) => {
+    ps := Reflect.Unwrap (Reflect.Call T "GetProperties" [])
+    ps.Where (p: object) => { PropOk p false; }
+}
+
+readonly private StaticProps := (T: object) => {
+    ps := Reflect.Unwrap (Reflect.Call T "GetProperties" [])
+    ps.Where (p: object) => { PropOk p true; }
+}
+
+readonly private PropOk := (p: object 静态: bool) => {
+    ((Reflect.Unwrap (Reflect.Call p "CanRead" []))
+     && (GetterOk (Reflect.Call p "GetMethod" []) 静态)
+     && (((Reflect.Unwrap (Reflect.Call p "GetIndexParameters" [])).Count ()) == 0)
+     && (TypeUsable (Reflect.Call p "PropertyType" [])));
+}
+
+readonly private GetterOk := (g: object 静态: bool) => {
+    (Reflect.Unwrap (Reflect.Call g "IsPublic" [])) && ((StaticOf g) == 静态);
+}
+
+readonly private FieldsRaw := (T: object 静态: bool) => {
+    fs := Reflect.Unwrap (Reflect.Call T "GetFields" [])
+    fs.Where (f: object) => { FieldOk f 静态; }
+}
+
+readonly private FieldOk := (f: object 静态: bool) => {
+    ((Reflect.Unwrap (Reflect.Call f "IsPublic" []))
+     && ((StaticOf f) == 静态)
+     && (TypeUsable (Reflect.Call f "FieldType" [])));
+}
+
+readonly private InstanceFields := (T: object) => { FieldsRaw T false; }
+readonly private StaticFields  := (T: object) => { FieldsRaw T true; }
+
+readonly PropsOf := (类型: string) => {
+    T := TypeObject 类型
+    ns := (PropsRaw T).Map (p: object) => { NameOf p; }
+    fs := (InstanceFields T).Map (f: object) => { NameOf f; }
+
+    Sorting.Sort ((ns.Concat (fs)).Distinct ());
+}
+
+readonly private EmitClassProp := (p: object mod: string cls: string val: bool) => {
+    nm := NameOf p
+
+    能写 := (PropWritable p) && !(val)
+
+    注 := NoteOf (理由Of (PropWritable p) val false) nm cls
+    DataText false mod nm ("Me (self)." + nm) (Reflect.Call p "PropertyType" []) 能写 注;
+}
+
+readonly private EmitClassField := (f: object mod: string cls: string val: bool) => {
+    nm := NameOf f
+    能写 := (FieldWritable f) && !(val)
+    注 := NoteOf (理由Of (FieldWritable f) val true) nm cls
+    DataText false mod nm ("Me (self)." + nm) (Reflect.Call f "FieldType" []) 能写 注;
+}
+
+readonly private EmitStaticField := (f: object mod: string full: string) => {
+    nm := NameOf f
+    能写 := FieldWritable f
+    注 := NoteOf (理由Of 能写 false true) nm ""
+    DataText true mod nm (full + "." + nm) (Reflect.Call f "FieldType" []) 能写 注;
+}
+
+readonly private EmitStaticProp := (p: object mod: string full: string) => {
+    nm := NameOf p
+    能写 := PropWritable p
+    注 := NoteOf (理由Of 能写 false false) nm ""
+    DataText true mod nm (full + "." + nm) (Reflect.Call p "PropertyType" []) 能写 注;
+}
+
+readonly private IsSpecial := (m: object) => {
+    Reflect.Unwrap (Reflect.Call m "IsSpecialName" []);
+}
+
+readonly private TypeObject := (类型: string) => {
+    (Reflect.Type 类型).AsObject ();
+}
+
+readonly AllOf := (类型: string) => {
+    T := TypeObject 类型
+    ms := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+    keep := ms.Where (m: object) => { (StaticOf m) && !(IsSpecial m); }
+    ns := keep.Map (m: object) => { NameOf m; }
+
+    ns = ns.Concat ((StaticFields T).Map (f: object) => { NameOf f; })
+    ns = ns.Concat ((StaticProps T).Map (p: object) => { NameOf p; })
+    Sorting.Sort (ns.Distinct ());
+}
+
+readonly ShortName := (类型: string) => {
+    Reflect.Unwrap (Reflect.Call (TypeObject 类型) "Name" []);
+}
+
+readonly Cs := (类型: string 模块: string 成员: list) => {
+    T := TypeObject 类型
+    Full := Reflect.Unwrap (Reflect.Call T "FullName" [])
+    All := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+
+    Head := [
+        "// <auto-generated>"
+        "//   由 `Adaptor.Cs` 生成（`lib/adaptor.rav`）—— 别手改，下次生成会盖掉。"
+        "//   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。"
+        "//"
+        "//   类型 " + 类型 + " → 模块 " + 模块 + "；成员 " + (成员.Join " ")
+        "// </auto-generated>"
+        ""
+        "namespace Ravel.Runtime;"
+        ""
+        "[RavelModule(\"" + 模块 + "\")]"
+        "internal static class " + 模块 + "Adaptor"
+        "{"
+    ]
+
+    Body := 成员.Map (w: string) => { EmitMember All T w 模块 Full; }
+
+    Lines := Head.Concat Body
+    Lines = Lines.Concat ["}"]
+    Lines.Join "\n";
+}
+
+readonly RefsOf := (类型: string 成员: list) => {
+    T := TypeObject 类型
+    ms := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+    keep := ms.Where (m: object) => { 成员.Contains (NameOf m); }
+    cs := Reflect.Unwrap (Reflect.Call T "GetConstructors" [])
+
+    袋 := [T]
+    袋 = 袋.Concat (keep.Fold [] ((acc: list m: object) => { acc.Concat (ParamTypesOf m); }))
+    袋 = 袋.Concat (keep.Map (m: object) => { Reflect.Call m "ReturnType" []; })
+    袋 = 袋.Concat (cs.Fold [] ((acc: list c: object) => { acc.Concat (ParamTypesOf c); }))
+
+    袋 = 袋.Concat ((PropsRaw T).Map (p: object) => { Reflect.Call p "PropertyType" []; })
+    袋 = 袋.Concat ((StaticProps T).Map (p: object) => { Reflect.Call p "PropertyType" []; })
+    袋 = 袋.Concat ((FieldsRaw T false).Map (f: object) => { Reflect.Call f "FieldType" []; })
+    袋 = 袋.Concat ((FieldsRaw T true).Map (f: object) => { Reflect.Call f "FieldType" []; })
+
+    局 := 袋.Map (t: object) => {
+        string (Reflect.Unwrap (Reflect.Call (Reflect.Call t "Assembly" []) "Location" []));
+    }
+    有 := 局.Where (s: string) => { s != ""; }
+    有.Distinct () |> .ToList ()
+}
+
+readonly Write := (源码: string 路径: string) => { System.WriteText 路径 源码; 路径; }
+
+readonly Build := (源码: string cs路径: string dll路径: string 引用: list) => {
+    System.WriteText cs路径 源码
+
+    Compile.Cs 源码 dll路径 引用
+    dll路径;
+}
+
+readonly AllOfClass := (类型: string) => {
+    ms := Reflect.Unwrap (Reflect.Call (TypeObject 类型) "GetMethods" [])
+    keep := ms.Where (m: object) => { !(StaticOf m) && !(IsSpecial m); }
+    ns := keep.Map (m: object) => { NameOf m; }
+    Sorting.Sort (ns.Distinct ());
+}
+
+readonly CsClass := (类型: string 模块: string 类名: string 成员: list) => {
+    IsVal := (Reflect.Type 类型).IsValue ()
+
+    T := TypeObject 类型
+    Full := Reflect.Unwrap (Reflect.Call T "FullName" [])
+    All := Reflect.Unwrap (Reflect.Call T "GetMethods" [])
+    Ctors := Reflect.Unwrap (Reflect.Call T "GetConstructors" [])
+    SelfName := ShortName 类型
+
+    Props := (PropsRaw T).Where (p: object) => { !(成员.Contains (NameOf p)); }
+    Props = Props.SortBy (p: object) => { NameOf p; }
+    字段 := (InstanceFields T).Where (f: object) => { !(成员.Contains (NameOf f)); }
+    字段 = 字段.SortBy (f: object) => { NameOf f; }
+    PropNames := Props.Map (p: object) => { NameOf p; }
+    FieldNames := 字段.Map (f: object) => { NameOf f; }
+    数据名 := Sorting.Sort (PropNames.Concat FieldNames)
+
+    rankC := Ctors.SortBy (c: object) => { CtorKey c; }
+    Ctor := rankC.IsEmpty () {
+        "    // 没有公开构造器\n"
+    } {
+        EmitCtor (rankC.First ()) 类名 Full 类名
+    }
+
+    Head := [
+        "// <auto-generated>"
+        "//   由 `Adaptor.CsClass` 生成（`lib/adaptor.rav`）—— 别手改，下次生成会盖掉。"
+        "//   要改行为：改那张映射表；要改这一份：把它挪出 Ravel.Generated/ 自己接着写。"
+        "//"
+        "//   类型 " + 类型 + " → 模块 " + 模块 + " / 类 " + 类名 + "；成员 " + (成员.Join " ")
+        "//   属性/字段 " + (数据名.Join " ")
+        "//"
+        "//   **这是实例那半**：`[ClassCtor]` + `[ClassMethod]` + `[ClassProperty]`，`self` 先脱壳再调。"
+        "//   静态成员在另一份里（`Adaptor.Cs`）。"
+        "//   属性/字段是**一个名字两个方向**（`sb.Length` / `sb.Length = 2`）—— 走 `by` 那套，"
+        "//   不必发明 `SetLength` 那种名字；写不进去的标 `ReadOnly`，并在上面写明理由。"
+        "// </auto-generated>"
+        ""
+        "namespace Ravel.Runtime;"
+        ""
+        "[RavelModule(\"" + 模块 + "\")]"
+
+        "[RavelClass(\"" + 类名 + "\"" + (IsVal { ", Implements = \"IValue\""; } { ""; }) + ")]"
+        "internal static class " + 类名 + "Adaptor"
+        "{"
+        "    private static " + Full + " Me (RuntimeValue self)"
+        "        => (" + Full + ")((DotNetVal)self).Value;"
+        ""
+    ]
+
+    PropBody := Props.Map (p: object) => { EmitClassProp p 模块 类名 IsVal; }
+    FieldBody := 字段.Map (f: object) => { EmitClassField f 模块 类名 IsVal; }
+    PropBody = PropBody.Concat FieldBody
+    Body := 成员.Map (w: string) => { EmitClassMember All w 模块 Full SelfName 类名 IsVal; }
+
+    Lines := Head.Concat [Ctor]
+    Lines = Lines.Concat PropBody
+    Lines = Lines.Concat Body
+    Lines = Lines.Concat ["}"]
+    Lines.Join "\n";
+}

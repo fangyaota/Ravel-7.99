@@ -1,0 +1,109 @@
+﻿using "native.rav"
+using "encoding.rav"
+
+ravel "Uuid"
+
+readonly Format := (h: string) => {
+    rest := h
+    a := rest.Take 8
+    rest = rest.Skip 8
+    b := rest.Take 4
+    rest = rest.Skip 4
+    c := rest.Take 4
+    rest = rest.Skip 4
+    d := rest.Take 4
+    e := rest.Skip 4
+    a + "-" + b + "-" + c + "-" + d + "-" + e;
+}
+
+readonly private Shape := (bytes: list who: int stamp: object) => {
+    out := []
+    i := 0
+    while { i < 16; } {
+        v := int (bytes.At i)
+        (i < 6) {
+            ((typeof stamp) == list) { v = int (stamp.At i); } { 0; }
+        } { 0; }
+        (i == 6) { v = (v & 15) | (who * 16); } { 0; }
+        (i == 8) { v = (v & 63) | 128; } { 0; }
+        out.Add v
+        i += 1
+    }
+    out
+}
+
+readonly V4 := () => { Format (Encoding.Hex (Shape (Native.RandomBytes 16) 4 ())); }
+
+readonly V7 := () => {
+    t := System.NowMs ()
+    stamp := []
+    k := 0
+    while { k < 6; } { stamp.Add (TimestampByte t (8 * (5 - k))); k += 1; }
+    Format (Encoding.Hex (Shape (Native.RandomBytes 16) 7 stamp));
+}
+
+readonly private TimestampByte := (ms: object shift: int) => {
+    int ((((bigint ms) / ((bigint 1) << shift)) % 256));
+}
+
+readonly Nil := () => { "00000000-0000-0000-0000-000000000000"; }
+
+readonly IsValid := (s: string) => {
+    ((s.Length ()) == 36) {
+        ok := true
+        i := 0
+        while { i < 36; } {
+            c := s.At i
+            (IsDashAt i) {
+                (c != '-') { ok = false; } { 0; }
+            } {
+                (IsHex c) { 0; } { ok = false; }
+            }
+            i += 1
+        }
+        ok
+    } { false; }
+}
+
+readonly private IsDashAt := (i: int) => {
+    (i == 8) { true; } {
+        (i == 13) { true; } {
+            (i == 18) { true; } { i == 23; }
+        }
+    }
+}
+
+readonly private IsHex := (c: char) => {
+    ((c >= '0') && (c <= '9')) { true; } { IsHexLetter c; }
+}
+
+readonly private IsHexLetter := (c: char) => {
+    ((c >= 'a') && (c <= 'f')) { true; } { (c >= 'A') && (c <= 'F'); }
+}
+
+readonly Version := (s: string) => { (IsValid s) { Digit (s.At 14); } { 0; } }
+
+readonly private Digit := (c: char) => {
+    ((c >= '0') && (c <= '9')) { (int c) - 48; } {
+        ((c >= 'a') && (c <= 'f')) { (int c) - 87; } {
+            ((c >= 'A') && (c <= 'F')) { (int c) - 55; } { 0; }
+        }
+    }
+}
+
+readonly Bytes := (s: string) => { Encoding.Unhex (s.Replace "-" ""); }
+readonly FromBytes := (bs: list) => { Format (Encoding.Hex bs); }
+
+readonly Time := (s: string) => {
+    ((Version s) == 7) {
+        bs := Bytes s
+
+        ms := bigint 0
+        i := 0
+        while { i < 6; } {
+            ms = (ms * 256n) + (bigint (int (bs.At i)))
+            i += 1
+        }
+        ms
+    } { 0 - 1; }
+}

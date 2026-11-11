@@ -1,0 +1,38 @@
+ravel "Test"
+
+readonly Results: list = []
+PassCount: int = 0
+FailCount: int = 0
+
+readonly private Record := (name: string ok: bool msg: string) => {
+    Results.Add {"name"-> name "ok"-> ok "msg"-> msg}
+    ok { PassCount += 1; } { FailCount += 1; }
+    ok { print ("ok ${Results.Count ()} - ${name}"); } { print ("not ok ${Results.Count ()} - ${name}"); }
+
+    msg == "" { 0; } { print ("    ${msg}"); }
+    ok
+}
+
+readonly Check := (name: string body: function) => {
+    r := (Expect 1 body) ()
+    msg := r.IsErr () { r.Message (); } { ""; }
+    Record name (r.IsOk ()) msg
+}
+
+readonly Equal := (name: string actual: object expected: object) => {
+    a := "${actual}"
+    b := "${expected}"
+    msg := a == b { ""; } { "期望 ${b}，得到 ${a}"; }
+    Record name (a == b) msg
+}
+
+readonly Fails := (name: string body: function) => {
+    r := (Expect 1 body) ()
+    msg := r.IsErr () { ""; } { "本该报错，却正常回来了"; }
+    Record name (r.IsErr ()) msg
+}
+
+readonly Report := () => {
+    print ("${PassCount} passed, ${FailCount} failed")
+    FailCount > 0 { throw (Exception "${FailCount} 条断言没过"); } { (); }
+}

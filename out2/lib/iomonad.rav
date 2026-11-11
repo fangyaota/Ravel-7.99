@@ -1,0 +1,63 @@
+ravel "IoMonad"
+
+readonly Action ::= class {
+    Effect: function = _
+
+    Perform := () => { Effect (); }
+
+    Map := (f: function) => { Action (() => { f (Effect ()); }) }
+
+    Then := (next: Action) => { Action (() => { Effect (); next.Perform (); }); }
+
+    Discard := () => { Map ((x: object) => { (); }); }
+
+    Attempt := () => {
+        Action (() => {
+            try { Some (Effect ()); } (e: Exception) => { None; }
+        });
+    }
+
+    Catch := (handler: function) => {
+        Action (() => {
+            try { Effect (); } (e: Exception) => { (handler e).Perform (); }
+        });
+    }
+
+    Bind := (f: function) => {
+        Action (() => {
+            Next := f (Effect ())
+            Next.Perform ()
+        })
+    }
+
+    init = (effect: function) => { Effect = effect; this; }
+}
+
+readonly Return := (v: object) => { Action (() => { v; }) }
+
+readonly PutStrLn := (s: object) => { Action (() => { print s; (); }) }
+readonly PutStr := (s: object) => { Action (() => { System.Write s; (); }) }
+
+readonly GetLine := Action (() => { input (); })
+
+readonly PutStrErr := (s: object) => { Action (() => { System.WriteErr s; (); }) }
+readonly PutStrLnErr := (s: object) => { Action (() => { System.WriteLineErr s; (); }) }
+
+readonly Sequence := (actions: list) => {
+    Action (() => {
+        out := []
+        actions.Foreach (a: object) => { out.Add (a.Perform ()); }
+        out;
+    });
+}
+
+readonly When := (cond: function body: Action) => {
+    Action (() => { cond () { body.Perform (); } { (); } });
+}
+readonly Unless := (cond: function body: Action) => { When (() => { !cond (); }) body; }
+
+readonly Foreach := (xs: list f: function) => {
+    Action (() => { xs.Foreach (x: object) => { (f x).Perform (); }; (); })
+}
+
+impl (IMonad Action {;})

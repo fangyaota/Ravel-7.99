@@ -1,0 +1,50 @@
+﻿using "Ravel.Structures"
+
+impl (IMonad Structures.Stack {;})
+impl (IEnumerable Structures.Stack {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList Structures.Stack {;})
+impl (IMonad Structures.Queue {;})
+impl (IEnumerable Structures.Queue {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList Structures.Queue {;})
+impl (IMonad Structures.Deque {;})
+impl (IEnumerable Structures.Deque {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList Structures.Deque {;})
+impl (IMonad Structures.Heap {;})
+impl (IEnumerable Structures.Heap {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList Structures.Heap {;})
+impl (IMonad Structures.SortedSet {;})
+impl (IEnumerable Structures.SortedSet {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+impl (IList Structures.SortedSet {;})
+impl (IMonad Structures.SortedDict {;})
+impl (IEnumerable Structures.SortedDict {
+    GetEnumerator = () => { Enumerator (instance.Values ()); }
+})
+impl (IList Structures.SortedDict {;})
+
+impl (IMonad Structures.Graph {;})
+impl (IEnumerable Structures.Graph {
+    GetEnumerator = () => { Enumerator (instance.Vertices ()); }
+})
+impl (IList Structures.Graph {;})
+impl (IMonad Structures.Digraph {;})
+impl (IEnumerable Structures.Digraph {
+    GetEnumerator = () => { Enumerator (instance.Vertices ()); }
+})
+impl (IList Structures.Digraph {;})
+impl (IMonad Structures.Weighted {;})
+impl (IEnumerable Structures.Weighted {
+    GetEnumerator = () => { Enumerator (instance.Vertices ()); }
+})
+impl (IList Structures.Weighted {;})
+
+impl (IDict Structures.SortedDict {;})

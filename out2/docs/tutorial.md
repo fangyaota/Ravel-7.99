@@ -1,0 +1,75 @@
+# Ravel 语言教程
+
+一章一个文件，在 [docs/tutorial/](tutorial/) 下。**面向有经验的程序员** —— 只讲"这门语言和别家不一样"的地方，不解释通用概念。
+
+想当网页看（左边目录、右边正文、上一篇/下一篇）—— 两条路：
+
+```bash
+ravel examples/serve.rav          # 一键：生成 + 起服务器，浏览器里点它印出来的网址
+ravel examples/site.rav           # 只生成到 site/，双击 site/index.html 也能看
+```
+
+同一份东西还有 `.md` 源文件在 [`docs/tutorial/`](tutorial/) 下，一章一个。
+
+| 章 | |
+|---|---|
+| [1、起步](tutorial/01-start.md) | 定义 / 赋值 / 自动命名 / 注释 / 打印和输入 |
+| [2、类型系统](tutorial/02-types.md) | 内置类型 / 类型名 / 注解 / 反射 / 转换 / 空值 / 类型层次 / 大数 |
+| [3、运算符](tutorial/03-operators.md) | 算术 / 比较 / `:` / 位 / 字符串 / 运算符节 / **调用比运算符松** / `++` `--` |
+| [4、控制流](tutorial/04-control.md) | 条件（`bool` 收两块） / `while` / `Foreach` / 枚举器 / `Generator` / 按模式分派 / 早期退出 |
+| [5、函数](tutorial/05-functions.md) | 柯里化 / `_` / `<\|` 与 `\|>` / `>>` / 守卫与多子句 / 谓词合成 / `Cached` / `Option` / `do` / `IoMonad` / 文件 / 排序 / JSON / 时间 |
+| [6、模式](tutorial/06-patterns.md) | 一格能带什么（类型 / 条件 / 字面量 / 子模式 / 改名）/ 拆开：位置 · 成员 · 按键 / 盯着整块 / 拆不成 ≠ 报错 |
+| [7、集合与标准库](tutorial/07-collections.md) | 三种容器 / **解构** / `Random` / `Range` / `Regex` / `dataclass` / `enum` / `Http` / `Sqlite` / 数据结构 / ZIP / XML / 终端 … |
+| [8、类](tutorial/08-classes.md) | `init` / 继承 / 修饰符 / `by` 属性 / `with` / 元类 / 接口与实现 |
+| [9、模块](tutorial/09-modules.md) | `ravel` / `using` / `System` / `Math` / 命令行与环境变量 / `Test` |
+| [10、异常](tutorial/10-exceptions.md) | `try` / `throw` / 异常那一族 / 报错长什么样 |
+| [11、内置函数速查](tutorial/11-cheatsheet.md) | 一张表 |
+| [12、常见陷阱](tutorial/12-pitfalls.md) | 十条最容易栽的 |
+| [13、并发](tutorial/13-tasks.md) | `Tasks`：协作式任务、挂起点、`Signal` / `All` / `Any` / `Chan` |
+| [14、HTTP 服务端](tutorial/14-server.md) | `Httpd`：路由 / 请求对象 / 响应 / 静态目录 / 一个慢 handler 挡不住别的连接 / keep-alive / 正文上限 / HTTPS |
+
+## 想深挖
+
+- **[CONTEXT.md](../CONTEXT.md)** —— 这个语言**为什么**长这样（求值器架构、每一处取舍的来龙去脉）。教程只管"怎么用"。
+- **[docs/adr/](adr/)** —— 几条大决定（类与类型系统、显式帧栈）。
+- **[examples/](../examples/)** —— 能跑的例子：`tasks.rav`（协作式任务八节）、`signal.rav`（闸：两版能等的队列对着看）、`http.rav`（真出网）、`refgraph.rav`（画模块引用图）、`type_tree.rav`（画类型树）。
+- **`tests/`** —— golden 用例，一份源码 + 一份期望输出。想找某个特性的**边界**，那儿最全。
+
+## 每一段代码都跑过
+
+教程里带「执行以上程序会输出如下结果：」的段落，输出都是**真跑出来的** ——
+写这版的时候靠这条逮到过好几个错（有文档写错的，也有库本身的）。
+
+```bash
+bash build.sh --no-test    # 先编一份 Debug(checkdoc 跑的是 bin/Debug 那份)
+python checkdoc.py         # 14 章全查;也可以只给一个文件
+```
+
+## 写这一套的规矩
+
+改教程就照这几条。前两条能机械检查（跑 `checkdoc.py`），后几条照着写就行：
+
+- **一章一个文件**，标题 `# N、名字`（阿拉伯数字）；上面那张索引表跟着改。
+- **能跑的例子写成一对**：
+
+  ````
+  #### 实例
+
+  ```ravel
+  …源码…
+  ```
+
+  执行以上程序会输出如下结果：
+
+  ```
+  …输出…
+  ```
+  ````
+
+  那个 `#### 实例` 不是装饰：**一对（源码 + 输出）才是 `checkdoc.py` 校对的单位**，
+  写全了才会被实跑一遍。`####` 只给实例用 —— 别的子节标题一律 `###`。
+- **每一节都编号**：`## N.M 标题`；更细的一层用 `### 标题`，**不编号**
+  （所以没有 `## 6.4.1` 那种三级点号）。
+- **片段不要求能跑**（没跟输出块的块 `checkdoc.py` 会跳过）—— 但也别让它们教过期的语法。
+- **报错只写第一句**：`Error: …`。完整那坨里带着库的绝对路径，钉不住。
+- **代码块标 `ravel`**；输出块、JSON 那种不标。文件是 **UTF-8、不带 BOM**。

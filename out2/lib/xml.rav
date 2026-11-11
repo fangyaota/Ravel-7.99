@@ -1,0 +1,164 @@
+﻿using "native.rav"
+using "io.rav"
+
+ravel "Xml"
+
+readonly Parse := (text: string) => { XmlNode (Native.XmlParse text) (); }
+readonly Render := (n: object) => { Native.XmlRender (TreeOf n); }
+
+readonly Element := (name: string) => { XmlNode {"kind"-> "element" "name"-> name "attrs"-> {->} "kids"-> []} (); }
+readonly Text := (s: string) => { XmlNode {"kind"-> "text" "text"-> s} (); }
+
+readonly private TreeOf := (n: object) => { ((typeof n) == XmlNode) { (n).Tree; } { n; } }
+
+readonly XmlNode ::= class {
+    Tree: dict = {->}
+    Parent: object = ()
+
+    init = (tree: dict parent: object) => { Tree = tree; Parent = parent; this; }
+
+    Kind := () => { Tree.Get "kind"; }
+    IsElement := () => { (Kind ()) == "element"; }
+    IsText := () => { (Kind ()) == "text"; }
+
+    Name := () => { IsElement () { Tree.Get "name"; } { ""; } }
+
+    Text := () => {
+        IsText () { Tree.Get "text"; } {
+            out := ""
+            (Kids ()).Foreach (k: XmlNode) => { k.IsText () { out += (k.Text ()); } { 0; } }
+            out
+        }
+    }
+
+    AllText := () => {
+        IsText () { Text (); } {
+            out := ""
+            (Kids ()).Foreach (k: XmlNode) => { out += (k.AllText ()); }
+            out
+        }
+    }
+
+    Kids := () => {
+        out := []
+
+        IsText () { out; } {
+            (Tree.Get "kids").Foreach (k: dict) => { out.Add (XmlNode k this); }
+            out
+        }
+    }
+
+    Child := (name: string) => {
+        hit := Find name
+        assert ((typeof hit) == XmlNode) ("<" + (Name ()) + "> 里没有 <" + name + "> 这个孩子")
+        hit
+    }
+
+    Find := (name: string) => {
+        hit := []
+        (Kids ()).Foreach (k: XmlNode) => {
+            (hit.Count ()) == 0 {
+                (k.IsElement ()) && ((k.Name ()) == name) { hit.Add k; } { 0; }
+            } { 0; }
+        }
+        (hit.Count ()) == 0 { (); } { hit.At 0; }
+    }
+
+    All := (name: string) => {
+        out := []
+        (Kids ()).Foreach (k: XmlNode) => { (k.IsElement ()) && ((k.Name ()) == name) { out.Add k; } { 0; } }
+        out
+    }
+
+    Elements := () => { Filter true; }
+    Texts := () => { Filter false; }
+
+    Filter := (wantElement: bool) => {
+        out := []
+        (Kids ()).Foreach (k: XmlNode) => { ((k.IsElement ()) == wantElement) { out.Add k; } { 0; } }
+        out
+    }
+
+    Attrs := () => { IsElement () { Tree.Get "attrs"; } { {->}; } }
+    Attr := (name: string) => {
+        a := Attrs ()
+        assert (a.Has name) ("<" + (Name ()) + "> 上没有 '" + name + "' 这个属性")
+        a.Get name;
+    }
+    AttrOr := (name: string dflt: string) => {
+        a := Attrs ()
+        a.Has name { a.Get name; } { dflt; }
+    }
+    HasAttr := (name: string) => { (Attrs ()).Has name; }
+
+    AttrPut := (name: string value: object) => {
+        assert (IsElement ()) ("这是段文本，没有属性可挂")
+        (Tree.Get "attrs").Set name (string value)
+        ();
+    }
+    AttrDrop := (name: string) => { (Tree.Get "attrs").Remove name; (); }
+
+    Add := (kid: object) => { (Tree.Get "kids").Add (TreeOf kid); (); }
+
+    AddText := (s: string) => { Add (Xml.Text s); }
+
+    Put := (other: object) => {
+        tree := TreeOf other
+        ((Tree.Keys ()).Sort ()).Foreach (k: string) => { Tree.Remove k; }
+        (tree.Keys ()).Foreach (k: string) => { Tree.Set k (tree.Get k); }
+        ();
+    }
+
+    Delete := () => {
+        ((typeof Parent) == XmlNode) {
+            (Parent).Drop (TreeOf this)
+            ();
+        } { throw (Exception ("这是个根节点，没有爹可摘：<" + (Name ()) + ">")); }
+    }
+
+    Drop := (tree: dict) => {
+        kids := Tree.Get "kids"
+        i := 0
+        found := 0 - 1
+        kids.Foreach (k: dict) => {
+            k == tree { found = i; } { 0; }
+            i += 1
+        }
+        assert (found >= 0) "要摘的那个孩子不在这棵树上"
+        kids.RemoveAt found
+        ();
+    }
+
+    ToString := () => { Read (); }
+
+    Read := () => { IsText () { Text (); } { Xml.Render this; } }
+    Size := () => { (Read ()).Length (); }
+    Exists := () => { true; }
+    IsDir := () => { IsElement (); }
+    NameOf := () => { IsElement () { Name (); } { "#text"; } }
+
+    Write := (t: string) => {
+        Put (Native.XmlParse t)
+        ();
+    }
+    Append := (t: string) => { throw (Exception ("XML 的节点没有追写这回事：<" + (Name ()) + ">")); }
+
+    List := () => {
+        out := {->}
+        seen := {->}
+        (Kids ()).Foreach (k: XmlNode) => {
+            tag := k.NameOf ()
+            n := seen.Has tag { (seen.Get tag) + 1; } { 1; }
+            seen.Set tag n
+            out.Set (n == 1 { tag; } { (tag + "[") + (string n) + "]"; }) k
+        }
+        out
+    }
+
+    ChildNamed := (name: string) => { List () |> .Get name; }
+}
+
+impl (IEntry XmlNode {;})
+impl (IFile XmlNode {;})
+impl (IEntry XmlNode {;})
+impl (IDir XmlNode {;})

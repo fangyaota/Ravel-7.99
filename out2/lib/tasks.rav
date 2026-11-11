@@ -1,0 +1,317 @@
+ravel "Tasks"
+
+readonly ITask ::= interface {
+    by Done : function = _
+    by Ok : function = _
+    by Err : function = _
+    by Claimed : function = _
+
+    by IsDone : function = _
+    by Value : function = _
+
+    by WaitOn : function = _
+
+    by Schedule : function = _
+}
+
+readonly TaskBase ::= class {
+    Done: bool = false
+    Ok: bool = true
+    Val: object = ()
+    Err: object = ()
+
+    Claimed: bool = false
+
+    by IsDone := property (() => { Done; }) ((v: bool) => { (); })
+
+    by Value := property (() => {
+        Done { 0; } {
+            throw (Exception ("这个任务还没完 —— 要等它就用 `group.Await t`,"
+                              + "只想探一下就 `t.IsDone`"))
+        }
+
+        Claimed = true
+        Ok { Val; } { throw Err; }
+    }) ((v: object) => { (); })
+
+    Map := (f: function) => {
+        inner := this
+        Task (g: TaskGroup) => { f (g.Await inner); }
+    }
+    Bind := (f: function) => {
+        inner := this
+        Task (g: TaskGroup) => { g.Await (f (g.Await inner)); }
+    }
+
+    Schedule := (group: TaskGroup) => { (); }
+
+    WaitOn := (group: TaskGroup) => {
+        throw (Exception ("这个类型没法被等 —— `WaitOn` 没实现"))
+    }
+}
+
+Task ::= class TaskBase {
+    Body: function = _
+    Step: Continuation = _
+    Started: bool = false
+
+    Waiters: list = []
+
+    Where: string = ""
+
+    Queued: bool = false
+
+    init = (body: function) => {
+        Body = body
+        Step = ()
+        Started = false
+        Queued = false
+        Where = ""
+        this;
+    }
+
+    Schedule = (group: TaskGroup) => {
+        Queued { 0; } { group.Add this; }
+        ();
+    }
+
+    WaitOn = (group: TaskGroup) => {
+        Schedule group
+        callcc (kp: Continuation) => {
+            group.Current.Step = kp
+            Waiters.Add group.Current
+            group.Back ()
+        }
+    }
+}
+
+readonly SysTask ::= class TaskBase {
+    Job: object = ()
+
+    init = () => { Job = (); this; }
+
+    WaitOn = (group: TaskGroup) => {
+        callcc (kp: Continuation) => {
+            group.Current.Step = kp
+            group.Waiting.Add (Pending group.Current Job)
+            group.Back ()
+        }
+        Val = System.HandleValue Job
+        Ok = true
+        Done = true
+    }
+}
+
+readonly Signal ::= class TaskBase {
+    Holder : object = ()
+    Waiting: list = []
+
+    init = () => { Holder = (); Waiting = []; this; }
+
+    WaitOn = (group: TaskGroup) => {
+        Holder = group
+        callcc (kp: Continuation) => {
+            group.Current.Step = kp
+            Waiting.Add group.Current
+            group.Back ()
+        }
+    }
+
+    Open := (v: object) => {
+        Val = v
+        Ok = true
+        Done = true
+        Waiting.Foreach (w: object) => { Holder.Ready.Add w; }
+        Waiting = []
+        ();
+    }
+}
+
+readonly Chan ::= class {
+    Items: list = []
+    Waiting: list = []
+    Shut: bool = false
+
+    init = () => { Items = []; Waiting = []; Shut = false; this; }
+
+    Put := (v: object) => {
+        Shut {
+            throw (Exception ("这个队列已经关了 —— 放不进去了"))
+        } { 0; }
+        Items.Add v
+        (Waiting.Count ()) > 0 { (Waiting.Remove 0).Open (); } { 0; }
+        ();
+    }
+
+    Take := (g: TaskGroup) => {
+        while { (Items.IsEmpty ()) && !(Shut); } {
+            sig := Signal ()
+            Waiting.Add sig
+            g.Await sig
+        }
+        Items.IsEmpty () {
+            throw (Exception ("队列已经关了,没货可取"))
+        } { 0; }
+        Items.Remove 0;
+    }
+
+    Close := () => {
+        Shut = true
+        Waiting.Foreach (s: object) => { s.Open (); }
+        Waiting = []
+        ();
+    }
+
+    Count := () => { Items.Count (); }
+    IsShut := () => { Shut; }
+}
+
+All := (ts: list) => {
+    Task (g: TaskGroup) => {
+        ts.Foreach (t: ITask) => { t.Schedule g; }
+        out := []
+        ts.Foreach (t: ITask) => { out.Add (g.Await t); }
+        out;
+    }
+}
+
+readonly Any := (ts: list) => {
+    Task (g: TaskGroup) => {
+        gate := Signal ()
+        win := [()]
+        ts.Foreach (t: ITask) => {
+            g.Add (Task (gg: TaskGroup) => {
+                try { gg.Await t; } (e: Exception) => { (); }
+                gate.IsDone { 0; } { win.Set 0 t; gate.Open (); }
+            });
+        }
+        g.Await gate
+        win.At 0;
+    }
+}
+
+impl (ITask TaskBase {;})
+
+impl (IMonad TaskBase {;})
+
+readonly private Pending ::= class {
+    Who : object = ()
+    Job: object = ()
+    init = (who: Task job: object) => { Who = who; Job = job; this; }
+}
+
+TaskGroup ::= class {
+    All: list = []
+    Ready: list = []
+    Waiting: list = []
+    Current : object = ()
+    Back: Continuation = _
+
+    init = (tasks: list) => {
+        All = []
+        Ready = []
+        Waiting = []
+        Current = ()
+        Back = ()
+
+        tasks.Foreach (t: Task) => { Add t; }
+        this;
+    }
+
+    Add := (t: Task) => {
+        t.Done {
+            throw (Exception ("这个任务已经跑完了 —— 一个任务只能跑一遍(要再来一次就再造一个)"))
+        } { 0; }
+        t.Queued {
+            throw (Exception ("这个任务已经在组里了 —— 别加第二遍"))
+        } { 0; }
+        t.Queued = true
+        All.Add t
+        Ready.Add t
+        t
+    }
+
+    Await := (t: ITask) => {
+        t.Claimed = true
+
+        t.Done { 0; } { t.WaitOn this; }
+
+        t.Value;
+    }
+
+    Poll := () => {
+        done := System.WaitAny (Waiting.Map ((w: object) => { w.Job; }) |> .ToList ())
+        w := Waiting.Where ((x: object) => { x.Job == done; }) |> .First ()
+        Waiting.Remove (Waiting.IndexOf w)
+        Ready.Add w.Who
+    }
+
+    Start := (t: Task) => {
+        t.Started { t.Step (); } {
+            t.Started = true
+            try { t.Val = (t.Body this); } (e: Exception) => {
+                t.Ok = false
+                t.Err = e
+
+                t.Where = System.FormatError e
+                ();
+            }
+            Finish t
+        }
+    }
+
+    Finish := (t: Task) => {
+        t.Done = true
+        t.Waiters.Foreach (w: object) => { Ready.Add w; }
+        t.Waiters = []
+        ()
+    }
+
+    Run := () => {
+        callcc (kc: Continuation) => { Back = kc; }
+        while { !((Ready.IsEmpty ()) && (Waiting.IsEmpty ())); } {
+            Ready.IsEmpty () { Poll (); } {
+                Current = Ready.Remove 0
+                Start Current
+            }
+        }
+
+        stuck := All.Where ((t: Task) => { !(t.Done); }) |> .ToList ()
+        (stuck.Count ()) == 0 { (); } {
+            throw (Exception ("死锁:还有 " + (string (stuck.Count ())) + " 个任务没完,"
+                              + "但已经没有谁能推进它们了 —— 多半是在互相等,或者在等一件没人会去做的事"))
+        }
+
+        dropped := All.Where ((t: Task) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
+        (dropped.Count ()) == 0 { (); } {
+            d := dropped.First ()
+
+            throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错"
+                              + " —— 谁起的任务谁负责等它(`group.Await` / `.Value`)\n\n"
+                              + ((d.Where) == "" { d.Err.Message; } { d.Where; })))
+        }
+    }
+}
+
+readonly After := (ms: int) => {
+    t := SysTask ()
+    t.Job = System.Sleepable ms
+    t
+}
+
+readonly Return := (v: object) => {
+    Task (g: TaskGroup) => { v; }
+}
+
+readonly Of := (h: System.Waitable) => {
+    t := SysTask ()
+    t.Job = h
+    t
+}
+
+readonly Cycle := (tasks: list) => {
+    (TaskGroup tasks).Run ()
+}
+
+ravel ""
+readonly cmdTask := (c: string) => { Tasks.Of (System.CmdTask c); }

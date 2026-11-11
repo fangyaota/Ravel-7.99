@@ -1,0 +1,34 @@
+using "text.rav"
+
+ravel "Types"
+
+readonly PrintTree := (root: object) => {
+    children := (t: object) => {
+        (t : string) { []; } {
+            subs := t.Subtypes ()
+            kids := []
+            i := 0
+            while { i < subs.Count (); } {
+                s := subs.At i
+                (s.parent).name == t.name && s.name != t.name { kids.Add s; } { 0; }
+                i += 1
+            }
+
+            imps := (t : interface) { t.GetImplementors (); } { []; }
+            (imps.Count ()) > 0 {
+                names := []
+                j := 0
+                while { j < imps.Count (); } {
+                    names.Add (imps.At j).name
+                    j += 1
+                }
+                kids.Add ("实现 ← " + (names.Join " "))
+            } { 0; }
+            kids
+        }
+    }
+
+    label := (t: object) => { (t : string) { t; } { t.name + " [" + (typeof t).name + "]"; }; }
+
+    print (Text.Tree root children label)
+}

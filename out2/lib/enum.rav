@@ -1,0 +1,156 @@
+using "io.rav"
+
+readonly enum ::= class type {
+    private parentInit := init
+
+    protected Members := {
+        Value : object = 0
+        Name : string = ""
+
+        Text := () => { Name; }
+        ToString := () => { Name; }
+    }
+
+    init = (parent: type vars: function) => {
+        !((typeof parent) <: enum) {
+            throw (Exception ("'enum' 的父类得也是一个 enum（得到 " + (string parent) + "）"))
+        } { 0; }
+
+        parentInit parent {();}
+        Collect parent vars
+        this
+    } | (vars: function) => {
+        parentInit object Members
+        Collect () vars
+        this
+    }
+
+    Collect := (parent: object vars: function) => {
+        names := []
+        vals := []
+
+        (typeof parent) <: enum {
+            pf := parent.MemberScope ()
+            ((pf.Variables ()).Keys ()).Foreach (n: string) => {
+                v := (pf.Lookup n).Get ()
+                v : parent {
+                    names.Add v.Name
+                    vals.Add v.Value
+                } { 0; }
+            }
+        } { 0; }
+
+        box := object ()
+        with box vars
+        from := box.MemberScope ()
+        ((from.Variables ()).Keys ()).Foreach (n: string) => {
+            n == "init" { 0; } {
+                names.Add n
+                vals.Add ((from.Lookup n).Get ())
+            }
+        }
+
+        cls := this
+        members := []
+        i := 0
+        while { i < (names.Count ()); } {
+            e := cls ()
+            e.Value = (vals.At i)
+            e.Name = (names.At i)
+            members.Add e
+
+            (cls.MemberScope ()).Define (names.At i) (typeof e)
+            ((cls.MemberScope ()).Lookup (names.At i)).Set e
+            i += 1
+        }
+
+        cls.Values := () => { members; }
+        cls.Of := (v: object) => {
+            hit := []
+            (members).Foreach (e: object) => {
+                (hit.Count ()) == 0 {
+                    e.Value == v { hit.Add e; } { 0; }
+                } { 0; }
+            }
+            (hit.Count ()) == 0 {
+                throw (Exception ("这个枚举里没有值等于 " + (string v) + " 的成员"))
+            } { 0; }
+            hit.At 0
+        }
+    }
+}
+
+readonly flags ::= class enum {
+    private baseInit := init
+
+    private baseMembers := Members
+
+    Members = {
+        with this baseMembers
+
+        Bits := (o: object) => {
+            o : int { o; } {
+                (typeof o) == (typeof this) { o.Value; } {
+                    throw (Exception ("flags: 位运算两边得是同一个 flags 的值或整数（那边是 " + (string (typeof o)) + "）"))
+                }
+            }
+        }
+
+        Combine := (v: object) => { ((typeof this).Of) v; }
+
+        | := (o: object) => { Combine (Value | (Bits o)); }
+        & := (o: object) => { Combine (Value & (Bits o)); }
+        ^ := (o: object) => { Combine (Value ^ (Bits o)); }
+        - := (o: object) => { Combine (Value - (Value & (Bits o))); }
+
+        Has := (o: object) => { ((Value & (Bits o)) == (Bits o)); }
+
+        Names := () => {
+            out := []
+            ((typeof this).Values ()).Foreach (m: object) => {
+                (m.Value) != 0 {
+                    (Value & (m.Value)) == (m.Value) { out.Add m.Name; } { 0; }
+                } { 0; }
+            }
+            out
+        }
+
+        == := (o: object) => {
+            (typeof o) == (typeof this) { Value == (o.Value); } { false; }
+        }
+        != := (o: object) => { !((this) == o); }
+
+        Text = () => {
+            Name != "" { Name; } {
+                ns := Names ()
+                ns.IsEmpty () { "0"; } { ns.Join "|"; }
+            }
+        }
+        ToString = () => { Text (); }
+    }
+
+    private Patch := (cls: object) => {
+        cls.Of := (v: object) => {
+            hit := []
+            (cls.Values ()).Foreach (m: object) => {
+                ((hit.Count ()) == 0) && ((m.Value) == v) { hit.Add m; } { 0; }
+            }
+            (hit.Count ()) > 0 { hit.At 0; } {
+                r := cls ()
+                r.Value = v
+                r.Name = ""
+                r
+            }
+        }
+    }
+
+    init = (parent: type vars: function) => {
+        baseInit parent vars
+        Patch this
+        this
+    } | (vars: function) => {
+        baseInit vars
+        Patch this
+        this
+    }
+}

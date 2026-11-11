@@ -1,0 +1,88 @@
+# **两条路差多少** —— 生成出来的适配层（直调）vs `Reflect.Call`（运行期挑重载）。
+#
+#     dotnet out/ravel.dll examples/adapter_speed.rav
+#
+# 同一件事：`Math.Max 3 7`。两条路交回**一样的数**，但不是**一样的东西** ——
+# 见下面「顺带看出的一件事」。
+#
+# 跑一遍十几秒。想更稳就把 `N` 调大。
+using "plugins/Ravel.Generated.dll"
+using "plugins/Ravel.Reflect.dll"
+
+N := 100000
+# **挑类型这一步挪到循环外面** —— 这才是公平比法。留在里面的话量到的主要是
+# "每轮重新找一次 `System.Math`"，而不是"调一次方法"。
+M := Reflect.Type "System.Math"
+
+# ── 怎么量才作数 ──
+#
+# 这份量法有三条讲究，都是踩出来的：
+#
+# 1. **每一路先跑一遍预热，再跑两遍取 `min`。** 第一遍要把 .NET 的 JIT 算进去，
+#    拿它当真会低估差距（同一份代码头一遍报过 2.1 倍）。
+# 2. **取 `min` 不取平均。** 后面的轮次会越来越慢（垃圾攒起来了），
+#    那不是"这条路慢"，那是"这台进程累了"。
+# 3. **一路连着跑完再换另一路**（不是交替）。**交替测会把差距压扁一半** ——
+#    `Reflect` 那条每轮造一大堆垃圾，把紧跟其后的生成那条也拖慢
+#    （实测：交替测 3.5 倍，各自连测 6 倍以上）。
+RunGen := () => {
+    t0 := System.NowMs ()
+    i := 0
+    x := 0
+    while { i < N; } { x = NMath.Max 3 7; i += 1; }
+    (System.NowMs ()) - t0;
+}
+RunRef := () => {
+    t0 := System.NowMs ()
+    i := 0
+    y := 0.0
+    while { i < N; } { y = Reflect.Unwrap (Reflect.Call M "Max" [3 7]); i += 1; }
+    (System.NowMs ()) - t0;
+}
+
+# **一路彻底量完再换另一路** —— 连预热也得隔开。预热放在最前面一起做的话，
+# `Reflect` 那趟留下的垃圾照样会拖慢后面量生成的每一轮（这就是第 3 条讲究的意思）。
+#
+# 一条一条 `Add` —— `[RunGen () RunGen ()]` 那种写法里，第一个调用的实参会把
+# 后面那个也吃进去（"实参吃运算符"那条），解析出来的不是你以为的那个表。
+WarmGen := RunGen ()
+Gs := []
+Gs.Add (RunGen ())
+Gs.Add (RunGen ())
+
+WarmRef := RunRef ()
+Rs := []
+Rs.Add (RunRef ())
+Rs.Add (RunRef ())
+
+g := Gs.Min ()
+r := Rs.Min ()
+
+print ("生成的 NMath.Max（直调）  ：" + (Gs.Join " ") + "  → " + (string g) + " ms")
+print ("Reflect.Call（运行期挑）  ：" + (Rs.Join " ") + "  → " + (string r) + " ms")
+print ("                            ≈ " + (string (1.0 * r / g)) + " 倍")
+print ""
+
+# ── 顺带看出的一件事：交回的**不是同一个东西** ──
+#
+# `Reflect.Call` 的重载是**运行期**挨个试的 —— `Math.Max` 11 个同名重载里
+# `(double, double)` 先绑上，于是它交回一个 `real`。下面这行**会当场报类型错**，
+# 所以包在 `try` 里：那条路**挑中哪个重载，你说了不算**。
+try {
+    n : int = Reflect.Unwrap (Reflect.Call M "Max" [3 7])
+    print ("Reflect 交回的能塞进 int：" + (string n))
+} (e: Exception) => {
+    print "Reflect 交回的是 real —— 塞进 int 当场报类型错（它的重载挑了 (double, double)）"
+}
+
+# 生成的那条是**编译期**定死的：排位键里 `Int32` 在 `Double` 前面，
+# 所以挑中 `(int, int) -> int`，交回一个真 `int` —— 当键、比大小、接着算都行。
+m : int = NMath.Max 3 7
+print ("生成的这条塞进 int：" + (string m) + "，还能接着算：" + (string (m + 1)))
+
+# ── 快在哪儿 ──
+#
+# `Reflect.Call` 每调一次要走：反射拿方法表 → LINQ 筛同名同元数 → `TryEach` 挨个试绑
+# → 反射 `Invoke` → 装箱/拆箱 → 包成 `DotNetObject` → 用户再 `.Unwrap ()` 拆一层。
+# 生成的这条生成期就把方法挑好了，C# 里就是一句 `Math.Max (PluginKit.Int (x0, …), …)`。
+print "量完了"
