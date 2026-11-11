@@ -23,7 +23,10 @@ internal static class StringMembers
     [ClassMethod("At")]
     private static RuntimeValue At(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is RangeVal) return Slice(self, arg);      // `s[1..3]` = `s.Slice [1..3)`
+        if (arg is RangeVal)
+            throw new RuntimeException(
+                $"s.At 收一个下标（切一段用 s.Slice —— `s[1..3]` 就走它），得到区间 {arg}",
+                ErrorKind.Argument);
         var v = ((StringVal)self).Value;
         var i = BuiltinClasses.IntArg(arg, "s.At");
         if (i < 0 || i >= v.Length)
@@ -131,7 +134,7 @@ internal static class StringMembers
             .Select(p => (RuntimeValue)new StringVal(p))]);
     }
 
-    internal static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what)
+    internal static (int From, int To, bool Reverse) SliceBounds(RangeVal rng, int length, string what, bool clamp = false)
     {
         // 按**元素**那边折算(区间里那些整数):`[1.5..3.5]` 切的是 2..3 那一段。
         // 区间是**降序**的话(`[4..0]`)拿到的是同一段、但**倒着**切 —— 方向也照区间的意思走。
@@ -165,7 +168,15 @@ internal static class StringMembers
         var lo = System.Numerics.BigInteger.Min(first, last);
         var hi = System.Numerics.BigInteger.Max(first, last);
         if (lo < 0 || hi + 1 > length)
-            throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）", ErrorKind.Index);
+        {
+            if (!clamp)
+                throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）", ErrorKind.Index);
+
+            // 切一段**不报错**:越过哪头就收到哪头(`xs.Slice [9..9]` 是空的一段)。
+            lo = System.Numerics.BigInteger.Max(lo, 0);
+            hi = System.Numerics.BigInteger.Min(hi, length - 1);
+            if (lo > hi) return (0, 0, false);
+        }
 
         return ((int)lo, (int)(hi + 1), !up);           // 半开:`hi` 那个元素也要,所以 +1
     }

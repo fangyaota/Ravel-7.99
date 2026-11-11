@@ -28,18 +28,26 @@ internal sealed class ListMembers : SequenceMembers
     [ClassMethod("At")]
     private static RuntimeValue At(RuntimeValue self, RuntimeValue arg)
     {
-        // 区间就是切片:`xs[1..3]` 和 `xs.At [1..3]` 一条路。
-        if (arg is RangeVal rng)
-        {
-            var lst0 = (ListVal)self;
-            var (from, to, reverse) = StringMembers.SliceBounds(rng, lst0.Elements.Count, "list.At");
-            var part = lst0.Elements.GetRange(from, to - from);
-            if (reverse) part.Reverse();
-            return new ListVal([.. part]);
-        }
+        if (arg is RangeVal)
+            throw new RuntimeException(
+                $"list.At 收一个下标（切一段用 list.Slice —— `xs[1..3]` 就走它），得到区间 {arg}",
+                ErrorKind.Argument);
 
         var lst = Indexed(self, arg, "list.At");
         return lst.Elements[((IntVal)arg).Value];
+    }
+
+    [ClassMethod("Slice")]
+    private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
+    {
+        if (arg is not RangeVal rng)
+            throw new RuntimeException($"list.Slice 收一个区间（`xs[1..3]`），得到 {arg.Type}", ErrorKind.Argument);
+
+        var lst = (ListVal)self;
+        var (from, to, reverse) = StringMembers.SliceBounds(rng, lst.Elements.Count, "list.Slice", clamp: true);
+        var part = lst.Elements.GetRange(from, to - from);
+        if (reverse) part.Reverse();
+        return new ListVal([.. part]);
     }
 
     [ClassMethod("Add")]

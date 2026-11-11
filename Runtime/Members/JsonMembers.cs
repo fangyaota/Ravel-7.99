@@ -42,19 +42,27 @@ internal static class JsonMembers
                 : BuiltinClasses.JsonOf(dflt));
     }
 
+    [ClassMethod("Slice")]
+    private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
+    {
+        if (arg is not RangeVal rng)
+            throw new RuntimeException($"Json.Slice 收一个区间（`j[1..3]`），得到 {arg.Type}", ErrorKind.Argument);
+
+        var arr = ((JsonVal)self).Token as JArray
+            ?? throw new RuntimeException($"Json.Slice: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
+        var (from, to, reverse) = StringMembers.SliceBounds(rng, arr.Count, "Json.Slice");
+        IEnumerable<JToken> items = arr.Skip(from).Take(to - from);
+        if (reverse) items = items.Reverse();
+        return new JsonVal(new JArray([.. items.Select(t => t.DeepClone())]));
+    }
+
     [ClassMethod("At")]
     private static RuntimeValue At(RuntimeValue self, RuntimeValue arg)
     {
-        // 区间:数组切片(`j[1..3]`)。
-        if (arg is RangeVal rng)
-        {
-            var arr0 = ((JsonVal)self).Token as JArray
-                ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
-            var (from, to, reverse) = StringMembers.SliceBounds(rng, arr0.Count, "Json.At");
-            var items = arr0.Skip(from).Take(to - from).Select(t => (RuntimeValue)new JsonVal(t));
-            if (reverse) items = items.Reverse();
-            return new JsonVal(new JArray([.. items]));
-        }
+        if (arg is RangeVal)
+            throw new RuntimeException(
+                $"Json.At 收一个下标（切一段用 Json.Slice —— `j[1..3]` 就走它），得到区间 {arg}",
+                ErrorKind.Argument);
 
         var i = BuiltinClasses.IntArg(arg, "Json.At");
         var arr = ((JsonVal)self).Token as JArray

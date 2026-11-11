@@ -166,8 +166,11 @@ public sealed class Lowering
         BinaryExpr b => b with { Left = Lower(b.Left), Right = Lower(b.Right) },
         CallExpr c => c with { Function = Lower(c.Function), Argument = Lower(c.Argument) },
         MemberAccess m => m with { Object = Lower(m.Object) },
-        // 读:`xs[i]` 就是 `xs.At i`(区间也走 `At` —— 那几个成员的 `At` 认区间并切片)
-        IndexExpr ix => Call(Member(Lower(ix.Object), "At"), Lower(ix.Index)),
+        // 读:`xs[i]` 是 `xs.At i`;右边写的是**区间字面量**就是 `xs.Slice 1..3`)
+        // (`At` 只认单个下标 —— 切一段是另一条成员,不靠运行时看参数类型分派)
+        IndexExpr ix => Call(
+            Member(Lower(ix.Object), ix.Index is RangeExpr ? "Slice" : "At"),
+            Lower(ix.Index)),
         UnaryExpr u => u with { Operand = Lower(u.Operand) },
         PipeExpr p => p with { Left = Lower(p.Left), Right = Lower(p.Right) },
         SlotExpr sl => sl with { Path = Lower(sl.Path) },
