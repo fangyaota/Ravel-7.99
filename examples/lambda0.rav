@@ -1,0 +1,381 @@
+using "io.rav"
+
+tag := (e) => { e.At 0; }
+isVar := (e) => { (tag e) == "v"; }
+isLam := (e) => { (tag e) == "l"; }
+isApp := (e) => { (tag e) == "a"; }
+mkVar := (n) => { ["v" n]; }
+mkLam := (p) => { (b) => { ["l" p b]; }; }
+mkApp := (xs) => { ["a" xs]; }
+partsOf := (e) => { e.At 1; }
+pair := (a b) => { out := []; out.Add a; out.Add b; out; }
+
+clone := (e) => {
+    (isVar e) { e; } {
+        (isLam e) { mkLam (e.At 1) (clone (e.At 2)); } {
+            xs := partsOf e
+            out := []
+            i := 0
+            while { i < xs.Count (); } { out.Add (clone (xs.At i)); i += 1; }
+            mkApp out
+        }
+    }
+}
+
+hasName := (e k) => {
+    (isVar e) { (e.At 1) == k; } {
+        (isLam e) {
+            ((e.At 1) == k) { false; } { hasName (e.At 2) k; }
+        } {
+            xs := partsOf e
+            found := false
+            i := 0
+            while { i < xs.Count (); } {
+                (hasName (xs.At i) k) { found = true; } { 0; }
+                i += 1
+            }
+            found
+        }
+    }
+}
+
+replaceIn := (e val param) => {
+    (isVar e) {
+        ((e.At 1) == param) { clone val; } { e; }
+    } {
+        (isLam e) {
+            ((e.At 1) == param) { clone e; } { mkLam (e.At 1) (replaceIn (e.At 2) val param); }
+        } {
+            xs := partsOf e
+            out := []
+            i := 0
+            while { i < xs.Count (); } { out.Add (replaceIn (xs.At i) val param); i += 1; }
+            mkApp out
+        }
+    }
+}
+
+simplify := (e cal) => {
+    (isApp e) { simplifyApp e cal; } {
+        (isLam e) { pair (mkLam (e.At 1) ((simplify (e.At 2) false).At 0)) true; } {
+            pair e false
+        }
+    }
+}
+
+simplifyApp := (e cal) => {
+    xs := partsOf e
+    ((xs.Count ()) == 1) {
+        (isApp (xs.At 0)) { pair (xs.At 0) true; } { pair e true; }
+    } {
+    head := xs.At 0
+    (isApp head) {
+        merged := (partsOf head).Concat ((xs.Skip 1).ToList ())
+        pair (mkApp [(mkApp merged)]) true
+    } {
+        (isLam head) {
+            rest := (xs.Skip 1).ToList ()
+            ((rest.Count ()) == 0) {
+                pair e true
+            } {
+                arg := rest.At 0
+                tail := (rest.Skip 1).ToList ()
+                param := head.At 1
+                body := head.At 2
+                (hasName body param) {
+                    (isApp arg) {
+                        probe := simplify arg cal
+                        (probe.At 1) {
+                            pair (mkApp ([(mkLam param body)].Concat tail)) true
+                        } {
+                            pair (mkApp ([(replaceIn body arg param)].Concat tail)) true
+                        }
+                    } {
+                        pair (mkApp ([(replaceIn body arg param)].Concat tail)) true
+                    }
+                } {
+                    pair (mkApp ([body].Concat tail)) true
+                }
+            }
+        } {
+            simplifyPlain e cal
+        }
+    }
+    }
+}
+
+simplifyPlain := (e cal) => {
+    xs := partsOf e
+    out := []
+    changed := false
+    i := 0
+    while { i < xs.Count (); } {
+        p := xs.At i
+        (isApp p) {
+            r := simplify p cal
+            q := r.At 0
+            (r.At 1) { changed = true; } { 0; }
+            (isApp q) {
+                (((partsOf q).Count ()) == 1) { out.Add ((partsOf q).At 0); } { out.Add q; }
+            } { out.Add q; }
+        } { out.Add p; }
+        i += 1
+    }
+    (cal) {
+        ((out.Count ()) >= 2) {
+            (isVar (out.At 0)) {
+                name := (out.At 0).At 1
+                (defined.Has name) {
+                    out.SetAt 0 (clone (defined.Get name))
+                    changed = true
+                } { 0; }
+            } { 0; }
+        } { 0; }
+    } { 0; }
+    pair (mkApp out) changed
+}
+
+normalize := (e) => {
+    r := e
+    n := 0
+    while { n < times; } {
+        r = (simplify r true).At 0
+        n += 1
+    }
+    r
+}
+
+show := (e) => {
+    (isVar e) { e.At 1; } {
+        (isLam e) { (e.At 1) + "." + (show (e.At 2)); } {
+            xs := partsOf e
+            out := []
+            i := 0
+            while { i < xs.Count (); } {
+                p := xs.At i
+                (isVar p) { out.Add (p.At 1); } { out.Add ("(" + (show p) + ")"); }
+                i += 1
+            }
+            out.Join " "
+        }
+    }
+}
+
+cut := (s) => {
+    ((s.Length ()) <= maxLength) { s; } { "a bit too much... for " + (string (s.Length ())) + " characters"; }
+}
+
+tokenize := (s) => {
+    t := s.Replace "(" " ( "
+    t = t.Replace ")" " ) "
+    t = t.Replace "." " . "
+    while { t.Contains "  "; } { t = t.Replace "  " " "; }
+    raw := (t.Trim ()).Split " "
+    out := []
+    i := 0
+    while { i < raw.Count (); } {
+        (raw.At i) != "" { out.Add (raw.At i); } { 0; }
+        i += 1
+    }
+    out
+}
+
+nest := (ts) => {
+    out := []
+    i := 0
+    while { i < ts.Count (); } {
+        t := ts.At i
+        (t == "(") {
+            depth := 1
+            j := i + 1
+            while { depth > 0; } {
+                c := ts.At j
+                (c == "(") { depth += 1; } { (c == ")") { depth -= 1; } { 0; } }
+                j += 1
+            }
+            inner := (ts.Skip (i + 1)).Take (j - i - 2)
+            out.Add (nest (inner.ToList ()))
+            i = j
+        } {
+            out.Add t
+            i += 1
+        }
+    }
+    out
+}
+
+buildList := (ns) => {
+    out := []
+    i := 0
+    while { i < ns.Count (); } {
+        out.Add (build (ns.At i))
+        i += 1
+    }
+    out
+}
+
+build := (node) => {
+    ((typeof node) == string) { mkVar node; } {
+        n := node
+        isFun := false
+        ((n.Count ()) >= 2) {
+            ((typeof (n.At 1)) == string) { isFun = (n.At 1) == "."; } { 0; }
+        } { 0; }
+        (isFun) {
+            mkLam (n.At 0) (mkApp (buildList ((n.Skip 2).ToList ())))
+        } {
+            mkApp (buildList n)
+        }
+    }
+}
+
+parse := (s) => { mkApp (buildList (nest (tokenize s))); }
+
+eachKey := (d f) => {
+    ks := d.Keys ()
+    i := 0
+    while { i < ks.Count (); } { f (ks.At i); i += 1; }
+}
+
+helpText := () => {
+    print "functions:"
+    print "save    : Save your functions."
+    print "load    : Load your functions."
+    print "var     : Print your functions."
+    print "clear   : Delete all of your functions."
+    print "speed   : It's the speed of caculating."
+    print "debug   : Open the debug mode."
+    print "max     : the max amount of the text of the caculated function."
+    print "cls     : Clean your screen."
+    print "help    : Give the helping text of commands."
+    print "exit    : Close this."
+    print "version : What's the version."
+    print "it      : Print the result."
+}
+
+showVars := () => { print "vars:"; eachKey sources ((k) => { print (k + " = " + (sources.Get k)); }) }
+
+dataFile := () => { (Io.Dir ".").Child "lambda0.dat"; }
+
+saveAll := () => {
+    lines := []
+    eachKey sources ((k) => { lines.Add (k + "=" + (sources.Get k)); })
+    lines.Add ("#speed=" + (string times))
+    lines.Add ("#max=" + (string maxLength))
+    (dataFile ()).Write ((lines.Join "
+") + "
+")
+    print "Finish saving!"
+}
+
+loadAll := () => {
+    f := dataFile ()
+    (f.Exists ()) {
+        lines := f.Lines ()
+        i := 0
+        while { i < lines.Count (); } {
+            line := lines.At i
+            (line != "") {
+                key := (line.Split "=").At 0
+                val := (line.Slice [((key.Length ()) + 1)..(line.Length ()))).Trim ()
+                (key == "#speed") { times = int val; } {
+                    (key == "#max") { maxLength = int val; } {
+                        sources.Set key val
+                        defined.Set key (parse val)
+                    }
+                }
+            } { 0; }
+            i += 1
+        }
+        print "Finish loading!"
+    } { print "No such a file."; }
+}
+
+dropAll := () => { defined = {->}; sources = {->}; print "Finish clearing!"; }
+showSpeed := () => { print ("Speed: " + (string times)); }
+showMax := () => { print ("maxLenght: " + (string maxLength)); }
+toggleDebug := () => { print "Debug: false"; }
+clearScreen := () => { i := 0; while { i < 30; } { print ""; i += 1; } }
+stop := () => { running = false; }
+showVersion := () => { print ("Lambda expressioner v" + version); }
+showIt := () => { print ("-->  " + (cut (show exp))); }
+updateVersion := () => { print ("Downloading new version: " + version); print "Finish!"; }
+noConsole := () => { print "（这一版里没有 Python 控制台）"; }
+noCmd := () => { print "（这一版里不执行 shell 命令）"; }
+
+setSpeed := (v) => { times = int v; print ("Speed: " + (string times)); }
+setMax := (v) => { maxLength = int v; print ("maxLenght: " + (string maxLength)); }
+showVarArg := (v) => { (sources.Has v) { print (v + " = " + (sources.Get v)); } { print "No such a var."; } }
+loadArg := (v) => { loadAll (); }
+saveArg := (v) => { saveAll (); }
+
+noArg := {
+    "save" -> saveAll
+    "load" -> loadAll
+    "var" -> showVars
+    "clear" -> dropAll
+    "speed" -> showSpeed
+    "debug" -> toggleDebug
+    "max" -> showMax
+    "cls" -> clearScreen
+    "exit" -> stop
+    "version" -> showVersion
+    "it" -> showIt
+    "update" -> updateVersion
+    "console" -> noConsole
+    "cmd" -> noCmd
+}
+
+withArg := {
+    "speed" -> setSpeed
+    "max" -> setMax
+    "save" -> saveArg
+    "load" -> loadArg
+    "var" -> showVarArg
+}
+
+runCommand := (name) => { (noArg.Has name) { ((noArg.Get name)) (); } { helpText (); } }
+runCommandArg := (name arg) => {
+    (withArg.Has name) { ((withArg.Get name)) arg; } { print "No this function with a parameter."; }
+}
+
+exp := mkApp []
+defined := {->}
+sources := {->}
+times := 1
+maxLength := 1000
+version := "1.0.0"
+running := true
+
+print ("Lambda expressioner v" + version)
+print "Type '=' for more info."
+
+while { running; } {
+    System.Write "?>  "
+    line := input ""
+    (line == "") {
+        print ("==>  " + (cut (show (normalize exp))))
+    } {
+        li := (line.Split "=").Map ((s) => { s.Trim (); })
+        ((li.Count ()) == 1) {
+            exp = parse (li.At 0)
+            print ("-->  " + (cut (show exp)))
+        } {
+            ((li.Count ()) == 2) {
+                (li.At 0) == "" {
+                    runCommand (li.At 1)
+                } {
+                    ((li.At 1) == "") {
+                        defined.Remove (li.At 0)
+                        sources.Remove (li.At 0)
+                    } {
+                        sources.Set (li.At 0) (li.At 1)
+                        defined.Set (li.At 0) (parse (li.At 1))
+                    }
+                }
+            } {
+                runCommandArg (li.At 1) (li.At 2)
+            }
+        }
+    }
+}
