@@ -26,6 +26,36 @@ try { eval "private [m n] = [1 2]"; } (e: Exception) => { print ("3: " + e.Messa
 [s1 s2] : list = [8 9]
 print [s1 s2]
 
+# 别的形状一样能赋值:对象模式(按同名成员)、改名、整块、字典
+P ::= class {
+    cx: int = 11
+    cy: int = 22
+}
+
+cx := 0
+cy := 0
+{cx cy} = P ()
+print [cx cy]
+
+renamed := 0
+{renamed := cx} = P ()
+print renamed
+
+whole := 0
+w1 := 0
+w2 := 0
+(whole := [w1 w2]) = [7 8]
+print [whole w1 w2]
+
+d := {"a" -> 1 "b" -> "s"}
+dv := 0
+ds := ""
+{"a" -> dv "b" -> ds} = d
+print [dv ds]
+
+t1 := 0
+print ((try { eval "t2 := 0; [t2: int] = [\"s\"]"; } (e: Exception) => { "4: " + e.Message; }))
+
 # --- expected ---
 # [10 20]
 # [3 4]
@@ -35,3 +65,8 @@ print [s1 s2]
 # 2: 解构赋值里不能加修饰符 'private' —— 修饰符只属于定义（要定义就写 ':='）
 # 3: 解构赋值里不能加修饰符 'private' —— 修饰符只属于定义（要定义就写 ':='）
 # [8 9]
+# [11 22]
+# 11
+# [[7 8] 7 8]
+# [1 s]
+# 4: 这一格要的是 Integer，得到 String
