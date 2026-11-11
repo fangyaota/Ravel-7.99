@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { foldingRanges } = require('./folding');
 const { wordAt, findDefinition, lineOf } = require('./definitions');
 
@@ -163,6 +164,54 @@ async function openRepl() {
 }
 
 /**
+ * 把当前文件**去糖之后**的样子摊出来:C# 那边 `Lowering` 跑完、`AstPrinter` 印回 .rav 的那棵树。
+ *
+ * 走 `ast -s -o <临时目录>` 而不是读 stdout:
+ *   * stdout 那份受**控制台码页**影响(中文 Windows 上是 CP936),注释里的中文会变乱码;
+ *     `-o` 落盘的是 UTF-8;
+ *   * `-o` 那一趟还会把印出来的东西**再解析一遍**自验 —— 印错了它会喊,而不是默默给你一份坏的。
+ *
+ * 出来的文件是临时目录里的 `…src.rav`,跟平时读的 .rav 长得一样(签名还是 `(a: int b: int)`)。
+ */
+async function showDesugared() {
+    const file = await currentRavelFile();
+    if (!file) return;
+
+    const dll = await findRavelDll();
+    if (typeof dll !== 'string') {
+        vscode.window.showErrorMessage(dll.error);
+        return;
+    }
+
+    // 每次都换一个目录：同一个路径重开时 VS Code 会拿出**已经开着的**那份旧文档，
+    // 看着就像"去糖结果没变"。换个 URI 就没这个缓存问题（临时目录由系统回收）。
+    const dir = path.join(os.tmpdir(), 'ravel-desugar', String(Date.now()));
+    fs.mkdirSync(dir, { recursive: true });
+
+    const code = await new Promise((resolve) => {
+        cp.spawn('dotnet', [dll, 'ast', '-s', '-o', dir, file], { cwd: workspaceCwd() })
+            .on('error', () => resolve(-1))
+            .on('close', (c) => resolve(c));
+    });
+
+    // 落点按"相对当前目录"还原(见 AstDump),所以别猜路径,直接找那一份
+    const produced = fs.readdirSync(dir, { recursive: true, withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith('.src.rav'))
+        .map((e) => path.join(e.parentPath || e.path, e.name))[0];
+
+    if (!produced) {
+        vscode.window.showErrorMessage(`去糖失败（退出码 ${code}）—— 看 Ravel 输出面板里的报错。`);
+        return;
+    }
+
+    const doc = await vscode.workspace.openTextDocument(produced);
+    await vscode.window.showTextDocument(doc, {
+        preview: true,
+        viewColumn: vscode.ViewColumn.Beside,
+    });
+}
+
+/**
  * 折叠:算区间那半在 `folding.js`(纯函数,node 能直接测),这里只把它接到 VS Code 上。
  *
  * 为什么非要有它:VS Code 对没有 provider 的语言按**缩进**折,而 Ravel 按 `{}` 分块 ——
@@ -254,6 +303,7 @@ function activate(context) {
         vscode.commands.registerCommand('ravel.runFileInTerminal', runFileInTerminal),
         vscode.commands.registerCommand('ravel.runTests', runTests),
         vscode.commands.registerCommand('ravel.openRepl', openRepl),
+        vscode.commands.registerCommand('ravel.showDesugared', showDesugared),
         vscode.languages.registerFoldingRangeProvider({ language: 'ravel' }, foldingProvider),
         vscode.languages.registerDefinitionProvider({ language: 'ravel' }, definitionProvider),
         vscode.languages.registerHoverProvider({ language: 'ravel' }, hoverProvider),

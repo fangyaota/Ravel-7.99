@@ -89,7 +89,7 @@ internal static class AstDump
 
                 if (wantSource)
                 {
-                    var printed = AstPrinter.Program(program);
+                    var printed = AstPrinter.Program(program, verbatim: true);
                     // 标题写成注释 —— 这一趟交出去的得**还是能解析的 .rav**
                     text = Comment(title) + "\n" + printed + "\n";
                     // **自验:印出来的东西再解析一遍,得回到同一棵树。** 不比就交出去是

@@ -53,6 +53,11 @@
                 "command": "ravel.openRepl",
                 "title": "打开 REPL",
                 "category": "Ravel"
+            },
+            {
+                "command": "ravel.showDesugared",
+                "title": "显示去糖后的代码",
+                "category": "Ravel"
             }
         ],
         "menus": {
@@ -66,6 +71,11 @@
                     "command": "ravel.runFileInTerminal",
                     "when": "resourceLangId == ravel",
                     "group": "navigation@2"
+                },
+                {
+                    "command": "ravel.showDesugared",
+                    "when": "resourceLangId == ravel",
+                    "group": "navigation@3"
                 }
             ],
             "explorer/context": [

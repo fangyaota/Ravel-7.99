@@ -28,15 +28,27 @@ internal static class AstPrinter
         return "(" + string.Join(" ", parts) + ") => " + Block(body);
     }
 
-    public static string Program(Program p)
-        => Join("\n", p.Statements.Select(s => Statement(s, 0)));
+    // `verbatim`:印**真跑的那棵树** —— 合成语句(注解检查、回绑那条)也印出来。
+    // 转储(`ravel ast --out`)要的是这个:只印"看着像源码"的那份会丢名字绑定,
+    // 印出来再解析就对不上了。给人看的签名/块仍走默认那条路(合成语句滤掉)。
+    public static string Program(Program p, bool verbatim = false)
+    {
+        var prev = Verbatim;
+        Verbatim = verbatim;
+        try { return Join("\n", p.Statements.Select(s => Statement(s, 0))); }
+        finally { Verbatim = prev; }
+    }
+
+    private static bool Verbatim;
 
     private static LambdaExpr? Next(BlockExpr body)
         => Visible(body) is [.., ExpressionStatement { Expr: LambdaExpr inner }] ? inner : null;
 
     // 合成语句(注解检查)不印 —— 求值时照跑,只是别让它漏进签名/转储里。
     private static List<Statement> Visible(BlockExpr b)
-        => b.Statements.Where(s => s is not (ExpressionStatement { Synthetic: true } or VarDefinition { Synthetic: true })).ToList();
+        => Verbatim
+            ? b.Statements
+            : b.Statements.Where(s => s is not (ExpressionStatement { Synthetic: true } or VarDefinition { Synthetic: true })).ToList();
 
     private static string Param(string name, Expression type, Pattern? pattern, int indent,
                                 List<string>? attrs = null)
