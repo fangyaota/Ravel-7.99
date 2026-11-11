@@ -35,6 +35,9 @@ public record VarDefinition(string Name, Expression? TypeAnnotation, Expression 
 
     // 脱糖造出来的那条(`(x: int) => …` 体里把 `x` 绑到实参上) —— 印签名时跳过。
     public bool Synthetic { get; init; }
+
+    // `#ignoreTypes true` 之下：注解还在（`default T` 还要它），但不发检查
+    public bool IgnoreType { get; init; }
 }
 public record Assignment(string Name, Expression Value) : Statement;
 
@@ -59,6 +62,9 @@ public record Destructure(List<string> Attrs, Pattern Pattern, Expression Value)
 public abstract record Pattern : AstNode
 {
     public Expression? Type { get; init; }
+
+    // `#ignoreTypes true` 之下：注解还在（印得出来），但不发检查
+    public bool IgnoreType { get; init; }
 
     public Expression? Guard { get; init; }
 
@@ -154,6 +160,9 @@ public record BlockExpr(List<Statement> Statements) : Expression
 public record Parameter(string Name, Expression Type, Pattern? Pattern = null)
 {
     public List<string>? Attrs { get; init; }
+
+    // `#ignoreTypes true` 之下：注解只当摆设，体里不为它发检查
+    public bool IgnoreType { get; init; }
 }
 
 // --- 程序根 ---

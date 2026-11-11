@@ -50,6 +50,15 @@ public sealed class Lowering
     // 而"空值"只有 `default` 知道(`()` 不是空值,拿 `()` 去调 T 也不再是默认值)。
     private IEnumerable<Statement> Typed(VarDefinition v, Expression want)
     {
+        // `#ignoreTypes true` 之下：注解只是摆设 —— 发定义，不发那道 `:`。
+        // `_` 还按 `default T` 走（它不是检查，是"这个类型空着的时候是什么"）。
+        if (v.IgnoreType)
+        {
+            var plain = v.Value is HoleExpr ? Call(Ident("default", (AstNode)v), Lower(want)) : Lower(v.Value);
+            yield return v with { TypeAnnotation = null, Value = plain };
+            yield break;
+        }
+
         var value = v.Value is HoleExpr
             ? Call(Ident("default", (AstNode)v), Lower(want))
             : Checked(v, Lower(want));
@@ -284,6 +293,20 @@ public sealed class Lowering
         var param = l.Param with { Type = Ident("object", l) };
         var isBy = l.Param.Attrs?.Contains(Attr.By) ?? false;
 
+        // `#ignoreTypes true` 之下：注解不判（`()` 那格也不判），但模式照拆
+        if (l.Param.IgnoreType)
+        {
+            if (l.Param.Pattern is { } ip)
+            {
+                var ib = new List<Statement>();
+                Bind(ip, Ident(l.Param.Name, l), l.Param.Attrs, ib, outerDone: false,
+                     who: AstPrinter.Describe(ip));
+                body = body with { Statements = [.. ib, .. body.Statements] };
+            }
+
+            return l with { Param = param with { Type = Lower(l.Param.Type) }, Body = body };
+        }
+
         // `()` 的参数只有一个取值 —— 判据是 `__p : void`,别的照 `()` 拆(什么也不拆)。
         if (l.Param.Pattern is { } unit && AstPrinter.IsUnitPattern(unit))
         {
@@ -397,7 +420,7 @@ public sealed class Lowering
         // 参数模式这一格:要求在**体里**判(`outerDone` 只用来避免同一条要求发两遍),
         // 判不过就拒收,`|` 接得住 —— 参数模式当"分派头一格"就靠这条。
         var ownType = p.Type;
-        if (p.Type is { } want)
+        if (p.Type is { } want && !p.IgnoreType)
         {
             if (!outerDone)
             {
@@ -444,8 +467,9 @@ public sealed class Lowering
 
             // **字面量那一格**:先过那一族、再比相等。两道不是一道 —— 见 `LiteralPattern`。
             case LiteralPattern lit:
-                // 域那道提到签名上去了(见 `Lambda`)就不在这儿再判一遍
-                if (!outerDone)
+                // 域那道提到签名上去了(见 `Lambda`)就不在这儿再判一遍；
+                // `#ignoreTypes true` 之下连"是不是那一族"也不问，只剩相等。
+                if (!outerDone && !lit.IgnoreType)
                 {
                     var sameKind = new BinaryExpr(source, ":", Lower(lit.Domain))
                         { Line = at.Line, Column = at.Column };

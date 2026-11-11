@@ -136,6 +136,18 @@ public partial class Parser
 
     private Statement ParseStatement()
     {
+        // 开关语句：吃掉它、改掉开关，不产出代码（返回一句空的、印不出来的语句）。
+        if (Check(TokenType.Directive))
+        {
+            var at = Peek();
+            TakeDirective();
+            SkipNewlines();
+            return new ExpressionStatement(new LiteralExpr(VoidVal.Instance) { Line = at.Line, Column = at.Column })
+            {
+                Line = at.Line, Column = at.Column, Synthetic = true,
+            };
+        }
+
         // `x :< m`:do 块里的取值绑定。别处写就是语法错误 —— 它没有独立语义。
         if (IsBindStart())
         {
@@ -574,7 +586,9 @@ public partial class Parser
         var p = ParsePatternBare();
         if (attrs is not null) p = p with { Attrs = attrs };
         if (Match(TokenType.Colon))
-            p = p with { Type = ParseTypeAnnotation() };
+            p = p with { Type = ParseTypeAnnotation(), IgnoreType = _ignoreTypes };
+        else if (_ignoreTypes)
+            p = p with { IgnoreType = true };
         // `|>` 贴的是**刚结束的那一格**(不管它是名字、还是整个 `[…]` / `{…}`):
         // 把那一格的值喂给右边那个函数,不成立就拒收。于是每一层、每一格都能写。
         if (Match(TokenType.PipeInto))
@@ -847,6 +861,7 @@ public partial class Parser
 
         return new VarDefinition(name, typeAnnotation, value, attrs, autoName)
         {
+            IgnoreType = _ignoreTypes,
             Line = line,
             Column = col,
         };

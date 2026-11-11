@@ -16,6 +16,10 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
 
     private int _exprDepth;
 
+    // `#ignoreTypes true` 之后、`#ignoreTypes false` 之前:所有类型注解都只当摆设,
+    // lowering 不为它们发检查（变量定义、参数定义、模式匹配都算）。
+    private bool _ignoreTypes;
+
     private const int MaxExprDepth = 400;
 
     private readonly struct ExprDepth : IDisposable
@@ -45,6 +49,12 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).Parse();
 
     public static bool DeclaresMoreControlFlow(string source) => Declares(source, "--more-control-flow");
+
+    private void TakeDirective()
+    {
+        _ignoreTypes = Peek().Lexeme == "true";
+        _pos++;
+    }
 
     public static bool DeclaresWarn(string source) => Declares(source, "--warn");
 

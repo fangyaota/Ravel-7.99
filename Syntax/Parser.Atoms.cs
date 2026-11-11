@@ -338,7 +338,8 @@ public partial class Parser
                 // 那一条是"参数表里装着一个括号分组",分组就是这一层。两条路合流成一个构造。
                 var whole = new WholePattern(voidLit) { Line = line, Column = col };
                 var param = new Parameter(FreshParam(),
-                    new IdentifierExpr("object") { Line = line, Column = col }, whole);
+                    new IdentifierExpr("object") { Line = line, Column = col }, whole)
+                { IgnoreType = _ignoreTypes };
                 return new LambdaExpr(param, body) { Line = line, Column = col };
             }
 
@@ -461,6 +462,8 @@ public partial class Parser
             }
 
             Consume(TokenType.RightParen, "lambda 参数后需要 ')'");
+            // `#ignoreTypes true` 之下参数注解不判 —— 每个参数都带上这个记号
+            if (_ignoreTypes) @params = @params.Select(q => q with { IgnoreType = true }).ToList();
             Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
             var arrow = Previous();
             var body = ParseUserLambdaBody("lambda 体", arrow);

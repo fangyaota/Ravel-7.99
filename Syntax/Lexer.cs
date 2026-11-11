@@ -65,13 +65,17 @@ public class Lexer(string source, string? file = null)
                 continue;
             }
 
-            // 注释 # 到行尾
+            // 注释 # 到行尾 —— 除非它是一条开关（`#ignoreTypes true`）
             if (c == '#')
             {
                 int start = _pos;
                 while (_pos < source.Length && source[_pos] != '\n')
                     _pos++;
-                Comments.Add((start, _pos - start));
+                var text = source[start.._pos];
+                if (DirectiveValue(text) is { } value)
+                    tokens.Add(new Token(TokenType.Directive, value, _line, _col, text.Length));
+                else
+                    Comments.Add((start, _pos - start));
                 _col++;
                 continue;
             }
@@ -259,6 +263,18 @@ public class Lexer(string source, string? file = null)
         // 所以 `1..3` 读成 `1` + `..` + `3`,而 `1.5` 还是 real、`a.b` 还是取成员
         ("..", TokenType.DotDot),
     ];
+
+    // `#ignoreTypes true` / `#ignoreTypes false` —— 只认这两种写法（名字后面得是空白）。
+    private static string? DirectiveValue(string text)
+    {
+        const string name = "ignoreTypes";
+        var body = text[1..].TrimStart();
+        if (!body.StartsWith(name)) return null;
+        var rest = body[name.Length..];
+        if (rest.Length > 0 && !char.IsWhiteSpace(rest[0])) return null;
+        rest = rest.Trim();
+        return rest is "true" or "false" ? rest : null;
+    }
 
     private bool MatchMultiChar(List<Token> tokens)
     {

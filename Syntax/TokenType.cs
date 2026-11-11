@@ -12,6 +12,9 @@ public enum TokenType
     // 标识符
     Identifier,
 
+    // 文件内的开关（`#ignoreTypes true` / `#ignoreTypes false`）—— 不产出代码
+    Directive,
+
     // 括号
     LeftParen,
     RightParen,
