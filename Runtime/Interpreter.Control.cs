@@ -476,20 +476,26 @@ public partial class Interpreter
     private void StepCompose(ControlFrame cf)
     {
         var original = cf.Arg<RuntimeValue>(0, "Compose");
-        var block = cf.Arg<BlockVal>(1, "Compose");
+        var block = cf.Arg<FunctionVal>(1, "Compose");
         var arg = cf.Arg<RuntimeValue>(2, "Compose");
         var isPrepend = cf.Arg<BoolVal>(3, "Compose").Value;
         if (isPrepend)
         {
             if (cf.Count == 0)
             {
-                _top = new BlockExecFrame(block.Block) { Parent = cf, Scope = block.CaptureScope.Push() };
+                // prepend 的块**拿到调用 scope**:这样它能把 `reject` 之类塞进下一句
+                // 要跑的那个体的作用域里(`(sc) => { sc.Define "reject" here }`)。
+                // 拿不到调用 scope 的函数(控制帧、原生闭包、类)退回老规矩:
+                // 块在自己捕获的那层跑,收一枚 `()`。
+                var scope = CallScopeOf(original);
+                var next = scope is null ? cf : cf with { State = new ScopeVal(scope) };
+                CallInto(next, block, scope is null ? VoidVal.Instance : new ScopeVal(scope));
                 return;
             }
 
             if (cf.Count == 1)
             {
-                CallInto(cf, original, arg);
+                CallInto(cf, original, arg, (cf.State as ScopeVal)?.Inner);
                 return;
             }
 
@@ -500,18 +506,29 @@ public partial class Interpreter
         // append
         if (cf.Count == 0)
         {
-            CallInto(cf, original, arg);
+            // 同样是那一层:块在后头跑,这时体已经跑完,它看得到体留下的东西。
+            var scope = CallScopeOf(original);
+            var next = scope is null ? cf : cf with { State = new ScopeVal(scope) };
+            CallInto(next, original, arg, scope);
             return;
         }
 
         if (cf.Count == 1)
         {
-            _top = new BlockExecFrame(block.Block) { Parent = cf, Scope = block.CaptureScope.Push() };
+            CallInto(cf, block, cf.State as ScopeVal is { } sv ? sv : VoidVal.Instance);
             return;
         }
 
         Return(cf, cf.Result(0));
     }
+
+    // 这次调用会落在哪一层:能预先造出来的只有 lambda(它就是 `CaptureScope.Push()`,
+    // 参数随后由 `CallInto` 定义进同一层);别的那几种调用那层要么在调用点、要么根本不存在。
+    private static Scope? CallScopeOf(RuntimeValue fn) => fn switch
+    {
+        LambdaVal lam => lam.CaptureScope.Push(),
+        _ => null,
+    };
 
     private void StepTraitOp(ControlFrame cf)
     {

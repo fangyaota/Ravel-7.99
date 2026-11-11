@@ -59,7 +59,7 @@ print (probe () => { throw (TypeError "手工抛的"); })     # 手工抛的也�
 # KeyError / 键不存在: b
 # ZeroDivisionError / 运算符 '/' 的除数为零
 # AssertionError / 断言没通过
-# ArgumentError / prepend 需要代码块参数
+# ArgumentError / prepend 需要一个函数参数
 # ValueError / 无法将字符串 'abc' 转换为 int（超出 int 范围或不是数字）
 # IoError / 读文件: 找不到文件 —— 没有这个/文件.txt
 # RegexError / 正则式写错了 —— Invalid pattern '(' at offset 1. Not enough )'s.

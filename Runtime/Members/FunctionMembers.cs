@@ -48,14 +48,14 @@ internal static class FunctionMembers
     [ClassMethod("Prepend")]
     private static RuntimeValue Prepend(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not BlockVal p) throw new RuntimeException("prepend 需要代码块参数", ErrorKind.Argument);
+        if (arg is not FunctionVal p) throw new RuntimeException("prepend 需要一个函数参数", ErrorKind.Argument);
         return AsFunction(self, "Prepend").Prepend(p);
     }
 
     [ClassMethod("Append")]
     private static RuntimeValue Append(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not BlockVal p) throw new RuntimeException("append 需要代码块参数", ErrorKind.Argument);
+        if (arg is not FunctionVal p) throw new RuntimeException("append 需要一个函数参数", ErrorKind.Argument);
         return AsFunction(self, "Append").Append(p);
     }
 }

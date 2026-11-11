@@ -426,13 +426,13 @@ internal static partial class BuiltinClasses
                 case BlockVal b:
                     pieces.Add(b);
                     break;
-                case ComposeVal c when c.IsPrepend:
-                    pieces.Add(c.Block);
+                case ComposeVal { IsPrepend: true, Block: BlockVal pb } c:
+                    pieces.Add(pb);
                     Walk(c.Original);
                     break;
-                case ComposeVal c:
+                case ComposeVal { Block: BlockVal sb } c:
                     Walk(c.Original);
-                    pieces.Add(c.Block);
+                    pieces.Add(sb);
                     break;
                 default:
                     throw new RuntimeException("class 需要代码块参数", ErrorKind.Argument);

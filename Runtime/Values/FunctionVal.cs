@@ -46,7 +46,7 @@ public record FunctionVal : ObjectVal
     private static FunctionVal Partial(Func<RuntimeValue, RuntimeValue> f)
         => new(null!, (_, a) => f(a)) { IsPartial = true };
 
-    public FunctionVal Prepend(BlockVal prefix) => new ComposeVal(this, prefix, true);
+    public FunctionVal Prepend(FunctionVal prefix) => new ComposeVal(this, prefix, true);
 
-    public FunctionVal Append(BlockVal suffix) => new ComposeVal(this, suffix, false);
+    public FunctionVal Append(FunctionVal suffix) => new ComposeVal(this, suffix, false);
 }

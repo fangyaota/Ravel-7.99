@@ -2,7 +2,7 @@ namespace Ravel.Runtime;
 
 public partial class Interpreter
 {
-    private void CallInto(Frame sink, RuntimeValue fn, RuntimeValue arg)
+    private void CallInto(Frame sink, RuntimeValue fn, RuntimeValue arg, Scope? callScope = null)
     {
         switch (fn)
         {
@@ -30,7 +30,7 @@ public partial class Interpreter
                     throw new TypeMismatchException(lam.ParamPattern is { } pat
                         ? $"参数 {AstPrinter.Describe(pat)} 需要 {lam.ParamType}，得到 {arg.Type}"
                         : $"参数 '{lam.ParamName}' 需要 {lam.ParamType}，得到 {arg.Type}");
-                var lamScope = lam.CaptureScope.Push();
+                var lamScope = callScope ?? lam.CaptureScope.Push();
                 lamScope.Define("self", lam);
                 var paramVar = lamScope.Define(lam.ParamName, arg);
                 // 修饰符装到**那个绑定**上 —— 和变量定义一个待遇(`Interpreter.Nodes` 里
@@ -70,7 +70,7 @@ public partial class Interpreter
             // 那一层省不掉),于是它就是唯一有资格不要自己那层的。
             // 直接在**捕获作用域**里跑:块里 `:=` 的定义落在外层。
             case BlockVal blk:
-                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = blk.CaptureScope };
+                _top = new BlockExecFrame(blk.Block) { Parent = sink, Scope = callScope ?? blk.CaptureScope };
                 break;
             // 类对象 = 实例化它。**这是唯一一条路**:类对象自己就是可调用的东西
             // (ClassVal : FunctionVal),没有 `call` 成员、也没有中间的 BoundCall 转发。

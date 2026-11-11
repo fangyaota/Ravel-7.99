@@ -20,11 +20,9 @@ internal static class ScopeMembers
         if (arg is not StringVal name)
             throw new RuntimeException("scope.Define 需要字符串名称", ErrorKind.Argument);
         var scope = ((ScopeVal)self).Inner;
-        return FunctionVal.From(tv =>
+        return FunctionVal.From(value =>
         {
-            if (tv is not ObjectVal t)
-                throw new RuntimeException("scope.Define 需要 type 参数", ErrorKind.Argument);
-            scope.Define(name.Value, VoidVal.Instance);
+            scope.Define(name.Value, value);
             return VoidVal.Instance;
         });
     }
