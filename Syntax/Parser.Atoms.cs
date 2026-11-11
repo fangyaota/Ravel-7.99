@@ -618,7 +618,7 @@ public partial class Parser
     {
         switch (TypeAt(off))
         {
-            case TokenType.Number or TokenType.String:
+            case TokenType.Number or TokenType.String or TokenType.Char:
                 return TypeAt(off + 1) == TokenType.Arrow;
             case TokenType.Minus:                                  // `-1 => …`
                 return TypeAt(off + 1) == TokenType.Number && TypeAt(off + 2) == TokenType.Arrow;

@@ -499,7 +499,7 @@ public partial class Parser
         || Check(TokenType.Newline) || IsAtEnd();
 
     private bool IsLiteralStart()
-        => Check(TokenType.Number) || Check(TokenType.String)
+        => Check(TokenType.Number) || Check(TokenType.String) || Check(TokenType.Char)
         || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // `()`,不是 `(f x)`
         || (Check(TokenType.Identifier) && Peek().Lexeme is "true" or "false");
 
@@ -515,11 +515,13 @@ public partial class Parser
         {
             TokenType.LeftParen => "()",
             TokenType.String => "\"" + raw + "\"",     // 词法存的是**解码后**的值,引号自己补
+            TokenType.Char => "'" + raw + "'",
             _ => (neg ? "-" : "") + raw,
         };
         var domain = kind switch
         {
             TokenType.String => "string",
+            TokenType.Char => "char",
             TokenType.LeftParen => "void",
             TokenType.Identifier => "bool",              // `true` / `false`
             _ => "INumber",
