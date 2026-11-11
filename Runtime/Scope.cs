@@ -11,7 +11,12 @@ public class Scope(Scope? parent = null)
     {
         for (var current = this; current != null; current = current.Parent)
             if (current.LookupHere(name) is { } v)
+            {
+                // `local` 在**内层**等于不存在:这一格跳过、继续往上找
+                // (外面真有同名,内层看到的就是外面那个)。
+                if (current != this && v.HasAttr(Attr.Local)) continue;
                 return v;
+            }
 
         return null;
     }
