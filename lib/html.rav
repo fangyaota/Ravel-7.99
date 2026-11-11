@@ -1,46 +1,15 @@
-# `Html` —— 拼 HTML。**要显式引用**:`using "html.rav"`。
-#
-#     using "html.rav"
-#
-#     card := (title: string body: string) => {
-#         Html.El "div" {"class"-> "card"} [
-#             (Html.El "h2" {->} [title])
-#             (Html.El "p" {->} [body])
-#         ]
-#     }
-#     print (Html.Pretty (card "标题" "a < b"))
-#
-# 四条立起来的规矩:
-#
-#   * **节点就是普通 dict / list** —— 和 `lib/xml.rav` 底下那棵树**同一个形状**
-#     (`{"kind"-> "element" "name"-> … "attrs"-> {->} "kids"-> []}` / `{"kind": "text" "text": …}` /
-#     `{"kind": "raw" "text": …}`)。自己拼一棵、或者把 `Xml.Parse` 交回的那棵喂进来,都认。
-#   * **转义默认开** —— 文本躲 `&` `<` `>`,属性值再饶上引号(见 `TextEscape`);
-#     要插整段现成标记用 `Html.Raw`。
-#   * **标签名不设白名单** —— 唯一的例外是 void 元素(`br` / `img` / …,标准里那 14 个),
-#     它们不写收尾标签;给它们**塞孩子是写错了**,当场报错,不静默丢掉。
-#   * **孩子是个 list** —— 而 list 字面量里**每个调用要自己加括号**(空格在 `[…]` 里是分隔符,
-#     这是语言的规矩,不是这个模块的):`[(El "h2" {->} ["x"]) (El "p" {->} ["y"])]`。
-#
-# 组件就是**普通函数**:收几个值、交回一棵节点树。这门语言不需要另造一套模板语法 ——
-# 上面那个 `card` 就是一份"组件",直接嵌进别人的孩子里用。
+
 using "encoding.rav"
 
 ravel "Html"
 
 readonly Doctype := "<!DOCTYPE html>"
 
-# void 元素 —— 标准里不写收尾标签的那 14 个
 readonly private Voids := ["area" "base" "br" "col" "embed" "hr" "img" "input"
                    "link" "meta" "param" "source" "track" "wbr"]
 
 readonly private IsVoid := (name: string) => { Voids.Contains (name.ToLower ()); }
 
-# ── 造节点 ──
-
-# **文本**只要躲开这三个:引号在文本里是普通字符,转成 `&quot;` 白白让源码变吵
-# (`<pre>` 里的代码最明显:`print "x"` 变成 `print &quot;x&quot;`)。引号是**属性**
-# 那边的事,所以属性值照旧走 `Encoding.HtmlEscape` 那五个。
 readonly private TextEscape := (s: string) => {
     ((s.Replace "&" "&amp;").Replace "<" "&lt;").Replace ">" "&gt;";
 }
@@ -48,7 +17,6 @@ readonly private TextEscape := (s: string) => {
 readonly private TextNode := (s: object) => { {"kind"-> "text" "text"-> (string s)}; }
 readonly private RawNode := (s: string) => { {"kind"-> "raw" "text"-> s}; }
 
-# 孩子:list 照收;单个(一个节点、一个字符串)包成只有一个元素的 list;`None` 当没有
 readonly private KidsOf := (kids: object) => {
     (IsNothing kids) { []; } {
         kids : list { kids; } { [kids]; }
@@ -69,23 +37,11 @@ readonly Build := (name: string attrs: object kids: object) => {
 
 readonly El := (name: string attrs: object kids: object) => { Build name attrs kids; }
 
-# 文本 —— 渲染时转义(`&` `<` `>` `"` `'` 五个)
 readonly Text := (s: object) => { TextNode s; }
 
-# 原样标记 —— **不转义**,安全得你自己保证(插一段别的生成器产出的 HTML 时用)
 readonly Raw := (s: string) => { RawNode s; }
 
-# 一串节点当一串用(交回的就是那个 list,方便往孩子里嵌)
 readonly Frag := (kids: object) => { KidsOf kids; }
-
-# ── 属性 ──
-#
-#   `None`  → 这个属性整个不写(要"有没有看情况"就用它)
-#   `true`  → 光写名字(`disabled` / `checked` 那类布尔属性);`false` 当没写
-#   list    → 按空格拼起来(最常见的用法是 `class`)
-#   别的    → `name="值"`,值过 HTML 转义
-#
-# 属性的先后**照你写的先后**(dict 是有序的),不重排 —— 输出才稳、diff 才好看。
 
 readonly private AttrText := (v: object) => {
     v : list { v.Join " "; } { string v; }
@@ -105,15 +61,6 @@ readonly private AttrsText := (attrs: object) => {
     }
     out
 }
-
-# ── 渲染 ──
-#
-# `Render` 紧凑(整棵一行);`Pretty` 缩进。
-#
-# 缩进的规矩:**孩子里有元素就一层一行,全是文本的收成一行**。所以
-# `<p>正文</p>` 不会被打散,而 `<div>` 套 `<p>` 会分层。
-# 代价是**空白敏感的地方**(`<pre>`、行内元素之间的那个空格)别用 `Pretty` ——
-# 换行在 HTML 里会折成一个空格,该自己控的地方用 `Render`。
 
 readonly Render := (n: object) => {
     out := ""
@@ -141,8 +88,7 @@ readonly Render := (n: object) => {
                     }
                 }
             } {
-                # 孩子里直接写的东西:字符串、数、bool… 一律转义后当文本写出去
-                # (最常见的写法是直接给字符串,省掉一层 `Text`);`None` 当没有
+
                 (IsNothing x) { 0; } {
                     out += (TextEscape (string x));
                 }
@@ -160,17 +106,6 @@ readonly Pad := (n: int) => {
     s
 }
 
-# ── `Pretty` 在哪儿换行:看**块级** ──
-#
-# 只有"自己是这号元素、孩子里也有"才拆行。少了后半条,`<p>行内 <code>x</code> 和
-# <a>链接</a></p>` 会被拆成三行 —— 而行内元素之间的换行在 HTML 里**会折成一个空格**,
-# 那是改了内容(`a<code>b</code>c` 变成 `a b c`)。`<pre>` 自己是这号、里面是 `<code>`,
-# 于是天然收成一行,不用再给它开单独的口子。
-#
-# 表里不止 CSS 意义上的"块级":`head` 那几样(`meta` / `title` / `link` / `style`)
-# 也算了进来 —— 它们不是块级盒子,但一个 `<head>` 挤成一行、里面还塞着整段 `<style>`,
-# 那是没法看的。
-
 readonly private BlockTags := ["address" "article" "aside" "blockquote" "body" "details" "div"
                        "dl" "dd" "dt" "fieldset" "figcaption" "figure" "footer" "form"
                        "h1" "h2" "h3" "h4" "h5" "h6" "head" "header" "hr" "html" "li"
@@ -180,7 +115,6 @@ readonly private BlockTags := ["address" "article" "aside" "blockquote" "body" "
 
 readonly private IsBlockTag := (name: string) => { BlockTags.Contains (name.ToLower ()); }
 
-# 孩子里有没有块级的(片段按"里面有没有"算)
 readonly private HasBlockKid := (kids: list) => {
     hit := false
     kids.Foreach (k: object) => { hit = (hit || (IsBlock k)); }
@@ -244,12 +178,6 @@ readonly Pretty := (n: object) => {
     out
 }
 
-# ── 整篇文档 ──
-#
-# `Doc lang head body` 把骨架搭好:`<!DOCTYPE html>` + `<html lang>` + `<head>` + `<body>`,
-# 并且**自动把 `<meta charset="utf-8">` 放在 head 第一个**(这个库里所有文本都是 utf-8)。
-# head / body 收的是**里面的东西**,`<head>` / `<body>` 这两个标签由它加上。
-
 readonly Doc := (lang: string head: object body: object) => {
     hk := [(El "meta" {"charset"-> "utf-8"} [])]
     (KidsOf head).Foreach (k: object) => { hk.Add k; }
@@ -262,18 +190,6 @@ readonly Doc := (lang: string head: object body: object) => {
     ]
 }
 
-# ── 块级:写文档那一层 ──
-#
-# 上面那些是"元素",这一层是"段落、列表、表格"—— 写正文用这些,不用自己拼 `<div>`。
-# 它们交回的还是同一棵树,所以能和 `El` 随便混着用。
-#
-#     Html.Page {"title": "报表" "css": [Html.BaseCss]} [
-#         (Html.H1 "标题")
-#         (Html.P "正文,<和& 会被转义")
-#         (Html.Ul ["甲" "乙"])
-#         (Html.Table ["名称" "数量"] [["甲" 12] ["乙" 7]])
-#     ]
-
 readonly H1 := (kids: object) => { El "h1" {->} kids; }
 readonly private H2 := (kids: object) => { El "h2" {->} kids; }
 readonly private H3 := (kids: object) => { El "h3" {->} kids; }
@@ -285,10 +201,8 @@ readonly P := (kids: object) => { El "p" {->} kids; }
 readonly Blockquote := (kids: object) => { El "blockquote" {->} kids; }
 readonly Code := (s: object) => { El "code" {->} [s]; }
 
-# 代码块 —— 里面的东西**照原样显示**(转义是渲染那一步做的,`<` 不会变成标签)
 readonly Pre := (s: object) => { El "pre" {->} [(El "code" {->} [s])]; }
 
-# 列表:一项一个 `<li>`;某一项本身是个 list 时,那就是那个 `<li>` 的内容
 readonly Ul := (items: object) => { ListOf "ul" items; }
 readonly Ol := (items: object) => { ListOf "ol" items; }
 
@@ -298,8 +212,6 @@ readonly private ListOf := (tag: string items: object) => {
     El tag {->} lis
 }
 
-# 表格:`Table headers rows`,两边都是"一串一串"。
-# `headers` 给 `[]` 就是没有表头(那样只出 `<tbody>`,不硬塞一个空 `<thead>`)。
 readonly Table := (headers: object rows: object) => {
     body := []
     (KidsOf rows).Foreach (r: object) => {
@@ -325,15 +237,9 @@ readonly Img := (src: string alt: string) => { El "img" {"src"-> src "alt"-> alt
 readonly Hr := () => { El "hr" {->} []; }
 readonly Br := () => { El "br" {->} []; }
 
-# ── CSS ──
-#
-# `<style>` 里的东西**不能**做 HTML 转义(那两个标签里实体是不解码的,`&gt;` 进去就是
-# 一串错字符),所以它走 `Raw` —— 也就是说,别把用户输入拼进 CSS。
 readonly Style := (css: string) => { El "style" {->} [(Raw css)]; }
 readonly CssLink := (href: string) => { El "link" {"rel"-> "stylesheet" "href"-> href} []; }
 
-# 一份能看的默认样式(系统字体、正文限宽、表格带框、代码浅底)。
-# `Page` **不会**自动带上它 —— 想要就写 `"css": [Html.BaseCss]`,不要就自己写。
 readonly BaseCss := """
     :root { --fg:#222; --dim:#666; --line:#ddd; --code:#f6f6f6; --link:#0087bd; }
     * { box-sizing: border-box; }
@@ -351,18 +257,6 @@ readonly BaseCss := """
     pre code { background:none; padding:0; font-size:1em; }
     blockquote { margin:0; padding:0 1rem; border-left:3px solid var(--line); color:var(--dim); }
 """
-
-# ── 整篇 ──
-#
-# `Page opts body` = `Doc` 那一套 + 把 `opts` 里的东西摆进 head。
-# `opts` 是个 dict(和 `Log.New` 一个路子),认这几个键:
-#
-#     "title"  标题(不写就空着)
-#     "lang"   `<html lang>`,默认 "zh"
-#     "css"    一串 CSS 文本,每条包成 `<style>`(顺序照给的顺序)
-#     "head"   额外塞进 head 的节点(要 `CssLink` / `Html.Raw` 那种就写这儿)
-#
-# head 里的先后:`<meta charset>` → `<title>` → 那些 `<style>` → `"head"` 里给的。
 
 readonly Page := (opts: object body: object) => {
     head := [(El "title" {->} [(opts.GetOr "title" "")])]

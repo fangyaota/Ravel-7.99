@@ -1,31 +1,12 @@
-﻿# `Encoding` —— 把文字/字节来回换:**UTF-8**、**Base64**、**十六进制**、**URL 转义**。
-# **要显式引用**:`using "encoding.rav"`。
-#
-#     Encoding.Base64Text "你好"        # "5L2g5aW9" —— 先按 UTF-8 变字节,再编码
-#     Encoding.Unbase64Text "5L2g5aW9"  # "你好"
-#     Encoding.Base64 [1 2 3]           # "AQID" —— 也可以直接喂字节表
-#     Encoding.Hex [255 0]              # "ff00"
-#     Encoding.UrlEncode "a b/中"        # "a%20b%2F%E4%B8%AD"
-#     Encoding.UrlDecode "a%20b"        # "a b"
-#     Encoding.HtmlEscape "<a&b>"       # "&lt;a&amp;b&gt;"
-#
-# **字节表**是"一串 0..255 的 int"(`Random.Bytes n` 交回的就是它)。为什么不交回一个
-# "二进制字符串":Ravel 的 `string` 是 UTF-16,装不下任意字节 —— 硬塞进去要么丢、要么变形。
-# 于是这一层的规矩是:**要编码就先进字节表,要文本就先 `Utf8Text`**。
-#
-# 用处:拼 URL、塞进 JSON / 配置文件、算摘要前先拿字节、把二进制数据搬进文本世界。
-ravel "Encoding"
+﻿ravel "Encoding"
 
-# ── UTF-8 ──
-# 字符串(UTF-16 码元)→ 字节表。**代理对按一个码点算**(emoji 那些在 Ravel 里是两个码元,
-# 拼错了编码出来就是两个替换字符)。
 readonly Utf8 := (s: string) => {
     out := []
     i := 0
     n := s.Length ()
     while { i < n; } {
         cp := int (s.At i)
-        # 高代理后跟低代理 = 一个补充平面的码点
+
         (cp >= 55296) && (cp <= 56319) && ((i + 1) < n) {
             lo := int (s.At (i + 1))
             (lo >= 56320) && (lo <= 57343) {
@@ -58,7 +39,6 @@ readonly Utf8 := (s: string) => {
     out
 }
 
-# 字节表 → 字符串(按 UTF-8 解)。坏字节当 U+FFFD(和别处一个脾气:不静默丢)
 readonly Utf8Text := (bytes: list) => {
     out := ""
     i := 0
@@ -79,7 +59,7 @@ readonly Utf8Text := (bytes: list) => {
                     }
                 }
             }
-            # 后面那几字节都得是 10xxxxxx,不然这是个坏串
+
             ok := ((i + wide) <= n)
             k := 1
             while { ok && (k < wide); } {
@@ -91,7 +71,6 @@ readonly Utf8Text := (bytes: list) => {
                 (cp < 65536) {
                     out += (string (char cp))
                 } {
-                    # 补充平面:拆成一对代理
                     p := cp - 65536
                     out += (string (char (55296 + (p / 1024))))
                     out += (string (char (56320 + (p % 1024))))
@@ -106,7 +85,6 @@ readonly Utf8Text := (bytes: list) => {
     out
 }
 
-# ── Base64 ──
 readonly private B64Table := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 readonly Base64 := (bytes: list) => {
@@ -117,7 +95,7 @@ readonly Base64 := (bytes: list) => {
         b0 := int (bytes.At i)
         b1 := ((i + 1) < n) { int (bytes.At (i + 1)); } { 0; }
         b2 := ((i + 2) < n) { int (bytes.At (i + 2)); } { 0; }
-        left := n - i                          # 这一组还剩几个字节(1 或 2 时补 `=`)
+        left := n - i
         out += (string (B64Table.At (b0 / 4)))
         out += (string (B64Table.At (((b0 % 4) * 16) + (b1 / 16))))
         left > 1 { out += (string (B64Table.At (((b1 % 16) * 4) + (b2 / 64)))); } { out += "="; }
@@ -139,13 +117,11 @@ readonly Unbase64 := (s: string) => {
 
         assert (b0 >= 0) ("Encoding.Unbase64: 不是合法的 Base64（'" + (string (s.At i)) + "'）")
         out.Add (((b0 * 4) + (b1 < 0 { 0; } { b1 / 16; })) % 256)
-        # 第二个字节在不在,看的是 **b2** 有没有(`=` 出现在第三格 = 这一组只装得下 1 个字节)。
-        # 从前这儿写的是 `b1 >= 0` —— 那个条件在"一个字节 + 两个 `=`"时也成立,
-        # 于是每次都多吐一个 0: `Unbase64 "AQ=="` 给出 `[1 0]`(该是 `[1]`)。
+
         b2 >= 0 {
             out.Add ((((b1 % 16) * 16) + (b2 < 0 { 0; } { b2 / 4; })) % 256)
         } { 0; }
-        # 第三个字节同理,看的是 **b3**(两个字节 + 一个 `=` 时,b3 是那个 `=`)
+
         b3 >= 0 {
             out.Add ((((b2 % 4) * 64) + (b3 < 0 { 0; } { b3; })) % 256)
         } { 0; }
@@ -154,20 +130,15 @@ readonly Unbase64 := (s: string) => {
     out
 }
 
-# 文本那两条:走 UTF-8 过渡(所以"你好"也能编)
 readonly Base64Text := (s: string) => { Base64 (Utf8 s); }
 readonly Unbase64Text := (s: string) => { Utf8Text (Unbase64 s); }
 
-# ── 十六进制 ──
 readonly private HexDigits := "0123456789abcdef"
 readonly private HexUpper := "0123456789ABCDEF"
 
-# 一个十六进制字符是几(大小写都认);不认识的给 -1。
-# **不写 `.ToUpper ().IndexOf c`** —— 调用后面接 `.成员` 要 `|>` 才接得上
-# (`.成员` 比并列的调用绑得紧),写出来是 `ToUpper (().IndexOf c)` 那种读法。
 readonly private DigitOf := (c: char) => {
     t := string c
-    # `IndexOf` 是"找不到就报"的那个(它不交回 -1),所以先 `Contains` 问一句
+
     HexDigits.Contains t { HexDigits.IndexOf c; } {
         HexUpper.Contains t { HexUpper.IndexOf c; } { 0 - 1; }
     }
@@ -198,8 +169,6 @@ readonly Unhex := (s: string) => {
     out
 }
 
-# ── URL 百分号编码 ──
-# 只留 RFC 3986 的 unreserved(`A-Z a-z 0-9 - _ . ~`),其余按 UTF-8 逐字节写成 `%XX`。
 readonly private UrlSafe := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
 
 readonly UrlEncode := (s: string) => {
@@ -208,7 +177,7 @@ readonly UrlEncode := (s: string) => {
         c := string (char (int b))
         UrlSafe.Contains c { out += c; } {
             v := int b
-            # `%XX` 用的是**大写**十六进制(和 RFC / 浏览器地址栏一致)
+
             out += (("%" + (string (HexUpper.At (v / 16)))) + (string (HexUpper.At (v % 16))))
         }
     }
@@ -229,15 +198,13 @@ readonly UrlDecode := (s: string) => {
             out.Add (((hi * 16) + lo))
             i += 3
         } {
-            (c == '+') { out.Add 32; } { out.Add (int c); }     # `+` 是空格的另一种写法
+            (c == '+') { out.Add 32; } { out.Add (int c); }
             i += 1
         }
     }
     Utf8Text out
 }
 
-# ── HTML ──
-# 只转那五个会改变结构的字符(引号按最常需要的那种,`"` 也转)
 readonly HtmlEscape := (s: string) => {
     out := ""
     i := 0

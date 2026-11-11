@@ -1,46 +1,9 @@
-# `Random` —— **可选择的**随机数生成器。要显式引用:`using "random.rav"`。
-#
-# 三台,换台子只换一行构造子:
-#
-#     r := Random.Shared ()      # 进程共享(.NET `Random.Shared`)—— 不可复现
-#     r := Random.Make 42        # 带种子(.NET `Random(seed)`)—— 同一个运行时里可复现
-#     r := Random.Xoshiro 42     # 带种子(xoshiro256**)—— **算法定死**的:跨版本跨机器都一样
-#     r := Random.Crypto ()      # 加密级 —— 不可复现、也没有种子
-#
-# 取数那一面是一套方法(接口 `IRandom` 的**默认实现**,凡实现者白拿):
-#
-#     r.Int [1..6]               # 掷骰子(开闭由区间的括号说了算)
-#     r.Below 10                 # 0..9
-#     r.Real ()                 # 0.0 .. 1.0
-#     r.Bool ()                  # true / false
-#     r.Choice ["a" "b" "c"]     # 挑一个(空表当场报错)
-#     r.Shuffle [1 2 3 4 5]      # 洗过的**新 list**(原表不动,和容器那批一个规矩)
-#     r.Sample 2 [1 2 3 4 5]     # 取 2 个不重复的(要的比有的多就报错)
-#
-#     r.Real (0.0..1.0)         # 区间里的小数(不收区间就是 [0, 1))
-#     r.Normal 0.0 1.0           # 正态:均值、标准差
-#     r.Weighted xs ws           # 按权重挑一个
-#     r.Choices 3 xs             # **有放回**抽 3 个(和 Sample 配一对)
-#     r.Bytes 8                  # 8 个随机字节(0..255)
-#
-# `Int` 收区间(开闭看括号),`Below n` 是 `0 .. n-1` —— 后者给"只要个数"的场合。
-
-# 正态那一条要用 `Math`(开方、对数、余弦、Pi),所以这个文件把 math.rav 一起拉进来
-# (和 io.rav 拉 iomonad.rav 一个路子)。
 using "native.rav"
 using "math.rav"
 
-# ── 形状:一条槽 ──
-# `Next ()` 交回 0 .. 2^30-1 的整数(各家实现自己保证这个范围);下面那一整套是默认实现,
-# 只依赖 `Next` —— 所以换台子只需要换"取数的源头"。
 readonly IRandom ::= interface {
     internal Next : function = _
 
-    # 收一个**区间**:`r.Int [1..6]` 就是掷骰子,`r.Int [0..10)` 是 0..9 —— 开闭全由
-    # 那对括号说了算(不必再记"上界含不含"这种规矩)。
-    #
-    # `%` 映射在个数不整除 2^30 时有极轻微的偏差 —— 掷骰子、洗牌这种用途不必计较;
-    # 要严格均匀就自己拿 `Next ()` 做拒绝采样。
     internal Int := (rng: Range) => {
         n := rng.Count ()
         assert (n >= 1) ("Random.Int: " + (rng.Text ()) + " 里没有可取的数")
@@ -52,10 +15,6 @@ readonly IRandom ::= interface {
         (instance.Next ()) % n
     }
 
-    # 收一个**小数区间**:`r.Real (0.0..1.0)` / `r.Real [-1.0..1.0)`。
-    # **不收区间时**就是老样子 —— 均匀的 [0, 1)(两种用法共用一个名字,和容器那个
-    # `Any ()` / `Any p` 一个规矩:给个区间就走区间那支)。
-    # 连续的东西没有"取到端点"这回事,所以统一当 **`[lo, hi)`** 看(端点用哪个括号都行)。
     internal Real := (p) => {
         p : Range {
             lo := real (p.Start ())
@@ -67,8 +26,6 @@ readonly IRandom ::= interface {
         }
     }
 
-    # 正态(高斯)分布:均值 `mu`、标准差 `sigma`。**箱–穆勒** —— 两个独立的 [0,1) 均匀数
-    # 换一个标准正态,再伸缩。`u1` 取 `1 - Real ()` 是为了躲开 0(`log 0` 是负无穷)。
     internal Normal := (mu: object sigma: object) => {
         s := real sigma
         assert (s >= 0.0) ("Random.Normal: 标准差不能是负的，得到 " + (string sigma))
@@ -78,13 +35,10 @@ readonly IRandom ::= interface {
         (real mu) + (s * z)
     }
 
-    # 按**权重**挑一个:`r.Weighted xs ws` —— 抽一个 [0, 权重和),看落在谁的段里。
-    # 权重是任何数值(收小数);个数得对得上,不能有负的,加起来得大于 0。
     internal Weighted := (xs: IEnumerable ws: IEnumerable) => {
         items := xs.ToList ()
         weights := ws.ToList ()
-        # 消息得和 `assert (…)` 写在**一行**:换行会把这条调用断开,消息变成另一条
-        # 语句(空跑掉),断言就成了没消息的那个 —— 实测踩过
+
         assert ((items.Count ()) == (weights.Count ())) ("Random.Weighted: 值的个数 " + (string (items.Count ())) + " 和权重的个数 " + (string (weights.Count ())) + " 对不上")
         assert ((items.Count ()) > 0) "Random.Weighted: 空的一串里挑不出东西"
 
@@ -107,7 +61,6 @@ readonly IRandom ::= interface {
         items.At hit
     }
 
-    # **有放回**抽 n 个(允许重复)—— 和 `Sample`(无放回)配成一对。来的是新 list。
     internal Choices := (n: int xs: IEnumerable) => {
         pool := xs.ToList ()
         assert ((pool.Count ()) > 0) "Random.Choices: 空的一串里挑不出东西"
@@ -118,7 +71,6 @@ readonly IRandom ::= interface {
         out
     }
 
-    # 随机字节(0..255 的整数)。加密那台用它也就是"从密码学源里抽",一样是均匀的。
     internal Bytes := (n: int) => {
         assert (n >= 0) ("Random.Bytes: 个数不能是负的，得到 " + (string n))
         out := []
@@ -135,7 +87,6 @@ readonly IRandom ::= interface {
         got.At (instance.Below (got.Count ()))
     }
 
-    # Fisher–Yates:从最后一个往前,每一步和前面某个位置(含它自己)对调
     internal Shuffle := (xs: IEnumerable) => {
         out := xs.ToList ()
         i := (out.Count ()) - 1
@@ -156,9 +107,6 @@ readonly IRandom ::= interface {
     }
 }
 
-# ── 一台 = 一个"取数的源头" ──
-# 三台共用一个类,区别只在 `Kind`(给人看的那句话)和交进来的那枚函数。
-# `Kind` 只是标签,不参与语义 —— 断言/打印时一眼看出手里是哪台。
 readonly private RandomSource ::= class {
     Kind: string = ""
     NextFn: function = () => { 0; }
@@ -170,24 +118,16 @@ impl (IRandom RandomSource {
 
 ravel "Random"
 
-# 从 4 个随机字节拼一个 0..2^30-1。走 bigint 中转:4 字节能到 2^32-1,int 装不下(会报溢出)。
 readonly private CryptoNext := () => {
     bs := Native.RandomBytes 4
     big := (bigint (bs.At 0)) * 16777216 + (bigint (bs.At 1)) * 65536 + (bigint (bs.At 2)) * 256 + bigint (bs.At 3)
     int (big % 1073741824)
 }
 
-# 进程共享那台:底下是 `Random.Shared`,大家共用一台(不可复现)。
 readonly Shared := () => { RandomSource "shared" (Native.SharedRandom ()); }
 
-# 带种子那台(.NET 的 `Random(seed)`):**同一个运行时里**同种子给出同一串。
-# (种子是 int;.NET 的算法换版本可能变,跨版本不保证同一串。)
 readonly Make := (seed: int) => { RandomSource "seeded" (Native.NewRandom seed); }
 
-# 带种子那台(xoshiro256**,Blackman & Vigna 那个,**公有领域**):**算法定死** ——
-# 同一个种子在哪个运行时、哪台机器上都给同一串,所以**能把具体的数钉进用例**。
-# 要"可复现"又要"跨环境一致"(发出去的脚本、对答案、写死种子当伪随机表)就用它。
 readonly Xoshiro := (seed: int) => { RandomSource "xoshiro" (Native.XoshiroRandom seed); }
 
-# 加密级那台:源是操作系统的密码学随机数,不可复现、也没有种子。
 readonly Crypto := () => { RandomSource "crypto" CryptoNext; }

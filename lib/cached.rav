@@ -1,21 +1,9 @@
-# 缓存:把 `f` 的返回结果按实参记下来,同一组实参再来就直接给记下的那个 —— 不再重算。
-# 由 predefined.rav 加载(名字落在全局作用域);它用到 `.Foreach`,所以要在 iterator 之后加载。
-#
-# 是个**函数**(不是要实例化的类型):`Cached count f` 直接交回那个可调用的包装,
-# 拿到手就能 `(…) 1 2`。`count` 是 **f 的参数个数**(喂够这么多口才算一组实参)。
-#
-# 缓存本身("算过哪几组、各得什么")是这块作用域里的两个 list —— 包装函数捕获了它,
-# 所以缓存活得和包装函数一样久。**每调一次 `Cached` 是独立的一份**:同一个 f 包两次,
-# 两份缓存互不干扰。
 readonly Cached ::= (count: int f: function) => {
     assert (count >= 1) ("Cached 的参数个数至少是 1，得到 " + string count)
 
-    keys: list = []                      # 每组实参(一个 list)
-    vals: list = []                      # 与 keys 一一对应的结果
+    keys: list = []
+    vals: list = []
 
-    # 两组实参逐项相等?列表本身没有 `==`(按身份比),所以自己比。
-    # **先比类型**:数值运算符碰到字符串会当场报「运算符 '!=' 不支持 String 操作数」,
-    # 不同类型的两项连比都不能比 —— 而它们本来也就是两个不同的键。
     same := (a: list b: list) => {
         ((a.Count ()) != (b.Count ())) { false; } {
             ok := true
@@ -28,9 +16,6 @@ readonly Cached ::= (count: int f: function) => {
         }
     }
 
-    # 算一次:实参一个一个喂给 f(柯里化),再把结果记下来。
-    # `r` 必须标成 object:`:=` 会把类型钉在初值的类型上(这里 f 是 function),
-    # 之后 `r = r a` 把结果(可能是 int/string/…)赋回去就会报类型错误。
     compute := (args: list) => {
         r: object = f
         args.Foreach (a: object) => { r = r a; }
@@ -39,7 +24,6 @@ readonly Cached ::= (count: int f: function) => {
         r
     }
 
-    # 收实参:够 count 个就查缓存、没有就现算;不够就再返回一层继续收
     step := (got: list) => {
         (x: object) => {
             more := got.Copy ()
@@ -48,10 +32,6 @@ readonly Cached ::= (count: int f: function) => {
                 found := -1
                 i := 0
                 while { i < keys.Count (); } {
-                    # `&&` 短路:找到之后不再逐条比。
-                    # `(keys.At i)` 的括号不能省:实参位置上 `keys.At i more` 会被读成
-                    # `((same keys.At) i) more` —— 实参位置只收"主表达式 + 取成员",
-                    # 不会再往右吞并列的实参(那正是 `f a b` ≡ `((f a) b)` 的实现方式)。
                     (found < 0 && same (keys.At i) more) { found = i; } { 0; }
                     i += 1
                 }
@@ -62,5 +42,5 @@ readonly Cached ::= (count: int f: function) => {
         }
     }
 
-    step []                              # 交出包装函数
+    step []
 }

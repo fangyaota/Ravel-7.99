@@ -1,68 +1,21 @@
-# `enum` —— **枚举**:写一串名字和值,每个名字拿到一枚"这个枚举的"值。
-#
-# 要显式引用:`using "enum.rav"`。它是个**元类**(父类是 `type`,造出来的东西是**类**):
-#
-#     myEnum ::= enum {
-#         A := 1
-#         B := 2
-#         C := 3
-#     }
-#
-#     myEnum.A              # 一枚 myEnum 类型的值(单例)
-#     myEnum.A.Value        # 1
-#     myEnum.A.Name         # "A"
-#     print myEnum.A        # A
-#     myEnum.Values ()      # [A B C] —— 按声明的先后
-#     myEnum.Of 2           # myEnum.B;没有这个值当场报错
-#
-# **元类只管固定的那一套** —— `Value` / `Name` / 打印 / `Values ()` / `Of`。
-# `A`/`B`/`C` 是**用户写什么就是什么**,一个都不写死在元类里(见下面怎么收的)。
-#
-# 两处**故意和 `dataclass` 不一样**:
-#
-# * **类体是空的**(`{();}`),那份 `{ A := 1 … }` 是**单独一块**(`vars`),
-#   由元类自己拿一个普通实例当**落脚点**跑一遍 —— 于是 `A`/`B`/`C` 先是那个落脚点上的
-#   普通字段,再被逐个换成"枚举值"挂到类上。要是拿 `vars` 当类体,`A` 就先成了 `int`,
-#   回头再往上挂一枚实例会撞类型;
-# * **`with` 现在不推层了**(见 `StepWith`),所以块里的定义**留得下来** —— 靠的就是这一条。
 using "io.rav"
 
 readonly enum ::= class type {
     private parentInit := init
 
-    # 每个枚举值身上那几条**固定**的。写成类体传给 `parentInit` —— 实例化时接着跑,
-    # 于是每枚成员都白拿这几条。
-    #
-    # **标 `protected` 是故意的**:这是留给子类元类(`flags`)的扩展口子。写成 `private`
-    # 也能跑,但那靠的是"`private` 判的是**对象**不是**类**"这条 —— 子类盖得动父类的私有,
-    # 是那条规矩的副产品,不是谁答应过的事。挑明成 `protected`:子类的代码本来就该能碰它。
-    # `Value` 声明成 `object`:枚举值可以是任何东西(`A := "红"` 也该成立),
-    # 写死成 `int` 的话下面 `e.Value = v` 就落不进去了。
     protected Members := {
         Value : object = 0
         Name : string = ""
-        # 名字和 `Text ()` —— **`print e` 打不出 `A`**(`Show` 是 C# 那侧的 `v.ToString ()`,
-        # 库层盖不掉),要"打成人看的那个样子"按现成的规矩走 `Text ()`
-        # (`dataclass` 也是这条:`print (p.Text ())`)
+
         Text := () => { Name; }
         ToString := () => { Name; }
     }
 
-    # 两个建类分支和 `type` 那层一样(带父类 / 不带),差别有两处:
-    # 类体换成 `Members`;建完再把 `vars` 收成成员挂上去。
-    #
-    # **带父类时那条规矩**:父类**必须也是个 enum** —— 枚举不是普通类,继承过来的是
-    # "父类那几枚成员"(见 `Collect`),拿个普通类当父类没有任何东西可迁,那不是笔误就是误会,
-    # 当场说出来比静默建一个空壳强。
     init = (parent: type vars: function) => {
-        # 判的是**子类型**不是相等:`flags`(`enum` 的子类)建出来的类也该能当父类。
-        # 普通类的 `typeof` 是 `object`,不是 `enum` 的子类型,照旧当场拦下。
         !((typeof parent) <: enum) {
             throw (Exception ("'enum' 的父类得也是一个 enum（得到 " + (string parent) + "）"))
         } { 0; }
-        # 类体传**空的** —— `Members` 已经在父类那一层了(父类也是这个元类建的,
-        # 它的体就是 `Members`),而实例化时类体是**沿祖先链**跑的(`CollectBodies`),
-        # 父类那层照样跑到。再传一次等于把同一条定义跑两遍。
+
         parentInit parent {();}
         Collect parent vars
         this
@@ -72,24 +25,11 @@ readonly enum ::= class type {
         this
     }
 
-    # 把成员收齐、做成值挂到类上。两个来源,按先后:
-    #
-    #   1. **父类迁过来的**(有父类时)—— 名字和值都照父类那几枚,只是重做成**这个枚举的**值
-    #      (所以 `sub.A` 是 `sub`,不是 `base`;两边的 `A` 也就不是同一枚);
-    #   2. **这一层块里写的** —— `A := 1` 那种。
-    #
-    # `with` 现在不推层,所以第 2 步拿一个**普通实例**当落脚点跑一遍,定义就留在它身上,
-    # 再一条条读出来。
     Collect := (parent: object vars: function) => {
         names := []
         vals := []
 
-        # 同上:认**子类型**。`flags` 建的类也是 enum 一族,父类那几枚得照迁。
         (typeof parent) <: enum {
-            # 父类表里**是它实例的那些**才是枚举成员 —— 元类自己那几条
-            # (`init` / `Collect` / `Members` 那块 / `Values` / `Of` …)都不是实例,自然滤掉,
-            # 不必另立一个"哪些是成员"的记号(记号还会撞 `private`:那条门禁看的是
-            # "当前作用域在不在**这个对象**的类里",而这儿站在子类的方法里,够不着父类的私有)
             pf := parent.MemberScope ()
             ((pf.Variables ()).Keys ()).Foreach (n: string) => {
                 v := (pf.Lookup n).Get ()
@@ -104,7 +44,6 @@ readonly enum ::= class type {
         with box vars
         from := box.MemberScope ()
         ((from.Variables ()).Keys ()).Foreach (n: string) => {
-            # `object ()` 自己那条默认构造器也在这张表里 —— 它不是枚举成员
             n == "init" { 0; } {
                 names.Add n
                 vals.Add ((from.Lookup n).Get ())
@@ -119,13 +58,12 @@ readonly enum ::= class type {
             e.Value = (vals.At i)
             e.Name = (names.At i)
             members.Add e
-            # 按**动态名字**挂到类上:`Define` 先占个位,`Set` 再把值填进去
+
             (cls.MemberScope ()).Define (names.At i) (typeof e)
             ((cls.MemberScope ()).Lookup (names.At i)).Set e
             i += 1
         }
 
-        # 挂在类上的那几条:成员表用闭包带上,写死名字就够
         cls.Values := () => { members; }
         cls.Of := (v: object) => {
             hit := []
@@ -142,50 +80,14 @@ readonly enum ::= class type {
     }
 }
 
-# `flags` —— **按位的枚举**(`enum` 的**子类**):每枚成员占一位,能拼起来。
-#
-#     perms ::= flags {
-#         Read := 1
-#         Write := 2
-#         Exec := 4
-#     }
-#
-#     p := (perms.Read | perms.Exec)   # 拼:值 5
-#     p.Value                          # 5
-#     p.Text ()                        # "Read|Exec"
-#     p.Has (perms.Exec)               # true —— "我里面有没有这一位"
-#     p |> .Names ()                   # [Read Exec] —— 有的那几枚,按声明先后
-#     perms.Of 5                       # 也交回 Read|Exec(组合值,不是报错)
-#
-# 声明、成员、`Values ()` 那一套全照 `enum`,多出来的是**位运算**和"组合值":
-#
-#     |   并        &   交        ^   对称差        -   差(把右边有的那几位去掉)
-#
-# 三条要记住的:
-#
-#   * **值自己写,而且该是二的幂**(1 / 2 / 4 / 8 …) —— `Has` / `Names` 都按位算,
-#     写个 3 进去,那一枚就同时占两位。**不拦**你(确实有想要 `All := 7` 那种组合成员的),
-#     但心里得有数。
-#   * **组合值不是成员**:`Read | Exec` 交回的是一枚**新的**值(值 5),它不在 `Values ()`
-#     里、`Name` 是空的 —— "名字"要 `Text ()` 现算(把有的那几枚用 `|` 连起来)。
-#     `Of` 找不着成员就现拼一枚,不再报错;拼出来正好等于某枚成员时,交回的就是**那枚成员**。
-#   * **另一边给什么**:同一个 flags 的值,或者直接给整数(解配置里的掩码时好使)。
-#     别的类型当场报错,不瞎猜。
 readonly flags ::= class enum {
-    # 父类那份 `init` 先抓在手里再包一层。**必须在覆盖之前取** —— 这儿的名字是**动态**解析的
-    # (子类盖住了就走子类那份,`Members` 就是这么生效的),覆盖之后再读 `init` 就是新的了。
     private baseInit := init
 
-    # 父类那份"值身上固定的几条"先抓在手里(覆盖**之前**) —— 待会儿在自己的体里把它
-    # **跑一遍**,而不是照抄一份:照抄的话 `enum` 那边加一条,这边就悄悄落后了。
     private baseMembers := Members
 
     Members = {
-        # `with` **不推层**,这几条会实实在在落到正在建的那枚值上 —— 和 `enum` 建落脚点
-        # 时那句 `with box vars` 是同一条路。
         with this baseMembers
 
-        # 位运算另一边那个数:同一个 flags 的值,或者直接是整数
         Bits := (o: object) => {
             o : int { o; } {
                 (typeof o) == (typeof this) { o.Value; } {
@@ -194,8 +96,6 @@ readonly flags ::= class enum {
             }
         }
 
-        # 拼一枚出来 —— 交给类上那个 `Of`(它认得已声明的成员,否则现拼),
-        # 于是 `Read | Read` 交回的**就是** `Read` 那一枚,不是个等值的新壳子。
         Combine := (v: object) => { ((typeof this).Of) v; }
 
         | := (o: object) => { Combine (Value | (Bits o)); }
@@ -203,11 +103,8 @@ readonly flags ::= class enum {
         ^ := (o: object) => { Combine (Value ^ (Bits o)); }
         - := (o: object) => { Combine (Value - (Value & (Bits o))); }
 
-        # 我这枚里**有没有** `o` 那几位的全部
         Has := (o: object) => { ((Value & (Bits o)) == (Bits o)); }
 
-        # 我里面**有哪几枚声明过的成员**(按声明的先后)。
-        # 值为 0 的那几枚一律不算"有" —— 不然每个组合里都跟着它们。
         Names := () => {
             out := []
             ((typeof this).Values ()).Foreach (m: object) => {
@@ -218,15 +115,11 @@ readonly flags ::= class enum {
             out
         }
 
-        # `==` 比**值**,不比身份 —— 拼出来的组合每次都是新的一枚,按身份比就永远不相等,
-        # 而"这俩掩码一样不一样"是天天要问的。两枚还得是**同一个** flags 的:
-        # `sub.Read == base.Read` 照旧 false(`enum` 那条规矩:同名不同枚)。
         == := (o: object) => {
             (typeof o) == (typeof this) { Value == (o.Value); } { false; }
         }
         != := (o: object) => { !((this) == o); }
 
-        # 打出来是"有的那几枚连起来":单枚就是它自己的名字,组合就是 `Read|Exec`
         Text = () => {
             Name != "" { Name; } {
                 ns := Names ()
@@ -236,8 +129,6 @@ readonly flags ::= class enum {
         ToString = () => { Text (); }
     }
 
-    # 建完把 `Of` 换掉:声明过的成员照旧按值找,找不着的**现拼一枚组合值** ——
-    # flags 的值本来就是拼出来的,`perms.Of 5` 该给东西,不该说"没有这个值"。
     private Patch := (cls: object) => {
         cls.Of := (v: object) => {
             hit := []
@@ -253,9 +144,6 @@ readonly flags ::= class enum {
         }
     }
 
-    # 分支的先后**照 `enum` 那份**(父类那支在前)—— 派发是按元数挑的,顺序换了
-    # `flags base { … }` 会被当成"只给一个实参",`flags base` 当场变成一个类,
-    # 后面那个块再往上调就是「'class' 不能作为函数调用」。
     init = (parent: type vars: function) => {
         baseInit parent vars
         Patch this

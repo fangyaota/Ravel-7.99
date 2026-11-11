@@ -1,150 +1,39 @@
-# `Tasks` —— **协作式任务**。要显式引用:`using "tasks.rav"`。
-#
-#     using "tasks.rav"
-#
-#     Tasks.Cycle [
-#         Tasks.Task (group: Tasks.TaskGroup) => {
-#             print "a"
-#             group.Await (Tasks.After 1000)
-#             print "a 完了"
-#         }
-#         Tasks.Task (group: Tasks.TaskGroup) => {
-#             print "b"
-#             group.Await (Tasks.After 300)
-#             print "b 完了"
-#         }
-#     ]
-#
-# 一个 OS 线程,任务只在**挂起点**换人(`group.Await`)。于是等待能重叠(两个 400ms 的等待
-# 叠起来 ≈ 0.6s,串起来 0.8s 起),而交替顺序是钉得住的 —— 协作式的好处:顺序由代码决定。
-#
-# ## Task 分两种
-#
-# **自动推进的**:`Tasks.After ms` 这种 —— 底下是 OS 的计时器 / IO 句柄,它在**操作系统
-# 那边**自己往前走。组管不了它、也不用管它,只需要**看**它完没完(`System.WaitAny`),
-# 完了把等着的人放回就绪队列。
-#
-# **自创的**:`Tasks.Task (group) => { … }` 这种 —— 只有组**跑**它才前进。它停在哪儿由一枚
-# 续延记着(`Step`),组下次挑到它就接着跑。
-#
-# 两种共用**一张脸**(`ITask`)、一套 `group.Await`。脸共用一个是有道理的:都是"一件还没完的
-# 活儿",差别只在**谁让它往前走** —— 而那句话落在两个**类**上(`Task` / `SysTask`),
-# 不是一个真假标记。`ITask` 上写的就是组要的全部东西(见下面"分三层"那段)。
-#
-# ## 只有"等"这一个挂起点,**没有**"主动让出"
-#
-# 一个任务只在 `group.Await` 上停住。要别人跑,你总得先等点什么 —— `Tasks.After 0`
-# 就是"让一轮"。等一个**自创任务**时,组会顺手把它挂进来跑(所以 `Await` 从不需要
-# 先 `Add`)。这一条是有意的:另一条路(任务主动 `Yield`)在这门语言的调度器上
-# 实测会踩到帧链的坑(任务与调度器共用一条链),而"只在等句柄时停"这条路
-# 在实测里一次都没出过事。等引擎那条修好再谈公平轮转。
-#
-# ## 续延那套写法照抄 `lib/generator.rav` 的 `GeneratorCursor`
-#
-# 挂起/恢复库里已经有一份跑得好的(`Generator (y) => { while { true; } { y n; n += 1 } }`
-# 那种"在循环体里挂起再接着跑"就是它撑着)。三条规矩照抄,一条都别自作聪明:
-#
-#   ① **一律用库里的 `callcc`**(不是引擎的 `System.CallCC`)—— 它交出来的续延被调用时
-#      会先还原**控制状态**(`Ex.HandlerStack` / 模块加载状态,见 `predefined.rav`),
-#      于是"每个任务自己一套 handler 栈"是白拿的,这儿一个字都不用管。
-#   ② **状态收进对象的字段**,别散在模块作用域上:任务换来换去,谁读谁写说不清。
-#   ③ **两侧都是"在 lambda 里抓、抓完立刻跳到对面"**。
-#
-# **模块作用域上一格状态都没有** —— 组是对象,状态在它的字段里;"等"只有 `group.Await`
-# 一个入口(连 `t.Value` 都不等:没算完就报错,去 `Await` 等)。理由是同一句老话:
-# 藏在 by-property 里的让出,读代码的人看不见。
 ravel "Tasks"
 
-# ── 一个任务:一件"还没完的活儿" ──
-#
-# 分三层。不是为了好看,是为了**同一件事不写两遍**:
-#
-#   `ITask`     组认的那张脸 —— 它上面**只写组要求的**(完没完、结果是什么、
-#               收尾那几格、"怎么被等"),于是 `TaskGroup` 的每个参数都注解成它,
-#               传错东西在**调用点**就报。存句柄的变量也注解成它(`t : Tasks.ITask = …`)。
-#   `TaskBase`  共用的**那一半实现**:那几格状态 + `IsDone` / `Value` 的体。
-#               它把 `ITask` 实现了(一句 `impl`,两个子类跟着认)——
-#               **实现类是普通字段 / 普通方法就能满足那些槽**,不必写成 property(实测)。
-#   `Task` / `SysTask`  各自的**机制**:自创的带 `Body` / `Step` / `Started`,
-#               自动推进的带 `Job`。脸和状态全是继承来的,自己只写一件事:`WaitOn`。
-#
-# 于是"两种任务"落在**类**上,而不是一个 `HasJob: bool` 真假标记 ——
-# 调度器那一句 `t.WaitOn this` 就是全部的分派。
-#
-# 它上面写的就是"**能被组调度的东西**"的全部要求 —— 组里每个参数都注解成它,
-# 于是"传了个不是任务的东西"当场在**调用点**报,而不是跑到里面某一行才炸。
-# (实现类是普通字段 / 普通方法就能满足这些槽,不必写成 property —— 实测。)
 readonly ITask ::= interface {
-    # 收尾那几格:组要读(`Run` 末尾那两道检查)、也要写(`Await` 认领)
     by Done : function = _
     by Ok : function = _
     by Err : function = _
     by Claimed : function = _
 
-    # 用户读的那两个 —— 都不阻塞
     by IsDone : function = _
     by Value : function = _
 
-    # **怎么被等**:值是一个 `(group) => …`。这是"两种任务不一样"的唯一一处,
-    # 子类各写各的,组只管调它(`t.WaitOn this`)。
     by WaitOn : function = _
 
-    # **怎么先起跑**:`(group) => …`。和 `WaitOn` 是配对的另一半。
-    #
-    # 为什么要有它 —— 自创任务的 `Body` 在**第一次被 `Await` 的时候**才跑起来,
-    # 于是"几个任务一起跑"这件事就出了问题:`ts.Foreach (t) => { g.Await t; }`
-    # 是一个个等的,**后一个要等前一个完才起跑** —— 串行。
-    # 想并发就得先把它们**都排进队**(`Tasks.All` 干的就是这个)。
-    #
-    # 自动推进的那一类(句柄/计时器)**不用排**:它们的 Job 在**造出来的时候**就已经
-    # 在操作系统那边跑了 —— 所以 `TaskBase` 这儿的默认是"什么都不做"。
     by Schedule : function = _
 }
 
-# 共用那一半。**它自己不该被实例化** —— `WaitOn` 那份只会报错的默认体就是拦这个的。
 readonly TaskBase ::= class {
-    # 结果那一格:Done 之后 Ok / Val / Err 才有意义
     Done: bool = false
     Ok: bool = true
     Val: object = ()
     Err: object = ()
 
-    # 有没有人来接过我的结果(`Await` 过 / 读过 `Value`)。
-    # 它是"任务失败了但没人知道"那道闸的凭据:没人接的错到 `Run` 收尾时会当场报出来,
-    # 不会像"没人接的错误"那样烂在这儿。
     Claimed: bool = false
 
-    # 完没完 —— **不阻塞**,随手就能探
     by IsDone := property (() => { Done; }) ((v: bool) => { (); })
 
-    # 取值 —— **检查过的读**:完了就交值,没完就报错,**不等**。
-    #
-    # 要等就用 `group.Await t`(它才是那个挂起点)。这里不等是有意的:
-    # 一个 by-property 悄悄把当前任务挂起来,读代码的人看不见"这一句会让出";
-    # 而"等"是调度的事,该在**调度器那一句**上明写。
     by Value := property (() => {
         Done { 0; } {
             throw (Exception ("这个任务还没完 —— 要等它就用 `group.Await t`,"
                               + "只想探一下就 `t.IsDone`"))
         }
-        # 到这儿才认领:**读到了结果或错**才算"有人接"。上面那句"还没完"不算 ——
-        # 它只是探了一下,没接过任何东西。
+
         Claimed = true
         Ok { Val; } { throw Err; }
     }) ((v: object) => { (); })
 
-    # ── `IMonad` 那一族的形状:能进 `do { … }` ──
-    #
-    # `do { x :< t1; y :< t2; x + y; }` 脱糖成一串 `.Bind` —— 有这两条,任务就也能进
-    # 那个语法糖。**这是这些库里唯一一处能把两个库自动接起来的东西**,所以值得在。
-    #
-    # 两条都**交回一个新任务**,不在这儿等:真正等是 `g.Await` 那一次的事。所以它们
-    # 各自得起一个 `Tasks.Task (g) => {…}` —— **那个体的参数 `g` 就是它们能工作的全部
-    # 原因**(`IMonad` 的槽签名只有 `(f)`,拿不到组;新任务的 body 里有)。
-    #
-    # **注意:交回来的新任务没人 `Await` 就没人跑它** —— 和别的任务一个规矩。
-    # `do { … }` 交回的也是那个任务,别忘了 `g.Await` 它(`--warn` 逮不着这个:
-    # 任务是个对象,不是"没被调用的函数")。
     Map := (f: function) => {
         inner := this
         Task (g: TaskGroup) => { f (g.Await inner); }
@@ -154,38 +43,22 @@ readonly TaskBase ::= class {
         Task (g: TaskGroup) => { g.Await (f (g.Await inner)); }
     }
 
-    # **先起跑**:默认什么都不用做 —— 自动推进的那一类(`SysTask` / `Signal`)
-    # 本来就不该被"排进队去跑":一个计时器造出来就在走了,一只闸不开就不该跑。
-    # 只有自创任务要覆写它(见 `Task`)。
     Schedule := (group: TaskGroup) => { (); }
 
-    # **怎么被等** —— "两种任务不一样"只在这一个地方,子类各写各的。
-    # 基类这一份是兜底:走到这儿说明有人造了个没实现的 Task 家族类型,别装死。
     WaitOn := (group: TaskGroup) => {
         throw (Exception ("这个类型没法被等 —— `WaitOn` 没实现"))
     }
 }
 
-# 自创的:`Tasks.Task (group) => { … }`。只有组**跑**它才前进。
-#
-# `Step` 是"我停在哪儿"那一枚续延,起手是 `default`(还没到手的哨兵:一调就报错,
-# 不会静默什么都不做 —— 见 `predefined.rav` 的 callcc)。
 Task ::= class TaskBase {
     Body: function = _
     Step: Continuation = _
     Started: bool = false
 
-    # 谁在等我。自动推进的那一类用不上 —— 它等着的是组的等待集合(`Waiting`)。
     Waiters: list = []
 
-    # 出错位置。**只在这个任务是以失败告终时才有内容** —— 那份报告(位置 + 源码那一行 +
-    # 插入符 + 调用栈)是 `TaskGroup.Start` 那边趁 handler 体里还在的时候渲染下来的,
-    # 见那儿那段。给收尾那句"没人接的失败"用:那是唯一一条通道,不存下来就永远看不到。
     Where: string = ""
 
-    # 进过组没有。**一个任务只能跑一遍**:它的续延是多发的,再跑一遍等于跳回上一次
-    # 留下的那条帧链 —— 实测是**死循环**(第二遍把第一遍整段重放,一遍又一遍)。
-    # 这条闸在 `Add` 上,传进来的那一刻就拦住。
     Queued: bool = false
 
     init = (body: function) => {
@@ -197,20 +70,11 @@ Task ::= class TaskBase {
         this;
     }
 
-    # 自创任务**要**排进队才跑得起来(自动推进的那一类不用,见 `TaskBase.Schedule`)。
-    #
-    # 已经进过组的不动(`Queued`):那意味着有**别的**组在推它,再塞一份会让它被挑到
-    # 两次 —— `Add` 那边会当场拦下来。
     Schedule = (group: TaskGroup) => {
         Queued { 0; } { group.Add this; }
         ();
     }
 
-    # 挂到它的 `Waiters` 上 —— 它收工(`Finish`)时会把我放回就绪队列。
-    #
-    # **顺手把自己挂进这个组**。"等到它完"就蕴含"得有人推它",而此刻只有这一个组在跑
-    # —— 少了这一步,`g.Await (Http.GetTask url)` 这种最自然的写法就永远等不到
-    # (报得清楚,但明明不用报)。
     WaitOn = (group: TaskGroup) => {
         Schedule group
         callcc (kp: Continuation) => {
@@ -221,17 +85,11 @@ Task ::= class TaskBase {
     }
 }
 
-# 自动推进的:`Tasks.After ms` 这种。底下是 OS 的计时器 / IO 句柄,它在**操作系统那边**
-# 自己往前走;组管不了它、也不用管它,只需要**看**它完没完(`System.WaitAny`)。
 readonly SysTask ::= class TaskBase {
     Job: object = ()
 
     init = () => { Job = (); this; }
 
-    # 挂到**组的等待集合**上,等 OS 那边。回到这儿 = 句柄完成了。
-    # **结果在这一头取** —— 于是 IO 失败(超时、连不上)是在**这个任务里**抛出来的,
-    # 不会把组带走;同时也把结果记到自己身上,之后谁读 `Value` 都是白拿。
-    # (`HandleValue` 可以重复调,读的就是那个已完成任务的结果。)
     WaitOn = (group: TaskGroup) => {
         callcc (kp: Continuation) => {
             group.Current.Step = kp
@@ -244,38 +102,12 @@ readonly SysTask ::= class TaskBase {
     }
 }
 
-# `Tasks.Signal ()` —— 一只**闸**:它自己不起任何作用,谁攥着它谁说了算。`Open` 一声,
-# 等在它上面的人全醒。一次性的 —— 开过就一直开着了。
-#
-# ## 它是第三种"会完"的东西
-#
-# `Tasks.Task (g) => {…}` 等的是「**那段代码跑完**」,`Tasks.After ms` 等的是
-# 「**那个计时器走完**」。这只闸等的是「**别人跟我说一声**」—— 而那句话不在任何一段
-# "会跑完的代码"里。别的语言里这个角色叫 `Promise(resolve)` / `TaskCompletionSource` /
-# `asyncio.Future`。
-#
-# 拿来干什么:**同一件事要通知好几回**(队列 —— 每次放货都要叫醒一个等着的人,而一个
-# `Task` 只能完一次)、或者**叫醒的人手上没有这个组**(跨组、或者根本不在任务里)。
-#
-# ## 它也是外面写"新挂起点"时该用的东西
-#
-# 要挂起一个任务,那套动作(把续延存进组里此刻在跑的那个任务 → 跳回调度器)是
-# `TaskGroup` 的**调度内脏**。**这只闸是唯一一处给外面用的封装** —— 有它,写"能等的队列"
-# / 事件 / 信号量的人只摆一只闸,不碰 `Current.Step` / `Back` / `Ready`。
-# `examples/signal.rav` 里拿两版能等的队列对着看:手搓的那版两处伸手进调度器,
-# 用闸的那版一个字段都不碰 —— 而跑出来一模一样。
 readonly Signal ::= class TaskBase {
-    # 谁在等我 —— 有人来等的时候记下来。**所以 `Open` 的人不需要组。**
     Holder : object = ()
     Waiting: list = []
 
     init = () => { Holder = (); Waiting = []; this; }
 
-    # 和自创任务的 `WaitOn` 一样挂上去,但**不 `group.Add this`** ——
-    # 一个闸不是"要跑的活儿",它不该轮到就绪队列里去。
-    #
-    # 这儿必须是 `=` 不是 `:=`:基类 `TaskBase` 已经有一个 `WaitOn` 了,
-    # `:=` 是"定义",撞上就是「'WaitOn' 在这个作用域里已经定义过」。
     WaitOn = (group: TaskGroup) => {
         Holder = group
         callcc (kp: Continuation) => {
@@ -285,10 +117,6 @@ readonly Signal ::= class TaskBase {
         }
     }
 
-    # 开闸:记上"完了",把等着的人全叫回去。
-    #
-    # **没人在等的时候开也成立** —— 之后才来 `Await` 它的人,一看 `Done` 直接就拿到了。
-    # 所以"事件发生在等待之前"这件事不用另想办法。
     Open := (v: object) => {
         Val = v
         Ok = true
@@ -299,23 +127,13 @@ readonly Signal ::= class TaskBase {
     }
 }
 
-# **一个能等的队列**:空了就睡,来货了叫醒。
-#
-# "能等的"是关键 —— 不是"查一下有没有":取不到的时候**真的挂起**,不空转。
-# 底下就是 `Signal`:等的人各攥一只闸,放货的人开其中一只。
-#
-#     ch := Tasks.Chan ()
-#     …一个任务:ch.Put "货"
-#     …另一个:  g.Await (ch.Take g)
 readonly Chan ::= class {
     Items: list = []
-    Waiting: list = []          # 等货的人各攥一只闸(每项一个 `Signal`)
+    Waiting: list = []
     Shut: bool = false
 
     init = () => { Items = []; Waiting = []; Shut = false; this; }
 
-    # 放一件。有等着的人就叫醒一个 —— **叫醒谁不管**,他醒了自己再看一眼有没有货
-    # (可能被别的消费者抢先拿了,那就接着睡)。
     Put := (v: object) => {
         Shut {
             throw (Exception ("这个队列已经关了 —— 放不进去了"))
@@ -325,10 +143,6 @@ readonly Chan ::= class {
         ();
     }
 
-    # 取一件。**空了就挂起**,直到有人放或者队列关了。
-    #
-    # 用 `while` 不用 `if`:醒过来那一刻货可能已经被别的消费者拿走了(大家排在
-    # 同一个就绪队列里),所以得**再检查一遍** —— 这是"能等的队列"最容易写错的地方。
     Take := (g: TaskGroup) => {
         while { (Items.IsEmpty ()) && !(Shut); } {
             sig := Signal ()
@@ -341,10 +155,6 @@ readonly Chan ::= class {
         Items.Remove 0;
     }
 
-    # "没有更多了":等着的人**全醒**(让他们各自去发现队列空了且关了),之后不许再放。
-    #
-    # 不收值是有意的:关掉之后取不到东西**是个错误**,不是"取到一个空"(那要 `Option`,
-    # 是另一种设计)。想优雅收工的,循环条件上写 `!(ch.Shut ())`。
     Close := () => {
         Shut = true
         Waiting.Foreach (s: object) => { s.Open (); }
@@ -356,38 +166,19 @@ readonly Chan ::= class {
     IsShut := () => { Shut; }
 }
 
-# `Tasks.All [t1 t2 …]` —— **一起跑**,按**交进去的顺序**交回结果表。
-#
-# 交回的是**一个任务**(不是结果表本身)—— 于是 `rs := g.Await (Tasks.All [a b c])`
-# 一步到位。谁炸了就在这一头现形,和别的任务一个规矩。
-#
-# **那个"先都 `Schedule` 一遍"不是多余的**:自创任务的 `Body` 到**第一次被 `Await`**
-# 才跑,直接一个个等就是**串行**的(实测:两个 60ms 的任务,153ms 而不是 74ms)。
-# 先排进队,它们才会在彼此等的时候跑起来。
 All := (ts: list) => {
     Task (g: TaskGroup) => {
-        ts.Foreach (t: ITask) => { t.Schedule g; }      # 先都起跑
+        ts.Foreach (t: ITask) => { t.Schedule g; }
         out := []
-        ts.Foreach (t: ITask) => { out.Add (g.Await t); }   # 再按顺序收
+        ts.Foreach (t: ITask) => { out.Add (g.Await t); }
         out;
     }
 }
 
-# `Tasks.Any [t1 t2 …]` —— 等**最先完成的那个**,交回**它本身**。
-#
-# 交回任务而不是结果,是为了让你知道**是谁赢了**(拿结果再 `.Value` 一下)。
-# 和 `All` 不对称是有意的:`All` 的顺序就是交进去的顺序,不需要身份;`Any` 不问就永远
-# 不知道是谁。等价于别的语言的 `Task.WhenAny`。
-#
-# **输的那些照样跑完** —— 这门语言打不断已经出发的活儿(没有 select / race)。
-# `Any` 提前给你的是"结果",不是"停掉其余的"。
-#
-# 陪跑的那些任务**把错吞掉**了:它们只是"看谁先完"。被等的任务真炸了,错记在它自己身上,
-# 谁最后 `Await` 那个赢家、谁 `.Value` 它,就在那一头现形 —— 还是那个规矩。
 readonly Any := (ts: list) => {
     Task (g: TaskGroup) => {
         gate := Signal ()
-        win := [()]                                  # 一格"谁赢了"(拿单元素表当格子用)
+        win := [()]
         ts.Foreach (t: ITask) => {
             g.Add (Task (gg: TaskGroup) => {
                 try { gg.Await t; } (e: Exception) => { (); }
@@ -399,35 +190,22 @@ readonly Any := (ts: list) => {
     }
 }
 
-# `Task` / `SysTask` / `Signal` 三个子类跟着认这两个接口 —— 基类登记一次就够
-# (实测子类继承那句 `impl`)。
-# (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
 impl (ITask TaskBase {;})
 
-# 也在 monad 那一族里(`IMonad` 见 `lib/monad.rav`,predefined 加载,所以是全局名)。
-# 用 `impl` 不是 `use`:这一族是**类型层面**的事实,不随作用域来去 —— 和 `IoMonad` 那边
-# 一条规矩。`Map` / `Bind` 在 `TaskBase` 上,三个子类都作数。
-#
-# (那个 `{ () }` 得**另起一行**:同一行里它会被当成 set 字面量。)
 impl (IMonad TaskBase {;})
 
-# 组在等的一件"操作系统那边的事":谁在等 + 等的是哪个句柄
 readonly private Pending ::= class {
     Who : object = ()
     Job: object = ()
     init = (who: Task job: object) => { Who = who; Job = job; this; }
 }
 
-# **组** —— 调度器。就绪队列 + 等待集合,外加一格"此刻在跑谁"。
-#
-# 组**不自己起任务**:它只跑你交给它的(`TaskGroup [ … ]`)、以及跑着跑着自己加进来的
-# (`group.Add`)。于是"这组活儿什么时候算完"是个能被看出来的问题(见 `Run` 末尾那道死锁检查)。
 TaskGroup ::= class {
-    All: list = []                 # 组里所有任务(含跑着加进来的),给死锁检查用
-    Ready: list = []               # 就绪队列:挑到谁就跑谁
-    Waiting: list = []             # 等着 OS 句柄的:每项一个 `Pending`
-    Current : object = ()      # 此刻在跑的那个(它一挂起就往它身上记"接着跑")
-    Back: Continuation = _   # 任务让出时跳回来的那一枚(见 `Run`)
+    All: list = []
+    Ready: list = []
+    Waiting: list = []
+    Current : object = ()
+    Back: Continuation = _
 
     init = (tasks: list) => {
         All = []
@@ -435,28 +213,12 @@ TaskGroup ::= class {
         Waiting = []
         Current = ()
         Back = ()
-        # 走 `Add` 而不是直接往队列里塞 —— 那道"一个任务只能跑一遍"的闸在那儿
+
         tasks.Foreach (t: Task) => { Add t; }
         this;
     }
 
-    # 往组里加一个任务。**不立刻跑** —— 排到队尾,到下一个切换点才轮到它
-    # (协作式的规矩:发起的人接着跑自己的,等它自己走到挂起点)。
-    #
-    # 跑着的时候也能调(`group.Add anotherTask`):有些活儿本来就是"等我这儿有数了,
-    # 才知道要开几个"。交回任务本身,于是 `t := group.Add (Tasks.Task …)  # 之后 t.Value` 读得通。
-    #
-    # **只收自创的那种**(参数写着 `Task`)。自动推进的加进就绪队列没有意义 ——
-    # 它的完成不靠谁去跑它,而是操作系统那边的事;真想等它,`group.Await` 就够了
-    # (`Await` 收的是两种都认的 `ITask`)。从前这儿是 `object`,于是
-    # `group.Add (Tasks.After 100)` 要到组挑到它、跑 `t.Started` 的时候才炸,
-    # 报的是「类型 'SysTask' 没有方法 'Started'」—— 现在传错在**这一行**就报。
     Add := (t: Task) => {
-        # **一个任务只能跑一遍**,两个方向都拦:
-        #   * 已经跑完了:再跑就是跳回上一次留下的帧链(续延是多发的)—— 实测死循环;
-        #   * 已经在组里(还挂着):再加一份会让它被挑到两次,`Step` 也跟着乱。
-        # 要同样的活儿再来一遍,就再造一个 `Tasks.Task (…)` —— 任务是**一次性的**,
-        # 和 `Generator`(体是配方,每次遍历从头)不是一个东西。
         t.Done {
             throw (Exception ("这个任务已经跑完了 —— 一个任务只能跑一遍(要再来一次就再造一个)"))
         } { 0; }
@@ -469,31 +231,14 @@ TaskGroup ::= class {
         t
     }
 
-    # **唯一的挂起点**:等一个任务完。
-    #
-    # 怎么挂由**那个任务自己说了算**(`t.WaitOn this`,见 `Task` / `SysTask`):
-    # 自创的挂到自己的 `Waiters` 上(跑完时 `Finish` 把等着的人放回就绪队列),
-    # 自动推进的挂到组的等待集合上(`Poll` 在 OS 那边等着,谁先完成谁先回来)。
-    #
-    # **自创任务不用先 `Add`**:`Await` 会替你把它挂进这个组(见 `Task.WaitOn`)——
-    # "等到它完"就蕴含"得有人推它",而此刻只有这一个组在跑。
-    #
-    # 真会卡住的是**互相等**(A 等 B、B 等 A)那种 —— `Run` 末尾那道检查当场报出来,
-    # 不会让你干等。
     Await := (t: ITask) => {
         t.Claimed = true
-        # **挂起怎么挂,问那个任务自己**(`WaitOn`)—— "两种任务不一样"只在它那里,
-        # 这一句里没有"是哪种"这个概念。
+
         t.Done { 0; } { t.WaitOn this; }
-        # 到这儿它一定完了。**交回它的结果** —— 就是 `Value` 那个"检查过的读":
-        # 那边抛了的话,在这一头重抛(谁等它,谁接到那个错)。
-        # 于是 `r := g.Await (Http.GetTask url)` 一步到位,不用再 `t.Value` 一下。
+
         t.Value;
     }
 
-    # 就绪的都挑完了,剩下的在等 OS:阻塞着等**最先完成**的那一个,把它的任务放回就绪队列。
-    # 占住 OS 线程是**故意**的 —— 没活干的时候本来就该把线程交给操作系统去等,
-    # 这既是"空转不烧 CPU"的那条闸,也是真等待能重叠的原因。
     Poll := () => {
         done := System.WaitAny (Waiting.Map ((w: object) => { w.Job; }) |> .ToList ())
         w := Waiting.Where ((x: object) => { x.Job == done; }) |> .First ()
@@ -501,25 +246,13 @@ TaskGroup ::= class {
         Ready.Add w.Who
     }
 
-    # 跑一个任务:按 `Started` 分叉(新的跑 `Body`,老的从 `Step` 接着跑)。
-    #
-    # 体的错**在这儿收住**(记进任务、不往外冒):一个任务把自己搞砸了,不该把整组带走。
-    # 谁 `group.Await` 它 / 谁读它的 `Value`,谁在**那一头**接到这个错。
     Start := (t: Task) => {
         t.Started { t.Step (); } {
             t.Started = true
             try { t.Val = (t.Body this); } (e: Exception) => {
                 t.Ok = false
                 t.Err = e
-                # **趁现场还在,把报告渲染下来。**
-                #
-                # 错在第几行第几列、调用栈,是**引擎的内部状态** —— 只在"handler 体里"
-                # 活着(`System.FormatError` 自己那条注释写着),而这个 `(e) => {…}` 就是
-                # handler 体。一出去就只剩 `e.Message` 那句干话了。
-                #
-                # 非渲染不可的理由:任务失败了而**没人接**的话,这个错是由**组**在收尾时
-                # 替它报出来的 —— 那是唯一一条通道,报告不存下来,用户就永远看不到出错位置
-                # (别人自己 `try` 接住的错,起码当场还带着位置)。
+
                 t.Where = System.FormatError e
                 ();
             }
@@ -527,7 +260,6 @@ TaskGroup ::= class {
         }
     }
 
-    # 一个任务收工:记上"完了",把等着它的都放回就绪队列。
     Finish := (t: Task) => {
         t.Done = true
         t.Waiters.Foreach (w: object) => { Ready.Add w; }
@@ -535,10 +267,6 @@ TaskGroup ::= class {
         ()
     }
 
-    # **驱动整个组**:一轮一轮挑任务跑,直到没活儿了。
-    #
-    # 任务让出时跳的都是 `Back` 这一枚 —— 于是回来的落点永远是同一条链上的同一个地方,
-    # 而当前那条链整个丢掉(帧链不随切换增长)。
     Run := () => {
         callcc (kc: Continuation) => { Back = kc; }
         while { !((Ready.IsEmpty ()) && (Waiting.IsEmpty ())); } {
@@ -547,23 +275,17 @@ TaskGroup ::= class {
                 Start Current
             }
         }
-        # 走到这儿 = 没活儿可干了。**但如果还有任务没完**,那不是跑完了,是卡住了:
-        # 它停在某个 `Await` 上,而没有任何东西能把它叫醒(典型:在等一个没进组、
-        # 也不会有人去完成的自创任务)。当场报出来 —— 干等比报错难查得多。
+
         stuck := All.Where ((t: Task) => { !(t.Done); }) |> .ToList ()
         (stuck.Count ()) == 0 { (); } {
             throw (Exception ("死锁:还有 " + (string (stuck.Count ())) + " 个任务没完,"
                               + "但已经没有谁能推进它们了 —— 多半是在互相等,或者在等一件没人会去做的事"))
         }
-        # 还有个更难堪的情形:**任务失败了,但没人接**。没人 `Await` 它、也没人读它的 `Value`
-        # —— 那个错就烂在它身上,程序照常往下跑。和"没人接的错误"是同一个毛病,
-        # 所以照同一个口径:当场报出来。
+
         dropped := All.Where ((t: Task) => { t.Done && !(t.Ok) && !(t.Claimed); }) |> .ToList ()
         (dropped.Count ()) == 0 { (); } {
             d := dropped.First ()
-            # 那句报告是**多行**的(位置 + 源码那一行 + 插入符 + 调用栈),所以它自己占一段。
-            # 万一它空着(理论上不会 —— `Ok = false` 只有一处,那一处必写 `Where`),
-            # 退回那句干话,别报出个空段落。
+
             throw (Exception ("有 " + (string (dropped.Count ())) + " 个任务失败了,而没人接它的错"
                               + " —— 谁起的任务谁负责等它(`group.Await` / `.Value`)\n\n"
                               + ((d.Where) == "" { d.Err.Message; } { d.Where; })))
@@ -571,74 +293,25 @@ TaskGroup ::= class {
     }
 }
 
-# `Tasks.After ms` —— 一个**毫秒后自动完成**的任务。
-#
-# 名字说的是它是**什么**(一个将来的 Task),不是它做**什么**:`System.Sleep` 才是"睡",
-# 这一条压根不睡,它只是**交回一个将来会醒的东西**。所以 `After 1000` 单独一句什么都不会
-# 发生 —— 得像别的任务一样 `group.Await` 它。(这个坑和"光写个函数名没调用"是一类。)
-#
-# **精度是计时器的精度,不是毫秒**:底下是 OS 的计时器,Windows 上粒度约 **15 毫秒** ——
-# 于是 `After 5` 和 `After 10` 谁先醒**说不准**(常常同一拍),`After 5` 实际也要等到
-# 十几毫秒。所以:
-#   * 想"让一轮"就用 **`After 0`** —— 它是**当场就完成**的(底下不是计时器),不碰粒度;
-#   * 别拿几毫秒的差去比谁快 —— 要分先后,间隔拉到几十上百毫秒。
-# (实测踩过:三个 `After 5/10/20` 抢 `Tasks.Any`,赢家来回变;换成 `50/200/400` 就稳了。)
 readonly After := (ms: int) => {
     t := SysTask ()
     t.Job = System.Sleepable ms
     t
 }
 
-# `Tasks.Return v` —— 一个**立刻就有值**的任务。就是 monad 那一族里各家的"构造子"
-# (`Option` 那边叫 `Some`,`IoMonad` 那边叫 `IoMonad.Return`)。
-#
-# 任务这一家原来缺的就是它,而 **`do { … }` 的最后一句必须交回一个"包着的值"**
-# (见 `lib/monad.rav`:`do` 是**解析期**就地长成 `.Bind` 链的,没有运行时支持):
-#
-#     g.Await (do { a :< t1; b :< t2; Tasks.Return (a + b); })
-#
-# 不写这一层的话,最后那句交回的是个**裸值**,`Bind` 拿它去 `Await` —— 报
-# 「参数 't' 需要 ITask,得到 Integer」。别的 monad 同一个道理,只是那个 `Some (…)`
-# / `Ok (…)` 你写惯了、不觉得它是个构造子。
 readonly Return := (v: object) => {
     Task (g: TaskGroup) => { v; }
 }
 
-# `Tasks.Of h` —— 把一个**本机句柄**(`Waitable`)包成任务。`After` 是它的一个特例
-# (`Of (System.Sleepable ms)` 就是它),而库那一层拿到的句柄都走这儿:
-#
-#     group.Await (Tasks.Of (Native.HttpReqTask spec))
-#
-# —— 不过平时不用这么写:`Http` / `Io` / `cmd` 各自都有交回任务的现成入口
-# (`Http.GetTask` 那种),它们是薄薄一层,底下就是这个。
-#
-# 句柄要**是句柄**:给了别的东西(数、字符串)`WaitAny` 那一头才报 —— 这里不先查一遍,
-# 是因为 `Waitable` 是个类型,注解上写得出来,传错在**调用点**就拦住了。
 readonly Of := (h: System.Waitable) => {
     t := SysTask ()
     t.Job = h
     t
 }
 
-# 开一个组,把这批任务跑到底,交回 `()`。
-#
-# **`Run` 只交回 `()` 是有意的**:结果在**任务自己身上**(`t.Value`),不在组身上 ——
-# 组管调度,不管收成。要收成就把任务先兜在变量里:`t := Tasks.Task (…)`、之后 `t.Value`。
-#
-# `Tasks.Cycle [ … ]` —— "建一个组,跑完"的糖。元素和 `TaskGroup` 一样是任务。
 readonly Cycle := (tasks: list) => {
     (TaskGroup tasks).Run ()
 }
 
-# ── 摆到全局的那个名字(和 `keys.rav` 的 `Keyed` / `exceptions.rav` 的 `try` 一个路子)──
-#
-# 一条命令变成一个任务。**要摆成全局是因为这儿没别的家**:`cmd` 是 `predefined.rav` 里
-# 一个光杆的全局别名(没有 `Cmd` 模块),而 `predefined.rav` 又够不着这个模块 ——
-# 那是核心,不该为了一个便捷名去 `using` 一个库。
-#
-# 它交回的是**任务**(和 `Http.GetTask` / `Io.ReadTask` 一样),不是句柄 ——
-# `System.CmdTask` 那个原语交回来的才是句柄:
-#
-#     g.Await (cmdTask "ls -l")
 ravel ""
 readonly cmdTask := (c: string) => { Tasks.Of (System.CmdTask c); }

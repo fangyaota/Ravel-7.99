@@ -1,60 +1,31 @@
-# 文件系统 —— **要显式引用才有**:`using "io.rav"` 之后 `Io.xxx` 才是一个名字。
-#
-# 分三层：
-#
-#   ① **接口**（`IEntry` / `IFile` / `IDir`，**全局名**）："文件"先是个**形状**。
-#      磁盘上的、内存里的、zip 条目、远程的……都只是它的实现 —— 对着接口写的代码换实现不用改。
-#   ② **磁盘实现**（模块 `Io` 里的 `File` / `Dir`）：走 `System` 那组文件原语。
-#   ③ **工厂、路径函数与通用件**：`Io.File "a.txt"` 造条目；`Io.CopyTo` / `Io.EachDir` / `Io.Lines`
-#      是对着**接口**写的，任何实现都吃。
-#
-# 路径基准 = 进程当前目录（`Io.Current ()` 看，`Io.ChDir p` 改）；**没有沙箱** ——
-# 和 `using` 找模块一个待遇：能跑这段代码的人，本来就能读写那些文件。
-#
-# **依赖**:下面「和 IoMonad 搭台」那几条要用 `IoMonad`,所以这个文件开头会 `using "iomonad.rav"
-using "tasks.rav"   # `…Task` 那几条要用(`Tasks.Of`)`
-# —— `using "io.rav"` 就把它一起带来了(反过来不行:iomonad.rav 由 predefined 加载,不认识 `IFile`)。
+using "tasks.rav"
+
 using "iomonad.rav"
 
-# 报错一律是 `Exception`（中文、带路径）：读不存在的文件、删非空目录、对目录 `Read`……
-# `Exists ()` 是**问**，不报错。
-
-# ── ① 接口 ──
-# 只放**通用**的（内存文件也讲得通的那些）；磁盘特有的（路径、修改时间、改名）留在实现里。
-#
-# 算不算某个接口看的是"类型有没有登记"（`impl` / `use`），不逐条查成员 —— 所以实现那几条
-# **要么自己就有那些成员**（下面 `File` / `Dir` 就是这样），要么用
-# `impl (IFile 某类 { by Read = property … })` 现装。
 readonly IEntry ::= interface {
-    by Exists : function = _      # () => bool
-    by IsDir : function = _       # () => bool
-    by Delete : function = _      # () => ()       从它所在的容器里删掉
-    by Name : function = _        # () => string   在容器里的名字
+    by Exists : function = _
+    by IsDir : function = _
+    by Delete : function = _
+    by Name : function = _
 }
 
-readonly IFile ::= interface IEntry {            # **要求**（不是继承）：实现了 IFile 也就是 IEntry，
-                                        # 但槽不并 —— 实现者要把 IEntry 那条也登记上
-    by Read : function = _        # () => string
-    by Write : function = _       # (text: string) => ()
-    by Append : function = _      # (text: string) => ()
-    by Size : function = _        # () => int
+readonly IFile ::= interface IEntry {
+    by Read : function = _
+    by Write : function = _
+    by Append : function = _
+    by Size : function = _
 }
 
 readonly IDir ::= interface IEntry {
-    by List : function = _        # () => dict   名字 → IEntry（实现自己排好序）
+    by List : function = _
 }
 
 ravel "Io"
 
-# ── ② 磁盘实现 ──
-# 路径先规整一下：末尾的分隔符去掉（`Io.Dir "sub/"` 也认），别的一律照给的来、不转绝对路径
-# （转了就变成一长串绝对路径，打印出来没法看；代价是中途 `ChDir` 会让先前造的条目走样）。
 readonly PathOf := (p: object) => {
     (typeof (p)) == string { p; } { p.Path; }
 }
 
-# 一个条目该是 File 还是 Dir：拿不准就问磁盘（`ListDir` 给的"是不是目录"带了来，
-# 别的地方就再问一次）。
 readonly private EntryAt := (path: string isDir: bool) => {
     isDir { Dir path; } { File path; }
 }
@@ -74,16 +45,11 @@ readonly File ::= class {
     Write := (text: string) => { System.WriteText Path text; (); }
     Append := (text: string) => { System.AppendText Path text; (); }
 
-    # 交回任务的那几条(同名 + `Task`):任务里 `group.Await (f.ReadTask ())`,别的任务接着跑。
-    # 本地文件通常快,重叠看不出来 —— 有感觉的是几百 MB 那种读写。加它们是因为"每个会等的
-    # 操作都该有个可等的入口"这条规矩,别在这儿破例。
     ReadTask := () => { Tasks.Of (System.ReadTextTask Path); }
     WriteTask := (text: string) => { Tasks.Of (System.WriteTextTask Path text); }
     AppendTask := (text: string) => { Tasks.Of (System.AppendTextTask Path text); }
     Delete := () => { System.DeletePath Path; (); }
 
-    # 复制 / 移动 / 改名。目标收**路径字符串**或另一个磁盘条目（`Io.File` / `Io.Dir`）——
-    # 抽象条目没有路径，那种请用 `Io.CopyTo`（对着接口写的那个）。
     CopyTo := (dest: object) => {
         d := PathOf dest
         System.CopyPath Path d
@@ -106,38 +72,31 @@ readonly Dir ::= class {
     Name := () => { System.PathBase Path; }
     Exists := () => { System.DirExists Path; }
     IsDir := () => { true; }
-    Create := () => { System.CreateDir Path; this; }      # 已经存在不算错(幂等)
-    Delete := () => { System.DeletePath Path; (); }       # 非空就报错,不递归删
-    # 子条目。**不叫 `File` / `Dir`** —— 那会把类名遮住,`File (…)` 变成调自己(实测无限递归)。
-    # 是文件还是目录由磁盘说了算;不存在就当一个文件(写新文件是常事)。
+    Create := () => { System.CreateDir Path; this; }
+    Delete := () => { System.DeletePath Path; (); }
+
     Child := (name: string) => {
         p := System.PathJoin Path name
         EntryAt p (System.DirExists p);
     }
     Parent := () => { Dir (System.PathDir Path); }
 
-    # 在这个目录下建个子目录（已有就不管，幂等），交回它。
-    # 注意 `Child` 对**不存在**的名字按文件算（写新文件是常事），所以建目录得走这里。
     Mkdir := (name: string) => {
         d := Dir (System.PathJoin Path name)
         d.Create ()
         d;
     }
 
-    # 列目录：**名字 → 条目**，按名字排序。顺序稳定，输出和测试才可期待。
     List := () => {
         raw := System.ListDir Path
-        # `xs.Sort ()` **不是排自己** —— 它交回一份排好的新表(`SortByKey` 从头造一个 ListVal)。
-        # 写成光秃秃一句 `names.Sort ()` 就是**静默什么都不做**:Windows 上目录枚举常常
-        # 看着本来就是有序的,到 Linux 上顺序就随机的 —— 这种"在你这台机器上看不出来"的错最难查。
+
         names := (raw.Keys ()).Sort ()
         out := {->}
-        # 那层括号不能省：实参位置上的「raw.Get n」会被读成「((EntryAt …) raw.Get) n」
+
         names.Foreach (n: string) => { out.Set n (EntryAt (System.PathJoin Path n) (raw.Get n)); }
         out
     }
 
-    # 只要文件 / 只要子目录（都从 `List ()` 里筛，顺序一样）
     Files := () => { Pick false; }
     Dirs := () => { Pick true; }
 
@@ -152,38 +111,21 @@ readonly Dir ::= class {
     }
 }
 
-# 登记（`impl`：类型层面的事实，不随作用域来去）。只登记最具体的那个 ——
-# `IEntry` 由**接口继承**兜着：实现了 `IFile` 也就实现了 `IEntry`。
 impl (IEntry File {;})
 impl (IFile File {;})
 impl (IEntry Dir {;})
 impl (IDir Dir {;})
 
-# ── 和 IoMonad 搭台:文件这一层的"说明书"版本 ──
-# `Io` 自己那几条是**直接做**的(`f.Read ()` 那一刻就读了)。想"先拼好一串、之后再 `Perform ()`",
-# 用下面这几条 —— 它们只是把上面那些包成 `Action`,规则一模一样:拼的时候什么都不发生。
-#
-# 写在**这个文件**里而不是 iomonad.rav:那个模块由 predefined 加载,不认识 `IFile`
-# (参数注解在建 lambda 时就要值,那会儿 io.rav 可能还没被 `using` 进来)。
 readonly ReadAction := (f: IFile) => { IoMonad.Action (() => { f.Read (); }); }
 readonly WriteAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Write text; (); }); }
 readonly AppendAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Append text; (); }); }
 readonly WriteLineAction := (f: IFile text: string) => { IoMonad.Action (() => { f.Append (text + "
 "); (); }); }
 
-# 一份"把每一行交给 g"的说明书
 readonly EachLineAction := (f: IFile g: function) => {
     IoMonad.Action (() => { (Lines f).Foreach (l: string) => { g l; }; (); });
 }
 
-
-
-# ── 内存里的一份：`Io.MemFile` / `Io.MemDir` ──
-# 「内存里的」也是 `IEntry` 家族的一员(开头那段话里点了名)。它有真用途:`Io.CopyTo` 两头都能是它、
-# 拿它当"先拼好再落地"的暂存、往对着 `IFile` 写的代码里塞一份假的(测试最常用)。
-#
-# `MemFile` 的内容就是一个字符串(`Exists` 恒真、`Delete` 是清空 —— 它不在谁里面,"删掉"只能这么算);
-# `MemDir` 的孩子摆在一张 dict 里,`Add` 用条目自己的 `Name ()` 当键。
 readonly MemFile ::= class {
     Label: string = ""
     Text: string = ""
@@ -213,8 +155,6 @@ readonly MemDir ::= class {
 
     Add := (e: object) => { Kids.Set (e.Name ()) e; this; }
 
-    # 接口没规定顺序，但几个实现都按名字排 —— `Io.EachDir` 的输出才稳定
-    # (记住 `Sort ()` 是**交回一份新的**,不是排自己 —— 见上面 `Dir.List` 那段)
     List := () => {
         names := (Kids.Keys ()).Sort ()
         out := {->}
@@ -240,16 +180,6 @@ impl (IFile MemFile {;})
 impl (IEntry MemDir {;})
 impl (IDir MemDir {;})
 
-# ── 一棵 JSON 树也是一个文件系统 ──
-# 这条也是那道缝里的:`Json` 里的对象和"目录"是同一个形状(名字 → 子节点),数组就当"下标当名字"的目录。
-# 于是一棵配置树能被 `Io.EachDir` 走、被 `Io.CopyTo` 抄进文件、用 `Child` / `Read` / `Write` 一格一格挪。
-#
-# 模型就一句话:**每个节点是一个文件,内容是它的 JSON 文本** —— 所以 `Read ()` 给的是 JSON
-# (字符串也带引号),`Write (t)` 是把 `t` **当 JSON 解析**了换掉这棵子树。两边正好来回
-# (`Write (Read ())` 是原样)。想要原生值那是 `Extract ()` 的事,不是这一层。
-#
-# 改的是**那棵 Json 值本身**(窗口,不是副本)—— 攒好之后 `Io.CopyTo 树 (Io.File "conf.json")`
-# 就落盘了。
 readonly JsonNode ::= class {
     Label: string = ""
     Value: Json = Json ()
@@ -265,18 +195,14 @@ readonly JsonNode ::= class {
     Name := () => { Label; }
     Exists := () => { true; }
 
-    # 对象和数组都算"目录"(数组的名字是下标 `"0"` `"1"`)
     IsDir := () => { ((Value.Kind ()) == "object") || ((Value.Kind ()) == "array"); }
 
-    # 内容是它的 JSON 文本(紧凑)
     Read := () => { Value.Text (); }
     Size := () => { (Read ()).Length (); }
 
-    # 写回来:交上来的文本**当 JSON 解析**,替换这棵子树
     Write := (t: string) => { Replace (Json.FromString t); (); }
     Append := (t: string) => { throw (Exception ("JSON 的节点没有追写这回事：" + Label)); }
 
-    # 从父那棵树上摘掉自己(根没有父,摘不了)
     Delete := () => {
         ((typeof Parent) == JsonNode) {
             (Parent).Drop Label
@@ -284,13 +210,11 @@ readonly JsonNode ::= class {
         } { throw (Exception ("这是个根节点，没有爹可摘：" + Label)); }
     }
 
-    # 换掉自己的值 —— 有父就写回父那棵树,没有就换自己这份
     Replace := (v: Json) => {
         ((typeof Parent) == JsonNode) { (Parent).Put Label v; } { Value = v; }
         ();
     }
 
-    # 下面两条是给父节点用的(子节点通过它们改到那棵树上)
     Put := (name: string v: Json) => {
         ((Value.Kind ()) == "array") { Value.SetAt (int name) v; } { Value.Set name v; }
         ();
@@ -302,7 +226,6 @@ readonly JsonNode ::= class {
 
     Child := (name: string) => { Kid name; }
 
-    # 子节点(对象按 JSON 原顺序;数组按下标)
     List := () => {
         out := {->}
         ((Value.Kind ()) == "array") {
@@ -313,13 +236,11 @@ readonly JsonNode ::= class {
                 i += 1
             }
         } {
-            # 按名字排(和别的实现一个规矩);`Sort ()` 交回的是**新表**,别写成一句光秃秃的调用
             ((Value.Keys ()).Sort ()).Foreach (k: string) => { out.Set k (Kid k); }
         }
         out
     }
 
-    # 取一个孩子。不是目录、或者没有这个孩子,都当场报错 —— 和 `Json.Get` 一个脾气
     Kid := (name: string) => {
         (IsDir ()) {
             ((Value.Kind ()) == "array") { JsonNode name (Value.At (int name)) this; } { JsonNode name (Value.Get name) this; }
@@ -332,13 +253,9 @@ impl (IFile JsonNode {;})
 impl (IEntry JsonNode {;})
 impl (IDir JsonNode {;})
 
-# 一个文件、一棵 Json,合起来:`Io.JsonFile "conf.json"` —— 读进来就是一棵能当目录走的树
-# (落盘那头记得 `Io.CopyTo 树 (Io.File "conf.json")`,它不会自己盯着文件)
 readonly JsonFile := (p: object) => { JsonNode (BaseName (PathOf p)) (Json.FromString ((File (PathOf p)).Read ())) (); }
 readonly JsonOf := (v: Json) => { JsonNode "json" v (); }
 
-# ── ③ 路径函数与通用件 ──
-# `File` / `Dir` 两个类自己就是工厂：`Io.File "a.txt"` 直接构造。
 readonly Current := () => { System.CurrentDir (); }
 readonly ChDir := (p: string) => { System.ChDir p; (); }
 
@@ -347,24 +264,14 @@ readonly DirName := (p: string) => { System.PathDir p; }
 readonly BaseName := (p: string) => { System.PathBase p; }
 readonly Ext := (p: string) => { System.PathExt p; }
 
-# 下面是**对着接口**写的：任何实现都吃（磁盘的、内存的、以后加的）。
-# 按行切开 —— 是个**生成器**：边要边给，`.Foreach` 直接吃。
-#
-#     (Io.Lines (Io.File "a.txt")).Foreach (l: string) => { print l; }
-#
-# 惰性在**消费**那一头：`IFile` 只有 `Read () => string`（一口气读完），所以内容是一次读进来的，
-# 但"行"是逐条给的 —— 读到第 3 行就 `callcc` 收工，后面那些行不会进你的函数(见 tests/246)。
-# 要一次拿全就用 `System.SplitLines (f.Read ())`，或者磁盘实现上的 `f.Lines ()`（那是个 list）。
 readonly Lines := (f: IFile) => {
     Generator (y: function) => {
         (System.SplitLines (f.Read ())).Foreach (l: string) => { y l; }
     }
 }
 
-# 从一份倒进另一份
 readonly CopyTo := (from: IFile to: IFile) => { to.Write (from.Read ()); (); }
 
-# 递归走一遍目录（深度优先、名字序），每见到一个条目叫一次 `f (相对路径, 条目)`
 readonly EachDir := (d: IDir f: function) => {
     walk := (dir: IDir prefix: string) => {
         all := dir.List ()

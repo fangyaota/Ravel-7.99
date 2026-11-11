@@ -1,55 +1,12 @@
-# `Httpd` —— HTTP **服务端**。**要显式引用**:`using "httpd.rav"`。
-#
-#     srv := Httpd.Server 8080
-#     srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好" }
-#     srv.Static "/pub" "public"
-#     srv.Run ()
-#
-# 客户端在 `lib/http.rav`(`Http`),这一层是它的对面。原生那一半是
-# `Native.HttpListen / HttpAccept / HttpRead / HttpAnswer / HttpClose`(`Ravel.Extensions/ServerNative.cs`),
-# 这个文件补的是路由、响应对象、静态目录、keep-alive 这些**策略** —— 和 `Http` / `Regex` 一个分工。
-#
-# ## 它就是一个任务
-#
-# `Run ()` 内部就是 `Tasks.Cycle`:accept 循环是一个任务,**一条连接再一个任务**。所以慢的
-# handler 挡不住别的连接 —— 这正是 `lib/tasks.rav` 那套协作式调度白捡的。挂起点有三处:
-# 等新连接、读请求、回响应,外加 handler 里自己 `g.Await` 的那些。
-#
-# **一条绕不开的约束**:服务端和客户端跑在**同一条 OS 线程**上。所以**在同一个进程里
-# 用同步的 `Http.Get` 打自己起的服务器 = 死锁** —— 那一下把唯一那条线程占死了,服务端的
-# 任务永远轮不上。进程内自测一律用 `Http.GetTask`(照 `tests/298` 那个路子)。
-#
-# ## handler
-#
-# handler 收**两个**参数 —— `req`(这次请求)和 `g`(伺候它的那个调度组)—— 交回一个
-# `Response`(用下面那几个构造器造):
-#
-#     srv.Route "GET" "/hi" (req g) => { Httpd.Text "你好" }                     # 不用等
-#     srv.Route "GET" "/db" (req g) => { g.Await (…); Httpd.Text "好了" }        # 自己等
-#     srv.Route "GET" "/f"  (req g) => { Httpd.File g "public/a.txt" }           # 读盘不占线程
-#
-# `g` 和 `Tasks.Task (group) => …` 里那个是同一个东西:要等 IO 就用它。不等也照写
-# (参数得占位)。**返回类型只有一种**,所以签名说了实话 —— 交错了在调用点就看得见。
-#
-# handler 里出了错**不会把这台服务器带走**:`Serve` 那一头接着,回一个 500。
-#
-# ## keep-alive
-#
-# `HTTP/1.1` 默认一条连接收多个请求,空转 `Idle` 毫秒(默认 15 秒)没动静才收摊;客户端
-# 说 `Connection: close`、或者 HTTP/1.0 来的,回完就断。**请求正文只认 `Content-Length`**,
-# `Transfer-Encoding: chunked` 明确报错 —— 猜错就是悄悄把正文读歪,那比报错难查得多。
+
 ravel "Httpd"
 
 using "native.rav"
 using "tasks.rav"
 using "encoding.rav"
 
-# 一次请求的默认空转时间(毫秒)。keep-alive 的连接闲着超过它就让位 ——
-# 少了这条,一条不说话的连接会永远占着一个任务,而任务是有数的。
 readonly private DefaultIdle := 15000;
 
-# `a=1&b=%E4%B8%AD` → `{"a": "1" "b": "中"}`。没写 `=` 的按空串(键照样留)。
-# 解码用 `Encoding.UrlDecode`;`Slice` 是**包含式**的,所以右边那个端点要减一。
 readonly private ParseQuery := (q: string) => {
     out := {->}
     q == "" { out; } {
@@ -67,9 +24,6 @@ readonly private ParseQuery := (q: string) => {
     }
 }
 
-# 扩展名 → content-type。**这是策略,不归本机那半边**(那边只管把字节发出去)。
-# 表里没有的一律 `application/octet-stream` —— 猜错类型会让浏览器把文本当附件下载,
-# 不如老实说"我不知道这是什么"。
 readonly private MimeOf := (path: string) => {
     i := path.LastIndexOf "."
     i < 0 { "application/octet-stream"; } {
@@ -78,7 +32,6 @@ readonly private MimeOf := (path: string) => {
     }
 }
 
-# 造一次就留着 —— 每个静态文件都重建一张表太亏
 readonly private MimeCache := {->}
 readonly private MimeTable := () => {
     MimeCache.IsEmpty () {
@@ -110,14 +63,6 @@ readonly private PlainType := "text/plain; charset=utf-8"
 readonly private HtmlType := "text/html; charset=utf-8"
 readonly private JsonType := "application/json; charset=utf-8"
 
-# ── 响应 ──
-
-# 一个响应:`Status` / `Headers` / `Body`(字节表)。handler 交回的就是它。
-#
-# 造的时候用下面那几个构造器(`Httpd.Text` 那些),要改就 `With` / `Header` —— 两条都
-# **交回自己**,所以能用 `|>` 串起来:
-#
-#     Httpd.Text "没有" |> .With 404
 readonly Response ::= class {
     Status: int = 200
     Headers: dict = {->}
@@ -138,8 +83,6 @@ readonly Response ::= class {
         this;
     }
 
-    # 给 `Native.HttpAnswer` 的那一份。`conn` 由 `Serve` 补(那是每条连接自己的事),
-    # 响应本身不该知道自己在哪条连接上。
     Wire := (close: bool) => {
         {"status"-> Status "headers"-> Headers "body"-> Body "close"-> close};
     }
@@ -149,25 +92,18 @@ readonly Build := (status: int type: string body: list) => {
     Response status {"content-type"-> type} body;
 }
 
-# 文本。两种写法:`Httpd.Text "你好"`,或者带状态码的 `Httpd.Text 404 "没有"`
-# (靠第一个实参的**类型**分流 —— `int` 走带状态那条,`string` 走默认 200 那条)。
 readonly Text := ((s: string) => { Build 200 PlainType (Encoding.Utf8 s); }) | ((status: int s: string) => { Build status PlainType (Encoding.Utf8 s); })
 
 readonly Html := ((s: string) => { Build 200 HtmlType (Encoding.Utf8 s); }) | ((status: int s: string) => { Build status HtmlType (Encoding.Utf8 s); })
 
-# 一个 Ravel 值当 JSON 发出去(dict / list / 数字 / 字符串都行)。
-# 里面必须写 `System.Json` —— 外面那个 `Json` 正是这个函数自己,名字把它遮住了。
 readonly Json := (v: object) => {
     Build 200 JsonType (Encoding.Utf8 ((System.Json v).Text ()));
 }
 
-# 已经是 JSON 文本了(别拿它包一层字符串 —— 那样发出去的是个带引号的 JSON 字符串)
 readonly private JsonText := (s: string) => { Build 200 JsonType (Encoding.Utf8 s); }
 
 readonly Bytes := (type: string body: list) => { Build 200 type body; }
 
-# 直接造 `Response` 而不是走 `Build` —— `Build` 的第二个参数是**类型字符串**,
-# 而重定向要带的是一对具体的头(`location`),没有 content-type 可给。
 readonly Redirect := (to: string) => {
     Response 302 {"location"-> to "content-length"-> "0"} [];
 }
@@ -176,15 +112,11 @@ readonly NoContent := () => { Build 204 {->} []; }
 
 readonly NotFound := () => { Text 404 "404 没有这条路由"; }
 
-# 落盘的一个文件 —— 读盘那条走 `ReadBytesTask`,**不占线程**;文件不在就 404。
-# 查一次 `FileExists` 是值当的:不然"文件不在"会变成任务里的一个异常。
 readonly File := (g: Tasks.TaskGroup path: string) => {
     System.FileExists path {
         Build 200 (MimeOf path) (g.Await (Tasks.Of (System.ReadBytesTask path)));
     } { NotFound (); }
 }
-
-# ── 请求 ──
 
 readonly Request ::= class {
     Method: string = "GET"
@@ -210,7 +142,6 @@ readonly Request ::= class {
 
     Header := (name: string) => { Headers.GetOr (name.ToLower ()) ""; }
 
-    # 正文里的 charset(从 `content-type` 里抠;抠不出来就给 utf-8)
     Charset := () => {
         ct := Header "content-type"
         ct.Contains "charset=" {
@@ -223,11 +154,8 @@ readonly Request ::= class {
 
     Json := () => { System.Json.FromString (BodyText ()); }
 
-    # 查询串里的一个值(没有就给空串)。同名多个只给第一个。
     Param := (name: string) => { Query.GetOr name ""; }
 }
-
-# ── 服务器 ──
 
 readonly Server ::= class {
     Handle: int = 0
@@ -235,20 +163,12 @@ readonly Server ::= class {
     Routes: list = []
     Statics: list = []
     Idle: int = 0
-    # 收过几条连接 / 答过几个请求。**两个数不一样就说明 keep-alive 在干活**
-    # —— 一条连接收了 N 个请求时,连接数比请求数小。
+
     Conns: int = 0
     Requests: int = 0
-    # 此刻还连着的连接号 —— `Stop ()` 要照着它把它们一并断掉(见那儿)。
-    # 不留这张表的话,`Stop ()` 之后那些连接还停在"等下一个请求"上,而那一等是 `Idle`
-    # 毫秒(默认 15 秒)—— 于是**程序停下来了,却要再陪它们干等十几秒才退得出去**。
-    #
-    # 用**字典**不用 list:`list.Remove` 收的是**下标**(`RemoveAt` 的别名),
-    # 拿连接号当下标传会「参数越界」;字典的 `Remove` 才是"按那个键删"。
+
     Open: dict = {->}
 
-    # 两种起法:`Httpd.Server 8080`,或者一张配置
-    # `Httpd.Server {"port": 8443 "cert": "s.crt" "key": "s.key"}`(HTTPS 见 `Native.HttpListen`)。
     init = (port: int) => {
         info := Native.HttpListen {"port"-> port}
         Handle = info.Get "handle"
@@ -263,25 +183,18 @@ readonly Server ::= class {
         this;
     }
 
-    # 加一条路由。`method` 大小写无所谓(`"get"` 也认),`path` 要**整条相等**才命中
-    # (`"/hi"` 不匹配 `"/hi/x"`)。
     Route := (method: string path: string handler: function) => {
         Routes.Add {"method"-> (method.ToUpper ()) "path"-> path "handler"-> handler}
         this;
     }
 
-    # 把磁盘上一个目录挂在 `prefix` 底下:`srv.Static "/pub" "public"` 之后,
-    # `/pub/a.css` 给的是 `public/a.css`。命中不了就交给 `NotFound`。
     Static := (prefix: string dir: string) => {
         Statics.Add {"prefix"-> prefix "dir"-> dir}
         this;
     }
 
-    # 空转多久让位(毫秒)。0 = 一次也不超时 —— 那样一条不说话的连接会永远占着任务。
     IdleFor := (ms: int) => { Idle = ms; this; }
 
-    # 跑起来:**阻塞到 `Stop ()`**。就是下面 `RunIn` 包一圈 `Tasks.Cycle` —— 给
-    # "这台服务器就是整个程序"那种用。
     Run := () => {
         me := this
         Tasks.Cycle [
@@ -290,21 +203,12 @@ readonly Server ::= class {
         ()
     }
 
-    # 把 accept 循环挂进**你那个**组 —— 进程内自测只能走这条:自己起一个 `Tasks.Cycle`,
-    # 服务器一个任务、客户端另一个任务,**两个得在同一个组里**。
-    #
-    # 别在任务里调 `Run ()`:`Run` 自己又开一个 `Cycle`,那个内层调度器会把线程占住,
-    # 外层那些任务(比如你那个客户端)就再也轮不上了 —— 死锁。
-    # accept 循环。**退出条件就是 `HttpAccept` 交回了个空 dict** —— 不去问某个"我说停了"的
-    # 标志:标志只反映"我主动喊过"那一半,监听器要是因为别的原因没了(比如谁直接
-    # `Native.HttpClose` 了那个号),标志还是 false,这个循环就会一圈圈空转。
     RunIn := (g: Tasks.TaskGroup) => {
         me := this
         running := true
         while { running; } {
             a := g.Await (Tasks.Of (Native.HttpAccept Handle))
-            # 退出条件就是**它交回了什么**,不是某个"我喊过停"的标志 —— 监听器因为什么
-            # 原因关掉都收得了摊(标志只反映"我主动喊过"那一半)。
+
             a.IsEmpty () { running = false; } {
                 g.Add (Tasks.Task (gg: Tasks.TaskGroup) => { me.ServeConn gg a; })
             }
@@ -312,23 +216,13 @@ readonly Server ::= class {
         ()
     }
 
-    # 从别的任务里喊停(比如一个 `/shutdown` 路由)。
-    #
-    # 做的事两件:**关监听器**(accept 那条路于是交回空 dict,循环收摊)+ **断掉还连着的
-    # 那些**。后者不能省:它们正停在"等下一个请求"上,而那一等是 `Idle` 毫秒 ——
-    # 不主动断,`Stop ()` 就只是"不再接新的",而程序要再陪它们干等十几秒才退得出去。
-    #
-    # 所以 `Stop ()` 是**立刻**的:正在写响应的那条会写断在半路。想让人家跑完就别喊停。
-    # 幂等:已经关了再喊一次也不出错(`HttpClose` 本来就是幂等的)。
     Stop := () => {
-        # 照着**当下这份键表的副本**走 —— 每断一条,伺候它的那个任务会醒过来把它自己
-        # 从 `Open` 里划掉,直接遍历原表就成了边遍历边改。
+
         (Open.Keys ()).Foreach (c: int) => { Native.HttpClose c; }
         Native.HttpClose Handle;
         ()
     }
 
-    # 一条连接。keep-alive 时里面的 `while` 会转好几圈,每圈一个请求。
     ServeConn := (g: Tasks.TaskGroup conn: dict) => {
         me := this
         c := conn.Get "conn"
@@ -339,11 +233,9 @@ readonly Server ::= class {
         while { open; } {
             r := g.Await (Tasks.Of (Native.HttpRead c Idle))
             r.IsEmpty () { open = false; } {
-                # 读到一个请求就数一个 —— **计数挂在这儿而不是 `Dispatch`**:超限那条路
-                # 不走 dispatch,可那个 413 也是答过的
+
                 Requests += 1
-                # 正文超过本机那一层设的顶:**它一个字都没读**,所以我们回 413 就断,
-                # 不能再说"接着来下一个请求"(后半个正文还在路上,读下去就是那条老路)。
+
                 (r.Has "oversize") {
                     me.Reply g c (Text 413 (r.Get "why")) true
                     open = false
@@ -356,26 +248,17 @@ readonly Server ::= class {
             }
         }
         Native.HttpClose c;
-        # 键可能已经没了(`Stop ()` 断过一轮,或者这条本来就是关过的)—— 删一个不存在的键
-        # 会报错,所以问一句再删
+
         Open.Has c { Open.Remove c; } { 0; }
         ()
     }
 
-    # 把一个响应写回去。`Wire` 那一份还差个 `conn` —— 那是**每条连接自己的事**,
-    # 响应对象不该知道自己在哪条连接上,所以在这儿补。
     Reply := (g: Tasks.TaskGroup conn: int resp: Response close: bool) => {
         w := resp.Wire close
         w.Set "conn" conn
         g.Await (Tasks.Of (Native.HttpAnswer w))
     }
 
-    # 挑一条路由、把它跑出来。**handler 里出了错不把这台服务器带走** —— 接住,回 500,
-    # 连接照常收摊(一个 handler 写错不该让整台服务停摆)。
-    #
-    # handler 拿得到 `g`,所以**等 IO 就在它自己身上发生** —— 错是同步冒出来的,落在
-    # 这个 try 里面。从前"handler 交回任务"那条路是等到外头才跑的,它的失败会把连接
-    # 任务整个带走(对面什么都收不到,干等到超时);现在没有那条路了。
     Answer := (g: Tasks.TaskGroup req: Request) => {
         me := this
         try { me.Dispatch g req; } (e: Exception) => {
@@ -394,7 +277,6 @@ readonly Server ::= class {
         !(hit.IsEmpty ()) { (hit.At 0) req g; } { me.DispatchStatic g req; }
     }
 
-    # 路由那一格写 `"*"` 就是"什么都收" —— `Serve` 那条糖靠它当万能路由。
     Matches := (pattern: string got: string) => { (pattern == "*") || (pattern == got); }
 
     DispatchStatic := (g: Tasks.TaskGroup req: Request) => {
@@ -407,25 +289,18 @@ readonly Server ::= class {
         hit.IsEmpty () { NotFound (); } { me.SendFile g req (hit.At 0); }
     }
 
-    # 拼出磁盘上那个路径。**`..` 和反斜杠一律不认** —— 不挡的话 `/pub/../../secret`
-    # 就把整个盘读出去了,那是一台服务器最经典的那个洞。
     SendFile := (g: Tasks.TaskGroup req: Request s: dict) => {
         prefix := s.Get "prefix"
         dir := s.Get "dir"
         full := req.Path
         rest := full.Slice [(prefix.Length ())..(full.Length ()))
-        # 前缀写 `/`(把整个目录挂上去)时,剩下那段**不带**打头的斜杠 —— 得自己剥掉再拼,
-        # 不然 `dir + rest` 会拼成 `siteindex.html`。前缀带名字(`/pub`)时反倒带着,所以
-        # 统一剥一次、统一补一次分隔符,两种写法才走到同一个地方。
+
         rel := rest.StartsWith "/" { rest.Slice [1..(rest.Length ())); } { rest; }
-        # 两个块**必须写在同一行**(`} {`):换行分开了的话,第二个块会变成一句跟 `if`
-        # 无关的空转 —— 于是"挡穿越"那条根本不执行(`if` 缺一块不报错,见教程十一章)。
+
         (rel.Contains "..") || (rel.Contains "\\") { NotFound (); } { File g (dir + "/" + rel); }
     }
 }
 
-# 一圈包住:起一台只有一个"万能路由"的服务器,跑起来。适合"我就想回几行"那种。
-# 路由多就用 `Server` —— 这个每次请求都要自己 `if` 一遍。
 readonly Serve := (port: int handler: function) => {
     srv := Server port
     srv.Route "*" "*" handler

@@ -1,33 +1,7 @@
-﻿# 「我当键时等于什么」+ 以任意值为键的表。由 predefined.rav 加载,所以 `IKey` 是全局名、
-# `Keys` 模块直接可用。
-#
-# `Key` 这条协议**每个值都有** —— 引擎在 `Object` 上放了一条(内建那把尺子:数、字符串交回
-# **它自己**,别的类型当场报错),所以 `5.Key ()` / `"a".Key ()` 拿起来就能用。它交回的东西
-# 叫**规范键**:表里真正用的就是它(相等的两个值 → 同一个格子,`1` 与 `"1"` 是两个格子)。
-#
-# 自己写的类型嫌那把尺子不够(两个内容一样的对象在它眼里是两条),就在类里写一条 `Key` ——
-# 它盖掉 `Object` 那条,和 `ToString` / `CompareTo` 一个规矩:
-#
-#     Rec ::= class { X: int = 0
-#         Key := () => { X; }      # 我当键时 = 我的 X(一个 int,值类型)
-#     }
-#     impl (IKey Rec { () })
-#
-# 于是"Key 相同的两个对象"查到同一条 —— 这就是**值语义当键**。
-#
-# **`d.Get` / `d.Set` 这些是库里注入上来的**(见下面的 `IDict`):它们先把键规范成值类型,
-# 再转到引擎那套 `SysGet` / `SysSet` / … 上。分层的原因不在设计口味,而在**够不着**:
-# 引擎那份是同步的 C#,而 `Key ()` 是 Ravel 函数(调它要推帧);更要紧的是查表那一步发生在
-# .NET 的 `Dictionary` 内部,那儿插不进帧。所以"规范化"只能发生在 Ravel 里、进表之前。
-
-readonly IKey ::= interface {
-    by Key : function = _       # () => 值类型(数 / 字符串)
+﻿readonly IKey ::= interface {
+    by Key : function = _
 }
 
-# 内建那几个**值类型**也登记一遍(空实现体:槽不用现装,它们本来就有 `Object` 那条)。
-# `Bool` / `Void` / `Range` 没有这一条 —— 它们的键就是自己,走 `Of` 里那道兜底。
-# (`IValue` 那份名单在引擎侧,见 `BuiltinClasses.SealBuiltins`;这份是 `Key ()` 那条协议,
-#  两码事,别混。)
 impl (IKey int {;})
 impl (IKey real {;})
 impl (IKey bigint {;})
@@ -36,12 +10,6 @@ impl (IKey bigfraction {;})
 impl (IKey char {;})
 impl (IKey string {;})
 
-
-# 「像字典那样按值找」。字典那五个吃键的操作(`Get` / `Set` / `Has` / `Remove` / `GetOr`)
-# **就是挂在它下面的** —— 见下面那条 `impl`。
-#
-# 注意**不往里加** `Keys` / `Values` / `Count` / `Clear`:那些不吃键、名字也还在类链上,
-# 而按 `TraitSlot` 的规矩,类链上有名字时接口槽是**够不着且静默**的 —— 加了也只是死槽。
 readonly IDict ::= interface {
     internal Get : function = _
     internal Set : function = _
@@ -50,18 +18,8 @@ readonly IDict ::= interface {
     internal GetOr : function = _
 }
 
-
 ravel "Keys"
 
-# 一个值当键时的**规范键**:`k.Key ()` 是引擎/用户那条协议,这里再确认一道。
-# 写成一进一出的 if 而不是 `assert … ("…" + string (typeof c))` —— 那句报错串是**实参**,
-# 用 assert 的话每次调用都要拼一遍(而这是 `d.Get` / `d.Set` 的必经之路)。
-#
-# 判据和引擎那头的 `KeyArg` **一条**(`Runtime/BuiltinClasses.Methods.cs`):能当键的是
-# **按值比**的那些 —— `IValue` 那一支(数 / 串 / 字符 / 区间),外加 `Bool` / `Void`。
-# 后两个按值比、当键一样稳,只是**没挂**在 `IValue` 下(`true` / `false` 可调用,
-# 按 lisp 那套挂在 `Function` 下;`()` 挂在 `Object` 下),所以这儿得点名。
-# 两边要一起改 —— 引擎那道先拦,改漏了这边会报得晚一步、话还不一样。
 readonly Of := (k: object) => {
     c := k.Key ()
     c : IValue { c; } {
@@ -69,17 +27,6 @@ readonly Of := (k: object) => {
     }
 }
 
-# 把"吃键的那五个"**注入**给 `dict`:引擎那份现在叫 `SysGet` / `SysSet` / …
-# (`Runtime/BuiltinClasses/Methods.cs`),名字腾出来了,接口槽才轮得到 ——
-# 类链上还占着这个名字的话,槽是够不着且**静默**的。
-#
-# 形状照 `lib/iterator.rav` 那几条 `impl (IEnumerable …)`:这几条是 `internal` 普通成员,
-# 体里读 `instance` = "这一次的接收者"(函数成员交出去之前会绑一次,见 `BindPlain`)。
-# `Set` / `GetOr` 是柯里化的,所以返回"收一个、再收一个"的函数
-# (`d.Set k v` 在求值器里就是 `((d.Set k) v)`)。
-#
-# 用 `impl` 而不是 `use`:实现要登记到**全局**,而 `use` 只登记进当前作用域
-# (这里是 `Keys` 模块),`TraitSlot` 从调用点往上走根本走不到。
 impl (IDict dict {
     Get = (k: object) => { instance.SysGet (Of k); }
     Set = (k: object) => {
@@ -92,19 +39,13 @@ impl (IDict dict {
     }
 })
 
-# **作用域也是一张表**:名字 → 变量。`Variables ()` 一直就在(交回一个 dict),
-# 登记这一条是让 `s is IDict` / 注解 `(d: IDict)` 把作用域和别的表一视同仁 ——
-# 于是 `Keys.Sorted s`、`Keys.Merged [s1 s2]` 那些直接能用。
-#
-# 键**只能是字符串**(作用域里的名字就是字符串);走 `Of` 过一道,别的东西当键会在那儿报错。
-# 写名字用 `Define`(它要一个类型):名字在就改值,**不在**就按这次写进来的值的类型新开一格。
 impl (IDict System.Scope {
     Get = (k: object) => { ((instance.Lookup (Of k)).Get ()); }
     Set = (k: object) => {
         (v: object) => {
             n := Of k
             inThere := try { (instance.Lookup n); true; } (e: Exception) => { false; }
-            # `Define n` 本来就交回"还等着一个类型"的那个函数 —— 再喂 `typeof v` 就落下了
+
             inThere { 0; } { instance.Define n (typeof v); }
             ((instance.Lookup n).Set v)
             ()
@@ -119,15 +60,9 @@ impl (IDict System.Scope {
     }
 })
 
-# 以**任意值**为键的表:规范键和原键都记着,所以 `Keys ()` 交回的是你原来放进去的那些对象
-# —— 普通 dict 是拿不回来的(表里存的只有规范键)。它自己那套同名方法就是"值语义"的,
-# 登记一条 `IDict` 只是让 `x is IDict` / 注解 `(d: IDict)` 把两种表一视同仁。
-#
-# (定义在模块里、再在文件末尾绑给全局:它有个方法也叫 `Keys`,写在全局就得小心
-#  "类成员盖住同名模块"那个坑 —— 放在模块里,`Of` 就是兄弟,名字爱怎么叫怎么叫。)
 readonly Keyed ::= class {
-    Index: dict = {->}          # 规范键 → 原键
-    Data: dict = {->}           # 规范键 → 值
+    Index: dict = {->}
+    Data: dict = {->}
 
     Set := (k: object v: object) => {
         c := Of k
@@ -143,7 +78,7 @@ readonly Keyed ::= class {
         Index.Remove c
         Data.Remove c
     }
-    Keys := () => { Index.Values (); }      # 原对象回来了
+    Keys := () => { Index.Values (); }
     Values := () => { Data.Values (); }
     Count := () => { Data.Count (); }
     Clear := () => {
@@ -152,11 +87,8 @@ readonly Keyed ::= class {
     }
 }
 
-# 登记(实现体是空的:它自己那五条方法就是形状本身 —— 类链先说话,槽不用现装)
 impl (IDict Keyed {;})
-
 
 ravel ""
 
-# 全局名(和 predefined.rav 里 `readonly try := Ex.Try` 一个路子)
 readonly Keyed := Keys.Keyed

@@ -1,13 +1,3 @@
-# 启动时第一个加载的文件(见 Interpreter.LoadPredefined):别名 + 控制流 + 把标准库几个子模块拉进来。
-#
-# 别名必须排在最前面 —— 后面的东西(包括子模块)都用它们。
-# 子模块用 `using` 拉进来,名字都落在**全局作用域**上(和从前写在同一个文件里一样),
-# 所以用户看得见的名字一个没变;`ravel "Ex"` 那种模块也照旧。
-
-# ── 别名 ──
-# 都标 readonly:这些是**语言级名字**(`int` / `print` / `true` / …),被顺手覆盖掉
-# 整门语言就变了样。`=` 赋值会报「无法给只读变量赋值」;
-# 真要换掉得用 `:=` 重新定义(那条路和普通变量一致,见教程的 readonly 一节)。
 readonly int := System.Integer
 readonly string := System.String
 readonly bool := System.Bool
@@ -15,27 +5,24 @@ readonly real := System.Real
 readonly bigint := System.BigInteger
 readonly fraction := System.Fraction
 readonly bigfraction := System.BigFraction
-readonly Range := System.Range   # 区间值([1..3] / (3..5) …);语法不靠这个名字,库和用户才要
+readonly Range := System.Range
 readonly char := System.Char
 readonly list := System.List
 readonly set := System.Set
 readonly dict := System.Dict
 readonly object := System.Object
-readonly Ravel := System.Ravel   # 模块的类对象(`Math is Ravel`)—— 所有模块共用一个
-readonly class := System.Type  # 别名:没有单独的 Class 类型
-readonly interface := System.Interface  # 接口 —— 继承于 type,造出来的也是类对象
-readonly IValue := System.IValue  # "这个类型是个值"那个接口(内置;**名单在引擎侧**,见 BuiltinClasses.SealBuiltins)
+readonly Ravel := System.Ravel
+readonly class := System.Type
+readonly interface := System.Interface
+readonly IValue := System.IValue
 readonly function := System.Function
-readonly Continuation := System.Continuation   # callcc 交出来的续延(是个函数的子类型)
+readonly Continuation := System.Continuation
 readonly type := System.Type
 readonly void := System.Void
 readonly Exception := System.Exception
-# `default T` —— 问一个类型要它的零值(`default int` 是 0、`default string` 是 "")。
-# 只有"有零值"的类型配得上:用户类 / `object` 没有,会报「类型 X 没有默认值」。
-# 定义处的 `_` 就是它:`x : int = _` 脱糖成 `x : int = default int`。
+
 readonly default := System.Default
-# 错误那一族(引擎报错时挑的就是它们,见 Runtime/BuiltinClasses.Errors.cs):
-# 都挂在 Exception 下面,所以老的 `(e: Exception)` 一个都没坏,新的能按类型接。
+
 readonly TypeError := System.TypeError
 readonly NameError := System.NameError
 readonly AttributeError := System.AttributeError
@@ -48,12 +35,9 @@ readonly ArgumentError := System.ArgumentError
 readonly ValueError := System.ValueError
 readonly IoError := System.IoError
 readonly RegexError := System.RegexError
-readonly BaseInterface := System.BaseInterface   # 所有接口的基类(`interface { … }` 的 parent)
-readonly Json := System.Json          # JSON 值(包住一棵树,Extract () 才转原生)
+readonly BaseInterface := System.BaseInterface
+readonly Json := System.Json
 
-# 用户自定义的模块搜索目录。**位置是有讲究的**:它写在别名之后 ——
-# 注解里的名字就是作用域里的变量,而 `list` 要到上面几行才定义。
-# (从前它在第一行,于是注解解析不得不内置一张 15 条的类型表来兜底;见 ResolveType。)
 ReferencesPath: list = []
 
 readonly print := System.WriteLine
@@ -62,86 +46,46 @@ readonly false := System.False
 readonly NaN := System.NaN
 readonly Inf := System.Inf
 readonly typeof := System.TypeOf
-readonly cmd := System.Cmd        # 跑外部命令(走系统 shell),交回 {out err code}
+readonly cmd := System.Cmd
 readonly assert := System.Assert
 readonly eval := System.Eval
 readonly with := System.With
 readonly ravel := System.RavelMod
 readonly using := System.Using
-readonly use := System.Use  # 在**当前作用域**里启用一个接口实现(出去就没了)
-readonly impl := System.Impl  # 启用一个接口实现,**全局**(登记在全局作用域,处处生效)
+readonly use := System.Use
+readonly impl := System.Impl
 readonly exit := System.Exit
 readonly input := System.ReadLine
 readonly unsafe := System.Unsafe
-readonly seal := System.Seal  # 密封一个类(或接口):不能再被继承 / 不能再被实现
+readonly seal := System.Seal
 readonly currentScope := System.CurrentScope
 readonly property := System.Property
-# ── 控制流:用 Ravel 写,不占控制帧 ──
-# 条件当值用:**`true` / `false` 自己收两个块** —— `cond { A } { B }` 交出选中那个块的结果。
-#
-# `if` 那个三参库函数 2026-10-07 **删了**。它多两跳:自己一次调用,再加一次调条件 thunk
-# (`c ()`)—— 量过 111 步/次 vs 直接写的 75 步/次,贵 48%。条件本来就该是个算好的 bool,
-# 不该包在 thunk 里。块挂到哪条表达式上由解析器管:`x > 0 { A } { B }` 里那个 `{ A }`
-# 绑的是整条 `x > 0`(见 `ParseBlockArgs`)。
 
-# callcc 写成独立语句:续延被调用时只是「这条语句完成」,不会重跑它,
-# 所以 again 始终是那个续延;again 0 丢弃当前帧链跳回 callcc 之后 → 帧链不随迭代增长。
-# (写成 again := callcc (k) => { k; } 的话,恢复时会重跑赋值、again 被覆盖成 0,循环建立不起来)
 readonly while := (c: function body: function) => {
     again := (x: int) => { x; }
     callcc (k: function) => { again = k; }
-    # 条件必须写在恢复点(callcc 那条语句)之后,否则 again 0 跳回来时不会重求,变成只判一次。
-    # (它每次迭代都会在同一层作用域里**重跑**一遍 —— 那是**同一条定义语句**,所以不撞
-    #  "`:=` 是定义不是覆盖"那一条;见 `Scope.Define` 里拿 `Site` 分辨的那种情形。)
+
     cond : bool = c ()
     cond { body (); again 0; } { 0; }
 }
-# ── 标准库:各自一个文件 ──
-# (`values.rav` 没了 —— `IValue` 的"谁按值比"那份名单收进引擎了:
-#  它封了、用户 `impl` 不进来,内置那 10 个在 `BuiltinClasses.SealBuiltins` 里直接标。
-#  从前那个文件只有那 10 条 `impl`,搬走之后就没内容了。)
+
 using "numbers.rav"
-# monad 排在 iterator **前面**:`IEnumerable ::= interface IMonad { … }`(序列这一族也是 monad)
-# 要在接口那一句上读到 IMonad,而它自己谁也不依赖。
+
 using "monad.rav"
 using "iterator.rav"
 using "cached.rav"
-using "generator.rav"   # `Generator f` —— 把"往外送值"的那段变成 IEnumerable
+using "generator.rav"
 using "sorting.rav"
-using "time.rav"      # `Time` / `Now` / `TimeFrom` —— 毫秒 + IComparable 那一套
+using "time.rav"
 using "keys.rav"
-using "seqs.rav"      # `Seqs` 模块:摊平 / 切块 / 拉链 / 分组 / 计数
+using "seqs.rav"
 using "exceptions.rav"
-using "expected.rav"   # `Expected` / `Expect`(Option 的兄弟:失败那半是报错)
+using "expected.rav"
 
-# ── `callcc`：库函数 ──
-#
-# 它在把续延交给用户之前先拍两份**控制状态**的快照:
-#   ① 自己的 handler 栈(`Ex.HandlerStack` —— 它是这个库的状态,就在 Ravel 里那个 list 上);
-#   ② 引擎的**模块加载状态**(哪个模块正在加载)—— 那是**引擎的家事**,所以由**引擎**
-#      在 `System.CallCC` 捕获时拍下来、续延被调时自己盖回去(`ContinuationVal.Loading`)。
-#      这一格**不在这儿**了:从前每次调用续延都得从这儿喊一遍 `System.RestoreLoading`,
-#      一次内置调用 ≈ 0.65 µs —— 循环里就是每轮,占一轮 `while` 的 11%。
-# 用户拿到的续延被调用时,先把这两份还原、再跳。于是:
-#   * 用外层续延从 `try` 体里逃出去,那个 handler 跟着走掉,不会留下僵尸 handler
-#     (僵尸会接住后面**没人接**的错误,而它的续延停在早被丢弃的链上);
-#   * 从模块体里逃出去,这次加载算没发生,之后还能正常 `using` 那个模块。
-# 这两件事从前靠帧的正常收尾来做,而续延一调就把帧链整个丢掉了。
-#
-# 还原这**一句**(`Ex.HandlerStack = hs`)是整表替换,不经过 `while` / `.Foreach` / `try`
-# 这类东西 —— 它们自己都要经过续延,夹在还原中间会互相踩(实测死循环)。改这一段时留意。
-#
-# 它写在子模块**之后**:要用 `Ex.HandlerStack`,而 `Ex` 在 exceptions.rav 里。
 readonly callcc := (f: function) => {
     System.CallCC (k: function) => {
-        # ① **不用 `Copy ()`** —— `HandlerStack` 立了"只整表替换"的规矩(见 exceptions.rav),
-        # 所以此刻这一枚 list 往后不会再变,本身就是一张安全的快照。
-        # (从前两边各 `Copy ()` 一次;还原那次是**每次调用续延**都跑的 —— 循环里就是每轮,
-        #  实测占一轮 `while` 的 10%。)
         hs := Ex.HandlerStack
-        # 交给用户的那枚用 `Continuation` 包一下 —— 类型上它就是**续延**(typeof 给
-        # `Continuation`,能注解成 `Continuation` 的字段),而不是一个说不清的 lambda。
-        # 调的走法没变:先进这枚 lambda(还原控制状态),再 `k x` 跳回捕获点。
+
         f (Continuation ((x: object) => {
             Ex.HandlerStack = hs
             k x
@@ -149,73 +93,32 @@ readonly callcc := (f: function) => {
     }
 }
 
-# `Ex` 那套 API 的小写别名(和 `print` / `using` 那批一个待遇:语言级名字,标 readonly)。
-# 只能放在这儿 —— 上面那段 `ravel "Ex"` 得先把模块建出来,`ravel ""` 得先把作用域换回全局。
 readonly try := Ex.Try
 readonly throw := Ex.Throw
 
-# **拒收**:和 `throw` 一样是"把这一件事停下",区别只在**谁接** ——
-# `throw` 交给 `try`(错误钩子那一路),`reject` 交给最近的那个 `|` 分支。
-# 不用 `|` 时它就是个普通 throw;用了 `|`,`|` 会在这次调用的作用域里把 `reject`
-# 换成"跳到下一支"的那个(见下面 `|` 的实现)。
 readonly reject := (e) => {
     throw (e);
 }
-
-
-# ── 空值那三条:`.?` / `??` / `??=` 的落点 ──
-#
-# 词法和语法在引擎那层(`TokenType.QuestionDot` / `Coalesce` / `CoalesceEqual`,
-# 解析期就地折成对下面这四条的调用),**"空"是什么意思、Option 要不要包回去**在这儿 ——
-# 和 `if` / `while` / `.Foreach` 一个路子:控制流用 Ravel 写,引擎不掺和。
-#
-# 「空」**只有 `None` 一样**。`()` 不是空 —— 它是 Void 类型那个**值**,和 `0` / `""` 平起平坐;
-# `Some ()` 更不是空(有个值,值是 `()`)。要"没设过"就明写 `None`:
-#
-#     Cache: Option = None
-#     Cache ??= Some (算一次 ())
 
 readonly IsNothing := (v: object) => {
     (v : Option) && (v.IsNone ())
 }
 
-# `a?.b c` → `NilChain (() => { a; }) (v) => { v.b c; }`
-#
-# 空(`None`)**原样**短路;`Some x` 拿着里面的值走完整条链,再**包回去** ——
-# 所以 `u?.Name ()` 还是 Option,一路 `?.` 下去形状不变,最后用 `??` 收口。
-# 别的值(普通对象、`()`、数、字符串)照常取成员,不包 —— 在 `()` 上取成员照旧是
-# 「类型 Void 没有方法 x」,不会被悄悄吞掉。
 readonly NilChain := (get: function step: function) => {
     v := get ()
     (IsNothing v) { v; } { v : Option { Some (step (v.Value ())); } { step v; } }
 }
 
-# `a ?? b` → `NilOr (() => { a; }) (() => { b; })` —— 惰性:右边要用才跑
-#
-# 空就给后备,否则把值交出来(`Some x` 交 `x`,普通值交自己 —— `()` 也照交,它不是空)。
 readonly NilOr := (get: function fallback: function) => {
     v := get ()
     (IsNothing v) { fallback (); } { v : Option { v.Value (); } { v; } }
 }
 
-# `x ??= v` → `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`
-#
-# **空才写**:不空就一个字符都不碰(连 setter 都不调),原值原样交回。
-# 只认 `None` —— `x: object = ()` 那种"打底用 ()"的字段**不会**被它当成没设过。
 readonly NilFill := (get: function set: function fallback: function) => {
     v := get ()
     (IsNothing v) { set (fallback ()); } { v; }
 }
 
-# ── `|`：两个函数二选一（用 Ravel 写）──
-#
-# `f | g` 交给一个函数:先拿 `f` 收这一枚实参;`f` 里拒收(`reject`)就**跳到** `g`,
-# 用同一枚实参再来一次。换支靠**换名字**:这次调用的作用域里 `reject` 被换成了
-# "跳回 `|` 之外、带着 `g` 的结果出来"的那个闭包 —— 所以 `f` 体里(以及它调到的
-# 任何东西里)写的 `reject` 都算"这一支不收"。
-#
-# 分支表不是数据、也不折平:`f | g | h` 是 `(f | g) | h` —— 左边先选出结果,
-# 结果不收再由外层的 `|` 交给 `h`。实参与副作用不回收(和函数调用一样)。
 IFunctionAlt ::= interface {
     by | := default function
 }
@@ -227,9 +130,8 @@ impl (IFunctionAlt function {
                 callcc (h) => {
                     instance.Prepend ((sc) => {
                         sc.Define "reject" ((v) => {
-                            sc.Remove "reject"        # 用过就摘掉:本层不再接
-                            # 下一支换上**外面那层**的 reject —— 它拒收时就继续往外走,
-                            # 所以 `(f|g)|h` 里 g 不收会落到外层、由外层去试 h
+                            sc.Remove "reject"
+
                             h ((g.Prepend ((sc2) => { sc2.Define "reject" reject; })) x)
                         })
                     }) x

@@ -1,33 +1,11 @@
-# 异常:`Ex` 模块(HandlerStack / Throw / Try)+ **错误钩子**(引擎报错时叫的就是它)+ 小写别名 `try` / `throw`。
-#
-# 引擎不认识 `HandlerStack`(那是这里的状态):它只在错误冒泡时调用注册的钩子,由这个模块决定
-# 有没有人接、没人接怎么办(见下面 `onError`)。
-# 由 predefined.rav 加载(名字落在全局作用域)。
-
-# 从前这是单独的 lib/try.rav,由文件末尾一句 `using "try.rav"` 拉进来 —— 那意味着**每个**
-# 想用 `Ex.Try` 的文件都得先写一句 `using "try.rav"`,而它其实是人人都有的一份(启动时就加载了)。
-# 并进来:少了 37 处样板,也少了一个文件。`ravel "Ex"` / `ravel ""` 是"这段落进 Ex 模块 / 回全局"
-# (见教程的模块一节;末尾那句不能省,不然这之后的定义会落进 Ex)。
 ravel "Ex"
 
-# **这个栈只许整表替换,不许就地改**(`Insert` / `Remove` / `Set` 一律不准)。
-#
-# 为什么:`callcc` 捕获时**直接把这一枚 list 记下来**(不再 `Copy ()`) —— 于是"那一刻的表"
-# 就是往后要继续用的快照。就地改会把快照一起改掉;整表替换则是"老表留着、新表换上去",
-# 快照天然安全,多发射也天然安全。见 predefined.rav 里 `callcc` 那段。
-#
-# 代价是压/弹各多分配一个表(原来就地改)—— 那是**每次 try / 每次 throw** 一次,
-# 而还原是**每次调用续延**一次(循环里就是每轮),这笔账划得来。
 HandlerStack: list = []
 
-# throw / try 标 readonly(HandlerStack 是**状态**,故意留可写):
-# 它们是这个模块的 API,被覆盖掉异常处理就整个变了样。
 readonly Throw := (e: Exception) => {
     (HandlerStack.Count ()) == 0 {
         exit (e.ToString ())
     } {
-        # 弹掉栈顶**再**拿它调 e —— 顺序和从前那条 `HandlerStack.Remove 0 e` 一个样
-        # (那条就是"摘下来的那枚"被后面的 `e` 接着调)。只整表替换,见上面。
         top := HandlerStack.At 0
         HandlerStack = HandlerStack.Skip 1
         top e
@@ -41,14 +19,9 @@ readonly Try := (body: function) => {
                 ok (handler e)
             }
             HandlerStack = [mine].Concat HandlerStack
-            # 体照跑。`try` **不是**拒收的边界:拒收只是一个名字,谁在词法链上离得近归谁;
-            # `try` 接的是**错误**(`throw` / 引擎报错)。
+
             r := body ()
-            # **正常收尾要把自己的 handler 摘掉。** 不摘的话它会一直挂在栈上:后面**没人接**的错误
-            # 会被它接住,而它的续延停在上面那次 callcc —— 于是程序从「Try 之后」重跑一遍,
-            # 报错位置也指到那儿去,原来的错反而看不见了。
-            # (出错那条路由求值器先摘过一次,这里只管正常收尾;摘之前对一下身份,
-            #  免得摘掉别人新压上来的那个。)
+
             (HandlerStack.Count ()) == 0 { 0; } {
                 (HandlerStack.At 0) == mine { HandlerStack = HandlerStack.Skip 1; } { 0; }
             }
@@ -60,17 +33,8 @@ readonly Try := (body: function) => {
 
 ravel ""
 
-# ── 错误交给谁：库注册一个钩子 ──
-#
-# 引擎冒泡上来一个错误时只做一件事:把下面这个函数调起来。它**不认识** `HandlerStack`
-# (那是这个库的状态,就在 Ravel 里那个 list 上),由这里决定有没有人接、没人接怎么办:
-#   * 有人接:弹掉栈顶那个 handler 再调它(`try` 的 handler 会 escape 回它那个 callcc);
-#   * 没人接:交回引擎去报告(`System.Unhandled`)—— 引擎**原样**抛出原来那个错误,
-#     位置和调用栈都不变(和从前没这个钩子时一样)。
-# 非函数的栈顶(手写 `Ex.HandlerStack = [1]` 那种)也当"没人接",不弹它 —— 和从前一致。
 readonly onError := (e: Exception) => {
     (Ex.HandlerStack.Count ()) > 0 && (typeof (Ex.HandlerStack.At 0)) == function {
-        # 弹掉栈顶再调它(只整表替换,见 `HandlerStack` 那段)
         top := Ex.HandlerStack.At 0
         Ex.HandlerStack = Ex.HandlerStack.Skip 1
         top e

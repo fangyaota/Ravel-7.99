@@ -1,77 +1,23 @@
-# `DocSite` —— 把 `docs/tutorial/` 生成一个静态文档站:那儿的 `*.md` 是内容,
-# `style.css` 是样子,两样都**从磁盘读**。
-#
-# **这是个模块**(`ravel "DocSite"`),自己什么都不干 —— 调 `DocSite.Build "site"` 才动手。
-# 三个现成的入口:
-#
-#     ravel examples/site.rav            # 只生成到 site/(= `DocSite.Build "site"`)
-#     ravel examples/serve.rav           # 生成 + 起服务器,浏览器里直接看(见那个文件)
-#     REPL 的「教程」那一项              # 生成 + 用默认浏览器打开
-#
-# **它住在 `lib/` 而不是 `examples/`** —— 因为 REPL(`lib/repl.rav`)要用它。`examples/`
-# 那一格是"给你看着玩"的脚本,标准库反过来依赖它就把方向搞反了。而它和 `repl.rav` 一样,
-# 属于"这个发行版自带的东西",不是通用库 —— 放 `lib/` 里正合适。
-#
-# **零依赖**:纯静态 HTML + 一个 CSS,没有 JS、没有 CDN —— 双击就能看,也能直接挂 Pages。
-# (runoob 页面上那些"在线运行"按钮做不了:那要在浏览器里跑一个 Ravel,得先编到 wasm。)
-#
-# 样式**不写在代码里**(从前是这文件里一个一百多行的 `"""`)—— 改颜色不该要动 Ravel 源码,
-# 编辑器也认不出那是个 CSS。现在它是 `docs/tutorial/style.css`,和 markdown 放同一格:
-# 那一格就是这个站的全部原料。构建时 `docs/**` 会跟着产物走(`Ravel.csproj` 的 `CopyDocs`),
-# 所以发布出去的那份也能就地生成。
-#
-# markdown 只认这份文档用到的**子集**:标题、表格、``` 代码块、`-` 列表、段落;
-# 行内认 `code` / **粗** / [文字](链接)。认得的少,错得也少。
-#
-# **HTML 那一半交给 `lib/html.rav`**(`using "html.rav"`)。这份文件从前是手写拼串的,
-# 还自带一份 `H` 做转义 —— 现在两样都是 `Html` 的事:块级函数交回**节点**,`Html.Pretty`
-# 负责拼成文本,转义在渲染那一步统一做(所以字符串里的 `<` 不用自己操心了)。
-#
-# 写这个文件时踩到的四条语言脾气 —— 都不是 bug,是这门口的规矩,后面全按着它们写:
-#
-#   * **`X ().Y` 要写 `(X ()).Y`** —— `.成员` 比并列的调用绑得紧(教程 3.9),所以
-#     `t.Trim ().StartsWith "a"` 会被读成 `t.Trim (().StartsWith "a")`。这条最坑,
-#     报出来的错是"类型 'Void' 没有方法",指着的却是 `.Trim`。
-#   * **`[…]` 里空格是元素分隔符** —— `[f 1 2]` 是**三个**元素,要一个调用当一格就得自己
-#     加括号:`[(f 1 2)]`。这个文件里到处是"孩子是一串节点",所以这条几乎每行都躲不开。
-#   * **`Slice [a..b]` 是闭区间**,和 `[1..3]` 那个 Range 一个规矩 —— 差一格的事全收进
-#     `Sub` / `Mid` / `Tail` 三个小函数里,别在每个调用点各算一遍。
-#   * **长表达式别跨行** —— 只在括号里才续行,行尾的 `+` 不管用。每句都短,要拼长东西
-#     先拆临时变量。
+
 ravel "DocSite"
 
 using "html.rav"
 using "io.rav"
 using "glob.rav"
 
-# 哪儿找 markdown —— 源目录写死在这儿(这个模块就是为这份教程写的);要换地方就
-# 改这一行。**落点是 `Build out` 的参数**,不在这儿。
 readonly private SRC := "docs/tutorial"
 readonly private SITE := "Ravel 语言教程"
 
-# 样式表**从磁盘读**,不写在代码里 —— 和 markdown 放同一格:那一格就是"这个站的
-# 全部原料"。好处很实在:改颜色不用碰 Ravel 源码,编辑器也当 CSS 高亮。
-# 和 `SRC` 一样按**当前目录**找,少了它 `Build` 当场报错(生成一团没样子的 HTML
-# 才是真麻烦)。
 readonly private CSS_FILE := SRC + "/style.css"
 
-# ═══ 小工具 ═══
-
-# 取子串。**`Slice` 是闭区间**(和 `[1..3]` 那个 Range 一个规矩),差一格的事全收进
-# 这三个里,别在每个调用点各算一遍。
 readonly Sub := (s: string i: int n: int) => {
     n <= 0 { ""; } { s.Slice [i..(i + n)); }
 }
-readonly private Mid := (s: string i: int j: int) => { Sub s i (j - i); }      # [i, j)
-
-# 第 i 行,越界就是空串。(`&&` 是**真短路**的,所以这不是为了兜它 —— 是为了读起来
-# 不用每处都先想一遍"这个 i 会不会越界"。)
+readonly private Mid := (s: string i: int j: int) => { Sub s i (j - i); }
 readonly private LineAt := (lines: list i: int) => {
     i < (lines.Count ()) { lines.At i; } { ""; }
 }
-readonly private Tail := (s: string n: int) => { Sub s n ((s.Length ()) - n); }  # 从第 n 个到末尾
-
-# 从 `from` 起找 `sub`,交回位置;没有就是 -1
+readonly private Tail := (s: string n: int) => { Sub s n ((s.Length ()) - n); }
 readonly Find := (s: string sub: string from: int) => {
     at := -1
     i := from
@@ -84,26 +30,13 @@ readonly Find := (s: string sub: string from: int) => {
     at;
 }
 
-# ═══ 行内 ═══
-#
-# 交回的是**一串节点**,不是字符串 —— 文本走 `Html.Text`(渲染时转义),标签走 `Html`。
-# 手写拼串那份连同 `H` 一起删了:字符串里的 `<` / `&` 现在不用在这儿操心。
-#
-#   `x`       → <code>x</code>
-#   **x**     → <strong>x</strong>
-#   [x](url)  → <a href="url">x</a>
-#
-# 三条各拆成"交回节点"和"下一个位置"两半:认不出的情况(没有收尾记号)照样得往前走一格,
-# 不然会死循环。
 readonly private Inline := (s: string) => {
     out := []
     i := 0
     n := s.Length ()
     while { i < n; } {
         c := Mid s i (i + 1)
-        # `\[` 这种:反斜杠是"下一个字符照字面来",本身不是内容。**这条得排在最前面** ——
-        # 不然那个 `[` 会被当成链接的开头,而 `\[…\]` 根本不是链接(教程里写"值 \[…\] 不是函数"
-        # 就是这么写的)。末尾孤零零一个 `\` 就当一个普通字符走。
+
         c == "\\" {
             (i + 1) < n { out.Add (Html.Text (Mid s (i + 1) (i + 2))); i += 2; } { i += 1; }
         } {
@@ -162,21 +95,10 @@ readonly private LinkEnd := (s: string i: int) => {
     e < 0 { i + 1; } { e + 1; }
 }
 
-# ═══ 块级 ═══
-
-# 锚点用行号:标题是中文,做不出好看的 slug
 readonly Head := (lvl: int at: int text: string) => {
     Html.El ("h" + (string lvl)) {"id"-> ("s" + (string at))} (Inline text);
 }
 
-# 一行 `| a | b |` 拆成单元格。
-#
-# **`\|` 不算分隔符** —— 表格里的行内代码动不动就是 `|>` / `<|`,不转义的话那一行会被
-# 切成好几格(5.5 / 10 章那两张表原本就是这么坏的:一格 `|>`,左边半截右边半截)。
-# 转义符**连同它后面那个字符**一起原样留着,交给 `Inline` 去消化 —— 它认得 `\`,
-# `\|` 最后显示成一个 `|`。
-#
-# 从前这一句是 `inner.Replace "|" "\n"`,一个 `Replace` 把转义和分隔一视同仁了。
 readonly private Cells := (line: string) => {
     t := line.Trim ()
     out := []
@@ -186,9 +108,7 @@ readonly private Cells := (line: string) => {
     while { i < n; } {
         c := Mid t i (i + 1)
         (c == "\\") && ((i + 1) < n) {
-            # **反斜杠本身不留** —— 它是写给这个拆分器看的,再往下的 `Inline` 不该看见它。
-            # (留着的活,`\|>` 会连反斜杠一起进代码段,那一段里 `Inline` 已经不处理转义了,
-            #  于是屏幕上就是个 `\|>`。)
+
             cur += (Mid t (i + 1) (i + 2))
             i += 2
         } {
@@ -203,13 +123,12 @@ readonly private Cells := (line: string) => {
         }
     }
     out.Add (cur.Trim ())
-    # 两头那两个 `|` 各切出一个空格子,去掉
+
     ((out.Count ()) > 0) && ((out.At 0) == "") { out.Remove 0; } { 0; }
     ((out.Count ()) > 0) && ((out.At ((out.Count ()) - 1)) == "") { out.Remove ((out.Count ()) - 1); } { 0; }
     out;
 }
 
-# 表格:第一行表头,第二行是 `|---|---|` 那种分隔(扔掉),其余是数据行
 readonly Table := (rows: list) => {
     head := []
     (Cells (rows.At 0)).Foreach (c: string) => { head.Add (Html.El "th" {->} (Inline c)); }
@@ -227,8 +146,6 @@ readonly Table := (rows: list) => {
     ]
 }
 
-# 正文:逐行走一遍状态机,交回**一串块节点**。几条判据**平铺**着写(它们互斥,
-# `#### ` 不以 `### ` 开头),每行至多命中一条,靠 `done` 拦住后面的段落分支。
 readonly private Md := (text: string) => {
     lines := System.SplitLines text
     out := []
@@ -278,9 +195,7 @@ readonly private Md := (text: string) => {
 
         done { 0; } {
             t == "" { i += 1; } {
-                # 以「注意：」起头的整段当**提示框**(`p.note`,样式在 CSS 里)—— 教程里这种
-                # 段落一百多条,全是"这句是旁注"的意思,画成一条竖线读起来才分得清。
-                # `None` 落到 `class` 上就是"不写这个属性",普通段落照旧。
+
                 cls := t.StartsWith "注意：" { "note"; } { None; }
                 out.Add (Html.El "p" {"class"-> cls} (Inline t))
                 i += 1
@@ -290,7 +205,6 @@ readonly private Md := (text: string) => {
     out;
 }
 
-# 抽 `##` / `###` 给左侧导航用
 readonly private Toc := (text: string) => {
     out := []
     lines := System.SplitLines text
@@ -305,10 +219,6 @@ readonly private Toc := (text: string) => {
     out;
 }
 
-# ═══ 页面 ═══
-
-# `prev` / `next` 是**节点**(没有就是 `None`,渲染时会跳过)—— 从前是拼好的字符串,
-# 现在连那一对 `<a href="…">` 都交给 `Html.A`。
 readonly Page := (title: string nav: object body: object prev: object next: object) => {
     head := [
         (Html.El "meta" {"name"-> "viewport" "content"-> "width=device-width, initial-scale=1"} [])
@@ -325,39 +235,29 @@ readonly Page := (title: string nav: object body: object prev: object next: obje
     ]
 }
 
-
-# ═══ 跑起来 ═══
-
 readonly Save := (out: string rel: string text: string) => {
     (Io.File (out + "/" + rel)).Write text;
     print ("  " + rel);
 }
 
-# 一章的标题:头一行 `# …`
 readonly private TitleOf := (src: string) => {
     t := (LineAt (System.SplitLines src) 0)
     t.StartsWith "# " { Tail t 2; } { t; }
 }
 
-# `01-start.md` → `01-start.html`。
-# **不叫 `Html`** —— 那个名字现在是 `html.rav` 的模块名,盖住它这份文件就没法拼页面了。
 readonly PageOf := (md: string) => { md.Replace ".md" ".html"; }
 
 readonly Chapters := (Glob.Find (SRC + "/*.md") |> .ToList ()) |> .Sort ();
 
-# 左侧导航:每章一条;当前那一章再展开它自己的小节
 readonly private Nav := (cur: string src: string) => {
     out := []
     Chapters.Foreach (p: string) => {
         name := (Io.File p).Name ()
         attrs := name == cur { {"href"-> (PageOf name) "class"-> "on"}; } { {"href"-> (PageOf name)}; }
-        # 标题里也可能带 markdown(教程里一堆 `` `Repl` `` / `` `Tasks` ``)—— 过一遍 `Inline`,
-        # 不然导航里就那么连着反引号显示出来。
+
         out.Add (Html.El "a" attrs (Inline (TitleOf ((Io.File p).Read ()))))
         name == cur {
-            # **两层都要收**。`##` 是编号分节(`4.1 if` / `4.2 while` …)、`###` 是它下面
-            # 那种描述性的小节(`实现了 IEnumerable,就白拿一整套`)。从前只收 `###`,`##` 整层
-            # 跳过 —— 导航里就只剩一串没头没尾的括号名,偏巧最像"目录"的那一层一个都不在。
+
             (Toc src).Foreach (h: dict) => {
                 lvl := h.Get "lvl"
                 (lvl == 2) || (lvl == 3) {
@@ -371,18 +271,12 @@ readonly private Nav := (cur: string src: string) => {
     out;
 }
 
-# 生成到 `out/`:一章一个 HTML + 一个首页目录 + 一份 CSS。
-#
-# 只做"写文件"这一件事 —— 想让它起个服务器给人看,见 `examples/serve.rav`。
 readonly Build := (out: string) => {
-    # **一章都没搜到就别装作成功。** 从前是照样生成一个只有 `index.html` 的空站、还印一句
-    # "好了" —— 而原因通常只是**跑错地方了**:`SRC` 是**相对当前目录**的,从 `out/` 跑就得
-    # 那儿也有 `docs/`(构建时拷过去了,见 `Ravel.csproj` 的 `CopyDocs`)。
+
     Chapters.IsEmpty () {
         throw (Exception ("找不到 markdown 源:" + SRC + " —— 在仓库根跑,或者把 docs/ 一起带上"))
     } { 0; }
-    # 样式表也**大声要**:少了它照样能生成,但出来的是一团没样子的 HTML —— 那种
-    # "看着像好了"比直接报错难查得多(上一格那条 `Chapters.IsEmpty` 是同一个理由)。
+
     !(System.FileExists CSS_FILE) {
         throw (Exception ("找不到样式表:" + CSS_FILE + " —— 和 markdown 同一处,按当前目录找"))
     } { 0; }
@@ -394,8 +288,7 @@ readonly Build := (out: string) => {
         p := Chapters.At i
         src := (Io.File p).Read ()
         name := (Io.File p).Name ()
-        # 标 `object`:**光写 `None` 会被推成 `Option`**,后面赋一个节点就报"无法将 Dict
-        # 赋值给 'next'(声明为 Option)"。这两个格子装的是"节点或者没有"。
+
         prev: object = None
         next: object = None
         i > 0 {
@@ -408,7 +301,6 @@ readonly Build := (out: string) => {
         i += 1
     }
 
-    # 首页 = 目录
     entries := []
     Chapters.Foreach (p: string) => {
         name := (Io.File p).Name ()
@@ -416,8 +308,7 @@ readonly Build := (out: string) => {
     }
     idx := [(Html.H1 SITE) (Html.El "ul" {"class"-> "chapters"} entries)]
     Save out "index.html" ((Html.Pretty (Page SITE [] idx None None)) + "\n")
-    # 行尾按 `\n` 归一再写出去:不归一的话,检出时是 CRLF 就把 CRLF 一路带进产物 ——
-    # 同一份库在两台机器上生成的 `style.css` 会长得不一样(`"""` 那条也是这个道理)。
+
     Save out "style.css" (((Io.File CSS_FILE).Read ()).Replace "\r\n" "\n")
     print ("好了 —— " + out + "/index.html");
 }

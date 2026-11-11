@@ -1,62 +1,28 @@
-# IO Monad 模块 —— **要显式引用才有**:`using "iomonad.rav"` 之后 `IoMonad.xxx` 才是一个名字。
-#
-# 把"要做的效果"做成一个**值**(一份说明书),而不是当场做:
-#
-#     Hello := IoMonad.PutStrLn "hello"     # 这一句什么都不打印
-#     Hello.Perform ()                 # 打印发生在这
-#
-# 说明书可以传、可以拼、可以放着不跑,也可以跑第二遍 —— 效果只在 `Perform ()` 那一刻发生。
-# 于是"要做什么"和"做"分成两件事:`do { … }` 拼出来的那一长串,在 `Perform ()` 之前
-# 一个字符都还没输出。
-#
-# 这就是 IO Monad:`Action` 是说明书的类型,`Bind` 把两份说明书订成一份,
-# 所以 `do { x :< GetLine; … }` 直接能用(`:<` 脱糖成的就是 `.Bind`)。
-# 它和 predefined.rav 那个 `Option` 是**同一个形状的两个实例** —— 都实现了 `IMonad`
-# (Map + Bind 两条槽,见 monad.rav),所以 `is IMonad` / 注解 `(m: IMonad)` / 两者混着写都认;
-# 但它们的 `Bind` 各干各的:这边真跑效果,那边没有值就短路。
-#
-# 文件/控制台那一层(`lib/io.rav`)是**直接做**的;要它们的"说明书版本"用 `Io.ReadAction` /
-# `Io.WriteAction` / `Io.EachLineAction` 那几条(写在 io.rav 里 —— 这边不认识 `IFile`,
-# 参数注解建 lambda 时就要值,那会儿 io.rav 未必被 `using` 进来)。
-
 ravel "IoMonad"
 
-# 一份"要做的效果"。里面包的那个函数收 `()`、交出一个值 ——
-# 效果发生在**它被调用**的时候,而不是 Action 被造出来的时候。
 readonly Action ::= class {
-    Effect: function = _        # 干什么:收 ()、交出一个值
+    Effect: function = _
 
-    # 跑它。**这是效果世界的边界**:调用之前什么都没发生,调用之后全发生了。
     Perform := () => { Effect (); }
 
-    # 映射:结果过一道纯函数(纯的那步不必是"说明书")
     Map := (f: function) => { Action (() => { f (Effect ()); }) }
 
-    # 接着做下一份,交回**后一份**的结果(前一份的结果丢掉)。
-    # 和 `Bind` 的区别:那边 `f` 要拿前一份的结果现造下一份;这边两份互相不知道,
-    # 所以 `next` 是**已经造好**的一份(造它不跑它,放心)。
     Then := (next: Action) => { Action (() => { Effect (); next.Perform (); }); }
 
-    # 只跑,不要结果(交出来的还是那份 Action,可以接着拼)
     Discard := () => { Map ((x: object) => { (); }); }
 
-    # 跑它,出错了就接住 —— 结果是个 `Option`：成功了 `Some 结果`,失败 `None`。
-    # (要错误那句话用 `Catch`;这里只问"成没成"。)
     Attempt := () => {
         Action (() => {
             try { Some (Effect ()); } (e: Exception) => { None; }
         });
     }
 
-    # 出错了换一份说明书接着做(收得到那句话)
     Catch := (handler: function) => {
         Action (() => {
             try { Effect (); } (e: Exception) => { (handler e).Perform (); }
         });
     }
 
-    # 绑定:先跑自己,把结果交给 f;f 回一份新的说明书,再跑那份。
-    # **摊平** —— 交出去的是后一份的**结果**,不会套成"说明书的说明书"。
     Bind := (f: function) => {
         Action (() => {
             Next := f (Effect ())
@@ -67,24 +33,16 @@ readonly Action ::= class {
     init = (effect: function) => { Effect = effect; this; }
 }
 
-# ── 现成的效果 ──
-# 都标 readonly:它们是这个模块的 API,顺手覆盖掉会让调用者的代码悄悄换意思。
-
-# 交出一个值,不做任何效果(`Return 5` 就是"这一步的结果是 5")
 readonly Return := (v: object) => { Action (() => { v; }) }
 
-# 打印。注意 `PutStrLn "hi"` 只是**造了一份说明书**,什么都不打印
 readonly PutStrLn := (s: object) => { Action (() => { print s; (); }) }
 readonly PutStr := (s: object) => { Action (() => { System.Write s; (); }) }
 
-# 读一行。它是**一个值**(不是函数):每次 Perform 都真读一次
 readonly GetLine := Action (() => { input (); })
 
-# 写到**标准错误**(报错报告那些走的就是它)。和 PutStrLn 一样,造的时候什么都不打印
 readonly PutStrErr := (s: object) => { Action (() => { System.WriteErr s; (); }) }
 readonly PutStrLnErr := (s: object) => { Action (() => { System.WriteLineErr s; (); }) }
 
-# 一串说明书 → 一份说明书,交出**结果的表**(顺序就是表里的顺序)
 readonly Sequence := (actions: list) => {
     Action (() => {
         out := []
@@ -93,20 +51,13 @@ readonly Sequence := (actions: list) => {
     });
 }
 
-# 条件留到**那一刻**再算 —— 所以收的是个函数而不是一个 bool(后者现在就定死了)
 readonly When := (cond: function body: Action) => {
     Action (() => { cond () { body.Perform (); } { (); } });
 }
 readonly Unless := (cond: function body: Action) => { When (() => { !cond (); }) body; }
 
-# 对表里每个元素造一份说明书并依次执行 —— 一串效果。
-# (写成一次 Perform 里跑一个 `.Foreach`,而不是把 `Foreach` 做成递归的 Bind 链:
-#  说明书之间没有依赖,没必要为每一步摊一层。)
 readonly Foreach := (xs: list f: function) => {
     Action (() => { xs.Foreach (x: object) => { (f x).Perform (); }; (); })
 }
 
-# `Action` 在 `IMonad` 这一族里。实现体是空的:它自己那两条 Map / Bind 就是形状本身
-# (查到自己那层就先说话),这里只是登记一下。用 `impl`(不是 `use`)——
-# 这一族是**类型层面**的事实,不该随作用域来去;而且这样 `x is IMonad` 在哪儿都成立。
 impl (IMonad Action {;})
