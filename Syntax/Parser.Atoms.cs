@@ -108,7 +108,7 @@ public partial class Parser
         if (Match(TokenType.Identifier))
         {
             var lexeme = Previous().Lexeme;
-            if (lexeme == "_")
+            if (lexeme == "_" && !_discardIsName)
             {
                 _holeCount++;
                 return new HoleExpr(_holeCount - 1) { Line = Previous().Line, Column = Previous().Column };
@@ -424,13 +424,25 @@ public partial class Parser
                     // **守卫**:这一项整个是一条表达式(`v == s` / `v |> IsPrime`)。
                     // 退回去整条重读一遍,参数名取它**最左边那个标识符**(草稿那句"只看最左边的")。
                     _pos = saveAt;
+                    // 守卫里的 `_` 是**参数名**（`(_ > 100) => …`）：占位符那套会把它
+                    // 脱糖成一层 lambda，守卫于是成了"拿函数跟 100 比"，一路坏到求值器
+                    // （`无法求值的节点类型: HoleExpr`）。这一段只认名字。
+                    var prevDiscard = _discardIsName;
+                    _discardIsName = true;
+                    try
+                    {
                     // **守卫不吃并列的实参** —— 和**模式**那条守卫一个规矩(见 `ParsePatternBare`):
                     // 不然 `(x < 0 y: int)` 里那个 `y: int` 会被当成 `0` 的实参**吃进去**,
                     // 于是"守卫 + 下一个参数"静默变成一个参数的 lambda(之后那个 `y: int`
                     // 轮不到解析器看,重名检查也就看不见它)。`|>` 照收 —— 它是运算符、不是并列,
                     // 而 `(v |> IsPrime)` 正靠它。
-                    guard = ParsePostfixRest(ParseClimb(allowCall: false, 0),
-                                             allowCall: false, allowPipe: true);
+                        guard = ParsePostfixRest(ParseClimb(allowCall: false, 0),
+                                                 allowCall: false, allowPipe: true);
+                    }
+                    finally
+                    {
+                        _discardIsName = prevDiscard;
+                    }
                     // **名字按 token 顺序取最左边那个标识符** —— 不走 AST:`v |> IsPrime`
                     // 在 AST 里是 `CallExpr(IsPrime, v)`(`|>` 解析期就折成调用了),
                     // 按树取"最左"会取到 IsPrime。草稿那句"只看最左边的"说的就是源码顺序。

@@ -8,6 +8,9 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     private int _pos;
 
     private int _holeCount;
+    // 守卫那一格里 `_` 是**参数自己的名字**(`(_ > 100) => …`),不是占位符。
+    // 这个开关只在那一段打开,让 `_` 走普通标识符那条路。
+    private bool _discardIsName;
 
     private int _nilCount;
 
