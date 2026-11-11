@@ -71,27 +71,21 @@ run := (code table) => {
             }
         }
     }
+    step := '+' => { put p ((at p) + 1); }
+          | '-' => { put p ((at p) - 1); }
+          | '>' => { p += 1; }
+          | '<' => { p -= 1; }
+          | '.' => { System.Write (string (char (at p))); }
+          | ',' => { put p (nextChar ()); }
+          | '[' => { ((at p) == 0) { ip = table.Get ip; } { 0; } }
+          | ']' => { ((at p) != 0) { ip = table.Get ip; } { 0; } }
+          | (_) => { 0; }
+
     n := code.Length ()
     while { ip < n; } {
-        c := code.At ip
-        (c == '+') { put p ((at p) + 1); } {
-            (c == '-') { put p ((at p) - 1); } {
-                (c == '>') { p += 1; } {
-                    (c == '<') { p -= 1; } {
-                        (c == '.') { System.Write (string (char (at p))); } {
-                            (c == ',') { put p (nextChar ()); } {
-                                (c == '[') { ((at p) == 0) { ip = table.Get ip; } { 0; } } {
-                                    (c == ']') { ((at p) != 0) { ip = table.Get ip; } { 0; } } { 0; }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        step (code.At ip)
         ip += 1
     }
-    System.Write "\n"
 }
 
 code := strip (source ())
