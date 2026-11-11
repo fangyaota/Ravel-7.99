@@ -46,32 +46,37 @@ public record FunctionVal : ObjectVal
     private static FunctionVal Partial(Func<RuntimeValue, RuntimeValue> f)
         => new(null!, (_, a) => f(a)) { IsPartial = true };
 
-    // **`>>` / `<<` 没有"一个"调用作用域** —— 两侧各自开一层,所以前缀/后缀要发到
-    // 每一枚叶子上,各拿一份自己的作用域。不发下去的话,`(say << parse).Prepend inj`
-    // 落在 `ComposeVal` 上,`CallScopeOf` 只认 lambda、给出一枚 `Void`,
-    // `inj` 里的 `sc.Define` 当场炸。
+    // **`>>` / `<<` 两侧各自开一层作用域**,而"前缀"是"**在这个函数被调之前**先跑"
+    // —— 组合里最先被调的是左边那枚,所以前缀只往那边发:
     //
-    // 已经套起来的 `ComposeVal` 不再往下发 —— 那是"这一层的前缀",该紧贴着它跑一次;
-    // 发进两侧会让同一段前缀跑两遍(实参、副作用都跟着变)。
+    //     (f >> g).Prepend inj   ==   (f.Prepend inj) >> g
+    //     (f >> g).Append  inj   ==   f >> (g.Append inj)
+    //
+    // 每一层只改动**一端**,链子上的叶子各管自己的那一头;两头发的话同一段前缀会跑两遍。
+    // 从前只把 `ComposeVal` 套在组合表面上,`CallScopeOf` 只认 lambda、给出一枚 `Void`,
+    // 于是 `inj` 里的 `sc.Define` 当场炸(「类型 'Void' 没有方法 'Define'」)。
     public FunctionVal Prepend(FunctionVal prefix) => this switch
     {
-        ControlFunction { Kind: ControlKind.Then } c => new ControlFunction(ControlKind.Then, 1, Spread(c.Args, f => f.Prepend(prefix))),
+        ControlFunction { Kind: ControlKind.Then } c when c.Args.Count > 0
+            => c with { Args = Replace(c.Args, 0, f => f.Prepend(prefix)) },
         _ => new ComposeVal(this, prefix, true),
     };
 
     public FunctionVal Append(FunctionVal suffix) => this switch
     {
-        ControlFunction { Kind: ControlKind.Then } c => new ControlFunction(ControlKind.Then, 1, Spread(c.Args, f => f.Append(suffix))),
+        ControlFunction { Kind: ControlKind.Then } c when c.Args.Count > 0
+            => c with { Args = Replace(c.Args, c.Args.Count - 1, f => f.Append(suffix)) },
         _ => new ComposeVal(this, suffix, false),
     };
 
-    private static RList<RuntimeValue> Spread(RList<RuntimeValue> args, Func<FunctionVal, FunctionVal> f)
+    // 只换一格,别的不动(链子上其它叶子保持原样)
+    private static RList<RuntimeValue> Replace(RList<RuntimeValue> args, int index, Func<FunctionVal, FunctionVal> f)
     {
         var outArgs = RList<RuntimeValue>.Empty;
         for (var i = 0; i < args.Count; i++)
         {
             var a = args.At(i);
-            outArgs = outArgs.Add(a is FunctionVal fn ? f(fn) : a);
+            outArgs = outArgs.Add(i == index && a is FunctionVal fn ? f(fn) : a);
         }
 
         return outArgs;

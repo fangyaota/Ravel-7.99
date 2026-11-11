@@ -1,34 +1,47 @@
 #
-# `>>` / `<<` 两侧各自开一层调用作用域,所以 `Prepend` / `Append` 要**发到叶子上**:
+# `>>` / `<<` 两侧各开一层调用作用域。"前缀"= **在这个函数被调之前**先跑,组合里最先
+# 被调的是左边那枚,所以:
 #
-#   (f >> g).Prepend inj   ==   (f.Prepend inj) >> (g.Prepend inj)
+#     (f >> g).Prepend inj   ==   (f.Prepend inj) >> g
+#     (f >> g).Append  inj   ==   f >> (g.Append inj)
 #
-# 从前只把 `ComposeVal` 套在组合表面上,`CallScopeOf` 只认 lambda、给出一枚 `Void`,
+# 每一层只改一端 —— 前缀只给最左边、后缀只给最右边;两头发的话同一段会跑两遍。
+# 从前 `Prepend` 只套在组合表面上,`CallScopeOf` 只认 lambda、给出一枚 `Void`,
 # 于是 `inj` 里的 `sc.Define` 当场炸(「类型 'Void' 没有方法 'Define'」)。
-#
-# 这条也是 `|` 能接住"组合起来的那一支"的前提:交替的换支靠往调用作用域里塞 `reject`。
 
-f := (x: int) => { x * 2; }
 inj := (sc) => { sc.Define "extra" 10; }
-g := (x: int) => { x + extra; }
 
-# 注入真的落在两侧(各自一份作用域)
-print (((f >> g).Prepend inj) 3)
-print (((g << f).Prepend inj) 3)
+# ── Prepend:只落在最左边 ──
+a := (x: int) => { x + extra; }
+b := (x: int) => { x * 2; }
+print (((a >> b).Prepend inj) 3)                 # (3+10)*2 = 26
 
-# ── 拒收要能穿过组合走到 `|` 的下一支 ──
+# 同一段组合,前缀只给 left,右边读不到它 —— 这正是"只改一端"
+left := (x: int) => { x * 2; }
+right := (x: int) => { x + extra; }
+print ((try { ((left >> right).Prepend inj) 3; }
+        (e: Exception) => { "1: " + e.Message; }))
+
+# ── Append:只落在最右边(后缀拿得到最右那枚的调用作用域) ──
+q := (x: int) => { x; }
+peek := (sc) => { print ("有 x: " + (string ((sc.Keys ()).Contains "x"))); }
+print (((q >> q).Append peek) 5)
+
+# ── 组合里的拒收仍能走到 `|` 的下一支(前缀落在 sel 上) ──
 sel := (x) => { x < 5 { reject (TypeError "太小了"); } { x; } }
 alt := ((sel >> (y) => { y * 10; })) | (x) => { 0 - x; }
 print (alt 3)
 print (alt 7)
 
-# ── 反过来:先组合、再交替,同样成立 ──
+# ── 组合本身照旧 ──
 both := ((x) => { x + 1; }) << ((x) => { x * 2; })
 print (both 3)
 
 # --- expected ---
-16
-16
+26
+1: 未定义的变量 'extra'
+有 x: true
+5
 -3
 70
 7
