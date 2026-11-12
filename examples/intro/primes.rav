@@ -1,4 +1,4 @@
-Primes := (n: int) => {
+Primes := () => {
     IsPrime := (k: int) => {
         (k < 2) { false; } {
             d := 2
@@ -9,14 +9,11 @@ Primes := (n: int) => {
             ok
         }
     }
+    System.Write "上限?(50) "
+    line := input ""
+    n := (line == "") { 50; } { int line; }
     out := [2..n].Where ((k: int) => { IsPrime k; })
     print (out.Join " ")
 }
 
-(
-    () => {
-        System.Write "上限?(50) "
-        line := input ""
-        Primes ((line == "") { 50; } { int line; })
-    }
-) ()
+Primes ()

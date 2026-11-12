@@ -1,4 +1,7 @@
-WordCount := (text: string) => {
+WordCount := () => {
+    System.Write "一段话?(the quick brown fox the lazy dog) "
+    line := input ""
+    text := (line == "") { "the quick brown fox the lazy dog"; } { line; }
     counts := {->}
     text.Split " " |> (ws) => {
         ws.Foreach ((w: string) => {
@@ -11,13 +14,7 @@ WordCount := (text: string) => {
     ranked := rows.SortBy ((p) => { 0 - p[1]; })
     top := ranked.Take 5
     lines := top.Map ((p) => { p[0] + "=" + (string p[1]); })
-    lines.Join ", "
+    print (lines.Join ", ")
 }
 
-(
-    () => {
-        System.Write "一段话?(the quick brown fox the lazy dog) "
-        line := input ""
-        print (WordCount ((line == "") { "the quick brown fox the lazy dog"; } { line; }))
-    }
-) ()
+WordCount ()

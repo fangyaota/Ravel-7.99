@@ -1,4 +1,4 @@
-Hanoi := (n: int) => {
+Hanoi := () => {
     moves := []
     Move := (k: int from: string to: string via: string) => {
         (k == 0) { 0; } {
@@ -7,15 +7,12 @@ Hanoi := (n: int) => {
             Move (k - 1) via to from
         }
     }
+    System.Write "几层?(3) "
+    line := input ""
+    n := (line == "") { 3; } { int line; }
     Move n "A" "C" "B"
     print (moves.Join " ")
     print ("共 " + (string (moves.Count ())) + " 步")
 }
 
-(
-    () => {
-        System.Write "几层?(3) "
-        line := input ""
-        Hanoi ((line == "") { 3; } { int line; })
-    }
-) ()
+Hanoi ()

@@ -1,5 +1,5 @@
-Caesar := (text: string shift: int) => {
-    Rot := (c: char) => {
+Caesar := () => {
+    Rot := (c: char shift: int) => {
         n := int c
         ((n >= 97) && (n <= 122)) {
             char (((((n - 97) + shift) % 26) + 97));
@@ -9,18 +9,14 @@ Caesar := (text: string shift: int) => {
             } { c; }
         }
     }
+    System.Write "文本?(hello world) "
+    line := input ""
+    text := (line == "") { "hello world"; } { line; }
+    System.Write "位移?(3) "
+    nline := input ""
+    shift := (nline == "") { 3; } { int nline; }
     letters := text.Chars ()
-    letters.Map (Rot) |> (cs) => { cs.Join ""; }
+    letters.Map ((c: char) => { Rot c shift; }) |> (cs) => { print (cs.Join ""); }
 }
 
-(
-    () => {
-        System.Write "文本?(hello world) "
-        line := input ""
-        text := (line == "") { "hello world"; } { line; }
-        System.Write "位移?(3) "
-        nline := input ""
-        shift := (nline == "") { 3; } { int nline; }
-        print (Caesar text shift)
-    }
-) ()
+Caesar ()

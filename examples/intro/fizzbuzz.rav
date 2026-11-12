@@ -1,4 +1,7 @@
-FizzBuzz := (n: int) => {
+FizzBuzz := () => {
+    System.Write "数到几?(15) "
+    line := input ""
+    n := (line == "") { 15; } { int line; }
     out := [1..n].Map ((i: int) => {
         ((i % 15) == 0) { "FizzBuzz"; } {
             ((i % 3) == 0) { "Fizz"; } {
@@ -9,10 +12,4 @@ FizzBuzz := (n: int) => {
     print (out.Join " ")
 }
 
-(
-    () => {
-        System.Write "数到几?(15) "
-        line := input ""
-        FizzBuzz ((line == "") { 15; } { int line; })
-    }
-) ()
+FizzBuzz ()

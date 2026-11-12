@@ -1,31 +1,29 @@
-Transpose := (m: list) => {
-    cols := (m[0]).Count ()
-    out := []
-    i := 0
-    while { i < cols; } {
-        out.Add ((m.Map ((row: list) => { row[i]; })).ToList ())
-        i += 1
-    }
-    out
-}
-
-ShowMatrix := (m: list) => {
-    rows := m.Map ((row: list) => { row.Join " "; })
-    rows.Join " / "
-}
-
-(
-    () => {
-        System.Write "行数?(2) "
-        line := input ""
-        rows := (line == "") { 2; } { int line; }
-        m := []
+Matrix := () => {
+    Transpose := (m: list) => {
+        cols := (m[0]).Count ()
+        out := []
         i := 0
-        while { i < rows; } {
-            m.Add (([1..3].Map ((j: int) => { (i * 3) + j; })).ToList ())
+        while { i < cols; } {
+            out.Add ((m.Map ((row: list) => { row[i]; })).ToList ())
             i += 1
         }
-        print ("原矩阵:" + (ShowMatrix m))
-        print ("转置后:" + (ShowMatrix (Transpose m)))
+        out
     }
-) ()
+    ShowMatrix := (m: list) => {
+        rows := m.Map ((row: list) => { row.Join " "; })
+        rows.Join " / "
+    }
+    System.Write "行数?(2) "
+    line := input ""
+    rows := (line == "") { 2; } { int line; }
+    m := []
+    i := 0
+    while { i < rows; } {
+        m.Add (([1..3].Map ((j: int) => { (i * 3) + j; })).ToList ())
+        i += 1
+    }
+    print ("原矩阵:" + (ShowMatrix m))
+    print ("转置后:" + (ShowMatrix (Transpose m)))
+}
+
+Matrix ()

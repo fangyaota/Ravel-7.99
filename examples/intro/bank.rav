@@ -15,23 +15,23 @@ Account ::= class {
     Text := () => { (string (Cents / 100)) + "." + (string (Cents % 100)) + " 元"; }
 }
 
-(
-    () => {
-        a := Account ()
-        a.Owner = "小明"
-        System.Write "初始存入(分)?(250) "
-        line := input ""
-        start := (line == "") { 250; } { int line; }
-        System.Write "取多少(分)?(100) "
-        wline := input ""
-        take := (wline == "") { 100; } { int wline; }
-        print ("存入 " + (string start) + ":" + (string (a.Deposit start)))
-        print ("取走 " + (string take) + ":" + (string (a.Withdraw take)))
-        print ("余额 " + (a.Text ()))
-        System.Write "再取一大笔?(1000) "
-        bl := input ""
-        big := (bl == "") { 1000; } { int bl; }
-        print ("取走 " + (string big) + ":" + (string (a.Withdraw big)))
-        print ("余额 " + (a.Text ()))
-    }
-) ()
+Bank := () => {
+    a := Account ()
+    a.Owner = "小明"
+    System.Write "初始存入(分)?(250) "
+    line := input ""
+    start := (line == "") { 250; } { int line; }
+    System.Write "取多少(分)?(100) "
+    wline := input ""
+    take := (wline == "") { 100; } { int wline; }
+    print ("存入 " + (string start) + ":" + (string (a.Deposit start)))
+    print ("取走 " + (string take) + ":" + (string (a.Withdraw take)))
+    print ("余额 " + (a.Text ()))
+    System.Write "再取一大笔?(1000) "
+    bl := input ""
+    big := (bl == "") { 1000; } { int bl; }
+    print ("取走 " + (string big) + ":" + (string (a.Withdraw big)))
+    print ("余额 " + (a.Text ()))
+}
+
+Bank ()
