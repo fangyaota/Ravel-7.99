@@ -6,7 +6,7 @@
 #     Cache: Option = None
 #     Cache ??= 算一次 ()
 #
-# 语义在库里(`lib/predefined.rav` 的 IsNothing / NilChain / NilOr),
+# 语义在库里(`lib/predefined.rav` 的 NilChain / NilOr),
 # 引擎只管把这三条脱糖成对它们的调用(词法/语法见 Lexer、Parser.Expressions)。
 #
 #     a ?? b    不空**原样交回**,空了才给 b(**惰性**:要用才求值);左边不是 monad 就报错

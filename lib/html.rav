@@ -18,8 +18,12 @@ readonly private TextNode := (s: object) => { {"kind"-> "text" "text"-> (string 
 readonly private RawNode := (s: string) => { {"kind"-> "raw" "text"-> s}; }
 
 readonly private KidsOf := (kids: object) => {
-    (IsNothing kids) { []; } {
-        kids : list { kids; } { [kids]; }
+    (kids : Option) {
+        (kids.IsNone ()) { []; } { KidsOf (kids.Value ()); }
+    } {
+        (kids : void) { []; } {
+            kids : list { kids; } { [kids]; }
+        }
     }
 }
 
@@ -51,7 +55,8 @@ readonly private AttrsText := (attrs: object) => {
     out := ""
     (attrs.Keys ()).Foreach (k: string) => {
         v := attrs.GetOr k ""
-        (IsNothing v) { 0; } {
+        (v : Option) { v = v.ValueOr ""; } { 0; }
+        ((v : void) || (v == "")) { 0; } {
             v : bool {
                 v { out += (" " + k); } { 0; }
             } {
@@ -89,8 +94,12 @@ readonly Render := (n: object) => {
                 }
             } {
 
-                (IsNothing x) { 0; } {
-                    out += (TextEscape (string x));
+                (x : Option) {
+                    (x.IsNone ()) { 0; } { out += (TextEscape (string (x.Value ()))); }
+                } {
+                    ((x : void) || (x == "")) { 0; } {
+                        out += (TextEscape (string x));
+                    }
                 }
             }
         }
@@ -168,8 +177,12 @@ readonly Pretty := (n: object) => {
                     }
                 }
             } {
-                (IsNothing x) { 0; } {
-                    out += (TextEscape (string x));
+                (x : Option) {
+                    (x.IsNone ()) { 0; } { out += (TextEscape (string (x.Value ()))); }
+                } {
+                    ((x : void) || (x == "")) { 0; } {
+                        out += (TextEscape (string x));
+                    }
                 }
             }
         }

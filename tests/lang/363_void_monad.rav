@@ -3,10 +3,6 @@ print (() : IMonad)
 print (() ?? 7)
 print ((None) ?? 7)
 print (()?.ToString ())
-print (IsNothing ())
-print (IsNothing (Some 1))
-print (IsNothing [])
-print (IsNothing [1])
 v := ()
 v ??= 5
 print v
@@ -16,8 +12,4 @@ print v
 # 7
 # 7
 # ()
-# true
-# false
-# true
-# false
 # 5
