@@ -102,11 +102,13 @@ readonly reject := (e) => {
     throw (e);
 }
 
+# 问一句"空不空":走 `SelfOr` 的后备支,不碰元素(`()` 永远算空)
 readonly IsNothing := (v: object) => {
     (v : IMonad) {
-        empty := true
-        v.Foreach ((x: object) => { empty = false; })
-        empty
+        callcc (k: Continuation) => {
+            v.SelfOr (() => { k (true); })
+            false
+        }
     } { false; }
 }
 

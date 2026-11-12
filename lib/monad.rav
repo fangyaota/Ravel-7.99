@@ -57,3 +57,10 @@ readonly Some := (v: object) => { Option true v; }
 readonly None := Option false ()
 
 impl (IMonad Option {;})
+
+# `()` 永远算"空":Map / Bind 原样交回,SelfOr 直接调后备
+impl (IMonad void {
+    Map = (f: function) => { instance; }
+    Bind = (f: function) => { instance; }
+    SelfOr = (fallback: function) => { fallback (); }
+})

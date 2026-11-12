@@ -1,7 +1,7 @@
 # 空值那三条语法糖:`?.` / `??` / `??=`。
 #
-# **「空」只有 `None` 一样** —— `()` 不是空:它是 Void 类型那个**值**,和 `0` / `""` / `[]`
-# 平起平坐;`Some ()` 更不是(有个值,值是 `()`)。要"没设过"就明写 `None`:
+# **「空」只看 monad 自己怎么答** —— `None` 空、`[]` / `""` 空、`()` 也空
+# (`impl (IMonad void)`:永远空);`Some ()` 不空(有个值,值是 `()`)。要"没设过"就明写 `None`:
 #
 #     Cache: Option = None
 #     Cache ??= 算一次 ()
@@ -21,7 +21,7 @@ print ((Some 7) ?? 0)          # 不空,原样交回(还是 Option)
 try { eval "print (5 ?? 1)"; } (e: Exception) => { print ("4: " + string e); }
 print ("串" ?? 后备值)
 nothing := ()
-try { eval "print (nothing ?? 1)"; } (e: Exception) => { print ("5: " + string e); }
+print (nothing ?? 1)                       # `()` 也是空:给后备
 
 # `Some ()` 也不是空(值是 `()` 而已)
 print (((Some ()) ?? "后备"))
@@ -38,8 +38,8 @@ try { eval "print ((5)?.ToString ())"; } (e: Exception) => { print ("0: " + stri
 # 是 monad(IMonad)就按 Map 走 —— list / dict / string 都算
 print ((["ab" "c"]?.Length ()) ?? -1)
 
-# `()` 上取成员**照旧报错** —— 不被悄悄吞掉
-try { nothing?.Text (); } (e: Exception) => { print ("1: " + string e); }
+# `()` 上挂链:算空,原样交回 `()`
+print (nothing?.Text ())
 
 # 短路:后面的调用**不该跑**
 boom := () => { print "不该跑"; 0; }
@@ -103,7 +103,7 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # Option { Has = true, Inner = 7 }
 # 4: '??' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Integer
 # 串
-# 5: '??' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Void
+# 1
 # Option { Has = true, Inner = () }
 # 空
 # Option { Has = true, Inner = 3 }
@@ -111,7 +111,7 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # -1
 # 0: '?.' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Integer
 # [2 1]
-# 1: '?.' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Void
+# ()
 # 没跑
 # 第一次
 # 第一次
