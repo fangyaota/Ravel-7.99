@@ -242,7 +242,9 @@ public class Lexer(string source, string? file = null)
 
         line = l;
         col = c;
-        return i < source.Length && source[i] == '.'
+        if (i >= source.Length) return false;
+        if (source[i] == '?') return i + 1 < source.Length && source[i + 1] == '.';
+        return source[i] == '.'
             && (i + 1 >= source.Length || (source[i + 1] != '.' && !char.IsDigit(source[i + 1])));
     }
 
