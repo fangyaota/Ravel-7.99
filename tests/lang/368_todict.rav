@@ -1,0 +1,41 @@
+# 对序列 → 字典:`[[键 值] …].ToDict ()`;反向是 `Dict.Entries ()`。
+#
+# 键重复时后面的盖前面的(和 `d.Set` 一致);项不是两格就 throw,
+# 因为静默跳过会把"写错的形状"藏起来。
+
+pairs := [["a" 1] ["b" 2]]
+d := pairs.ToDict ()
+print d
+print (d.Entries ())
+print ((d.Entries ()).ToDict ())
+print ((d.Entries ()).At 0)
+print ((d.Entries ()).Count ())
+
+# 重复键:后者覆盖
+print ([["x" 1] ["y" 2] ["x" 3]].ToDict ())
+
+# 空序列 → 空字典;不是空集合
+e := [].ToDict ()
+print (typeof e)
+print (e.Count ())
+
+# 从别的序列造:Map 出一对对再摊
+sus := ["amy" "bob"]
+print (sus |> .Map ((n: object) => { [n (n.ToUpper ())]; }) |> .ToList () |> .ToDict ())
+
+# 形状不对:一格、三格、不是序列,各报各的
+try { [["a"]].ToDict (); } (e: Exception) => { print e.Message; }
+try { [["a" 1 "b"]].ToDict (); } (e: Exception) => { print e.Message; }
+
+# --- expected ---
+# {a: 1 b: 2}
+# [[a 1] [b 2]]
+# {a: 1 b: 2}
+# [a 1]
+# 2
+# {x: 3 y: 2}
+# Dict
+# 0
+# {amy: AMY bob: BOB}
+# ToDict 要的是 [键 值] 两格的项,这一项有 1 格
+# ToDict 要的是 [键 值] 两格的项,这一项有 3 格

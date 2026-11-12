@@ -141,7 +141,7 @@ G.Fold 0 (acc: int x: int) => { acc + x; }   # 6
 
 | 惰性（一串进、一串出） | 急切（要值 / 容器） |
 |---|---|
-| `Map` `Where` `Bind` `Take` `Skip` `Concat` `Distinct` `Reverse` `SortBy` | `Count` `IsEmpty` `First` `Last` `At` `Contains` `Sum` `Min` `Max` `Join` `ToList` `ToSet` `ToGenerator` `Each` `All` `Any` `Find` `Fold` `TryFind` `TryFirst` |
+| `Map` `Where` `Bind` `Take` `Skip` `Concat` `Distinct` `Reverse` `SortBy` | `Count` `IsEmpty` `First` `Last` `At` `Contains` `Sum` `Min` `Max` `Join` `ToList` `ToSet` `ToDict` `ToGenerator` `Each` `All` `Any` `Find` `Fold` `TryFind` `TryFirst` |
 
 无限流上只有惰性那批用得起来：
 

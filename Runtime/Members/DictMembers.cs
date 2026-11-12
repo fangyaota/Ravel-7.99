@@ -40,6 +40,15 @@ internal sealed class DictMembers : SequenceMembers
     [ClassMethod("Values")]
     private static RuntimeValue Values(RuntimeValue self) => new ListVal([.. ((DictVal)self).Entries.Values]);
 
+    // 摊成 [[键 值] …],和 ToDict 配对
+    [ClassMethod("Entries")]
+    private static RuntimeValue Entries(RuntimeValue self)
+    {
+        var list = new List<RuntimeValue>();
+        foreach (var (k, v) in ((DictVal)self).Entries) list.Add(new ListVal([k, v]));
+        return new ListVal(list);
+    }
+
     [ClassMethod("SysRemove")]
     private static RuntimeValue SysRemove(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.Remove(BuiltinClasses.KeyArg(arg, "dict.SysRemove 的键")));

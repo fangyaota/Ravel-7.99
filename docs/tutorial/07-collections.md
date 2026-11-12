@@ -58,7 +58,7 @@ d.Has "a"          # true
 | `Distinct ()` `Reverse ()` `Concat ys` | 去重 / 倒过来 / 接上另一串 |
 | `Sum ()` `Min ()` `Max ()` | 求和 / 最小 / 最大 |
 | `Join sep` | 拼成字符串 |
-| `ToList ()` `ToSet ()` | 换容器 |
+| `ToList ()` `ToSet ()` `ToDict ()` | 换容器（`ToDict` 要的是两格的项，见 7.4.1）|
 | `Each f` | 每个跑一遍（结果丢掉）|
 | `Map f` | 变换（C# 的 `Select`）|
 | `Where p` | 过滤（`p` 得交回 bool）|
@@ -77,7 +77,31 @@ d.Has "a"          # true
 
 **set 还有**集合代数：`Union` / `Intersect` / `Except` / `IsSubsetOf`。
 
-**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` / `Remove k` / `Keys ()` / `Values ()`。
+**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` / `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
+
+### 7.4.1 序列 ↔ 字典
+
+`[[键 值] …]` 这样的序列能直接摊成字典；反向是 `Entries ()`：
+
+```ravel
+pairs := [["a" 1] ["b" 2]]
+d := pairs.ToDict ()          # {a: 1 b: 2}
+print (d.Entries ())          # [[a 1] [b 2]]
+print ((d.Entries ()).ToDict ())   # 原样回来
+```
+
+三条规矩：
+
+- **项必须是两格**（`[键 值]`）。一格、三格、压根不是序列，都当场报错 —— 静默跳过会把写错的形状藏起来。
+- **键重复时后面的盖前面的**（和 `d.Set` 一个规矩），位置留在第一次出现的地方。
+- **紧跟着空括号调用再挂成员，要括一下**：写 `(d.Entries ()).ToDict ()`，`d.Entries ().ToDict ()` 不带括号时 `.ToDict` 会贴到那个 `()` 上（这是后缀收法的既有毛病，遇到就加括号）。
+
+从别的序列造，就先 `Map` 出一对对再摊：
+
+```ravel
+["amy" "bob"] |> .Map ((n: object) => { [n (n.ToUpper ())]; }) |> .ToList () |> .ToDict ()
+# {amy: AMY bob: BOB}
+```
 
 ### 枚举器（`IEnumerator`）
 

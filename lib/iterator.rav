@@ -1,4 +1,4 @@
-﻿readonly private SeekIn := (xs: object p: function) => {
+readonly private SeekIn := (xs: object p: function) => {
     hit: object = ()
     found := false
     callcc (done: function) => {
@@ -122,6 +122,18 @@ readonly IEnumerable ::= interface IMonad {
     }
 
     internal ToSet := () => { (instance.ToList ()).ToSet (); }
+
+    internal ToDict := () => {
+        out := {->}
+        instance.Foreach (p: object) => {
+            n := p.Count ()
+            !(n == 2) {
+                throw (Exception ("ToDict 要的是 [键 值] 两格的项,这一项有 " + (string n) + " 格"))
+            } { 0; }
+            out[p.At 0] = (p.At 1);
+        }
+        out
+    }
 
     internal ToGenerator := () => {
         Generator (y: function) => {
