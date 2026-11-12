@@ -120,9 +120,7 @@ readonly NilChain := (get: function step: function) => {
 # `a ?? b`:左边**不空就原样交回**(不拆、不挑元素),空了才跑 b。
 readonly NilOr := (get: function fallback: function) => {
     v := get ()
-    (v : IMonad) {
-        (IsNothing v) { fallback (); } { v; }
-    } {
+    (v : IMonad) { v.SelfOr fallback; } {
         throw (TypeError ("'??' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 " + (string (typeof v))))
     }
 }

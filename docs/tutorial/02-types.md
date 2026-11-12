@@ -169,6 +169,8 @@ tries.Foreach (t: string) => { print t; }
 | `a?.b c` | 左边是 monad 就 **`Map`**：`None` 原样短路、`Some x` 拆包走完整条链再包回、`list`/`dict`/`string` 逐元素走；左边**不是 monad 直接报错** |
 | `x ??= v` | 空才写；不空一个字符都不碰 |
 
+`??` 落在 `IMonad` 的 `SelfOr` 上：`v.SelfOr fallback` —— 不空交回 `v` 自己，空了才调 `fallback ()`（惰性）。所以 `??` 只问"空不空"，不碰"里面的值"；要取值用 `ValueOr`（`Option` / `Expected` 上那一个）。
+
 #### 实例
 
 ```ravel

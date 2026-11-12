@@ -13,6 +13,8 @@ readonly Expected ::= class {
 
     ValueOr := (d: object) => { Has { Inner; } { d; } }
 
+    SelfOr := (fallback: function) => { Has { this; } { fallback (); } }
+
     Error := () => {
         assert (!Has) ("Expected.Error: 这次调用没出错（要值请用 Value）")
         Err

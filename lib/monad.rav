@@ -11,6 +11,9 @@ readonly IMonad ::= interface {
             }
         }
     }
+
+    # 自己(不空)或 fallback ();空不空由各类型自己答
+    internal SelfOr : function = _
 }
 
 readonly Option ::= class {
@@ -27,6 +30,8 @@ readonly Option ::= class {
     ValueOr := (d: object) => { Has { Inner; } { d; } }
 
     OrElse := (other: Option) => { Has { this; } { other; } }
+
+    SelfOr := (fallback: function) => { Has { this; } { fallback (); } }
 
     Map := (f: function) => { Has { Some (f Inner); } { this; } }
 

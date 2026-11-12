@@ -43,6 +43,11 @@ readonly IEnumerable ::= interface IMonad {
         }
     }
 
+    internal SelfOr := (fallback: function) => {
+        e := instance.GetEnumerator ()
+        e.MoveNext () { instance; } { fallback (); }
+    }
+
     internal Take := (n: int) => {
         Generator (y: function) => {
             e := instance.GetEnumerator ()
