@@ -163,6 +163,7 @@ internal static class AstPrinter
         CallExpr { Function: MemberAccess m, Argument: var ra } when OperatorSymbols.IsSymbol(m.Member) => Binary(
             new BinaryExpr(m.Object, m.Member, ra), indent),
         CallExpr c => Atom(c.Function, indent) + " " + Arg(c.Argument, indent),
+        IndexExpr ix => Atom(ix.Object, indent) + "[" + Expr(ix.Index, indent) + "]",
         BinaryExpr b => Binary(b, indent),
         ChainCompare c => Chain(c, indent),
         // 一元运算符的操作数**至少要跟它一样紧**(18 = `**` 那一档)才不用套括号。
@@ -233,7 +234,7 @@ internal static class AstPrinter
         IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr
-            or FStringExpr or LiteralExpr => Expr(e, indent),
+            or FStringExpr or LiteralExpr or IndexExpr => Expr(e, indent),
         _ => "(" + Expr(e, indent) + ")",
     };
 
@@ -242,7 +243,7 @@ internal static class AstPrinter
         IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
             or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess
-            or FStringExpr or LiteralExpr => Expr(e, indent),
+            or FStringExpr or LiteralExpr or IndexExpr => Expr(e, indent),
         _ => "(" + Expr(e, indent) + ")",
     };
 

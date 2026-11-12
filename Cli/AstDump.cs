@@ -181,6 +181,14 @@ internal static class AstDump
             return;
         }
 
+        // 洞印成 _N,回来是标识符,自验按等价算
+        if (node is HoleExpr hole)
+        {
+            Indent(sb, depth).Append("IdentifierExpr").Append('\n');
+            Indent(sb, depth + 1).Append("Name: ").Append(Scalar("_" + hole.Index)).Append('\n');
+            return;
+        }
+
         Indent(sb, depth).Append(node.GetType().Name);
         if (positions && node is AstNode positioned)
             sb.Append(" @").Append(positioned.Line).Append(':').Append(positioned.Column);
