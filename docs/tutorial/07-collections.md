@@ -79,6 +79,33 @@ d.Has "a"          # true
 
 **dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` / `Remove k` / `Keys ()` / `Values ()`。
 
+### 枚举器（`IEnumerator`）
+
+`xs.GetEnumerator ()` 拿到一枚枚举器，三个成员：
+
+| 成员 | 说明 |
+|------|------|
+| `MoveNext ()` | 往下挪一格，还有就 `true` |
+| `Current` | 刚挪到的那一格（没挪之前读到的第一格也可能是它，别依赖）|
+| `HasNext ()` | 还有下一个吗 —— **不挪 `Current`**，只探一下 |
+
+`HasNext ()` 可以连着问两次，答案一样；`MoveNext ()` 才会真的前进一格的代价。
+对 `Generator` 这种"跑出来的"源，问 `HasNext ()` 会**真推进一步**（把生产者跑到下一次 `yield`），
+只是把结果存着等 `MoveNext ()` 交给你 —— 所以它不会被吞掉：
+
+```ravel
+e := ([10 20].GetEnumerator ())
+print (e.HasNext ())     // true
+print (e.MoveNext ())    // true
+print (e.Current)        // 10
+print (e.HasNext ())     // true（还是那 20，没被吃掉）
+print (e.MoveNext ())    // true
+print (e.Current)        // 20
+print (e.HasNext ())     // false
+```
+
+注意：**类体里**（方法体）`条件 { … } { … }` 得写在一行 —— 跨行的话第二个块会被当成类体新的一段。普通函数体里没这个限制。
+
 ## 7.5 解构：一次绑好几个名字
 
 右边是什么形状，左边就照着写，一次把名字全绑出来：

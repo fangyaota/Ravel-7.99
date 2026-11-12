@@ -9,6 +9,8 @@ readonly GeneratorCursor ::= class {
     Body: function = _
     Value: object = ()
     Started: bool = false
+    Peeked: bool = false
+    PeekedOnce: bool = false
 
     NextFromProducer: Continuation = _
     FromConsumer: Continuation = _
@@ -23,7 +25,7 @@ readonly GeneratorCursor ::= class {
         }
     }
 
-    MoveNext := () => {
+    Advance := () => {
         comes := callcc (kc: Continuation) => {
             FromConsumer = kc
 
@@ -31,6 +33,16 @@ readonly GeneratorCursor ::= class {
             FromConsumer false
         }
         comes
+    }
+
+    # 探一格:真推进一步(生产者的副作用会发生)并把它存着,`MoveNext` 再取走
+    # (类体里 `cond { … } { … }` 得写在一行 —— 跨行的话第二个块会被当成新的一段)
+    HasNext := () => {
+        PeekedOnce { Peeked; } { n := Advance (); Peeked = n; PeekedOnce = true; n; }
+    }
+
+    MoveNext := () => {
+        PeekedOnce { PeekedOnce = false; Peeked; } { Advance (); }
     }
 
     by Current := property (() => { Value; }) ((v: object) => { (); })

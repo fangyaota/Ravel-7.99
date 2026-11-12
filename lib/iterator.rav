@@ -206,6 +206,8 @@ readonly IEnumerable ::= interface IMonad {
 
 readonly IEnumerator ::= interface IEnumerable {
     internal MoveNext : function = _
+    # 还有下一个吗 —— 不挪 `Current`,探一下就走(惰性源可能因此推进一步)
+    internal HasNext : function = _
     by Current : object = _
 
     internal GetEnumerator : function = _
@@ -246,6 +248,7 @@ readonly Enumerator ::= class {
     Index : int = -1
     init = (items: IList) => { Items = items; N = items.Count (); this; }
     MoveNext := () => { Index += 1; Index < N; }
+    HasNext := () => { (Index + 1) < N; }
 
     Count := () => {
         n := 0
@@ -285,6 +288,10 @@ readonly RangeCursor ::= class {
             Started { Cur += Step; } { Started = true; }
             Open { true; } { Step > 0 { Cur <= Top; } { Cur >= Top; } }
         }
+    }
+
+    HasNext := () => {
+        Empty { false; } { Started { n := Cur + Step; Open { true; } { Step > 0 { n <= Top; } { n >= Top; } } } { true; } }
     }
 
     by Current := property (() => { Cur; }) ((v: object) => { (); })
