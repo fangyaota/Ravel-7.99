@@ -33,7 +33,7 @@
 
 ## 二、四条硬约束
 
-1. **语义不变**：169 条 golden 用例全绿。若某条用例锁的是实现细节（例如链式比较那次
+1. **语义不变**：168 条 golden 用例全绿（原 169，删掉不稳定的 299 之后）。若某条用例锁的是实现细节（例如链式比较那次
    `310_precedence.rav` 里 `1 < 2 == true` 的旧期望），先拿出来讨论，不静默改。
 2. **注释不超过二十字**（用户 2026-11-12 裁定，取代原"注释是资产"那条）：
    任何注释不得超过 20 字，`///` 一律不要。理由型注释也在内——写不下就用短句点名要害，
@@ -110,7 +110,7 @@ public readonly record struct PostfixPolicy(bool Juxtaposition, bool Pipe, bool 
 - `ParseStatement` 240 行 → 判定收进 `Lookahead` 类（`LooksLikeDefinition` /
   `LooksLikePatternDestructure` / `LooksLikeBarePatternLambda` / `ScanBraceBody` …），
   `ParseStatement` 变成"查一次判定 → 跳对应 `ParseXxx`"。
-- 只搬不改。验收：`ast -s` 前后树形相同（临时名允许变），169 条用例绿。
+- 只搬不改。验收：`ast -s` 前后树形相同（临时名允许变），168 条用例绿。
 
 收益是"读代码的心理负担"，不是正确性，所以排最后。
 
@@ -135,12 +135,12 @@ Lexer、`?.`/`??`/`??=` 在 Lowering、链式比较在 Expressions、下标糖�
 
 | 步 | 内容 | 验收 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 运算符表 | 169/0、`--warn` 无新警告、ast diff 相同 | 已提交 `f2b6e96` |
+| P0 | 运算符表 | 168/0、`--warn` 无新警告、ast diff 相同 | 已提交 `f2b6e96` |
 | P1 | `PostfixPolicy` | 同上 | 已提交 `97a172a` |
 | P2 | 拆两个巨函数 | 同上 + ast diff 相同 | 已提交 `39e3f8e`、`45767fb` |
 | P3 | 写文档 | — | 已落 `docs/adr/0003-where-sugar-lives.md` |
 
-每步结束：`bash build.sh`（169/0）→ `bash build.sh --warn` → 抽 10 个 `.rav` 做 `ast -s` 差分 →
+每步结束：`bash build.sh`（168/0）→ `bash build.sh --warn` → 抽 10 个 `.rav` 做 `ast -s` 差分 →
 提交（提交信息里写清"行为不变，纯结构"）。
 
 ## 八、不做的事
@@ -215,3 +215,29 @@ parser 的 `IsCompareOp` 改成一行委派。自验本身改成比**未脱糖**
 印成 `<builtin>`）的文件跳过自验并计数；`CallExpr(MemberAccess 运算符, 实参)` 在
 `Canonical` 里按二元式渲染，因为 printer 故意把 `a.+ b` 印成 `a + b`。现状：
 `tests/lang/310_precedence.rav`、`tests/lang/367_chain_compare.rav`、`lib/sorting.rav` 三份都 exit 0。
+
+**P2 续：后缀链**（`83a77f8`）。`Syntax/Parser.Expressions.cs` 573 → 238 行，`ParsePostfixRest`
+那 118 行拆出去，另立 `Syntax/Parser.Postfix.cs`（278 行）：
+
+- 主循环 `ParsePostfixRest` 只剩"试一支，认领就继续"：`TryPostfixPipeInto` / `TryPostfixArg` /
+  `TryPostfixDot`，各自返回 `Expression?`，都不认领就 `break`。
+- 管道一支再拆 `PipeIntoOperatorAhead` / `ParsePipeIntoOperator` / `ParsePipeIntoCall` /
+  `ParsePipeIntoClause`；下标一支 `ParseIndex` / `ParseIndexExpression` / `ParseIndexPostfixes` /
+  `RangeInsideParens` / `AdjacentToPrevious`；成员一支 `ParseMemberChain` / `TryPostfixDot` /
+  `ParseGuardedDot` / `OpenGuardedChain` / `GuardedChain`。
+- `while` / `foreach` 那种"循环体当块实参"的状态收进 `LoopCtx`（`OpenPendingLoop` /
+  `LoopBodyIndex`），不再靠 `ref` 布尔在分支间传递。
+- 全量用例由 169 变成 **168**：`tests/task/299_task_io.rav` 时绿时红，用户 2026-11-12 裁"都说不稳定
+  了就删掉"（`0058cac`）。剩下偶发红的是联网/时间类用例，单跑稳定。
+
+**`ast -s` 仍红四份**（显示功能遗留，与解析器结构无关，登记不修）：`examples/guess_number.rav`
+（原 `BinaryExpr` / 新 `LambdaExpr`）、`examples/intro/matrix.rav`（印出来某行以 `.` 起头，重解析缺
+表达式）、`examples/patterns.rav`（位置模式印成 `[l[2] l[1]] = …`，重解析报「'=' 的左边得是变量、
+成员或下标」）、`lib/test.rav`（`FStringPart` 插值往返后行号不同）。顺手修掉的两处：`AstPrinter`
+原本**不认识 `IndexExpr`**（`ast -s` 直接抛「不认识这个节点」，`0684785`）；`HoleExpr` 印成 `_N`、
+重解析成标识符，自验按等价算（`lib/random.rav`、`examples/signal-uses.rav` 因此转绿）。
+
+**并行重构的操作经验**：子代理各自 `dotnet build ... -o /tmp/out_x` 时不要传
+`-p:BaseIntermediateOutputPath=仓库内目录`——这个全局属性会传播进插件项目，把
+`Ravel.Structures/obj_a/` 也编出重复的 `AssemblyInfo`（CS0579）。现在主项目与五个插件项目的
+csproj 都排除了 `obj*` 目录，可以并行构建。
