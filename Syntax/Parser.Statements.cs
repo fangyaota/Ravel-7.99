@@ -514,8 +514,9 @@ public partial class Parser
                                                    // (`==` 是**另一个** token,这边的条件写法不受影响)
         || Check(TokenType.PipeInto)               // `|>` 归 ParsePattern —— 别读进条件里
         || Check(TokenType.Number) || Check(TokenType.String)              // 字面量的下一格
-        || (Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen)   // 只认 `()`,
-                                                                               // `(f x)` 还是条件
+        || Check(TokenType.LeftParen)              // `(…)` 是**下一格**的括号分组（`[a (b)]`）。
+                                                   // 条件里不准带并列实参（`allowCall: false`），
+                                                   // 所以 `名字 (` 不可能是"拿名字去叫"，只能是下一格。
         || Check(TokenType.Newline) || IsAtEnd();
 
     private bool IsLiteralStart()
