@@ -208,7 +208,8 @@ internal static class AstDump
         {
             // "来路"那两个只在**自验**那一趟排掉(见 `Canonical`);转储是照印的 ——
             // 那份要的是"一个字段都不少"
-            if (!meta && prop.Name is "Source" or "Sugar" or "Pattern" or "BareUnitArg") continue;
+            if (!meta && prop.Name is "Source" or "Sugar" or "Pattern" or "BareUnitArg"
+                or "Parenthesized") continue;   // 只影响链式摊平
             var value = prop.GetValue(node);
             if (value is null) continue;
 

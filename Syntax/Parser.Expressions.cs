@@ -171,34 +171,11 @@ public partial class Parser
     private static CallExpr Call(Expression fn, Expression arg, Token at)
         => new(fn, arg) { Line = at.Line, Column = at.Column };
 
-    private static readonly Dictionary<TokenType, (int Lbp, int Rbp)> BinOpBp = new()
-    {
-        [TokenType.OrOr] = (2, 3),
-        [TokenType.Pipe] = (4, 5),
-        [TokenType.And] = (6, 7), [TokenType.Caret] = (6, 7),
-        [TokenType.AndAnd] = (8, 9),
-        [TokenType.Colon] = (10, 11),
-        [TokenType.NotEqual] = (10, 11), [TokenType.EqualEqual] = (10, 11),
-        [TokenType.Less] = (10, 11), [TokenType.Greater] = (10, 11),
-        [TokenType.LessEqual] = (10, 11), [TokenType.GreaterEqual] = (10, 11),
-        [TokenType.Subtype] = (10, 11), [TokenType.Supertype] = (10, 11),
-        [TokenType.ShiftLeft] = (12, 13), [TokenType.ShiftRight] = (12, 13),
-        [TokenType.RotateLeft] = (12, 13), [TokenType.RotateRight] = (12, 13),
-        [TokenType.Plus] = (14, 15), [TokenType.Minus] = (14, 15),
-        [TokenType.Star] = (16, 17), [TokenType.Slash] = (16, 17), [TokenType.Percent] = (16, 17),
-    };
-
-    private static readonly Dictionary<string, (int Lbp, int Rbp)> WordOpBp = new()
-    {
-        ["or"] = (2, 3),
-        ["and"] = (8, 9),
-    };
-
     private static bool IsInfixWordOperator(Token t)
-        => t.Type == TokenType.Identifier && WordOpBp.ContainsKey(t.Lexeme);
+        => t.Type == TokenType.Identifier && Operators.TryWord(t.Lexeme, out _);
 
     internal static bool IsInfixOperator(Token t)
-        => BinOpBp.ContainsKey(t.Type) || IsInfixWordOperator(t)
+        => Operators.IsInfixToken(t.Type) || IsInfixWordOperator(t)
         || t.Type is TokenType.Coalesce or TokenType.PipeInto;
 
     private Expression ParseClimb(bool allowCall, int minBp)
@@ -211,10 +188,11 @@ public partial class Parser
             var t = Peek();
             int lbp, rbp;
 
-            if (BinOpBp.TryGetValue(t.Type, out var bp))
-                (lbp, rbp) = bp;
+            if (Operators.TryToken(t.Type, out var info))
+                (lbp, rbp) = (info.Lbp, info.Rbp);
             else if (IsInfixWordOperator(t))
             {
+                Operators.TryWord(t.Lexeme, out var infoOfWord);
                 // 运算符后面总得跟个操作数。`print or` 是最常见的那一脚 —— 从前它报
                 // 「未定义的名字 'or'」(那时 `or` 还是实参),现在得说准话:它成了运算符,
                 // 想传这个值就加括号。(不然报的是"需要表达式,但得到 表达式结束",
@@ -222,7 +200,7 @@ public partial class Parser
                 if (!StartsPrimaryAt(1) && !IsOperatorToken(TypeAt(1)))
                     throw ParseError($"'{t.Lexeme}' 是中缀运算符，后面得跟个操作数"
                                    + $"（想传一个叫 `{t.Lexeme}` 的值就加括号：`({t.Lexeme})`）");
-                (lbp, rbp) = WordOpBp[t.Lexeme];
+                (lbp, rbp) = (infoOfWord.Lbp, infoOfWord.Rbp);
             }
             else break;
 
@@ -278,12 +256,13 @@ public partial class Parser
     {
         var left = ParseCall(allowCall);
 
-        if (Match(TokenType.StarStar))
+        if (Operators.IsPowerLike(Peek().Type))
         {
-            BumpExprDepth();                        // `**` 右结合:右边那个就是下一层
-            var op = Previous().Lexeme;
-            var right = ParsePower(allowCall);      // 往本层递归 = 右结合
-            return new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
+            BumpExprDepth();                        // 右结合
+            var t = Peek();
+            _pos++;
+            var right = ParsePower(allowCall);
+            return new BinaryExpr(left, t.Lexeme, right) { Line = left.Line, Column = left.Column };
         }
 
         return left;
@@ -390,9 +369,10 @@ public partial class Parser
                     _pos++;
                     BumpExprDepth();
                     // `**` 归 ParsePower 管（右结合、表里没有它那一格）
-                    var right = sym.Type == TokenType.StarStar
+                    // 右结合且比一元紧的(`**`)归 ParsePower
+                    var right = Operators.IsPowerLike(sym.Type)
                         ? ParsePower(allowCall)
-                        : ParseClimb(allowCall, BinOpBp.TryGetValue(sym.Type, out var pipeBp) ? pipeBp.Item2 : 0);
+                        : ParseClimb(allowCall, Operators.TryToken(sym.Type, out var pipeOp) ? pipeOp.Rbp : 0);
                     expr = new BinaryExpr(expr, sym.Lexeme, right) { Line = sym.Line, Column = sym.Column };
                     continue;
                 }

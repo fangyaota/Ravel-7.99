@@ -170,7 +170,7 @@ internal static class AstPrinter
         // `!x.IsEmpty ()`,读回去 `!` 把那串全吃了(实测:`!a.IsEmpty () || !b.IsEmpty ()`
         // 和 `!(a.IsEmpty ()) || !(b.IsEmpty ())` 是**两棵树**)。前缀运算符后面那串
         // 和实参一样会往右边吃,所以调用在这儿也得套括号。
-        UnaryExpr u => u.Op + Paren(u.Operand, 18, indent),
+        UnaryExpr u => u.Op + Paren(u.Operand, Operators.UnaryPrec + 1, indent),
         PipeExpr p => Paren(p.Left, 1, indent) + " <| " + Paren(p.Right, 2, indent),
         LambdaExpr lam => "(" + Param(lam.Param, indent) + ") => " + BlockInner(lam.Body, indent),
         BlockExpr b => BlockInner(b, indent),
@@ -182,38 +182,23 @@ internal static class AstPrinter
         _ => throw Unknown(e),
     };
 
-    private static readonly Dictionary<string, int> BinPrec = new()
-    {
-        ["||"] = 2,
-        ["|"] = 4,
-        ["and"] = 6, ["^"] = 6,
-        ["&&"] = 8,
-        [":"] = 10, ["=="] = 10, ["!="] = 10, ["<"] = 10, [">"] = 10,
-        ["<="] = 10, [">="] = 10, ["<:"] = 10, [":>"] = 10,
-        ["<<"] = 12, [">>"] = 12, ["<<<"] = 12, [">>>"] = 12,
-        ["+"] = 14, ["-"] = 14,
-        ["*"] = 16, ["/"] = 16, ["%"] = 16,
-        // `**` 不在 `BinOpBp` 里 —— 它有两条别人没有的性质:比一元负号还紧、而且**右结合**
-        // (`-2 ** 2` 是 `-(2**2)` = -4;`2 ** 3 ** 2` 是 `2**(3**2)` = 512)。所以表里给它最高,
-        // 结合性在下面单独判。顺手也把它从"认不得"那一档(会被当成最低)里捞了出来。
-        ["**"] = 18,
-    };
+    private static int PrintPrec(string symbol) => Operators.PrintPrec(symbol);
 
-    // `a < b < c` —— 每个操作数按比较那一档(10)套括号,运算符原样夹在中间
+    // `a < b < c` —— 操作数按比较档套括号
     private static string Chain(ChainCompare c, int indent)
     {
-        var parts = new List<string> { Paren(c.Operands[0], 10, indent) };
+        var parts = new List<string> { Paren(c.Operands[0], PrintPrec("<"), indent) };
         for (var i = 0; i < c.Ops.Count; i++)
         {
             parts.Add(c.Ops[i]);
-            parts.Add(Paren(c.Operands[i + 1], 10, indent));
+            parts.Add(Paren(c.Operands[i + 1], PrintPrec("<"), indent));
         }
         return Join(" ", parts);
     }
 
     private static string Binary(BinaryExpr b, int indent)
     {
-        var p = BinPrec.GetValueOrDefault(b.Op, 0);
+        var p = PrintPrec(b.Op);
         // 操作数给多紧才不用套括号 —— 看**结合性**:
         // 左结合的(`a - b - c` = `(a-b)-c`)左边给 `p`(同级不套)、右边给 `p + 1`
         // (`a - (b - c)` 同级,要套);右结合的(`**`)正好倒过来。
@@ -228,11 +213,11 @@ internal static class AstPrinter
 
     private static int Prec(Expression e) => e switch
     {
-        BinaryExpr b => BinPrec.GetValueOrDefault(b.Op, 0),
-        ChainCompare => 10,
+        BinaryExpr b => PrintPrec(b.Op),
+        ChainCompare => PrintPrec("<"),
         // 一元比 `**` 松、比其余运算紧 —— 所以 `(-2) ** 2` 那个左操作数得套括号
         // (不套读回去是 `-(2 ** 2)`,另一个数),而 `a + -b` 不用。
-        UnaryExpr => 17,
+        UnaryExpr => Operators.UnaryPrec,
         IdentifierExpr i when IsWordOperator(i) => -1,
         CallExpr or LambdaExpr or BlockExpr or SlotExpr or DoExpr or PipeExpr => -1,
         _ => 100,
