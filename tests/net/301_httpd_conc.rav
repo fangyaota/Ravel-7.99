@@ -3,6 +3,7 @@
 # 头一条看 `srv.Conns` 和 `srv.Requests`:三个请求走一条连接,就是 1 和 3。
 # 后一条看**服务端自己数的并发峰值** —— 和 `tests/298` 一个规矩:**钉整数,不钉墙钟**。
 # 墙上那点毫秒在慢机器上会飘,"此刻同时挂着几个"不会。
+# slow
 using "httpd.rav"
 using "tasks.rav"
 using "http.rav"

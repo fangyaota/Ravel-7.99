@@ -5,6 +5,7 @@
 # 这是协作式调度的本分,不是 bug。
 #
 # 端口一律绑 0(让系统挑),用例里**不打印端口** —— 每次都不一样,打印出来期望就钉不住。
+# slow
 using "httpd.rav"
 using "tasks.rav"
 using "http.rav"

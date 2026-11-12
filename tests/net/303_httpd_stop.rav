@@ -5,6 +5,7 @@
 # 循环就一圈圈空转(每次挂一个一进来就死的连接任务),既不报错也停不下来。
 #
 # 现在退出条件就是 `HttpAccept` 交回来的东西:关了就是**空 dict**,`IsEmpty ()` 收摊。
+# slow
 using "httpd.rav"
 using "tasks.rav"
 using "native.rav"

@@ -3,6 +3,7 @@
 #
 # 端口每次都不一样,所以**这里不许打印 URL** —— 一打印,期望输出就钉不住了。
 # net
+# slow
 using "http.rav"
 
 base := System.Env "RAVEL_TEST_HTTP"

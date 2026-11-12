@@ -5,6 +5,7 @@
 # 并发发就是 ≥2,慢机器上也钉得住。时间会飘,整数不飘。
 #
 # 要靠 `ravel test`:运行器会起那台回环服务器,基址在 `RAVEL_TEST_HTTP` 里。
+# slow
 using "http.rav"
 
 base := System.Env "RAVEL_TEST_HTTP"
