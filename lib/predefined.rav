@@ -103,22 +103,32 @@ readonly reject := (e) => {
 }
 
 readonly IsNothing := (v: object) => {
-    (v : Option) && (v.IsNone ())
+    (v : IMonad) {
+        empty := true
+        v.Foreach ((x: object) => { empty = false; })
+        empty
+    } { false; }
 }
 
 readonly NilChain := (get: function step: function) => {
     v := get ()
-    (IsNothing v) { v; } { v : Option { Some (step (v.Value ())); } { step v; } }
+    (v : IMonad) { v.Map step; } {
+        throw (TypeError ("'?.' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 " + (string (typeof v))))
+    }
 }
 
 readonly NilOr := (get: function fallback: function) => {
     v := get ()
-    (IsNothing v) { fallback (); } { v : Option { v.Value (); } { v; } }
+    (v : IMonad) {
+        got := None
+        v.Foreach ((x: object) => { got.IsNone () { got = Some x; } { 0; } })
+        got.IsSome () { got.Value (); } { fallback (); }
+    } { v; }
 }
 
 readonly NilFill := (get: function set: function fallback: function) => {
     v := get ()
-    (IsNothing v) { set (fallback ()); } { v; }
+    (v : IMonad) { (IsNothing v) { set (fallback ()); } { v; } } { v; }
 }
 
 IFunctionAlt ::= interface {

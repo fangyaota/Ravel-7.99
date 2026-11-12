@@ -1,4 +1,4 @@
-﻿# 空值那三条语法糖:`?.` / `??` / `??=`。
+# 空值那三条语法糖:`?.` / `??` / `??=`。
 #
 # **「空」只有 `None` 一样** —— `()` 不是空:它是 Void 类型那个**值**,和 `0` / `""` / `[]`
 # 平起平坐;`Some ()` 更不是(有个值,值是 `()`)。要"没设过"就明写 `None`:
@@ -31,9 +31,11 @@ print ((Some "abc")?.Length ())           # Some 里的值走完链,**再包回�
 print (((Some "abc")?.Length ()) ?? -1)   # 收口时解包
 print ((None?.Length ()) ?? -1)
 
-# 普通对象照常取成员(不包)
-d := {"a"-> 1 "b"-> 2}
-print ((d?.Count ()) ?? -1)
+# 不是 monad 的左边直接报错(不会悄悄当成"取成员")
+try { eval "print ((5)?.ToString ())"; } (e: Exception) => { print ("0: " + string e); }
+
+# 是 monad(IMonad)就按 Map 走 —— list / dict / string 都算
+print (["ab" "c"]?.Length () ?? -1)
 
 # `()` 上取成员**照旧报错** —— 不被悄悄吞掉
 try { nothing?.Text (); } (e: Exception) => { print ("1: " + string e); }
@@ -80,9 +82,9 @@ print Times
 pick := (_ ?? "兜底")
 print (pick ())
 print (pick (Some "有"))
-has := (_?.Length ())
-print ((has "abc") ?? -1)
-print (has (None))
+has := (_?.Count ())
+print ((has [["a"] ["bc"]]) ?? -1)   # list 也是 monad:`?.` 就是逐元素 Map
+print (has (None))            # None 还是 None
 
 # ── 和 `|>` 搭:一路 `?.` 喂下去 ──
 # `?.` 是「拆开—走一趟—包回去」,所以每过一段形状**还是 Option**,不会叠成 `Some (Some x)`;
@@ -97,6 +99,7 @@ print ((None |> ?.Count ()) ?? 0)
 # ── 报错:左值不是变量/成员、单独的 `?` ──
 try { eval "(1 + 2) ??= 3"; } (e: Exception) => { print ("2: " + string e); }
 try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
+
 # --- expected ---
 # 0
 # 7
@@ -108,8 +111,9 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # Option { Has = true, Inner = 3 }
 # 3
 # -1
-# 2
-# 1: 类型 'Void' 没有方法 'Text'
+# 0: '?.' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Integer
+# [2 1]
+# 1: '?.' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Void
 # 没跑
 # 第一次
 # 第一次
@@ -126,7 +130,7 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # 1
 # ()
 # 有
-# 3
+# 1
 # Option { Has = false, Inner = () }
 # Option { Has = true, Inner = hi }
 # Option { Has = false, Inner = () }

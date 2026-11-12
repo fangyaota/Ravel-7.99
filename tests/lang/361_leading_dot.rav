@@ -25,12 +25,11 @@ print ([7 8]
 print ([1 2 3]
     .Map (x) => { x * 10; }
     .Sum ())
-# 行首的 `?.` 也一样
-g := (x) => { x; }
-print (g 7
-    ?.ToString ())
-print (g ()
-    ?.ToString ())
+# 行首的 `?.` 也一样(左边得是 monad)
+print ((Some "abc"
+    ?.Length ()) ?? -1)
+print ((None
+    ?.Length ()) ?? -1)
 
 # --- expected ---
 # 12
@@ -41,5 +40,5 @@ print (g ()
 # 3
 # 15
 # 60
-# 7
-# ()
+# 3
+# -1
