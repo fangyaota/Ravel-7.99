@@ -83,7 +83,7 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **REPL**:`dotnet out/ravel.dll` 不带参数就进,多页缓冲 + 高亮 + 光标 —— 而且
   **这个 REPL 本身就是 Ravel 写的**(`lib/repl.rav`:按键编辑、主菜单、读写页、会话存盘
   都在里头,引擎只为它多给了六条"进程边界"原语)。
-- **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test <词>` 比对(**必须挑词**,全量那一趟已经取消)。
+- **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test <词>` 比对(**必须挑词**,全量那一趟已经取消;一次最多 20 个文件,挑宽了当场拒绝)。
 - **`--warn`**:少给一块的 `if`、`assert 条件` 忘了写消息 —— 这类"半成品函数被静默丢掉"的坑,
   开着它就当场提醒一句(见 `CONTEXT.md` 的「诊断」一节)。
 - **VS Code 扩展**(`vscode-ravel/`):语法高亮(含 `"""` 原始字符串与 `'c'` 字符字面量)+
@@ -95,11 +95,12 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 ## 编译运行
 
 ```bash
-bash build.sh --pick=lang                # 下面那几步收成一条命令:发布到 out/ + 跑 lang/ 那摞用例 + 冒烟
+bash build.sh --pick=pattern             # 下面那几步收成一条命令:发布到 out/ + 跑 pattern 那几条用例 + 冒烟
 bash build.sh --pick=367 --rebuild --warn   # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
 bash build.sh --no-test                  # 只发布
 bash build.sh --help                     # 还有 --pick= / --fast / --release
-     # **测试必须挑词**:全量那一趟取消了,`bash build.sh` 不带 --pick= 会当场报错
+     # **测试必须挑词**:全量那一趟取消了,`bash build.sh` 不带 --pick= 会当场报错;
+     # 挑中的文件超过 20 个也当场拒绝(`--pick=lang` 这种就把词写窄一点)
 
 rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c Debug -o out
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
@@ -163,7 +164,7 @@ lib/                **标准库 —— 用 Ravel 自己写的**(控制流、序�
                     元类(数据类 / 枚举 / 单例)、测试库、摘要与加密、命令行参数、表格、日志、ZIP 归档、通配符、
                     XML、HTML、终端、REPL、数据结构…)
 tests/              golden 用例(.rav + 文件末尾的 `# --- expected ---`),按类型分子目录:
-                    lang/ class/ module/ diag/ lib/ net/ task/ —— `ravel test <目录名>` 挑一摞跑(必须挑)
+                    lang/ class/ module/ diag/ lib/ net/ task/ —— `ravel test <词>` 挑一摞跑(必须挑,一次最多 20 个文件)
 examples/           例子(不进测试,给你看着玩)
 docs/               tutorial.md(教程索引)+ tutorial/(一章一个文件)+ adr/(架构决策)
 vscode-ravel/       VS Code 扩展

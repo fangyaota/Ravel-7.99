@@ -12,6 +12,8 @@ internal static class GoldenTestRunner
 
     private const string SlowMarker = "# slow";
 
+    private const int MaxFiles = 20;
+
     private static LoopbackServer? _server;
 
     public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false, bool moreControlFlow = false)
@@ -28,8 +30,8 @@ internal static class GoldenTestRunner
         if (pick is not { Length: > 0 })
         {
             Console.WriteLine("没挑词 —— 全量那一趟已经取消。给个沾相对路径的词,例如:");
-            Console.WriteLine("    ravel test lang          整个 lang/ 目录");
             Console.WriteLine("    ravel test 367           编号里带 367 的那条");
+            Console.WriteLine("    ravel test pattern       整个 pattern 那几条");
             Console.WriteLine("    ravel test net --fast    只跑 net/ 里不带 # slow 的");
             return false;
         }
@@ -43,6 +45,15 @@ internal static class GoldenTestRunner
         {
             // 挑了个什么都不沾的词,别让人对着"0 passed"发愣
             Console.WriteLine($"没有一条用例对得上:{string.Join(" ", pick!)}");
+            return false;
+        }
+
+        // 一次最多二十条:挑宽了当场拒绝,免得又变成"几分钟说不清哪一摊"
+        if (chosen.Count > MaxFiles)
+        {
+            Console.WriteLine($"挑出 {chosen.Count} 个文件,超过上限 {MaxFiles} —— 把词写窄一点,或者删掉一些测试");
+            Console.WriteLine("    ravel test 367           编号里带 367 的那条");
+            Console.WriteLine("    ravel test net --fast    只跑 net/ 里不带 # slow 的");
             return false;
         }
 

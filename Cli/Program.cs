@@ -35,9 +35,9 @@ internal static class Program
                     ?.InformationalVersion?.Split('+')[0] ?? "?");
             config.SetApplicationCulture(new CultureInfo("zh-CN"));   // 帮助文案钉死中文(默认跟系统语言)
             config.Settings.StrictParsing = true;         // 不认识的开关要报错,别静默吞掉
-            config.AddCommand<TestCommand>("test").WithDescription("跑 golden 用例(必须挑词,全量已取消)")
-                .WithExample("test", "lang")
+            config.AddCommand<TestCommand>("test").WithDescription("跑 golden 用例(必须挑词,一次最多 20 个文件,全量已取消)")
                 .WithExample("test", "367")
+                .WithExample("test", "pattern")
                 .WithExample("test", "net", "--fast");
             config.AddCommand<StripCommand>("strip").WithDescription("剥掉 .rav 里的注释(就地)")
                 .WithExample("strip", "out/lib");
@@ -56,7 +56,7 @@ internal static class Program
             if (Array.IndexOf(HeadSwitches, args[i]) >= 0) continue;
             Console.WriteLine($"不认识的开关 '{args[i]}'。");
             Console.WriteLine("用法: ravel [--warn] [--more-control-flow] [脚本.rav [参数…]]");
-            Console.WriteLine("      ravel test <词…> [--fast]");
+            Console.WriteLine("      ravel test <词…> [--fast]   (一次最多 20 个文件)");
             Console.WriteLine("      ravel strip <文件或目录…>");
             Console.WriteLine("      ravel ast <文件或目录…>");
             Console.WriteLine("      ravel --help");

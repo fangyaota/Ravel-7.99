@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ravel 的构建脚本 —— 把 CONTEXT.md「编译运行」那几步收成一条命令。
 #
-#     bash build.sh --pick=lang  发布到 out/,再跑 lang/ 那一摞用例
+#     bash build.sh --pick=pattern  发布到 out/,再跑 pattern 那几条用例
 #     bash build.sh --warn --pick=367  测试那趟带 `--warn` 跑(逮"少给一块"那种静默失败;
 #                                **同一套用例**,所以不另跑一趟普通的)
 #     bash build.sh --rebuild    顺带做一次 -t:Rebuild,有 C# 警告就当场红
@@ -10,6 +10,7 @@
 #     bash build.sh --pick=net --fast  只跑 net/ 里不带 `# slow` 的
 #
 # **测试必须挑词**(至少一个 `--pick=`):全量那一趟已经取消,不挑就当场报错。
+# **挑中的文件最多二十个**:挑宽了(例如 `--pick=lang`)当场拒绝,把词写窄或者删测试。
 #
 # 两条讲究都在 CONTEXT.md 里写着,别改:
 #   * **先删 out/**:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论;
@@ -104,7 +105,7 @@ done
 # (`--fast`/`--warn` 是开关,不算挑词。)
 if [ "$run_test" = 1 ] && [ "$have_pick" = 0 ]; then
     echo "没给 --pick= —— 全量测试已经取消,不挑词就没得跑。" >&2
-    echo "  例:bash build.sh --pick=lang     /     bash build.sh --no-test" >&2
+    echo "  例:bash build.sh --pick=367     /     bash build.sh --no-test" >&2
     exit 2
 fi
 
