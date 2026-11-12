@@ -13,19 +13,8 @@ public partial class Parser
         PipeExpr p => [p.Left, p.Right],
         ListLiteral l => l.Elements,
         SetLiteral s => s.Elements,
-        // 键也是表达式了(`{"a": 1}`),所以两栏都要列 —— 漏了键的话 `{_: v}` 里的洞
-        // 会一路带到求值器(正是这个 switch 从前漏掉 Set/Dict 的那个毛病)
         DictLiteral d => d.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
-        // 唯一一种**要钻进去**的 lambda:语法糖生成的(`?.` / `??` / `??=` 脱糖时那几枚,
-        // 见 `Parser.Expressions`)。它们只是"把这段表达式挪个地方",不引入自己的 `_`
-        // 作用域 —— 里面的洞还是**外层语句**的洞,不收的话会一路带到求值器报
-        // 「无法求值的节点类型: HoleExpr」(`_ ?? 1` 就是这么坏的)。
-        // 用户写的 lambda 照旧是边界,一个都不钻。
         LambdaExpr { Sugar: true } l when l.Body.Statements is [ExpressionStatement es] => [es.Expr],
-        // **叶子**(`do` 块):里面**每条语句各自已经消过洞了** —— 它们都是走 `ParseStatement`
-        // 读的,那一条末尾就带消糖。所以这儿的答案恒为"没有洞",不必也不能钻进去
-        // (硬钻的话外层那趟会把内层的洞再收一遍,编号和参数全对不上)。
-        // 摆成一条显式分支而不是落进 `_ => []`,是**故意让下一个人看见**这条规矩。
         DoExpr => [],
         _ => [],
     };
@@ -41,13 +30,7 @@ public partial class Parser
         CollectHoles(e, holes);
         // 去重保持顺序
         var uniq = holes.Distinct().ToList();
-        // 替换 HoleExpr → IdentifierExpr
         var body = ReplaceHoles(e);
-        // 嵌套 lambda：最外层参数对应第一个 hole。
-        // 参数名用的是 hole 的**全局序号**(`uniq[i]`,和 ReplaceHoles 换出来的标识符同一个数),
-        // 不是"第几个 hole"(`i`)—— `_` 的序号是解析期一个单调计数器(每语句归零),
-        // 同一条语句里第二个洞里,`i` 与序号对不上就会生成 `(_0) => { _1 is bool; }` 这种
-        // 「未定义的变量 '_1'」(同一个函数里的名字还得唯一:嵌套时同名会互相遮蔽)。
         for (int i = uniq.Count - 1; i >= 0; i--)
         {
             var block = new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
@@ -86,7 +69,6 @@ public partial class Parser
             SetLiteral s => new SetLiteral([.. s.Elements.Select(ReplaceHoles)]) { Line = e.Line, Column = e.Column },
             DictLiteral d => new DictLiteral([.. d.Entries.Select(entry =>
                 new DictEntry(ReplaceHoles(entry.Key), ReplaceHoles(entry.Value)))]) { Line = e.Line, Column = e.Column },
-            // 糖生成的 lambda:体一律是"一条表达式语句"(见 `Children` 那条的理由)
             LambdaExpr { Sugar: true } l when l.Body.Statements is [ExpressionStatement es]
                 => l with { Body = l.Body with { Statements = [es with { Expr = ReplaceHoles(es.Expr) }] } },
             _ => e

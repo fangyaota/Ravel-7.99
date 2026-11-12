@@ -5,17 +5,12 @@ using Ravel.Runtime;
 
 public partial class Parser
 {
-    // ========================================
     //  表达式 — 按优先级递归下降
-    // ========================================
 
     private Expression ParseExpression() => ParseExpression(Postfix.Full);
 
     private Expression ParseExpression(Postfix policy)
     {
-        // 一条表达式从哪儿开始、到哪儿结束,链长就在这一段里算:出去(哪怕是抛异常出去)
-        // 都还回原值。没有这一层,`obj.field := v` 这种**语句级**的赋值会把 `_exprDepth`
-        // 越攒越高 —— 攒过 400 条,第 401 条好端端的语句就被判成"嵌套太深"。
         using var _expr = ExprDepth.Begin(this);
         return ParsePipe(policy);
     }
@@ -26,9 +21,8 @@ public partial class Parser
 
         if (Match(TokenType.PipeLeft))
         {
-            BumpExprDepth();                        // `<|` 右结合:`a <| b <| c` 是 `a <| (b <| c)`
+            BumpExprDepth();
             var right = ParsePipe(policy);
-            // 右边自成一界：`f <| _ + 1` 的 `_` 只收 `_ + 1`，交出去的是闭包。
             if (HasHoles(right)) right = DesugarHoles(right);
             return new PipeExpr(left, right) { Line = left.Line, Column = left.Column };
         }
@@ -40,16 +34,12 @@ public partial class Parser
     {
         var left = ParseNullCoalesce(policy);
 
-        // `??=` 单独一条:它**不能**走下面"把左值先求出来"那条路 ——
-        // 「不空就一个字符都不碰」(成员那条连 setter 都不该调)得靠"读、写分开"才做得到,
-        // 那是 `Lowering` 折成 `x = (x ?? v)` 时的事。这儿只管形状:`??=` 的左边得是变量或成员
-        // (和 `=` 一样),不是就当场报 —— 插入符指着 `??=`,比指着整条语句准。
         if (Match(TokenType.CoalesceEqual))
         {
             var op = Previous();
             if (left is not (IdentifierExpr or MemberAccess))
                 throw ParseError("'??=' 的左边得是变量或成员（就像 '=' 那样）");
-            BumpExprDepth();                    // `a ??= b ??= c`:右结合,一层一个栈帧
+            BumpExprDepth();
             var right = ParseAssignment(policy);
             return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
         }
@@ -59,7 +49,7 @@ public partial class Parser
             Match(TokenType.SlashEqual) || Match(TokenType.PercentEqual))
         {
             var op = Previous().Lexeme;
-            BumpExprDepth();                    // `a := b := c` / `a = b = c`:右结合,一层一个栈帧
+            BumpExprDepth();
             var right = ParseAssignment(policy);
             return new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
         }
@@ -72,9 +62,9 @@ public partial class Parser
         var left = ParseBlockArgs(policy);
         if (!Match(TokenType.Coalesce)) return left;
 
-        BumpExprDepth();                            // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`,每层一个栈帧
+        BumpExprDepth();
         var op = Previous();
-        var right = ParseNullCoalesce(policy);          // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`
+        var right = ParseNullCoalesce(policy);
         return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
     }
 
@@ -83,19 +73,12 @@ public partial class Parser
         var e = ParseClimb(policy, 0);
         if (!policy.Args) return e;
 
-        // `while` 的块**仍归原来那套**(在 `ParsePostfixRest` 里)—— 它的条件和体之间
-        // **没有运算符**,所以"块挂到整条表达式上"这条对它不适用;而循环上下文
-        // (压 `LoopCtx`、体的 `break` / `continue` 出口)全在那儿。
         //
-        // (从前这里还有个 `foreach`;2026-10-07 起它成了**成员调用** `序列.Foreach 体`,
-        //  体是普通的 lambda 实参,走不上这条路。)
         if (moreControlFlow && e is IdentifierExpr { Name: "while" })
             return ParsePostfixRest(e, policy.WithBlocks);
 
         while (Check(TokenType.LeftBrace))
         {
-            // 位置照**被调用那一侧**记(和 `ParsePostfixRest` 里那条一个规矩:
-            // 报错要指回"这个调用写在哪",而块写在右边)。
             e = new CallExpr(e, ParsePrimary()) { Line = e.Line, Column = e.Column };
             e = ParsePostfixRest(e, policy);         // 块后面还能接普通的并列实参
         }
@@ -118,13 +101,11 @@ public partial class Parser
         Expression index;
         if (opener.Type == TokenType.LeftParen)
         {
-            // `(` 开:起点不含。收尾的 `]` / `)` 由 `TryParseRange` 吃掉。
             index = TryParseRange(false)
                 ?? throw ParseError("'(' 开头的索引得是区间（`xs(0..3)`）");
         }
         else
         {
-            // `[` 开:区间(收尾 `]` 含、`)` 不含)或者一个普通的表达式。
             index = TryParseRange(true) ?? ParseIndexExpression();
         }
 
@@ -139,7 +120,6 @@ public partial class Parser
         return index;
     }
 
-    // 紧跟的这个 `(` 里面(这一层)有没有 `..` —— 有才是区间索引,不然是普通调用。
     private bool RangeInsideParens()
     {
         var depth = 0;
@@ -195,9 +175,6 @@ public partial class Parser
             else if (IsInfixWordOperator(t))
             {
                 Operators.TryWord(t.Lexeme, out var infoOfWord);
-                // 运算符后面总得跟个操作数。`print or` 是最常见的那一脚 —— 从前它报
-                // 「未定义的名字 'or'」(那时 `or` 还是实参),现在得说准话:它成了运算符,
-                // 想传这个值就加括号。(不然报的是"需要表达式,但得到 表达式结束",
                 // 一个字的线索都没有,还指着语句开头。)
                 if (!StartsPrimaryAt(1) && !IsOperatorToken(TypeAt(1)))
                     throw ParseError($"'{t.Lexeme}' 是中缀运算符，后面得跟个操作数"
@@ -210,8 +187,6 @@ public partial class Parser
 
             _pos++;
 
-            // `1 + <| x y` 就是 `1 + (x y)`：`<|` 紧跟在一个运算符后面，说的是
-            // **这个运算符的右操作数**被它封住 —— 右边整条算式算一个值。
             if (Check(TokenType.PipeLeft))
             {
                 _pos++;
@@ -224,8 +199,6 @@ public partial class Parser
             BumpExprDepth();                        // 链上又挂了一节,树也跟着长一层
             var op = t.Lexeme;
             var right = ParseClimb(policy, rbp);
-            // `a < b < c` —— 链式比较:比较那一层是左结合,所以再来一发时左边已经是
-            // 一个比较式了。摊平成一条链,交给 Lowering 保证每个操作数只求一次。
             if (IsCompareOp(op))
             {
                 if (left is BinaryExpr { Parenthesized: false } prev && IsCompareOp(prev.Op))
@@ -249,7 +222,6 @@ public partial class Parser
         return left;
     }
 
-    // 能串成一串的比较运算符 —— 10 那一档的全都在内,`:` / `<:` / `:>` 这几条类型判定也算
     private static bool IsCompareOp(string op)
         => op is "<" or ">" or "<=" or ">=" or "==" or "!=" or ":" or "<:" or ":>";
 
@@ -272,22 +244,13 @@ public partial class Parser
 
     private Expression ParseCall(Postfix policy)
     {
-        // 一元 ! 和 -(都往本层递归,所以 `! !x` / `- -1` 写得出来)。
-        // 位置取**运算符**那个 token:从前是把操作数解析完才回头 Previous(),
-        // 拿到的是操作数的最后一个 token,报错时插入符指在算式末尾。
         //
-        // **操作数走 `ParsePower` 而不是本层**:`-2 ** 2` 要读成 `-(2 ** 2)`
-        // (`**` 比一元紧)。走本层的话负号先落地,就成了 `(-2) ** 2`。
-        // `-1 => …` —— 负数字面量当**裸模式参数**。负号在**这一层**就被吃了,所以判据得
-        // 先在这儿看一眼:不拦的话读成 `-(1 => …)`,运行期报一句「一元 '-' 不支持 Function」。
-        // 只认 `allowCall` 那一侧:模式内部(守卫、字面量那一格)走的是 `allowCall: false`,
-        // 那儿出现 `-1 => …` 不是 lambda。
         if (policy.Args && Check(TokenType.Minus) && BarePatternLambdaAhead(1))
             return ParseBarePatternLambda();
 
         if (Match(TokenType.Bang) || Match(TokenType.Minus))
         {
-            BumpExprDepth();                        // `! ! !x` / `- - -1`:一元也是一层递归
+            BumpExprDepth();
             var op = Previous();
             return new UnaryExpr(op.Lexeme, ParsePower(policy)) { Line = op.Line, Column = op.Column };
         }
@@ -305,46 +268,20 @@ public partial class Parser
 
     private Expression ParsePostfixRest(Expression expr, Postfix policy, bool guarded = false)
     {
-        // `allowCall: false` 从前是"**什么后缀都不收**"。守卫那儿需要的其实是更窄的一档
-        // (`allowPipe: true`):**不吃并列的实参**(不然 `(x < 0 y: int)` 里那个 `y: int`
-        // 会被当成 `0` 的实参吃进去,"守卫 + 下一个参数"静默变成一个参数的 lambda),
-        // 但 `|>` **照收** —— 它是运算符,不是并列的应用(`(v |> IsPrime)` 靠它)。
-        // 下标是**后缀**,和"并列的实参"不是一回事 —— 所以放在 `allowCall` 这道门**外面**:
-        // `print l[0]` 里那个 `[0]` 得挂在 `l` 上,不能被外层当成"再喂一个实参"。
         //
-        // 四种区间写法都在这一条路上:`xs[1..2]` / `xs[1..3)` / `xs(0..2]` / `xs(0..3)`。
-        // `(` 只有"紧挨着、里面是区间"才当索引 —— 否则 `f(x)` 还是普通的调用。
         while (AdjacentToPrevious()
                && (Check(TokenType.LeftBracket) || (Check(TokenType.LeftParen) && RangeInsideParens())))
             expr = ParseIndex(expr);
 
         if (!policy.Args && !policy.Pipe) return expr;
 
-        // 这一串里正在开的那个循环。**得跨实参活下来** —— `while` / `foreach` 的体是
-        // **第 2 个**实参,而每一轮循环体都会重新声明局部变量。
         LoopCtx? loop = null;
 
-        // f a b c  →  ((f a) b) c  柯里化。
-        // **词形运算符在这儿要停**(`or` / `and`):它们看着像个 primary —— 本来就是标识符
-        // —— 但 `f a or g` 里那个 `or` 是中缀:`a` 当实参,`or` 归上面 `ParseClimb` 的循环。
-        // (不停的话 `f or g` 就成了"把 `or` 和 `g` 当实参传给 f" —— 而这门语言里
-        //  实参本来就吃运算符,不拦一手,运算符永远轮不到。)
         while (true)
         {
-            // `xs[i]` —— **紧挨着**才算索引(`xs [1 2]` 仍是"把列表当实参")。
-            // 空格在这门语言里本来就是"应用"的意思,拿它分开这两件事最省事,
-            // 也不给列表字面量挖坑(`print [1 2]` / `f [1 2]` 一个字都不用改)。
-            // `|>` —— **把左边交给右边**。右边是什么,决定了交法:
             //
-            //     x.f () |> .g ()   ≡   (x.f ()).g ()    ← `.成员`:挂到左边那个值上
-            //     x      |> f       ≡   f x              ← 别的:左边当**实参**喂给右边
-            //     x      |> f 1     ≡   f 1 x            ← 右边自己的实参先喂,左边排**最后**
             //
-            // `.成员` 那一支是它最早的样子,也是它非有不可的理由:`.成员` 比并列的调用绑得紧,
-            // `x.f ().g ()` 会被读成 `x.f ((().g ()))` —— 零参调用后面接链的写法就全废了。
             //
-            // `stopAtPipe` 是给"右边那半"用的:右边**不吃下一个 `|>`**。吃了的话
-            // `a |> f |> g` 会成 `a |> (f |> g)`,而我们一路往右喂要的是 `g (f a)`。
             if (Check(TokenType.PipeInto))
             {
                 if (!policy.Pipe) break;               // 右边那半不吃下一个 `|>`
@@ -357,20 +294,12 @@ public partial class Parser
                     continue;
                 }
 
-                // `a |> + b` ≡ `a + b`：`|>` 后面直接跟一个运算符，就是"拿左边这块
-                // 当它的左操作数"。写谓词尤其顺：`xs.Where (_ |> > 3)`、`(x |> == 1)`；
-                // 带点的 `+.b` 那种**节**照旧（左操作数留空，交出去是个函数）。
-                // `x y |> + 1` 就是 `(x y) + 1`：后面跟了运算符，左边这块**直接当它的
-                // 左操作数**（右操作数照常按优先级收，`x |> + 1 * 2` 是 `x + (1 * 2)`）。
-                // `|>` 仍只是"把左边接到右边那条表达式的左端"，不额外造节点。
                 if (IsOperatorToken(Peek().Type)
                     && Peek().Type is not (TokenType.Colon or TokenType.PipeInto))
                 {
                     var sym = Peek();
                     _pos++;
                     BumpExprDepth();
-                    // `**` 归 ParsePower 管（右结合、表里没有它那一格）
-                    // 右结合且比一元紧的(`**`)归 ParsePower
                     var right = Operators.IsPowerLike(sym.Type)
                         ? ParsePower(policy)
                         : ParseClimb(policy, Operators.TryToken(sym.Type, out var pipeOp) ? pipeOp.Rbp : 0);
@@ -378,16 +307,10 @@ public partial class Parser
                     continue;
                 }
 
-                // 后面总得跟点什么。`1 |>` 那种尾巴上多出来的 `|>` 不该被静默吃掉。
-                // **运算符节也算**(`5 |> +.2` ≡ `(+.2) 5`)—— 那个开头是个 `+`,
-                // `StartsPrimary` 不认它,所以得单独放行。
                 if (!StartsPrimary() && !IsOperatorToken(Peek().Type))
                     throw ParseError("'|>' 后面得跟点什么（`a |> .f ()` 是挂成员，`a |> g` 是把 a 喂给 g）");
 
-                // 右边整串先收完(`f` / `f 1` / `xs.At 0` / `+.2` / 一个 lambda),
-                // 再把左边当**最后一个**实参喂进去 —— 柯里化的写法得是 `f 1 x`,不是 `f x 1`。
                 //
-                // 右边的**一格**就是这个形状;`|` 那条链也拿它当一格(见下)。
                 Expression Clause()
                 {
                     var one = ParseMemberChain(ParsePrimary(), policy);
@@ -397,10 +320,6 @@ public partial class Parser
                 var left = expr;
                 var fn = Clause();
 
-                // **`|` 比 `|>` 松**:`v |> A | B` 是 `v |> (A | B)`,不是 `(v |> A) | B`。
-                // 理由:`|` 那串本来就是**一整条函数**(分派表的写法),而 `|>` 是"把值喂进去" ——
-                // 值该喂给**整条**,不是喂给第一格。所以右边收完接着把 `|` 链收进来。
-                // (左结合,和 `|` 自己一个规矩;`stopAtPipe` 那层保护不受影响 —— 那只管 `|>`。)
                 while (Match(TokenType.Pipe))
                 {
                     BumpExprDepth();
@@ -408,47 +327,19 @@ public partial class Parser
                     fn = new BinaryExpr(fn, "|", Clause()) { Line = bar.Line, Column = bar.Column };
                 }
 
-                // 右边自成一界：`1 |> f _ ()` 里的 `_` 只收右边那段，成为
-                // `(_0) => { f _0 (); }`，再被 1 应用 —— 于是得 `f 1 ()`，
-                // 而不是把 `1` 也裹进 lambda 的身体里（`(_0) => { f _0 () 1; }`）。
-                // 左边**不收**：`xs.Map (_ |> f)` 那种写法靠外层的括号收口。
                 if (HasHoles(fn)) fn = DesugarHoles(fn);
 
                 expr = new CallExpr(fn, left) { Line = left.Line, Column = left.Column };
                 continue;
             }
 
-            // **块字面量不在这儿收** —— 它比运算符松,归上面那层 `ParseBlockArgs`
-            // (`x > 0 { A } { B }` 要挂到整条 `x > 0` 上,不是挂到 `0` 上)。
-            // 不退出去的话,循环回到这儿会把它当"紧挨着那个操作数"的并列实参吃掉。
             if (!policy.Args || !StartsPrimary() || IsInfixWordOperator(Peek())
                 || (!policy.Block && Check(TokenType.LeftBrace))) break;
 
-            // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
-            // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。
-            // (`allowCall: false` 那一档正好是"运算符链、但不吃并列的实参":所以 `f a b` 还是两个参数,
-            //  柯里化不受影响;`f 1 + 2 * 3` 是 `f (1 + 2*3)`。)
             //
-            // **唯一的例外是 `<|`** —— 它由 `ParsePipe` 那一层管,而实参只走到 `ParseAssignment`。
-            // 所以实参**吃到运算符为止,但吃不掉 `<|`**:
-            //     add 1 <| 7     ≡  (add 1) 7      —— 拿**整串调用**的结果当函数
-            //     f <| a + b     ≡  f (a + b)      —— 右边整条算式当一个实参
-            // 这条不可少:`<|` 的用处之一就是"喂给一个柯里化了一半的调用",
-            // 而实参若把它吞进去,`add 1 <| 7` 就成了 `add (1 <| 7)` —— 报的还是
-            // 「'<|' 左边必须是函数」,指着一个根本不该当函数用的 `1`,查半天都找不到北。
-            // (括号开头的实参照旧:`f (1) + 2` 是 `f ((1) + 2)`。运算符作用在调用**结果**上时
-            //  是**调用**那一层的事,自己加括号:`xs.Count () == 0` 要写 `(xs.Count ()) == 0`。)
-            // 循环调用。两种形状(**体在第几个实参不一样**):
             //
-            //     while <条件> <体>        —— 裸名字,体是第 **2** 个实参
-            //     <序列>.Foreach <体>      —— **成员调用**(`MemberAccess`),体是第 **1** 个
             //
-            // 一进来就把上下文压上 —— 体里写的 `break` / `continue` 才知道往哪跳。
             //
-            // `.Foreach` 写成成员调用是 2026-10-07 的事:从前的 `foreach 序列 体` 是**库函数**,
-            // 每个元素要走一遍 `GetEnumerator` → `MoveNext` → `Current`;挂成方法之后容器
-            // 那条路归引擎(`SeqMethod`,每元素快 5 倍)。解析器**按名字认循环**这条没变,
-            // 只是名字从裸的 `foreach` 挪到成员 `.Foreach` 上。
             var bodyAt = expr switch
             {
                 IdentifierExpr { Name: "while" } => 2,
@@ -458,22 +349,16 @@ public partial class Parser
             if (moreControlFlow && loop is null && bodyAt != 0)
             {
                 loop = new LoopCtx { Label = _pendingLabel, Brk = _pendingBrk ?? "", BodyAt = bodyAt };
-                // 只清"待认领"那个标记(免得**下一个**循环又把它认走);名字留着 ——
-                // 里面的 `break 标签` 要拿它跟自己的出口比,才知道标签被用过了
                 if (_pendingLabel is not null) _pendingLabel = null;
                 _loops.Add(loop);
             }
 
-            // 这一格实参是不是**空参数表**那个 `()` 写下来的(`f () > 1`)—— 判据在 token 上:
-            // `(` 紧跟着 `)`。`f (() > 1)` 那种括号组开头是 `(` `(`,不算。
-            // 两种写法解析出来的子树一样,所以这个"来路"得当场记下(见 `CallExpr.BareUnitArg`)。
             var bareUnit = Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen;
 
             var arg = ParseAssignment(Postfix.Bare);
 
             var at = Previous();
 
-            // 体到手了:先生 `continue` 的出口,再建这次调用,最后按需包 `break`
             if (loop is not null && ++loop.BodySeen == loop.BodyAt)
             {
                 if (loop.ContUsed) arg = WrapLoopBody(arg, loop.Cont, at);
@@ -482,8 +367,6 @@ public partial class Parser
                     Line = expr.Line,
                     Column = expr.Column,
                 };
-                // 标签认领过的循环**不包 break** —— 出口留给标签那一层(那样 `break 标签`
-                // 跳的是标签,不是循环,标签也能贴在不带循环的语句上)
                 if (loop.BrkUsed && loop.Label is null) expr = WrapLoopWhole(expr, loop.Brk, at);
                 _loops.RemoveAt(_loops.Count - 1);
                 loop = null;
@@ -518,8 +401,6 @@ public partial class Parser
                 var q = Peek();
                 _pos++;
 
-                // 已经在一层守卫里了:当普通 `.` 使(守卫只包一层)。
-                // 各包各的会变成 `Some (Some (…))` —— `a?.b?.c` 要的是"一条链一个守卫"。
                 if (guarded)
                 {
                     BumpExprDepth();
@@ -528,7 +409,6 @@ public partial class Parser
                     continue;
                 }
 
-                // 守卫把后面整条链(含调用)都接管进那枚 lambda 了,这一层到此为止。
                 return GuardedChain(e, policy, q);
             }
 

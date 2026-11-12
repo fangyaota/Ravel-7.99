@@ -8,8 +8,6 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     private int _pos;
 
     private int _holeCount;
-    // 守卫那一格里 `_` 是**参数自己的名字**(`(_ > 100) => …`),不是占位符。
-    // 这个开关只在那一段打开,让 `_` 走普通标识符那条路。
     private bool _discardIsName;
 
     private int _nilCount;
@@ -19,8 +17,6 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
 
     private int _exprDepth;
 
-    // `#ignoreTypes true` 之后、`#ignoreTypes false` 之前:所有类型注解都只当摆设,
-    // lowering 不为它们发检查（变量定义、参数定义、模式匹配都算）。
     private bool _ignoreTypes;
 
     private const int MaxExprDepth = 400;
@@ -41,9 +37,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         public void Dispose() => _parser._exprDepth = _start;
     }
 
-    // ========================================
     //  入口
-    // ========================================
 
     public static Program ParseSource(string source, string? fileName = null)
         => ParseSource(source, fileName, DeclaresMoreControlFlow(source));
@@ -88,8 +82,6 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
                 t.Line == 1 ? t.Column + col - 1 : t.Column, t.Length) { Parts = t.Parts };
         }
 
-        // 片段也要过脱糖那趟:插值里写 `(${a or b})` 一样得折成谓词。
-        // 文件名传进去 —— 折出来的块得带上它,报错和调用栈要沿帧链找。
         return Lowering.Apply(new Parser(toks, file).ParseExpression(), file);
     }
 
@@ -107,9 +99,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         return Lowering.Apply(new Program(statements) { Source = source });
     }
 
-    // ========================================
     //  辅助
-    // ========================================
 
     private bool StartsPrimary() => StartsPrimaryAt(0);
 
@@ -117,7 +107,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         => TypeAt(off) is TokenType.Number or TokenType.String or TokenType.Char or TokenType.Identifier
             or TokenType.LeftParen or TokenType.LeftBracket
             or TokenType.LeftBrace
-            or TokenType.Tilde;      // `~x` 是个操作数 —— 于是 `f ~5` 能把块当实参传
+            or TokenType.Tilde;
 
     private static string Describe(Token t) => t.Type switch
     {

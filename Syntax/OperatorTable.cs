@@ -1,6 +1,5 @@
 namespace Ravel;
 
-// 运算符唯一真源:parser 与 printer 都查这里
 public sealed record OpInfo(
     string Symbol,
     TokenType? Token,   // null = 词形运算符
@@ -50,7 +49,6 @@ public static class Operators
 
     private static void Add(string symbol, int lbp, TokenType? token = null, bool right = false)
     {
-        // 左结合 rbp = lbp+1;右结合 rbp = lbp-1
         var op = new OpInfo(symbol, token, lbp, right ? lbp - 1 : lbp + 1, lbp, right);
         BySymbol[symbol] = op;
         if (token is { } t) ByToken[t] = op;
@@ -69,7 +67,6 @@ public static class Operators
 
     public static bool IsInfixToken(TokenType t) => ByToken.ContainsKey(t);
 
-    // 比一元更紧的右结合运算符(`**`)归 ParsePower 那一层
     public static bool IsPowerLike(TokenType t)
         => ByToken.TryGetValue(t, out var op) && op.RightAssoc && op.PrintPrec > UnaryPrec;
 }
