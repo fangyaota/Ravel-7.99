@@ -9,23 +9,25 @@ public partial class Parser
     //  表达式 — 按优先级递归下降
     // ========================================
 
-    private Expression ParseExpression(bool allowCall = true)
+    private Expression ParseExpression() => ParseExpression(Postfix.Full);
+
+    private Expression ParseExpression(Postfix policy)
     {
         // 一条表达式从哪儿开始、到哪儿结束,链长就在这一段里算:出去(哪怕是抛异常出去)
         // 都还回原值。没有这一层,`obj.field := v` 这种**语句级**的赋值会把 `_exprDepth`
         // 越攒越高 —— 攒过 400 条,第 401 条好端端的语句就被判成"嵌套太深"。
         using var _expr = ExprDepth.Begin(this);
-        return ParsePipe(allowCall);
+        return ParsePipe(policy);
     }
 
-    private Expression ParsePipe(bool allowCall = true)
+    private Expression ParsePipe(Postfix policy)
     {
-        var left = ParseAssignment(allowCall);
+        var left = ParseAssignment(policy);
 
         if (Match(TokenType.PipeLeft))
         {
             BumpExprDepth();                        // `<|` 右结合:`a <| b <| c` 是 `a <| (b <| c)`
-            var right = ParsePipe(allowCall);
+            var right = ParsePipe(policy);
             // 右边自成一界：`f <| _ + 1` 的 `_` 只收 `_ + 1`，交出去的是闭包。
             if (HasHoles(right)) right = DesugarHoles(right);
             return new PipeExpr(left, right) { Line = left.Line, Column = left.Column };
@@ -34,9 +36,9 @@ public partial class Parser
         return left;
     }
 
-    private Expression ParseAssignment(bool allowCall = true)
+    private Expression ParseAssignment(Postfix policy)
     {
-        var left = ParseNullCoalesce(allowCall);
+        var left = ParseNullCoalesce(policy);
 
         // `??=` 单独一条:它**不能**走下面"把左值先求出来"那条路 ——
         // 「不空就一个字符都不碰」(成员那条连 setter 都不该调)得靠"读、写分开"才做得到,
@@ -48,7 +50,7 @@ public partial class Parser
             if (left is not (IdentifierExpr or MemberAccess))
                 throw ParseError("'??=' 的左边得是变量或成员（就像 '=' 那样）");
             BumpExprDepth();                    // `a ??= b ??= c`:右结合,一层一个栈帧
-            var right = ParseAssignment(allowCall);
+            var right = ParseAssignment(policy);
             return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
         }
 
@@ -58,28 +60,28 @@ public partial class Parser
         {
             var op = Previous().Lexeme;
             BumpExprDepth();                    // `a := b := c` / `a = b = c`:右结合,一层一个栈帧
-            var right = ParseAssignment(allowCall);
+            var right = ParseAssignment(policy);
             return new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
         }
 
         return left;
     }
 
-    private Expression ParseNullCoalesce(bool allowCall = true)
+    private Expression ParseNullCoalesce(Postfix policy)
     {
-        var left = ParseBlockArgs(allowCall);
+        var left = ParseBlockArgs(policy);
         if (!Match(TokenType.Coalesce)) return left;
 
         BumpExprDepth();                            // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`,每层一个栈帧
         var op = Previous();
-        var right = ParseNullCoalesce(allowCall);          // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`
+        var right = ParseNullCoalesce(policy);          // 右结合:`a ?? b ?? c` 是 `a ?? (b ?? c)`
         return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
     }
 
-    private Expression ParseBlockArgs(bool allowCall)
+    private Expression ParseBlockArgs(Postfix policy)
     {
-        var e = ParseClimb(allowCall, 0);
-        if (!allowCall) return e;
+        var e = ParseClimb(policy, 0);
+        if (!policy.Args) return e;
 
         // `while` 的块**仍归原来那套**(在 `ParsePostfixRest` 里)—— 它的条件和体之间
         // **没有运算符**,所以"块挂到整条表达式上"这条对它不适用;而循环上下文
@@ -88,14 +90,14 @@ public partial class Parser
         // (从前这里还有个 `foreach`;2026-10-07 起它成了**成员调用** `序列.Foreach 体`,
         //  体是普通的 lambda 实参,走不上这条路。)
         if (moreControlFlow && e is IdentifierExpr { Name: "while" })
-            return ParsePostfixRest(e, allowCall, allowBlock: true);
+            return ParsePostfixRest(e, policy.WithBlocks);
 
         while (Check(TokenType.LeftBrace))
         {
             // 位置照**被调用那一侧**记(和 `ParsePostfixRest` 里那条一个规矩:
             // 报错要指回"这个调用写在哪",而块写在右边)。
             e = new CallExpr(e, ParsePrimary()) { Line = e.Line, Column = e.Column };
-            e = ParsePostfixRest(e, allowCall);      // 块后面还能接普通的并列实参
+            e = ParsePostfixRest(e, policy);         // 块后面还能接普通的并列实参
         }
 
         return e;
@@ -178,10 +180,10 @@ public partial class Parser
         => Operators.IsInfixToken(t.Type) || IsInfixWordOperator(t)
         || t.Type is TokenType.Coalesce or TokenType.PipeInto;
 
-    private Expression ParseClimb(bool allowCall, int minBp)
+    private Expression ParseClimb(Postfix policy, int minBp)
     {
         using var _climb = ExprDepth.Begin(this);
-        var left = ParsePower(allowCall);
+        var left = ParsePower(policy);
 
         while (true)
         {
@@ -214,14 +216,14 @@ public partial class Parser
             {
                 _pos++;
                 BumpExprDepth();
-                var sealedRight = ParsePipe(allowCall);
+                var sealedRight = ParsePipe(policy);
                 if (HasHoles(sealedRight)) sealedRight = DesugarHoles(sealedRight);
                 left = new BinaryExpr(left, t.Lexeme, sealedRight) { Line = t.Line, Column = t.Column };
                 continue;
             }
             BumpExprDepth();                        // 链上又挂了一节,树也跟着长一层
             var op = t.Lexeme;
-            var right = ParseClimb(allowCall, rbp);
+            var right = ParseClimb(policy, rbp);
             // `a < b < c` —— 链式比较:比较那一层是左结合,所以再来一发时左边已经是
             // 一个比较式了。摊平成一条链,交给 Lowering 保证每个操作数只求一次。
             if (IsCompareOp(op))
@@ -252,23 +254,23 @@ public partial class Parser
         => op is "<" or ">" or "<=" or ">=" or "==" or "!=" or ":" or "<:" or ":>";
 
 
-    private Expression ParsePower(bool allowCall = true)
+    private Expression ParsePower(Postfix policy)
     {
-        var left = ParseCall(allowCall);
+        var left = ParseCall(policy);
 
         if (Operators.IsPowerLike(Peek().Type))
         {
             BumpExprDepth();                        // 右结合
             var t = Peek();
             _pos++;
-            var right = ParsePower(allowCall);
+            var right = ParsePower(policy);
             return new BinaryExpr(left, t.Lexeme, right) { Line = left.Line, Column = left.Column };
         }
 
         return left;
     }
 
-    private Expression ParseCall(bool allowCall = true)
+    private Expression ParseCall(Postfix policy)
     {
         // 一元 ! 和 -(都往本层递归,所以 `! !x` / `- -1` 写得出来)。
         // 位置取**运算符**那个 token:从前是把操作数解析完才回头 Previous(),
@@ -280,19 +282,19 @@ public partial class Parser
         // 先在这儿看一眼:不拦的话读成 `-(1 => …)`,运行期报一句「一元 '-' 不支持 Function」。
         // 只认 `allowCall` 那一侧:模式内部(守卫、字面量那一格)走的是 `allowCall: false`,
         // 那儿出现 `-1 => …` 不是 lambda。
-        if (allowCall && Check(TokenType.Minus) && BarePatternLambdaAhead(1))
+        if (policy.Args && Check(TokenType.Minus) && BarePatternLambdaAhead(1))
             return ParseBarePatternLambda();
 
         if (Match(TokenType.Bang) || Match(TokenType.Minus))
         {
             BumpExprDepth();                        // `! ! !x` / `- - -1`:一元也是一层递归
             var op = Previous();
-            return new UnaryExpr(op.Lexeme, ParsePower(allowCall)) { Line = op.Line, Column = op.Column };
+            return new UnaryExpr(op.Lexeme, ParsePower(policy)) { Line = op.Line, Column = op.Column };
         }
 
         // .成员访问 — 在空格调用之前处理
-        var expr = ParseMemberChain(ParsePrimary(), allowCall);
-        return ParsePostfixRest(expr, allowCall);
+        var expr = ParseMemberChain(ParsePrimary(), policy);
+        return ParsePostfixRest(expr, policy);
     }
 
     private void BumpExprDepth()
@@ -301,9 +303,7 @@ public partial class Parser
             throw ParseError($"表达式嵌套太深（超过 {MaxExprDepth} 层运算符/调用链）");
     }
 
-    private Expression ParsePostfixRest(Expression expr, bool allowCall, bool guarded = false,
-                                        bool stopAtPipe = false, bool allowPipe = false,
-                                        bool allowBlock = false)
+    private Expression ParsePostfixRest(Expression expr, Postfix policy, bool guarded = false)
     {
         // `allowCall: false` 从前是"**什么后缀都不收**"。守卫那儿需要的其实是更窄的一档
         // (`allowPipe: true`):**不吃并列的实参**(不然 `(x < 0 y: int)` 里那个 `y: int`
@@ -318,7 +318,7 @@ public partial class Parser
                && (Check(TokenType.LeftBracket) || (Check(TokenType.LeftParen) && RangeInsideParens())))
             expr = ParseIndex(expr);
 
-        if (!allowCall && !allowPipe) return expr;
+        if (!policy.Args && !policy.Pipe) return expr;
 
         // 这一串里正在开的那个循环。**得跨实参活下来** —— `while` / `foreach` 的体是
         // **第 2 个**实参,而每一轮循环体都会重新声明局部变量。
@@ -345,14 +345,15 @@ public partial class Parser
             //
             // `stopAtPipe` 是给"右边那半"用的:右边**不吃下一个 `|>`**。吃了的话
             // `a |> f |> g` 会成 `a |> (f |> g)`,而我们一路往右喂要的是 `g (f a)`。
-            if (Match(TokenType.PipeInto))
+            if (Check(TokenType.PipeInto))
             {
-                if (stopAtPipe) { _pos--; break; }      // 把这一枚还回去,外层接着收
+                if (!policy.Pipe) break;               // 右边那半不吃下一个 `|>`
+                _pos++;
                 BumpExprDepth();                       // `a |> f |> g`:一层套一层
 
                 if (Check(TokenType.Dot) || Check(TokenType.QuestionDot))
                 {
-                    expr = ParseMemberChain(expr, allowCall, guarded);
+                    expr = ParseMemberChain(expr, policy, guarded);
                     continue;
                 }
 
@@ -371,8 +372,8 @@ public partial class Parser
                     // `**` 归 ParsePower 管（右结合、表里没有它那一格）
                     // 右结合且比一元紧的(`**`)归 ParsePower
                     var right = Operators.IsPowerLike(sym.Type)
-                        ? ParsePower(allowCall)
-                        : ParseClimb(allowCall, Operators.TryToken(sym.Type, out var pipeOp) ? pipeOp.Rbp : 0);
+                        ? ParsePower(policy)
+                        : ParseClimb(policy, Operators.TryToken(sym.Type, out var pipeOp) ? pipeOp.Rbp : 0);
                     expr = new BinaryExpr(expr, sym.Lexeme, right) { Line = sym.Line, Column = sym.Column };
                     continue;
                 }
@@ -389,8 +390,8 @@ public partial class Parser
                 // 右边的**一格**就是这个形状;`|` 那条链也拿它当一格(见下)。
                 Expression Clause()
                 {
-                    var one = ParseMemberChain(ParsePrimary(), allowCall);
-                    return ParsePostfixRest(one, allowCall, guarded: false, stopAtPipe: true);
+                    var one = ParseMemberChain(ParsePrimary(), policy);
+                    return ParsePostfixRest(one, policy.NoPipe);
                 }
 
                 var left = expr;
@@ -420,8 +421,8 @@ public partial class Parser
             // **块字面量不在这儿收** —— 它比运算符松,归上面那层 `ParseBlockArgs`
             // (`x > 0 { A } { B }` 要挂到整条 `x > 0` 上,不是挂到 `0` 上)。
             // 不退出去的话,循环回到这儿会把它当"紧挨着那个操作数"的并列实参吃掉。
-            if (!allowCall || !StartsPrimary() || IsInfixWordOperator(Peek())
-                || (!allowBlock && Check(TokenType.LeftBrace))) break;
+            if (!policy.Args || !StartsPrimary() || IsInfixWordOperator(Peek())
+                || (!policy.Block && Check(TokenType.LeftBrace))) break;
 
             // **实参吃到运算符为止**:`print 1 + 2` ≡ `print (1 + 2)`。
             // 并列的应用比运算符**松** —— 调用"抓住"它右边的一整条算式,而不是先算完调用再拿结果去算。
@@ -468,7 +469,7 @@ public partial class Parser
             // 两种写法解析出来的子树一样,所以这个"来路"得当场记下(见 `CallExpr.BareUnitArg`)。
             var bareUnit = Check(TokenType.LeftParen) && TypeAt(1) == TokenType.RightParen;
 
-            var arg = ParseAssignment(allowCall: false);
+            var arg = ParseAssignment(Postfix.Bare);
 
             var at = Previous();
 
@@ -500,7 +501,7 @@ public partial class Parser
         return expr;
     }
 
-    private Expression ParseMemberChain(Expression e, bool allowCall = true, bool guarded = false)
+    private Expression ParseMemberChain(Expression e, Postfix policy, bool guarded = false)
     {
         while (true)
         {
@@ -528,7 +529,7 @@ public partial class Parser
                 }
 
                 // 守卫把后面整条链(含调用)都接管进那枚 lambda 了,这一层到此为止。
-                return GuardedChain(e, allowCall, q);
+                return GuardedChain(e, policy, q);
             }
 
             break;
@@ -537,13 +538,13 @@ public partial class Parser
         return e;
     }
 
-    private Expression GuardedChain(Expression receiver, bool allowCall, Token q)
+    private Expression GuardedChain(Expression receiver, Postfix policy, Token q)
     {
         var name = "_nil" + _nilCount++;
         var id = new IdentifierExpr(name) { Line = q.Line, Column = q.Column };
         Expression rest = new MemberAccess(id, ParseMemberName()) { Line = q.Line, Column = q.Column };
-        rest = ParseMemberChain(rest, allowCall, guarded: true);
-        rest = ParsePostfixRest(rest, allowCall, guarded: true);
+        rest = ParseMemberChain(rest, policy, guarded: true);
+        rest = ParsePostfixRest(rest, policy, guarded: true);
 
         var step = new LambdaExpr(new Parameter(name, ObjectType(q)), AsBlock(rest, q))
             { Line = q.Line, Column = q.Column, Sugar = true };

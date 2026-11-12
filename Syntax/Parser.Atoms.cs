@@ -20,7 +20,7 @@ public partial class Parser
         if (Check(TokenType.Identifier) && Peek().Lexeme == "by" && NextType() == TokenType.Identifier)
         {
             _pos++;                                     // by
-            return new SlotExpr(ParseMemberChain(ParsePrimary())) { Line = Previous().Line, Column = Previous().Column };
+            return new SlotExpr(ParseMemberChain(ParsePrimary(), Postfix.Full)) { Line = Previous().Line, Column = Previous().Column };
         }
 
         // 运算符节 `+.2` / `is.int` —— 左操作数留空,等价于 `_ + 2` / `_ is int`
@@ -40,7 +40,7 @@ public partial class Parser
             _pos += 2;
             _holeCount++;
             var hole = new HoleExpr(_holeCount - 1) { Line = sym.Line, Column = sym.Column };
-            var body = new BinaryExpr(hole, sym.Lexeme, ParseCall(allowCall: false))
+            var body = new BinaryExpr(hole, sym.Lexeme, ParseCall(Postfix.Bare))
                 { Line = sym.Line, Column = sym.Column };
             // **就地脱糖成 lambda**,和括号那趟一个道理(见文件末尾):节是闭包边界,
             // 它那个洞不该让外层那趟再包一次 —— 否则 `isnot.string "a"` 会变成
@@ -65,7 +65,7 @@ public partial class Parser
         {
             BumpExprDepth();                        // `~ ~ ~x`:一层一个 `{x;}`
             var tilde = Previous();
-            var atom = ParseMemberChain(ParsePrimary(bareLambda: false), allowCall: false);
+            var atom = ParseMemberChain(ParsePrimary(bareLambda: false), Postfix.Bare);
             return Block([new ExpressionStatement(atom) { Line = tilde.Line, Column = tilde.Column }], tilde);
         }
 
@@ -440,8 +440,8 @@ public partial class Parser
                     // 于是"守卫 + 下一个参数"静默变成一个参数的 lambda(之后那个 `y: int`
                     // 轮不到解析器看,重名检查也就看不见它)。`|>` 照收 —— 它是运算符、不是并列,
                     // 而 `(v |> IsPrime)` 正靠它。
-                        guard = ParsePostfixRest(ParseClimb(allowCall: false, 0),
-                                                 allowCall: false, allowPipe: true);
+                        guard = ParsePostfixRest(ParseClimb(Postfix.Bare, 0),
+                                                 Postfix.PipeOnly);
                     }
                     finally
                     {
@@ -513,7 +513,7 @@ public partial class Parser
         // 否则：就是普通括号分组 — 内部允许柯里化（与顶层一致）
         // (f a b)  →  f(a)(b)
         // (a)      →  a
-        var inner = ParseExpression(allowCall: true);
+        var inner = ParseExpression();
         Consume(TokenType.RightParen, "表达式后需要 ')'");
 
         // 括号里的占位符就地在括号内消糖:占位符消糖本来只作用于整条语句,
@@ -585,7 +585,7 @@ public partial class Parser
         var elements = new List<Expression>();
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
-            elements.Add(ParseExpression(allowCall: false));
+            elements.Add(ParseExpression(Postfix.Bare));
         }
 
         Consume(TokenType.RightBrace, "集合元素后需要 '}'");
@@ -608,9 +608,9 @@ public partial class Parser
                 break;
             }
 
-            var key = ParseExpression(allowCall: false);
+            var key = ParseExpression(Postfix.Bare);
             Consume(TokenType.DictArrow, "字典键后需要 '->'");
-            var value = ParseExpression(allowCall: false);
+            var value = ParseExpression(Postfix.Bare);
             entries.Add(new DictEntry(key, value));
         }
 
@@ -829,7 +829,7 @@ public partial class Parser
 
         while (true)
         {
-            list.Add(ParseExpression(allowCall: false));
+            list.Add(ParseExpression(Postfix.Bare));
             if (Match(closing)) return list;
             if (Check(TokenType.Comma))
                 throw ParseError("不允许 ',' —— 请用空格代替逗号");

@@ -419,7 +419,7 @@ public partial class Parser
 
         // `[a b] |> f := e` / `[a b] |> f = e` —— 模式后面挂了「整块」条件。
         // `|>` 后面那条谓词一直到行尾,中间那个 `:=` / `=` 就是"这是个定义"的证据
-        // (`When` 是按 `ParseClimb(allowCall: false, 0)` 读的,**到赋值就停**,所以
+        // (`When` 是按 `ParseClimb(Postfix.Bare, 0)` 读的,**到赋值就停**,所以
         // 深度 0 上再出现一个 `=` 只可能是这一句自己的定义号)。
         if (TypeAt(off) == TokenType.PipeInto)
         {
@@ -615,7 +615,7 @@ public partial class Parser
         // `|>` 贴的是**刚结束的那一格**(不管它是名字、还是整个 `[…]` / `{…}`):
         // 把那一格的值喂给右边那个函数,不成立就拒收。于是每一层、每一格都能写。
         if (Match(TokenType.PipeInto))
-            p = p with { When = ParseClimb(allowCall: false, 0) };
+            p = p with { When = ParseClimb(Postfix.Bare, 0) };
 
         // `名字 [: 类型] [|> 条件] (:= | =) 子模式` —— **值和它的拆法都要**:
         //   (myPoint := {x y})                 ← 光杆名字那支用 `:=`
@@ -741,7 +741,7 @@ public partial class Parser
             && (Check(TokenType.LeftBracket) || Check(TokenType.Dot)))
         {
             _pos = saveAt;
-            var place = ParseClimb(allowCall: false, 0);
+            var place = ParseClimb(Postfix.Bare, 0);
             if (place is IndexExpr or MemberAccess)
                 return new PlacePattern(place) { Line = at.Line, Column = at.Column };
             throw ParseError("这一格要么是名字、字面量，要么是一个位置（`l[2]` / `a.b`）");
@@ -764,7 +764,7 @@ public partial class Parser
 
         _pos = saveAt;
         var from = _pos;
-        var guard = ParseClimb(allowCall: false, 0);
+        var guard = ParseClimb(Postfix.Bare, 0);
         if (FirstIdentName(from, _pos) is not { } nm)
             throw ParseError("这一格的条件里得有个名字 —— 它**最左边**那个标识符就是");
         return new NamePattern(nm) { Guard = guard, Line = at.Line, Column = at.Column };
@@ -931,7 +931,7 @@ public partial class Parser
         }
         else
         {
-            path = ParseMemberChain(ParsePrimary());
+            path = ParseMemberChain(ParsePrimary(), Postfix.Full);
         }
         var define = Match(TokenType.ColonEqual);
         if (!define) Consume(TokenType.Equal, "需要 '=' 或 ':='");
