@@ -11,9 +11,6 @@ readonly IMonad ::= interface {
             }
         }
     }
-
-    # 你里面的那个值,没有就给 d(零或一就是它自己;一串就是头一个)
-    internal ValueOr : function = _
 }
 
 readonly Option ::= class {
