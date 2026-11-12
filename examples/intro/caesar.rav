@@ -18,5 +18,3 @@ Caesar := () => {
     letters := text.Chars ()
     letters.Map ((c: char) => { Rot c shift; }) |> (cs) => { print (cs.Join ""); }
 }
-
-Caesar ()

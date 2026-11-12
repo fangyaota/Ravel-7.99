@@ -16,5 +16,3 @@ WordCount := () => {
     lines := top.Map ((p) => { p[0] + "=" + (string p[1]); })
     print (lines.Join ", ")
 }
-
-WordCount ()

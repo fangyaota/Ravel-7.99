@@ -11,5 +11,3 @@ FizzBuzz := () => {
     })
     print (out.Join " ")
 }
-
-FizzBuzz ()

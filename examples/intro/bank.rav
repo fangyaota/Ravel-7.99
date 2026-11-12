@@ -33,5 +33,3 @@ Bank := () => {
     print ("取走 " + (string big) + ":" + (string (a.Withdraw big)))
     print ("余额 " + (a.Text ()))
 }
-
-Bank ()

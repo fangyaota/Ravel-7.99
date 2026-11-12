@@ -47,5 +47,3 @@ SortDemo := () => {
     target := (tline == "") { 7; } { int tline; }
     print ((string target) + " 在下标 " + (string (BinarySearch sorted target)))
 }
-
-SortDemo ()

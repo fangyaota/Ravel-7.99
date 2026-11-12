@@ -25,5 +25,3 @@ Matrix := () => {
     print ("原矩阵:" + (ShowMatrix m))
     print ("转置后:" + (ShowMatrix (Transpose m)))
 }
-
-Matrix ()

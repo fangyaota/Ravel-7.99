@@ -14,5 +14,3 @@ Hanoi := () => {
     print (moves.Join " ")
     print ("共 " + (string (moves.Count ())) + " 步")
 }
-
-Hanoi ()

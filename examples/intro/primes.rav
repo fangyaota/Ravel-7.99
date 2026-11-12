@@ -15,5 +15,3 @@ Primes := () => {
     out := [2..n].Where ((k: int) => { IsPrime k; })
     print (out.Join " ")
 }
-
-Primes ()
