@@ -1,0 +1,93 @@
+
+
+
+
+using "tasks.rav"
+
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "甲"; }
+        b := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "乙"; }
+        print ("  All:" + (string (g.Await (Tasks.All [a b]))));
+    })
+]
+
+
+
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        a := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "甲"; }
+        b := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); "乙"; }
+        w := g.Await (Tasks.Any [a b])
+        print ("  Any 赢家:" + (string w.Value));
+    })
+]
+
+ch := Tasks.Chan ()
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        i := 0
+        while { i < 3; } { i += 1; g.Await (Tasks.After 0); ch.Put ("货" + (string i)); }
+        ch.Close ();
+    })
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        while { !(ch.IsShut ()); } { print ("  取 " + (string (ch.Take g))); }
+
+        try { ch.Take g; } (e: Exception) => { print ("  " + e.Message); }
+    })
+]
+
+
+
+
+
+
+
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => {
+        t1 := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); 20; }
+        t2 := Tasks.Task (gg: Tasks.TaskGroup) => { gg.Await (Tasks.After 0); 22; }
+        print ("  do 块:" + (string (g.Await (do { a :< t1; b :< t2; Tasks.Return (a + b); }))));
+    })
+]
+
+print ("  任务 is IMonad:" + (string ((Tasks.After 0) : IMonad)))
+print ("  闸 is IMonad:  " + (string ((Tasks.Signal ()) : IMonad)))
+print ("  序列 is IMonad:" + (string ([1 2] : IMonad)))
+
+
+
+
+
+
+
+
+mAll := []
+a1 := Tasks.Task (gg: Tasks.TaskGroup) => { mAll.Add "起1"; gg.Await (Tasks.After 20); mAll.Add "完1"; }
+a2 := Tasks.Task (gg: Tasks.TaskGroup) => { mAll.Add "起2"; gg.Await (Tasks.After 60); mAll.Add "完2"; }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (Tasks.All [a1 a2]); })
+]
+print ("  All:  " + (string mAll))
+
+mDo := []
+d1 := Tasks.Task (gg: Tasks.TaskGroup) => { mDo.Add "起1"; gg.Await (Tasks.After 0); mDo.Add "完1"; "x"; }
+d2 := Tasks.Task (gg: Tasks.TaskGroup) => { mDo.Add "起2"; gg.Await (Tasks.After 0); mDo.Add "完2"; "y"; }
+Tasks.Cycle [
+    (Tasks.Task (g: Tasks.TaskGroup) => { g.Await (do { p :< d1; q :< d2; Tasks.Return (); }); })
+]
+print ("  do:   " + (string mDo))
+
+# --- expected ---
+#   All:[甲 乙]
+#   Any 赢家:甲
+#   取 货1
+#   取 货2
+#   取 货3
+#   队列已经关了,没货可取
+#   do 块:42
+#   任务 is IMonad:true
+#   闸 is IMonad:  true
+#   序列 is IMonad:true
+#   All:  [起1 起2 完1 完2]
+#   do:   [起1 完1 起2 完2]

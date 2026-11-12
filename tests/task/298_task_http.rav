@@ -1,4 +1,4 @@
-﻿# `Http` 那几条的**任务版**(同名 + `Task` 后缀):交回一个任务,`group.Await` 它的时候
+# `Http` 那几条的**任务版**(同名 + `Task` 后缀):交回一个任务,`group.Await` 它的时候
 # 别的任务接着跑 —— 这是"网络和调度器接上"那件事的验收。
 #
 # **钉的是服务端的并发数,不是墙钟**:"此刻同时握着几个连接"是个整数,串行发就是 1、
@@ -6,6 +6,7 @@
 #
 # 要靠 `ravel test`:运行器会起那台回环服务器,基址在 `RAVEL_TEST_HTTP` 里。
 # slow
+# net
 using "http.rav"
 
 base := System.Env "RAVEL_TEST_HTTP"

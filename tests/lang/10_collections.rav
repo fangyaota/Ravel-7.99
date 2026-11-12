@@ -1,0 +1,290 @@
+s := {1 2 3}
+print (s.Count ())
+print (typeof s)
+s = {1 2 3}
+s.Add 4
+print (s.Count ())
+s.Remove 2
+print (s.Count ())
+print (s.Contains 1)
+print (s.Contains 2)
+d := {"a"-> 1 "b"-> 2 "c"-> 3}
+print (d.Count ())
+print (typeof d)
+print (d.Has "a")
+print (d.Has "x")
+d = {"x"-> 10 "y"-> 20}
+print (d.Get "x")
+print (d.Get "y")
+d.Set "z" 30
+print (d.Get "z")
+print (d.Count ())
+a := 1
+b := 2
+s = {a b a + b}
+print (s.Count ())
+print (s.Contains 1)
+print (s.Contains 3)
+d = {"a"-> 1 "b"-> 2}
+ks := d.Keys ()
+vs := d.Values ()
+print (ks.Count ())
+print (vs.Count ())
+xs := [1 2 3]
+xs.Add 4
+xs.Add 5
+print xs
+xs.Remove 1
+print xs
+xs.Insert 2 99
+print xs
+xs.Set 0 100
+print xs
+print (xs.Count ())
+print (xs.At 0)
+
+ravel "161_empty_dict"
+
+d := {->}
+print d
+d.Set "a" 1
+print d
+print (d.Count ())
+print ([])
+print (default set)
+ravel ""
+
+ravel "188_hole_in_containers"
+
+_ := 0
+f := {_ + 1}
+print (f 40)
+g := {"a"-> _}
+print (g 7)
+h := [_ 2]
+print (h 1)
+add1 := _ + 1
+print (add1 41)
+both := _ + _
+print (both 3 4)
+
+outer := (y: int) => { _ + y; }
+print (typeof (outer 10))
+print ((outer 10) 5)
+ravel ""
+
+ravel "216_sequence_methods"
+
+xs := [3 1 2 2]
+
+print (xs.Count ())
+print (xs.IsEmpty ())
+print (xs.Any ())
+print (xs.Contains 2)
+print (xs.First ())
+print (xs.Last ())
+print (xs.Distinct ())
+print (xs.Reverse ())
+print (xs.Take 2)
+print (xs.Skip 2)
+print (xs.Concat [9 9])
+print (xs.Sum ())
+print (xs.Min ())
+print (xs.Max ())
+print (xs.Join "-")
+print (xs.Sort ())
+print (xs.IndexOf 2)
+print (xs.RemoveAt 0)
+print xs
+xs.AddRange [7 8]
+print xs
+print ([].IsEmpty ())
+print ([].Sum ())
+print ([10 20].Join ",")
+xs.Clear ()
+print (xs.Count ())
+
+ys := [1 2 3 4]
+ys.Foreach (x: int) => { print ("each " + string x); }
+print (ys.Map (x: int) => { x * 10; })
+print (ys.Where (x: int) => { x % 2 == 0; })
+print (ys.Fold 0 (acc: int x: int) => { acc + x; })
+print (ys.All (x: int) => { x > 0; })
+print (ys.All (x: int) => { x > 2; })
+print (ys.Any (x: int) => { x > 3; })
+print (ys.Any (x: int) => { x > 9; })
+print (ys.Find (x: int) => { x > 2; })
+print ([5 2 9 1].SortBy (x: int) => { 0 - x; })
+
+s := {1 2 3}
+print (s.Union {3 4})
+print (s.Intersect {2 3 9})
+print (s.Except {1})
+print (s.IsSubsetOf {1 2 3 4})
+print (s.Contains 3)
+print (s.Max ())
+print (s.Where (x: int) => { x >= 2; })
+
+d := {"a"-> 3 "b"-> 1 "c"-> 2}
+print (d.Count ())
+print (d.Min ())
+print (d.Max ())
+print (d.Join ",")
+print (d.Contains 2)
+print (d.HasValue 1)
+print (d.GetOr "a" 0)
+print (d.GetOr "zz" 0)
+print (d.Remove "a")
+print (d.Count ())
+print (d.Map (v: int) => { v * 100; })
+print (d.Keys ())
+
+try { print (ys.Where (x: int) => { 1; }); } (e: Exception) => { print ("1: " + string e); }
+try { print (ys.Find (x: int) => { false; }); } (e: Exception) => { print ("2: " + string e); }
+try { print (ys.Any 5); } (e: Exception) => { print ("3: " + string e); }
+try { print ([].First ()); } (e: Exception) => { print ("4: " + string e); }
+try { print ([].Min ()); } (e: Exception) => { print ("5: " + string e); }
+try { print ([1 "a"].Sort ()); } (e: Exception) => { print ("6: " + string e); }
+try { print ([1 "a"].Max ()); } (e: Exception) => { print ("7: " + string e); }
+try { print ([1 2].Concat 5); } (e: Exception) => { print ("8: " + string e); }
+print ([].Map (x: int) => { x; })
+print ([].Fold 7 (acc: int x: int) => { acc + x; })
+print ([].Any ())
+print ([].All (x: int) => { false; })
+ravel ""
+ravel "m20"
+n := 42
+name := "甲"
+print (f"共 {n} 件")
+print (f"{name}: {n * 2}")
+print (f"plain")
+print (f"{{花括号}} 和 {n}")
+print (f"$5 不是插值,{1 + 1}")
+print (f"${n} 在 f-string 里是字面量")
+print (f"转义:\t制表 {3}")
+print (f"{true} {1.5} {'a'} {[1 2]}")
+
+print ((f"{n}") == ("" + (string n)))
+print ((f"{n + 1}{name}") == ((string (n + 1)) + name))
+
+print ("老的 ${n} 仍然插值")
+ravel ""
+
+# --- expected ---
+
+# 3
+# Set
+# 4
+# 3
+# true
+# false
+# 3
+# Dict
+# true
+# false
+# 10
+# 20
+# 30
+# 3
+# 3
+# true
+# true
+# 2
+# 2
+# [1 2 3 4 5]
+# [1 3 4 5]
+# [1 3 99 4 5]
+# [100 3 99 4 5]
+# 5
+# 100
+# {->}
+# {a: 1}
+# 1
+# []
+# {}
+# {41}
+# {a: 7}
+# [1 2]
+# 42
+# 7
+# Function
+# 15
+# 4
+# false
+# true
+# true
+# 3
+# 2
+# [3 1 2]
+# [2 2 1 3]
+# [3 1]
+# [2 2]
+# [3 1 2 2 9 9]
+# 8
+# 1
+# 3
+# 3-1-2-2
+# [1 2 2 3]
+# 2
+# 3
+# [1 2 2]
+# [1 2 2 7 8]
+# true
+# 0
+# 10,20
+# 0
+# each 1
+# each 2
+# each 3
+# each 4
+# [10 20 30 40]
+# [2 4]
+# 10
+# true
+# false
+# true
+# false
+# 3
+# [9 5 2 1]
+# {1 2 3 4}
+# {2 3}
+# {2 3}
+# true
+# true
+# 3
+# [2 3]
+# 3
+# 1
+# 3
+# 3,1,2
+# true
+# true
+# 3
+# 0
+# true
+# 2
+# [100 200]
+# [b c]
+# 1: Where 的函数要交回 bool，得到 Integer
+# 2: Find: 没有满足条件的元素
+# 3: Any 需要一个函数参数，得到 Integer
+# 4: First: 元素不够（一共 0 个）
+# 5: Min: 空集合没有Min
+# 6: 比不了 String 与 Integer
+# 7: 比不了 Integer 与 String
+# 8: Concat 需要一个容器（list / set / dict / 栈 队列 堆…），得到 Integer
+# []
+# 7
+# false
+# true
+# 共 42 件
+# 甲: 84
+# plain
+# {花括号} 和 42
+# $5 不是插值,2
+# $42 在 f-string 里是字面量
+# 转义:	制表 3
+# true 1.5 a [1 2]
+# true
+# true
+# 老的 42 仍然插值

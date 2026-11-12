@@ -1,0 +1,196 @@
+ravel "m32"
+f := ([x y]) => { x + y; }
+print (f [3 4])
+
+Point ::= class { px: int = 0; py: int = 0 }
+p := Point ()
+p.px = 10
+p.py = 20
+g := ({px py}) => { px + py; }
+print (g p)
+
+k := ([x y]) => { "一对：${x + y}"; } | ({a b}) => { "一条：${a + b}"; } | (_) => { "别的"; }
+print (k [3 4])
+XY ::= class { a: int = 1; b: int = 2 }
+print (k (XY ()))
+print (k 5)
+print (k "ab")
+
+h := ([[m n] [q]]) => { m + n + q; }
+print (h [[1 2] [3]])
+
+m2 := (t [x y]) => { "${t} ${x + y}"; }
+print (m2 "前" [1 2])
+n2 := ([x y] z) => { "${x + y} ${z}"; }
+print (n2 [1 2] "后")
+o2 := (t [x y] z) => { "${t} ${x + y} ${z}"; }
+print (o2 "前" [1 2] "后")
+
+q2 := ([x y] [p3 q3]) => { "${x + y} ${p3 + q3}"; }
+print (q2 [1 2] [3 4])
+
+r2 := ([head ..tail]) => { "${head} / ${tail.ToList ()}"; }
+print (r2 [9 8 7])
+
+s2 := ([_ b2]) => { b2; }
+print (s2 [1 2])
+
+print ((try { f 5; } (e: Exception) => { "1: " + e.Message; }))
+print ((try { f [1]; } (e: Exception) => { "2: " + e.Message; }))
+print ((try { g 5; } (e: Exception) => { "3: " + e.Message; }))
+
+z := ([x y] : list) => { x + y; } | (_) => { "不是一对 list"; }
+print (z [1 2])
+print (z 5)
+print (z "ab")
+
+w := ([x: int y: int]) => { x + y; } | (_) => { "不是两个 int"; }
+print (w [1 2])
+print (w [1 "a"])
+ravel ""
+ravel "m33"
+print ((try { eval "f := (a a) => { 1; }"; } (e: Exception) => { "1: " + e.Message; }))
+print ((try { eval "f := (x: int x: string) => { 1; }"; } (e: Exception) => { "2: " + e.Message; }))
+print ((try { eval "f := (a b a) => { 1; }"; } (e: Exception) => { "3: " + e.Message; }))
+
+print ((try { eval "f := (x < 0 x: int) => { 1; }"; } (e: Exception) => { "4: " + e.Message; }))
+
+IsNeg := (n: int) => { n < 0; }
+IsZero := (n: int) => { n == 0; }
+sign := ((x: int) |> IsNeg) => { "负"; } | ((x: int) |> IsZero) => { "零"; } | _ => { "正"; }
+print (sign (-1))
+print (sign 0)
+print (sign 5)
+
+IsEven := (n: int) => { (n % 2) == 0; }
+g := (v |> IsEven) => { "偶"; } | (_) => { "奇"; }
+print (g 8)
+print (g 7)
+
+add := (a: int b: int) => { a + b; }
+print (add 3 4)
+ravel ""
+ravel "m34"
+f := (private x: int) => { x + 1; }
+print (f 41)
+
+g := (readonly y: int) => { y; }
+print (g 7)
+
+h := (n: int) => { ((k: int) => { n + k; }) 1; }
+print (h 10)
+
+m := (readonly [a b]) => { a + b; }
+print (m [1 2])
+
+bad := (readonly [a b]) => { a = 9; a; }
+print (try { bad [1 2]; } (e: Exception) => { e.Message; })
+
+print f
+ravel ""
+ravel "m35"
+x := 5
+print (x > 0 { "正"; } { "非正"; })
+print (x == 5 { "五"; } { "不是五"; })
+print ((x > 0) && (x < 10) { "一位数"; } { "不是"; })
+
+yes := true
+print (yes { "A"; } { "B"; })
+
+pick := (a: function b: function c: function) => { a (); }
+print (pick { 1; } { 2; } { 3; })
+
+twice := (blk: function n: int) => { (blk ()) + n; }
+print (twice { 1; } 41)
+
+add := (a: object) => { (b: object) => { a + b; } }
+print (0 + add (1) 2)
+
+show := (a: object) => { string (typeof a); }
+print (show () == 0)
+ravel ""
+ravel "m36"
+a == 1 := 1
+print a
+
+c |> (_ > 3) := 9
+print c
+
+f := ([u == 1 v]) => { "u=${u} v=${v}"; } | (_) => { "不是 [1 _]"; }
+print (f [1 2])
+print (f [9 2])
+
+h := ([u == 1 v == 2]) => { "${u} ${v}"; } | (_) => { "不是 [1 2]"; }
+print (h [1 2])
+print (h [1 9])
+
+g := ([u: int v == 2]) => { "${u} ${v}"; } | (_) => { "不匹配"; }
+print (g [7 2])
+print (g [7 3])
+print (g ["x" 2])
+
+P ::= class { n: int = 3; s: string = "看" }
+{n == 3 s} := P ()
+print "${n} ${s}"
+
+print ((try { eval "b == 2 := 5"; } (e: Exception) => { "1: " + e.Message; }))
+ravel ""
+
+# --- expected ---
+
+# 7
+# 30
+# 一对：7
+# 一条：3
+# 别的
+# 一对：ab
+# 6
+# 前 3
+# 3 后
+# 前 3 后
+# 3 7
+# 9 / [8 7]
+# 2
+# 1: 要的是能按顺序取的东西（list / set / dict / 字符串 / Generator…），得到 Integer
+# 2: 要第 2 格，可这一串已经到底了
+# 3: 要求成员 'px'，可这一份上没有
+# 3
+# 不是一对 list
+# 不是一对 list
+# 3
+# 不是两个 int
+# 1: 参数名 'a' 写了两遍 —— 每个参数一个名字（要**盯类型**就把整个参数括起来写 `|>` 那条：`((v: int) |> IsPrime)`）
+# 2: 参数名 'x' 写了两遍 —— 每个参数一个名字（要**盯类型**就把整个参数括起来写 `|>` 那条：`((v: int) |> IsPrime)`）
+# 3: 参数名 'a' 写了两遍 —— 每个参数一个名字（要**盯类型**就把整个参数括起来写 `|>` 那条：`((v: int) |> IsPrime)`）
+# 4: 守卫要写在参数表的**最后一项** —— 它是一条表达式,后面再跟东西会被当成它的实参（`(x < 0 y: int)` 里那个 `y: int` 就是）。要**盯类型**就把整个参数括起来写 `|>` 那条：`((v: int) |> IsPrime)` —— 类型在那一格上,名字只写一遍
+# 负
+# 零
+# 正
+# 偶
+# 奇
+# 7
+# 42
+# 7
+# 11
+# 3
+# 无法给只读变量 'a' 赋值
+# <function (private x: int) => { x + 1; }>
+# 正
+# 五
+# 一位数
+# A
+# 1
+# 42
+# 3
+# Bool
+# 1
+# 9
+# u=1 v=2
+# 不是 [1 _]
+# 1 2
+# 不是 [1 2]
+# 7 2
+# 不匹配
+# 不匹配
+# 3 看
+# 1: 'b' 这一格的条件没过 —— 这一支不收这个值

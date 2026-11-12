@@ -1,0 +1,263 @@
+ravel "m43"
+Method ::= interface {
+    whom := () => { "serving " + (instance.ToString ()); }
+}
+Servant ::= class {
+    init = () => { this; }
+    ToString := () => { "servant"; }
+}
+m := Method Servant {
+    ()
+}
+use m
+sv := Servant ()
+print (sv.whom ())
+
+Proto ::= interface {
+    by a : function = _
+    b : function = _
+}
+P ::= class { init = () => { this; } }
+pa := Proto P {
+    ()
+}
+use pa
+p := P ()
+print (p.a 1)
+print (p.b 1)
+ravel ""
+ravel "m44"
+print ("abc" : IList)
+print ("abc" : IEnumerable)
+print ([1 2 3] : IList)
+
+print ({1 2 3} : IList)
+print ({"a"-> 1} : IList)
+
+print ((1..3) : IList)
+print (5 : IList)
+
+print ({10 20 30}.At 1)
+print ({10 20 30}.Count ())
+
+print ("abcdefghij".Count ())
+print ("".Count ())
+
+"abc".Foreach (c: char) => { print c; }
+e := "xy".GetEnumerator ()
+while { e.MoveNext (); } { print (e.Current); }
+print "end of enumerator"
+
+xs := [1 2 3]
+n := 0
+xs.Foreach (x: int) => {
+    n += 1
+    xs.Add 9
+}
+print n
+print xs
+
+Pair ::= class {
+    A : int = 0
+    B : int = 0
+    init = (a: int b: int) => { A = a; B = b; this; }
+    Count := () => { 2; }
+    At := (i: int) => { i == 0 { A; } { B; }; }
+}
+
+impl (IMonad Pair {;})
+impl (IEnumerable Pair {
+    GetEnumerator = () => { Enumerator instance; }
+})
+impl (IList Pair {;})
+
+print ((Pair 7 8) : IList)
+print ((Pair 7 8) : IEnumerable)
+(Pair 7 8).Foreach (x: int) => { print x; }
+print ((Pair 7 8).Count ())
+print ((Pair 7 8).Sum ())
+print ((Pair 7 8).ToList ())
+print ((Pair 7 8).Map ((x: int) => { x * 10; }))
+print ((Pair 7 8).First ())
+print "done"
+ravel ""
+ravel "m45"
+Base ::= class {
+    init = () => { this; }
+    hi := () => { "hi"; }
+}
+print (seal Base)
+seal Base
+print Base
+
+print (try { Sub ::= class Base {
+    init = () => { this; }
+}; } (e: Exception) => { "继承: " + e.Message; })
+
+b := Base ()
+print (b.hi ())
+print (b : Base)
+print (Base.Subtypes ())
+
+I ::= interface {
+    ()
+}
+C1 ::= class {
+    init = () => { this; }
+}
+impl (I C1 {;})
+c1 := C1 ()
+print (c1 : I)
+seal I
+C2 ::= class {
+    init = () => { this; }
+}
+print (try { impl (I C2 {
+    ()
+}); } (e: Exception) => { "实现: " + e.Message; })
+
+I2 ::= interface I {
+    ()
+}
+print (I2 <: I)
+
+A ::= class {
+    init = () => { this; }
+}
+B ::= class A {
+    init = () => { this; }
+}
+seal A
+print (try { D ::= class B {
+    init = () => { this; }
+}; } (e: Exception) => { "隔一层: " + e.Message; })
+
+print (try { seal 5; } (e: Exception) => { "不是类: " + e.Message; })
+
+print (try { MyInt ::= class int { 0; }; } (e: Exception) => { "int: " + e.Message; })
+print (try { MyList ::= class list { 0; }; } (e: Exception) => { "list: " + e.Message; })
+print (try { MyDict ::= class dict { 0; }; } (e: Exception) => { "dict: " + e.Message; })
+print (try { MyR ::= class Range { 0; }; } (e: Exception) => { "range: " + e.Message; })
+
+I3 ::= interface IValue { (); }
+print (I3 <: IValue)
+MyC ::= class {
+    init = () => { this; }
+}
+print (try { impl (IValue MyC { (); }); } (e: Exception) => { "impl: " + e.Message; })
+
+print (int.GetImplements ())
+print (bool.GetImplements ())
+
+builtinValues := [int real bigint fraction bigfraction string char Range bool void]
+imps := IValue.GetImplementors ()
+hasValue := (v: object) => {
+    imps.Any (t: object) => { (string t) == (string v); }
+}
+print (builtinValues.All hasValue)
+
+print (1 : IValue)
+print (true : IValue)
+d := {->}
+d.Set 1 "一"
+print (d.Get 1)
+ravel ""
+ravel "m46"
+inc := x => x + 1
+dbl := x => x * 2
+
+print ((inc >> dbl) 5)
+print ((dbl >> inc) 5)
+
+print ((inc >> dbl >> inc) 5)
+
+print (1 |> inc |> dbl)
+print (1 |> (inc >> dbl))
+
+print (([1 2 3].Map (inc >> dbl)).ToList ())
+print (([3 1 2].SortBy (x => 0 - x)).ToList ())
+
+comp := (+.1) >> (*.2)
+print (comp 10)
+print (((+.1) >> (*.2) >> (+.1)) 10)
+
+print (8 >> 1)
+print ((0 - 8) >> 1)
+print (1 >> 32)
+
+add := (a: int b: int) => a + b
+print ((try { (add >> dbl) 1; } (e: Exception) => { "1: " + e.Message; }))
+print (((add 1) >> dbl) 2)
+ravel ""
+
+# --- expected ---
+
+# serving servant
+# ()
+# ()
+# true
+# true
+# true
+# true
+# true
+# false
+# false
+# 20
+# 3
+# 10
+# 0
+# a
+# b
+# c
+# x
+# y
+# end of enumerator
+# 3
+# [1 2 3 9 9 9]
+# true
+# true
+# 7
+# 8
+# 2
+# 15
+# [7 8]
+# Generator {}
+# 7
+# done
+# Base
+# Base
+# 继承: `Base` 被 seal 了 —— 不能再被继承
+# hi
+# true
+# []
+# true
+# 实现: `I` 被 seal 了 —— 不能再被实现
+# true
+# 隔一层: `A` 被 seal 了 —— 不能再被继承（`B` 就在它的链上）
+# 不是类: seal 要一个类（或接口），得到 Integer
+# int: `Integer` 被 seal 了 —— 不能再被继承
+# list: `List` 被 seal 了 —— 不能再被继承
+# dict: `Dict` 被 seal 了 —— 不能再被继承
+# range: `Range` 被 seal 了 —— 不能再被继承
+# true
+# impl: `IValue` 被 seal 了 —— 不能再被实现
+# [IValue BaseInterface IKey IComparable INumber]
+# [IValue BaseInterface IFunctionAlt]
+# true
+# true
+# true
+# 一
+# 12
+# 11
+# 13
+# 4
+# 4
+# [4 6 8]
+# [3 2 1]
+# 22
+# 23
+# 4
+# -4
+# 0
+# 1: 类型 Function 不支持运算符 '*'
+# 6

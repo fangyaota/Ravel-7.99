@@ -1,0 +1,206 @@
+ravel "m21"
+esc: Continuation = _
+print (typeof esc)
+print esc
+r := callcc (k: function) => { esc = k; "先给个值"; }
+print r
+print (typeof esc)
+print esc
+print (esc : Continuation)
+print (esc : function)
+print (esc : System.Function)
+
+seen := 0
+callcc (k: function) => { esc = k; 0; }
+seen += 1
+seen < 3 { esc (seen * 10); } { 0; }
+print seen
+
+print (Continuation <: System.Function)
+print (Continuation.parent)
+print (esc : object)
+print (Continuation.name)
+
+d := Continuation.Default ()
+print (typeof d)
+print d
+blank: Continuation = _
+print (typeof blank)
+print (blank == d)
+print ((Continuation ()) == d)
+print (d : Continuation)
+print (d == esc)
+try { d (); } (e: Exception) => { print ("1: " + string e); }
+
+try { bad: Continuation = 5; } (e: Exception) => { print ("2: " + string e); }
+try { other: Continuation = (x: int) => { x; }; } (e: Exception) => { print ("3: " + string e); }
+
+called: list = []
+wrapped := Continuation ((x: object) => { called.Add x; x; })
+print (typeof wrapped)
+print (wrapped : Continuation)
+print (wrapped 7)
+print called
+print ((Continuation wrapped) == wrapped)
+
+try { Continuation 5; } (e: Exception) => { print ("4: " + string e); }
+try { Continuation (); } (e: Exception) => { print ("5: " + string e); }
+
+G := Generator (y: function) => { y 1; y 2; }
+print (Seqs.Gather G)
+cur := GeneratorCursor (() => { (); })
+print cur.NextFromProducer
+print ((cur.NextFromProducer) : Continuation)
+print "end"
+ravel ""
+ravel "m22"
+using "plugins/Ravel.Reflect.dll"
+
+t := Reflect.Type "System.Console"
+print (t.Name ())
+print (t.FullName ())
+print ((Reflect.Type "System.Char[]").FullName ())
+print ((Reflect.Type "System.Collections.Generic.List`1[System.Int32]").Name ())
+
+m := Reflect.Type "System.Math"
+print (Reflect.Call m "Max" [3 7])
+print (Reflect.Call m "Sqrt" [16])
+
+print (Reflect.Call "hello" "Length" [])
+print ((Reflect.Call "hello" "Length" []).Unwrap ())
+print ((Reflect.Call "hello" "ToUpper" []).Unwrap ())
+print ((Reflect.Call "hello" "Contains" ["ell"]).Unwrap ())
+print ((Reflect.Call "3.7" "Replace" ["3" "4"]).Unwrap ())
+
+sb := Reflect.New (Reflect.Type "System.Text.StringBuilder") []
+Reflect.Call sb "Append" ["hi "]
+Reflect.Call sb "Append" ["there"]
+print (Reflect.Text sb)
+print ((Reflect.Call sb "Length" []).Unwrap ())
+
+dt := Reflect.New (Reflect.Type "System.DateTime") [2026 10 7]
+print ((Reflect.Call dt "ToString" ["yyyy-MM-dd"]).Unwrap ())
+print (Reflect.Text (dt.TypeOf ()))
+print (Reflect.Unwrap dt)
+
+ca := Reflect.Call "a,b,c" "ToCharArray" []
+print (Reflect.Text (ca.TypeOf ()))
+print (Reflect.Text (Reflect.Call "a,b,c" "Split" [ca]))
+
+arr := Reflect.Call (Reflect.Type "System.Array") "CreateInstance" [(Reflect.Type "System.Char") 1]
+Reflect.Call arr "SetValue" [',' 0]
+print (Reflect.Text (arr.TypeOf ()))
+print (Reflect.Text (Reflect.Call "a,b,c" "Split" [arr]))
+
+print (((dt.TypeOf ()).Members ()) |> .Take 4)
+print ((sb.TypeOf ()).Name ())
+
+try {
+    Reflect.Call "x" "Split" [1]
+} (e: Exception) => { print (e.Message.Contains "实参对不上"); }
+try {
+    Reflect.Type "查无此类.Wat"
+} (e: Exception) => { print (e.Message.Contains "找不到 .NET 类型"); }
+try {
+    Reflect.Call "abc" "NoSuchMember" []
+} (e: Exception) => { print (e.Message.Contains "没有这个名字"); }
+
+try {
+    Reflect.Call (Reflect.Type "System.Console") "WriteLine" [(x: int) => { x; }]
+} (e: Exception) => { print (e.Message.Contains "原生闭包"); }
+print "done"
+ravel ""
+ravel "m23"
+pick := '+' => { "加"; }
+      | '-' => { "减"; }
+      | '=' => { "等"; }
+      | (c) => { "别的 " + (string c); }
+
+print (pick '+')
+print (pick '-')
+print (pick '=')
+print (pick 'x')
+
+kind := ('0') => { "零"; }
+      | ('1') => { "一"; }
+      | _ => { "多"; }
+
+print (kind '0')
+print (kind '1')
+print (kind '9')
+
+print 'q'
+print ('+' == '+')
+ravel ""
+
+# --- expected ---
+
+# Continuation
+# <续延 default>
+# 先给个值
+# Continuation
+# <continuation>
+# true
+# true
+# true
+# 3
+# true
+# Function
+# true
+# Continuation
+# Continuation
+# <续延 default>
+# Continuation
+# true
+# true
+# true
+# false
+# 1: 这枚续延是 default（还没到手的那一枚），调不了 —— 能跳的续延只有 callcc 交出来的那种
+# 2: 这一格要的是 Continuation，得到 Integer
+# 3: 这一格要的是 Continuation，得到 Function
+# Continuation
+# true
+# 7
+# [7]
+# true
+# 4: Continuation 收一枚函数，得到 Integer
+# [1 2]
+# <续延 default>
+# true
+# end
+# Console
+# System.Console
+# System.Char[]
+# List`1
+# DotNetObject 7
+# DotNetObject 4
+# DotNetObject 5
+# 5
+# HELLO
+# true
+# 4.7
+# hi there
+# 8
+# 2026-10-07
+# System.DateTime
+# DotNetObject 2026/10/7 0:00:00
+# System.Char[]
+# System.String[]
+# System.Char[]
+# System.String[]
+# [.ctor Add AddDays AddHours]
+# StringBuilder
+# true
+# true
+# true
+# true
+# done
+# 加
+# 减
+# 等
+# 别的 x
+# 零
+# 一
+# 多
+# q
+# true

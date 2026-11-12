@@ -1,0 +1,186 @@
+ravel "m37"
+[1 v] := [1 2]
+print v
+["看" w] := ["看" 3]
+print w
+[() u] := [() 4]
+print u
+[true b] := [true 5]
+print b
+[-1 m] := [-1 6]
+print m
+
+print ((try { [] := [()]; } (e: Exception) => { "零格不收: " + e.Message; }))
+print ((try { [()] := []; } (e: Exception) => { "单位那格不收空: " + e.Message; }))
+
+print ((try { [1 v] := ["看" 2]; } (e: Exception) => { "1 遇串: " + e.Message; }))
+print ((try { [true v] := [1 2]; } (e: Exception) => { "true 遇数: " + e.Message; }))
+print ((try { [() v] := [1 2]; } (e: Exception) => { "() 遇数: " + e.Message; }))
+
+[1 n1] := [1.0 7]
+print n1
+
+[x 1] := [8 1]
+print x
+[[1 a] [2 c]] := [[1 10] [2 20]]
+print "${a} ${c}"
+
+pick := (1) => { "一"; } | (()) => { "空"; } | (_) => { "别的"; }
+print (pick 1)
+print (pick ())
+print (pick 9)
+op := (["开" n]) => { "开 ${n}"; } | (["关" n]) => { "关 ${n}"; } | (_) => { "别的"; }
+print (op ["开" 3])
+print (op ["关" 3])
+print (op ["别的" 3])
+
+z := () => { "零参"; }
+print (z ())
+
+Pos := (n) => { n > 0; }
+[1 |> Pos q] := [1 9]
+print q
+ravel ""
+ravel "m38"
+src := {"d" -> 5  1 -> 7  "k" -> 112}
+{"d" -> a  1 -> b} := src
+print "${a} ${b}"
+{"k" -> 112} := src
+print "字面量当值 → 过了"
+{"d" -> _  "k" -> lit} := src
+print "_ 当值 → ${lit}"
+
+{"d" -> t : int} := src
+print t
+Odd := (n) => { (n % 2) == 1; }
+{1 -> o |> Odd} := src
+print o
+
+k := "k"
+{k -> v} := src
+print "动态键 → ${v}"
+
+{"d" -> x  1 -> [p q]} := {"d" -> 1  1 -> [2 3]}
+print "嵌套 → ${x} ${p} ${q}"
+
+print ((try { {"没有" -> z} := src; } (e: Exception) => { "缺键: " + e.Message; }))
+print ((try { {"d" -> z} := 5; } (e: Exception) => { "不是 dict: " + e.Message; }))
+print ((try { {"d" -> z |> Odd} := src; } (e: Exception) => { "条件没过: " + e.Message; }))
+
+kbool := {true -> 1  false -> 2  () -> 3}
+{true -> bt  () -> ut} := kbool
+print "布尔 / 单位当键 → ${bt} ${ut}"
+lk := [1 2]
+print ((try { {lk -> z} := {"x" -> 1}; } (e: Exception) => { "列表当键: " + e.Message; }))
+
+g := ({"a" -> v}) => { "拿到 ${v}"; } | (_) => { "别的"; }
+print (g {"a" -> 9})
+print (g {"b" -> 9})
+
+Point ::= class { px: int = 1; py: int = 2 }
+{px py} := Point ()
+print "对象成员 → ${px} ${py}"
+print ((try { eval "{x \"a\" -> v} := 0"; } (e: Exception) => { "混写: " + e.Message; }))
+ravel ""
+ravel "m39"
+Fruit ::= interface {
+    color := () => { "?"; }
+    kind: string = "unknown"
+    readonly fixed: int = 7
+    by name : string = _
+}
+
+Apple ::= class { init = () => { this; } }
+
+impl1 := Fruit Apple {
+    by name = property (() => { "apple"; }) ((v: string) => { (); })
+}
+use impl1
+
+a := Apple ()
+
+print a.name
+
+print (a.color ())
+
+print a.kind
+a.kind = "改过了"
+print a.kind
+print impl1.kind
+
+print (try { a.fixed = 9; } (e: Exception) => { e.Message; })
+
+print (try { a.target; } (e: Exception) => { "target: " + e.Message; })
+print (try { a.generation; } (e: Exception) => { "generation: " + e.Message; })
+
+Fruit2 ::= interface { say := () => { "hi"; } }
+Box ::= class { init = () => { this; } }
+b := Box ()
+inside := () => {
+    impl2 := Fruit2 Box { (); }
+    use impl2
+    print (b.say ())
+}
+inside ()
+print (try { b.say (); } (e: Exception) => { "作用域外: " + e.Message; })
+
+Op ::= interface {
+    + := (b: int) => { 0; }
+}
+Item ::= class { init = () => { this; } }
+op1 := Op Item { (); }
+use op1
+i := Item ()
+print (try { i + 1; } (e: Exception) => { "+: " + e.Message; })
+ravel ""
+
+# --- expected ---
+
+# 2
+# 3
+# 4
+# 5
+# 6
+# 零格不收: 要的是空的，可这一串还有东西
+# 单位那格不收空: 要第 1 格，可这一串已经到底了
+# 1 遇串: 这一格要的是 1，得到 看（String）
+# true 遇数: 这一格要的是 true，得到 1（Integer）
+# () 遇数: 这一格要的是 ()，得到 1（Integer）
+# 7
+# 8
+# 10 20
+# 一
+# 空
+# 别的
+# 开 3
+# 关 3
+# 别的
+# 零参
+# 9
+# 5 7
+# 字面量当值 → 过了
+# _ 当值 → 112
+# 5
+# 7
+# 动态键 → 112
+# 嵌套 → 1 2 3
+# 缺键: 要键 没有，可这一份上没有
+# 不是 dict: 要的是字典（按 `键 -> 模式` 拆的那种），得到 Integer
+# ()
+# 布尔 / 单位当键 → 1 3
+# 列表当键: 这一项的键当不了键（要按值比的：数 / 串 / 字符 / 布尔 / `()`），得到 List
+# 拿到 9
+# 别的
+# 对象成员 → 1 2
+# 混写: 对象成员（`{x y}`）和字典项（`{键 -> 模式}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写
+# apple
+# ?
+# unknown
+# 改过了
+# 改过了
+# 无法给只读变量 'fixed' 赋值
+# target: 类型 'Apple' 没有方法 'target'
+# generation: 类型 'Apple' 没有方法 'generation'
+# hi
+# 作用域外: 类型 'Box' 没有方法 'say'
+# +: 类型 Item 不支持运算符 '+'

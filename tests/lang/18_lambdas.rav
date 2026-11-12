@@ -1,0 +1,267 @@
+ravel "m47"
+double := (x: int) => x * 2
+print (double 21)
+
+noop := () => 7
+print (noop ())
+
+add := (a: int b: int) => a + b
+print (add 1 2)
+
+three := (a: int b: int c: int) => a + b + c
+print (three 1 2 3)
+
+print (([1 2 3].Map ((x: int) => x * 10)).ToList ())
+print (([1 2 3].Where ((x: int) => (x % 2) == 1)).ToList ())
+print (([3 1 2].SortBy ((x: int) => x)).ToList ())
+
+nested := (x: int) => (y: int) => x + y
+print (nested 1 2)
+
+calc := (a: int b: int) => (a * 2) + (b * 3)
+print (calc 1 2)
+
+setMaker := () => ({1 2 3})
+print (setMaker ())
+dictMaker := () => ({"a" -> 1})
+print ((dictMaker ()).Get "a")
+
+print (([1 2 3] |> .Map ((x: int) => x + 1)).ToList ())
+
+f := (x: int) => { y := x * 2; y + 1; }
+print (f 3)
+
+print ((try { eval "g := (x: int) => { x * 2 }"; } (e: Exception) => { "1: " + e.Message; }))
+ravel ""
+ravel "m48"
+inc := x => x + 1
+print (inc 2)
+
+noAnn := x => x
+print (typeof noAnn)
+
+blk := x => { y := x * 2; y + 1; }
+print (blk 4)
+
+nested := x => y => x + y
+print (nested 1 2)
+
+print (([1 2 3].Map (x => x * 10)).ToList ())
+print (([1 2 3].Map x => x * 10).ToList ())
+print (([3 1 2].SortBy (x => x)).ToList ())
+
+a := x => x * 3
+b := (x) => x * 3
+print (a 5)
+print (b 5)
+
+calc := x => (x * 2) + 1
+print (calc 10)
+
+ignore := _ => 7
+print (ignore 99)
+print (ignore [1 2])
+print (_ => 7)
+
+hole := _ => _ + 1
+print ((hole 5) 6)
+
+print ((try { eval "f := x: int => x + 1"; } (e: Exception) => { "2: " + e.Message; }))
+ravel ""
+ravel "m49"
+return := 5
+print (return + 1)
+break := 1
+print (break + 1)
+continue := 2
+print (continue + 1)
+
+D ::= class {
+    return: int = 7
+}
+print ((D ()).return)
+
+print ((try { eval "f := () => { return 1; }\nf ()"; } (e: Exception) => { "1: " + (string e); }))
+
+print ((try { eval "g := () => { return 1; }\n3"; } (e: Exception) => { "2: " + (string e); }))
+ravel ""
+ravel "m50"
+x := 1
++ 2
+print x
+
+g := 5
+|> ((n: int) => { n * 10; })
+print g
+
+f := (a: int b: int) => { a + b; }
+print (f 1
+    + 2)
+
+print (10
+
++ 20)
+
+print (1
++ 2
+* 3)
+
+Even := (n) => { (n % 2) == 0; }
+Small := (n) => { n < 10; }
+both := Even
+and Small
+print (both 4)
+print (both 12)
+
+print ((try { eval "y := 1; + 2"; } (e: Exception) => { "分号不接: " + e.Message; }))
+
+Box ::= class {
+    v: int = 0
+    < := (o: Box) => { 42; }
+}
+print ((Box ()) < (Box ()))
+ravel ""
+ravel "m51"
+print (~5)
+print ({5;})
+print ((~5) ())
+print (({5;}) ())
+
+x := 7
+~x
+print "过了"
+
+Q ::= class {
+    z: int = 9
+}
+P ::= class {
+    y: list = [(Q ())]
+}
+p := P ()
+print ((~p.y?.z) ())
+print (({p.y?.z;}) ())
+print ((~p.y) ())
+print (~p)
+print ((try { print (~p.y.z.y); } (e: Exception) => { "链到哪儿: " + e.Message; }))
+
+add1 := (n: int) => { n + 1; }
+print ((try { print ((~add1 1) ()); } (e: Exception) => { "1 落在块外面: " + e.Message; }))
+
+print (-~5 ())
+print (~(-1) ())
+
+print (x => ~x)
+print ((try { f := x => ~x + 1; } (e: Exception) => { "封口: " + e.Message; }))
+print ((try { f := x => ({x;}) + 1; print (f 5); } (e: Exception) => { "吃尽: " + e.Message; }))
+
+run := (b: function) => { b (); }
+print (run ~9)
+ravel ""
+ravel "m52"
+xs := [1 2 3]
+print (xs.Map (x) => { x * 2; }
+    .Sum ())
+f := () => { [1 2]; }
+print (f ()
+    .Count ())
+print ((5
+    .ToString ()) + "!")
+
+print ([4 5]
+
+    .Sum ())
+
+y := 1
+print y
+
+r := [1..3]
+print (r.Count ())
+
+print ([7 8]
+
+    .Sum ())
+
+print ([1 2 3]
+    .Map (x) => { x * 10; }
+    .Sum ())
+
+print ((Some "abc"
+    ?.Length ()) ?? -1)
+print ((None
+    ?.Length ()) ?? -1)
+ravel ""
+
+# --- expected ---
+
+# 42
+# 7
+# 3
+# 6
+# [10 20 30]
+# [1 3]
+# [1 2 3]
+# 3
+# 8
+# {1 2 3}
+# 1
+# [2 3 4]
+# 7
+# 1: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号
+# 3
+# Function
+# 9
+# 3
+# [10 20 30]
+# [10 20 30]
+# [1 2 3]
+# 15
+# 15
+# 21
+# 7
+# 7
+# <function (_: object) => { 7; }>
+# 7
+# 2: 不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。要带类型就加括号：`(x: int) => …`
+# 6
+# 2
+# 3
+# 7
+# 1: 值 5 不是函数，不能调用
+# 3
+# 3
+# 50
+# <function (b: int) => { a + b; } applied a=3>
+# 30
+# 7
+# true
+# false
+# 分号不接: 需要表达式，但得到'+'
+# 42
+# <block>
+# <block>
+# 5
+# 5
+# 过了
+# [9]
+# [9]
+# [Q { z = 9 }]
+# <block>
+# <block>
+# ()
+# 1 落在块外面: 参数 'n' 需要 Integer，得到 Void
+# -5
+# -1
+# <function (x: object) => { x; }>
+# 封口: 类型 Function 不支持运算符 '+'
+# 吃尽: 类型 Block 不支持运算符 '+'
+# 9
+# 12
+# 2
+# 5!
+# 9
+# 1
+# 3
+# 15
+# 60
+# Option { Has = true, Inner = 3 }
+# -1

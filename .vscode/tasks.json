@@ -78,7 +78,7 @@
             // 挑词在跑之前问一次,免得手改 tasks.json
             "id": "pick",
             "type": "promptString",
-            "description": "挑个沾相对路径的词(例如 pattern、net、367;一次最多 20 个文件)",
+            "description": "挑个沾相对路径的词(例如 pattern、net、class;一次最多 20 个文件)",
             "default": "pattern"
         }
     ]

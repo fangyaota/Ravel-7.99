@@ -1,0 +1,246 @@
+ravel "m24"
+pairs := [["a" 1] ["b" 2]]
+d := pairs.ToDict ()
+print d
+print (d.Entries ())
+print ((d.Entries ()).ToDict ())
+print ((d.Entries ()).At 0)
+print ((d.Entries ()).Count ())
+
+print ([["x" 1] ["y" 2] ["x" 3]].ToDict ())
+
+e := [].ToDict ()
+print (typeof e)
+print (e.Count ())
+
+sus := ["amy" "bob"]
+print (sus |> .Map ((n: object) => { [n (n.ToUpper ())]; }) |> .ToList () |> .ToDict ())
+
+try { [["a"]].ToDict (); } (e: Exception) => { print e.Message; }
+try { [["a" 1 "b"]].ToDict (); } (e: Exception) => { print e.Message; }
+ravel ""
+ravel "m25"
+l := [10 20 30 40 50]
+print l[0]
+print l[4]
+print (l[1..3])
+print (l[1..4))
+print (l(0..2])
+print (l(0..3))
+print (l[2])
+s := "abcdef"
+print s[1]
+print (s[1..4))
+print (s(0..3))
+print (s.Length ())
+m := {"a" -> 1 "b" -> 2}
+print m["a"]
+m["c"] = 3
+print m["c"]
+print (m.Keys ())
+l[1] = 99
+print (l.At 1)
+l[1] += 1
+print (l.At 1)
+print (l[0] = 7)
+print (l.At 0)
+nested := [[1 2] [3 4]]
+print (nested[1][0])
+print (nested[0])
+print ((nested[0]).Count ())
+print (l[1])
+print ([1 2 3][1..])
+print ([1 2 3][..1])
+print (s[2..])
+q := [1 2 3]
+print (q[0..])
+print (q[..1])
+try { eval "q[9]"; } (e: Exception) => { print ("越界: " + (e.Message)); }
+j := Json.FromString "[1,2,3,4]"
+print (j[1..3])
+rng := [1..3]
+try { eval "q[rng]"; } (e: Exception) => { print ("区间变量: " + (e.Message)); }
+ravel ""
+ravel "m26"
+print [1..]
+print ([1..] == [1..Inf])
+print ([..1] == [-Inf..1])
+
+print (([1..].Take 3).ToList ())
+print (([1..Inf].Take 3).ToList ())
+print (([..1].Take 3).ToList ())
+print (([1..-Inf].Take 3).ToList ())
+print ((([1..].Where (x: object) => { (x % 2) == 0; }).Take 3).ToList ())
+
+print ([1..].First ())
+print ([..1].First ())
+print ([Inf..1].First ())
+print ([1..].Step ())
+print ([..1].Step ())
+print ([1..].IsEmpty ())
+print ([1..].IsBounded ())
+print ([..1].IsBounded ())
+print ([1..3].IsBounded ())
+
+print ([1..].Contains 99999)
+print ([1..].Covers 2.5)
+print ([..1].Contains 99999)
+print ([..1].Contains (-99999))
+
+print [..]
+print ([-Inf..Inf] == [..])
+print ([..].IsWhole ())
+print ([..].IsBounded ())
+print ([..].IsEmpty ())
+print ([..].Contains 12345)
+print ([..].Contains (-12345))
+print ([..].Covers 2.5)
+print ([1..].IsWhole ())
+print ([1..3].IsWhole ())
+
+try { [..].First (); } (e: Exception) => { print ("1: " + string e); }
+try { [1..].Count (); } (e: Exception) => { print ("2: " + string e); }
+try { [1..].Last (); } (e: Exception) => { print ("3: " + string e); }
+try { [1..].ToList (); } (e: Exception) => { print ("4: " + string e); }
+try { [..].Count (); } (e: Exception) => { print ("5: " + string e); }
+ravel ""
+ravel "m27"
+n : int := 5
+print n
+
+m : int = 6
+print m
+
+[x y] := [1 2]
+print [x y]
+
+[u v] : list = [3 4]
+print [u v]
+
+w == 1 := 1
+print w
+
+print ((try { eval "[p q] = [1 2]"; } (e: Exception) => { "1: " + e.Message; }))
+print ((try { eval "r == 1 = 2"; } (e: Exception) => { "2: " + e.Message; }))
+ravel ""
+ravel "m28"
+n := 0
+mk := () => { property (() => { n; }) ((v: int) => { n = v; }) }
+
+[by x] := [(mk ())]
+print x
+x = 42
+print "${x} / ${n}"
+
+by [u v] := [(mk ()) (mk ())]
+u = 7
+print "${u} / ${n}"
+
+f := (by y: int) => { y = y + 1; y; }
+print (f (mk ()))
+print n
+
+g := ([by z]) => { z = 100; z; }
+print (g [(mk ())])
+print n
+
+print (try { [by bad] := [5]; bad; } (e: Exception) => { e.Message; })
+
+print f
+ravel ""
+
+# --- expected ---
+
+# {a: 1 b: 2}
+# [[a 1] [b 2]]
+# {a: 1 b: 2}
+# [a 1]
+# 2
+# {x: 3 y: 2}
+# Dict
+# 0
+# {amy: AMY bob: BOB}
+# ToDict 要的是 [键 值] 两格的项,这一项有 1 格
+# ToDict 要的是 [键 值] 两格的项,这一项有 3 格
+# 10
+# 50
+# [20 30 40]
+# [20 30 40]
+# [20 30]
+# [20 30]
+# 30
+# b
+# bcd
+# bc
+# 6
+# 1
+# 3
+# [a b c]
+# 99
+# 100
+# 7
+# 7
+# 3
+# [1 2]
+# 2
+# 100
+# [2 3]
+# [1 2]
+# cdef
+# [1 2 3]
+# [1 2]
+# 越界: list.At 的索引 9 越界 (列表长度 3)
+# [2,3,4]
+# 区间变量: list.At 收一个下标（切一段用 list.Slice —— `xs[1..3]` 就走它），得到区间 [1..3]
+# [1..Inf]
+# true
+# true
+# [1 2 3]
+# [1 2 3]
+# [1 0 -1]
+# [1 0 -1]
+# [2 4 6]
+# 1
+# 1
+# 1
+# 1
+# -1
+# false
+# false
+# false
+# true
+# true
+# true
+# false
+# true
+# [-Inf..Inf]
+# true
+# true
+# false
+# false
+# true
+# true
+# true
+# false
+# false
+# 1: 全区间没有第一站（[-Inf..Inf] —— 谁都在里头，但没有起手那一头）
+# 2: 无限长的区间数不出个数（[1..Inf] —— 用 Take 取前几个）
+# 3: 无限长的区间没有最后一个（[1..Inf]）
+# 4: 无限长的区间铺不成表（[1..Inf]）—— 用 Take 取前几个
+# 5: 整条数轴数不出个数（[-Inf..Inf] —— 它谁都在里头，但没有起手那一头）
+# 5
+# 6
+# [1 2]
+# [3 4]
+# 1
+# 1: 无法给未定义变量 'p' 赋值
+# 2: '=' 的左边得是变量、成员或下标
+# 0
+# 42 / 42
+# 7 / 7
+# 8
+# 8
+# 100
+# 100
+# 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
+# <function (by y: int) => { y = y + 1; y; }>

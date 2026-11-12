@@ -36,7 +36,7 @@ internal static class Program
             config.SetApplicationCulture(new CultureInfo("zh-CN"));   // 帮助文案钉死中文(默认跟系统语言)
             config.Settings.StrictParsing = true;         // 不认识的开关要报错,别静默吞掉
             config.AddCommand<TestCommand>("test").WithDescription("跑 golden 用例(必须挑词,一次最多 20 个文件,全量已取消)")
-                .WithExample("test", "367")
+                .WithExample("test", "class")
                 .WithExample("test", "pattern")
                 .WithExample("test", "net", "--fast");
             config.AddCommand<StripCommand>("strip").WithDescription("剥掉 .rav 里的注释(就地)")

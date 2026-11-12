@@ -1,76 +1,53 @@
-﻿# 一个**类对象有两张表**,分工是结构性的(不靠标记、不靠过滤):
-#
-#   ① 类自己那张（`ClassVal.Scope`，也就是基类 `ObjectVal.Scope`）—— 类对象是元类 `type`
-#      的实例,建类时平铺进来的 `name`/`parent`/`block`/`init`/`==`/`!=`,用户事后挂上去的
-#      `C.func := …`,以及**类那一侧**的 API(`Json.FromString`)。
-#   ② 给它那些**实例**的表（`ClassVal.InstanceTable`）—— 内置方法(`Add`/`Map`/`Kind`…)、
-#      类运算符、序列方法、`GetImplements ()` 这类查询。
-#
-# 于是两件事都是结构决定的了(从前要靠 `forInstance` + `private` 两个标记去挡):
-#   * 类上挂的东西实例看不到(`C.func := …` 落在①,实例读②);
-#   * 内置方法从**类那一侧**读不到(`Add` 在②里,类对象自己的查找不经过它)——
-#     从前从类上读到的那份没绑 `self`,调用时 `((ListVal)ClassVal)` 当场炸成
-#     「!! 解释器内部错误 InvalidCastException」。
+# 两张成员表/属性槽
+using "plugins/Ravel.Generated.dll"
 
+ravel "242_main0"
 C ::= class {
     n: int = 7
     g := () => { this.n; }
 }
 c := C ()
 
-# ① 类体里写的成员:实例化时落进**每个实例自己的表**,和这两张表无关
 print c.n
 print (c.g ())
 
-# ② 事后挂在**类**上的:只有类对象自己看得到
 C.func := (x: int) => { x + 1; }
 C.num := 5
 print (C.func 5)
 print C.num
 try { print (c.func 5); } (e: Exception) => { print ("1: " + string e); }
 try { print c.num; } (e: Exception) => { print ("2: " + string e); }
-print ((C.Fields ()).Contains "func")       # 类那一侧列得出
-print ((c.Fields ()).Contains "func")       # 实例那一侧列不出
+print ((C.Fields ()).Contains "func")
+print ((c.Fields ()).Contains "func")
 
-# ③ 内置实例方法在②里:实例读得到,类对象那一侧读不到
 l := [1 2 3]
 print (l.Count ())
 try { print (list.Count ()); } (e: Exception) => { print ("3: " + string e); }
 try { print (list.Add 2); } (e: Exception) => { print ("4: " + string e); }
-print ((list.Fields ()).Contains "Add")     # 类对象:没有它
+print ((list.Fields ()).Contains "Add")
 
-# ④ 类那一侧的 API 不进②:`Json.FromString` 就是**在类上读**的
 print (Json.FromString "{\"a\":1}")
 try { print (Json.Kind); } (e: Exception) => { print ("5: " + string e); }
 
-# ⑤ 运算符也在②里(以左值为身份的那张表)—— 连值类型的:
-#    元类链那一半保证挂在 `object` 上的 `:`/`<:`/`:>` 任何值都摸得到,
-#    自指的 `Every`(`parent` 是自己)也算
 print (1 + 2)
 print (1 == 2)
 print (5.: int)
 
-# ⑥ 值**自己**那层照旧留给用户挂的东西:只影响那一个值
 j := Json {"a"-> 1}
 j.tag := 1
 print j.tag
 try { print (Json 2).tag; } (e: Exception) => { print ("6: " + string e); }
 
-# ⑦ 机制成员 `parent` / `block` 是**只读**的:它们是"这个类是什么"的定义,
-#    改它等于把类换一个(`C.parent = int` 之后 `C ()` 就去跑 Integer 的构造器了)
 print (C.parent)
 try { C.parent = int; } (e: Exception) => { print ("7: " + string e); }
 try { C.block = (); } (e: Exception) => { print ("8: " + string e); }
-C.name = "改过的"                 # `name` 照旧可写:那是它本来的用法(`F.name = "x"`)
+C.name = "改过的"
 print C
 
 print "end"
+ravel ""
 
-# ═══ 146_class_flat_inherit(并入) ═══
 ravel "146_class_flat_inherit"
-# 平铺继承:各层类体的字段落在同一个作用域,不做链式查找。
-# **同名就是错**(`:=` 是定义不是覆盖)—— 子类再声明父类已声明过的字段,实例化时当场报错。
-# 1) 子类没声明的字段 → 从父类那层可见;子类自己声明的另起一个名字
 Base := class {
     init = () => { 0; this; }
     x: int = 1
@@ -85,12 +62,10 @@ print (c.x)
 print (c.x2)
 print (c.y)
 
-# 同名字段 → 报错(建类时不报,实例化那一刻各层类体跑进同一个作用域才撞上)
 Bad := class Base {
     x: int = 100
 }
 try { Bad (); } (e: Exception) => { print ("1: " + string e); }
-# 2) 父类 init 不自动调用:父类 init 里的赋值不生效,初始值看字段声明
 Deferred := class {
     init = () => { v = 10; this; }
     v: int = 0
@@ -99,7 +74,6 @@ Child2 := class Deferred { init = () => { 0; this; } }
 c2 := Child2 ()
 print (c2.v)
 
-# 3) 只有最具体层的 init 被调用;祖先的 init 不跑
 A := class {
     init = () => { a = 1; this; }
     a: int = 0
@@ -113,18 +87,11 @@ print (obj.a)
 print (obj.b)
 ravel ""
 
-# ═══ 243_body_scope(并入) ═══
 ravel "243_body_scope"
-# 每层类体的**自由名字**按"那一层写在哪"解析 —— 定义照旧平铺进**同一个**实例表。
-#
-# 从前只有一个词法父:最具体那个类的写法处。于是父类写在**别的作用域**时,它的类体看不见
-# 自己那儿的名字(P 的 `Helper` 在 `make` 里,而 Q 写在顶层 → 解析不到)。现在每层跑在自己的
-# `BodyScope` 上:词法父 = 该层的 `CaptureScope`,定义转发回实例表(见 `Runtime/BodyScope.cs`)。
-
 make := () => {
     Helper := 7
     class {
-        x: int = Helper          # 这一层写在 make 里面
+        x: int = Helper
     }
 }
 P := make ()
@@ -132,25 +99,21 @@ print (P ())
 
 TopHelper := 3
 Q ::= class (P) {
-    y: int = TopHelper           # 这一层写在顶层
+    y: int = TopHelper
 }
 print (Q ())
 
-# 平铺照旧:父层的字段就在**同一张表**上,子类的类体里读得到
-# (重声明同名是另一条规矩,当场报错 —— 见 tests/236)
 R ::= class (P) {
-    z: int = x + 1               # `x` 是父层那个字段
+    z: int = x + 1
 }
 print (R ())
 
-# 自由名字与字段重名时**字段优先**(和从前一致):本层那个 `Helper` 就是字段
 H ::= class {
     Helper: int = 9
-    got := () => { Helper; }     # 类体里的裸名字 → 先看实例表本层
+    got := () => { Helper; }
 }
 print ((H ()).got ())
 
-# 闭包捕获的也是这一层(方法体里既读得到字段、也看得见定义处)
 M ::= class {
     n: int = 5
     f := () => { n + (make2 ()); }
@@ -158,6 +121,84 @@ M ::= class {
 make2 := () => { 10; }
 print ((M ()).f ())
 print "end"
+ravel ""
+
+ravel "350_main3"
+using "plugins/Ravel.Generated.dll"
+
+sb := NSb.StringBuilder ()
+sb.Append_3 "hello"
+
+print (sb.Length)
+
+sb.Length = 2
+print (sb.Length)
+print (sb.ToString ())
+
+sb.Length += 3
+print (sb.Length)
+
+print ((sb.Fields ()).Contains "Length")
+
+print (sb.MaxCapacity > 0)
+try { sb.MaxCapacity = 1; print "没拦住"; } (e: object) => { print "只读拦住了"; }
+
+sp := NSpan.TimeSpan 10000000
+print (sp.TotalSeconds)
+print (sp.Seconds)
+print (sp.Ticks)
+print ((sp.TotalSeconds) + 1)
+
+print (((NSpan.TimeSpan 600000000).Duration ()).TotalMinutes)
+ravel ""
+
+ravel "351_main4"
+using "plugins/Ravel.Generated.dll"
+
+print (NMath.PI)
+print (NMath.E)
+print (NMath.Tau)
+
+print ((NMath.PI) > 3)
+print (NMath.PI == 3.141592653589793)
+
+print ("[" + NStr.Empty + "]")
+
+try { NMath.PI = 3; print "只读没拦住"; } (e: object) => { print "只读拦住了"; }
+
+print ((NMath.Fields ()).Contains "PI")
+ravel ""
+
+ravel "352_main5"
+using "plugins/Ravel.Generated.dll"
+
+a := NSb.StringBuilder ()
+a.Append_3 "hello"
+b := NSb.StringBuilder ()
+b.Append_3 "world"
+
+print (a.Length)
+
+by a.Length = property (() => { 42; }) ((v: int) => { (); })
+print (a.Length)
+print (a.Length = 7)
+print (a.Length)
+
+print (b.Length)
+
+d := NDate.DateTime 0
+try {
+    by d.Year = property (() => { 1; }) ((v: int) => { (); });
+    print "值类型换槽没拦住";
+} (e: object) => {
+    print "值类型那一格换不掉";
+}
+
+by 年 := property (() => { d.Year; }) ((n: int) => { d = d.AddYears (n - d.Year); })
+print (d.Year)
+年 = 2000
+print (d.Year)
+print ((NDate.DateTime 0).Year)
 ravel ""
 # --- expected ---
 # 7
@@ -197,3 +238,32 @@ ravel ""
 # 9
 # 15
 # end
+# 5
+# 2
+# he
+# 5
+# true
+# true
+# 只读拦住了
+# 1
+# 1
+# 10000000
+# 2
+# 1
+# 3.141592653589793
+# 2.718281828459045
+# 6.283185307179586
+# true
+# true
+# []
+# 只读拦住了
+# true
+# 5
+# 42
+# 7
+# 42
+# 5
+# 值类型那一格换不掉
+# 1
+# 2000
+# 1

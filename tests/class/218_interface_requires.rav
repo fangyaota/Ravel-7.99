@@ -1,18 +1,5 @@
-# 接口之间**只剩要求**了(2026-10-07 起,原来那套"父 + [要求]"连根去掉)。
-#
-#     myTrait     ::= interface { … }                    # 不要求
-#     supTrait    ::= interface myTrait { … }            # **一个要求**
-#     masterTrait ::= interface [supTrait IEnumerable] { … }   # 一串要求
-#
-# **没有"父"了** —— 接口不再继承接口,三件事各归各的:
-#   * **槽不并**:`supTrait` 的体里没有 `myTrait` 那些槽,它自己的槽得自己声明
-#     (实现的成员也一样:实现者要把**每条要求**的实现都登记上,见下面 `C`);
-#   * **`<:` 成立**:`supTrait <: myTrait` 为真 —— "是 supTrait 的也就是 myTrait";
-#   * **造实现那一刻查前置条件**:实现者得**已经**有那几条实现,缺哪条报哪条。
-#
-# `parent` 一律是 `BaseInterface`(所有接口的根)—— 那根链不再表达"谁是谁",
-# 谁是谁全看要求。
-
+# interface 前置要求
+ravel "218_main0"
 myTrait ::= interface {
     by a : int = _
     by b : function = _
@@ -27,7 +14,6 @@ masterTrait ::= interface [supTrait IEnumerable] {
     ()
 }
 
-# ---- 谁是谁:全走 `<:`,和 parent 那条链没关系 ----
 print (supTrait.parent)
 print (supTrait <: myTrait)
 print (supTrait <: IEnumerable)
@@ -39,15 +25,12 @@ C ::= class {
     x : int = 0
 }
 
-# ---- 前置条件:先造一个,报的是**第一条缺的** ----
 try {
     impl (masterTrait C {
         ()
     })
 } (e: Exception) => { print ("1: " + string e); }
 
-# ---- 一条条补上。要求是**递归**的:`supTrait` 又要求 `myTrait`,
-#      `IEnumerable` 又要求 `IMonad` ----
 impl (IMonad C {;})
 impl (IEnumerable C {
     GetEnumerator = () => { Enumerator [instance.x]; }
@@ -71,53 +54,31 @@ print (u : myTrait)
 print (u : IEnumerable)
 u.Foreach (v: int) => { print ("each " + string v); }
 
-# ---- 槽上的类型约束:写进去的值要过声明那个类型 ----
 try { u.a = "x"; } (err: Exception) => { print ("3: " + string err); }
 
-# ---- 注解、参数(和 `is` 同一个判据) ----
 takeBase := (xs: myTrait) => { xs.a; }
 print (takeBase u)
 
-# ---- 写错了要报得清楚 ----
 try {
     interface 5 { () }
 } (err: Exception) => { print ("4: " + string err); }
-# 不是要求表的地方写成要求表:第一格 `supTrait` 是一个要求,后面那个表就没处放(体只能是代码块)
 try {
     interface supTrait [myTrait 5] { () }
 } (err: Exception) => { print ("5: " + string err); }
 try {
     interface C { () }
 } (err: Exception) => { print ("6: " + string err); }
-# 要求表里混进不是接口的
 try {
     interface [IEnumerable 5] { () }
 } (err: Exception) => { print ("7: " + string err); }
-# **要求表自己就能开一个接口**(从前不收 —— "要求得跟在父后面")—— 现在这条**合法**
 ListLike ::= interface [IEnumerable IMonad] {
     ()
 }
 print (ListLike <: IEnumerable)
 print (ListLike <: IMonad)
+ravel ""
 
-# ═══ 219_interface_operator(并入) ═══
 ravel "219_interface_operator"
-# **槽里放运算符**:`by + := property g s`。
-#
-# 运算符本来两跳都在"类"那一侧(类型表里的 ClassOperatorFactory → 实例作用域里的实现),
-# 而 `by` 槽住在**实现**身上(接口体跑一遍就落在实现 scope 里),两跳都够不着它。
-# 现在补上这一段:
-#
-#   * 接口里写 `by + := property …` → 实现这个接口的类就有了这个运算符(随作用域在/不在);
-#   * 实现块里 `by + = property …` 换掉它(和普通槽一个写法);
-#   * 类体里直接写 `by * := property …` 也行(不经接口)。
-#
-# 那一格的**值是 property**,所以用它是**两级**:先读槽(推 getter)拿到运算符函数,
-# 再拿那个函数收右操作数 —— `TraitOp` 帧专门管这个。
-#
-# 两边看得见的东西不一样:trait 那边是 `instance`(实现里那个"当下这个实例"),
-# 类体那边是 `this`。
-
 T ::= interface {
     by a : int = _
     by + := property (() => { (o: object) => { instance.a + 100; }; }) ((v: function) => { (); })
@@ -134,11 +95,10 @@ use (T C {
 
 u := C ()
 u.a = 5
-print (u + 1)          # 实现里换掉的那条:5 * 2
-print (u.+ 7)          # 节形式一样走槽
+print (u + 1)
+print (u.+ 7)
 print (u + u)
 
-# 复合赋值:算子交回同类型的东西才写得回去
 E ::= class {
     v : int = 0
     init = (k: int) => { v = k; this; }
@@ -148,31 +108,22 @@ e := E 1
 e += E 2
 print e.v
 
-# 类体里自己声明一条(不经接口):这边看得见的是 `this`
 D ::= class {
     n : int = 1
     by * := property (() => { (o: object) => { this.n * 10; }; }) ((v: function) => { (); })
 }
 print ((D ()) * 3)
 
-# 只有默认值(`= default`,那对什么都不做的 getter/setter):getter 交回**空函数**
-# (见 `BuiltinClasses.EmptyFunction`),所以 `+ 1` 调的就是它 —— 得到 `()`。
-# 2026-10-06 之前 getter 交 `()`、`+ 1` 报「值 () 不是函数，不能调用」;改成空函数
-# 是为了让**两条默认值的路一个读法**(`by Map : function = _` 和普通成员写的
-# `Map : function = _` 从前一个报错一个给空函数)。代价写在眼前:这条**静默**了。
 Loose ::= class {
     by + := _
 }
 try { print ((Loose ()) + 1); } (err: Exception) => { print ("1: " + string err); }
 
-# 没有实现的对象:类型那两个都不支持
 Out ::= class {
     y : int = 0
 }
 try { print ((Out ()) + 1); } (err: Exception) => { print ("2: " + string err); }
 
-# 随作用域在/不在:`use` 写在函数里,出了那次调用就没有运算符了
-# (用一个**只有那个函数里才实现过**的类,免得被上面那条 use 兜住)
 S ::= class {
     w : int = 0
 }
@@ -180,7 +131,7 @@ scoped := () => {
     use (T S {
         by a = property (() => { instance.w; }) ((v: int) => { instance.w = v; })
     })
-    print ((S ()) + 1)   # 接口里那条默认的:0 + 100
+    print ((S ()) + 1)
 }
 scoped ()
 try { print ((S ()) + 1); } (err: Exception) => { print ("3: " + string err); }

@@ -1,0 +1,225 @@
+# 注解/作用域/接口作用域
+ravel "201_annotation_scope"
+f := () => {
+    int := 5
+    y: int = 5
+    y;
+}
+try { f (); } (e: Exception) => { print ("1: " + string e); }
+
+g := () => {
+    C ::= class { init = (n: int) => { n; } }
+    string := C
+    z: string = 5
+    z;
+}
+try { g (); } (e: Exception) => { print ("2: " + string e); }
+
+h := () => { w: int = 7; w; }
+print ("3: " + string (h ()))
+ravel ""
+
+ravel "202_body_scope"
+C ::= class { init = () => { this; }; x: int = 1; }
+
+base := 10
+g := (n) => { base * 2; }
+print (typeof (g.Body ()))
+print ((g.Body ()) 0)
+h := (n) => { n; }
+try { (h.Body ()) 0; } (e: Exception) => { print ("参数不在捕获里: " + string e); }
+
+print (typeof (C.Body ()))
+print (typeof (System.Object.Body ()))
+
+print (typeof (print.Body ()))
+print ((print.Body ()) 0)
+
+b := { 7; }
+print ((b.Body ()) 0)
+
+print (typeof (g.Scope ()))
+print (typeof (type.Scope ()))
+print (type.Scope ())
+ravel ""
+
+ravel "203_annotation_expr"
+pick := (flag: bool) => { flag { int; } { real; } }
+a: (pick true) = 5
+b: (pick false) = real 5
+print (typeof a)
+print (typeof b)
+
+mk := () => { string; }
+s: (mk ()) = "hi"
+print (typeof s)
+print s
+
+f := (x: (pick true)) => { x; }
+print (typeof (f 3))
+print (typeof ((x: (pick false)) => { x; } 3.0))
+
+n: int = 7
+print (typeof n)
+
+try { z: (1 + 1) = 0; } (e: Exception) => { print ("1: " + string e); }
+try { w: (nope ()) = 0; } (e: Exception) => { print ("2: " + string e); }
+q := 1
+try { eval "q: pick true"; } (e: Exception) => { print ("3: " + string e); }
+print "done"
+ravel ""
+
+ravel "207_atomic_equality"
+print (() == ())
+print (() != ())
+
+C := class { init = () => { 0; this; }; }
+print (C == C)
+print (C == type)
+print ([1] == [1])
+one := [1]
+print (one == one)
+
+try { throw "boom"; } (e: Exception) => { print (e == e); }
+try { throw "boom"; } (e: Exception) => { print (e.Message == "boom"); }
+try { throw "boom"; } (e: Exception) => { print (e == Exception "boom"); }
+
+try { print (C == 5); } (e: Exception) => { print ("1: " + string e); }
+try { print ([1] == ()); } (e: Exception) => { print ("2: " + string e); }
+ravel ""
+
+T ::= interface {
+    by a : int = _
+    by z : int = _
+}
+
+C ::= class {
+    n : int = 0
+}
+
+one := T C { by a = property (() => { 1; }) ((v: int) => { (); }) }
+two := T C {
+    by a = property (() => { 2; }) ((v: int) => { (); })
+    by z = property (() => { 20; }) ((v: int) => { (); })
+}
+
+use one
+use two
+c := C ()
+print c.a
+print c.z
+print (c : T)
+
+two.Dispose ()
+print c.a
+print c.z
+two.Dispose ()
+print c.a
+one.Dispose ()
+try { print c.a; } (e: Exception) => { print ("1: " + string e); }
+use one
+print c.a
+one.Dispose ()
+
+scoped := () => {
+    use two
+    inner := C ()
+    print inner.a
+    print inner.z
+}
+scoped ()
+try { q := C (); print q.a; } (e: Exception) => { print ("2: " + string e); }
+
+Sub ::= class C {
+    tag : int = 0
+}
+
+use one
+s := Sub ()
+print s.a
+print (s : T)
+
+copy := one.Copy ()
+use copy
+print c.a
+copy.Dispose ()
+print c.a
+
+try { use 5; } (e: Exception) => { print ("3: " + string e); }
+try { eval "interface int {\n    by q : int = _\n}"; } (e: Exception) => { print ("4: " + string e); }
+
+one.Dispose ()
+globalize := () => {
+    impl two
+    print (C ()).a
+}
+globalize ()
+print (C ()).a
+two.Dispose ()
+try { q3 := C (); print q3.a; } (e: Exception) => { print ("5: " + string e); }
+
+one.Dispose ()
+ravel "ImplMod"
+impl two
+ravel ""
+print (C ()).a
+two.Dispose ()
+try { q4 := C (); print q4.a; } (e: Exception) => { print ("6: " + string e); }
+# --- expected ---
+# 1: ':' 的右边要是一个类型，得到 Integer
+# 2: 这一格要的是 C，得到 Integer
+# 3: 7
+# Block
+# 20
+# 参数不在捕获里: 未定义的变量 'n'
+# Block
+# Block
+# Block
+# ()
+# 7
+# Scope
+# Scope
+# <scope>
+# Integer
+# Real
+# String
+# hi
+# Integer
+# Real
+# Integer
+# 1: ':' 的右边要是一个类型，得到 Integer
+# 2: 未定义的变量 'nope'
+# done
+# true
+# false
+# true
+# false
+# false
+# true
+# true
+# false
+# false
+# false
+# false
+# 2
+# 20
+# true
+# 1
+# <function>
+# 1
+# 1: 类型 'C' 没有方法 'a'
+# 1
+# 2
+# 20
+# 2: 类型 'C' 没有方法 'a'
+# 1
+# true
+# 1
+# 1
+# 3: use 要的是「接口 类 实现」造出来的实现，得到 Integer
+# 4: `interface` 后面只能跟接口（一个要求：`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`）—— Integer 是个类；要给某个类实现接口就写成 `某个接口 那个类 { … }`
+# 2
+# 2
+# 5: 类型 'C' 没有方法 'a'
+# 2
+# 6: 类型 'C' 没有方法 'a'

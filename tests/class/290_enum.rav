@@ -1,7 +1,8 @@
-# `enum` 元类(见 lib/enum.rav)。**要显式引用**。
-#
-# 元类只管**固定的那一套**(`.Value` / `.Name` / `.Text ()` / `Values ()` / `Of`);
-# `A`/`B`/`C` 全是类体正文里写的 —— 一个都没写死在元类里。
+# enum/flags/singleton
+using "enum.rav"
+using "singleton.rav"
+
+ravel "290_main0"
 using "enum.rav"
 
 myEnum ::= enum {
@@ -10,24 +11,19 @@ myEnum ::= enum {
     C := 3
 }
 
-# 每枚成员:一个 myEnum 类型的值,带着自己的值和名字
 print (myEnum.A.Value)
 print (myEnum.A.Name)
 print (myEnum.A.Text ())
 print ((myEnum.B.Value) + 10)
 
-# 单例:同一枚每次拿到的是同一个值,所以 `==` 就是身份
 print (myEnum.A == myEnum.A)
 print (myEnum.A == myEnum.B)
 
-# 全部成员,按声明的先后
 (myEnum.Values ()).Foreach (e: object) => { print (e.Name); }
 
-# 按值反查;没有这个值就当场报错
 print ((myEnum.Of 3).Name)
 try { myEnum.Of 99; } (e: Exception) => { print ("1: " + string e); }
 
-# 值是**任何东西**都行,不只是 int
 color ::= enum {
     Red := "红"
     Green := "绿"
@@ -35,7 +31,6 @@ color ::= enum {
 print (color.Red.Value)
 print (color.Green.Text ())
 
-# ── 继承:父类**必须也是个 enum**,父类那几枚**迁过来**,这一层的块填新的 ──
 base ::= enum {
     A := 1
     B := 2
@@ -43,18 +38,118 @@ base ::= enum {
 sub ::= enum base {
     X := 7
 }
-print (sub.A.Value)              # 父类那枚迁过来了
-print (sub.X.Value)              # 这一层块里写的
-print (sub.A : sub)             # 迁过来的是**这个枚举的**值,不是父类那一枚
-print (sub.A == base.A)          # 所以两边同名不同枚
-print ((sub ()) : base)         # 但 sub 的实例仍是 base(类链那条)
-                                 # (括号不能省:实参吃到运算符为止,`sub () is base` 会读成 `sub (() is base)`)
-(sub.Values ()).Foreach (e: object) => { print (e.Name); }   # 父类的在前
+print (sub.A.Value)
+print (sub.X.Value)
+print (sub.A : sub)
+print (sub.A == base.A)
+print ((sub ()) : base)
+(sub.Values ()).Foreach (e: object) => { print (e.Name); }
 print ((sub.Of 2).Name)
 
-# 父类不是 enum —— 当场说清楚,别静默建个空壳
 try { plain ::= class { x: int = 0; }; bad ::= enum plain { X := 1; }; } (e: Exception) => { print ("2: " + string e); }
 print "end"
+ravel ""
+
+ravel "291_main1"
+using "enum.rav"
+
+perms ::= flags {
+    Read := 1
+    Write := 2
+    Exec := 4
+}
+
+print (perms.Read.Value)
+print (perms.Read.Name)
+print (perms.Read.Text ())
+print (perms.Values () |> .Map ((v: object) => { v.Text (); }) |> .ToList ())
+
+p := (perms.Read | perms.Exec)
+print (p.Value)
+print (p.Text ())
+print ((perms.Read | perms.Read).Text ())
+print ((perms.Read | perms.Write | perms.Exec).Text ())
+
+print (p.Names ())
+print (p.Has (perms.Read))
+print (p.Has (perms.Exec))
+print (p.Has (perms.Write))
+print (p.Has (perms.Read | perms.Exec))
+
+print ((p & perms.Exec).Text ())
+print ((p & perms.Write).Text ())
+print ((p - perms.Read).Text ())
+print ((p ^ perms.Exec).Text ())
+
+print ((perms.Read | 4).Text ())
+print ((perms.Of 5).Text ())
+print ((perms.Of 2).Text ())
+print ((perms.Of 5) == p)
+
+ext ::= flags perms {
+    Link := 8
+}
+print ((ext.Read | ext.Link).Text ())
+print ((ext.Values ()).Count ())
+print (ext.Read : ext)
+print (ext.Read == perms.Read)
+
+print ((try { perms.Read | "x"; } (e: Exception) => { "1: " + (string e); }))
+
+e ::= enum {
+    A := 1
+    B := 2
+}
+print ((try { e.A | e.B; } (ex: Exception) => { "2: " + (string ex); }))
+print ((try { e.A.Has e.B; } (ex: Exception) => { "3: " + (string ex); }))
+ravel ""
+
+using "singleton.rav"
+
+Config ::= singleton {
+    init = () => { name = "默认"; this; }
+    name: string = ""
+}
+
+a := Config ()
+b := Config ()
+print (a == b)
+print (a : Config)
+print ((Config ()) == a)
+
+a.name = "改了"
+print (b.name)
+
+NoInit ::= singleton {
+    n: int = 1
+}
+print ((NoInit ()) == (NoInit ()))
+print ((NoInit ()).n)
+
+Runs := []
+Counted ::= singleton {
+    init = () => { 0; this; }
+    mark := (Runs.Add "跑了一次")
+}
+Counted ()
+Counted ()
+Counted ()
+print (Runs.Count ())
+
+Base ::= class {
+    init = () => { 0; this; }
+    tag: string = "基类"
+}
+Sub ::= singleton Base {
+    init = () => { tag = "子类单例"; this; }
+}
+s1 := Sub ()
+s2 := Sub ()
+print (s1 == s2)
+print s1.tag
+print (s1 : Base)
+
+print ((try { eval "Arg ::= singleton {\n    init = (x: int) => { v = x; this; }\n    v: int = 0\n}\nArg ()"; } (e: Exception) => { "1: " + (string e); }))
 # --- expected ---
 # 1
 # A
@@ -80,3 +175,42 @@ print "end"
 # B
 # 2: 'enum' 的父类得也是一个 enum（得到 plain）
 # end
+# 1
+# Read
+# Read
+# [Read Write Exec]
+# 5
+# Read|Exec
+# Read
+# Read|Write|Exec
+# [Read Exec]
+# true
+# true
+# false
+# true
+# Exec
+# 0
+# Exec
+# Read
+# Read|Exec
+# Read|Exec
+# Write
+# true
+# Read|Link
+# 4
+# true
+# false
+# 1: flags: 位运算两边得是同一个 flags 的值或整数（那边是 String）
+# 2: 类型 e 不支持运算符 '|'
+# 3: 类型 'e' 没有方法 'Has'
+# true
+# true
+# true
+# 改了
+# true
+# 1
+# 3
+# true
+# 子类单例
+# true
+# 1: 参数 'x' 需要 Integer，得到 Void

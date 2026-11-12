@@ -1,0 +1,176 @@
+ravel "m40"
+Point ::= class { x: int = 1; y: int = 2 }
+Long2 := (s) => { (s.Count ()) >= 2; }
+OK := (o) => { o.x > 0; }
+
+(p1 := [a1 b1]) := [1 2]
+print "列表：${p1} / ${a1} ${b1}"
+(pt := {x y}) : Point = Point ()
+print "对象：${pt.x} / ${x} ${y}"
+
+[n1 >= 5  r1] := [7 9]
+print ">= ：${n1} ${r1}"
+[n2 == 3  r2] := [3 9]
+print "== ：${n2} ${r2}"
+[n3 |> Long2 = [c3 d3]] := [[7 8] 9]
+print "|> + 子模式：${n3.ToList ()} ${c3} ${d3}"
+(pt2 |> OK = {a := x  b := y}) : Point = Point ()
+print "|> + 子模式 + 改名：${pt2.y} ${a} ${b}"
+
+[kd := {"k" -> v}] := [{"k" -> 42}]
+print "字典子模式：${kd.Count ()} ${v}"
+[kf := [g [h i]]] := [[1 [2 3]]]
+print "嵌套：${g} ${h} ${i}"
+
+[first : list = [q ..rest] _ ..other] := [[1 2 3] 99 [4 5]]
+print "first=${first} q=${q} rest=${rest.ToList ()} other=${other.ToList ()}"
+
+{mA := y} : Point = Point ()
+print "光杆 := 改名：${mA}"
+{mB : int = x  mC := y} : Point = Point ()
+print "带类型 / 光杆：${mB} ${mC}"
+
+print ((try { eval "[x = y] := [1 2]"; } (e: Exception) => { "光名字当子模式: " + e.Message; }))
+print ((try { [n4 |> Long2 = [z]] := [[7]]; } (e: Exception) => { "条件没过: " + e.Message; }))
+print ((try { {mD := 没有的成员} : Point = Point (); } (e: Exception) => { "成员不在: " + e.Message; }))
+ravel ""
+ravel "m41"
+isPos := _ > 0
+isEven := (x: int) => (x % 2) == 0
+IsPrime := (n: int) => {
+    r := n > 1
+    i := 2
+    while { (i * i) <= n; } {
+        (n % i) == 0 { r = false; } { 0; }
+        i += 1
+    }
+    r
+}
+
+f := (v == 1) => { "一"; } | (v == 2) => { "二"; } | (_) => { "别"; }
+print (f 1)
+print (f 2)
+print (f 9)
+
+g := (v |> IsPrime) => { "素数"; } | (_) => { "不是"; }
+print (g 7)
+print (g 8)
+print (g "字符串")
+
+Big := (n: int) => { n > 10; }
+h := ((x: int) |> Big) => { "大"; } | (x: int) => { "小"; }
+print (h 20)
+print (h 3)
+
+k := (v == "a") => { "是 a"; } | (_) => { "不是"; }
+print (k "a")
+print (k 1)
+
+print ((isPos and isEven) 4)
+print ((isPos and isEven) 3)
+print ((isPos or isEven) (0 - 3))
+print ((isPos or isEven) 4)
+print (([1 2 3 4].Where (isPos and isEven)).ToList ())
+print (([1 2 3 4].Where (isPos or isEven)).ToList ())
+
+print (([1 2 3 4].Where isPos and isEven).ToList ())
+
+nand := isPos and isEven
+print (typeof nand)
+
+yes := x => true
+no := x => false
+print ((yes or no and no) 0)
+
+print ((isPos and isEven and (_ > 2)) 6)
+
+or := 42
+print (or + 1)
+print ((or))
+
+print ((try { eval "print or"; } (e: Exception) => { "3: " + e.Message; }))
+
+print ((try { f true; } (e: Exception) => { "1: " + e.Message; }))
+only := (v == 1) => { "一"; }
+print ((try { only 2; } (e: Exception) => { "2: " + e.Message; }))
+
+print ((try { eval "reject \"一句话\""; } (e: Exception) => { "4: " + e.Message; }))
+ravel ""
+ravel "m42"
+using "tasks.rav"
+
+f := (v) => { try { reject (TypeError "体里拒收"); } (e: Exception) => { "内层接了: " + e.Message; }; } | (_) => { "外面那支"; }
+print (f 1)
+
+g := (v) => {
+    print "  支1 开始"
+    Tasks.Cycle [(Tasks.Task (k: Tasks.TaskGroup) => { reject (TypeError "任务里拒收"); })]
+    print "  支1 尾巴"
+    "支1 的结果"
+} | (_) => { print "  支2 被叫起来"; "支2"; }
+print ((try { g 1; } (e: Exception) => { "兜住: " + ((System.SplitLines e.Message).At 0); }))
+
+h := (v) => { [1 2].Foreach (x: object) => { reject (TypeError "回调里拒收"); }; "支1…"; } | (_) => { "支2"; }
+print (h 1)
+
+k := (v == 1) => { "守卫生效"; } | (_) => { "换支"; }
+print (k 1)
+print (k 2)
+m := ([x y]) => { x + y; } | (_) => { "不是一对"; }
+print (m [3 4])
+print (m 5)
+print ((try { [q w] := 5; } (e: Exception) => { "解构: " + e.Message; }))
+ravel ""
+
+# --- expected ---
+
+# 列表：[1 2] / 1 2
+# 对象：1 / 1 2
+# >= ：7 9
+# == ：3 9
+# |> + 子模式：[7 8] 7 8
+# |> + 子模式 + 改名：2 1 2
+# 字典子模式：1 42
+# 嵌套：1 2 3
+# first=[1 2 3] q=1 rest=[2 3] other=[[4 5]]
+# 光杆 := 改名：2
+# 带类型 / 光杆：1 2
+# 光名字当子模式: `=` 右边得是**拆法**（`[a ..rest]` / `{x y}` / `{"k" -> v}` 那种，或者一个字面量）—— 光一个名字没有意义；要**改名**那是对象模式的写法（`{新名 := 成员名}`，带类型就 `{新名 : 类型 = 成员名}`）
+# 条件没过: 'n4' 没过 `|>` 后面那个条件
+# 成员不在: 要求成员 '没有的成员'，可这一份上没有
+# 一
+# 二
+# 别
+# 素数
+# 不是
+# 不是
+# 大
+# 小
+# 是 a
+# 不是
+# true
+# false
+# false
+# true
+# [2 4]
+# [1 2 3 4]
+# [2 4]
+# Function
+# true
+# true
+# 43
+# 42
+# 3: 'or' 是中缀运算符，后面得跟个操作数（想传一个叫 `or` 的值就加括号：`(or)`）
+# 别
+# 2: 实参不满足 'v' 的守卫
+# 4: 参数 'e' 需要 Exception，得到 String
+# 外面那支
+#   支1 开始
+#   支2 被叫起来
+# 支2
+# 支2
+# 守卫生效
+# 换支
+# 7
+# 不是一对
+# 解构: 要的是能按顺序取的东西（list / set / dict / 字符串 / Generator…），得到 Integer

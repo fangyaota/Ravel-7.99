@@ -1,0 +1,182 @@
+# IKey 接口
+using "math.rav"
+
+ravel "235_ikey"
+print (5.Key ())
+print ("a".Key ())
+print ((Keys.Of 5) == 5)
+print ((Keys.Of "a") == "a")
+try { print ((Some 5).Key ()); } (e: Exception) => { print ("1: " + string e); }
+
+d := {->}
+d.Set 1 "int"
+d.Set "1" "str"
+d.Set 1.0 "real"
+print (d.Count ())
+print (d.Get 1)
+print (d.Get "1")
+print (d.Get 1.0)
+print (d.Has 2)
+print (d.Keys ())
+print ({1-> "a"}.Get 1)
+print (d : IDict)
+try { d.Set ([1 2]) "x"; } (e: Exception) => { print ("2: " + string e); }
+try { print (d.Get 999); } (e: Exception) => { print ("3: " + string e); }
+
+print {"a"-> 1}
+print {1-> 2}
+print {1 2}
+k := "kk"
+print {k-> 1}
+n := 7
+print {n-> 1}
+print {"a" + "b"-> 1}
+try { print {zz-> 1}; } (e: Exception) => { print ("4: " + string e); }
+
+print (5 : IKey)
+print ("a" : IKey)
+print ([1 2] : IKey)
+
+Rec ::= class {
+    X: int = 0
+    N: string = ""
+    init = (x: int n: string) => { X = x; N = n; this; }
+    Key := () => { X; }
+}
+impl (IKey Rec {;})
+print ((Rec 1 "a") : IKey)
+print (Keys.Of (Rec 7 "x"))
+
+d2 := {->}
+d2.Set (Rec 1 "甲") "one"
+d2.Set (Rec 2 "乙") "two"
+print (d2.Get (Rec 1 "别的"))
+print (d2.Has (Rec 2 "别的"))
+print (d2.Count ())
+print (d2.Keys ())
+print (d2.GetOr (Rec 9 "z") "缺")
+print (d2.Remove (Rec 1 "别"))
+print (d2.Has (Rec 1 "别"))
+
+try { print (d2.SysGet (Rec 1 "别")); } (e: Exception) => { print ("5: " + string e); }
+
+B ::= class {
+    X: int = 0
+    init = (x: int) => { X = x; this; }
+}
+try { d2.Get (B 1); } (e: Exception) => { print ("6: " + string e); }
+
+C ::= class {
+    X: int = 0
+    init = (x: int) => { X = x; this; }
+    Key := () => { [X]; }
+}
+try { Keys.Of (C 1); } (e: Exception) => { print ("7: " + string e); }
+
+t := Keyed ()
+t.Set (Rec 1 "甲") "one"
+t.Set (Rec 2 "乙") "two"
+print (t : IDict)
+print (t.Get (Rec 1 "丙"))
+print (t.Has (Rec 2 "丁"))
+print (t.Count ())
+print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
+print (t.Values ())
+print (t.GetOr (Rec 5 "x") "缺")
+print (t.Remove (Rec 1 "戊"))
+print (t.Count ())
+print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
+t.Clear ()
+print (t.Count ())
+
+e := Enumerator [1 2 3]
+print (e : IEnumerator)
+print (e : IEnumerable)
+print (e : IMonad)
+print (e.Count ())
+print (e.Count ())
+f := Enumerator [1 2 3 4 5]
+print (f.First ())
+print (f.Current)
+print (Seqs.Gather (f.Take 2))
+print (Seqs.Gather (f.Map ((x: int) => { x + 1; })))
+print (f.ToList ())
+print (f.IsEmpty ())
+g := Enumerator [7 8 9]
+g.Foreach (x: int) => { print x; }
+print (g.Count ())
+G := Generator (y: function) => { y 1; y 2; y 3; }
+c := G.GetEnumerator ()
+print (c : IEnumerable)
+print (Seqs.Gather (c.Take 2))
+print (c.ToList ())
+print "end"
+ravel ""
+# --- expected ---
+# 5
+# a
+# true
+# true
+# 1: Key: Option 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 3
+# int
+# str
+# real
+# false
+# [1 1 1]
+# a
+# true
+# 2: Key: List 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 3: 键不存在: 999
+# {a: 1}
+# {1: 2}
+# {1 2}
+# {kk: 1}
+# {7: 1}
+# {ab: 1}
+# 4: 未定义的变量 'zz'
+# true
+# true
+# false
+# true
+# 7
+# one
+# true
+# 2
+# [1 2]
+# 缺
+# true
+# false
+# 5: dict.SysGet 的键得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 Rec
+# 6: Key: B 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 7: `Key` 要交回一个值类型的键（数 / 串 / 字符 / 布尔 / `()`），得到 List
+# true
+# one
+# true
+# 2
+# [甲 乙]
+# [one two]
+# 缺
+# true
+# 1
+# [乙]
+# 0
+# true
+# true
+# true
+# 3
+# 0
+# 1
+# 1
+# [2 3]
+# [5 6]
+# []
+# true
+# 7
+# 8
+# 9
+# 0
+# true
+# [1 2]
+# [3]
+# end

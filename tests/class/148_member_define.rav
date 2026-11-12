@@ -1,59 +1,46 @@
-# 成员定义 a.field := v —— `:=` 是定义(不存在就新建、存在就整条替换),`=` 是赋值(必须已存在)
+# 成员定义/复合赋值
+ravel "148_main0"
 C := class {
     init = () => { 0; this; }
     v: int = 1
 }
 a := C ()
 
-# 1) 给对象新增字段
 a.new := 42
 a.other := "hello"
 print (a.new)
 print (a.other)
 
-# 2) 覆盖已有字段
 a.v := 99
 print (a.v)
 
-# 3) 新字段的类型约束来自值的类型,之后用 `=` 改值也守约
 a.new = 7
 print (a.new)
 
-# 4) 新字段和普通字段一样能参与运算
 a.count := 10
 print (a.count + 1)
 
-# 5) 定义也能用在别的对象上,互不影响
 b := C ()
 b.new := 1000
 print (b.new)
 print (a.new)
 
-# 6) 赋值表达式交出去的值**就是赋进去的那个值** —— 变量和字段一个样。
-# 从前 `x = v` 给 `()`,而 `a.x = v` 给新值:同一个动作两个答案。
-# (变量的 `:=` 是**语句**,不是表达式 —— 所以 `print (x := 6)` 那样写是错的,
-#  成员定义 `a.def := 6` 才是表达式。)
 x := 1
 print (x = 5)
 print x
 print (a.v = 88)
 print (a.v)
-print (a.def := 6)      # 成员定义也一样(它本来就交值)
+print (a.def := 6)
 print (a.def)
 
-# 7) 两种写错的形状,从前都**静默**得很彻底
-#    - 变量的 `:=` 是语句,写成表达式只报「Integer 不支持运算符 ':='」,看不出所以然
-#    - `=` 左边既不是变量也不是字段 -> 从前直接交出右值,连写都没写
 try { print (x := 6); } (e: Exception) => { print ("1: " + string e); }
 try { print (5 = 5); } (e: Exception) => { print ("2: " + string e); }
 try { print ([1 2] = 3); } (e: Exception) => { print ("3: " + string e); }
 
-# ═══ 149_member_assign_missing(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
 try { eval "# 用 = 给不存在的字段赋值要报错(想新建字段得用 :=)\nC149 := class {\n    init = () => { 0; this; }\n    v: int = 1\n}\na149 := C149 ()\na149.missing = 1"; } (e: Exception) => { print ("149_member_assign_missing: " + string e); }
+ravel ""
 
-# ═══ 150_member_compound_assign(并入) ═══
 ravel "150_member_compound_assign"
-# 成员复合赋值 a.b += v —— 和变量一样支持 += -= *= /= %=
 C := class {
     init = () => { 0; this; }
     n: int = 10
@@ -69,12 +56,10 @@ print (a.n)
 a.s += "bc"
 print (a.s)
 
-# 用 := 新建的字段也能复合赋值
 a.fresh := 100
 a.fresh /= 4
 print (a.fresh)
 
-# 左操作数只求一次(即使它带副作用)
 count := 0
 shared := C ()
 get := () => { count += 1; shared; }
@@ -82,7 +67,6 @@ get := () => { count += 1; shared; }
 print count
 print (shared.n)
 
-# 类运算符也走这条路:算那步要走 ClassOp 帧,回来再写回
 V := class {
     init = () => { 0; this; }
     v: int = 7
@@ -94,7 +78,6 @@ h.slot = V ()
 h.slot += 10
 print (h.slot)
 
-# by 属性:左值过 getter、结果过 setter(两个子求值各占一个阶段)
 P := class {
     init = () => { 0; this; }
     _n: int = 10
@@ -106,8 +89,6 @@ print (p.n)
 p.n *= 2
 print (p.n)
 print (p.n += 9)
-# 变量形式的复合赋值走 CallAssign 帧(和对象字段那条路不同):算完写回变量。
-# 之前这条路径零覆盖。
 V = class {
     init = () => { 0; this; }
     v: int = 0
@@ -125,41 +106,26 @@ x += y
 print (x.v)
 ravel ""
 
-# ═══ 236_no_redefine(并入) ═══
 ravel "236_no_redefine"
-# `:=` 是**定义**,不是覆盖:同一个作用域里同名再定义一次就是错。
-# 要改值、要覆盖继承来的成员,写 `=`。脚本里、函数体里、类体里**一个规矩**。
-#
-# 唯一的例外是"**同一条定义语句重跑**":续延重入(见 40 / 223-228 那些)和"同一个块被反复
-# 执行"会把同一句话再走一遍 —— 那不叫"又来了一条定义"。`while` 就是拿 callcc 写的,
-# 靠这条活着(所以循环体里 `x := …` 每次迭代都算新的一层作用域,不报错)。
-
-# ① 脚本作用域里
 x := 1
 print x
-x = 2                                       # 改值 ✓
+x = 2
 print x
-# `eval` 出来的那段**就跑在这层**(它不另开作用域)—— 于是同一个作用域里再定义,照撞不误。
-# `try { … }` 也是个**裸块**:它从 2026-10-07 起不推自己的那层了(见 CONTEXT「作用域」),
-# 所以 `try` 拦不住这条 —— 从前它拦得住,是因为 try 块自带一层。
 try { eval "x := 3"; } (e: Exception) => { print ("1: " + string e); }
 
-# ② 函数体里(和脚本一个规矩)
 f := () => {
     y := 1
-    y = y + 1                               # 改值 ✓
+    y = y + 1
     try { eval "y := 9"; } (e: Exception) => { print ("2: " + string e); }
     y
 }
 print (f ())
 
-# ③ 不同作用域里同名 = 遮蔽,允许
 z := "outer"
 g := () => { z := "inner"; z; }
 print (g ())
 print z
 
-# ④ 类体:各层类体平铺进同一个实例作用域,所以子类重声明父类已声明的字段 → 报错
 P := class {
     a: int = 1
 }
@@ -168,7 +134,6 @@ try {
     eval "P2 := class P {\n    a: int = 2\n}\nP2 ()";
 } (e: Exception) => { print ("3: " + string e); }
 
-# ⑤ 构造器:子类要换就写 `init = …`(覆盖;父类那条不会被调用),写 `:=` 就是重复定义
 Q := class {
     init = () => { print "Q.init"; this; }
 }
@@ -177,14 +142,12 @@ R := class Q {
     init = () => { print "R.init"; this; }
 }
 print (R ())
-# 构造器是 **protected** 的:类体系里随便用(上面那句 `init = …` 就是),外面读不到也写不了
 try { print ((Q ()).init ()); } (e: Exception) => { print ("5: " + string e); }
 try { (Q ()).init = () => { this; }; } (e: Exception) => { print ("6: " + string e); }
 try {
     eval "S := class Q {\n    init := () => { this; }\n}\nS ()";
 } (e: Exception) => { print ("4: " + string e); }
 
-# ⑥ 同一个块被反复执行:每轮都是新的一层作用域 ✓
 i := 0
 total := 0
 while { i < 3; } {

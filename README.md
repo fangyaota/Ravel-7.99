@@ -96,7 +96,7 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 
 ```bash
 bash build.sh --pick=pattern             # 下面那几步收成一条命令:发布到 out/ + 跑 pattern 那几条用例 + 冒烟
-bash build.sh --pick=367 --rebuild --warn   # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
+bash build.sh --pick=class --rebuild --warn   # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
 bash build.sh --no-test                  # 只发布
 bash build.sh --help                     # 还有 --pick= / --fast / --release
      # **测试必须挑词**:全量那一趟取消了,`bash build.sh` 不带 --pick= 会当场报错;
@@ -110,7 +110,7 @@ rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c D
      # 发布出去的标准库**不带注释**(发布时过一遍 `ravel strip`,见 Ravel.csproj 的 StripLibComments
      # 与 Syntax/CommentStripper.cs):那些注释是写给改这门语言的人看的。仓库里那份当然留着。
 
-dotnet out/ravel.dll test 367            # 挑词跑(相对路径里沾 "367" 的那几条;有 FAIL 时退出码 1)
+dotnet out/ravel.dll test class            # 挑词跑(相对路径里沾 "class" 的那几条;有 FAIL 时退出码 1)
 dotnet out/ravel.dll test lang --fast    # 整个 lang/ 目录,跳过带 `# slow` 的
 dotnet out/ravel.dll test                # 报错:全量那一趟已经取消
 dotnet out/ravel.dll path/file.rav       # 单文件
@@ -165,6 +165,7 @@ lib/                **标准库 —— 用 Ravel 自己写的**(控制流、序�
                     XML、HTML、终端、REPL、数据结构…)
 tests/              golden 用例(.rav + 文件末尾的 `# --- expected ---`),按类型分子目录:
                     lang/ class/ module/ diag/ lib/ net/ task/ —— `ravel test <词>` 挑一摞跑(必须挑,一次最多 20 个文件)
+                    每组不超过 20 个文件、单个文件不超过 5KB;lib/ 的 39 条老用例原样保留,按编号分段跑(如 `ravel test lib/24`)
 examples/           例子(不进测试,给你看着玩)
 docs/               tutorial.md(教程索引)+ tutorial/(一章一个文件)+ adr/(架构决策)
 vscode-ravel/       VS Code 扩展

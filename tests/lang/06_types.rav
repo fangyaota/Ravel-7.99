@@ -1,0 +1,251 @@
+print (typeof 5)
+print (typeof "s")
+print (typeof true)
+print (typeof [1])
+print (typeof {1})
+print (typeof {"a"-> 1})
+print (typeof int)
+print (typeof (() => { 1; }))
+print (typeof ())
+print (typeof (bigint 5))
+print (typeof (fraction 1 2))
+print (typeof (bigfraction 1 3))
+print (int.name)
+print [(string.name) (bool.name) (real.name)]
+print (int.parent)
+print (int <: object)
+print (int <: IValue)
+print (bool <: string)
+print (int == int)
+print (int != string)
+print (int :> object)
+print (5 : int)
+print (5.: int)
+print ("s" : string)
+print (bool true)
+print ((System.String "") == "")
+ravel "117_metaclass"
+
+MyMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        parentInit parent body
+    } | (body: function) => {
+        parentInit object body
+    }
+}
+print (typeof MyMeta)
+
+MyClass := MyMeta {
+    init = () => { 0; this; }
+    x: int = 42
+}
+c := MyClass ()
+print (c.x)
+print (typeof MyClass)
+ravel ""
+
+ravel "164_subtypes_user_class"
+
+C ::= class { init = () => { 0; this; }; }
+D ::= class C { init = () => { 0; this; }; }
+print ((C.parent) == object)
+ravel ""
+
+ravel "153_value_display"
+
+C := class { init = () => { 0; this; }; x: int = 1; s: string = "hi"; }
+c := C ()
+print c
+print ([c c])
+
+B := class { init = () => { 0; this; }; base: int = 9; }
+print (B ())
+
+print (typeof c).name
+print (typeof c)
+
+print ((x: int) => { x; })
+add ::= (x: int) => { x; }
+print add
+
+add2 := (a: int b: int) => { a + b; }
+print add2
+print (add2 1)
+print ((add2 1) 2)
+
+loop := []
+loop.Add loop
+print loop
+
+print ([[[1]]])
+
+print ({"a"-> 1 "b"-> "x"})
+print ({1 2 3})
+ravel ""
+ravel "m13"
+f := () => { k; }
+g := f.Prepend ((sc) => { sc.Define "k" "injected"; })
+print (g ())
+
+print (g ())
+h := () => { k; }
+try {
+    h ();
+} (e: Exception) => {
+    print ("接住: " + string e)
+}
+
+nested := () => {
+    inner := () => { k; }
+    inner ();
+}
+print ((nested.Prepend ((sc) => { sc.Define "k" "deep"; })) ())
+
+add := (x: int) => { x + base; }
+print ((add.Prepend ((sc) => { sc.Define "base" 100; })) 5)
+
+p := () => { 7; }
+print ((p.Prepend { 1; }) ())
+
+order := []
+body := () => { order.Add "body"; 3; }
+print ((body.Append ((sc) => { order.Add "after"; })) ())
+print order
+ravel ""
+
+ravel "118_metaclass_print"
+# metaclass:在 init 里挂钩建类过程
+# `parentInit parent body` 就是"走默认那套建类逻辑",它返回建出来的那个类。
+LoggingMeta ::= class type {
+    private parentInit := init;
+    init = (parent: type body: function) => {
+        print "meta: creating..."
+        r := parentInit parent body
+        print "meta: done"
+        r
+    } | (body: function) => {
+        print "meta: creating..."
+        r := parentInit object body
+        print "meta: done"
+        r
+    }
+}
+M2 := LoggingMeta object {
+    init = () => { 0; this; }
+    name: string = "hello"
+}
+m := M2 ()
+print (m.name)
+ravel ""
+
+# ═══ 121_meta_default(并入) ═══
+
+ravel "m4"
+using "keys.rav"
+
+probe := () => {
+    a := 1
+    b := 2
+    s := currentScope ()
+
+    print (s : IDict)
+    print (s : IEnumerable)
+    print ((typeof s))
+
+    print (s.Has "a")
+    print (s.Has "没这个")
+    print (s.Get "a")
+    print (s.GetOr "没这个" 99)
+
+    n0 := s.Count ()
+    s.Set "c" 7
+    print (s.Get "c")
+    print ((s.Count ()) - n0)
+    s.Set "a" 10
+    print (s.Get "a")
+    print (s.Count ())
+
+    s.Remove "a"
+    print (s.Has "a")
+    print ((s.Count ()) - n0)
+
+    print ((s.Keys ()).Count ())
+    print ((s.Values ()).Count ())
+    print "end"
+}
+probe ()
+
+# --- expected ---
+
+# Integer
+# String
+# Bool
+# List
+# Set
+# Dict
+# Type
+# Function
+# Void
+# BigInt
+# Fraction
+# BigFraction
+# Integer
+# [String Bool Real]
+# Object
+# true
+# true
+# false
+# true
+# true
+# false
+# true
+# true
+# true
+# true
+# true
+# Type
+# 42
+# MyMeta
+# true
+# class { x = 1, s = hi }
+# [class { x = 1, s = hi } class { x = 1, s = hi }]
+# class { base = 9 }
+# class
+# class
+# <function (x: int) => { x; }>
+# <function add (x: int) => { x; }>
+# <function (a: int b: int) => { a + b; }>
+# <function (b: int) => { a + b; } applied a=1>
+# 3
+# [[[...]]]
+# [[[1]]]
+# {a: 1 b: x}
+# {1 2 3}
+# injected
+# injected
+# 接住: 未定义的变量 'k'
+# deep
+# 105
+# 7
+# 3
+# [body after]
+# meta: creating...
+# meta: done
+# hello
+# true
+# true
+# Scope
+# true
+# false
+# 1
+# 99
+# 7
+# 2
+# 10
+# 7
+# false
+# 1
+# 6
+# 6
+# end

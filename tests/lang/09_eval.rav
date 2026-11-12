@@ -1,0 +1,188 @@
+eval "xs := [1 2 3]"
+eval "xs.Add 4"
+eval "print xs"
+eval "
+    C := class {
+        init = () => { this.n = 7; this; }
+        n: int = 0
+        get := () => { n; }
+    }
+"
+c := C ()
+print (c.get ())
+
+try { eval "eval \"print (1 + true)\""; } (e: Exception) => { print ("79_eval_error: " + string e); }
+
+ravel "184_eval_syntax_error"
+
+try { eval "1 +"; } (e: Exception) => { print ("A[" + (string (e)) + "]"); }
+try { eval "print )"; } (e: Exception) => { print ("B[" + (string (e)) + "]"); }
+print "after"
+
+ravel ""
+ravel "m18"
+i := 0
+while { i < 5; } { i++; }
+print i
+
+j := 10
+while { j > 7; } { j--; }
+print j
+
+k := 1
+k++
+k--
+k--
+k++
+print k
+
+C := class { init = () => { 0; this; }; n: int = 0; }
+c := C ()
+c.n++
+c.n++
+print c.n
+
+hits := 0
+[1 2 3 4].Foreach (x: int) => { hits++; }
+print hits
+
+R := class { init = () => { 0; this; }; readonly w: int = 1; }
+print ((try { eval "r := R ()\nr.w++"; } (e: Exception) => { "1: " + (string e); }))
+
+a := 10
+b := 3
+print (a - -b)
+
+print ((try { eval "x := 5\ny := x++"; } (e: Exception) => { "2: " + (string e); }))
+print ((try { eval "x := 1\n++x"; } (e: Exception) => { "3: " + (string e); }))
+print ((try { eval "a := 1\n(a + 1)++"; } (e: Exception) => { "4: " + (string e); }))
+print ((try { eval "f := (p: int) => { p; }\nx := 1\nf x++"; } (e: Exception) => { "5: " + (string e); }))
+print ((try { eval "a := 10\nb := 3\na--b"; } (e: Exception) => { "6: " + (string e); }))
+ravel ""
+ravel "m19"
+print ((None ?? 0))
+print ((Some 7) ?? 0)
+后备值 := "有值"
+
+try { eval "print (5 ?? 1)"; } (e: Exception) => { print ("4: " + string e); }
+print ("串" ?? 后备值)
+nothing := ()
+print (nothing ?? 1)
+
+print (((Some ()) ?? "后备"))
+
+print ((None?.Count ()) ?? "空")
+print ((Some "abc")?.Length ())
+print (((Some "abc")?.Length ()) ?? -1)
+print ((None?.Length ()) ?? -1)
+
+try { eval "print ((5)?.ToString ())"; } (e: Exception) => { print ("0: " + string e); }
+
+print ((["ab" "c"]?.Length ()) ?? -1)
+
+print (nothing?.Text ())
+
+boom := () => { print "不该跑"; 0; }
+print ((None?.Value ()) ?? "没跑")
+
+Holder ::= class {
+    Name: object = None
+    Hits: int = 0
+}
+h := Holder ()
+print (h.Name ??= "第一次")
+print (h.Name ??= "第二次（不该盖）")
+print h.Name
+
+try { eval "print (h.Hits ??= 7)"; } (e: Exception) => { print ("6: " + string e); }
+
+Counted ::= class {
+    Writes: int = 0
+    Storage: object = None
+    by Value := property (() => { Storage; }) ((v: object) => { Writes += 1; Storage = v; })
+}
+c := Counted ()
+print (c.Value ??= "写上")
+print c.Writes
+print (c.Value ??= "再来")
+print c.Writes
+
+Times := 0
+mk := () => { Times += 1; c; }
+print (mk () |> .Value ??= "不该写")
+print Times
+
+pick := (_ ?? "兜底")
+print (pick (None))
+print (pick (Some "有"))
+has := (_?.Count ())
+print ((has [["a"] ["bc"]]) ?? -1)
+print (has (None))
+
+print (Some "  hi  " |> ?.Trim ())
+print (None |> ?.Trim ())
+print (Some "  hi  " |> ?.Trim () |> ?.Length ())
+print (None |> ?.Trim () |> ?.Length ())
+print ((Some [1 2 3] |> ?.Count ()) ?? 0)
+print ((None |> ?.Count ()) ?? 0)
+
+try { eval "(1 + 2) ??= 3"; } (e: Exception) => { print ("2: " + string e); }
+try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
+ravel ""
+
+# --- expected ---
+
+# [1 2 3 4]
+# 7
+# 79_eval_error: 运算符 '+' 不支持 Bool 操作数
+# A[需要表达式，但得到表达式结束]
+# B[需要表达式，但得到')']
+# after
+# 5
+# 7
+# 1
+# 2
+# 4
+# 1: 无法给只读变量 'w' 赋值
+# 13
+# 2: '++' 只能跟在变量或字段后面、自己单独成句（`x++`）——它是 `x += 1` 的简写，不交回值，所以写不进表达式里（前缀 `++x` 也不认）
+# 3: '++' 只能跟在变量或字段后面、自己单独成句（`x++`）——它是 `x += 1` 的简写，不交回值，所以写不进表达式里（前缀 `++x` 也不认）
+# 4: '++' 只能跟在变量或字段后面，而且得自己单独成句（`x++` / `a.b++`）—— 它是 `x += 1` 的简写，不交回值
+# 5: '++' 只能跟在变量或字段后面，而且得自己单独成句（`x++` / `a.b++`）—— 它是 `x += 1` 的简写，不交回值
+# 6: '--' 后面得收尾 —— `a--b` 会被读成 `a--` 和 `b` 两条语句（连着写两个负号的话，中间那个空格不能省：`a - -b`）
+# 0
+# Option { Has = true, Inner = 7 }
+# 4: 类型 'Integer' 没有方法 'SelfOr'
+# 串
+# 1
+# Option { Has = true, Inner = () }
+# 空
+# Option { Has = true, Inner = 3 }
+# Option { Has = true, Inner = 3 }
+# -1
+# 0: 类型 'Integer' 没有方法 'Map'
+# [2 1]
+# ()
+# 没跑
+# 第一次
+# 第一次
+# 第一次
+# 6: 类型 'Integer' 没有方法 'SelfOr'
+# 写上
+# 1
+# 写上
+# 2
+# 写上
+# 1
+# 兜底
+# Option { Has = true, Inner = 有 }
+# [1 1]
+# Option { Has = false, Inner = () }
+# Option { Has = true, Inner = hi }
+# Option { Has = false, Inner = () }
+# Option { Has = true, Inner = 2 }
+# Option { Has = false, Inner = () }
+# Option { Has = true, Inner = 3 }
+# 0
+# 2: '??=' 的左边得是变量或成员（就像 '=' 那样）
+# 3: '?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）

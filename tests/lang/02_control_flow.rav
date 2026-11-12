@@ -1,0 +1,263 @@
+X: object = {
+    A := 10
+    B := 20
+    A + B
+}
+print X
+X = 0
+while {
+    X < 5
+} {
+    print X
+    X += 1
+}
+X = 10
+X > 5 {
+    print X
+} {
+    print 0
+}
+i: object = 0
+while {
+    i < 3
+} {
+    j := 0
+    while {
+        j < 2
+    } {
+        print (i * 10 + j)
+        j += 1
+    }
+    i += 1
+}
+xs := [1 2 3]
+sum := 0
+xs.Foreach (x: int) => { sum = sum + x; }
+print sum
+s := {42}
+print (typeof s)
+print (s.Contains 42)
+x := 0
+while { x < 3; } {
+    x += 1
+}
+print x
+
+f := true
+g := f { print "yes"; }
+g { print "no"; }
+h := false
+print (h { 1; } { 2; })
+
+i = 0
+w := while { i < 3; }
+w { print i; i += 1; }
+
+fe := [10 20].Foreach
+fe (x: int) => { print x; }
+
+ravel "169_control_flow_args"
+
+try { 1 { 2; } { 3; } } (e: Exception) => { print ("1: " + string e); }
+try { while { 1; } { 0; } } (e: Exception) => { print ("2: " + string e); }
+try { 5.Foreach (x: object) => { 0; } } (e: Exception) => { print ("3: " + string e); }
+print "after"
+ravel ""
+
+ravel "182_control_arg_types"
+
+try { with 5 6; } (e: Exception) => { print ("1: " + string e); }
+try { with 5 {->}; } (e: Exception) => { print ("2: " + string e); }
+try { using 5; } (e: Exception) => { print ("3: " + string e); }
+try { eval 5; } (e: Exception) => { print ("4: " + string e); }
+
+C := class {
+    init = () => { 0; this; }
+    x: int = 7
+}
+
+w := with (C ()) { x = 99; }
+print w.x
+ravel ""
+
+ravel "m5"
+e := ([10 20].GetEnumerator ())
+print (e.HasNext ())
+print (e.HasNext ())
+print (e.MoveNext ())
+print (e.Current)
+print (e.HasNext ())
+print (e.MoveNext ())
+print (e.Current)
+print (e.HasNext ())
+print (e.MoveNext ())
+
+r := (([1..3]).GetEnumerator ())
+print ((r.HasNext ()) & (r.MoveNext ()))
+print (r.Current)
+
+b := (y: function) => { y 1; y 2; }
+c := (Generator b).GetEnumerator ()
+print (c.HasNext ())
+print (c.MoveNext ())
+print (c.Current)
+print (c.HasNext ())
+print (c.MoveNext ())
+print (c.Current)
+print (c.HasNext ())
+print (c.MoveNext ())
+
+ravel "225_callcc_scopes"
+escE: object = 0
+haveE := false
+doneE := false
+r := eval "callcc (k: function) => { !haveE { haveE = true; escE = k; } { 0; }; 5; }"
+print r
+try { !doneE { doneE = true; escE 7; } { 0; }; } (e: Exception) => { print ("E: " + string e); }
+print "after E"
+K ::= class {
+    n : int = 1
+}
+escW: object = 0
+haveW := false
+doneW := false
+obj := K ()
+p2 := with obj {
+    n = 2
+    got := callcc (k: function) => { !haveW { haveW = true; escW = k; } { 0; }; () };
+    (typeof (got)) == int { n = got + 100; } { 0; }
+    n;
+}
+print p2.n
+print obj.n
+try { !doneW { doneW = true; escW 5; } { 0; }; } (e: Exception) => { print ("W: " + string e); }
+print p2.n
+print obj.n
+T ::= interface {
+    by f : function = _
+}
+C ::= class {
+    x : int = 0
+}
+escI: object = 0
+haveI := false
+doneW2 := false
+doneU := false
+seenX: list = []
+impl (T C {
+    by f = property (() => {
+        k := callcc (k2: function) => { !haveI { haveI = true; escI = k2; } { 0; }; k2; };
+        seenX.Add instance.x
+        k;
+    }) ((v: function) => { (); })
+})
+u := C ()
+w := C ()
+u.x = 1
+w.x = 100
+ku := u.f
+kw := w.f
+print seenX                # [1 100]：u 那次、w 那次各记一条
+print (typeof ku)          # Continuation：续延是它自己的类型（不是含糊的 Function）
+try { !doneW2 { doneW2 = true; kw (); } { 0; }; } (e: Exception) => { print ("I: " + string e); }
+print seenX                # 恢复 w 那次 → 又记 100
+try { !doneU { doneU = true; escI (); } { 0; }; } (e: Exception) => { print ("I2: " + string e); }
+print seenX                # 恢复 u 那次 → 该记 1（u），不是 100（w）
+escB: object = 0
+impl (T C {
+    by g := property (() => { escB "jumped"; 0; }) ((v: int) => { (); })
+})
+out := callcc (k: function) => {
+    escB = k
+    print (u.g)
+    "normal";
+}
+print out
+print (Ex.HandlerStack.Count ())
+escC: object = 0
+impl (T C {
+    by h := property (() => { throw (Exception "from slot"); }) ((v: int) => { (); })
+})
+o2 := C ()
+try { print (o2.h); } (e: Exception) => { print ("caught " + string e); }
+print (Ex.HandlerStack.Count ())
+print "end"
+ravel ""
+
+# --- expected ---
+
+# <block>
+# 0
+# 1
+# 2
+# 3
+# 4
+# 10
+# 0
+# 1
+# 10
+# 11
+# 20
+# 21
+# 6
+# Set
+# true
+# 3
+# yes
+# 2
+# 0
+# 1
+# 2
+# 10
+# 20
+# 1: 值 1 不是函数，不能调用
+# 2: 这一格要的是 Bool，得到 Integer
+# 3: 类型 'Integer' 没有方法 'Foreach'
+# after
+# 1: with 的第 2 个参数需要代码块，得到 Integer
+# 2: with 的第 2 个参数需要代码块，得到 Dict
+# 3: using 的第 1 个参数需要 string，得到 Integer
+# 4: eval 的第 1 个参数需要 string，得到 Integer
+# 99
+# true
+# true
+# true
+# 10
+# true
+# true
+# 20
+# false
+# false
+# true
+# 1
+# true
+# true
+# 1
+# true
+# true
+# 2
+# false
+# false
+# 5
+# 7
+# after E
+# 2
+# 2
+# 105
+# 105
+# 105
+# 105
+# [1 100]
+# Continuation
+# [1 100 100]
+# Continuation
+# [1 100 100]
+# [1 100 100 1 100]
+# Void
+# [1 100 100 1 100]
+# [1 100 100 1 100]
+# jumped
+# 0
+# caught from slot
+# 0
+# end

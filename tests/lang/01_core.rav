@@ -1,315 +1,205 @@
-# 核心:定义/运算符/优先级/类型方法/列表/位运算/_占位符(合并 01-09/10/14/22-24/26-39/109-112)
+# 核心:定义、类型判定、运算符、lambda、管道糖
 A := 1
-print A
 B: int = 42
+C: object = 10
+C = 20
+print A
 print B
-X: object = 10
-X = 20
-print X
-print (1 + 2 * 3)
-X = 1 + 2
-X += 3
-print X
-print (1 + 2 < 5)
-print (1 < 2 && 3 < 4)
-print (!false)
-print 42
-X = [1 2 3]
-print X
-X = [10 20 30]
-print (X.Count ())
-print (X.At 1)
-print <| 99
-print (-5)
-print (10 % 3)
-X = 10
-X %= 3
-print X
+print C
 print (1 + 2 * 3)
 print (1 * 2 + 3)
-print (1 + 2 < 5)
-print (1 < 3 && 2 > 0)
-print (1 < 3 || 2 > 0 && false)
-print (!false && false)
-print (-1 + 3)
-X = 3
-X = X + 1
-print X
-f := (x: int) => { x; }
-print (f 1 + 2)
-print (42.ToString ())
-print ("hello".Length ())
-print (true.ToString ())
-print (3 & 1)
-print (7 & 3)
-print (true & true)
-print (true & false)
-print (3 | 1)
-print (true | false)
-print (false | false)
-g := (x: int) => { 1; }
-h := (x: object) => { 2; }
-alt := g | h
-print (alt 10)
-print (alt "str")
-print (3 ^ 1)
+N := 1 + 2
+N += 3
+M := 10
+M %= 3
+print N
+print M
+print (5 & 3)
+print (5 | 3)
 print (5 ^ 3)
+print (true & false)
+print (true | false)
 print (true ^ true)
-print (true ^ false)
-print (false ^ false)
-add1 := _ + 1
-print (add1 5)
-sub := 10 - _
-print (sub 3)
-both := _ + _
-print (both 1 2)
-call := print _
-call "hello"
-_ := 42
-_ : int = 99
-print "ok"
-
-# ═══ 17_type_error(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "X17: int = true"; } (e: Exception) => { print ("17_type_error: " + string e); }
-
-# ═══ 25_empty_block(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "X := {\n}\nprint X"; } (e: Exception) => { print ("25_empty_block: " + string e); }
-
-# ═══ 175_single_line_lambda(并入) ═══
-ravel "175_single_line_lambda"
-# 单行块要用 `;` 收尾 —— lambda 体也不例外
-# `;` 和换行都是 Newline token,它是「这是块」的标记:没换行时 `{ x }` 是集合、
-# `{ a: 1 }` 是字典,只有见到 Newline 才当块。这条规则不分位置,
-# `=>` 后面的 lambda 体一样适用。
+print (1 < 2 && 3 < 4)
+print ((1 < 3) || (2 > 0 && false))
+print (!false)
+print 42
+print ("hello".Length ())
+print ({ 1 2 })
+L := [10 20 30]
+print L
+print (L.Count ())
+print (L.At 1)
 double := (x: int) => { x * 2; }
 add ::= (x: int y: int) => { x + y; }
-init := () => { 42; }
+noop := () => { 42; }
 print (double 5)
 print (add 3 4)
-print (init ())
-C := class {
+print (noop ())
+inc := _ + 1
+print (inc 5)
+cut := 10 - _
+print (cut 3)
+both := _ + _
+print (both 1 2)
+Box := class {
     init = () => { 0; this; }
     probe := () => { print "hi"; }
 }
-c := C ()
-c.probe ()
-# 表达式位置同理
-print ({ 1 2 })
-ravel ""
-
-# ═══ 190_lambda_body_needs_semicolon(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "# `=> { x }` 是错的,`=> { x; }` 才对\n# 单行块靠 `;`(= Newline token)和集合/字典区分开,这条规则不看位置。
-# (只想交回一个值就直接写 `() => x` —— 那是另一条路,不经过这里)\nx := 1\nf := () => { x }"; } (e: Exception) => { print ("190_lambda_body_needs_semicolon: " + string e); }
-
-# ═══ 192_no_class_type(并入:原本是 expect-error 的用例,改成 try+eval 钉住文本) ═══
-try { eval "# System 模块里不再有 Class 这个名字 —— 它作为类型已经删掉了,class 只是 type 的别名\nprint (System.Class)"; } (e: Exception) => { print ("192_no_class_type: " + string e); }
-
-# ═══ 231_nesting_sugar(并入) ═══
+b := Box ()
+b.probe ()
+x := 5
+print (x: int)
+print (x: real)
+print (x: object)
+print ("a": IValue)
+print ([1]: list)
+print (!(x: int))
+print (x.: int)
+f := :.int
+print (f 3)
+print (f "s")
+n: int = 7
+print n
+g := (a: int) => { a + 1; }
+print (g 2)
+x: int { print "整数"; } { print "别的"; }
+x: string { print "串"; } { print "不是串"; }
+print (typeof 5)
+print (typeof 99999999999)
+print (typeof 5n)
+print (typeof 5i)
+print (typeof 2.0)
+print (typeof 2f)
+print (5n + 1)
+print (5i * 2)
+print (2f / 4)
+print 99999999999n
+try { eval "y := 1
+f := () => { y }"; } (e: Exception) => { print ("needs_semicolon: " + string e); }
+try { eval "print (System.Class)"; } (e: Exception) => { print ("no_class_type: " + string e); }
 ravel "231_nesting_sugar"
-# `<|` 与 `|>` —— 一个封右、一个**把左边交给右边**。
-#
-#   |> 右边是 `.成员` 时：挂到左边那个值上
-#       x.f () |> .g ()        ≡  (x.f ()).g ()
-#       （非它不可的理由：`.成员` 比并列的调用绑得紧，所以 `x.f ().g ()` 会被读成
-#        `x.f ((().g ()))` —— 零参调用后面接链的写法就全废了，教程 6.1 那条是同一个规矩）
-#   |> 右边是别的时：**左边当实参喂给右边**
-#       x |> f                 ≡  f x
-#       x |> f 1               ≡  f 1 x        （右边自己的实参先喂，左边排**最后**）
-#       a |> f |> g            ≡  g (f a)      （一路往右喂）
-#   <| 把**右边**封口：从这儿到表达式结束全算**一个**实参（右结合）
-#       f <| a b               ≡  f (a b)
-#       f <| g <| x             ≡  f (g (x))
-#
-# `<|` 是**函数在左**（和 Haskell / F# 那个 `<|` 一样），存在的意义就是省一层括号：
-# `f <| a + b` 不用写成 `f (a + b)`。
-#
-# **`$` 不作运算符了** —— 它只留在字符串的插值 `${…}` 里。想在代码里封右边,写 `<|`。
-
 xs := [3 1 2]
-
-# ① `|>`：链式调用
 print (xs.Count () |> .ToString ())
 print (xs.Count () |> .ToString () |> .Length ())
-print ((xs.Count ()).ToString ())          # 自己写括号，一样的
-
-# `()` 是实参，`+ 1` 会被调用吃进去（新规矩：实参吃到运算符为止）—— 想先数再加一就得括起来
 print ((xs.Count ()) + 1)
-
-# ② `|>`：把左边**喂进去**（`x |> f 1` ≡ `f 1 x` —— 柯里化的写法得是这个顺序，
-#    不是 `f x 1`）
-add := (a: int) => { (b: int) => { a + b; }; }
-print (add 1 2)
-print (2 |> add 1)                      # (add 1) 2 = 3
-print (1 |> add 1 |> add 10)            # 一路往右喂：(add 10) ((add 1) 1) = 12
-
-# ③ 调用比运算符**松**：实参吃到运算符为止（这才是"函数调用和运算符的优先级"那条）
-inc := (n: int) => { n + 1; }
-print (inc 1 * 5)          # inc (1 * 5) —— 调用抓住右边那整条算式
-print ((inc 1) * 5)        # 想先算调用，自己加括号
-print (inc <| 1 * 5)        # 和第一条一样（`<|` 是把这件事写明白）
-print (inc <| [10 20].Count ())
-print (inc <| xs.Count () |> .ToString () |> .Length ())
-
-# ④ 右结合：f <| g <| x
-wrap := (n: int) => { "[" + (string (n)) + "]"; }
-print (wrap <| inc <| 1 + 2)     # wrap (inc (1 + 2))
-
-# ⑤ 喂给**柯里化了一半**的调用 —— 这一条是 `<|` 非它不可的理由
-#
-# 实参吃到运算符为止（3.7 那条），`add 1 <| 7` 要是让实参把 `<|` 一起吞了，
-# 就成了 `add (1 <| 7)` —— 报「'<|' 左边必须是函数」，指着一个根本不该当函数用的 `1`。
-# 所以实参**吃不掉 `<|`**（它是那条规矩唯一的例外，见 ParsePostfixRest）。
-print (add 1 <| 7)                 # (add 1) 7 = 8 —— 拿整串调用的**结果**当函数
-print (add 1 <| inc <| 2 * 3)      # (add 1) (inc (2*3)) = 1 + 7
-print (string <| add 1 <| inc <| 3) # string ((add 1) (inc 3)) → "5"
-
-# ⑥ 位置不对就报错
-try { eval "@ 1"; } (e: Exception) => { print ("1: " + string e); }
-try { eval "$ 1"; } (e: Exception) => { print ("2: " + string e); }
-try { eval "1 |>"; } (e: Exception) => { print ("3: " + string e); }
-# ═══ 括号里换行不算数 ═══
-# 没闭合的 `(` / `[` 里,换行**不当语句结束** —— 表和长参数列表因此能写好看。
-# 花括号**不在**这条规则里:块就是靠换行分语句的(`{ x }` 是集合、`{ a: 1 }` 是字典、
-# 多行才是块),所以下面那个"列表里的多行块"照旧成立。
-long := [
-    1
-    2
-    3
-]
-print long
-print (
-    1 +
-    2
-)
-blocks := [
-    {
-        print "块里第一句"
-        42
-    }
-]
-print ((blocks.At 0) ())
-print "end"
+addf := (a: int) => { (b: int) => { a + b; }; }
+print (addf 1 2)
+print (2 |> addf 1)
+print (1 |> addf 1 |> addf 10)
+incr := (n: int) => { n + 1; }
+print (incr 1 * 5)
+print ((incr 1) * 5)
+print (incr <| 1 * 5)
+print (incr <| [10 20].Count ())
 ravel ""
+ravel "136_fn_meta"
+# fn.scope / fn.setScope
+# (原来还测 fn.setType 和 C.Proto (),但 setType 和 Proto 都已不存在——
+#  ADR-0001 里「Proto / Instantiate」本来就被判定为泄漏抽象、建议砍掉)
+f := () => { print "hi"; }
+print (typeof (f.Scope ()))
+# setScope:把函数的闭包 scope 换成实例 scope,于是函数能读到实例字段。
+# 拿实例 scope 得在类方法里用 currentScope ()——外面没有 API 能拿到它。
+C := class {
+    init = () => { 0; this; }
+    x: int = 99
+    attach := (fn: function) => { fn.SetScope (currentScope ()); }
+}
+g := () => { x; }
+c := C ()
+c.attach g
+print (g ())
+ravel "177_param_type_mismatch"
+# lambda 参数类型不对:消息要说清哪个参数、要什么、得到什么
+# 从前固定是四个字「这一格要的是」,调用失败时完全看不出错在哪
+f := (n: int) => { n; }
+# 注意 `{ f "abc"; }` 的分号:这是**表达式位置**的块,少了它会被当成 Set
+try { f "abc"; } (e: Exception) => { print ("1: " + string e); }
+# | 交替靠 TypeMismatchException 分流,消息变长不影响它
+g := f | (s: string) => { 0 - 1; }
+print (g "abc")
+print (g 7)
+ravel "189_alternate_chain"
+# `|` 三个以上分支也要能试到
+# `x | y | z` 解析成 `(x | y) | z`。从前 `|` 只是把两侧塞进 ControlFunction,
+# 于是外层那个 try 帧里那句 CallInto 只**推**了内层的帧就返回了,内层两分支都失败时
+# 抛的 TypeMismatchException 已经在外层 try 之外 —— 第三个分支永远试不到。
+# 现在 `|` 会把链条摊平成一个分支列表,一个帧顺序试完。
+f := (a: int) => { "int"; } | (a: string) => { "str"; } | (a: bool) => { "bool"; }
+print (f 1)
+print (f "x")
+print (f true)
+try { f 1.5; } (e: Exception) => { print ("none: " + string e); }
+# 两个分支照旧
+g := (a: int) => { "int"; } | (a: string) => { "str"; }
+print (g 1)
+print (g "x")
+try { g true; } (e: Exception) => { print ("none: " + string e); }
+# 四个分支
+h := (a: int) => { 0; } | (a: string) => { 1; } | (a: bool) => { 2; } | (a: real) => { 3; }
+print (h 1)
+print (h 1.5)
+print (h false)
 
-# ═══ 233_precedence(并入) ═══
-ravel "233_precedence"
-# 调用比运算符**松**：实参吃到运算符为止。**没有例外**。
-#
-#     f 1 + 2      ≡  f (1 + 2)       —— 调用"抓住"它右边那一整条算式
-#     f (1) + 2    ≡  f ((1) + 2)     —— 括号开头也一样（从前"括号组除外"那条特判已经删掉）
-#     f a b        ≡  ((f a) b)       —— 并列照旧是多个实参（柯里化不受影响）
-#
-# 于是想"先算调用、拿结果再运算"就得自己加括号：`(f (1)) + 2`。库里 `x.Count () == 0`
-# 那一类写法全改成了 `(x.Count ()) == 0`（教程 3.9 / 常见陷阱）。
-print 1 + 2
-print (1 + 2)
-print "a" + "b"
-
-inc := (n: int) => { n + 1; }
-print (inc 1 * 5)              # inc (1 * 5)
-print ((inc 1) * 5)            # 先算调用：自己加括号
-
-add := (a: int) => { (b: int) => { a + b; }; }
-print (add 1 2 * 3)            # ((add 1) (2 * 3)) —— 还是两个实参
-print (add 1 2 + 3)            # ((add 1) 2) + 3
-
-xs := [10 20 30]
-print ((xs.Count ()) + 1)      # 数完再加一：把调用自己括起来
-print ((xs.At (0)) + 1)        # 取第 0 个再加一
-print (xs.At 0 + 1)            # 实参吃到运算符为止 → 取第 (0+1) 个
-
-str := (v: object) => { "[" + (string (v)) + "]"; }
-print (str 5)                  # 转换器的实参括起来才安稳
-print (str <| 5)                # `<|` 把右边整个封成一个实参
-print (str 5 + 1)              # 不括：string 把 `+ 1` 也吃进去 → "[(5 + 1)]"
-
-f := (x: int) => { x : int; }
-print (f 3)                    # 词形运算符一样被吃：f (3 is int)
-print (f 3 + 1)                # f (3 + 1) → 4 is int
-print ((f 3) == true)          # 先算调用要加括号
-# ═══ 括号里换行不算数 ═══
-# 没闭合的 `(` / `[` 里,换行**不当语句结束** —— 表和长参数列表因此能写好看。
-# 花括号**不在**这条规则里:块就是靠换行分语句的(`{ x }` 是集合、`{ a: 1 }` 是字典、
-# 多行才是块),所以下面那个"列表里的多行块"照旧成立。
-long := [
-    1
-    2
-    3
-]
-print long
-print (
-    1 +
-    2
-)
-blocks := [
-    {
-        print "块里第一句"
-        42
-    }
-]
-print ((blocks.At 0) ())
-print "end"
-ravel ""
 # --- expected ---
+
 # 1
 # 42
 # 20
 # 7
+# 5
 # 6
+# 1
+# 1
+# 7
+# 6
+# false
+# true
+# false
 # true
 # true
 # true
 # 42
-# [1 2 3]
+# 5
+# {1 2}
+# [10 20 30]
 # 3
 # 20
-# 99
-# -5
-# 1
-# 1
-# 7
-# 5
-# true
-# true
-# true
-# false
-# 2
-# 4
-# 3
-# 42
-# 5
-# true
-# 1
-# 3
-# true
-# false
-# 3
-# true
-# false
-# 1
-# 2
-# 2
-# 6
-# false
-# true
-# false
-# 6
-# 7
-# 3
-# hello
-# ok
-# 17_type_error: 这一格要的是 Integer，得到 Bool
-# 25_empty_block: 'X' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
 # 10
 # 7
 # 42
+# 6
+# 7
+# 3
 # hi
-# {1 2}
-# 190_lambda_body_needs_semicolon: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号
-# 192_no_class_type: 模块 'System' 没有方法 'Class'
+# true
+# false
+# true
+# true
+# true
+# false
+# true
+# true
+# false
+# 7
+# 3
+# 整数
+# 不是串
+# Integer
+# BigInt
+# BigInt
+# Integer
+# Real
+# Real
+# 6
+# 10
+# 0.5
+# 99999999999
+# needs_semicolon: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号
+# no_class_type: 模块 'System' 没有方法 'Class'
 # 3
 # 1
-# 3
 # 4
 # 3
 # 3
@@ -318,37 +208,18 @@ ravel ""
 # 10
 # 6
 # 3
-# 2
-# [4]
-# 8
-# 8
-# 5
-# 1: '@' 是**标签**的前缀，写在语句开头（`@outer while { … }`，要开 `--more-control-flow`）；从前那个封口的运算符已经改成 '|>' 了
-# 2: '$' 只用在字符串里的插值 `${…}`（要把右边封成一个实参,用 '<|'）
-# 3: '|>' 后面得跟点什么（`a |> .f ()` 是挂成员，`a |> g` 是把 a 喂给 g）
-# [1 2 3]
-# 3
-# 块里第一句
-# 42
-# end
-# 3
-# 3
-# ab
-# 6
-# 10
+# Scope
+# 99
+# 1: 参数 'n' 需要 Integer，得到 String
+# -1
 # 7
-# 6
-# 4
-# 11
-# 20
-# [5]
-# [5]
-# [6]
-# true
-# true
-# true
-# [1 2 3]
+# int
+# str
+# bool
+# none: 参数 'a' 需要 Bool，得到 Real
+# int
+# str
+# none: 参数 'a' 需要 String，得到 Bool
+# 0
 # 3
-# 块里第一句
-# 42
-# end
+# 2

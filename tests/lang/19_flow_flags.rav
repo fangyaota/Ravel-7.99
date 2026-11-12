@@ -1,0 +1,198 @@
+#program --more-control-flow=true
+ravel "m53"
+Len4 := (s) => { (s.Count ()) > 3; }
+Pos := (n) => { n > 0; }
+
+[a b] |> Len4 := [1 2 3 4]
+print "${a} ${b}"
+print ((try { eval "[a b] |> Len4 := [1 2]"; } (e: Exception) => { e.Message; }))
+
+[c |> Pos d] := [5 6]
+print "${c} ${d}"
+print ((try { eval "[c |> Pos d] := [-5 6]"; } (e: Exception) => { e.Message; }))
+
+f := ([a b] |> Len4) => { "参位:${a} ${b}"; }
+print (f [1 2 3 4])
+print ((try { f [1 2]; } (e: Exception) => { e.Message; }))
+
+[[e |> Pos] [g]] := [[5] [6]]
+print "${e} ${g}"
+
+[h: int i] |> Len4 := [1 "x" 3 4]
+print "${h} ${i}"
+
+IsEven := (n) => { (n % 2) == 0; }
+guard := (v |> IsEven) => { "守卫:${v}"; }
+print (guard 4)
+print ((try { guard 3; } (e: Exception) => { e.Message; }))
+
+print ((try { eval "[_ == 1] := [1]"; } (e: Exception) => { e.Message; }))
+ravel ""
+ravel "m54"
+
+f := (n: int) => {
+    n < 0 { return 0; } { 0; }
+    n * 2
+}
+print (f 5)
+print (f (-3))
+
+b := (n: int) => {
+    n > 0 { return; } { 0; }
+    "没提前走"
+}
+print (b 1)
+print (b (-1))
+
+g := (n: int) => {
+    h := (m: int) => {
+        m > 10 { return 99; } { 0; }
+        m
+    }
+    r := h n
+    r == 99 { return -1; } { 0; }
+    r
+}
+print (g 5)
+print (g 50)
+
+dd := (n: int) => {
+    z := do {
+        a :< Some n
+        a > 3 { return -7; } { 0; }
+        a
+    }
+    z
+}
+print (dd 1)
+print (dd 5)
+
+[1 2 3].Foreach (x: int) => {
+    q := (y: int) => {
+        y == 2 { return "中"; } { 0; }
+        "没中"
+    }
+    print (q x)
+}
+
+return := 5
+print (return + 1)
+
+print ((try { eval "return 1"; } (e: Exception) => { "1: " + (string e); }))
+ravel ""
+ravel "m55"
+
+i := 0
+while { i < 10; } {
+    i += 1
+    i == 3 { break; } { 0; }
+}
+print i
+
+j := 0
+s := 0
+while { j < 5; } {
+    j += 1
+    (j % 2) == 0 { continue; } { 0; }
+    s += j
+}
+print s
+
+tot := 0
+[1 2 3 4 5].Foreach (x: int) => {
+    x == 4 { break; } { 0; }
+    tot += x
+}
+print tot
+
+skipped := 0
+[1 2 3 4].Foreach (x: int) => {
+    x == 2 { continue; } { 0; }
+    skipped += 1
+}
+print skipped
+
+@outer while { true; } {
+    [1 2 3].Foreach (x: int) => {
+        x == 2 { break outer; } { 0; }
+        print x
+    }
+}
+print "跳出来了"
+
+hits := 0
+@scan [1 2 3].Foreach (a: int) => {
+    [10 20 30].Foreach (b: int) => {
+        b == 20 { continue scan; } { 0; }
+        hits += 1
+    }
+}
+print hits
+
+print ((try { eval "break"; } (e: Exception) => { "1: " + (string e); }))
+print ((try { eval "x := 1\n@brk while { x < 2; } {\n    x += 1\n}\nprint x"; } (e: Exception) => { "2: " + (string e); }))
+ravel ""
+ravel "m56"
+add := (a b) => { a + b; }
+print (1 + <| add 2 3)
+print (1 + <| add 2 3 + 4)
+print (5 |> + 1)
+print (5 |> + 1 * 2)
+print (5 |> * 2)
+print (5 |> > 3)
+print (2 |> ** 10)
+print ([1 2 3].Map (_ |> + 10))
+print ([1 2 3 4].Where (_ |> > 2))
+f := (x |> > 3) => { "big"; } | (x) => { "small"; }
+print (f 5)
+print (f 1)
+g := (x) => { x * 3; }
+print (7 |> g |> + 1)
+ravel ""
+
+# --- expected ---
+# 1 2
+# 这一整块没过 `|>` 后面那个条件
+# 5 6
+# 'c' 没过 `|>` 后面那个条件
+# 参位:1 2
+# 这一整块没过 `|>` 后面那个条件
+# 5 6
+# 1 x
+# 守卫:4
+# 实参不满足 'v' 的守卫
+# `_` 不绑东西，挂不了 `: 类型` 也挂不了 `|> 条件` —— 想验那一格就给它一个名字
+# 10
+# 0
+# ()
+# 没提前走
+# 5
+# -1
+# 1
+# -7
+# 没中
+# 中
+# 没中
+# 6
+# 1: 'return' 得写在函数体里 —— 顶层没有可返回的那个函数
+# 3
+# 9
+# 6
+# 3
+# 1
+# 跳出来了
+# 3
+# 1: 'break' / 'continue' 得写在循环里（`while` / `.Foreach`，或者带标签的语句）
+# 2: 标签 'brk' 没人用（写 `break brk` 或 `continue brk` 才指得上它）
+# 6
+# 10
+# 6
+# 7
+# 10
+# true
+# 1024
+# [11 12 13]
+# [3 4]
+# big
+# small
+# 22

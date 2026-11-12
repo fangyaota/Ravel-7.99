@@ -149,7 +149,7 @@ async function runTests() {
 
     // 全量那一趟已经取消:`ravel test` 不给词直接报错,所以这里先问一个词
     const pick = await vscode.window.showInputBox({
-        prompt: '挑个沾相对路径的词(例如 pattern、net、367);全量测试已取消,一次最多 20 个文件',
+        prompt: '挑个沾相对路径的词(例如 pattern、net、class);全量测试已取消,一次最多 20 个文件',
         placeHolder: 'pattern',
         validateInput: (v) => (v && v.trim() ? undefined : '至少给一个词'),
     });

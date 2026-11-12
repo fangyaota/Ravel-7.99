@@ -1,4 +1,6 @@
-﻿C := class {
+# 类/继承/构造/with-copy
+ravel "53_main0"
+C := class {
     init = () => { this.n = 10; this; }
     n: int = 0
     + := (x: int) => { n + x; }
@@ -11,8 +13,8 @@ print (c + 5)
 c.setN 99
 print (c.getN ())
 print (c + 1)
+ravel ""
 
-# ═══ 54_inherit_basic(并入) ═══
 ravel "54_inherit_basic"
 Animal := class {
     init = () => { this.name = "?"; this; }
@@ -29,7 +31,6 @@ d := Dog ()
 d.speak ()
 ravel ""
 
-# ═══ 55_inherit_multilevel(并入) ═══
 ravel "55_inherit_multilevel"
 A := class {
     init = () => { 0; this; }
@@ -49,19 +50,16 @@ print (obj.b)
 print (obj.c)
 ravel ""
 
-# ═══ 56_inherit_empty(并入) ═══
 ravel "56_inherit_empty"
 Base := class {
     init = () => { x = 5; this; }
     x: int = 0
 }
-# 子类不写 init:实例化时向上找到 Base 的 init 来调
 Child := class Base { 0; }
 c := Child ()
 print (c.x)
 ravel ""
 
-# ═══ 57_inherit_isolation(并入) ═══
 ravel "57_inherit_isolation"
 Animal := class {
     init = () => { 0; this; }
@@ -79,7 +77,6 @@ print (d.name)
 print (d2.name)
 ravel ""
 
-# ═══ 60_this_x_identity(并入) ═══
 ravel "60_this_x_identity"
 C := class {
     init = () => { this.v = 0; this; }
@@ -94,7 +91,6 @@ print (c.get ())
 c.setThis ()
 print (c.get ())
 
-# 继承
 Parent := class {
     init = () => { pv = 10; this; }
     pv: int = 0
@@ -111,9 +107,7 @@ ch := Child ()
 print (ch.pv)
 ravel ""
 
-# ═══ 147_ctor_curry(并入) ═══
 ravel "147_ctor_curry"
-# 构造器调用和普通函数一样柯里化:Point 3 4 ≡ ((Point 3) 4)
 Point := class {
     init = (x0: int y0: int) => {
         x = x0
@@ -124,18 +118,15 @@ Point := class {
     y: int = 0
 }
 
-# 1) 一次写全
 p := Point 3 4
 print (p.x)
 print (p.y)
 
-# 2) 少参 → 半成品,补上参数才得到对象
 half := Point 10
 q := half 20
 print (q.x)
 print (q.y)
 
-# 3) 三参
 Vec := class {
     init = (a: int b: int c: int) => { s = a + b + c; this; }
     s: int = 0
@@ -143,7 +134,6 @@ Vec := class {
 v := Vec 1 2 3
 print (v.s)
 
-# 4) 单参/零参:init 一次应用完,直接是对象(不变成半成品)
 Box := class {
     init = (n: int) => { x = n; this; }
     x: int = 0
@@ -157,12 +147,72 @@ Zero := class {
 zz := Zero ()
 print (zz.z)
 
-# 同一个块挂在祖先链的**两层**上 —— 建类时当场报(不查的话实例化时会跑两遍,
-# 里面的定义第二次静默盖掉第一次)
 M := { X := 1; }
 baseM ::= class M
 try { badM ::= class baseM M; } (e: Exception) => { print ("1: " + string e); }
 ravel ""
+
+ravel "165_main7"
+C := class {
+    init = () => { 0; this; }
+    v: int = 1
+    set := (n: int) => { v = n; }
+    get := () => { v; }
+}
+c := C ()
+c2 := with c { v = 10; }
+print (c2.get ())
+c2.set 99
+print (c.get ())
+print (c2.get ())
+
+c3 := with c { tmp := 123; print (string tmp); }
+
+c4 := c.Copy ()
+c4.set 7
+print (c.get ())
+print (c4.get ())
+ravel ""
+
+ravel "166_copy_this"
+C := class {
+    init = () => { 0; this; }
+    v: int = 1
+    setThis := (n: int) => { this.v = n; }
+    setBare := (n: int) => { v = n; }
+    get := () => { v; }
+}
+c := C ()
+c2 := c.Copy ()
+c2.setThis 99
+print (c.get ())
+print (c2.get ())
+c3 := c.Copy ()
+c3.setBare 42
+print (c.get ())
+print (c3.get ())
+ravel ""
+
+ravel "167_copy_attrs"
+C := class {
+    init = () => { 0; this; }
+    _v: int = 1
+    by v := property (() => { _v; }) ((n: int) => { _v = n; })
+    readonly w: int = 5
+}
+c := C ()
+print (c.v)
+c2 := c.Copy ()
+c2.v = 10
+print (c.v)
+print (c2.v)
+print (c2.w)
+ravel ""
+try { eval "R := class { init = () => { 0; this; }; readonly w: int = 5; }
+r := R ()
+r2 := with r { 0; }
+r2.w = 9"; } (e: Exception) => { print ("168_copy_readonly: " + string e); }
+
 # --- expected ---
 # 10
 # 15
@@ -188,3 +238,18 @@ ravel ""
 # 5
 # 9
 # 1: 同一个代码块被挂在类的**两层**上了（比如 `M := { … }` 之后 `class M` 又 `class 父 M`） —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次
+# 10
+# 99
+# 99
+# 123
+# 99
+# 7
+# 1
+# 99
+# 1
+# 42
+# 1
+# 1
+# 10
+# 5
+# 168_copy_readonly: 无法给只读变量 'w' 赋值

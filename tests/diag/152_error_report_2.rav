@@ -1,0 +1,62 @@
+
+
+try { eval "# 旧写法 `init ctor := ...` 给一句能读的报错\n# 不拦的话会被当表达式 `init ctor` 求值,报「未定义的变量 'init'」——看不出哪里错了\nC := class {\n    init ctor := () => { 0; }\n}"; } (e: Exception) => { print ("176_old_init_syntax: " + string e); }
+
+
+ravel "178_error_messages"
+
+
+try { [1 2 3].At 9; } (e: Exception) => { print ("1: " + string e); }
+try { [1 2].Remove 5; } (e: Exception) => { print ("2: " + string e); }
+
+try { "abc" * "x"; } (e: Exception) => { print ("3: " + string e); }
+try { [1 2 3].Insert 9 0; } (e: Exception) => { print ("4: " + string e); }
+
+xs := [1 2 3]
+xs.Insert 3 99
+print xs
+ravel ""
+
+
+try { eval "# 字符串少了收尾的引号 -> 报错。从前是**静默接受**:剩下的源码(连换行带后面的代码)\n# 全被吞进那个字符串,`print \"abc` 打印出 abc —— 少打一个引号的人看不出自己错了。\nprint \"abc"; } (e: Exception) => { print ("204_unterminated_string: " + string e); }
+
+
+ravel "205_removed_modifiers"
+
+
+
+
+try { eval "override x := 1"; } (e: Exception) => { print ("1: " + string e); }
+try { eval "new y := 2"; } (e: Exception) => { print ("2: " + string e); }
+
+
+try { eval "forInstance z := 3"; } (e: Exception) => { print ("3: " + string e); }
+
+override := 7
+print override
+C := class { init = () => { 0; this; }; }
+c := C ()
+c.new := 9
+print (c.new)
+ravel ""
+
+
+
+
+
+try { eval ("x := " + (("!").Repeat 600) + "true"); } (e: Exception) => { print ("220_deep_chain: " + string e); }
+
+# --- expected ---
+# 176_old_init_syntax: 构造器不再用 init 修饰符，直接写 `init = () => { ... }`
+# 1: list.At 的索引 9 越界 (列表长度 3)
+# 2: list.Remove 的索引 5 越界 (列表长度 2)
+# 3: 运算符 '*' 不支持 String 操作数
+# 4: list.Insert 的索引 9 越界 (列表长度 3)
+# [1 2 3 99]
+# 204_unterminated_string: 字符串没有收尾的 '"'
+# 1: 'override' 修饰符已删除（它只被记下来，没有任何地方读它）
+# 2: 'new' 修饰符已删除（它只被记下来，没有任何地方读它）
+# 3: 'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）
+# 7
+# 9
+# 220_deep_chain: 表达式嵌套太深（超过 400 层运算符/调用链）
