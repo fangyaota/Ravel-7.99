@@ -102,14 +102,10 @@ readonly reject := (e) => {
     throw (e);
 }
 
-# 问一句"空不空":走 `SelfOr` 的后备支,不碰元素(`()` 永远算空)
+# 问一句"空不空":不是 monad 就 false(短路,不碰它);是的话让 `SelfOr` 给个结果,
+# 空了它交回 `()` —— 那就和 `()` 比一下(`==` 对不同类型一律给 false)
 readonly IsNothing := (v: object) => {
-    (v : IMonad) {
-        callcc (k: Continuation) => {
-            v.SelfOr (() => { k (true); })
-            false
-        }
-    } { false; }
+    (v : IMonad) && ((v.SelfOr (() => ())) == ());
 }
 
 readonly NilChain := (get: function step: function) => {
