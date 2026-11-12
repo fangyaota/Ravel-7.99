@@ -26,6 +26,8 @@ public partial class Parser
         {
             BumpExprDepth();                        // `<|` 右结合:`a <| b <| c` 是 `a <| (b <| c)`
             var right = ParsePipe(allowCall);
+            // 右边自成一界：`f <| _ + 1` 的 `_` 只收 `_ + 1`，交出去的是闭包。
+            if (HasHoles(right)) right = DesugarHoles(right);
             return new PipeExpr(left, right) { Line = left.Line, Column = left.Column };
         }
 
@@ -235,6 +237,7 @@ public partial class Parser
                 _pos++;
                 BumpExprDepth();
                 var sealedRight = ParsePipe(allowCall);
+                if (HasHoles(sealedRight)) sealedRight = DesugarHoles(sealedRight);
                 left = new BinaryExpr(left, t.Lexeme, sealedRight) { Line = t.Line, Column = t.Column };
                 continue;
             }
@@ -399,6 +402,12 @@ public partial class Parser
                     var bar = Previous();
                     fn = new BinaryExpr(fn, "|", Clause()) { Line = bar.Line, Column = bar.Column };
                 }
+
+                // 右边自成一界：`1 |> f _ ()` 里的 `_` 只收右边那段，成为
+                // `(_0) => { f _0 (); }`，再被 1 应用 —— 于是得 `f 1 ()`，
+                // 而不是把 `1` 也裹进 lambda 的身体里（`(_0) => { f _0 () 1; }`）。
+                // 左边**不收**：`xs.Map (_ |> f)` 那种写法靠外层的括号收口。
+                if (HasHoles(fn)) fn = DesugarHoles(fn);
 
                 expr = new CallExpr(fn, left) { Line = left.Line, Column = left.Column };
                 continue;

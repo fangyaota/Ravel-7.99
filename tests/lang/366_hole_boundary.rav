@@ -1,0 +1,23 @@
+f := _.ToString
+a := 1 |> f _ ()
+print a
+b := 1 |> _ + 1
+print b
+xs := [1 2 3]
+print (xs.Map (_ |> f))
+h := (_ + 1)
+print (5 |> h)
+print (5 |> (_ * 2))
+p := [_ _]
+print (p 1 2)
+q := (x) => { x + _; }
+print ((q 10) 5)
+
+# --- expected ---
+# 1
+# 2
+# [<function ToString> <function ToString> <function ToString>]
+# 6
+# 10
+# [1 2]
+# 15
