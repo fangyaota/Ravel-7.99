@@ -18,12 +18,14 @@
         },
         {
             // 用例需要 256MB 堆上限:40_callcc 的长循环靠它来卡住退化成 O(N) 帧链的实现
-            "label": "ravel: 全量测试",
+            // **必须挑词**:全量那一趟已经取消,不挑 `ravel test` 直接报错
+            "label": "ravel: 挑词跑测试",
             "type": "process",
             "command": "dotnet",
             "args": [
                 "${workspaceFolder}/bin/Debug/net10.0/ravel.dll",
-                "test"
+                "test",
+                "${input:pick}"
             ],
             "options": {
                 "cwd": "${workspaceFolder}",
@@ -69,6 +71,15 @@
                 "${workspaceFolder}/Ravel.sln"
             ],
             "problemMatcher": "$msCompile"
+        }
+    ],
+    "inputs": [
+        {
+            // 挑词在跑之前问一次,免得手改 tasks.json
+            "id": "pick",
+            "type": "promptString",
+            "description": "挑个沾相对路径的词(例如 lang、net、367)",
+            "default": "lang"
         }
     ]
 }

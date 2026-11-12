@@ -23,6 +23,17 @@ internal static class GoldenTestRunner
             return false;
         }
 
+        // 全量那一趟**取消了**:几分钟、夹着联网和起服务端的,红了也说不清是哪一摊。
+        // 所以**必须挑词**。`--warn`/`--fast` 是开关,不是筛子 —— 只有它们也算没挑。
+        if (pick is not { Length: > 0 })
+        {
+            Console.WriteLine("没挑词 —— 全量那一趟已经取消。给个沾相对路径的词,例如:");
+            Console.WriteLine("    ravel test lang          整个 lang/ 目录");
+            Console.WriteLine("    ravel test 367           编号里带 367 的那条");
+            Console.WriteLine("    ravel test net --fast    只跑 net/ 里不带 # slow 的");
+            return false;
+        }
+
         var chosen = Directory.GetFiles(testDir, "*.rav", SearchOption.AllDirectories)
             .Where(f => Matches(f, testDir, pick))
             .OrderBy(f => f, StringComparer.Ordinal)
@@ -34,17 +45,6 @@ internal static class GoldenTestRunner
             Console.WriteLine($"没有一条用例对得上:{string.Join(" ", pick!)}");
             return false;
         }
-
-        // 没加 `--fast` **又没挑词** = 真·全量:这一趟会**连那几条 `# slow` 一起跑**
-        // (起服务器、等计时器、跑十万次切换…),可能要几分钟。跑之前先说一声 ——
-        // 免得对着不动的屏幕等,或者忘了这一档有多贵。
-        //
-        // **挑过词的不提醒**:那种跑法已经收窄了(`ravel test 217` 秒回),打了是白打。
-        //
-        // 有意**只提醒、不拦**:全量那一趟本来就该"全都跑"(`# slow` 不代表不重要,
-        // 见 `SlowMarker` 那段);`--fast` 才是"我这会儿只想跑快的"那个开关。
-        if (!fast && pick is not { Length: > 0 })
-            Console.WriteLine("没加 `--fast`：这一趟是**全量**，会连 `# slow` 那几条一起跑，可能会非常慢。");
 
         int passed = 0, failed = 0, todo = 0, skipped = 0;
         foreach (var file in chosen)

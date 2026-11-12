@@ -147,8 +147,16 @@ async function runTests() {
         return;
     }
 
+    // 全量那一趟已经取消:`ravel test` 不给词直接报错,所以这里先问一个词
+    const pick = await vscode.window.showInputBox({
+        prompt: '挑个沾相对路径的词(例如 lang、net、367);全量测试已取消',
+        placeHolder: 'lang',
+        validateInput: (v) => (v && v.trim() ? undefined : '至少给一个词'),
+    });
+    if (!pick || !pick.trim()) return;
+
     const limit = vscode.workspace.getConfiguration('ravel').get('heapHardLimit');
-    runToChannel(dll, ['test'], '测试', limit ? { DOTNET_GCHeapHardLimit: limit } : undefined);
+    runToChannel(dll, ['test', pick.trim()], '测试', limit ? { DOTNET_GCHeapHardLimit: limit } : undefined);
 }
 
 async function openRepl() {

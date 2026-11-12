@@ -35,7 +35,10 @@ internal static class Program
                     ?.InformationalVersion?.Split('+')[0] ?? "?");
             config.SetApplicationCulture(new CultureInfo("zh-CN"));   // 帮助文案钉死中文(默认跟系统语言)
             config.Settings.StrictParsing = true;         // 不认识的开关要报错,别静默吞掉
-            config.AddCommand<TestCommand>("test").WithDescription("跑 golden 用例(不给词就全量)");
+            config.AddCommand<TestCommand>("test").WithDescription("跑 golden 用例(必须挑词,全量已取消)")
+                .WithExample("test", "lang")
+                .WithExample("test", "367")
+                .WithExample("test", "net", "--fast");
             config.AddCommand<StripCommand>("strip").WithDescription("剥掉 .rav 里的注释(就地)")
                 .WithExample("strip", "out/lib");
             config.AddCommand<AstCommand>("ast").WithDescription("把 AST 转储成文本(结构,给 diff 用)")
@@ -53,7 +56,7 @@ internal static class Program
             if (Array.IndexOf(HeadSwitches, args[i]) >= 0) continue;
             Console.WriteLine($"不认识的开关 '{args[i]}'。");
             Console.WriteLine("用法: ravel [--warn] [--more-control-flow] [脚本.rav [参数…]]");
-            Console.WriteLine("      ravel test [词…] [--fast]");
+            Console.WriteLine("      ravel test <词…> [--fast]");
             Console.WriteLine("      ravel strip <文件或目录…>");
             Console.WriteLine("      ravel ast <文件或目录…>");
             Console.WriteLine("      ravel --help");
@@ -170,7 +173,7 @@ internal sealed class RunSettings : CliSettings
 internal sealed class TestSettings : CliSettings
 {
     [CommandArgument(0, "[词…]")]
-    [Description("只跑相对路径里带它的(可给几个);不给就全量")]
+    [Description("只跑相对路径里带它的(可给几个);不给就报错,全量已经取消")]
     public string[] Picks { get; init; } = [];
 
     [CommandOption("-f|--fast")]

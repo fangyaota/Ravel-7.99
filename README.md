@@ -1,4 +1,4 @@
-﻿# Ravel
+# Ravel
 
 一门**解释型编程语言**,C# 写的,求值器是**显式持久帧栈**(不是递归、也不是 CPS 蹦床;
 为什么这么选见 [ADR-0002](docs/adr/0002-explicit-stack-evaluator.md))。
@@ -83,21 +83,23 @@ try { 1 + "a"; } (e: TypeError) => { print ("类型错: " + e.Message); }
 - **REPL**:`dotnet out/ravel.dll` 不带参数就进,多页缓冲 + 高亮 + 光标 —— 而且
   **这个 REPL 本身就是 Ravel 写的**(`lib/repl.rav`:按键编辑、主菜单、读写页、会话存盘
   都在里头,引擎只为它多给了六条"进程边界"原语)。
-- **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test` 比对。
+- **golden 测试**:每个用例是一个 `.rav` 文件,末尾带 `# --- expected ---`,跑 `ravel test <词>` 比对(**必须挑词**,全量那一趟已经取消)。
 - **`--warn`**:少给一块的 `if`、`assert 条件` 忘了写消息 —— 这类"半成品函数被静默丢掉"的坑,
   开着它就当场提醒一句(见 `CONTEXT.md` 的「诊断」一节)。
 - **VS Code 扩展**(`vscode-ravel/`):语法高亮(含 `"""` 原始字符串与 `'c'` 字符字面量)+
   折叠(按 `{}` 分块、注释段)+ **跳转定义 / 悬停**(`Ctrl+点击` 一个名字,跳到它定义的那一行)+
-  跑当前文件 / 全量测试 / 开 REPL;文件上右键还有**在命令行中运行**(弹一个独立的系统命令行窗口,
+  跑当前文件 / 挑词跑测试 / 开 REPL;文件上右键还有**在命令行中运行**(弹一个独立的系统命令行窗口,
   跑完留着,交互的脚本用它);括号匹配认区间的交叉括号(`[1..5)` / `(1..5]`)。
 - **全中文**:注释、文档、报错、提交信息。
 
 ## 编译运行
 
 ```bash
-bash build.sh                            # 下面那几步收成一条命令:发布到 out/ + 全量测试 + 冒烟
-bash build.sh --rebuild --warn           # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
-bash build.sh --help                     # 还有 --no-test / --release
+bash build.sh --pick=lang                # 下面那几步收成一条命令:发布到 out/ + 跑 lang/ 那摞用例 + 冒烟
+bash build.sh --pick=367 --rebuild --warn   # 再顺带 C# 警告检查(-t:Rebuild)、--warn test
+bash build.sh --no-test                  # 只发布
+bash build.sh --help                     # 还有 --pick= / --fast / --release
+     # **测试必须挑词**:全量那一趟取消了,`bash build.sh` 不带 --pick= 会当场报错
 
 rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c Debug -o out
      # 先删 out/:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论
@@ -107,16 +109,18 @@ rm -rf out && DOTNET_GCHeapHardLimit=0x10000000 dotnet publish Ravel.csproj -c D
      # 发布出去的标准库**不带注释**(发布时过一遍 `ravel strip`,见 Ravel.csproj 的 StripLibComments
      # 与 Syntax/CommentStripper.cs):那些注释是写给改这门语言的人看的。仓库里那份当然留着。
 
-dotnet out/ravel.dll test                # 全量测试(有 FAIL 时退出码 1)
+dotnet out/ravel.dll test 367            # 挑词跑(相对路径里沾 "367" 的那几条;有 FAIL 时退出码 1)
+dotnet out/ravel.dll test lang --fast    # 整个 lang/ 目录,跳过带 `# slow` 的
+dotnet out/ravel.dll test                # 报错:全量那一趟已经取消
 dotnet out/ravel.dll path/file.rav       # 单文件
 dotnet out/ravel.dll path/file.rav a b   # 脚本名之后那些进 System.Args ()
 dotnet out/ravel.dll                     # REPL(不带参数)
 
 dotnet out/ravel.dll --warn file.rav     # 开「是不是忘了调用?」的提醒(stderr)
-dotnet out/ravel.dll --warn test         # 整个用例库过一遍那个筛子(不影响比对结果)
+dotnet out/ravel.dll --warn test lang    # 那一摞过一遍那个筛子(不影响比对结果)
 
 # 用例里有个长循环压着 callcc,显式给 256MB 堆上限它才跑得稳(CI/VS Code 任务里都带着)
-DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test
+DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test lang
 ```
 
 **退出码**:测试有 FAIL、脚本报错、解释器自己有 bug —— 三种都是 1;`exit ""` 是
@@ -125,7 +129,7 @@ DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test
 ## VS Code
 
 打开仓库就有 `.vscode/` 里的任务:`Ctrl+Shift+B` 跑当前 `.rav`(先编译)、`F5` 跑当前文件
-并可下断点;命令面板搜 `Ravel` 还有「运行全量测试」「打开 REPL」。它们调的都是
+并可下断点;命令面板搜 `Ravel` 还有「运行测试（挑词）」（会先问一个词）「打开 REPL」。它们调的都是
 `bin/Debug/net10.0/ravel.dll`。
 
 `vscode-ravel/` 那份扩展**不是开在窗口里就装上**的 —— VS Code 只认
@@ -159,7 +163,7 @@ lib/                **标准库 —— 用 Ravel 自己写的**(控制流、序�
                     元类(数据类 / 枚举 / 单例)、测试库、摘要与加密、命令行参数、表格、日志、ZIP 归档、通配符、
                     XML、HTML、终端、REPL、数据结构…)
 tests/              golden 用例(.rav + 文件末尾的 `# --- expected ---`),按类型分子目录:
-                    lang/ class/ module/ diag/ lib/ net/ task/ —— `ravel test <目录名>` 挑一摞跑
+                    lang/ class/ module/ diag/ lib/ net/ task/ —— `ravel test <目录名>` 挑一摞跑(必须挑)
 examples/           例子(不进测试,给你看着玩)
 docs/               tutorial.md(教程索引)+ tutorial/(一章一个文件)+ adr/(架构决策)
 vscode-ravel/       VS Code 扩展

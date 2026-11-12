@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Ravel 的构建脚本 —— 把 CONTEXT.md「编译运行」那几步收成一条命令。
 #
-#     bash build.sh              发布到 out/,再跑全量测试
-#     bash build.sh --warn       测试那趟带 `--warn` 跑(逮"少给一块"那种静默失败;
+#     bash build.sh --pick=lang  发布到 out/,再跑 lang/ 那一摞用例
+#     bash build.sh --warn --pick=367  测试那趟带 `--warn` 跑(逮"少给一块"那种静默失败;
 #                                **同一套用例**,所以不另跑一趟普通的)
 #     bash build.sh --rebuild    顺带做一次 -t:Rebuild,有 C# 警告就当场红
 #     bash build.sh --no-test    只发布
 #     bash build.sh --debug      用 Debug 配置(**默认 Release**,见下)
-#     bash build.sh --fast       测试那一趟跳过带 `# slow` 的
-#     bash build.sh --pick=http  测试只跑相对路径里带 `http` 的那些(可给多个 --pick=)
+#     bash build.sh --pick=net --fast  只跑 net/ 里不带 `# slow` 的
+#
+# **测试必须挑词**(至少一个 `--pick=`):全量那一趟已经取消,不挑就当场报错。
 #
 # 两条讲究都在 CONTEXT.md 里写着,别改:
 #   * **先删 out/**:增量 publish 有时不更新它,会跑到陈旧产物、得出假的结论;
@@ -82,6 +83,7 @@ run_warn=0
 run_rebuild=0
 run_test=1
 test_args=""
+have_pick=0
 
 for arg in "$@"; do
     case "$arg" in
@@ -92,11 +94,19 @@ for arg in "$@"; do
         --release) CONF=Release ;;
         # 透给 `ravel test`:`--fast` 跳过带 `# slow` 的,`--pick=词` 只跑沾那个词的
         --fast)      test_args="$test_args --fast" ;;
-        --pick=*)    test_args="$test_args ${arg#--pick=}" ;;
+        --pick=*)    test_args="$test_args ${arg#--pick=}"; have_pick=1 ;;
         -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "不认识的参数 '$arg'(试试 --help)" >&2; exit 2 ;;
     esac
 done
+
+# **全量那一趟取消了**:`ravel test` 不给词就报错。先拦一道 —— 别等发布完才发现。
+# (`--fast`/`--warn` 是开关,不算挑词。)
+if [ "$run_test" = 1 ] && [ "$have_pick" = 0 ]; then
+    echo "没给 --pick= —— 全量测试已经取消,不挑词就没得跑。" >&2
+    echo "  例:bash build.sh --pick=lang     /     bash build.sh --no-test" >&2
+    exit 2
+fi
 
 echo "== 发布($CONF)→ out/ =="
 rm -rf out
@@ -124,12 +134,12 @@ if [ "$run_test" = 1 ]; then
     echo
     # `--warn` 那趟是**同一套用例**的超集 —— 只是顺带报"少给一块"那种静默失败
     # (见 diag/264_warn_forgot_call.rav)。所以开了 `--warn` 就**只跑这一趟**:
-    # 跑两遍要多等整整一轮(125 个用例、光进程启动就 ~44 秒)。
+    # 跑两遍要多等整整一轮(光进程启动就 ~44 秒)。
     if [ "$run_warn" = 1 ]; then
-        echo '== 全量测试(--warn:顺带逮「少给一块」那种静默失败) =='
+        echo '== 测试(--warn:顺带逮「少给一块」那种静默失败) =='
         DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll --warn test $test_args
     else
-        echo "== 全量测试 =="
+        echo "== 测试 =="
         DOTNET_GCHeapHardLimit=$GC "$DOTNET" out/ravel.dll test $test_args
     fi
 fi
