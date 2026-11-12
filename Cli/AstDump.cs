@@ -46,6 +46,7 @@ internal static class AstDump
         var sb = new StringBuilder();
         var failed = 0;
         var broken = 0;    // 印出来再解析,树对不上
+        var skipped = 0;   // 含内置占位符,没法往返
         foreach (var (file, rel) in files)
         {
             var title = "──── " + file.Replace('\\', '/') + " ────";
@@ -72,13 +73,22 @@ internal static class AstDump
                     try
                     {
                         var raw = Parser.ParseSourceUnlowered(src, file, flow);
-                        var back = Parser.ParseSourceUnlowered(AstPrinter.Program(raw, verbatim: true), file, flow);
-                        var was = Canonical(raw);
-                        var now = Canonical(back);
-                        if (was != now)
+                        var rawText = AstPrinter.Program(raw, verbatim: true);
+                        if (rawText.Contains("<builtin>"))
                         {
-                            Console.Error.WriteLine($"{file}: 印出来再解析,树对不上 —— {FirstDifference(was, now)}");
-                            broken++;
+                            // 内置值没有源码,跳过这一份
+                            skipped++;
+                        }
+                        else
+                        {
+                            var back = Parser.ParseSourceUnlowered(rawText, file, flow);
+                            var was = Canonical(raw);
+                            var now = Canonical(back);
+                            if (was != now)
+                            {
+                                Console.Error.WriteLine($"{file}: 印出来再解析,树对不上 —— {FirstDifference(was, now)}");
+                                broken++;
+                            }
                         }
                     }
                     catch (Exception ex) when (ex is SyntaxException or RuntimeException)
@@ -111,6 +121,7 @@ internal static class AstDump
 
         var tail = failed > 0 ? $",其中 {failed} 个报错" : "";
         if (broken > 0) tail += $",{broken} 个往返后树对不上";
+        if (skipped > 0) tail += $",{skipped} 个含内置占位符跳过自验";
         Console.Error.WriteLine(outDir is null
             ? $"\n{(source ? "印出" : "转储")} {files.Count} 个文件{tail}"
             : $"\n{files.Count} 个文件,每个两份 → {outDir.Replace('\\', '/')}{tail}");
@@ -157,6 +168,19 @@ internal static class AstDump
 
     private static void Render(StringBuilder sb, object node, int depth, bool positions, bool meta)
     {
+        // 印成 a + b 的成员调用,自验按二元式算
+        if (node is CallExpr { Function: MemberAccess mem, Argument: var arg }
+            && OperatorSymbols.IsSymbol(mem.Member))
+        {
+            Indent(sb, depth).Append("BinaryExpr").Append('\n');
+            Indent(sb, depth + 1).Append("Left:").Append('\n');
+            Render(sb, mem.Object, depth + 2, positions, meta);
+            Indent(sb, depth + 1).Append("Op: ").Append(Scalar(mem.Member)).Append('\n');
+            Indent(sb, depth + 1).Append("Right:").Append('\n');
+            Render(sb, arg, depth + 2, positions, meta);
+            return;
+        }
+
         Indent(sb, depth).Append(node.GetType().Name);
         if (positions && node is AstNode positioned)
             sb.Append(" @").Append(positioned.Line).Append(':').Append(positioned.Column);
