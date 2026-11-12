@@ -5,9 +5,9 @@ BubbleSort := (xs: list) => {
     while { i < (n - 1); } {
         j := 0
         while { j < ((n - 1) - i); } {
-            ((a.At j) > (a.At (j + 1))) {
-                t := a.At j
-                a[j] = a.At (j + 1)
+            (a[j] > a[j + 1]) {
+                t := a[j]
+                a[j] = a[j + 1]
                 a[j + 1] = t
             } { 0; }
             j += 1
@@ -23,7 +23,7 @@ BinarySearch := (xs: list target: int) => {
     found := -1
     while { ((lo <= hi) && (found < 0)); } {
         mid := int (((lo + hi) / 2))
-        v := xs.At mid
+        v := xs[mid]
         (v == target) { found = mid; } {
             (v < target) { lo = mid + 1; } { hi = mid - 1; }
         }

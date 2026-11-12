@@ -744,6 +744,9 @@ public sealed class Lowering
 
     private Expression IndexWrite(IndexExpr ix, string op, Expression value)
     {
+        // 新值那一侧也要过一遍 Lowering —— `a[j] = a[j + 1]` 的右边本身就是一次下标读
+        value = Lower(value);
+
         var o = Fresh("__o");
         var i = Fresh("__i");
         var oid = Ident(o, ix);
