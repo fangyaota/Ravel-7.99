@@ -164,6 +164,7 @@ internal static class AstPrinter
             new BinaryExpr(m.Object, m.Member, ra), indent),
         CallExpr c => Atom(c.Function, indent) + " " + Arg(c.Argument, indent),
         BinaryExpr b => Binary(b, indent),
+        ChainCompare c => Chain(c, indent),
         // 一元运算符的操作数**至少要跟它一样紧**(18 = `**` 那一档)才不用套括号。
         // 这里从前写的是 `Atom`,而 `Atom` **认调用** —— 于是 `!(x.IsEmpty ())` 印成
         // `!x.IsEmpty ()`,读回去 `!` 把那串全吃了(实测:`!a.IsEmpty () || !b.IsEmpty ()`
@@ -198,6 +199,18 @@ internal static class AstPrinter
         ["**"] = 18,
     };
 
+    // `a < b < c` —— 每个操作数按比较那一档(10)套括号,运算符原样夹在中间
+    private static string Chain(ChainCompare c, int indent)
+    {
+        var parts = new List<string> { Paren(c.Operands[0], 10, indent) };
+        for (var i = 0; i < c.Ops.Count; i++)
+        {
+            parts.Add(c.Ops[i]);
+            parts.Add(Paren(c.Operands[i + 1], 10, indent));
+        }
+        return Join(" ", parts);
+    }
+
     private static string Binary(BinaryExpr b, int indent)
     {
         var p = BinPrec.GetValueOrDefault(b.Op, 0);
@@ -216,6 +229,7 @@ internal static class AstPrinter
     private static int Prec(Expression e) => e switch
     {
         BinaryExpr b => BinPrec.GetValueOrDefault(b.Op, 0),
+        ChainCompare => 10,
         // 一元比 `**` 松、比其余运算紧 —— 所以 `(-2) ** 2` 那个左操作数得套括号
         // (不套读回去是 `-(2 ** 2)`,另一个数),而 `a + -b` 不用。
         UnaryExpr => 17,

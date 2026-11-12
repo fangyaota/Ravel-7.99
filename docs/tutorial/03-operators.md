@@ -78,6 +78,34 @@ false
 
 `NaN` / `Inf` / `-Inf` 按 IEEE 来：`NaN == NaN` 是 `false`，`1 / Inf` 是 `0`，`Inf - Inf` 是 `NaN`。它们打印成 ASCII 的 `NaN` / `Inf` / `-Inf`（不是 `∞`）。
 
+### 链式比较
+
+`a < b < c` 一处写三层，读作 `(a < b) && (b < c)`：左边那句假了，右边那节不求值；中间那个 `b` 也只求一次。
+
+能这样串的是**同一档**的运算符：`<` `>` `<=` `>=` `==` `!=` 都在内，类型判定那三条（`:` / `<:` / `:>`）也在内 —— `1 < 2 == true` 就是 `(1 < 2) && (2 == true)`，`x : int : bool` 就是 `(x : int) && (int : bool)`。想改变读法就加括号，**括号里那截不再往外串**（`(1 < 2) == true` 仍旧读作 `(1 < 2) == true`）。
+
+#### 实例
+
+```ravel
+print (0 < 5 < 10)
+print (1 <= 1 <= 1)
+print (10 > 5 > 2 > 0)
+print (0 < 5 == true)
+print (int <: object :> int)
+print (5 : int : bool)
+```
+
+执行以上程序会输出如下结果：
+
+```
+true
+true
+true
+true
+true
+false
+```
+
 ## 3.3 类型判定 `:`
 
 | 写法 | 交回 |

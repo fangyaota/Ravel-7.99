@@ -1,0 +1,75 @@
+# 链式比较:`a < b < c` 读作 `(a < b) && (b < c)`。
+#
+# `&&` 在求值器里是控制流不是函数调用,所以短的写法与手写 `&&` 一样短路:
+# 某一节假了,右边整段不求值。中间那个操作数只求一次(临时名里)。
+
+print (1 < 2 < 3)
+print (3 < 2 < 1)
+print (1 <= 2 <= 2)
+print (5 > 4 >= 4)
+print (1 < 2 < 3 < 4)
+print (4 < 3 < 2)
+
+# 中间那位只求一次
+n := 0
+bump := (v) => { n += 1; v; }
+print ((bump 1) < (bump 2) < (bump 3))
+print n
+
+# 第一节就假了:第二节能不碰就不碰
+k := 0
+kbump := (v) => { k += 1; v; }
+print ((kbump 3) < (kbump 2) < (kbump 1))
+print k
+
+# `==` / `!=` 自己也成一串
+print (1 == 1 == 1)
+print (1 != 2 != 3)
+
+# 大小和相等混着串也一样:`1 < 2 == true` 是 `(1 < 2) && (2 == true)`
+print (1 < 2 == true)
+
+# 变量
+x := 5
+y := 6
+print (0 < x < y < 10)
+print (0 < x < 10)
+
+# 类型判定那三条(`:` / `<:` / `:>`)也在这一档,一样能串;括号里那截不往外串
+print (x : int)
+print (int <: object :> int)
+print (x : int <: object)
+print (x : int : bool)
+print ((x : int) == true)
+print ((x < y) == true)
+
+# 运算符成员写法与分区照旧,没被这一改碰到
+print (1.+ 2)
+print ((+.1) 5)
+print (5 |> + 1)
+
+# --- expected ---
+# true
+# false
+# true
+# true
+# true
+# false
+# true
+# 3
+# false
+# 2
+# true
+# true
+# false
+# true
+# true
+# true
+# true
+# true
+# false
+# true
+# true
+# 3
+# 6
+# 6

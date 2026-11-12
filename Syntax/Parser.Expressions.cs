@@ -244,11 +244,35 @@ public partial class Parser
             BumpExprDepth();                        // 链上又挂了一节,树也跟着长一层
             var op = t.Lexeme;
             var right = ParseClimb(allowCall, rbp);
+            // `a < b < c` —— 链式比较:比较那一层是左结合,所以再来一发时左边已经是
+            // 一个比较式了。摊平成一条链,交给 Lowering 保证每个操作数只求一次。
+            if (IsCompareOp(op))
+            {
+                if (left is BinaryExpr { Parenthesized: false } prev && IsCompareOp(prev.Op))
+                {
+                    left = new ChainCompare([prev.Left, prev.Right, right], [prev.Op, op])
+                        { Line = left.Line, Column = left.Column };
+                    continue;
+                }
+
+                if (left is ChainCompare { Parenthesized: false } chain)
+                {
+                    chain.Operands.Add(right);
+                    chain.Ops.Add(op);
+                    continue;
+                }
+            }
+
             left = new BinaryExpr(left, op, right) { Line = left.Line, Column = left.Column };
         }
 
         return left;
     }
+
+    // 能串成一串的比较运算符 —— 10 那一档的全都在内,`:` / `<:` / `:>` 这几条类型判定也算
+    private static bool IsCompareOp(string op)
+        => op is "<" or ">" or "<=" or ">=" or "==" or "!=" or ":" or "<:" or ":>";
+
 
     private Expression ParsePower(bool allowCall = true)
     {

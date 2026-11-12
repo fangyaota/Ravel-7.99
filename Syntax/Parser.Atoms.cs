@@ -119,7 +119,7 @@ public partial class Parser
         }
 
         if (Match(TokenType.LeftParen))
-            return Nested(ParseParen);
+            return Nested(MarkParen);
 
         if (Match(TokenType.LeftBracket))
         {
@@ -312,6 +312,10 @@ public partial class Parser
     // ========================================
     //  括号内容解析
     // ========================================
+
+    // 括号是一条"到此为止"的记号(只给链式比较看):`(1 < 2) == true` 是一个比较,
+    // 不是一个三段链。括号本身在求值时一个字节都不多做。
+    private Expression MarkParen() => ParseParen() with { Parenthesized = true };
 
     private Expression ParseParen()
     {

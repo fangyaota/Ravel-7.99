@@ -102,7 +102,12 @@ public record MemberPattern(List<NamePattern> Names) : Pattern;
 public record WholePattern(Pattern Inner) : Pattern;
 
 // --- 表达式 ---
-public abstract record Expression : AstNode;
+public abstract record Expression : AstNode
+{
+    // 这个式子外面套着**显式括号**。链式比较只串裸的比邻运算符:
+    // `(1 < 2) == true` 里那个 `<` 是"括号里的一整句",不再跟外面的 `==` 串。
+    public bool Parenthesized { get; init; }
+}
 
 public record NumberLiteral(string Lexeme, bool IsFloat = false) : Expression
 {
@@ -138,6 +143,9 @@ public record MemberAccess(Expression Object, string Member) : Expression;
 // `xs[i]` —— 读:`xs.At i`;写:`xs[i] = v`(见 Lowering);切片:`xs[a..b]`
 public record IndexExpr(Expression Object, Expression Index) : Expression;
 public record BinaryExpr(Expression Left, string Op, Expression Right) : Expression;
+
+// `a < b < c` —— 链式比较:中间的每个操作数都**只求一次**,比较按 `&&` 串起来
+public record ChainCompare(List<Expression> Operands, List<string> Ops) : Expression;
 public record UnaryExpr(string Op, Expression Operand) : Expression;
 public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression
 {

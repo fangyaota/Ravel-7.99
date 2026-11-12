@@ -162,6 +162,7 @@ public sealed class Lowering
             when b.Op is "=" or "+=" or "-=" or "*=" or "/=" or "%=" or "**="
             => IndexWrite(ix, b.Op, b.Right),
         BinaryExpr b => b with { Left = Lower(b.Left), Right = Lower(b.Right) },
+        ChainCompare cc => Chain(cc),
         CallExpr c => c with { Function = Lower(c.Function), Argument = Lower(c.Argument) },
         MemberAccess m => m with { Object = Lower(m.Object) },
         // 读:`xs[i]` 是 `xs.At i`;右边写的是**区间字面量**就是 `xs.Slice 1..3`)
@@ -789,6 +790,35 @@ public sealed class Lowering
 
     private BlockExpr Block(List<Statement> stmts, AstNode at)
         => new(stmts) { Line = at.Line, Column = at.Column, Source = _source };
+
+    // `a < b < c` → 每个操作数落进一个临时名,按 `&&` 串起来:
+    //     ((__cm0) => ((__cm1) => ((__cm0 < __cm1) && ((__cm2) => (__cm1 < __cm2)) (c))) (b)) (a)
+    // 中间那个 `b` 只求一次,右边那节的 `&&` 照旧短路(求值器里 `&&` 是控制流,不是函数调用)。
+    private Expression Chain(ChainCompare c)
+    {
+        var names = new List<string>();
+        for (var i = 0; i < c.Operands.Count; i++) names.Add(Fresh("__cm"));
+
+        Expression Step(int i)
+        {
+            var cmp = new BinaryExpr(Ident(names[i], c), c.Ops[i], Ident(names[i + 1], c))
+                { Line = c.Line, Column = c.Column };
+
+            var body = i + 2 == c.Operands.Count
+                ? cmp
+                : new BinaryExpr(cmp, "&&", Step(i + 1)) { Line = c.Line, Column = c.Column };
+
+            var lam = new LambdaExpr(new Parameter(names[i + 1], Ident("object", c)), AsBlock(body, c))
+                { Line = c.Line, Column = c.Column, Sugar = true };
+
+            return Call(lam, Lower(c.Operands[i + 1]));
+        }
+
+        var outer = new LambdaExpr(new Parameter(names[0], Ident("object", c)), AsBlock(Step(0), c))
+            { Line = c.Line, Column = c.Column, Sugar = true };
+
+        return Call(outer, Lower(c.Operands[0]));
+    }
 
     private static CallExpr Call(Expression f, Expression arg)
         => new(f, arg) { Line = f.Line, Column = f.Column };
