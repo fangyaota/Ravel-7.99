@@ -71,9 +71,10 @@ internal static class AstDump
                     text = Comment(title) + "\n" + printed + "\n";
                     try
                     {
-                        var again = Parser.ParseSource(printed, file, flow);
-                        var was = Canonical(program);
-                        var now = Canonical(again);
+                        var raw = Parser.ParseSourceUnlowered(src, file, flow);
+                        var back = Parser.ParseSourceUnlowered(AstPrinter.Program(raw, verbatim: true), file, flow);
+                        var was = Canonical(raw);
+                        var now = Canonical(back);
                         if (was != now)
                         {
                             Console.Error.WriteLine($"{file}: 印出来再解析,树对不上 —— {FirstDifference(was, now)}");

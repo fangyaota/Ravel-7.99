@@ -222,8 +222,7 @@ public partial class Parser
         return left;
     }
 
-    private static bool IsCompareOp(string op)
-        => op is "<" or ">" or "<=" or ">=" or "==" or "!=" or ":" or "<:" or ":>";
+    private static bool IsCompareOp(string op) => Operators.IsCompare(op);
 
 
     private Expression ParsePower(Postfix policy)

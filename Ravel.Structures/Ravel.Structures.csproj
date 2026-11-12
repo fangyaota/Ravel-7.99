@@ -17,4 +17,9 @@
     <ProjectReference Include="..\Ravel.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 并行构建的临时中间目录，一律不编译 -->
+    <Compile Remove="obj*/**" />
+  </ItemGroup>
+
 </Project>

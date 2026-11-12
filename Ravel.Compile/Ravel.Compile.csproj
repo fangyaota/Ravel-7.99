@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- **就地编译**:把一段 C# 编成 dll,用 Roslyn **当库**调,不经过 `dotnet build`。
 
@@ -28,6 +28,11 @@
     <!-- `Private=false`:要它的**引用**,但别把 ravel.dll / Spectre / Newtonsoft
          抄一份到我这儿的 bin —— 那几件主程序自己就有,多一份就多一份过期的。 -->
     <ProjectReference Include="..\Ravel.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 并行构建的临时中间目录，一律不编译 -->
+    <Compile Remove="obj*/**" />
   </ItemGroup>
 
 </Project>

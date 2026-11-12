@@ -65,6 +65,9 @@ public static class Operators
     public static int PrintPrec(string symbol)
         => BySymbol.TryGetValue(symbol, out var op) ? op.PrintPrec : 0;
 
+    public static bool IsCompare(string symbol)
+        => symbol is "<" or ">" or "<=" or ">=" or "==" or "!=" or ":" or "<:" or ":>";
+
     public static bool IsInfixToken(TokenType t) => ByToken.ContainsKey(t);
 
     public static bool IsPowerLike(TokenType t)

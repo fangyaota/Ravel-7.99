@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- **生成出来的适配层**。里面的 `.cs` 全是 `tools/mkadaptor.rav` 写出来的 ——
        别手改（要改行为改生成器；要改某一份就把它挪出去）。
@@ -17,6 +17,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ravel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 并行构建的临时中间目录，一律不编译 -->
+    <Compile Remove="obj*/**" />
   </ItemGroup>
 
 </Project>

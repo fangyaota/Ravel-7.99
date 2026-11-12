@@ -23,6 +23,9 @@
     <Compile Remove="Ravel.Generated/**" />
     <Compile Remove="Ravel.Compile/**" />
     <Compile Remove="plugins/**" />
+    <!-- 临时构建目录不进编译（子代理/并行构建用） -->
+    <Compile Remove="obj_*/**" />
+    <Compile Remove="out_check/**" />
   </ItemGroup>
 
   <ItemGroup>

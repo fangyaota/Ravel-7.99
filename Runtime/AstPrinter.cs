@@ -187,11 +187,12 @@ internal static class AstPrinter
     // `a < b < c` —— 操作数按比较档套括号
     private static string Chain(ChainCompare c, int indent)
     {
-        var parts = new List<string> { Paren(c.Operands[0], PrintPrec("<"), indent) };
+        var min = PrintPrec("<") + 1;
+        var parts = new List<string> { Paren(c.Operands[0], min, indent) };
         for (var i = 0; i < c.Ops.Count; i++)
         {
             parts.Add(c.Ops[i]);
-            parts.Add(Paren(c.Operands[i + 1], PrintPrec("<"), indent));
+            parts.Add(Paren(c.Operands[i + 1], min, indent));
         }
         return Join(" ", parts);
     }
@@ -203,8 +204,10 @@ internal static class AstPrinter
         // 左结合的(`a - b - c` = `(a-b)-c`)左边给 `p`(同级不套)、右边给 `p + 1`
         // (`a - (b - c)` 同级,要套);右结合的(`**`)正好倒过来。
         var right = b.Op == "**";
-        var left = Paren(b.Left, right ? p + 1 : p, indent);
-        var rightOp = Paren(b.Right, right ? p : p + 1, indent);
+        // 比较整档同优先级，但串起来是链式比较，所以两边都收紧
+        var cmp = Operators.IsCompare(b.Op);
+        var left = Paren(b.Left, cmp ? p + 1 : right ? p + 1 : p, indent);
+        var rightOp = Paren(b.Right, cmp ? p + 1 : right ? p : p + 1, indent);
         return left + " " + b.Op + " " + rightOp;
     }
 

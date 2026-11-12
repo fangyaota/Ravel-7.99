@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- **反射插件**:让 Ravel 能拿到任意 .NET 类型/对象。
        和 Structures / Extensions 一样是个插件 dll —— 主项目不引用它,运行时
@@ -16,6 +16,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ravel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 并行构建的临时中间目录，一律不编译 -->
+    <Compile Remove="obj*/**" />
   </ItemGroup>
 
 </Project>

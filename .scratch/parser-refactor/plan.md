@@ -35,9 +35,9 @@
 
 1. **语义不变**：169 条 golden 用例全绿。若某条用例锁的是实现细节（例如链式比较那次
    `310_precedence.rav` 里 `1 < 2 == true` 的旧期望），先拿出来讨论，不静默改。
-2. **注释是资产**：每处"为什么必须这么写"（`**` 的后门、`allowCall:false` 的两层含义、
-   `ScanBraceBody` 为什么要两路扫）在搬动时**跟着代码走**。禁止"整理时顺手删注释"。
-   上一轮删 `///` 5986 行是因为它们只是复述签名，不是理由；理由型注释一条都不许少。
+2. **注释不超过二十字**（用户 2026-11-12 裁定，取代原"注释是资产"那条）：
+   任何注释不得超过 20 字，`///` 一律不要。理由型注释也在内——写不下就用短句点名要害，
+   写不下又不重要的直接删。实施时按此条清了一遍，删 209 行注释。
 3. **不加层数、不加依赖**：最多引入"一张表 + 一个记录"，不引入 visitor / parser generator / DI。
 4. **一步一提交**：P0、P1 各自独立可回滚；每步结束跑 `bash build.sh` 与 `bash build.sh --warn`。
 
@@ -138,11 +138,46 @@ public readonly record struct PostfixPolicy(bool Juxtaposition, bool Pipe, bool 
 ## 八、不做的事
 
 - 不换解析算法（Pratt 爬升保留），不引入 parser generator。
-- 不合并 `Parser.cs` / `Atoms` / `Expressions` / `Statements` / `Holes` 的文件划分。
+- ~~不合并 `Parser.cs` / `Atoms` / `Expressions` / `Statements` / `Holes` 的文件划分。~~
+  用户 2026-11-12 改口："允许大幅度重构，清晰是第一目标"——可以切文件、改划分，
+  仍然不换算法、不引框架。
 - 不为了"每节点一个方法"而拆到 60 个 `ParseXxx`。
 - 不动 `Lexer`（行首 `.` 那条留在原地，P3 只是登记它）与 `Lowering`（除 P0 里 printer 查表）。
-- 不做 P2 之外的"顺便重构"：这个方案里没写的一律不动。
+- 不做方案外的"顺便重构"：没写的先不动，除非切文件本身要求。
 
 ## 九、实施记录
 
-（实施后补：实际落地与设计稿的出入，**以代码为准**）
+（以代码为准，下面是落地与设计稿的出入）
+
+**P0 运算符表**（`f2b6e96`）。落地形状与设计稿基本一致，两处出入：
+
+- `OpInfo` 实际字段是 `(string Symbol, TokenType? Token, int Lbp, int Rbp, int PrintPrec, bool RightAssoc)`；
+  `Operators` 提供 `TryToken` / `TryWord` / `PrintPrec` / `IsInfixToken` / `IsPowerLike` / `UnaryPrec = 17`。
+  加表用 `Add(symbol, lbp, token, right)`：左结合 `rbp = lbp + 1`，右结合 `rbp = lbp - 1`。
+- `**` 进表（`right: true`，`lbp 18`），"比一元紧"由 `IsPowerLike` 在 `ParsePower` 那一层表达，
+  后门变成通用规则；实测 `-2 ** 2`=-4、`2 ** 3 ** 2`=512、`2 ** -1`=0.5。
+- 顺带修了两处**已有的**不一致（不属于本次范围，但都是表统一后暴露的）：printer 里 `and` 的档位
+  6 → 8（与 parser 真值对齐，原来 `a and b ^ c` 往返打印不一致）；`Cli/AstDump.cs` 的结构自验
+  忽略 `Parenthesized`（纯记号，不是语义）。
+
+**P1 后缀收法**（`97a172a`）。落地时把设计稿的四位记录收成三位，并把 `stopAtPipe` 整个删掉：
+
+- 实际类型 `internal readonly record struct Postfix(bool Args, bool Pipe, bool Block)`，
+  静态值 `Full` / `Bare` / `PipeOnly`，变换 `NoPipe` / `WithBlocks`（`Syntax/Postfix.cs`）。
+- `Member` 那一位最后**没要**：唯一想要它的场合是 `ParseParen` 里的括号组，而那儿本来就走
+  `Postfix.Bare`，加一位没有第二个使用者。
+- `guarded`（"已经在一层 `?.` 守卫里"）**没有**并进记录，仍作 `ParseMemberChain` /
+  `ParsePostfixRest` 的第二个参数：它描述的是"正在解析哪一层"，不是"许不许"。
+- `stopAtPipe` 用 `NoPipe` 取代，且语义更直：命中 `|>` 之前先看 `policy.Pipe`，
+  不吃就 `break`，不再有"先 `Match` 再 `_pos--` 还回去"那一步。
+- 调用点全部变成 `ParsePostfixRest(e, Postfix.Bare)` 这种形状，`ParsePostfixRest` 只剩两个参数。
+
+**注释清场**（同批次提交）。按新的二十字规矩清了一遍：`Syntax/Parser.Expressions.cs` 删 126 行、
+`Cli/AstDump.cs` 49、`Parser.Holes.cs` 18、`Parser.cs` 11、`OperatorTable.cs` 3、`Postfix.cs` 2。
+
+**已知问题（未修，登记在此）**：`ravel ast -s` 的结构自验在含链式比较的文件上退出码 1
+（`tests/lang/310_precedence.rav`、`367_chain_compare.rav`、`lib/sorting.rav`）。根因是
+`Parser.Parse()` 末尾已经调过 `Lowering.Apply`（`Syntax/Parser.cs`），自验把**脱糖后的树**
+打印出来再走一遍 `ParseSource`，等于对同一棵树降幂两次；链式比较折出来的 `__cm` lambda
+二次降幂后结构对不上。只影响这个显示功能，不影响求值与用例。修法二选一：自验比较
+"降幂后的两棵树"，或让 `Lowering` 幂等。

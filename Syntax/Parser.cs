@@ -45,6 +45,10 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     public static Program ParseSource(string source, string? fileName, bool moreControlFlow)
         => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).Parse();
 
+    // 不脱糖的入口：给打印往返自验用
+    public static Program ParseSourceUnlowered(string source, string? fileName, bool moreControlFlow)
+        => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).ParseTree();
+
     public static bool DeclaresMoreControlFlow(string source) => Declares(source, "--more-control-flow");
 
     private void TakeDirective()
@@ -85,7 +89,9 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         return Lowering.Apply(new Parser(toks, file).ParseExpression(), file);
     }
 
-    public Program Parse()
+    public Program Parse() => Lowering.Apply(ParseTree());
+
+    public Program ParseTree()
     {
         var statements = new List<Statement>();
 
@@ -96,7 +102,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
             statements.Add(ParseStatement());
         }
 
-        return Lowering.Apply(new Program(statements) { Source = source });
+        return new Program(statements) { Source = source };
     }
 
     //  辅助

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- **官方扩展**:引擎里那批"其实是某个库的本机半边"的原语(`Hash` / `Crypto` / `Net` /
        `Regex` / `Sqlite` / `Random`)搬出来编成一个 dll,由 `lib/native.rav` 在运行时
@@ -39,6 +39,11 @@
          主项目自己在用它做 REPL,`out/` 里本来就有一份,运行时按名字就解析得到;
          拷第二份只会多一个几乎一样的程序集。要是哪天主项目不用它了,记得补上。 -->
     <PackageReference Include="Spectre.Console" Version="0.57.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 并行构建的临时中间目录，一律不编译 -->
+    <Compile Remove="obj*/**" />
   </ItemGroup>
 
 </Project>
