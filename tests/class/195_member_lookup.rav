@@ -375,5 +375,5 @@ ravel ""
 # true
 # false
 # false
-# 1: 运算符 '==' 不支持 Integer 操作数
-# 2: 运算符 '==' 不支持 Void 操作数
+# false
+# false

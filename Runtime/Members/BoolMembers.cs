@@ -11,11 +11,11 @@ internal static class BoolMembers
 
     [ClassOp("==")]
     private static RuntimeValue Equal(RuntimeValue a, RuntimeValue b)
-        => new BoolVal(((BoolVal)a).Value == BuiltinClasses.Operand<BoolVal>(b, "==").Value);
+        => new BoolVal(b is BoolVal o && ((BoolVal)a).Value == o.Value);
 
     [ClassOp("!=")]
     private static RuntimeValue NotEqual(RuntimeValue a, RuntimeValue b)
-        => new BoolVal(((BoolVal)a).Value != BuiltinClasses.Operand<BoolVal>(b, "!=").Value);
+        => new BoolVal(b is not BoolVal o || ((BoolVal)a).Value != o.Value);
 
     [ClassOp("&")]
     private static RuntimeValue And(RuntimeValue a, RuntimeValue b)

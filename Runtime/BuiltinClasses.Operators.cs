@@ -114,8 +114,14 @@ internal static partial class BuiltinClasses
         }
     }
 
+    internal static bool IsNumeric(RuntimeValue v)
+        => v is IntVal or RealVal or BigIntVal or FractionVal or BigFractionVal;
+
     internal static int? CompareNumeric(RuntimeValue a, RuntimeValue b, string op)
     {
+        // `==` / `!=` 收任何右操作数:不是同一族(数值算一族)就是"不相等",不报类型错。
+        if (op is "==" or "!=" && (!IsNumeric(a) || !IsNumeric(b))) return 1;
+
         if (a is IntVal or BigIntVal or FractionVal or BigFractionVal
             && b is IntVal or BigIntVal or FractionVal or BigFractionVal)
         {
@@ -146,7 +152,8 @@ internal static partial class BuiltinClasses
     {
         (ObjectVal oa, ObjectVal ob) => ReferenceEquals(oa, ob),
         (not ObjectVal, not ObjectVal) => a.Equals(b),
-        _ => throw new RuntimeException($"运算符 '{op}' 不支持 {b.Type} 操作数", ErrorKind.Type),
+        // 一边是对象、一边是值:类型就不一样了,不用再挑操作数
+        _ => false,
     };
 
     internal static (ObjectVal Left, ObjectVal Right) AsTypes(RuntimeValue a, RuntimeValue b, string op)

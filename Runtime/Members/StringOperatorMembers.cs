@@ -8,11 +8,11 @@ internal static class StringOperatorMembers
 
     [ClassOp("==")]
     private static RuntimeValue Equal(RuntimeValue a, RuntimeValue b)
-        => new BoolVal(((StringVal)a).Value == BuiltinClasses.Operand<StringVal>(b, "==").Value);
+        => new BoolVal(b is StringVal o && ((StringVal)a).Value == o.Value);
 
     [ClassOp("!=")]
     private static RuntimeValue NotEqual(RuntimeValue a, RuntimeValue b)
-        => new BoolVal(((StringVal)a).Value != BuiltinClasses.Operand<StringVal>(b, "!=").Value);
+        => new BoolVal(b is not StringVal o || ((StringVal)a).Value != o.Value);
 
     [ClassOp("+")]
     private static RuntimeValue Concat(RuntimeValue a, RuntimeValue b)

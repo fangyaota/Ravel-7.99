@@ -8,11 +8,11 @@ internal static class CharOperatorMembers
 
     [ClassOp("==")]
     private static RuntimeValue Equal(RuntimeValue a, RuntimeValue b)
-        => new BoolVal(((CharVal)a).Value == BuiltinClasses.Operand<CharVal>(b, "==").Value);
+        => new BoolVal(b is CharVal o && ((CharVal)a).Value == o.Value);
 
     [ClassOp("!=")]
     private static RuntimeValue NotEqual(RuntimeValue a, RuntimeValue b)
-        => new BoolVal(((CharVal)a).Value != BuiltinClasses.Operand<CharVal>(b, "!=").Value);
+        => new BoolVal(b is not CharVal o || ((CharVal)a).Value != o.Value);
 
     [ClassOp("<")]
     private static RuntimeValue Less(RuntimeValue a, RuntimeValue b)
