@@ -6,36 +6,37 @@
 #     Cache: Option = None
 #     Cache ??= 算一次 ()
 #
-# 语义在库里(`lib/predefined.rav` 的 IsNothing / NilChain / NilOr / NilFill),
+# 语义在库里(`lib/predefined.rav` 的 IsNothing / NilChain / NilOr),
 # 引擎只管把这三条脱糖成对它们的调用(词法/语法见 Lexer、Parser.Expressions)。
 #
-#     a ?? b    空就给 b(**惰性**:要用才求值);`Some x` 交 `x`,别的值原样
+#     a ?? b    不空**原样交回**,空了才给 b(**惰性**:要用才求值);左边不是 monad 就报错
 #     a?.b c    空**原样**短路;`Some x` 拿着 `x` 走完整条链(含调用)再包回去
 #     x ??= v   空才写;不空一个字符都不碰(连 setter 都不调)
 
 # ── `??`:空才给后备 ──
 print ((None ?? 0))
-print ((Some 7) ?? 0)          # Some 交的是**值**(不是 Option 本身)
+print ((Some 7) ?? 0)          # 不空,原样交回(还是 Option)
 后备值 := "有值"
-print (5 ?? 后备值)
+# 不是 monad 的左边直接报错(不会悄悄当成"取成员")
+try { eval "print (5 ?? 1)"; } (e: Exception) => { print ("4: " + string e); }
 print ("串" ?? 后备值)
 nothing := ()
-print (nothing ?? "后备")       # `()` **不是空** —— 照原样交出去
+try { eval "print (nothing ?? 1)"; } (e: Exception) => { print ("5: " + string e); }
 
 # `Some ()` 也不是空(值是 `()` 而已)
-print ((Some () ?? "后备"))
+print (((Some ()) ?? "后备"))
 
 # ── `?.`:只有 None 短路 ──
 print ((None?.Count ()) ?? "空")
 print ((Some "abc")?.Length ())           # Some 里的值走完链,**再包回去**
-print (((Some "abc")?.Length ()) ?? -1)   # 收口时解包
+print (((Some "abc")?.Length ()) ?? -1)   # 不空,原样交回(还是 Option)
 print ((None?.Length ()) ?? -1)
 
 # 不是 monad 的左边直接报错(不会悄悄当成"取成员")
 try { eval "print ((5)?.ToString ())"; } (e: Exception) => { print ("0: " + string e); }
 
 # 是 monad(IMonad)就按 Map 走 —— list / dict / string 都算
-print (["ab" "c"]?.Length () ?? -1)
+print ((["ab" "c"]?.Length ()) ?? -1)
 
 # `()` 上取成员**照旧报错** —— 不被悄悄吞掉
 try { nothing?.Text (); } (e: Exception) => { print ("1: " + string e); }
@@ -53,11 +54,8 @@ h := Holder ()
 print (h.Name ??= "第一次")
 print (h.Name ??= "第二次（不该盖）")
 print h.Name
-print (h.Hits ??= 7)          # 0 是**值**不是空 —— 不写
-print h.Hits
-h.Hits = 5
-print (h.Hits ??= 100)
-print h.Hits
+# 不是 monad 的槽位不能 `??=`(`0` 是值,不是"空")
+try { eval "print (h.Hits ??= 7)"; } (e: Exception) => { print ("6: " + string e); }
 
 # 不空就**一个字符都不碰**:setter 里记账,看得见
 Counted ::= class {
@@ -80,7 +78,7 @@ print Times
 # ── 和 `_` 占位符处得来:糖生成的那几枚闭包**不是**闭包边界 ──
 # (它们只是把表达式挪个地方,里面的 `_` 还是外层语句的洞 —— 见 Parser.Holes 的 Children)
 pick := (_ ?? "兜底")
-print (pick ())
+print (pick (None))
 print (pick (Some "有"))
 has := (_?.Count ())
 print ((has [["a"] ["bc"]]) ?? -1)   # list 也是 monad:`?.` 就是逐元素 Map
@@ -102,14 +100,14 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 
 # --- expected ---
 # 0
-# 7
-# 5
+# Option { Has = true, Inner = 7 }
+# 4: '??' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Integer
 # 串
-# ()
+# 5: '??' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Void
 # Option { Has = true, Inner = () }
 # 空
 # Option { Has = true, Inner = 3 }
-# 3
+# Option { Has = true, Inner = 3 }
 # -1
 # 0: '?.' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Integer
 # [2 1]
@@ -118,25 +116,22 @@ try { eval "1 ? 2"; } (e: Exception) => { print ("3: " + string e); }
 # 第一次
 # 第一次
 # 第一次
-# 0
-# 0
-# 5
-# 5
+# 6: '??' 的左边得是个 monad（`IMonad`：Option / list / dict / set / string …）—— 得到 Integer
 # 写上
 # 1
 # 写上
-# 1
+# 2
 # 写上
 # 1
-# ()
-# 有
-# 1
+# 兜底
+# Option { Has = true, Inner = 有 }
+# [1 1]
 # Option { Has = false, Inner = () }
 # Option { Has = true, Inner = hi }
 # Option { Has = false, Inner = () }
 # Option { Has = true, Inner = 2 }
 # Option { Has = false, Inner = () }
-# 3
+# Option { Has = true, Inner = 3 }
 # 0
 # 2: '??=' 的左边得是变量或成员（就像 '=' 那样）
 # 3: '?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）

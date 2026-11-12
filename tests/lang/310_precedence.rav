@@ -63,7 +63,7 @@ print (f (1) + 2)          # 还是 f (1+2) → 30
 n := None
 print (n ?? 7)             # 7
 print (n ?? None ?? 9)     # 右结合 → 9
-print (1 ?? 2 + 3)         # 1 ?? (2+3) → 1
+print (None ?? 2 + 3)      # None ?? (2+3) → 5
 
 # ── 管道 `|>`:`|>` 那一段比整条链都松 ──
 print (1 + 2 |> f)         # f (1+2) → 30(不是 (f 1)+2 = 12)
@@ -71,6 +71,7 @@ print (5 |> f |> a)        # 左喂右 → a (f 5) = 51
 
 # ── 一元 `!` 比 `&&` 紧 ──
 print (!false && false)    # (!false) && false → false
+
 # --- expected ---
 # -5
 # 2
@@ -105,7 +106,7 @@ print (!false && false)    # (!false) && false → false
 # 30
 # 7
 # 9
-# 1
+# 5
 # 21
 # 51
 # false

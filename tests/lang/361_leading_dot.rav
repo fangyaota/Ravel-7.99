@@ -40,5 +40,5 @@ print ((None
 # 3
 # 15
 # 60
-# 3
+# Option { Has = true, Inner = 3 }
 # -1

@@ -127,9 +127,8 @@ public sealed class Lowering
         // 折成 `NilOr (() => { a; }) (() => { b; })`(见 `lib/predefined.rav`)。
         BinaryExpr { Op: "??" } b => Coalesce(b),
 
-        // `x ??= v` / `a.b ??= v` —— **空才写**:不空连 setter 都不调。
-        // 折成 `NilFill (() => { x; }) ((w) => { x = w; }) (() => { v; })`:读一点、
-        // 写一点、后备一块,三样分开交给库,「空不空」由它判。
+        // `x ??= v` / `a.b ??= v` 就是 `x = (x ?? v)`:读同一个点、写同一个点,
+        // 不空时写回的就是原值(等于没动),空了才写 v —— 没有单独的原语。
         BinaryExpr { Op: "??=" } b => CoalesceAssign(b),
 
         // ── `do { … }` ──
@@ -230,30 +229,22 @@ public sealed class Lowering
     {
         var fallback = Thunk(Lower(b.Right), b);
 
-        Expression FillWith(Expression target)
-            => Call(Call(Call(Ident("NilFill", b), Thunk(target, b)), Setter(target)), fallback);
-
-        // 写回去那一条:`((w) => { target = w; })`。赋值表达式本身交出写进去的那个值,
-        // 所以库里 `NilFill` 交回来的也就是它。
-        Expression Setter(Expression target)
-        {
-            var w = Fresh("_nil");
-            var wid = Ident(w, b);
-            var assign = new BinaryExpr(target, "=", wid) { Line = b.Line, Column = b.Column };
-            return new LambdaExpr(new Parameter(w, Ident("object", b)), AsBlock(assign, b))
-                { Line = b.Line, Column = b.Column, Sugar = true };
-        }
+        // 读同一个点、写同一个点:`x = (x ?? v)`。
+        Expression Through(Expression target)
+            => new BinaryExpr(target, "=",
+                   Call(Call(Ident("NilOr", b), Thunk(target, b)), fallback))
+               { Line = b.Line, Column = b.Column };
 
         switch (Lower(b.Left))
         {
             case IdentifierExpr id:
-                return FillWith(id);
+                return Through(id);
 
             case MemberAccess ma:
             {
                 var recv = Fresh("_nil");
                 var target = new MemberAccess(Ident(recv, b), ma.Member) { Line = b.Line, Column = b.Column };
-                var lam = new LambdaExpr(new Parameter(recv, Ident("object", b)), AsBlock(FillWith(target), b))
+                var lam = new LambdaExpr(new Parameter(recv, Ident("object", b)), AsBlock(Through(target), b))
                     { Line = b.Line, Column = b.Column, Sugar = true };
                 return Call(lam, Lower(ma.Object));
             }
