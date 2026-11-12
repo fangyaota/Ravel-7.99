@@ -214,6 +214,7 @@ internal static partial class BuiltinClasses
         // `Object` 接的是**运算符那份** —— 它的父就是 `ObjectMembers`,所以一条
         // 通用成员只写一遍,`:` / `==` / `<:` 也一并跟着来。
         Object.Members = ObjectOperatorMembers.Set;
+        Void.Members = VoidOperatorMembers.Set;
         Ravel.Members = ModuleMembers.Set;
         Int.Members = IntegerMembers.Set;
 
