@@ -43,6 +43,11 @@ readonly IEnumerable ::= interface IMonad {
         }
     }
 
+    internal ValueOr := (d: object) => {
+        x := instance.TryFirst ()
+        x.IsSome () { x.Value (); } { d; }
+    }
+
     internal Take := (n: int) => {
         Generator (y: function) => {
             e := instance.GetEnumerator ()
