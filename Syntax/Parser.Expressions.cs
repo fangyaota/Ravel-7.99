@@ -339,6 +339,29 @@ public partial class Parser
                     continue;
                 }
 
+                // `a |> + b` ≡ `a + b`：`|>` 后面直接跟一个运算符，就是"拿左边这块
+                // 当它的左操作数"。写谓词尤其顺：`xs.Where (_ |> > 3)`、`(x |> == 1)`；
+                // 带点的 `+.b` 那种**节**照旧（左操作数留空，交出去是个函数）。
+                // `a |> + 1` **就是** `a |> +.1`：后面跟了运算符，先把它当**节**
+                // 读出来（左操作数留空、脱糖成 lambda —— 和 `+.1` 一模一样那个节点），
+                // 再把左边喂进去。于是 `|>` 的语义一个字没变：永远是"把左边喂给右边那个值"。
+                if (IsOperatorToken(Peek().Type)
+                    && Peek().Type is not (TokenType.Colon or TokenType.PipeInto))
+                {
+                    var sym = Peek();
+                    _pos++;
+                    BumpExprDepth();
+                    _holeCount++;
+                    var hole = new HoleExpr(_holeCount - 1) { Line = sym.Line, Column = sym.Column };
+                    // `**` 归 ParsePower 管（右结合、比别的都紧），别的走 ParseCall 那档。
+                    var operand = sym.Type == TokenType.StarStar
+                        ? ParsePower(allowCall: false)
+                        : ParseCall(allowCall: false);
+                    var body = new BinaryExpr(hole, sym.Lexeme, operand) { Line = sym.Line, Column = sym.Column };
+                    expr = new CallExpr(DesugarHoles(body), expr) { Line = expr.Line, Column = expr.Column };
+                    continue;
+                }
+
                 // 后面总得跟点什么。`1 |>` 那种尾巴上多出来的 `|>` 不该被静默吃掉。
                 // **运算符节也算**(`5 |> +.2` ≡ `(+.2) 5`)—— 那个开头是个 `+`,
                 // `StartsPrimary` 不认它,所以得单独放行。

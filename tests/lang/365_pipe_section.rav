@@ -1,0 +1,23 @@
+print (5 |> + 1)
+print (5 |> * 2)
+print (5 |> > 3)
+print (5 |> + 1 * 2)
+print (5 |> + (1 * 2))
+print (2 |> ** 10)
+print ([1 2 3].Map (_ |> + 10))
+print ([1 2 3 4].Where (_ |> > 2))
+f := (x |> > 3) => { "big"; } | (x) => { "small"; }
+print (f 5)
+print (f 1)
+
+# --- expected ---
+# 6
+# 10
+# true
+# 12
+# 7
+# 1024
+# [11 12 13]
+# [3 4]
+# big
+# small
