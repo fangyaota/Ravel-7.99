@@ -114,23 +114,31 @@ public readonly record struct PostfixPolicy(bool Juxtaposition, bool Pipe, bool 
 
 收益是"读代码的心理负担"，不是正确性，所以排最后。
 
+**落地出入**（详见第九节）：`ParseParen` 切成四段而不是三段（多了 `TryParseRange`，区间试读会造
+`RangeExpr`，不算纯粹前瞻）；`ParseStatement` 没有变成"Lookahead 判定 → 跳 `ParseXxx`"，而是
+"逐个 `TryParseXxx is { } x` 认领 → 否则 `ParseExpressionStatement`"，因为多数形状本来就是
+边走边认，硬造判定等于把同一套 token 检查写两遍。前瞻函数确实单独立了
+`Syntax/Parser.Lookahead.cs`，但只收入那些**不造节点**的判定。
+
 ## 六、P3：把"糖放哪"写成规矩
 
-仓库加一份短文档（`docs/parser.md` 或 `CONTRIBUTING` 一节）：
+**已落地**：`docs/adr/0003-where-sugar-lives.md`（Accepted，2026-11-12），核心判据一句：
 
 > 改变树形或结合方式 → parser；只换节点种类 → lowering；只影响分词 → lexer。
 
-附三个正例：链式比较（改结合，parser）、`?.`/`??`（换节点，lowering）、行首 `.`（改 token 流，lexer）；
-再附一条反例：`~x` 现在在 parser 里造块，属于"改树形"，可以留，但要在文档里点名它是例外还是规律。
+附了一张"糖现在住在哪"的表（`~x` 在 Atoms、参数守卫在 `Lowering.PrependGuard`、行首 `.` 在
+Lexer、`?.`/`??`/`??=` 在 Lowering、链式比较在 Expressions、下标糖一半 parser 一半 lowering），
+一条"拿不准就问：这个糖需要知道上下文才能决定吗"的辅助判据，以及四个例外/模糊地带
+（`~x`、参数守卫、下标两半、`f a b` 柯里化）。
 
 ## 七、顺序与验收
 
-| 步 | 内容 | 验收 | 预计 |
+| 步 | 内容 | 验收 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 运算符表 | 169/0、`--warn` 无新警告、ast diff 相同 | 半天 |
-| P1 | `PostfixPolicy` | 同上 | 半天 |
-| P2 | 拆两个巨函数 | 同上 + ast diff 相同 | 一天，可缓 |
-| P3 | 写文档 | — | 顺手 |
+| P0 | 运算符表 | 169/0、`--warn` 无新警告、ast diff 相同 | 已提交 `f2b6e96` |
+| P1 | `PostfixPolicy` | 同上 | 已提交 `97a172a` |
+| P2 | 拆两个巨函数 | 同上 + ast diff 相同 | 已提交 `39e3f8e`、`45767fb` |
+| P3 | 写文档 | — | 已落 `docs/adr/0003-where-sugar-lives.md` |
 
 每步结束：`bash build.sh`（169/0）→ `bash build.sh --warn` → 抽 10 个 `.rav` 做 `ast -s` 差分 →
 提交（提交信息里写清"行为不变，纯结构"）。
@@ -175,9 +183,35 @@ public readonly record struct PostfixPolicy(bool Juxtaposition, bool Pipe, bool 
 **注释清场**（同批次提交）。按新的二十字规矩清了一遍：`Syntax/Parser.Expressions.cs` 删 126 行、
 `Cli/AstDump.cs` 49、`Parser.Holes.cs` 18、`Parser.cs` 11、`OperatorTable.cs` 3、`Postfix.cs` 2。
 
-**已知问题（未修，登记在此）**：`ravel ast -s` 的结构自验在含链式比较的文件上退出码 1
-（`tests/lang/310_precedence.rav`、`367_chain_compare.rav`、`lib/sorting.rav`）。根因是
-`Parser.Parse()` 末尾已经调过 `Lowering.Apply`（`Syntax/Parser.cs`），自验把**脱糖后的树**
-打印出来再走一遍 `ParseSource`，等于对同一棵树降幂两次；链式比较折出来的 `__cm` lambda
-二次降幂后结构对不上。只影响这个显示功能，不影响求值与用例。修法二选一：自验比较
-"降幂后的两棵树"，或让 `Lowering` 幂等。
+**P2 巨函数拆分**（`39e3f8e` / `45767fb`）。两片互不重叠的文件并行做，各一片一提交：
+
+- `Syntax/Parser.Statements.cs`（968 → 964 行）：`ParseStatement` 只剩八步 dispatch
+  （`TryParseDirectiveStatement` / `TryParseBindStatement` / `TryParseOperatorDefinitionStatement` /
+  `RejectRetiredStatementStart` / `TryParseModifiedStatement` / `TryParseControlFlowStatement` /
+  `TryParseDefinitionOrAssign` / `ParseExpressionStatement`），全文 56 个函数，最长
+  `EndsThisPart` 44 行。模式拆成 `ParseListPattern`/`ParseBracePattern`/`ParseRestPattern`/
+  `ParseGroupPattern`/`ParseNamePattern`/`ParsePlacePattern`/`ParseGuardedNamePattern`/
+  `ParseDictEntry`/`ParseMemberEntry`；定义拆成 `ParseDefinedName`/`ParseDefinitionSign`/
+  `RequireAfterTypeAnnotation`/`ParseDefinitionValue`，`property ()` 那种空体收进 `EmptyProperty`。
+- `Syntax/Parser.Atoms.cs`（881 → 618 行）：`ParseParen` 只剩读 token 加四处分派
+  （`ParseUnitParen` / `ParseLambdaParen` / `ParseGroupedParen` / `TryParseRange`），内部再拆
+  `ParseParamList`/`ParseParamItem`/`ParsePatternParam`/`ParseTypedParam`/`ParseUntypedParam`/
+  `DeclareParam`/`ParseGuardParam`/`BuildLambda`。
+- 新建 `Syntax/Parser.Lookahead.cs`（204 行）：`StartsParamGroup`/`StartsParam`/`StartsBindingAt`/
+  `CollectModifiers`/`LooksLikeLambdaParams`/`IsLambdaAfterParen`/`SkipTypeAnnotation`/
+  `ScanBraceBody`/`BarePatternLambdaAhead`/`FirstIdentName`/`AnyNewlineBeforeClose`/`HasDotDotAhead`。
+  它仍借留在原处的 `TypeAt`/`NextType`/`SkipBalanced`/`IsLiteralStart`，**不是**自洽一块；
+  `TryParseRange` 因为会造 `RangeExpr` 留在 Atoms，只把前置判定 `HasDotDotAhead()` 前移。
+- 命名坑：`CollectStatementModifiers` 不能叫 `CollectModifiers`——`Parser.Atoms.cs:189` 已有同名
+  不同义的那个（返回 `List<string>?`）。
+
+**`ast -s` 自验修复**（`f042b42` / `8dbb70f`）。两个真打印缺陷：同档比较式当操作数不套括号
+（`(1 < 2) == true` 印成 `1 < 2 == true`，重读变成链式比较，意思就变了），已按
+`Operators.IsCompare` 在 `Runtime/AstPrinter.cs` 的 `Binary` 收紧，`Chain` 的操作数门槛取
+`PrintPrec("<") + 1`；比较档真源同时收进 `Syntax/OperatorTable.cs` 的 `IsCompare`，
+parser 的 `IsCompareOp` 改成一行委派。自验本身改成比**未脱糖**的两棵树：`Parser.Parse()`
+仍是 `Lowering.Apply(ParseTree())`，新增 `ParseTree()` 与 `ParseSourceUnlowered(...)`，
+`Cli/AstDump.cs` 用它打印并回转。两个打印固有损失另行处理：含内置占位符（`LiteralExpr`
+印成 `<builtin>`）的文件跳过自验并计数；`CallExpr(MemberAccess 运算符, 实参)` 在
+`Canonical` 里按二元式渲染，因为 printer 故意把 `a.+ b` 印成 `a + b`。现状：
+`tests/lang/310_precedence.rav`、`tests/lang/367_chain_compare.rav`、`lib/sorting.rav` 三份都 exit 0。
