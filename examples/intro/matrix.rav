@@ -1,0 +1,16 @@
+Transpose := (m: list) => {
+    cols := (m.At 0).Count ()
+    out := []
+    i := 0
+    while { i < cols; } {
+        out.Add (m.Map ((row: list) => { row.At i; }))
+        i += 1
+    }
+    out
+}
+
+ShowMatrix := (m: list) => {
+    rows := m.Map ((row: list) => { row.Join " "; })
+    rows.Join "
+"
+}

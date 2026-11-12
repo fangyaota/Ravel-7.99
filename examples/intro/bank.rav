@@ -1,0 +1,16 @@
+Account ::= class {
+    Owner: string = ""
+    Cents: int = 0
+
+    by Balance := property (() => { Cents; }) ((v: int) => { Cents = v; })
+
+    Deposit := (v: int) => {
+        (v > 0) { Cents += v; true; } { false; }
+    }
+
+    Withdraw := (v: int) => {
+        (((v > 0) && (v <= Cents))) { Cents -= v; true; } { false; }
+    }
+
+    Show := () => { Owner + " 余额 " + (string (Cents / 100)) + "." + (string (Cents % 100)) + " 元"; }
+}

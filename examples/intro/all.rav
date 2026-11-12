@@ -1,0 +1,8 @@
+using "examples/intro/fizzbuzz.rav"
+using "examples/intro/primes.rav"
+using "examples/intro/hanoi.rav"
+using "examples/intro/caesar.rav"
+using "examples/intro/sorting.rav"
+using "examples/intro/wordcount.rav"
+using "examples/intro/matrix.rav"
+using "examples/intro/bank.rav"

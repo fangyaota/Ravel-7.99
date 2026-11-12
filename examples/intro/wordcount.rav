@@ -1,0 +1,15 @@
+WordCount := (text: string) => {
+    counts := {->}
+    text.Split " " |> (ws) => {
+        ws.Foreach ((w: string) => {
+            (w == "") { 0; } { counts.Set w ((counts.GetOr w 0) + 1); }
+        })
+    }
+    rows := counts.Keys () |> (ks) => {
+        ks.Map ((k: string) => { [k (counts.GetOr k 0)]; })
+    }
+    ranked := rows.SortBy ((p) => { 0 - (p.At 1); })
+    top := ranked.Take 5
+    lines := top.Map ((p) => { (p.At 0) + "=" + (string (p.At 1)); })
+    lines.Join ", "
+}

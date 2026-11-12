@@ -1,0 +1,12 @@
+Hanoi := (n: int) => {
+    moves := []
+    Move := (k: int from: string to: string via: string) => {
+        (k == 0) { 0; } {
+            Move (k - 1) from via to
+            moves.Add (from + "->" + to)
+            Move (k - 1) via to from
+        }
+    }
+    Move n "A" "C" "B"
+    moves.Join " "
+}

@@ -1,0 +1,14 @@
+Primes := (n: int) => {
+    IsPrime := (k: int) => {
+        (k < 2) { false; } {
+            d := 2
+            ok := true
+            while { (((d * d) <= k) && ok); } {
+                ((k % d) == 0) { ok = false; } { d += 1; }
+            }
+            ok
+        }
+    }
+    out := [2..n].Where ((k: int) => { IsPrime k; })
+    out.Join " "
+}
