@@ -8,5 +8,14 @@ Hanoi := (n: int) => {
         }
     }
     Move n "A" "C" "B"
-    moves.Join " "
+    print (moves.Join " ")
+    print ("共 " + (string (moves.Count ())) + " 步")
 }
+
+(
+    () => {
+        System.Write "几层?(3) "
+        line := input ""
+        Hanoi ((line == "") { 3; } { int line; })
+    }
+) ()

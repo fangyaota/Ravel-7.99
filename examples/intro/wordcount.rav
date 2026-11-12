@@ -13,3 +13,11 @@ WordCount := (text: string) => {
     lines := top.Map ((p) => { p[0] + "=" + (string p[1]); })
     lines.Join ", "
 }
+
+(
+    () => {
+        System.Write "一段话?(the quick brown fox the lazy dog) "
+        line := input ""
+        print (WordCount ((line == "") { "the quick brown fox the lazy dog"; } { line; }))
+    }
+) ()

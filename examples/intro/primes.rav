@@ -10,5 +10,13 @@ Primes := (n: int) => {
         }
     }
     out := [2..n].Where ((k: int) => { IsPrime k; })
-    out.Join " "
+    print (out.Join " ")
 }
+
+(
+    () => {
+        System.Write "上限?(50) "
+        line := input ""
+        Primes ((line == "") { 50; } { int line; })
+    }
+) ()

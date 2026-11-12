@@ -6,5 +6,13 @@ FizzBuzz := (n: int) => {
             }
         }
     })
-    out.Join " "
+    print (out.Join " ")
 }
+
+(
+    () => {
+        System.Write "数到几?(15) "
+        line := input ""
+        FizzBuzz ((line == "") { 15; } { int line; })
+    }
+) ()

@@ -12,3 +12,15 @@ Caesar := (text: string shift: int) => {
     letters := text.Chars ()
     letters.Map (Rot) |> (cs) => { cs.Join ""; }
 }
+
+(
+    () => {
+        System.Write "文本?(hello world) "
+        line := input ""
+        text := (line == "") { "hello world"; } { line; }
+        System.Write "位移?(3) "
+        nline := input ""
+        shift := (nline == "") { 3; } { int nline; }
+        print (Caesar text shift)
+    }
+) ()

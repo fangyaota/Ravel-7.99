@@ -1,3 +1,12 @@
+ParseInts := (s: string) => {
+    (s == "") { []; } {
+        s.Split " " |> (ws) => {
+            kept := ws.Where ((w: string) => { w != ""; })
+            kept.Map ((w: string) => { int w; })
+        }
+    }
+}
+
 BubbleSort := (xs: list) => {
     a := xs.Copy ()
     n := a.Count ()
@@ -14,7 +23,7 @@ BubbleSort := (xs: list) => {
         }
         i += 1
     }
-    a.Join " "
+    a
 }
 
 BinarySearch := (xs: list target: int) => {
@@ -30,3 +39,17 @@ BinarySearch := (xs: list target: int) => {
     }
     found
 }
+
+(
+    () => {
+        System.Write "一串整数?(5 3 9 1 7) "
+        line := input ""
+        xs := ParseInts ((line == "") { "5 3 9 1 7"; } { line; })
+        sorted := BubbleSort xs
+        print ("排序后:" + (sorted.Join " "))
+        System.Write "要找哪个?(7) "
+        tline := input ""
+        target := (tline == "") { 7; } { int tline; }
+        print ((string target) + " 在下标 " + (string (BinarySearch sorted target)))
+    }
+) ()
