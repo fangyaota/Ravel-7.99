@@ -50,7 +50,15 @@ public class Lexer(string source, string? file = null)
                     _col = 1;
                 }
 
-                if (NewlineCounts())
+                // **行首是 `.` → 这个换行当 `|>` 用**(`f x y` 换行 `.a` ≡ `f x y |> .a`)。
+                // 只在词法这一层动手:下游本来就认得 `|>`,而 `|>` 对 `.成员` 的规矩正是
+                // "挂到左边那条值上" —— 于是 `xs.Map (…)` 换行 `.Sum ()` 是整条的成员,
+                // 不必再立一套"挂到某个实参"的重挂。括号里的换行本来不发 token,这里一样认。
+                if (LeadingDotAhead(out var dotLine, out var dotCol)
+                    && (tokens.Count == 0
+                        || tokens[^1].Type is not (TokenType.Newline or TokenType.PipeInto)))
+                    tokens.Add(new Token(TokenType.PipeInto, "|>", dotLine, dotCol, 2));
+                else if (NewlineCounts() && (tokens.Count == 0 || tokens[^1].Type != TokenType.PipeInto))
                     tokens.Add(new Token(TokenType.Newline, "\\n", _line - 1, 1, _line - startLine));
                 continue;
             }
@@ -210,6 +218,32 @@ public class Lexer(string source, string? file = null)
 
         tokens.Add(new Token(TokenType.EndOfFile, "", _line, _col, 0));
         return tokens;
+    }
+
+    // 这个换行之后(跳过空行、缩进、注释行)是不是一行以 `.成员` 开头。
+    // `..`(区间)和 `.5`(数字)不算;只看一个字符,不解词。
+    private bool LeadingDotAhead(out int line, out int col)
+    {
+        var i = _pos;
+        var l = _line;
+        var c = _col;
+        while (i < source.Length)
+        {
+            var ch = source[i];
+            if (ch is ' ' or '\t' or '\r') { i++; c++; continue; }
+            if (ch == '\n') { i++; l++; c = 1; continue; }
+            if (ch == '#')
+            {
+                while (i < source.Length && source[i] != '\n') { i++; c++; }
+                continue;
+            }
+            break;
+        }
+
+        line = l;
+        col = c;
+        return i < source.Length && source[i] == '.'
+            && (i + 1 >= source.Length || (source[i + 1] != '.' && !char.IsDigit(source[i + 1])));
     }
 
     // ==================== helpers ====================
