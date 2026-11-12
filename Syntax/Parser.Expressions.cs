@@ -227,6 +227,17 @@ public partial class Parser
             if (lbp <= minBp) break;
 
             _pos++;
+
+            // `1 + <| x y` 就是 `1 + (x y)`：`<|` 紧跟在一个运算符后面，说的是
+            // **这个运算符的右操作数**被它封住 —— 右边整条算式算一个值。
+            if (Check(TokenType.PipeLeft))
+            {
+                _pos++;
+                BumpExprDepth();
+                var sealedRight = ParsePipe(allowCall);
+                left = new BinaryExpr(left, t.Lexeme, sealedRight) { Line = t.Line, Column = t.Column };
+                continue;
+            }
             BumpExprDepth();                        // 链上又挂了一节,树也跟着长一层
             var op = t.Lexeme;
             var right = ParseClimb(allowCall, rbp);
@@ -342,23 +353,20 @@ public partial class Parser
                 // `a |> + b` ≡ `a + b`：`|>` 后面直接跟一个运算符，就是"拿左边这块
                 // 当它的左操作数"。写谓词尤其顺：`xs.Where (_ |> > 3)`、`(x |> == 1)`；
                 // 带点的 `+.b` 那种**节**照旧（左操作数留空，交出去是个函数）。
-                // `a |> + 1` **就是** `a |> +.1`：后面跟了运算符，先把它当**节**
-                // 读出来（左操作数留空、脱糖成 lambda —— 和 `+.1` 一模一样那个节点），
-                // 再把左边喂进去。于是 `|>` 的语义一个字没变：永远是"把左边喂给右边那个值"。
+                // `x y |> + 1` 就是 `(x y) + 1`：后面跟了运算符，左边这块**直接当它的
+                // 左操作数**（右操作数照常按优先级收，`x |> + 1 * 2` 是 `x + (1 * 2)`）。
+                // `|>` 仍只是"把左边接到右边那条表达式的左端"，不额外造节点。
                 if (IsOperatorToken(Peek().Type)
                     && Peek().Type is not (TokenType.Colon or TokenType.PipeInto))
                 {
                     var sym = Peek();
                     _pos++;
                     BumpExprDepth();
-                    _holeCount++;
-                    var hole = new HoleExpr(_holeCount - 1) { Line = sym.Line, Column = sym.Column };
-                    // `**` 归 ParsePower 管（右结合、比别的都紧），别的走 ParseCall 那档。
-                    var operand = sym.Type == TokenType.StarStar
-                        ? ParsePower(allowCall: false)
-                        : ParseCall(allowCall: false);
-                    var body = new BinaryExpr(hole, sym.Lexeme, operand) { Line = sym.Line, Column = sym.Column };
-                    expr = new CallExpr(DesugarHoles(body), expr) { Line = expr.Line, Column = expr.Column };
+                    // `**` 归 ParsePower 管（右结合、表里没有它那一格）
+                    var right = sym.Type == TokenType.StarStar
+                        ? ParsePower(allowCall)
+                        : ParseClimb(allowCall, BinOpBp.TryGetValue(sym.Type, out var pipeBp) ? pipeBp.Item2 : 0);
+                    expr = new BinaryExpr(expr, sym.Lexeme, right) { Line = sym.Line, Column = sym.Column };
                     continue;
                 }
 
