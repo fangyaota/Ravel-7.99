@@ -503,7 +503,7 @@ public partial class Parser
 
         var step = new LambdaExpr(new Parameter(name, ObjectType(q)), AsBlock(rest, q))
             { Line = q.Line, Column = q.Column, Sugar = true };
-        return Call(Call(Ident("NilChain", q), Thunk(receiver, q), q), step, q);
+        return Call(new MemberAccess(receiver, "Map") { Line = q.Line, Column = q.Column }, step, q);
     }
 
 }

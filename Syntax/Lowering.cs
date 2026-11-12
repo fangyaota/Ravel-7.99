@@ -123,8 +123,7 @@ public sealed class Lowering
         BinaryExpr { Op: "or" or "and" } b => Predicate(b),
 
         // ── 空值合并那一对 ──
-        // `a ?? b` 是**惰性**的:右边"要不要跑"由库里那个 `NilOr` 说了算 ——
-        // 折成 `NilOr (() => { a; }) (() => { b; })`(见 `lib/predefined.rav`)。
+        // `a ?? b` 就折成 `a.SelfOr (() => b)`:右边"要不要跑"由 `SelfOr` 说了算(惰性)。
         BinaryExpr { Op: "??" } b => Coalesce(b),
 
         // `x ??= v` / `a.b ??= v` 就是 `x = (x ?? v)`:读同一个点、写同一个点,
@@ -223,7 +222,7 @@ public sealed class Lowering
     }
 
     private Expression Coalesce(BinaryExpr b)
-        => Call(Call(Ident("NilOr", b), Thunk(Lower(b.Left), b)), Thunk(Lower(b.Right), b));
+        => Call(Member(Lower(b.Left), "SelfOr"), Thunk(Lower(b.Right), b));
 
     private Expression CoalesceAssign(BinaryExpr b)
     {
@@ -231,8 +230,7 @@ public sealed class Lowering
 
         // 读同一个点、写同一个点:`x = (x ?? v)`。
         Expression Through(Expression target)
-            => new BinaryExpr(target, "=",
-                   Call(Call(Ident("NilOr", b), Thunk(target, b)), fallback))
+            => new BinaryExpr(target, "=", Call(Member(target, "SelfOr"), fallback))
                { Line = b.Line, Column = b.Column };
 
         switch (Lower(b.Left))
