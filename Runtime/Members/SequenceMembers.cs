@@ -52,7 +52,9 @@ internal abstract class SequenceMembers
 
     protected static IEnumerable<RuntimeValue> Pairs(DictVal d)
     {
-        foreach (var (k, v) in d.Entries) yield return new ListVal([k, v]);
+        // 字典当序列 = 一串 `Pair`(键在前)。`Pair` 比内容,所以 `ToSet` 去重、
+        // `ToDict` 回读都对得上;它自己实现 `IList`,`At 0 / At 1` 就是键和值。
+        foreach (var (k, v) in d.Entries) yield return new PairVal(k, v);
     }
 
     // ── 个数 / 空 ──

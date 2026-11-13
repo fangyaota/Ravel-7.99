@@ -165,7 +165,6 @@ print (1 + 2)
 try { print ({1 2} + 5); } (e: Exception) => { print ("1: " + string e); }
 try { print ({1 -> "a"} + [1]); } (e: Exception) => { print ("2: " + string e); }
 ravel ""
-
 # --- expected ---
 # 15
 # 30
@@ -230,7 +229,7 @@ ravel ""
 # {1 2 3}
 # {1}
 # {1 2 3}
-# {1 2 [7 a]}
+# {1 2 7 -> a}
 # {1: a 2: B 3: c}
 # {1: a}
 # {1: a 2: b}

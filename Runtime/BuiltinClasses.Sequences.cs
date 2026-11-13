@@ -8,8 +8,8 @@ internal static partial class BuiltinClasses
     {
         ListVal l => [.. l.Elements],
         SetVal s => [.. s.Elements],
-        // dict 当序列 = 一串 `[键 值]`(与 `ToList` / `Foreach` / `ToDict` 同一个口径)
-        DictVal d => [.. d.Entries.Select(e => (RuntimeValue)new ListVal([e.Key, e.Value]))],
+        // dict 当序列 = 一串 `Pair`(键在前;与 `ToList` / `Foreach` / `ToDict` 同一个口径)
+        DictVal d => [.. d.Entries.Select(e => (RuntimeValue)new PairVal(e.Key, e.Value))],
         // 一对 = 两格(键在前)。`SeqOp` / `+` / `Union` 之类都走这儿。
         PairVal pr => [pr.Key, pr.Value],
         // **插件带来的容器**(`using "x.dll"` 那些)引擎不认识它们的类型 —— 走**按名字**那条:

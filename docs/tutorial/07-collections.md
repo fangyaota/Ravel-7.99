@@ -55,12 +55,12 @@ d.ContainsKey "a"          # true
 
 ## 7.4 序列方法（三种容器共用）
 
-这些方法只跟**元素顺序**有关，所以 list / set / dict 都有同一份（字典的元素是 `[键 值]` 两格，见下）。名字照 C# 的集合 / Linq API 起。
+这些方法只跟**元素顺序**有关，所以 list / set / dict 都有同一份（字典的元素是 `Pair`，见下）。名字照 C# 的集合 / Linq API 起。
 
 | 方法 | 说明 |
 |------|------|
 | `Count ()` `IsEmpty ()` `Any ()` | 个数 / 空不空 / 有没有 |
-| `Contains v` | 元素里有它（原子值按值比、容器按身份比）；**dict 上没有单独实现**，只有从 `IEnumerable` 默认来的那条，比的是整个 `[键 值]` |
+| `Contains v` | 元素里有它（原子值按值比、容器按身份比）；**dict 上没有单独实现**，只有从 `IEnumerable` 默认来的那条，比的是整个 `Pair` |
 | `First ()` `Last ()` | 头一个 / 末一个（空容器**报错**）|
 | `Take n` `Skip n` | 前 n 个 / 跳过前 n 个 |
 | `Distinct ()` `Reverse ()` `Concat ys` | 去重 / 倒过来 / 接上另一串 |
@@ -96,25 +96,24 @@ d.ContainsKey "a"          # true
 ```ravel
 pairs := [["a" 1] ["b" 2]]
 d := pairs.ToDict ()          # {a: 1 b: 2}
-print (d.Entries ())          # [[a 1] [b 2]]
+print (d.Entries ())          # [a -> 1 b -> 2]
 print ((d.Entries ()).ToDict ())   # 原样回来
 ```
 
-字典自己当序列时，元素就是这种两格：`ToList ()` / `Foreach` / `Map` / `for x in d` 全都拿到 `[键 值]`，
+字典自己当序列时，元素是 **`Pair`**（一对"键 -> 值"，见 7.4.4）：`ToList ()` / `Foreach` / `Map` / `for x in d` 全都拿到它，
 所以 `(d.ToList ()).ToDict ()` 原样回来；只要键或只要值时，用 `Keys ()` / `Values ()`。
 
 ```ravel
 d := {"a" -> 1 "b" -> 2}
-print (d.ToList ())               # [[a 1] [b 2]]
-print ((d.ToList ()).ToDict ())   # {a: 1 b: 2}
-d.Foreach ((p) => { print (p.At 0); })
-# a
-# b
+print (d.ToList ())                        # [a -> 1 b -> 2]
+print ((d.ToList ()).ToDict ())            # {a: 1 b: 2}
+d.Foreach ((p) => { print (p.Key ()); })   # a / b
+print (d.Map ((p) => { (p.Value ()) * 10; }))   # [10 20]
 ```
 
 三条规矩：
 
-- **项必须是两格**（`[键 值]`）。一格、三格、压根不是序列，都当场报错 —— 静默跳过会把写错的形状藏起来。
+- **项必须是两格**（`[键 值]` 这样的 list，或者 `Pair`）。一格、三格、压根不是序列，都当场报错 —— 静默跳过会把写错的形状藏起来。
 - **键重复时后面的盖前面的**（和 `d.Set` 一个规矩），位置留在第一次出现的地方。
 - **紧跟着空括号调用再挂成员，要括一下**：写 `(d.Entries ()).ToDict ()`，`d.Entries ().ToDict ()` 不带括号时 `.ToDict` 会贴到那个 `()` 上（这是后缀收法的既有毛病，遇到就加括号）。
 
@@ -206,7 +205,7 @@ s := (i * 2 for i in [1 2 3])
 print s[]      # 等价于 s.ToList ()
 print s{}      # 等价于 s.ToSet ()
 t := ([i i] for i in [1 2])
-print t{->}    # 等价于 t.ToDict ()（元素得是 [键 值] 两格）
+print t{->}    # 等价于 t.ToDict ()（元素得是两格：[k v] 或 Pair）
 ```
 
 执行以上程序会输出如下结果：

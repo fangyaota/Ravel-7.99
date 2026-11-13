@@ -46,6 +46,6 @@
 
 ## 没做的
 
-- **dict 枚举没有换成 pair**：`d.ToList ()` / `d.Foreach` / `d.Entries ()` 仍是 `[键 值]` 两格的 list。
+- **dict 枚举后来换成了 `Pair`**（m13673「换」）：`d.ToList ()` / `d.Foreach` / `d.Entries ()` / `d.Map` 现在都拿到 `Pair`；`ToDict` 的关卡是 `p : IList` + 两格，所以 `[k v]` list 与 `Pair` 都收。
   换的话 `ToDict`（要求每项 `: IList`）也要认 pair，属另一件事，等用户点头。
 - 没有字面量语法（`(1 "a")` 那种），构造只有 `pair k v` 一条路。
