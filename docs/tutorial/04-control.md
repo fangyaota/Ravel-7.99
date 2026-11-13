@@ -330,12 +330,16 @@ print (sign 5)
 函数里"提前交回"太常见，所以有专门的糖。**它归一个开关管，默认关着**（`break` / `continue` 同理）：
 
 - 命令行：`ravel --more-control-flow 你的脚本.rav`（整次运行都开）
-- 文件头：`#program --more-control-flow=true`（只这个文件开）
+- 文件里：`#more-control-flow true`（从这一行起生效，`#more-control-flow false` 关回去）
+
+和 `#ignore-types` 是同一个形状：**开关是源码顺序的，不是块作用域的**。写在文件头就是"整个文件开"；写在中间只影响它后面那段；写在 `{ … }` 里也一样，出了那个块不会自动恢复。（"这个文件要不要开"那一步在开跑前就得知道，所以只认文件头那条 —— 见 `Parser.DeclaresMoreControlFlow`。）
+
+关掉之后 `return` 就不再是关键字了：`return 0` 会被当成"拿 `return` 这个变量去调 `0`"，真跑到那一句才报「未定义的变量 'return'」。
 
 #### 实例
 
 ```ravel
-#program --more-control-flow=true
+#more-control-flow true
 f := (n: int) => {
     n < 0 { return 0; } { 0; }
     n * 2
@@ -366,7 +370,7 @@ print (f (-3))
 #### 实例
 
 ```ravel
-#program --more-control-flow=true
+#more-control-flow true
 i := 0
 while { i < 10; } {
     i += 1
@@ -394,7 +398,7 @@ print s
 #### 实例
 
 ```ravel
-#program --more-control-flow=true
+#more-control-flow true
 @outer while { true; } {
     [1 2 3].Foreach (x: int) => {
         x == 2 { break outer; } { 0; }

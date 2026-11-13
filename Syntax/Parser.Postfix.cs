@@ -149,7 +149,7 @@ public partial class Parser
     private LoopCtx? OpenPendingLoop(Expression expr)
     {
         var bodyAt = LoopBodyIndex(expr);
-        if (!moreControlFlow || bodyAt == 0) return null;
+        if (!_moreControlFlow || bodyAt == 0) return null;
 
         var loop = new LoopCtx { Label = _pendingLabel, Brk = _pendingBrk ?? "", BodyAt = bodyAt };
         if (_pendingLabel is not null) _pendingLabel = null;

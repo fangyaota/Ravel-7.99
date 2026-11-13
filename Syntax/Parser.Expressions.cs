@@ -102,7 +102,7 @@ public partial class Parser
         if (!policy.Args) return e;
 
         // while 后面那一格是条件,不是实参
-        if (moreControlFlow && e is IdentifierExpr { Name: "while" })
+        if (_moreControlFlow && e is IdentifierExpr { Name: "while" })
             return ParsePostfixRest(e, policy.WithBlocks);
 
         while (Check(TokenType.LeftBrace))

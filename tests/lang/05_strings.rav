@@ -110,7 +110,7 @@ print (try { eval "bad := \"\"\"\n    第一行\n  第二行\n    \"\"\""; } (e:
 print (try { eval "x := \"\"\"\n没收尾"; } (e: Exception) => { string e; })
 ravel ""
 ravel "m12"
-#ignoreTypes true
+#ignore-types true
 x: int = "s"
 print x
 
@@ -126,7 +126,7 @@ print n
 g := ([a b]: list) => { a + b; }
 print (g [1 2])
 
-#ignoreTypes false
+#ignore-types false
 try { z: int = "s"; } (e: Exception) => { print "back: " + (string e); }
 h := (a: int) => { a; }
 try { h "s"; } (e: Exception) => { print "param: " + (string e); }

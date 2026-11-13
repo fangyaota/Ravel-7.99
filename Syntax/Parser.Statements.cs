@@ -270,7 +270,7 @@ public partial class Parser
 
     private Statement? TryParseControlFlowStatement()
     {
-        if (!moreControlFlow) return null;
+        if (!_moreControlFlow) return null;
         if (TryParseReturnStatement() is { } ret) return ret;
         if (TryParseBreakContinueStatement() is { } loop) return loop;
         if (Check(TokenType.At)) return ParseLabeledStatement();

@@ -18,6 +18,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     private int _exprDepth;
 
     private bool _ignoreTypes;
+    private bool _moreControlFlow = moreControlFlow;
 
     private const int MaxExprDepth = 400;
 
@@ -49,14 +50,33 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     public static Program ParseSourceUnlowered(string source, string? fileName, bool moreControlFlow)
         => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).ParseTree();
 
-    public static bool DeclaresMoreControlFlow(string source) => Declares(source, "--more-control-flow");
+    // 文件头扫一遍：`#more-control-flow true` 得在开跑前就知道
+    //（Interpreter 的跑与 eval 也要它；正文里再写只影响它后面）
+    public static bool DeclaresMoreControlFlow(string source)
+    {
+        const string name = "more-control-flow";
+        foreach (var raw in source.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line[0] != '#') return false;                 // 见到代码了,后面不认
+            var body = line[1..].TrimStart();
+            if (!body.StartsWith(name)) continue;
+            if (body[name.Length..].Trim() == "true") return true;
+        }
+        return false;
+    }
 
     private void TakeDirective()
     {
-        _ignoreTypes = Peek().Lexeme == "true";
+        var pair = Peek().Lexeme.Split(' ', 2);
+        var on = pair.Length > 1 && pair[1] == "true";
+        if (pair[0] == "ignore-types") _ignoreTypes = on;
+        else _moreControlFlow = on;
         _pos++;
     }
 
+    // `#program --warn`：只给这个文件开编译期警告
     public static bool DeclaresWarn(string source) => Declares(source, "--warn");
 
     private static bool Declares(string source, string name)

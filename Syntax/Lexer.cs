@@ -302,16 +302,23 @@ public class Lexer(string source, string? file = null)
         ("..", TokenType.DotDot),
     ];
 
-    // `#ignoreTypes true` / `#ignoreTypes false` —— 只认这两种写法（名字后面得是空白）。
+    // `#ignore-types true|false` / `#more-control-flow true|false`
+    // —— 名字后面得是空白,值只认这两种;别的 `#` 行仍是注释。
+    private static readonly string[] DirectiveNames = ["ignore-types", "more-control-flow"];
+
     private static string? DirectiveValue(string text)
     {
-        const string name = "ignoreTypes";
         var body = text[1..].TrimStart();
-        if (!body.StartsWith(name)) return null;
-        var rest = body[name.Length..];
-        if (rest.Length > 0 && !char.IsWhiteSpace(rest[0])) return null;
-        rest = rest.Trim();
-        return rest is "true" or "false" ? rest : null;
+        foreach (var name in DirectiveNames)
+        {
+            if (!body.StartsWith(name)) continue;
+            var rest = body[name.Length..];
+            if (rest.Length > 0 && !char.IsWhiteSpace(rest[0])) continue;
+            rest = rest.Trim();
+            if (rest is "true" or "false") return name + " " + rest;
+        }
+
+        return null;
     }
 
     private bool MatchMultiChar(List<Token> tokens)

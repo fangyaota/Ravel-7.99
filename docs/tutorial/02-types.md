@@ -248,21 +248,23 @@ Object (parent = 自身)
 
 注意：后缀**要吞得干净**才算 —— 后面再粘着标识符字符就不是后缀（`2n` 后面跟 `)` `.` `[` 空格才算数）。`2.5i` / `2.5n` 报错：小数没有"整数后缀"这回事。
 
-## 2.8 关掉类型检查（`#ignoreTypes`）
+## 2.8 关掉类型检查（`#ignore-types`）
 
 有些时候（移植一段旧代码、做性能对比、临时跑一段不带注解的东西）不想让注解生效，又不想一路删注解。文件里可以摆两个开关：
 
 ```ravel
-#ignoreTypes true
+#ignore-types true
 x: int = "s"          # 不报：注解只当摆设
 f := (a: int) => { a; }
 print (f "s")         # s
-#ignoreTypes false
+#ignore-types false
 ```
 
 夹在中间的代码，三处检查全部不发：**变量定义**的注解、**参数**的注解、**模式匹配**里的类型格（含 `(1) => …` 里那道"是不是数字那族"）。注解本身还在树上，所以 `x: int = _` 照样是 `default int`（`_` 问的不是"检不检查"，是"这个类型空着的时候是什么"）。
 
 规矩就两条：
 
-- 一行里只有 `#ignoreTypes true` / `#ignoreTypes false` 才算开关，别的 `#` 行仍是注释。
+- 一行里只有 `#ignore-types true` / `#ignore-types false` 才算开关（名字后面的值只认这两个），别的 `#` 行仍是注释。
 - 它是**按源码顺序**的开关，从那一行起一直有效到下一个 `false`（或文件结束）——不是块作用域。写在 `{ … }` 里头也一样，出了那个块不会自动恢复。
+
+现在语言层只有两个这样的开关，形状一致：`#ignore-types true|false` 和 `#more-control-flow true|false`（后者管 `return` / `break` / `continue` / 循环当表达式，见 4.5）。
