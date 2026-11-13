@@ -28,8 +28,11 @@ public static class Operators
         Add("or", 2);                        // 与 `||` 同档
         Add(":", 10, TokenType.Colon);
         // `->` 造一对(见 `pair`):右结合,所以 `a -> b -> c` 是 `a -> (b -> c)`。
+        // 档位取在比较/判定(10)与移位(12)之间:它是**造一个值**,不是谓词 ——
+        // 落在 10 那档的话 `1 -> 2 : pair` 会被读成 `1 -> (2 : pair)`(右边那格被判类型),
+        // 11 才得到想要的 `(1 -> 2) : pair`;同时 `1 + 2 -> 3` 仍是 `3 -> 3`(`+` 14 更紧)。
         // 字典字面量里那个 `->` 不是它 —— 那里是条目分隔符,键按 `Postfix.DictKey` 解析。
-        Add("->", 10, TokenType.DictArrow, right: true);
+        Add("->", 11, TokenType.DictArrow, right: true);
         Add("==", 10, TokenType.EqualEqual);
         // `===` 与 `==` 同档(能串):比的是**同一性**——值类型按值、对象按引用,不做跨族数值归一
         Add("===", 10, TokenType.EqualEqualEqual);

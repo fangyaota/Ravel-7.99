@@ -263,11 +263,16 @@ internal static class AstPrinter
         // 操作数给多紧才不用套括号 —— 看**结合性**:
         // 左结合的(`a - b - c` = `(a-b)-c`)左边给 `p`(同级不套)、右边给 `p + 1`
         // (`a - (b - c)` 同级,要套);右结合的(`**`)正好倒过来。
-        var right = Operators.TrySymbol(b.Op, out var info) && info.RightAssoc;
+        var known = Operators.TrySymbol(b.Op, out var info);
+        var right = known && info.RightAssoc;
         // 比较整档同优先级，但串起来是链式比较，所以两边都收紧
         var cmp = Operators.IsCompare(b.Op);
         var left = Paren(b.Left, cmp ? p + 1 : right ? p + 1 : p, indent);
-        var rightOp = Paren(b.Right, cmp ? p + 1 : right ? p : p + 1, indent);
+        // 右边那格重解析时的下界是 `Rbp`：顶运算得**严格**比它紧才会被吃进来，
+        // 所以 `Prec <= Rbp` 都得套括号。光按 `p + 1` 判会漏掉"比本运算符紧一格、
+        // 却恰好等于 Rbp"的(`==` 的 Rbp=11 遇上 `->` 的 Prec=11：`(1 -> 2) == (1 -> 2)`
+        // 印成 `1 -> 2 == 1 -> 2`，读回去变成 `((1 -> 2) == 1) -> 2`)。
+        var rightOp = Paren(b.Right, known ? info.Rbp + 1 : p + 1, indent);
         return left + " " + b.Op + " " + rightOp;
     }
 

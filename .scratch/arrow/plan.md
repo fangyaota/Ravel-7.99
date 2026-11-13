@@ -15,7 +15,7 @@
 |-------|-------------|
 | `Syntax/TokenType.cs` 的 `EqualEqualEqual` | 复用已有的 `TokenType.DictArrow`（词法器早就发它，字典条目也用它）|
 | `Syntax/Lexer.cs:263` 的 `("===", …)` | 无需改：`MultiCharOps` 里已有 `("->", TokenType.DictArrow)` |
-| `Syntax/OperatorTable.cs:35` `Add("===", 10, TokenType.EqualEqualEqual)` | `Add("->", 10, TokenType.DictArrow, right: true)`（右结合，和比较同档）|
+| `Syntax/OperatorTable.cs:35` `Add("===", 10, TokenType.EqualEqualEqual)` | `Add("->", 11, TokenType.DictArrow, right: true)`（右结合；档位在比较/判定 10 与移位 12 之间，见下面「档位」一节）|
 | `Syntax/Ast.cs:8` `OperatorSymbols.All` | 加 `"->"`（成员表扫描校验 + 用户可写 `-> := …` 的名单）|
 | `Syntax/Parser.Statements.cs:20` `IsOperatorToken` | 加 `TokenType.DictArrow`（类体能定义它、`a.->  b` 能当成员取）|
 | `Runtime/Members/ObjectOperatorMembers.cs:30` `[ClassOp("===")]` | 加 `[ClassOp("->")]`，语义走 `BuiltinClasses.MakePair` |
@@ -31,6 +31,27 @@
 - `Syntax/Parser.Expressions.cs` 的 `TryInfixBinding` 多收一个 `Postfix`：`t.Type == TokenType.DictArrow && !policy.Arrow` 时不当中缀。
 - `Syntax/Parser.Atoms.cs` 的 `ParseDict`：键按 `Postfix.DictKey` 解析，之后 `Consume(DictArrow)`。
 - `Syntax/Parser.Lookahead.cs` 的 `ScanBraceBody`：词法器把 `;` 也发成 `Newline`（lexeme 不同），顶层见到它就说明这是**块**不是字典 —— `{1 -> 1;}` 于是走块那条路，`(…) ()` 才拿到那对。
+
+## 档位（为什么是 11）
+
+一开始直接抄了 `===` 的 10，实测暴露了问题：`->` 右结合 ⇒ `Rbp = Lbp - 1 = 9`，而 `:` / `==` 的 `Lbp = 10 > 9`，
+于是它们被并进**右边那一格**：
+
+```ravel
+print (1 -> 2 : pair)          # 1 -> false   ← 本来想要 true
+print (1 -> 2 == (pair 1 2))   # 1 -> false   ← 本来想要 true
+```
+
+`===` 放 10 是对的（它属于比较那一整档，还要参与链式比较），`->` 不一样：它造一个值，不是谓词。
+放到 11（`Rbp = 10`）后：
+
+| 写法 | 结果 |
+|------|------|
+| `1 -> 2 : pair` | `(1 -> 2) : pair` → `true` |
+| `1 -> 2 == p` | `(1 -> 2) == p` → `true` |
+| `1 -> 2 -> 3` | 仍是右结合（右操作数在 `minBp = 10` 上还吃得到 `->`）|
+| `1 + 2 -> 3` | `3 -> 3`（`+` 是 14，更紧）|
+| `x : int -> 1` | `(x : int) -> 1`（`:` 的 `Rbp = 11`，见到 `Lbp = 11` 就停）|
 
 ## 语义
 
