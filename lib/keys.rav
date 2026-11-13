@@ -28,14 +28,14 @@ readonly Of := (k: object) => {
 }
 
 impl (IDict dict {
-    Get = (k: object) => { instance.SysGet (Of k); }
+    Get = (k: object) => { instance.SysGet k; }
     Set = (k: object) => {
-        (v: object) => { instance.SysSet (Of k) v; }
+        (v: object) => { instance.SysSet k v; }
     }
-    Has = (k: object) => { instance.SysHas (Of k); }
-    Remove = (k: object) => { instance.SysRemove (Of k); }
+    Has = (k: object) => { instance.SysHas k; }
+    Remove = (k: object) => { instance.SysRemove k; }
     GetOr = (k: object) => {
-        (dflt: object) => { (instance.SysGetOr (Of k)) dflt; }
+        (dflt: object) => { (instance.SysGetOr k) dflt; }
     }
 })
 

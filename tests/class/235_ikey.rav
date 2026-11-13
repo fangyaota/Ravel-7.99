@@ -20,7 +20,10 @@ print (d.Has 2)
 print (d.Keys ())
 print ({1-> "a"}.Get 1)
 print (d : IDict)
-try { d.Set ([1 2]) "x"; } (e: Exception) => { print ("2: " + string e); }
+l := [1 2]
+d.Set l "list"
+print (d.Get l)
+print (d.Has [1 2])
 try { print (d.Get 999); } (e: Exception) => { print ("3: " + string e); }
 
 print {"a"-> 1}
@@ -48,23 +51,18 @@ print ((Rec 1 "a") : IKey)
 print (Keys.Of (Rec 7 "x"))
 
 d2 := {->}
-d2.Set (Rec 1 "甲") "one"
-d2.Set (Rec 2 "乙") "two"
-print (d2.Get (Rec 1 "别的"))
-print (d2.Has (Rec 2 "别的"))
+r1 := Rec 1 "甲"
+r2 := Rec 2 "乙"
+d2.Set r1 "one"
+d2.Set r2 "two"
+print (d2.Get r1)
+print (d2.Has r2)
 print (d2.Count ())
-print (d2.Keys ())
 print (d2.GetOr (Rec 9 "z") "缺")
-print (d2.Remove (Rec 1 "别"))
-print (d2.Has (Rec 1 "别"))
-
-try { print (d2.SysGet (Rec 1 "别")); } (e: Exception) => { print ("5: " + string e); }
-
-B ::= class {
-    X: int = 0
-    init = (x: int) => { X = x; this; }
-}
-try { d2.Get (B 1); } (e: Exception) => { print ("6: " + string e); }
+print (d2.Remove r1)
+print (d2.Has r1)
+print (d2.Count ())
+print ((d2.Keys ()).Map ((r: Rec) => { r.N; }))
 
 C ::= class {
     X: int = 0
@@ -126,7 +124,8 @@ ravel ""
 # [1 1 1]
 # a
 # true
-# 2: Key: List 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# list
+# false
 # 3: 键不存在: 999
 # {a: 1}
 # {1: 2}
@@ -143,12 +142,11 @@ ravel ""
 # one
 # true
 # 2
-# [1 2]
 # 缺
 # true
 # false
-# 5: dict.SysGet 的键得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 Rec
-# 6: Key: B 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
+# 1
+# [乙]
 # 7: `Key` 要交回一个值类型的键（数 / 串 / 字符 / 布尔 / `()`），得到 List
 # true
 # one

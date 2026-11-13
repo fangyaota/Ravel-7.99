@@ -30,7 +30,11 @@ internal static partial class BuiltinClasses
 
     internal static bool CanBeKey(ObjectVal t) => t is ClassVal c && c.IsValueLike;
 
-    internal static RuntimeValue KeyArg(RuntimeValue a, string what)
+    // 字典 / 集合的键不再挑类型:任何值都能当键,比较口径是 `===`(见 SameComparer)。
+    internal static RuntimeValue KeyArg(RuntimeValue a, string _what) => a;
+
+    // 扩展自己的字典还要"能按值比"的键(图顶点那种) —— 这条仍旧挑值类型。
+    internal static RuntimeValue StrictKeyArg(RuntimeValue a, string what)
         => CanBeKey(a.Type)
             ? a
             : throw new RuntimeException($"{what}得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 {a.Type}", ErrorKind.Type);

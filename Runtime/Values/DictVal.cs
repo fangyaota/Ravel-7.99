@@ -6,7 +6,7 @@ public record DictVal : ObjectVal
 
     public DictVal(Dictionary<RuntimeValue, RuntimeValue> entries, Scope? members = null)
         : base(BuiltinClasses.Dict, members)
-        => Entries = entries;
+        => Entries = new Dictionary<RuntimeValue, RuntimeValue>(entries, SameComparer.Instance);
 
     public override string ToString() => ShowDepth.Guard(() =>
     {

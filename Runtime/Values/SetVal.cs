@@ -6,7 +6,7 @@ public record SetVal : ObjectVal
 
     public SetVal(HashSet<RuntimeValue> elements, Scope? members = null)
         : base(BuiltinClasses.Set, members)
-        => Elements = elements;
+        => Elements = new HashSet<RuntimeValue>(elements, SameComparer.Instance);
 
     public override string ToString() => ShowDepth.Guard(() => "{" + string.Join(" ", Elements) + "}");
 }

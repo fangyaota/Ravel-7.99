@@ -59,7 +59,7 @@ public static class PluginKit
     public static List<RuntimeValue> Elements(RuntimeValue container, string what)
         => BuiltinClasses.ElementsOf(container, what);
 
-    public static RuntimeValue Key(RuntimeValue k, string what) => BuiltinClasses.KeyArg(k, what);
+    public static RuntimeValue Key(RuntimeValue k, string what) => BuiltinClasses.StrictKeyArg(k, what);
 
     public static ClassVal ClassOf(string name, string what = "类型") => BuiltinClasses.ClassOf(name, what);
 
