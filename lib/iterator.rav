@@ -126,7 +126,7 @@ readonly IEnumerable ::= interface IMonad {
     internal ToDict := () => {
         out := {->}
         instance.Foreach (p: object) => {
-            !(p : System.Pair) {
+            !(p : pair) {
                 throw (Exception ("ToDict 要的是一个 pair（键 -> 值），得到 " + (string (typeof p))))
             } { 0; }
             out[p.Key ()] = (p.Value ());
@@ -319,11 +319,11 @@ impl (IEnumerable dict {
 })
 impl (IList dict {;})
 
-impl (IMonad System.Pair {;})
-impl (IEnumerable System.Pair {
+impl (IMonad pair {;})
+impl (IEnumerable pair {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
-impl (IList System.Pair {;})
+impl (IList pair {;})
 
 impl (IMonad System.Scope {;})
 impl (IEnumerable System.Scope {
