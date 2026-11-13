@@ -327,6 +327,7 @@ impl (IMonad Pair {;})
 impl (IEnumerable Pair {
     GetEnumerator = () => { Enumerator (instance.ToList ()); }
 })
+impl (IList Pair {;})
 
 impl (IMonad System.Scope {;})
 impl (IEnumerable System.Scope {

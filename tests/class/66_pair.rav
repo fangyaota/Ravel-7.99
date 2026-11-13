@@ -18,7 +18,9 @@ d := {->}
 d[Pair "k" 1] = 7
 print (d[Pair "k" 1])
 print (d.ContainsKey (Pair "k" 1))
-print ({{Pair 1 2 Pair 1 2}}.Count ())
+print ({{(Pair 1 2) (Pair 1 2)}}.Count ())
+print (p : IList)
+print ([(Pair "a" 1) (Pair "b" 2)] |> .ToDict ())
 p.Foreach ((x) => { print x; })
 [k v] := p
 print k
@@ -41,6 +43,8 @@ try { p.At 2; } (e: Exception) => { print ("1: " + string e); }
 # 7
 # true
 # 1
+# true
+# {a: 1 b: 2}
 # 1
 # a
 # 1
