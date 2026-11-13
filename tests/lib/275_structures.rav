@@ -82,7 +82,9 @@ try { (Structures.Deque ()).PopFront (); } (e: Exception) => { print ("4: " + st
 try { (Structures.SortedSet ()).Min (); } (e: Exception) => { print ("5: " + string e); }
 try { (Structures.SortedDict ()).Get "nope"; } (e: Exception) => { print ("6: " + string e); }
 try { (Structures.Heap [1 "a"]).Pop (); } (e: Exception) => { print ("7: " + string e); }      # 比不了
-try { (Structures.SortedDict ()).Set [1] 1; } (e: Exception) => { print ("8: " + string e); }  # 键要值类型
+sd8 := Structures.SortedDict ()
+sd8.Set [1] 1
+try { print (sd8.Get [1]); } (e: Exception) => { print ("8: " + string e); }  # 排不了的键读不回来
 # --- expected ---
 # Stack [3 2 1]
 # 3
@@ -128,4 +130,4 @@ try { (Structures.SortedDict ()).Set [1] 1; } (e: Exception) => { print ("8: " +
 # 5: SortedSet.Min: 空集合没有最小
 # 6: SortedDict.Get: 键不存在: nope
 # 7: 比不了 String 与 Integer
-# 8: SortedDict.Set 的键得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 List
+# 8: 比不了 List 与 List

@@ -94,7 +94,13 @@ print (s.Degree "z")
 
 try { print (g.Neighbors "没这个"); } (e: Exception) => { print ("4: " + string e); }
 try { print (g.Weight "a" "b"); } (e: Exception) => { print ("5: " + string e); }
-try { nw := Structures.Weighted (); nw.AddEdge [1] "b" 1; } (e: Exception) => { print ("6: " + string e); }
+v1 := [1]
+v2 := [2]
+nw := Structures.Weighted ()
+nw.AddEdge v1 v2 1
+print (nw.Count ())
+print (nw.Neighbors v1)
+try { print (nw.Neighbors [1]); } (e: Exception) => { print ("6: " + string e); }
 try { nw2 := Structures.Weighted (); nw2.AddEdge "a" "b" (0 - 1); } (e: Exception) => { print ("7: " + string e); }
 e := Structures.Graph ()
 print (e.Vertices ())
@@ -156,7 +162,9 @@ print (e.Count ())
 # 1
 # 4: Neighbors: 图里没有顶点 没这个
 # 5: Graph 没有权重 —— 要权重用 Weighted
-# 6: Weighted.AddEdge 的起点得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 List
+# 2
+# [[2]]
+# 6: Neighbors: 图里没有顶点 [1]
 # 7: Weighted.AddEdge: 权重不能是负数（最短路走 Dijkstra，负权它不管）
 # []
 # 0

@@ -29,9 +29,10 @@
 | `Runtime/Values/SameComparer.cs`（新） | `IEqualityComparer<RuntimeValue>`：`Equals` 直接问 `StrictSame`；`GetHashCode` 对"非值类型对象"用 `RuntimeHelpers.GetHashCode`（引用哈希），其余用 record 的内容哈希 |
 | `Runtime/Values/DictVal.cs` | 构造时 `new Dictionary<…>(entries, SameComparer.Instance)` |
 | `Runtime/Values/SetVal.cs` | 构造时 `new HashSet<…>(elements, SameComparer.Instance)` |
-| `Runtime/BuiltinClasses.Methods.cs` | `KeyArg` 改成直通（引擎的字典键）；新增 `StrictKeyArg` 保留"必须值类型"的老判定，给扩展用 |
-| `Runtime/Builtins/PluginApi.cs` | `PluginApi.Key` 改用 `StrictKeyArg`（图的顶点那种扩展字典仍旧挑值类型） |
-| `lib/keys.rav` | `IDict dict` 那五条槽改成直接传 `k`（不再 `Of k`）；`IKey` / `Of` / `Keyed` 原样保留 |
+| `Runtime/BuiltinClasses.Methods.cs` | `KeyArg` 改成直通（引擎的字典键）；`StrictKeyArg` 先留着给扩展，随后按用户指示**删掉**——不再有严格判定 |
+| `Runtime/Builtins/PluginApi.cs` | `PluginApi.Key` 直通（早先挂 `StrictKeyArg`，该判定删掉后也直通） |
+| `lib/keys.rav` | `IDict dict` 那五条槽改成直接传 `k`（`Get` 调 `instance.At k`，不再 `Of k`）；`IKey` / `Of` / `Keyed` 原样保留 |
+| `Runtime/Members/DictMembers.cs` | `SysGet` 改名成 `At`（`d[k]` 和 `d.Get k` 都落到它）；`SysSet` / `SysHas` / `SysRemove` / `SysGetOr` 名字不动 |
 
 ## 保留 `Keyed` 与 `IKey` 的理由
 
@@ -42,7 +43,7 @@
 
 - `{1 -> "a"}[1.0]` 报「键不存在: 1」（`===` 认为不是同一个键）；
 - `d[l] = v` 用同一个 list 实例取得回来，`d[别的同内容 list]` 取不回来；
-- 扩展侧（图顶点、`PluginApi.Key`）仍然拒绝非值类型，报错文案不变；
+- 扩展侧也不再挑类型（`PluginApi.Key` 直通）：图顶点可以是 list，按实例算 —— `295_graph.rav` 原来那条"起点得是值类型"换成"同一个 list 实例加得进去、`Neighbors` 换个同内容实例查不到"；
 - `Keys.Of` 对"`Key` 交回容器"的类仍旧报错（`IKey` 那套的校验没动）。
 
 ## 测试

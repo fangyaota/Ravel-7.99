@@ -28,7 +28,7 @@ readonly Of := (k: object) => {
 }
 
 impl (IDict dict {
-    Get = (k: object) => { instance.SysGet k; }
+    Get = (k: object) => { instance.At k; }
     Set = (k: object) => {
         (v: object) => { instance.SysSet k v; }
     }

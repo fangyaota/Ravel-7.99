@@ -850,7 +850,7 @@ one
 
 （普通 `dict` 换成 `d.Set (Rec 1) "one"` 再 `d.Get (Rec 1)` 会报「键不存在」—— 两个 `Rec 1` 是两个实例，按 `===` 不是同一个键。）
 
-**为什么分两层**：引擎那边（`SysGet` / `SysSet`）查表发生在 .NET 字典内部，比的是 `SameComparer` —— 同步的 C#，插不进 Ravel 的 `Key ()` 帧。所以"内容键"要另套一层：`Keyed` 先把键规范成值类型再交给引擎那张表（`lib/keys.rav` 的 `IDict` 那五条槽也是这么转的）。
+**为什么分两层**：引擎那边（`At` / `SysSet`）查表发生在 .NET 字典内部，比的是 `SameComparer` —— 同步的 C#，插不进 Ravel 的 `Key ()` 帧。所以"内容键"要另套一层：`Keyed` 先把键规范成值类型再交给引擎那张表（`lib/keys.rav` 的 `IDict` 那五条槽也是这么转的）。
 
 **要把原对象拿回来，用 `Keyed`**（它多记一张"规范键 → 原键"，也登记了 `IDict`）：
 

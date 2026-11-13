@@ -6,18 +6,14 @@ internal sealed class DictMembers : SequenceMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(DictMembers), ObjectMembers.Set);
 
-    [ClassMethod("SysGet")]
-    private static RuntimeValue SysGet(RuntimeValue self, RuntimeValue arg)
-    {
-        var key = BuiltinClasses.KeyArg(arg, "dict.SysGet 的键");
-        var d = (DictVal)self;
-        if (d.Entries.TryGetValue(key, out var v)) return v;
-        throw new RuntimeException($"键不存在: {key}", ErrorKind.Key);
-    }
-
-    // `d[k]` —— 和 `d.Get k` 一条路(键一起归一化)。
+    // `d[k]` 走这条；`d.Get k` 也落到这儿（lib/keys.rav 的 IDict）。
     [ClassMethod("At")]
-    private static RuntimeValue At(RuntimeValue self, RuntimeValue arg) => SysGet(self, arg);
+    private static RuntimeValue At(RuntimeValue self, RuntimeValue arg)
+    {
+        var d = (DictVal)self;
+        if (d.Entries.TryGetValue(arg, out var v)) return v;
+        throw new RuntimeException($"键不存在: {arg}", ErrorKind.Key);
+    }
 
     [ClassMethod("SysSet")]
     private static RuntimeValue SysSet(RuntimeValue self, RuntimeValue arg)

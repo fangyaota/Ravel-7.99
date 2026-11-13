@@ -197,7 +197,7 @@ internal static partial class BuiltinClasses
         // **如今这条基本走不到了**:`IValue` 封了(见 `SealBuiltins`),Ravel 侧写不出这句话,
         // 内置那 10 个直接落格、插件走 `PluginApi`。留着是保险 —— 真有谁还登记得进来,
         // 索引也得跟着一起对,不然 `CanBeKey` 和 `HasTrait` 会说两样话。
-        // 为什么要索引:那句"能不能当字典的键"要跑在 `dict.SysGet` 那些**同步 C#** 操作里,
+        // 为什么要索引:那句"能不能当字典的键"要跑在 `dict.At` 那些**同步 C#** 操作里,
         // 那儿拿不到解释器、问不了 `HasTrait`。
         if (ReferenceEquals(impl.Type, IValue)
             && impl.Scope.LookupField(TargetMember)?.Value is ClassVal target)
@@ -401,7 +401,7 @@ internal static partial class BuiltinClasses
         // 写那一格的有两处:引擎给内置那 10 个值类型(`BuiltinClasses.SealBuiltins`),
         // 和插件的 `[RavelClass(Implements = "IValue")]`(见 `PluginApi`)。
         // **Ravel 侧那条口子没了** —— IValue 封了,用户 `impl` 不进来(那正是"名单引擎说了算")。
-        // 走索引有两个好处:O(1),而且 `dict.SysGet` 那条**没有解释器**的路问得了同一个答案(见 `CanBeKey`)。
+        // 走索引有两个好处:O(1),而且 `dict.At` 那条**没有解释器**的路问得了同一个答案(见 `CanBeKey`)。
         if (ReferenceEquals(trait, IValue)) return cls is ClassVal c && c.IsValueLike;
 
         // **只在链上没有作用域级登记时才敢缓存** —— 那时答案只由全局那批 `impl` 决定,
