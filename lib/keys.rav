@@ -1,4 +1,4 @@
-﻿readonly IKey ::= interface {
+readonly IKey ::= interface {
     by Key : function = _
 }
 
@@ -29,14 +29,6 @@ readonly Of := (k: object) => {
 
 impl (IDict dict {
     Get = (k: object) => { instance.At k; }
-    Set = (k: object) => {
-        (v: object) => { instance.SysSet k v; }
-    }
-    Has = (k: object) => { instance.SysHas k; }
-    Remove = (k: object) => { instance.SysRemove k; }
-    GetOr = (k: object) => {
-        (dflt: object) => { (instance.SysGetOr k) dflt; }
-    }
 })
 
 impl (IDict System.Scope {

@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 using Ravel.Runtime.Values;
 
@@ -15,10 +15,10 @@ internal sealed class DictMembers : SequenceMembers
         throw new RuntimeException($"键不存在: {arg}", ErrorKind.Key);
     }
 
-    [ClassMethod("SysSet")]
-    private static RuntimeValue SysSet(RuntimeValue self, RuntimeValue arg)
+    [ClassMethod("Set")]
+    private static RuntimeValue Assign(RuntimeValue self, RuntimeValue arg)
     {
-        var key = BuiltinClasses.KeyArg(arg, "dict.SysSet 的键");
+        var key = BuiltinClasses.KeyArg(arg, "dict.Set 的键");
         return FunctionVal.From(v =>
         {
             ((DictVal)self).Entries[key] = v;
@@ -26,9 +26,9 @@ internal sealed class DictMembers : SequenceMembers
         });
     }
 
-    [ClassMethod("SysHas")]
-    private static RuntimeValue SysHas(RuntimeValue self, RuntimeValue arg)
-        => new BoolVal(((DictVal)self).Entries.ContainsKey(BuiltinClasses.KeyArg(arg, "dict.SysHas 的键")));
+    [ClassMethod("Has")]
+    private static RuntimeValue HasKey(RuntimeValue self, RuntimeValue arg)
+        => new BoolVal(((DictVal)self).Entries.ContainsKey(BuiltinClasses.KeyArg(arg, "dict.Has 的键")));
 
     [ClassMethod("Keys")]
     private static RuntimeValue Keys(RuntimeValue self) => new ListVal([.. ((DictVal)self).Entries.Keys]);
@@ -45,18 +45,18 @@ internal sealed class DictMembers : SequenceMembers
         return new ListVal(list);
     }
 
-    [ClassMethod("SysRemove")]
-    private static RuntimeValue SysRemove(RuntimeValue self, RuntimeValue arg)
-        => new BoolVal(((DictVal)self).Entries.Remove(BuiltinClasses.KeyArg(arg, "dict.SysRemove 的键")));
+    [ClassMethod("Remove")]
+    private static RuntimeValue RemoveKey(RuntimeValue self, RuntimeValue arg)
+        => new BoolVal(((DictVal)self).Entries.Remove(BuiltinClasses.KeyArg(arg, "dict.Remove 的键")));
 
     [ClassMethod("HasValue")]
     private static RuntimeValue HasValue(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.ContainsValue(arg));
 
-    [ClassMethod("SysGetOr")]
-    private static RuntimeValue SysGetOr(RuntimeValue self, RuntimeValue arg)
+    [ClassMethod("GetOr")]
+    private static RuntimeValue GetOrElse(RuntimeValue self, RuntimeValue arg)
     {
-        var key = BuiltinClasses.KeyArg(arg, "dict.SysGetOr 的键");
+        var key = BuiltinClasses.KeyArg(arg, "dict.GetOr 的键");
         var d = (DictVal)self;
         return d.Entries.TryGetValue(key, out var v)
             ? FunctionVal.From(_ => v)        // 有:替代值收下但不用

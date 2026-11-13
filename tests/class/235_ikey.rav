@@ -1,4 +1,4 @@
-# IKey 接口
+﻿# IKey 接口
 using "math.rav"
 
 ravel "235_ikey"
@@ -110,6 +110,16 @@ print (Seqs.Gather (c.Take 2))
 print (c.ToList ())
 print "end"
 ravel ""
+ravel "dict_no_sys"
+d := {1 -> "a"}
+print (d.Has 1)
+print ((d.Set 2) "b")
+print d
+print (d.Remove 2)
+print ((d.GetOr 9) "none")
+try { print (d.SysSet 1); } (e: Exception) => { print ("1: " + string e); }
+ravel ""
+
 # --- expected ---
 # 5
 # a
@@ -178,3 +188,9 @@ ravel ""
 # [1 2]
 # [3]
 # end
+# true
+# ()
+# {1: a 2: b}
+# true
+# none
+# 1: 类型 'Dict' 没有方法 'SysSet'

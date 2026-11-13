@@ -1,4 +1,4 @@
-namespace Ravel.Runtime;
+﻿namespace Ravel.Runtime;
 
 using System.Linq;
 using Newtonsoft.Json.Linq;
@@ -102,7 +102,7 @@ internal static class JsonMembers
     // `Json v` 建的时候就把树拷出来了。
 
     [ClassMethod("Set")]
-    private static RuntimeValue SysSet(RuntimeValue self, RuntimeValue arg)
+    private static RuntimeValue Assign(RuntimeValue self, RuntimeValue arg)
     {
         var key = BuiltinClasses.TextOf(arg, "Json.Set 的键");
         return FunctionVal.From(v =>

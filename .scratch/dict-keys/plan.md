@@ -1,4 +1,4 @@
-# 字典键 / 集合元素：改成按 `===` 比
+﻿# 字典键 / 集合元素：改成按 `===` 比
 
 ## 需求（用户原话）
 
@@ -11,7 +11,7 @@
 - 引擎 `BuiltinClasses.KeyArg` 只放行 `ClassVal.IsValueLike` 的类型，其余（类实例、list、dict…）直接报
   「…得是值类型（数 / 串 / 字符 / 布尔 / `()`），得到 List」。
 - 库那一层（`lib/keys.rav` 的 `IDict dict`）先用 `Keys.Of k` 调 `k.Key ()`，把对象**规范**成值类型的键，
-  再交给引擎的 `SysGet` / `SysSet`。所以类实例能不能当键，取决于它有没有登记 `IKey` 并写 `Key`。
+  再交给引擎的 `At` / `Set`。所以类实例能不能当键，取决于它有没有登记 `IKey` 并写 `Key`。
 
 ## 改动后
 
@@ -32,7 +32,7 @@
 | `Runtime/BuiltinClasses.Methods.cs` | `KeyArg` 改成直通（引擎的字典键）；`StrictKeyArg` 先留着给扩展，随后按用户指示**删掉**——不再有严格判定 |
 | `Runtime/Builtins/PluginApi.cs` | `PluginApi.Key` 直通（早先挂 `StrictKeyArg`，该判定删掉后也直通） |
 | `lib/keys.rav` | `IDict dict` 那五条槽改成直接传 `k`（`Get` 调 `instance.At k`，不再 `Of k`）；`IKey` / `Of` / `Keyed` 原样保留 |
-| `Runtime/Members/DictMembers.cs` | `SysGet` 改名成 `At`（`d[k]` 和 `d.Get k` 都落到它）；`SysSet` / `SysHas` / `SysRemove` / `SysGetOr` 名字不动 |
+| `Runtime/Members/DictMembers.cs` | 引擎那几个方法就叫 `At` / `Set` / `Has` / `Remove` / `GetOr`（`Sys` 前缀已去掉，`d[k]`、`d.Get k`、`d.Set k v` 都直达） |
 
 ## 保留 `Keyed` 与 `IKey` 的理由
 
