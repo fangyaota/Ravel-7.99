@@ -7,6 +7,11 @@ internal sealed class SetMembers : SequenceMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(SetMembers), ObjectMembers.Set);
 
+    // dict 自己提供 `ContainsKey` / `ContainsValue`,不再有序列意义上的 `Contains`;list / set 仍要。
+    [ClassMethod("Contains")]
+    private static RuntimeValue Contains(RuntimeValue self, RuntimeValue arg)
+        => new BoolVal(((SetVal)self).Elements.Contains(arg));
+
     [ClassMethod("Add")]
     private static RuntimeValue Add(RuntimeValue self, RuntimeValue arg)
     {

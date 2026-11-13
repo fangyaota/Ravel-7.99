@@ -65,7 +65,7 @@ readonly private AllNum := (rows: list c: object) => {
 
 readonly At := (row: object c: object) => {
     (typeof row) == dict {
-        row.Has c { row.Get c; } { ""; }
+        row.ContainsKey c { row.Get c; } { ""; }
     } {
         c < (row.Count ()) { row.At c; } { ""; }
     }
@@ -83,12 +83,12 @@ readonly Build := (rows: list given: bool opts: object) => {
     asDict := (typeof head) == dict
 
     cols := []
-    given && (opts.Has "cols") { (opts.Get "cols").Foreach (c: object) => { cols.Add c; }; } {
+    given && (opts.ContainsKey "cols") { (opts.Get "cols").Foreach (c: object) => { cols.Add c; }; } {
         asDict {
             seen := {->}
             rows.Foreach (r: object) => {
                 (r.Keys ()).Foreach (k: object) => {
-                    seen.Has k { 0; } { seen.Set k true; cols.Add k; }
+                    seen.ContainsKey k { 0; } { seen.Set k true; cols.Add k; }
                 }
             }
         } {
@@ -98,7 +98,7 @@ readonly Build := (rows: list given: bool opts: object) => {
     }
 
     header := asDict
-    given && (opts.Has "header") { header = opts.Get "header"; } { 0; }
+    given && (opts.ContainsKey "header") { header = opts.Get "header"; } { 0; }
 
     widths := []
     cols.Foreach (c: object) => {
@@ -113,14 +113,14 @@ readonly Build := (rows: list given: bool opts: object) => {
     aligns := []
     cols.Foreach (c: object) => {
         a := AllNum rows c { "right"; } { "left"; }
-        given && (opts.Has "align") {
+        given && (opts.ContainsKey "align") {
             al := opts.Get "align"
-            al.Has c { a = al.Get c; } { 0; }
+            al.ContainsKey c { a = al.Get c; } { 0; }
         } { 0; }
         aligns.Add a
     }
 
-    style := given && (opts.Has "style") { opts.Get "style"; } { "box"; }
+    style := given && (opts.ContainsKey "style") { opts.Get "style"; } { "box"; }
     box := style == "box"
 
     ruler := (l: string m: string r: string) => {

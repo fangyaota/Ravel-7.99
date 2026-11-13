@@ -40,7 +40,7 @@ s.Contains 3      # true
 d := {"a"-> 1 "b"-> 2}      # 键是**表达式**：字符串要写引号
 d.Get "a"          # 1
 d.Set "c" 3
-d.Has "a"          # true
+d.ContainsKey "a"          # true
 ```
 
 注意：`{a: 1}` 里的 `a` 是**变量**，没定义就报「未定义的变量 'a'」。
@@ -55,12 +55,12 @@ d.Has "a"          # true
 
 ## 7.4 序列方法（三种容器共用）
 
-这些方法只跟**元素顺序**有关，所以 list / set / dict 都有同一份（字典的元素是**值**）。名字照 C# 的集合 / Linq API 起。
+这些方法只跟**元素顺序**有关，所以 list / set / dict 都有同一份（字典的元素是 `[键 值]` 两格，见下）。名字照 C# 的集合 / Linq API 起。
 
 | 方法 | 说明 |
 |------|------|
 | `Count ()` `IsEmpty ()` `Any ()` | 个数 / 空不空 / 有没有 |
-| `Contains v` | 元素里有它（原子值按值比、容器按身份比）|
+| `Contains v` | 元素里有它（原子值按值比、容器按身份比）；**dict 上没有单独实现**，只有从 `IEnumerable` 默认来的那条，比的是整个 `[键 值]` |
 | `First ()` `Last ()` | 头一个 / 末一个（空容器**报错**）|
 | `Take n` `Skip n` | 前 n 个 / 跳过前 n 个 |
 | `Distinct ()` `Reverse ()` `Concat ys` | 去重 / 倒过来 / 接上另一串 |
@@ -85,7 +85,7 @@ d.Has "a"          # true
 
 **set 还有**集合代数：`Union` / `Intersect` / `Except` / `IsSubsetOf`。
 
-**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `Has k` / `HasValue v` / `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
+**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `ContainsKey k` / `ContainsValue v` / `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
 
 这三种容器还都收 `+` / `-` 两个运算符：list 是**拼接** / **去掉右边出现过的元素**，set 是**并集** / **差集**（就是上面那两个方法），dict 是**合并**（右边的键盖左边的）/ **按右边的键删**。一律交回新的容器、原容器不动（见 3.6.1）。
 
@@ -98,6 +98,18 @@ pairs := [["a" 1] ["b" 2]]
 d := pairs.ToDict ()          # {a: 1 b: 2}
 print (d.Entries ())          # [[a 1] [b 2]]
 print ((d.Entries ()).ToDict ())   # 原样回来
+```
+
+字典自己当序列时，元素就是这种两格：`ToList ()` / `Foreach` / `Map` / `for x in d` 全都拿到 `[键 值]`，
+所以 `(d.ToList ()).ToDict ()` 原样回来；只要键或只要值时，用 `Keys ()` / `Values ()`。
+
+```ravel
+d := {"a" -> 1 "b" -> 2}
+print (d.ToList ())               # [[a 1] [b 2]]
+print ((d.ToList ()).ToDict ())   # {a: 1 b: 2}
+d.Foreach ((p) => { print (p.At 0); })
+# a
+# b
 ```
 
 三条规矩：
@@ -769,7 +781,7 @@ perms ::= flags {
 p := (perms.Read | perms.Exec)
 print (p.Value)
 print (p.Text ())
-print (p.Has (perms.Write))
+print (p.ContainsKey (perms.Write))
 print (p.Names ())
 print ((perms.Of 5).Text ())
 ```
@@ -788,7 +800,7 @@ Read|Exec
 |------|------|
 | `a \| b` / `a & b` / `a ^ b` | 并 / 交 / 对称差 |
 | `a - b` | 差：把 `b` 里有的那几位去掉 |
-| `a.Has b` | `a` 里**有没有** `b` 那几位的**全部** |
+| `a.ContainsKey b` | `a` 里**有没有** `b` 那几位的**全部** |
 | `a.Names ()` | `a` 里有哪几枚**声明过的**成员（按声明的先后）|
 | `a.Text ()` | 单枚就是名字，组合就是 `Read\|Exec` |
 | `Perm.Of v` | 按值找成员；找不着就**现拼一枚**组合值（不再报错）|

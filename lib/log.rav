@@ -31,11 +31,11 @@ readonly Logger ::= class {
 
     init = (opts: object) => {
         (typeof opts) == dict {
-            opts.Has "level" { SetLevel (opts.Get "level"); } { 0; }
-            opts.Has "file" { Sink = opts.Get "file"; } { 0; }
-            opts.Has "err" { ToErr = opts.Get "err"; } { 0; }
-            opts.Has "tag" { Tag = opts.Get "tag"; } { 0; }
-            opts.Has "stamp" { Stamp = opts.Get "stamp"; } { 0; }
+            opts.ContainsKey "level" { SetLevel (opts.Get "level"); } { 0; }
+            opts.ContainsKey "file" { Sink = opts.Get "file"; } { 0; }
+            opts.ContainsKey "err" { ToErr = opts.Get "err"; } { 0; }
+            opts.ContainsKey "tag" { Tag = opts.Get "tag"; } { 0; }
+            opts.ContainsKey "stamp" { Stamp = opts.Get "stamp"; } { 0; }
         } { 0; }
         this
     }

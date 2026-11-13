@@ -17,8 +17,8 @@ readonly Response ::= class {
         headers = raw.Get "headers"
         url = raw.Get "url"
 
-        body = raw.Has "body" { raw.Get "body"; } { []; }
-        size = raw.Has "bytes" { raw.Get "bytes"; } { (body.Count ()); }
+        body = raw.ContainsKey "body" { raw.Get "body"; } { []; }
+        size = raw.ContainsKey "bytes" { raw.Get "bytes"; } { (body.Count ()); }
         this;
     }
 
@@ -48,7 +48,7 @@ readonly Response ::= class {
 
 ravel "Http"
 
-readonly private IntOr := (d: dict k: string dflt: int) => { (d.Has k) { d.Get k; } { dflt; } }
+readonly private IntOr := (d: dict k: string dflt: int) => { (d.ContainsKey k) { d.Get k; } { dflt; } }
 
 readonly private BodyOf := (body: object) => {
     ((typeof body) == string) {
@@ -62,12 +62,12 @@ readonly private Spec := (url: string method: string opts: dict) => {
     s := opts.Copy ()
     s.Set "url" url
     s.Set "method" method
-    (s.Has "body") {
+    (s.ContainsKey "body") {
         b := BodyOf (s.Get "body")
         s.Set "body" (b.Get "bytes")
         ((b.Get "contentType") != "") {
-            h := (s.Has "headers") { s.Get "headers"; } { {->}; }
-            (h.Has "content-type") { 0; } { h.Set "content-type" (b.Get "contentType"); }
+            h := (s.ContainsKey "headers") { s.Get "headers"; } { {->}; }
+            (h.ContainsKey "content-type") { 0; } { h.Set "content-type" (b.Get "contentType"); }
             s.Set "headers" h
         } { 0; }
     } { 0; }
@@ -102,7 +102,7 @@ readonly Delete := (url: string) => { Send url "DELETE" {->}; }
 readonly Head := (url: string) => { Send url "HEAD" {->}; }
 
 readonly Request := (spec: dict) => {
-    Send (spec.Get "url") ((spec.Has "method") { spec.Get "method"; } { "GET"; }) spec
+    Send (spec.Get "url") ((spec.ContainsKey "method") { spec.Get "method"; } { "GET"; }) spec
 }
 
 readonly private PathOr := (p: object) => { ((typeof p) == string) { p; } { p.Path; } }

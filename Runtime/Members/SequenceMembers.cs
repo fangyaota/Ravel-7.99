@@ -39,13 +39,19 @@ internal abstract class SequenceMembers
     [ClassValue("Fold")]
     private static readonly RuntimeValue Fold = new SeqMethod(SeqMode.Fold, 4) { Name = "Fold" };
 
-    private static IEnumerable<RuntimeValue> Items(RuntimeValue s) => s switch
+    // dict 当序列时枚举的是 `[键 值]` 两格(与 `ToDict` 收的东西对称)。
+    protected static IEnumerable<RuntimeValue> Items(RuntimeValue s) => s switch
     {
         ListVal l => l.Elements,
         SetVal st => st.Elements,
-        DictVal d => d.Entries.Values,
+        DictVal d => Pairs(d),
         _ => throw new RuntimeException($"序列方法只对 list / set / dict 有意义，得到 {s.Type}", ErrorKind.Type),
     };
+
+    protected static IEnumerable<RuntimeValue> Pairs(DictVal d)
+    {
+        foreach (var (k, v) in d.Entries) yield return new ListVal([k, v]);
+    }
 
     // ── 个数 / 空 ──
 
@@ -62,12 +68,6 @@ internal abstract class SequenceMembers
 
     [ClassMethod("Last")]
     private static RuntimeValue Last(RuntimeValue self) => LastOf(Items(self), "Last");
-
-    // ── 查 ──
-
-    [ClassMethod("Contains")]
-    private static RuntimeValue Contains(RuntimeValue self, RuntimeValue arg)
-        => new BoolVal(Items(self).Contains(arg));
 
     // ── 换形 ──
 

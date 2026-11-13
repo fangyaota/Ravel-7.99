@@ -11,8 +11,8 @@ print (s.Contains 2)
 d := {"a"-> 1 "b"-> 2 "c"-> 3}
 print (d.Count ())
 print (typeof d)
-print (d.Has "a")
-print (d.Has "x")
+print (d.ContainsKey "a")
+print (d.ContainsKey "x")
 d = {"x"-> 10 "y"-> 20}
 print (d.Get "x")
 print (d.Get "y")
@@ -127,16 +127,15 @@ print (s.Where (x: int) => { x >= 2; })
 
 d := {"a"-> 3 "b"-> 1 "c"-> 2}
 print (d.Count ())
-print (d.Min ())
-print (d.Max ())
-print (d.Join ",")
-print (d.Contains 2)
-print (d.HasValue 1)
+print ((d.Values ()).Min ())
+print ((d.Values ()).Join ",")
+print (d.ContainsKey "a")
+print (d.ContainsValue 1)
 print (d.GetOr "a" 0)
 print (d.GetOr "zz" 0)
 print (d.Remove "a")
 print (d.Count ())
-print (d.Map (v: int) => { v * 100; })
+print (d.Map (p) => { (p.At 1) * 100; })
 print (d.Keys ())
 
 try { print (ys.Where (x: int) => { 1; }); } (e: Exception) => { print ("1: " + string e); }
@@ -171,7 +170,6 @@ print ("老的 ${n} 仍然插值")
 ravel ""
 
 # --- expected ---
-
 # 3
 # Set
 # 4
@@ -255,7 +253,6 @@ ravel ""
 # [2 3]
 # 3
 # 1
-# 3
 # 3,1,2
 # true
 # true

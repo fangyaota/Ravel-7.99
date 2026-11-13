@@ -6,6 +6,11 @@ internal sealed class ListMembers : SequenceMembers
 {
     internal static readonly IMemberSet Set = MemberSet.Scan(typeof(ListMembers), ObjectMembers.Set);
 
+    // dict 自己提供 `ContainsKey` / `ContainsValue`,不再有序列意义上的 `Contains`;list / set 仍要。
+    [ClassMethod("Contains")]
+    private static RuntimeValue Contains(RuntimeValue self, RuntimeValue arg)
+        => new BoolVal(((ListVal)self).Elements.Contains(arg));
+
     private static ListVal Indexed(RuntimeValue s, RuntimeValue a, string what, bool allowEnd = false)
     {
         if (a is not IntVal i) throw new RuntimeException($"{what} 需要 int 参数", ErrorKind.Argument);

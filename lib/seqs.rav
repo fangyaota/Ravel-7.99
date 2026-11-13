@@ -46,7 +46,7 @@ readonly Group := (xs: IEnumerable) => {
         out := {->}
         xs.Foreach (x: object) => {
             k := (key x).Key ()
-            out.Has k { (out.Get k).Add x; } { out.Set k [x]; }
+            out.ContainsKey k { (out.Get k).Add x; } { out.Set k [x]; }
         }
         out
     }
@@ -56,7 +56,7 @@ readonly Frequency := (xs: IEnumerable) => {
     out := {->}
     xs.Foreach (x: object) => {
         k := x.Key ()
-        out.Has k { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
+        out.ContainsKey k { out.Set k ((out.Get k) + 1); } { out.Set k 1; }
     }
     out
 }

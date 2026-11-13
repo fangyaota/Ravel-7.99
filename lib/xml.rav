@@ -82,14 +82,14 @@ readonly XmlNode ::= class {
     Attrs := () => { IsElement () { Tree.Get "attrs"; } { {->}; } }
     Attr := (name: string) => {
         a := Attrs ()
-        assert (a.Has name) ("<" + (Name ()) + "> 上没有 '" + name + "' 这个属性")
+        assert (a.ContainsKey name) ("<" + (Name ()) + "> 上没有 '" + name + "' 这个属性")
         a.Get name;
     }
     AttrOr := (name: string dflt: string) => {
         a := Attrs ()
-        a.Has name { a.Get name; } { dflt; }
+        a.ContainsKey name { a.Get name; } { dflt; }
     }
-    HasAttr := (name: string) => { (Attrs ()).Has name; }
+    HasAttr := (name: string) => { (Attrs ()).ContainsKey name; }
 
     AttrPut := (name: string value: object) => {
         assert (IsElement ()) ("这是段文本，没有属性可挂")
@@ -148,7 +148,7 @@ readonly XmlNode ::= class {
         seen := {->}
         (Kids ()).Foreach (k: XmlNode) => {
             tag := k.NameOf ()
-            n := seen.Has tag { (seen.Get tag) + 1; } { 1; }
+            n := seen.ContainsKey tag { (seen.Get tag) + 1; } { 1; }
             seen.Set tag n
             out.Set (n == 1 { tag; } { (tag + "[") + (string n) + "]"; }) k
         }

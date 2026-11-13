@@ -153,8 +153,8 @@ probe := () => {
     print (s : IEnumerable)
     print ((typeof s))
 
-    print (s.Has "a")
-    print (s.Has "没这个")
+    print (s.ContainsKey "a")
+    print (s.ContainsKey "没这个")
     print (s.Get "a")
     print (s.GetOr "没这个" 99)
 
@@ -167,7 +167,7 @@ probe := () => {
     print (s.Count ())
 
     s.Remove "a"
-    print (s.Has "a")
+    print (s.ContainsKey "a")
     print ((s.Count ()) - n0)
 
     print ((s.Keys ()).Count ())

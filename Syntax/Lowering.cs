@@ -605,7 +605,7 @@ public sealed class Lowering
 
                     var missing = Concat(at, Lit("要键 ", at), Call(Ident("string", at), key),
                                              Lit("，可这一份上没有", at));
-                    outs.Add(ExprStmt(If(Not(Call(Member(source, "Has"), key), at),
+                    outs.Add(ExprStmt(If(Not(Call(Member(source, "ContainsKey"), key), at),
                         Reject(missing, at), at), at));
                     Bind(e.Sub, Call(Member(source, "Get"), key), eff, outs);
                 }

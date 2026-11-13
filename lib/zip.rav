@@ -83,9 +83,9 @@ readonly private Archive ::= class {
 
     FileOf := (name: string) => {
         all := Members Handle
-        cand := (all.Has name) || ((all.Has (name + "/")) || (HasUnder all name)) { name; } { Prefix + name; }
-        all.Has cand { cand; } {
-            assert ((all.Has (cand + "/")) || (HasUnder all cand)) (Path + " 里没有 '" + name + "' 这个成员")
+        cand := (all.ContainsKey name) || ((all.ContainsKey (name + "/")) || (HasUnder all name)) { name; } { Prefix + name; }
+        all.ContainsKey cand { cand; } {
+            assert ((all.ContainsKey (cand + "/")) || (HasUnder all cand)) (Path + " 里没有 '" + name + "' 这个成员")
             throw (Exception ("'" + cand + "' 是个目录（往下走用 Sub / Child）"));
         }
     }

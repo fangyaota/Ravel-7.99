@@ -22,7 +22,7 @@ readonly RegexMatch ::= class {
 
     Group := (k) => {
         (typeof k) == string {
-            assert (Named.Has k) ("Group: 没有叫 '" + k + "' 的组（命名组要在模式里写成 (?<" + k + ">…)）")
+            assert (Named.ContainsKey k) ("Group: 没有叫 '" + k + "' 的组（命名组要在模式里写成 (?<" + k + ">…)）")
             Named.Get k
         } {
             i := int k

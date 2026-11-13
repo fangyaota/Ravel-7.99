@@ -8,7 +8,8 @@ internal static partial class BuiltinClasses
     {
         ListVal l => [.. l.Elements],
         SetVal s => [.. s.Elements],
-        DictVal d => [.. d.Entries.Values],
+        // dict 当序列 = 一串 `[键 值]`(与 `ToList` / `Foreach` / `ToDict` 同一个口径)
+        DictVal d => [.. d.Entries.Select(e => (RuntimeValue)new ListVal([e.Key, e.Value]))],
         // **插件带来的容器**(`using "x.dll"` 那些)引擎不认识它们的类型 —— 走**按名字**那条:
         // 谁有 `ToList ()` 谁就是容器。`Impl` 是同步的可以直接调(插件登记的方法就是它)。
         _ when v.MemberScope.LookupField("ToList")?.Value is BuiltinMethodVal m

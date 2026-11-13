@@ -236,7 +236,7 @@ readonly Server ::= class {
 
                 Requests += 1
 
-                (r.Has "oversize") {
+                (r.ContainsKey "oversize") {
                     me.Reply g c (Text 413 (r.Get "why")) true
                     open = false
                 } {
@@ -249,7 +249,7 @@ readonly Server ::= class {
         }
         Native.HttpClose c;
 
-        Open.Has c { Open.Remove c; } { 0; }
+        Open.ContainsKey c { Open.Remove c; } { 0; }
         ()
     }
 

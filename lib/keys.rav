@@ -13,7 +13,7 @@ impl (IKey string {;})
 readonly IDict ::= interface {
     internal Get : function = _
     internal Set : function = _
-    internal Has : function = _
+    internal ContainsKey : function = _
     internal Remove : function = _
     internal GetOr : function = _
 }
@@ -43,7 +43,7 @@ impl (IDict System.Scope {
             ()
         }
     }
-    Has = (k: object) => { try { (instance.Lookup (Of k)); true; } (e: Exception) => { false; } }
+    ContainsKey = (k: object) => { try { (instance.Lookup (Of k)); true; } (e: Exception) => { false; } }
     Remove = (k: object) => { instance.Remove (Of k); }
     GetOr = (k: object) => {
         (dflt: object) => {
@@ -63,7 +63,7 @@ readonly Keyed ::= class {
         ()
     }
     Get := (k: object) => { Data.Get (Of k); }
-    Has := (k: object) => { Data.Has (Of k); }
+    ContainsKey := (k: object) => { Data.ContainsKey (Of k); }
     GetOr := (k: object dflt: object) => { (Data.GetOr (Of k)) dflt; }
     Remove := (k: object) => {
         c := Of k

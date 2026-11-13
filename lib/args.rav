@@ -28,7 +28,7 @@ readonly ParseWith := (argv: list spec: object) => {
     }
 
     put := (name: string raw: object) => {
-        given && (!(spec.Has name)) {
+        given && (!(spec.ContainsKey name)) {
 
             known := ((spec.Keys ()).Sort ()).Join " "
             throw (Exception ("Args.Parse: 不认识的选项 '" + name + "'（规格里有：" + known + "）"))
@@ -36,7 +36,7 @@ readonly ParseWith := (argv: list spec: object) => {
         t := given { SpecOf spec name; } { "string"; }
         v := Coerce t name raw
         t == "list" {
-            out.Has name { (out.Get name).Add v; } { out.Set name [v]; }
+            out.ContainsKey name { (out.Get name).Add v; } { out.Set name [v]; }
         } { out.Set name v; }
         ();
     }
@@ -97,7 +97,7 @@ readonly ParseWith := (argv: list spec: object) => {
 }
 
 readonly private SpecOf := (spec: dict name: string) => {
-    spec.Has name { spec.Get name; } { "string"; }
+    spec.ContainsKey name { spec.Get name; } { "string"; }
 }
 
 readonly private Coerce := (t: string name: string v: object) => {
@@ -126,10 +126,10 @@ readonly private AsReal := (name: string v: object) => {
 }
 
 readonly Get := (a: dict name: string dflt: object) => {
-    a.Has name { a.Get name; } { dflt; }
+    a.ContainsKey name { a.Get name; } { dflt; }
 }
 
-readonly Has := (a: dict name: string) => { a.Has name; }
+readonly ContainsKey := (a: dict name: string) => { a.ContainsKey name; }
 
 readonly Positional := (a: dict) => { a.Get Rest; }
 

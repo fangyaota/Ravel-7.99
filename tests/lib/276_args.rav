@@ -9,7 +9,7 @@ a := Args.Parse ["--name=1" "-v" "pos1" "--port=8080" "-abc" "--" "--x" "tail"]
 print a
 print (Args.Positional a)
 print (Args.Get a "name" "")
-print (Args.Has a "zz")
+print (Args.ContainsKey a "zz")
 print (Args.Get a "zz" 42)         # 没给就用默认值
 
 # **光杆选项一律是开关**(没写 `=`,就不吃后面那个实参)——
@@ -24,7 +24,7 @@ b := Args.ParseWith ["--port" "8080" "-v" "x" "--ratio" "0.5"] {"port"-> "int" "
 print (Args.Get b "port" 0)
 print (typeof (Args.Get b "port" 0))      # 转成真的整数了,不是字符串
 print (Args.Get b "ratio" 0.0)
-print (Args.Has b "v")
+print (Args.ContainsKey b "v")
 print (Args.Positional b)
 
 # 同一个名字给多次 → 攒成一串(`list` 类型)

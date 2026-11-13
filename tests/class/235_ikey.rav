@@ -16,14 +16,14 @@ print (d.Count ())
 print (d.Get 1)
 print (d.Get "1")
 print (d.Get 1.0)
-print (d.Has 2)
+print (d.ContainsKey 2)
 print (d.Keys ())
 print ({1-> "a"}.Get 1)
 print (d : IDict)
 l := [1 2]
 d.Set l "list"
 print (d.Get l)
-print (d.Has [1 2])
+print (d.ContainsKey [1 2])
 try { print (d.Get 999); } (e: Exception) => { print ("3: " + string e); }
 
 print {"a"-> 1}
@@ -56,11 +56,11 @@ r2 := Rec 2 "乙"
 d2.Set r1 "one"
 d2.Set r2 "two"
 print (d2.Get r1)
-print (d2.Has r2)
+print (d2.ContainsKey r2)
 print (d2.Count ())
 print (d2.GetOr (Rec 9 "z") "缺")
 print (d2.Remove r1)
-print (d2.Has r1)
+print (d2.ContainsKey r1)
 print (d2.Count ())
 print ((d2.Keys ()).Map ((r: Rec) => { r.N; }))
 
@@ -76,7 +76,7 @@ t.Set (Rec 1 "甲") "one"
 t.Set (Rec 2 "乙") "two"
 print (t : IDict)
 print (t.Get (Rec 1 "丙"))
-print (t.Has (Rec 2 "丁"))
+print (t.ContainsKey (Rec 2 "丁"))
 print (t.Count ())
 print ((t.Keys ()).Map ((r: Rec) => { r.N; }))
 print (t.Values ())
@@ -112,7 +112,7 @@ print "end"
 ravel ""
 ravel "dict_no_sys"
 d := {1 -> "a"}
-print (d.Has 1)
+print (d.ContainsKey 1)
 print ((d.Set 2) "b")
 print d
 print (d.Remove 2)

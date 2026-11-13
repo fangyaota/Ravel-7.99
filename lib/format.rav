@@ -12,7 +12,7 @@ readonly Fmt := (tpl: string args: object) => {
 
     take := (k: string) => {
         (typeof args) == dict {
-            assert (args.Has k) ("Format.Fmt: 没有 '" + k + "' 这个位置（模板里有 {" + k + "}）")
+            assert (args.ContainsKey k) ("Format.Fmt: 没有 '" + k + "' 这个位置（模板里有 {" + k + "}）")
             args.Get k
         } {
             idx := k.IsEmpty () { mine := cur; cur += 1; mine; } { int k; }

@@ -26,9 +26,9 @@ internal sealed class DictMembers : SequenceMembers
         });
     }
 
-    [ClassMethod("Has")]
+    [ClassMethod("ContainsKey")]
     private static RuntimeValue HasKey(RuntimeValue self, RuntimeValue arg)
-        => new BoolVal(((DictVal)self).Entries.ContainsKey(BuiltinClasses.KeyArg(arg, "dict.Has 的键")));
+        => new BoolVal(((DictVal)self).Entries.ContainsKey(BuiltinClasses.KeyArg(arg, "dict.ContainsKey 的键")));
 
     [ClassMethod("Keys")]
     private static RuntimeValue Keys(RuntimeValue self) => new ListVal([.. ((DictVal)self).Entries.Keys]);
@@ -36,20 +36,15 @@ internal sealed class DictMembers : SequenceMembers
     [ClassMethod("Values")]
     private static RuntimeValue Values(RuntimeValue self) => new ListVal([.. ((DictVal)self).Entries.Values]);
 
-    // 摊成 [[键 值] …],和 ToDict 配对
+    // 摊成 [[键 值] …],和 ToDict 配对(序列口径也是它,见 `SequenceMembers.Pairs`)
     [ClassMethod("Entries")]
-    private static RuntimeValue Entries(RuntimeValue self)
-    {
-        var list = new List<RuntimeValue>();
-        foreach (var (k, v) in ((DictVal)self).Entries) list.Add(new ListVal([k, v]));
-        return new ListVal(list);
-    }
+    private static RuntimeValue Entries(RuntimeValue self) => new ListVal([.. Pairs((DictVal)self)]);
 
     [ClassMethod("Remove")]
     private static RuntimeValue RemoveKey(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.Remove(BuiltinClasses.KeyArg(arg, "dict.Remove 的键")));
 
-    [ClassMethod("HasValue")]
+    [ClassMethod("ContainsValue")]
     private static RuntimeValue HasValue(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.ContainsValue(arg));
 

@@ -24,7 +24,7 @@ readonly Render := (rows: list) => {
             rows.Foreach (row: dict) => {
                 line := []
                 cols.Foreach (k: object) => {
-                    line.Add ((row.Has k) { string (row.Get k); } { ""; })
+                    line.Add ((row.ContainsKey k) { string (row.Get k); } { ""; })
                 }
                 grid.Add line
             }
