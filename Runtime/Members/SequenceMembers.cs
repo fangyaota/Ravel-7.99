@@ -45,7 +45,9 @@ internal abstract class SequenceMembers
         ListVal l => l.Elements,
         SetVal st => st.Elements,
         DictVal d => Pairs(d),
-        _ => throw new RuntimeException($"序列方法只对 list / set / dict 有意义，得到 {s.Type}", ErrorKind.Type),
+        // 一对就是"一串两格":`Foreach` / `Map` / `ToList` 在它身上照样成立。
+        PairVal p => [p.Key, p.Value],
+        _ => throw new RuntimeException($"序列方法只对 list / set / dict / pair 有意义，得到 {s.Type}", ErrorKind.Type),
     };
 
     protected static IEnumerable<RuntimeValue> Pairs(DictVal d)

@@ -26,6 +26,9 @@ internal static partial class BuiltinClasses
     public static readonly ClassVal Set;
     public static readonly ClassVal Dict;
 
+    // `Pair` —— 值类型的一对(键 / 值)。不进"引用类型"那一支:它不可变、能当键。
+    public static readonly ClassVal Pair;
+
     public static readonly ClassVal Waitable;
 
     // void — 唯一值 ()
@@ -88,6 +91,7 @@ internal static partial class BuiltinClasses
         List = New("List");
         Set = New("Set");
         Dict = New("Dict");
+        Pair = New("Pair");
         Waitable = New("Waitable");
         Void = New("Void");
         Type = New("Type");
@@ -137,6 +141,7 @@ internal static partial class BuiltinClasses
         Link(List, Object, Type);
         Link(Set, Object, Type);
         Link(Dict, Object, Type);
+        Link(Pair, Object, Type);
         Link(Waitable, Object, Type);
 
         Link(Void, Object, Type);
@@ -191,7 +196,7 @@ internal static partial class BuiltinClasses
                  {
                      Object, Int, Real, Bool, String, Char, BigInt,
                      Fraction, BigFraction, Range, Function, Block, Continuation,
-                     List, Set, Dict, Waitable, Void, Type, Interface, BaseInterface, IValue,
+                     List, Set, Dict, Pair, Waitable, Void, Type, Interface, BaseInterface, IValue,
                      Ravel, Exception, Json, DotNetObject, DotNetType, ScopeType, Property,
                      TypeError, NameError, AttributeError, IndexError, KeyError,
                      ZeroDivisionError, AssertionError, AccessError, ArgumentError, ValueError,
@@ -239,6 +244,7 @@ internal static partial class BuiltinClasses
         List.Members = ListMembers.Set;
         Set.Members = SetMembers.Set;
         Dict.Members = DictMembers.Set;
+        Pair.Members = PairMembers.Set;
         ScopeType.Members = ScopeMembers.Set;
         Property.Members = PropertyMembers.Set;
 
@@ -261,7 +267,7 @@ internal static partial class BuiltinClasses
         // 而 `impl` 那条口子也一并归引擎。
         ClassVal[] values =
         [
-            Int, Real, BigInt, Fraction, BigFraction, String, Char, Bool, Void, Range,
+            Int, Real, BigInt, Fraction, BigFraction, String, Char, Bool, Void, Range, Pair,
         ];
         foreach (var v in values)
         {
@@ -270,7 +276,7 @@ internal static partial class BuiltinClasses
         }
 
         // 集合类型 —— `list` / `set` / `dict` 自己那一套(预设类体、内部表示、序列方法)
-        foreach (var c in new[] { List, Set, Dict })
+        foreach (var c in new[] { List, Set, Dict, Pair })
             c.IsSealed = true;
 
         // `IValue` 本身:用户不能再 `impl` 它了(那正是"值类型这份名单引擎说了算"那句)

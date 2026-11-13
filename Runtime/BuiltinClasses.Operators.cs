@@ -150,7 +150,12 @@ internal static partial class BuiltinClasses
 
     internal static bool SameValue(RuntimeValue a, RuntimeValue b, string op) => (a, b) switch
     {
-        (ObjectVal oa, ObjectVal ob) => ReferenceEquals(oa, ob),
+        // 值语义的类对象(`Pair` 这种:`IsValueLike`)按内容比 —— 与 `StrictSame` 同一口径;
+        // 其余对象(类实例 / 模块 / 函数…)仍是"同一个才是相等"。
+        (ObjectVal oa, ObjectVal ob) => oa.Type is ClassVal { IsValueLike: true } ota
+                                         && ReferenceEquals(ota, ob.Type)
+            ? oa.Equals(ob)
+            : ReferenceEquals(oa, ob),
         (not ObjectVal, not ObjectVal) => a.Equals(b),
         // 一边是对象、一边是值:类型就不一样了,不用再挑操作数
         _ => false,

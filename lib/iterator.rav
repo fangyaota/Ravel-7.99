@@ -323,6 +323,11 @@ impl (IEnumerable dict {
 })
 impl (IList dict {;})
 
+impl (IMonad Pair {;})
+impl (IEnumerable Pair {
+    GetEnumerator = () => { Enumerator (instance.ToList ()); }
+})
+
 impl (IMonad System.Scope {;})
 impl (IEnumerable System.Scope {
     GetEnumerator = () => { Enumerator ((instance.Variables ()).Values ()); }

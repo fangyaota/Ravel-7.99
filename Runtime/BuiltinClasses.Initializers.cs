@@ -64,6 +64,9 @@ internal static partial class BuiltinClasses
             FunctionVal f => new ContinuationVal((Frame?)null, f),
             _ => throw new RuntimeException($"Continuation 收一枚函数，得到 {val.Type}", ErrorKind.Type),
         }));
+        // `Pair k v` —— 值类型的构造器一次只收一格(与 `int` / `bool` 同一套口子),
+        // 所以第一格交回"还差第二格"的函数。造出来的一对不可变,也没有第二条路。
+        BuiltinCtor(Pair, FunctionVal.From(k => FunctionVal.From(v => (RuntimeValue)new PairVal(k, v))));
         BuiltinCtor(Set, MakeDefaultCaster(Set));
         BuiltinCtor(Dict, MakeDefaultCaster(Dict));
         // 建类不在这里:`type` 的 init 由 InstallTypeInit 装 —— 它要用 NativeClosure

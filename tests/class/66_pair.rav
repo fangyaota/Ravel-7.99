@@ -1,0 +1,48 @@
+# pair:值类型的一对
+ravel "66_pair"
+p := Pair 1 "a"
+print p
+print (p.Key ())
+print (p.Value ())
+print (p.At 0)
+print (p.At 1)
+print (p.Count ())
+print (p.ToList ())
+print (p : Pair)
+print (p : IValue)
+print ((Pair 1 "a") == (Pair 1 "a"))
+print ((Pair 1 "a") === (Pair 1 "a"))
+print ((Pair 1 "a") == (Pair 1.0 "a"))
+print ((Pair 1 "a") != (Pair 2 "a"))
+d := {->}
+d[Pair "k" 1] = 7
+print (d[Pair "k" 1])
+print (d.ContainsKey (Pair "k" 1))
+print ({{Pair 1 2 Pair 1 2}}.Count ())
+p.Foreach ((x) => { print x; })
+[k v] := p
+print k
+print v
+try { p.At 2; } (e: Exception) => { print ("1: " + string e); }
+# --- expected ---
+# 1 -> a
+# 1
+# a
+# 1
+# a
+# 2
+# [1 a]
+# true
+# true
+# true
+# true
+# false
+# true
+# 7
+# true
+# 1
+# 1
+# a
+# 1
+# a
+# 1: pair.At 的索引 2 越界 (一对只有 0 / 1 两格)
