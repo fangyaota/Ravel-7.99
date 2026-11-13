@@ -44,36 +44,26 @@ a := x => x * 3
 b := (x) => x * 3
 print (a 5)
 print (b 5)
-
 calc := x => (x * 2) + 1
 print (calc 10)
-
 ignore := _ => 7
 print (ignore 99)
 print (_ => 7)
 
 hole := _ => _ + 1
 print ((hole 5) 6)
-
 print ((try { eval "f := x: int => x + 1"; } (e: Exception) => { "2: " + e.Message; }))
 ravel ""
 ravel "m49"
-return := 5
-print (return + 1)
-break := 1
-print (break + 1)
-continue := 2
-print (continue + 1)
-
 D ::= class {
     return: int = 7
 }
 print ((D ()).return)
 
-print ((try { eval "f := () => { return 1; }\nf ()"; } (e: Exception) => { "1: " + (string e); }))
-
-print ((try { eval "g := () => { return 1; }\n3"; } (e: Exception) => { "2: " + (string e); }))
-ravel ""
+f := () => { return 42; }
+print (f ())
+print ((try { eval "return 1"; } (e: Exception) => { "1: " + (string e); }))
+print ((try { eval "break"; } (e: Exception) => { "2: " + (string e); }))
 ravel "m50"
 x := 1
 + 2
@@ -198,9 +188,7 @@ print ({k -> v for [k v] in [["a" 1]]})
 print ([x for (x: int) in [1 2]])
 ravel ""
 
-
 # --- expected ---
-
 # 42
 # 3
 # [10 20 30]
@@ -224,12 +212,10 @@ ravel ""
 # <function (_: object) => { 7; }>
 # 7
 # 2: 不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。要带类型就加括号：`(x: int) => …`
-# 6
-# 2
-# 3
 # 7
-# 1: 值 5 不是函数，不能调用
-# 3
+# 42
+# 1: 'return' 得写在函数体里 —— 顶层没有可返回的那个函数
+# 2: 'break' / 'continue' 得写在循环里（`while` / `.Foreach`，或者带标签的语句）
 # 3
 # 50
 # <function (b: int) => { a + b; } applied a=3>

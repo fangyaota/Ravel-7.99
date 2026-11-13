@@ -3,7 +3,7 @@ namespace Ravel;
 using System.Linq;
 using Ravel.Runtime;
 
-public partial class Parser(List<Token> tokens, string? source = null, bool moreControlFlow = false)
+public partial class Parser(List<Token> tokens, string? source = null, bool moreControlFlow = true)
 {
     private int _pos;
 
@@ -53,19 +53,22 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
 
     // 文件头扫一遍：`#more-control-flow true` 得在开跑前就知道
     //（Interpreter 的跑与 eval 也要它；正文里再写只影响它后面）
-    public static bool DeclaresMoreControlFlow(string source)
+    public static bool DeclaresMoreControlFlow(string source, bool fallback = true)
     {
         const string name = "more-control-flow";
+        var on = fallback;                                    // 默认开,写 `#more-control-flow false` 才关
         foreach (var raw in source.Split('\n'))
         {
             var line = raw.Trim();
             if (line.Length == 0) continue;
-            if (line[0] != '#') return false;                 // 见到代码了,后面不认
+            if (line[0] != '#') break;                        // 见到代码了,后面不认
             var body = line[1..].TrimStart();
             if (!body.StartsWith(name)) continue;
-            if (body[name.Length..].Trim() == "true") return true;
+            var value = body[name.Length..].Trim();
+            if (value == "true") on = true;
+            else if (value == "false") on = false;
         }
-        return false;
+        return on;
     }
 
     private void TakeDirective()
@@ -115,7 +118,7 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         return false;
     }
 
-    public static BlockExpr ParseBlock(string source, string? fileName = null, bool moreControlFlow = false)
+    public static BlockExpr ParseBlock(string source, string? fileName = null, bool moreControlFlow = true)
         => new(ParseSource(source, fileName, moreControlFlow).Statements) { Line = 1, Column = 1, Source = fileName };
 
     internal static Expression ParseExpressionSnippet(string src, string? file, int line, int col)

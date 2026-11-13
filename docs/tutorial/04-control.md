@@ -327,14 +327,14 @@ print (sign 5)
 
 ### `return`：函数里提前交回一个值
 
-函数里"提前交回"太常见，所以有专门的糖。**它归一个开关管，默认关着**（`break` / `continue` 同理）：
+函数里"提前交回"太常见，所以有专门的糖。**它归一个开关管，默认是开的**（`break` / `continue` 同理）：
 
-- 命令行：`ravel --more-control-flow 你的脚本.rav`（整次运行都开）
-- 文件里：`#more-control-flow true`（从这一行起生效，`#more-control-flow false` 关回去）
+- 想关掉：文件里写 `#more-control-flow false`（从这一行起生效，再写 `true` 打开）
+- 命令行 `ravel --more-control-flow 你的脚本.rav` 只是"强制开"，在默认已经开的情况下没有作用
 
-和 `#ignore-types` 是同一个形状：**开关是源码顺序的，不是块作用域的**。写在文件头就是"整个文件开"；写在中间只影响它后面那段；写在 `{ … }` 里也一样，出了那个块不会自动恢复。（"这个文件要不要开"那一步在开跑前就得知道，所以只认文件头那条 —— 见 `Parser.DeclaresMoreControlFlow`。）
+和 `#ignore-types` 是同一个形状：**开关是源码顺序的、不是块作用域的**。写在文件头就是"整个文件关掉"；写在中间只影响它后面那段；写在 `{ … }` 里也一样，出了那个块不会自动恢复。（"这个文件起步是开还是关"那一步在开跑前就得知道，所以只认文件头那条 —— 见 `Parser.DeclaresMoreControlFlow`。）
 
-关掉之后 `return` 就不再是关键字了：`return 0` 会被当成"拿 `return` 这个变量去调 `0`"，真跑到那一句才报「未定义的变量 'return'」。
+关掉之后 `return` 就不再是关键字了：`return 0` 会被当成"拿 `return` 这个变量去调 `0`"，真跑到那一句才报「未定义的变量 'return'」；`break` / `continue` 同理。
 
 #### 实例
 

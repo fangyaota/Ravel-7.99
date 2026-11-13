@@ -19,7 +19,7 @@ public partial class Interpreter
 
     public bool WarnForgotCall { get; set; }
 
-    public bool MoreControlFlow { get; set; }
+    public bool MoreControlFlow { get; set; } = true;
 
     static Interpreter()
     {

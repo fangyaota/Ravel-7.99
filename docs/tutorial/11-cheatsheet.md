@@ -48,8 +48,8 @@
 | `f or g` / `f and g` | 谓词级的或 / 与（**中缀运算符**）→ `x => (f x) \|\| (g x)`；括号可省（见 5.5）|
 | `[[k v] …].ToDict ()` / `d.Entries ()` | 对序列摊成字典 / 字典摊成 `[键 值]` 对（键重复后者盖前者；项不是两格就 `throw`；紧跟空括号再挂成员要括一下：`(d.Entries ()).ToDict ()`，见 7.4.1）|
 | `x++` / `x--` | 自增 / 自减的**语句**（折成 `x += 1`）。**不交回值**、前缀不认，见 3.10 |
-| `break` / `continue` | 跳出循环 / 跳过这一轮（**要开 `--more-control-flow`**；给标签能跳好几层，见 4.5）|
-| `return v` | 函数里提前交回（**要开 `--more-control-flow`**，默认关；上下文关键字，出的是最近一层**用户写的**函数，见 4.5）|
+| `break` / `continue` | 跳出循环 / 跳过这一轮（默认可用；关掉要 `#more-control-flow false`。给标签能跳好几层，见 4.5）|
+| `return v` | 函数里提前交回（默认可用；关掉要 `#more-control-flow false`。上下文关键字，出的是最近一层**用户写的**函数，见 4.5）|
 | `callcc fn` | 续延（拿到的类型是 `Continuation`，见 4.5）|
 | `with obj { }` | 进到 obj 的成员表里跑一段（**不拷**、**不推层**；要副本用 `Copy ()`，见 8.8）|
 | `o.MemberScope ()` | 这个对象的**成员表**（一个 `Scope`）—— 按动态名字读写成员时用它 |
@@ -85,6 +85,6 @@
 | 指令 | 作用 |
 |------|------|
 | `#ignore-types true` / `false` | 关掉类型检查：变量定义、参数、模式类型格都不再校验（见 2.8）|
-| `#more-control-flow true` / `false` | 打开 `return` / `break` / `continue`、`while` 当表达式、循环体标签（见 4.5）|
+| `#more-control-flow true` / `false` | 开关 `return` / `break` / `continue`、`while` 当表达式、循环体标签（**默认开**，见 4.5）|
 | `#program --no-lower=true` | 文件第一行：这份源码已经去过糖，别再脱（`ravel ast -s` 的产物自带，见 2.8）|
 | `#program --warn` | 只给这个文件开"少给一块"的编译期警告；必须写在文件头（见 12）|

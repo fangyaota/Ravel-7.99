@@ -267,6 +267,6 @@ print (f "s")         # s
 - 一行里只有 `#ignore-types true` / `#ignore-types false` 才算开关（名字后面的值只认这两个），别的 `#` 行仍是注释。
 - 它是**按源码顺序**的开关，从那一行起一直有效到下一个 `false`（或文件结束）——不是块作用域。写在 `{ … }` 里头也一样，出了那个块不会自动恢复。
 
-现在语言层只有两个这样的开关，形状一致：`#ignore-types true|false` 和 `#more-control-flow true|false`（后者管 `return` / `break` / `continue` / 循环当表达式，见 4.5）。
+现在语言层只有两个这样的开关，形状一致：`#ignore-types true|false` 和 `#more-control-flow true|false`（后者管 `return` / `break` / `continue` / 循环当表达式，见 4.5；它**默认是开的**，所以一般只在想关掉时才写这一行）。
 
 另有一个只给工具用的文件头开关：`#program --no-lower=true`。它写在文件第一行，作用是"这个文件已经去过糖，别再脱一遍"——`ravel ast -s -o <目录>` 产出的 `.src.rav` 自带这一行，所以那些文件能直接跑，回读时也不会把引擎生成的临时名再包一层。手写代码不需要它。

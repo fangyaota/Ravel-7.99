@@ -108,7 +108,7 @@ internal static class Program
             // 开关在**建完之后**才拨:构造时就把 predefined 跑了,而那是库、不是用户代码 ——
             // 提醒要说的是"你这几行",不该被库里的写法刷屏(`lib/` 里自己开另说)。
             // 文件头那条 `#program --more-control-flow=true` 和命令行开关是**或**的关系
-            var flow = s.MoreControlFlow || Parser.DeclaresMoreControlFlow(source);
+            var flow = s.MoreControlFlow || Parser.DeclaresMoreControlFlow(source);   // 命令行开关只负责"强制开"
             new Interpreter(scriptArgs) { WarnForgotCall = s.Warn, MoreControlFlow = flow }
                 .Interpret(Parser.ParseSource(source, path, flow));
             return 0;

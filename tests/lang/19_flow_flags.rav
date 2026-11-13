@@ -1,4 +1,3 @@
-#more-control-flow true
 ravel "m53"
 Len4 := (s) => { (s.Count ()) > 3; }
 Pos := (n) => { n > 0; }
@@ -149,7 +148,12 @@ print (f 1)
 g := (x) => { x * 3; }
 print (7 |> g |> + 1)
 ravel ""
-
+#more-control-flow false
+g := () => { return 1; }
+print ((try { g (); } (e: Exception) => { "1: " + (string e); }))
+#more-control-flow true
+h := () => { return 7; }
+print (h ())
 # --- expected ---
 # 1 2
 # 这一整块没过 `|>` 后面那个条件
@@ -196,3 +200,5 @@ ravel ""
 # big
 # small
 # 22
+# 1: 未定义的变量 'return'
+# 7
