@@ -149,6 +149,14 @@ print (try { [by bad] := [5]; bad; } (e: Exception) => { e.Message; })
 print f
 ravel ""
 
+ravel "conv"
+s := (i * 2 for i in [1 2 3])
+print s[]
+print s{}
+t := ([i i] for i in [1 2])
+print t{->}
+ravel ""
+
 # --- expected ---
 
 # {a: 1 b: 2}
@@ -244,3 +252,6 @@ ravel ""
 # 100
 # 'bad' 标了 by，但它的值不是 property（Integer 上没有 getter）
 # <function (by y: int) => { y = y + 1; y; }>
+# [2 4 6]
+# {2 4 6}
+# {1: 1 2: 2}

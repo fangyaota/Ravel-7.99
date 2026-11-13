@@ -255,6 +255,13 @@ print ((+.1) 5)
 print (5 |> + 1)
 ravel ""
 
+ravel "m8"
+f := _ + 1
+print f(5)
+g := (a) => { (b) => { a * b; }; }
+print g(3)(4)
+ravel ""
+
 # --- expected ---
 
 # 42
@@ -344,3 +351,5 @@ ravel ""
 # 3
 # 6
 # 6
+# 6
+# 12

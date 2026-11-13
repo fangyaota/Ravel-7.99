@@ -177,6 +177,13 @@ public sealed class Lowering
         UnaryExpr u => u with { Operand = Lower(u.Operand) },
         PipeExpr p => p with { Left = Lower(p.Left), Right = Lower(p.Right) },
         SlotExpr sl => sl with { Path = Lower(sl.Path) },
+        // `s[]` / `s{}` / `s{->}`:紧贴的空容器 = 转容器(与手写 `s.ToList ()` 同一条路)
+        ContainerConvert cc => Call0(Member(Lower(cc.Object), cc.Kind switch
+        {
+            ConvertKind.List => "ToList",
+            ConvertKind.Set => "ToSet",
+            _ => "ToDict",
+        })),
         ListLiteral l => l with { Elements = l.Elements.Select(Lower).ToList() },
         SetLiteral s => s with { Elements = s.Elements.Select(Lower).ToList() },
         // 两头都可能省了(`[1..]` / `[..1]`),省掉的那头是 `null`,不能往里塞

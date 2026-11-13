@@ -138,6 +138,13 @@ internal static class AstPrinter
         CharLiteral c => "'" + EscapeChar(c.Value) + "'",
         IdentifierExpr i => i.Name,
         VoidLiteral => "()",
+        // 转换后缀原样印回糖(去糖成 `.ToList ()` 是 `ravel ast -s` 的视图)
+        ContainerConvert cc => Atom(cc.Object, indent) + (cc.Kind switch
+        {
+            ConvertKind.List => "[]",
+            ConvertKind.Set => "{}",
+            _ => "{->}",
+        }),
         HoleExpr h => "_" + h.Index,
         ListLiteral l => "[" + Join(" ", l.Elements.Select(x => Arg(x, indent))) + "]",
         SetLiteral s => "{" + Join(" ", s.Elements.Select(x => Arg(x, indent))) + "}",
@@ -167,10 +174,12 @@ internal static class AstPrinter
         // 手写的式子对照。结合性/括号直接借 `Binary` 那条路,保证和手写的二元式印得一样。
         CallExpr { Function: MemberAccess m, Argument: var ra } when OperatorSymbols.IsSymbol(m.Member) => Binary(
             new BinaryExpr(m.Object, m.Member, ra), indent),
-        // 拿"算出来的条件"当函数调用(`cond {a} {b}` 脱糖成 `cond ({a}) ({b})`)时,
-        // 中缀那条路印出来是 `v > 0 ({…})`,读回去 `>` 会把实参吃掉 —— 套一层括号。
-        CallExpr fc when fc.Function is CallExpr { Function: MemberAccess m } && OperatorSymbols.IsSymbol(m.Member)
-            => "(" + Expr(fc.Function, indent) + ") " + Arg(fc.Argument, indent),
+        // 函数那一侧本身也是调用时必须套括号:`f a b` 原样印成 `f a b`,读回来却是
+        // `f (a b)`(实参位置接一个完整表达式),只有 `(f a) b` 与原树同形。`cond {a} {b}`
+        // 脱糖成 `cond ({a}) ({b})` 时也靠这条:不套括号会印成 `v > 0 ({…})`,
+        // 读回去 `>` 把实参吃了 —— 与"运算符当函数"那条特例是同一个坑。
+        CallExpr c when c.Function is CallExpr fn
+            => "(" + Expr(fn, indent) + ") " + Arg(c.Argument, indent),
         CallExpr c => Atom(c.Function, indent) + " " + Arg(c.Argument, indent),
         IndexExpr ix => Atom(ix.Object, indent) + "[" + Expr(ix.Index, indent) + "]",
         BinaryExpr b => Binary(b, indent),
@@ -287,7 +296,7 @@ internal static class AstPrinter
     {
         IdentifierExpr i when IsWordOperator(i) => "(" + Expr(e, indent) + ")",
         NumberLiteral or StringLiteral or CharLiteral or IdentifierExpr or VoidLiteral or HoleExpr
-            or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr
+            or RangeExpr or ListLiteral or SetLiteral or DictLiteral or MemberAccess or CallExpr or ContainerConvert
             or FStringExpr or LiteralExpr or IndexExpr => Expr(e, indent),
         _ => "(" + Expr(e, indent) + ")",
     };

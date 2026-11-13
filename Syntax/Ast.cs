@@ -168,6 +168,17 @@ public record DictEntry(Expression Key, Expression Value);
 public record DictLiteral(List<DictEntry> Entries) : Expression;
 public record VoidLiteral : Expression;
 
+// `s[]` / `s{}` / `s{->}`:紧贴的空容器 = "转成那种容器"(去糖成 `s.ToList ()` 之类,见 Lowering)。
+// 判据在 Parser.Postfix 的 ParseAdjacentCallAndConvert,这里只记"转成什么"。
+public enum ConvertKind
+{
+    List,   // s[]
+    Set,    // s{}
+    Dict,   // s{->}
+}
+
+public record ContainerConvert(Expression Object, ConvertKind Kind) : Expression;
+
 // 推导式 —— `[x for i in xs if p]` 这类。语法上是**表达式后缀**(见 Parser.Comprehensions),
 // 所以糖本身只把"容器 + 值 + 子句"记下来,拼 `|> .Where/.Map/.Bind` 是 Lowering 的活。
 public enum CompKind

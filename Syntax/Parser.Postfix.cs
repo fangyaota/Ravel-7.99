@@ -4,12 +4,26 @@ public partial class Parser
 {
     // 后缀 — 下标 / 管道 / 成员 / 实参
 
-    // 下标先贴:要紧挨着,`(…)` 里得有 `..`
+    // 下标先贴:要紧挨着,`(…)` 里得有 `..`。空方括号(`s[]`)不是下标,是"转成列表",
+    // 留给 ParseAdjacentCallAndConvert。
     private Expression ParseIndexPostfixes(Expression expr)
     {
-        while (AdjacentToPrevious()
-               && (Check(TokenType.LeftBracket) || (Check(TokenType.LeftParen) && RangeInsideParens())))
-            expr = ParseIndex(expr);
+        while (AdjacentToPrevious())
+        {
+            if (Check(TokenType.LeftBracket) && TypeAt(1) != TokenType.RightBracket)
+            {
+                expr = ParseIndex(expr);
+                continue;
+            }
+
+            if (Check(TokenType.LeftParen) && RangeInsideParens())
+            {
+                expr = ParseIndex(expr);
+                continue;
+            }
+
+            break;
+        }
 
         return expr;
     }
@@ -18,6 +32,9 @@ public partial class Parser
     private Expression ParsePostfixRest(Expression expr, Postfix policy, bool guarded = false)
     {
         expr = ParseIndexPostfixes(expr);
+
+        // 紧贴的那几种后缀在 `Bare` 下也认 —— 它们不是"并列实参",是同一个原子的延续。
+        expr = ParseAdjacentCallAndConvert(expr);
 
         if (!policy.Args && !policy.Pipe) return expr;
 
@@ -155,6 +172,65 @@ public partial class Parser
         if (_pendingLabel is not null) _pendingLabel = null;
         _loops.Add(loop);
         return loop;
+    }
+
+    // 紧贴的圆括号就是实参:`f(1)` 是 `f (1)`、`input()` 是 `input ()`。
+    // 有空格时(`f (1)`)走下面的"并列实参",结果一样 —— 区别只在"不吃实参"的上下文里
+    // (`print f(5)` 的 `print` 用的是 `Postfix.Bare`,紧贴的括号仍然得算调用)。
+    //
+    // 紧贴的空容器是转换:`s[]` → `s.ToList ()`、`s{}` → `s.ToSet ()`、`s{->}` → `s.ToDict ()`。
+    // 有内容就不算:`{ A } { B }` 还是块实参,`xs[0]` 还是下标。
+    private Expression ParseAdjacentCallAndConvert(Expression expr)
+    {
+        while (AdjacentToPrevious())
+        {
+            if (Check(TokenType.LeftParen))
+            {
+                var q = Peek();
+                _pos++;
+                BumpExprDepth();
+                var unit = Check(TokenType.RightParen);
+                var arg = unit
+                    ? new VoidLiteral { Line = q.Line, Column = q.Column }
+                    : ParseAssignment(Postfix.Full);
+                Consume(TokenType.RightParen, "括号实参没有收尾的 ')'");
+                expr = new CallExpr(expr, arg)
+                {
+                    Line = expr.Line,
+                    Column = expr.Column,
+                    BareUnitArg = unit,
+                };
+                continue;
+            }
+
+            if (Check(TokenType.LeftBracket) && TypeAt(1) == TokenType.RightBracket)
+            {
+                expr = new ContainerConvert(expr, ConvertKind.List) { Line = expr.Line, Column = expr.Column };
+                _pos += 2;
+                continue;
+            }
+
+            if (Check(TokenType.LeftBrace))
+            {
+                if (TypeAt(1) == TokenType.RightBrace)
+                {
+                    expr = new ContainerConvert(expr, ConvertKind.Set) { Line = expr.Line, Column = expr.Column };
+                    _pos += 2;
+                    continue;
+                }
+
+                if (TypeAt(1) == TokenType.DictArrow && TypeAt(2) == TokenType.RightBrace)
+                {
+                    expr = new ContainerConvert(expr, ConvertKind.Dict) { Line = expr.Line, Column = expr.Column };
+                    _pos += 3;
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        return expr;
     }
 
     private bool AdjacentToPrevious()
