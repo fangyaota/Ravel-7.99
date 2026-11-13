@@ -12,7 +12,12 @@ public partial class Parser
     private Expression ParseExpression(Postfix policy)
     {
         using var _expr = ExprDepth.Begin(this);
-        return ParsePipe(policy);
+        var e = ParsePipe(policy);
+        // 裸推导式(`x for i in xs` 那种不带容器的形式):后缀,所以整条式子之后才接。
+        // 包裹语法(`[…]` / `{…}` / `{k -> v}`)在 Parser.Comprehensions 那边自己判。
+        return _compSuffixOff == 0 && IsWord("for")
+            ? ParseComprehension(e, null, CompKind.Generator)
+            : e;
     }
 
     private Expression ParsePipe(Postfix policy)

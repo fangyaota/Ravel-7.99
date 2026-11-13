@@ -102,6 +102,7 @@ public partial class Parser
     private Expression? TryPostfixArg(Expression expr, Postfix policy, ref LoopCtx? loop)
     {
         if (!policy.Args || !StartsPrimary() || IsInfixWordOperator(Peek())
+            || IsCompBoundary()                                 // `for`/`if` 是推导式的边界,不是实参
             || (!policy.Block && Check(TokenType.LeftBrace))) return null;
 
         if (loop is null) loop = OpenPendingLoop(expr);

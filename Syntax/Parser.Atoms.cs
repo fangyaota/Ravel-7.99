@@ -102,6 +102,14 @@ public partial class Parser
                 // `[1..3]` 是区间;看不见 `..` 就当列表
                 if (TryParseRange(startClosed: true) is { } rng) return rng;
 
+                // `[x for i in xs …]` —— 本层有 `for` 就是推导式
+                if (ForAhead())
+                {
+                    var comp = ParseComprehension(ParseCompHead(), null, CompKind.List);
+                    Consume(TokenType.RightBracket, "推导式后需要 ']'");
+                    return comp with { Line = line, Column = col };
+                }
+
                 var elements = ParseSpaceSeparatedList(TokenType.RightBracket, "]");
                 return new ListLiteral(elements) { Line = line, Column = col };
             });
@@ -368,7 +376,13 @@ public partial class Parser
     // 分组:括号只界定范围,里面还是表达式
     private Expression ParseGroupedParen()
     {
-        var inner = ParseExpression();
+        // 括号是显式边界:推导式"值"那一段关掉裸后缀(见 ParseCompHead),
+        // 但括号里重新打开 —— `[i for i in (j for j in xs)]` 得写得动。
+        var savedSuffix = _compSuffixOff;
+        _compSuffixOff = 0;
+        Expression inner;
+        try { inner = ParseExpression(); }
+        finally { _compSuffixOff = savedSuffix; }
         Consume(TokenType.RightParen, "表达式后需要 ')'");
         // 占位符在括号内就地消糖:`(_ + 1) 41` 的 41 才落在外
         return HasHoles(inner) ? DesugarHoles(inner) : inner;
@@ -405,6 +419,14 @@ public partial class Parser
 
     private Expression ParseSet(int line, int col)
     {
+        // `{x for i in xs …}` —— 花括号这一层有 `for` 就是推导式(字典那条路在 ParseDict)
+        if (ForAhead())
+        {
+            var comp = ParseComprehension(ParseCompHead(), null, CompKind.Set);
+            Consume(TokenType.RightBrace, "推导式后需要 '}'");
+            return comp with { Line = line, Column = col };
+        }
+
         var elements = new List<Expression>();
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
@@ -433,6 +455,15 @@ public partial class Parser
 
             var key = ParseExpression(Postfix.Bare);
             Consume(TokenType.DictArrow, "字典键后需要 '->'");
+
+            // `{k -> v for i in xs …}` —— 值后面紧跟子句就是字典推导式
+            if (ForAhead())
+            {
+                var comp = ParseComprehension(key, ParseCompHead(), CompKind.Dict);
+                Consume(TokenType.RightBrace, "推导式后需要 '}'");
+                return comp with { Line = line, Column = col };
+            }
+
             var value = ParseExpression(Postfix.Bare);
             entries.Add(new DictEntry(key, value));
         }

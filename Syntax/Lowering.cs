@@ -185,6 +185,7 @@ public sealed class Lowering
         {
             Entries = d.Entries.Select(x => x with { Key = Lower(x.Key), Value = Lower(x.Value) }).ToList(),
         },
+        Comprehension cp => Comp(cp),
         LambdaExpr l => Lambda(l),
         BlockExpr bl => bl with { Statements = Stmts(bl.Statements) },
 
@@ -712,6 +713,72 @@ public sealed class Lowering
 
     private static CallExpr Call0(Expression f)
         => Call(f, new VoidLiteral { Line = f.Line, Column = f.Column });
+
+    // ========================================
+    //  推导式 — 一层 `for` 一层管道
+    // ========================================
+    //  `[x for i in xs if p]` 折成 `xs |> .Where (…p…) |> .Map (…x…)`,再按容器收尾
+    //  (list→`ToList`、set→`ToSet`、dict→`ToDict`、裸形式不收)。
+    //
+    //  为什么用链式而不是手写 `while + GetEnumerator`:
+    //   - 循环变量的作用域直接交给 lambda,不外泄、嵌套天然正确;
+    //   - 源只求一次、求值次序就是书写次序,不用自己管游标;
+    //   - `ravel ast -s` 的去糖视图里就是 `|>`,人对着源码能核对。
+    private Expression Comp(Comprehension c)
+    {
+        var stream = CompSeq(c, 0);
+        return c.Kind switch
+        {
+            CompKind.List => Call0(Member(stream, "ToList")),
+            CompKind.Set => Call0(Member(stream, "ToSet")),
+            CompKind.Dict => Call0(Member(stream, "ToDict")),
+            _ => stream,                                  // 裸形式/括号:惰性,不落容器
+        };
+    }
+
+    private Expression CompSeq(Comprehension c, int i)
+    {
+        var f = (CompFor)c.Clauses[i];
+        var j = i + 1;
+
+        var src = Lower(f.Source);
+
+        // `if` 只对**紧贴着它的那个 `for`** 生效:先把它后面这一串 `if` 全收进本层 `Where`。
+        // 反过来写成 `Bind(…).Where(…)` 就错了 —— 条件里提到的外层变量那时已经出作用域
+        // (`for i in A if (i > 1) for j in B` 的 `i` 必须在 Bind 外侧的 Where 里判)。
+        Expression? cond = null;
+        while (j < c.Clauses.Count && c.Clauses[j] is CompIf fi)
+        {
+            cond = cond is null
+                ? Lower(fi.Cond)
+                : new BinaryExpr(cond, "&&", Lower(fi.Cond)) { Line = cond.Line, Column = cond.Column };
+            j++;
+        }
+
+        if (cond is not null)
+            src = Call(Member(src, "Where"), Lam(f, cond));
+
+        // 还有后续子句:交给 `Bind`,下一层在新作用域里重新算
+        if (j < c.Clauses.Count)
+            return Call(Member(src, "Bind"), Lam(f, CompSeq(c, j)));
+
+        // 字典的叶子是 `[键 值]` 两格 —— `ToDict` 就是按这个形状收的
+        Expression leaf = c.Kind == CompKind.Dict && c.DictValue is not null
+            ? new ListLiteral([Lower(c.Value), Lower(c.DictValue)])
+                { Line = c.Value.Line, Column = c.Value.Column }
+            : Lower(c.Value);
+
+        return Call(Member(src, "Map"), Lam(f, leaf));
+    }
+
+    // 循环变量那一层:参数类型写 `object` —— `Lambda` 那条路对 object 不发检查,
+    // 所以这层不多花一次 `: object`。体已经 Lower 过,不再走 `Lambda`。
+    private static LambdaExpr Lam(CompFor at, Expression body)
+        => new(
+               new Parameter(at.Name, Ident("object", at)),
+               new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
+                   { Line = at.Line, Column = at.Column })
+           { Line = at.Line, Column = at.Column };
 
     // 一个名字怎么落地:定义(`:=`)还是赋值(`=`)。解构赋值里那几格走后者。
     // 一个**位置**怎么落地:下标走 `Set`,成员走槽赋值。`:=` 底下没有这条路。

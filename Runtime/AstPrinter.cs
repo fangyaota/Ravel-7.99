@@ -145,6 +145,8 @@ internal static class AstPrinter
         // 空字典印成 `{->}` —— 单看 `{}` 是空集合(`->` 才是字典的判据,见 ParseBrace)。
         DictLiteral d => d.Entries.Count == 0 ? "{->}" : "{" + Join(" ", d.Entries.Select(x =>
             Arg(x.Key, indent) + " -> " + Arg(x.Value, indent))) + "}",
+        // 推导式原样印回糖:去糖结果是 `|> .Where/.Map`,那是 `ravel ast -s` 的视图(见 Lowering.Comp)
+        Comprehension cp => Comp(cp, indent),
         // 省掉的那头打印成空的(`[1..]` / `[..1]`)—— AST 里存的就是 `null`,原样交回去
         RangeExpr r => (r.StartClosed ? "[" : "(")
                        + (r.Lo is null ? "" : Expr(r.Lo, indent)) + ".."
@@ -198,6 +200,30 @@ internal static class AstPrinter
         return Join(" ", parts);
     }
 
+    // 推导式:容器 + 值 + 子句,原样印回糖。裸形式(`x for i in xs`)在括号外是
+    // 整条式子的尾巴,所以 `Prec` 给 1 —— 放进实参/运算符位置时会被套括号。
+    private static string Comp(Comprehension c, int indent)
+    {
+        var value = c.Kind == CompKind.Dict
+            ? Expr(c.Value, indent) + " -> " + Expr(c.DictValue!, indent)
+            : Expr(c.Value, indent);
+
+        var clauses = string.Concat(c.Clauses.Select(x => x switch
+        {
+            CompFor f => " for " + f.Name + " in " + Expr(f.Source, indent),
+            CompIf i => " if " + Expr(i.Cond, indent),
+            _ => "",
+        }));
+
+        return c.Kind switch
+        {
+            CompKind.List => "[" + value + clauses + "]",
+            CompKind.Set => "{" + value + clauses + "}",
+            CompKind.Dict => "{" + value + clauses + "}",
+            _ => value + clauses,
+        };
+    }
+
     private static string Binary(BinaryExpr b, int indent)
     {
         var p = PrintPrec(b.Op);
@@ -219,6 +245,8 @@ internal static class AstPrinter
     {
         BinaryExpr b => PrintPrec(b.Op),
         ChainCompare => PrintPrec("<"),
+        // 推导式是整条式子的后缀,比最低档运算符还松(1 < `||` 那档的 2)
+        Comprehension => 1,
         // 一元比 `**` 松、比其余运算紧 —— 所以 `(-2) ** 2` 那个左操作数得套括号
         // (不套读回去是 `-(2 ** 2)`,另一个数),而 `a + -b` 不用。
         UnaryExpr => Operators.UnaryPrec,

@@ -159,6 +159,29 @@ public record DictEntry(Expression Key, Expression Value);
 public record DictLiteral(List<DictEntry> Entries) : Expression;
 public record VoidLiteral : Expression;
 
+// 推导式 —— `[x for i in xs if p]` 这类。语法上是**表达式后缀**(见 Parser.Comprehensions),
+// 所以糖本身只把"容器 + 值 + 子句"记下来,拼 `|> .Where/.Map/.Bind` 是 Lowering 的活。
+public enum CompKind
+{
+    List,       // [ … ]
+    Set,        // { … }
+    Dict,       // { k -> v … }
+    Generator,  // 裸形式 / ( … ):惰性,不落容器
+}
+
+public abstract record CompClause : AstNode;
+
+public record CompFor(string Name, Expression Source) : CompClause;
+
+// `if` 只对**紧挨着它前面那个 `for`** 生效(见 Lowering.CompSeq 的注释)
+public record CompIf(Expression Cond) : CompClause;
+
+public record Comprehension(
+    Expression Value,
+    Expression? DictValue,
+    List<CompClause> Clauses,
+    CompKind Kind) : Expression;
+
 public record SlotExpr(Expression Path) : Expression;
 
 public record LiteralExpr(RuntimeValue Value) : Expression;

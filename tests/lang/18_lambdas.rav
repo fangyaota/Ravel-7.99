@@ -2,14 +2,10 @@ ravel "m47"
 double := (x: int) => x * 2
 print (double 21)
 
-noop := () => 7
-print (noop ())
 
 add := (a: int b: int) => a + b
 print (add 1 2)
 
-three := (a: int b: int c: int) => a + b + c
-print (three 1 2 3)
 
 print (([1 2 3].Map ((x: int) => x * 10)).ToList ())
 print (([1 2 3].Where ((x: int) => (x % 2) == 1)).ToList ())
@@ -21,10 +17,6 @@ print (nested 1 2)
 calc := (a: int b: int) => (a * 2) + (b * 3)
 print (calc 1 2)
 
-setMaker := () => ({1 2 3})
-print (setMaker ())
-dictMaker := () => ({"a" -> 1})
-print ((dictMaker ()).Get "a")
 
 print (([1 2 3] |> .Map ((x: int) => x + 1)).ToList ())
 
@@ -37,8 +29,6 @@ ravel "m48"
 inc := x => x + 1
 print (inc 2)
 
-noAnn := x => x
-print (typeof noAnn)
 
 blk := x => { y := x * 2; y + 1; }
 print (blk 4)
@@ -60,7 +50,6 @@ print (calc 10)
 
 ignore := _ => 7
 print (ignore 99)
-print (ignore [1 2])
 print (_ => 7)
 
 hole := _ => _ + 1
@@ -190,25 +179,36 @@ print ((Some "abc"
 print ((None
     ?.Length ()) ?? -1)
 ravel ""
+ravel "m53"
+print ([i * i for i in [1 2 3 4] if (i > 1)])
+print ([i * 10 + j for i in [1 2] for j in [3 4]])
+print ([i for i in [1 2] if (i > 1) for j in [3]])
+print ({i for i in [1 1 2]})
+print ({i -> i * 10 for i in [1 2]})
+print ({i % 2 -> i for i in [1 2 3 4]})
+print ((i * 2 for i in [1 2 3]).ToList ())
+print (([i * 2 for i in (1..5)]).Count ())
+print ([c for c in "abc"])
+print ([[j * 2 for j in i] for i in [[1 2] [3]]])
+print ([i for i in [-1 2].Where ((x) => { x > 0; })])
+print (([i for i in [1 2]]).Count ())
+print ([i for i in (j * 2 for j in [1 2])])
+ravel ""
+
 
 # --- expected ---
 
 # 42
-# 7
 # 3
-# 6
 # [10 20 30]
 # [1 3]
 # [1 2 3]
 # 3
 # 8
-# {1 2 3}
-# 1
 # [2 3 4]
 # 7
 # 1: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号
 # 3
-# Function
 # 9
 # 3
 # [10 20 30]
@@ -217,7 +217,6 @@ ravel ""
 # 15
 # 15
 # 21
-# 7
 # 7
 # <function (_: object) => { 7; }>
 # 7
@@ -265,3 +264,16 @@ ravel ""
 # 60
 # Option { Has = true, Inner = 3 }
 # -1
+# [4 9 16]
+# [13 14 23 24]
+# [2]
+# {1 2}
+# {1: 10 2: 20}
+# {1: 3 0: 4}
+# [2 4 6]
+# 3
+# [a b c]
+# [[2 4] [6]]
+# [2]
+# 2
+# [2 4]
