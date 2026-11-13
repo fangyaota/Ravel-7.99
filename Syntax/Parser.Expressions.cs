@@ -138,7 +138,7 @@ public partial class Parser
         while (true)
         {
             var t = Peek();
-            if (!TryInfixBinding(t, out var lbp, out var rbp)) break;
+            if (!TryInfixBinding(t, policy, out var lbp, out var rbp)) break;
 
             if (lbp <= minBp) break;
 
@@ -161,8 +161,15 @@ public partial class Parser
     }
 
     // 中缀绑定力:查表,词运算符再验一眼
-    private bool TryInfixBinding(Token t, out int lbp, out int rbp)
+    private bool TryInfixBinding(Token t, Postfix policy, out int lbp, out int rbp)
     {
+        // `{k -> v}` 的键那一格:`->` 是字典的分隔符,不是运算符
+        if (t.Type == TokenType.DictArrow && !policy.Arrow)
+        {
+            lbp = rbp = 0;
+            return false;
+        }
+
         if (Operators.TryToken(t.Type, out var info))
         {
             (lbp, rbp) = (info.Lbp, info.Rbp);

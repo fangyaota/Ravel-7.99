@@ -773,10 +773,12 @@ public sealed class Lowering
         if (j < c.Clauses.Count)
             return Call(Member(src, "Bind"), Lam(f, CompSeq(c, j)));
 
-        // 字典的叶子是 `[键 值]` 两格 —— `ToDict` 就是按这个形状收的
+        // 字典的叶子是 `Pair 键 值` —— `ToDict` 只收这个形状。
+        // 写成 `System.Pair`(而不是 `Pair`)是为了不依赖 `predefined.rav` 里那条别名。
         Expression leaf = c.Kind == CompKind.Dict && c.DictValue is not null
-            ? new ListLiteral([Lower(c.Value), Lower(c.DictValue)])
-                { Line = c.Value.Line, Column = c.Value.Column }
+            ? Call(
+                Call(Member(Ident("System", c), "Pair"), Lower(c.Value)),
+                Lower(c.DictValue))
             : Lower(c.Value);
 
         return Call(Member(src, "Map"), Lam(f, leaf));

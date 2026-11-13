@@ -104,7 +104,7 @@ public partial class Parser
     private (bool Arrow, bool Newline) ScanBraceBody()
     {
         int depth = 1;
-        bool arrow = false, newline = false;
+        bool arrow = false, newline = false, statement = false;
         for (int i = _pos; i < tokens.Count; i++)
         {
             var t = tokens[i];
@@ -115,10 +115,13 @@ public partial class Parser
                     depth++;
                     break;
                 case TokenType.RightParen or TokenType.RightBracket or TokenType.RightBrace:
-                    if (--depth == 0) return (arrow, newline);
+                    if (--depth == 0) return (arrow && !statement, newline);
                     break;
                 case TokenType.Newline:
                     newline = true;
+                    // 词法器把 `;` 也发成 Newline(lexeme 不同):顶层有语句分隔,
+                    // 这对比字典就是一段块 —— `{1 -> 1;}` 是"块,值是一对",不是字典。
+                    if (depth == 1 && t.Lexeme == ";") statement = true;
                     break;
                 case TokenType.DictArrow when depth == 1:
                     arrow = true;

@@ -448,7 +448,7 @@ public partial class Parser
                 break;
             }
 
-            var key = ParseExpression(Postfix.Bare);
+            var key = ParseExpression(Postfix.DictKey);
             Consume(TokenType.DictArrow, "字典键后需要 '->'");
 
             // `{k -> v for i in xs …}` —— 值后面紧跟子句就是字典推导式

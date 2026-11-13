@@ -14,10 +14,10 @@ public partial class Parser
         => IsOperatorToken(Peek().Type)
            && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot;
 
-    // ':' 与 '===' 也在此列，但它们不支持自定义
+    // ':' 不在此列(它不给自定义);其余进了 `OperatorSymbols.All` 的都能写 `<符号> := …`
     private static bool IsOperatorToken(TokenType t) => t switch
     {
-        TokenType.Colon or TokenType.EqualEqualEqual or TokenType.NotEqualEqual
+        TokenType.Colon or TokenType.EqualEqualEqual or TokenType.NotEqualEqual or TokenType.DictArrow
             or TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.StarStar or TokenType.Slash or TokenType.Percent
             or TokenType.EqualEqual or TokenType.NotEqual
             or TokenType.Less or TokenType.Greater or TokenType.LessEqual or TokenType.GreaterEqual

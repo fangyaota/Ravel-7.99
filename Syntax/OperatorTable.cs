@@ -27,6 +27,9 @@ public static class Operators
         Add("and", 8);                       // 与 `&&` 同档
         Add("or", 2);                        // 与 `||` 同档
         Add(":", 10, TokenType.Colon);
+        // `->` 造一对(见 `pair`):右结合,所以 `a -> b -> c` 是 `a -> (b -> c)`。
+        // 字典字面量里那个 `->` 不是它 —— 那里是条目分隔符,键按 `Postfix.DictKey` 解析。
+        Add("->", 10, TokenType.DictArrow, right: true);
         Add("==", 10, TokenType.EqualEqual);
         // `===` 与 `==` 同档(能串):比的是**同一性**——值类型按值、对象按引用,不做跨族数值归一
         Add("===", 10, TokenType.EqualEqualEqual);
@@ -57,6 +60,9 @@ public static class Operators
         if (token is { } t) ByToken[t] = op;
         else ByWord[symbol] = op;
     }
+
+    public static bool TrySymbol(string symbol, out OpInfo op)
+        => BySymbol.TryGetValue(symbol, out op!);
 
     public static bool TryToken(TokenType t, out OpInfo op)
         => ByToken.TryGetValue(t, out op!);

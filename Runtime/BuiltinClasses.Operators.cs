@@ -164,6 +164,9 @@ internal static partial class BuiltinClasses
     // `===` —— **同一性**:运行期类型不同直接 false(`1` 与 `1.0` 不是同一枚,不做跨族归一),
     // 值语义的类型(数值/布尔/字符串/字符…按 `IValue` 索引)比值,其余(列表/集合/字典/类实例/函数/类型)比引用。
     // 与 `==` 的差别只有两处:`==` 数值跨族算相等(`1 == 1.0` 为 true),`==` 的"对象"只认 ObjectVal。
+    // `->` 与 `pair k v` 是同一件事,只留这一个入口 —— 两边各造一次迟早会漂。
+    internal static PairVal MakePair(RuntimeValue key, RuntimeValue value) => new(key, value);
+
     internal static bool StrictSame(RuntimeValue a, RuntimeValue b)
     {
         if (a.GetType() != b.GetType()) return false;

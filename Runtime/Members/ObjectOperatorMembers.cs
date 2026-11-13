@@ -22,6 +22,11 @@ internal static class ObjectOperatorMembers
 
     // `===` / `!==` —— 同一性:类型不同即 false,值语义比值,对象比引用(见 `StrictSame`)。
     // **普通的运算符**:与 `==` / `!=` 同住这张表,所以类可以自己写 `=== := …` 覆盖它。
+    // `->` —— 造一对(与 `pair k v` 同一件事)。**普通的运算符**:与 `==` / `===` 同住这张表,
+    // 所以类可以自己写 `-> := …` 覆盖它。
+    [ClassOp("->")]
+    private static RuntimeValue PairOf(RuntimeValue a, RuntimeValue b) => BuiltinClasses.MakePair(a, b);
+
     [ClassOp("===")]
     private static RuntimeValue Identical(RuntimeValue a, RuntimeValue b)
         => new BoolVal(BuiltinClasses.StrictSame(a, b));

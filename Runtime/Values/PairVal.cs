@@ -19,7 +19,11 @@ public record PairVal : ObjectVal
         Value = value;
     }
 
-    public override string ToString() => ShowDepth.Guard(() => Key + " -> " + Value);
+    // 左边那一格本身又是一对时要套括号:`(1 -> 2) -> 3` 与 `1 -> 2 -> 3` 是两棵树
+    // (后者右结合 = `1 -> (2 -> 3)`),光看字面分不出来。
+    public override string ToString() => ShowDepth.Guard(() => Cell(Key) + " -> " + Value);
+
+    private static string Cell(RuntimeValue v) => v is PairVal p ? "(" + p + ")" : v.ToString();
 
     // **只比两格的内容**,不比 `ObjectVal` 身上那层(类型 + 每个实例各一份的成员作用域)。
     // 默认的 record `Equals` 会把父记录的字段也带上,而每建一对都会新配一个作用域 ——

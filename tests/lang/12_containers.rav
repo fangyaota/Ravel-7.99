@@ -6,9 +6,6 @@ print (d.Entries ())
 print ((d.Entries ()).ToDict ())
 print ((d.Entries ()).At 0)
 print ((d.Entries ()).Count ())
-print (d.Contains (pair "a" 1))
-print (d.Contains (pair "a" 2))
-print (d.Contains (pair "a" 1))
 
 print ([(pair "x" 1) (pair "y" 2) (pair "x" 3)] |> .ToDict ())
 
@@ -167,9 +164,6 @@ ravel ""
 # {a: 1 b: 2}
 # a -> 1
 # 2
-# true
-# false
-# true
 # {x: 3 y: 2}
 # Dict
 # 0

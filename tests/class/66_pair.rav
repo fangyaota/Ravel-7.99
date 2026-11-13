@@ -21,6 +21,20 @@ print (d.ContainsKey (pair "k" 1))
 print ({{(pair 1 2) (pair 1 2)}}.Count ())
 print (p : IList)
 print ([(pair "a" 1) (pair "b" 2)] |> .ToDict ())
+dm := {"a" -> 1 "b" -> 2}
+print (dm.Contains (pair "a" 1))
+print (dm.Contains (pair "a" 2))
+print (1 -> 2)
+print ((1 -> 2).Key ())
+print ((1 -> 2 -> 3))
+print (((1 -> 2) -> 3))
+print ([1 -> 1])
+print ({(1 -> 1)})
+print (({1 -> 1;}) ())
+print ((1 -> "a") == (1 -> "a"))
+Arrowish ::= class { -> := (o) => { "mine"; }; }
+ar := Arrowish ()
+print (ar -> 5)
 p.Foreach ((x) => { print x; })
 [k v] := p
 print k
@@ -45,6 +59,17 @@ try { p.At 2; } (e: Exception) => { print ("1: " + string e); }
 # 1
 # true
 # {a: 1 b: 2}
+# true
+# false
+# 1 -> 2
+# 1
+# 1 -> 2 -> 3
+# (1 -> 2) -> 3
+# [1 -> 1]
+# {1 -> 1}
+# 1 -> 1
+# true
+# mine
 # 1
 # a
 # 1

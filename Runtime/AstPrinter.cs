@@ -263,7 +263,7 @@ internal static class AstPrinter
         // 操作数给多紧才不用套括号 —— 看**结合性**:
         // 左结合的(`a - b - c` = `(a-b)-c`)左边给 `p`(同级不套)、右边给 `p + 1`
         // (`a - (b - c)` 同级,要套);右结合的(`**`)正好倒过来。
-        var right = b.Op == "**";
+        var right = Operators.TrySymbol(b.Op, out var info) && info.RightAssoc;
         // 比较整档同优先级，但串起来是链式比较，所以两边都收紧
         var cmp = Operators.IsCompare(b.Op);
         var left = Paren(b.Left, cmp ? p + 1 : right ? p + 1 : p, indent);

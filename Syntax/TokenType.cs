@@ -26,7 +26,8 @@ public enum TokenType
     // 运算符 / 标点
     Colon,         // :   **类型判断**（`x: int`）—— 也是定义/参数的类型注解,见 Parser.Statements
     At,            // @   标签（`@outer while { … } { … }`）
-    DictArrow,     // ->  字典的键值分隔符（`{"a" -> 1}`）
+    DictArrow,     // ->  两用:字典的键值分隔符(`{"a" -> 1}`),也是普通运算符(`1 -> 2` 造一对)
+                   //      —— 键那一格按 `Postfix.DictKey` 解析,`->` 在那儿留给字典
     ColonEqual,    // :=
     ColonColon,    // ::
     ColonColonEqual, // ::=
