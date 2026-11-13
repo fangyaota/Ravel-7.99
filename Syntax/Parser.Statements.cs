@@ -791,12 +791,11 @@ public partial class Parser
         throw ParseError("'.' 后需要成员名");
     }
 
-    // ':' 不给定义，它是内建判断
+    // `:` / `===` / `!==` / `->` 这些**钉住的**成员,写法上和别的运算符一样(交给 `:=` / `=`
+    // 去定义),由 `Attr.NoShadow` 在运行期拦 —— 解析期不再为某个符号单开一条 if。
     private Statement ParseOperatorDefinition()
     {
         var sym = Peek();
-        if (sym.Type == TokenType.Colon)
-            throw ParseError("':' 不支持自定义 —— 它是内建的类型判断（`x: T`），和 `!` / `&&` / `||` 一样");
         _pos++;
         if (Match(TokenType.ColonEqual))
             return new VarDefinition(sym.Lexeme, null, ParseExpression()) { Line = sym.Line, Column = sym.Column };

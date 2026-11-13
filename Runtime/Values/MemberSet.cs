@@ -113,7 +113,7 @@ internal sealed class MemberSet : IMemberSet
                     $"运算符 '{op.Op}' 不认 —— 得是 Ravel 那批里的一个"
                     + "（`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=` `&` `|` `^` "
                     + "`<<` `>>` `<<<` `>>>` / `is` `isnot` / `<:` `:>`）");
-            return (op.Op, MemberKind.Operator, false);
+            return (op.Op, MemberKind.Operator, op.ReadOnly);
         }
 
         if (m.GetCustomAttribute<ClassPropertyAttribute>() is { } prop)
@@ -161,7 +161,10 @@ internal sealed class MemberSet : IMemberSet
         }
 
         var v = new Variable(name, acc);
+        // 成员不是拿来重新赋值的(`v = …` 报"无法给只读变量")。
         v.SetAttr(Attr.Readonly);
+        // 再钉一层:标了 `ReadOnly` 的连"新开一格遮住"都不许,见 `Scope.Define` 里那道检查。
+        if (spec.ReadOnly) v.SetAttr(Attr.NoShadow);
         return v;
     }
 }

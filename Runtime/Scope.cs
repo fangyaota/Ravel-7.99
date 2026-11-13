@@ -55,6 +55,18 @@ public class Scope(Scope? parent = null)
             && owner.MemberScope.LookupField(name) is not null)
             throw new RuntimeException(
                 $"'{name}' 是 {owner.Type} 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）");
+
+        // **继承来的"钉住的"成员也不许遮**(`:` / `===` / `!==` / `->`,见 `Attr.NoShadow`)。
+        // 只查**成员链**(`LookupField` 走类型/实例那套),不查词法外层 —— 上面那条注释说的
+        // "内层 `x := 1` 是新开一个局部变量(遮蔽)"照旧成立,那是两层作用域的事,不是继承。
+        // 普通运算符不带这个记号:`class Vec { + := … }` 定义的是**自己这一格**,照旧能写。
+        if (!BuiltinClasses.Booting && _vars?.ContainsKey(name) != true)
+        {
+            var pinnedSlot = LookupField(name);
+            if (pinnedSlot is not null && pinnedSlot.HasAttr(Attr.NoShadow))
+                throw new RuntimeException(
+                    $"'{name}' 是继承来的成员 —— `:=` 遮不掉它（它不给覆盖，`=` 也不收）", ErrorKind.Access);
+        }
         var v = new Variable(name, initialValue) { Site = site };
         (_vars ??= [])[name] = v;
         return v;

@@ -23,6 +23,10 @@ public sealed class ClassCtorAttribute : Attribute;
 public sealed class ClassOpAttribute(string op) : Attribute
 {
     public string Op { get; } = op;
+
+    // **这一格连遮蔽都不许**(见 `Attr.NoShadow`):`:=` 和 `=` 都不收,也不许类体新开一格盖住它。
+    // 内建语义只有一种、覆盖了没有第二种解释可讲的才标:目前是 `:` / `===` / `!==` / `->`。
+    public bool ReadOnly { get; set; }
 }
 
 [AttributeUsage(AttributeTargets.Field)]

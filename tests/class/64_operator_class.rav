@@ -142,9 +142,9 @@ print (1 === 1 === 1)
 sameEq := same.===
 print (sameEq other)
 Iffy := class { init = () => { 0; this; }; === := (o) => { "mine"; } }
-i := Iffy ()
-print (i === i)
-print (i !== i)
+print (try { Iffy (); } (e: Exception) => { string e; })
+print ((Point ()) === (Point ()))
+print (p !== p)
 ravel ""
 ravel "64_container_ops"
 print ([1 2] + [3])
@@ -165,6 +165,7 @@ print (1 + 2)
 try { print ({1 2} + 5); } (e: Exception) => { print ("1: " + string e); }
 try { print ({1 -> "a"} + [1]); } (e: Exception) => { print ("2: " + string e); }
 ravel ""
+
 # --- expected ---
 # 15
 # 30
@@ -220,7 +221,8 @@ ravel ""
 # false
 # true
 # false
-# mine
+# '===' 是继承来的成员 —— `:=` 遮不掉它（它不给覆盖，`=` 也不收）
+# false
 # false
 # [1 2 3]
 # [1]

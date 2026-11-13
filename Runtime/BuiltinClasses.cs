@@ -70,6 +70,11 @@ internal static partial class BuiltinClasses
 
     internal static readonly List<ClassVal> AllTypes = [];
 
+    // 类对象**还没建完**的时候(`New` 里就在往类的作用域 `Define` 名字),成员链是悬空的
+    // (`ObjectMembers.Any` 要读 `Object.Members`,而 `Object` 这会儿还是 null)——
+    // `Scope.Define` 里那条"钉住的成员不许遮"的检查先跳过,建完再开(见静态构造末尾)。
+    internal static bool Booting = true;
+
     private static int _builtinCount;
 
     static BuiltinClasses()
@@ -209,6 +214,9 @@ internal static partial class BuiltinClasses
 
         // ---- 收尾:内置那几支**封口**(见 SealBuiltins) ----
         SealBuiltins();
+
+        // 类对象齐了、成员链也能走了 —— 从这一刻起 `Scope.Define` 才拦"遮钉住的成员"。
+        Booting = false;
     }
 
     private static void AttachMembers()

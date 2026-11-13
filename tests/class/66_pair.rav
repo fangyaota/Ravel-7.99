@@ -38,13 +38,13 @@ x := 5
 print (x : int -> 1)
 print (1 + 2 -> 3)
 Arrowish ::= class { -> := (o) => { "mine"; }; }
-ar := Arrowish ()
-print (ar -> 5)
+print (try { Arrowish (); } (e: Exception) => { string e; })
 p.Foreach ((x) => { print x; })
 [k v] := p
 print k
 print v
 try { p.At 2; } (e: Exception) => { print ("1: " + string e); }
+
 # --- expected ---
 # 1 -> a
 # 1
@@ -78,7 +78,7 @@ try { p.At 2; } (e: Exception) => { print ("1: " + string e); }
 # true
 # true -> 1
 # 3 -> 3
-# mine
+# '->' 是继承来的成员 —— `:=` 遮不掉它（它不给覆盖，`=` 也不收）
 # 1
 # a
 # 1
