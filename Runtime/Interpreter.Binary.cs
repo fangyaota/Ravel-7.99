@@ -148,6 +148,14 @@ public partial class Interpreter
         if (bin.Op == "=")
             throw new RuntimeException("赋值的左边得是个变量名或字段，不能是别的表达式");
 
+        // `===` 是内建的**同一性**判断:不进成员表,所以任何类都重载不了(与 `:` 同一个理由)。
+        // 放在 BindOperator 前面,查表那条路根本不过它。
+        if (bin.Op == "===")
+        {
+            Return(nf, new BoolVal(BuiltinClasses.StrictSame(left, right)));
+            return;
+        }
+
         if (bin.Op is "+=" or "-=" or "*=" or "**=" or "/=" or "%=")
         {
             StepCompoundAssignVar(nf, bin, left, right);

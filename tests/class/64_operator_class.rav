@@ -119,6 +119,26 @@ ravel "Mine"
 print (typeof (Mine))
 print (Mine)
 ravel ""
+
+ravel "64_identity"
+same := [1 2]
+other := [1 2]
+print (1 === 1)
+print (1 === 1.0)
+print (1 == 1.0)
+print ("a" === "a")
+print (same === same)
+print (same === other)
+print (same == other)
+print ({->} === {->})
+Point := class { init = () => { 0; this; }; }
+p := Point ()
+q := Point ()
+print (p === p)
+print (p === q)
+print (1 === 1 === 1)
+try { eval "Z := class { === := (o) => { 1; }; }; 1"; } (e: Exception) => { print (string e); }
+ravel ""
 # --- expected ---
 # 15
 # 30
@@ -160,3 +180,15 @@ ravel ""
 # 4: '<:' 的左边得是个类型，得到 Integer 的实例
 # Ravel
 # <module Mine>
+# true
+# false
+# true
+# true
+# true
+# false
+# false
+# false
+# true
+# false
+# true
+# '===' 不支持自定义 —— 它是内建的同一性判断，和 `:` / `!` / `&&` / `||` 一样

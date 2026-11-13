@@ -156,6 +156,16 @@ internal static partial class BuiltinClasses
         _ => false,
     };
 
+    // `===` —— **同一性**:运行期类型不同直接 false(`1` 与 `1.0` 不是同一枚,不做跨族归一),
+    // 值语义的类型(数值/布尔/字符串/字符…按 `IValue` 索引)比值,其余(列表/集合/字典/类实例/函数/类型)比引用。
+    // 与 `==` 的差别只有两处:`==` 数值跨族算相等(`1 == 1.0` 为 true),`==` 的"对象"只认 ObjectVal。
+    internal static bool StrictSame(RuntimeValue a, RuntimeValue b)
+    {
+        if (a.GetType() != b.GetType()) return false;
+        if (a is ObjectVal oa && oa.Type is not ClassVal { IsValueLike: true }) return ReferenceEquals(a, b);
+        return a.Equals(b);
+    }
+
     internal static (ObjectVal Left, ObjectVal Right) AsTypes(RuntimeValue a, RuntimeValue b, string op)
         => (AsType(a, op, "左"), AsType(b, op, "右"));
 

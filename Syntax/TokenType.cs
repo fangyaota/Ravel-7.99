@@ -38,6 +38,7 @@ public enum TokenType
 
     // 比较
     EqualEqual,    // ==
+    EqualEqualEqual, // === 引用相等(内建,不给重载)
     NotEqual,      // !=
     Less,          // <
     Greater,       // >

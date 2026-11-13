@@ -14,10 +14,10 @@ public partial class Parser
         => IsOperatorToken(Peek().Type)
            && _pos + 1 < tokens.Count && tokens[_pos + 1].Type == TokenType.Dot;
 
-    // ':' 也在此列，但它不支持自定义
+    // ':' 与 '===' 也在此列，但它们不支持自定义
     private static bool IsOperatorToken(TokenType t) => t switch
     {
-        TokenType.Colon
+        TokenType.Colon or TokenType.EqualEqualEqual
             or TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.StarStar or TokenType.Slash or TokenType.Percent
             or TokenType.EqualEqual or TokenType.NotEqual
             or TokenType.Less or TokenType.Greater or TokenType.LessEqual or TokenType.GreaterEqual
@@ -800,6 +800,8 @@ public partial class Parser
         var sym = Peek();
         if (sym.Type == TokenType.Colon)
             throw ParseError("':' 不支持自定义 —— 它是内建的类型判断（`x: T`），和 `!` / `&&` / `||` 一样");
+        if (sym.Type == TokenType.EqualEqualEqual)
+            throw ParseError("'===' 不支持自定义 —— 它是内建的同一性判断，和 `:` / `!` / `&&` / `||` 一样");
         _pos++;
         if (Match(TokenType.ColonEqual))
             return new VarDefinition(sym.Lexeme, null, ParseExpression()) { Line = sym.Line, Column = sym.Column };
