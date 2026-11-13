@@ -155,6 +155,8 @@ print s[]
 print s{}
 t := ([i i] for i in [1 2])
 print t{->}
+print [3 4 5].Count().ToString()
+print "ab".Length()
 ravel ""
 
 # --- expected ---
@@ -255,3 +257,5 @@ ravel ""
 # [2 4 6]
 # {2 4 6}
 # {1: 1 2: 2}
+# 3
+# 2

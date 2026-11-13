@@ -34,7 +34,7 @@ public partial class Parser
         expr = ParseIndexPostfixes(expr);
 
         // 紧贴的那几种后缀在 `Bare` 下也认 —— 它们不是"并列实参",是同一个原子的延续。
-        expr = ParseAdjacentCallAndConvert(expr);
+        expr = ParseAdjacentCallAndConvert(expr, policy);
 
         if (!policy.Args && !policy.Pipe) return expr;
 
@@ -180,10 +180,23 @@ public partial class Parser
     //
     // 紧贴的空容器是转换:`s[]` → `s.ToList ()`、`s{}` → `s.ToSet ()`、`s{->}` → `s.ToDict ()`。
     // 有内容就不算:`{ A } { B }` 还是块实参,`xs[0]` 还是下标。
-    private Expression ParseAdjacentCallAndConvert(Expression expr)
+    private Expression ParseAdjacentCallAndConvert(Expression expr, Postfix policy)
     {
-        while (AdjacentToPrevious())
+        var built = false;
+
+        while (true)
         {
+            if (!AdjacentToPrevious()) break;
+
+            // 紧贴调用/转换之后接 `.成员` 也算同一个原子:`f(1).ToString()` 的 `.` 不能断。
+            // (有空格的那些不认 —— `print a.b` 仍然只是"取成员的值",见 TryPostfixDot 之前的约定)
+            if (built && Check(TokenType.Dot))
+            {
+                expr = ParseMemberChain(expr, policy);
+                built = false;
+                continue;
+            }
+
             if (Check(TokenType.LeftParen))
             {
                 var q = Peek();
@@ -200,6 +213,7 @@ public partial class Parser
                     Column = expr.Column,
                     BareUnitArg = unit,
                 };
+                built = true;
                 continue;
             }
 
@@ -207,6 +221,7 @@ public partial class Parser
             {
                 expr = new ContainerConvert(expr, ConvertKind.List) { Line = expr.Line, Column = expr.Column };
                 _pos += 2;
+                built = true;
                 continue;
             }
 
@@ -216,6 +231,7 @@ public partial class Parser
                 {
                     expr = new ContainerConvert(expr, ConvertKind.Set) { Line = expr.Line, Column = expr.Column };
                     _pos += 2;
+                    built = true;
                     continue;
                 }
 
@@ -223,6 +239,7 @@ public partial class Parser
                 {
                     expr = new ContainerConvert(expr, ConvertKind.Dict) { Line = expr.Line, Column = expr.Column };
                     _pos += 3;
+                    built = true;
                     continue;
                 }
             }
