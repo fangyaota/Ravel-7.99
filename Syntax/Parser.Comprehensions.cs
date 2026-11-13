@@ -56,11 +56,12 @@ public partial class Parser
             if (IsWord("for"))
             {
                 _pos++;
-                var name = Peek();
-                Consume(TokenType.Identifier, "`for` 后面要跟循环变量名");
+                // 绑的位置收**模式**,与 lambda 参数位同一套语法 —— `for [k v] in …`、
+                // `for (x: int) in …`、`for (x > 0) in …` 都成立,语义就是参数位语义。
+                var pat = ParsePattern();
                 ConsumeWord("in", "循环变量后面要跟 `in`");
-                clauses.Add(new CompFor(name.Lexeme, ParseCompPart())
-                    { Line = name.Line, Column = name.Column });
+                clauses.Add(new CompFor(pat, ParseCompPart())
+                    { Line = pat.Line, Column = pat.Column });
                 continue;
             }
 
@@ -75,7 +76,7 @@ public partial class Parser
         }
 
         if (clauses.Count == 0 || clauses[0] is not CompFor)
-            throw ParseError("推导式得先写子句:`for 名字 in 序列`");
+            throw ParseError("推导式得先写子句:`for 模式 in 序列`");
 
         return new Comprehension(value, dictValue, clauses, kind) { Line = at.Line, Column = at.Column };
     }

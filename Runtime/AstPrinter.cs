@@ -210,7 +210,7 @@ internal static class AstPrinter
 
         var clauses = string.Concat(c.Clauses.Select(x => x switch
         {
-            CompFor f => " for " + f.Name + " in " + Expr(f.Source, indent),
+            CompFor f => " for " + Describe(f.Pattern) + " in " + Expr(f.Source, indent),
             CompIf i => " if " + Expr(i.Cond, indent),
             _ => "",
         }));

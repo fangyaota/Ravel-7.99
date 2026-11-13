@@ -773,12 +773,42 @@ public sealed class Lowering
 
     // 循环变量那一层:参数类型写 `object` —— `Lambda` 那条路对 object 不发检查,
     // 所以这层不多花一次 `: object`。体已经 Lower 过,不再走 `Lambda`。
-    private static LambdaExpr Lam(CompFor at, Expression body)
-        => new(
-               new Parameter(at.Name, Ident("object", at)),
-               new BlockExpr([new ExpressionStatement(body) { Line = body.Line, Column = body.Column }])
-                   { Line = at.Line, Column = at.Column })
+    //
+    // 变量位收**模式**(与参数位同一套):光名字直接当参数名(保持 `i: object` 这种最省的样子);
+    // 真模式(`[k v]` / `(x: int)` / `(x > 0)`)就合成 `__it`,把 `Bind` 生成的语句塞进体首 ——
+    // 与 `Lambda` 里那条模式分支(`:328`)同口径,检查/拒收全由 `Bind` 发。
+    private LambdaExpr Lam(CompFor at, Expression body)
+    {
+        var statements = new List<Statement>
+        {
+            new ExpressionStatement(body) { Line = body.Line, Column = body.Column },
+        };
+
+        var plain = at.Pattern is NamePattern
+        {
+            Sub: null, Member: null, Type: null, Guard: null, When: null, Attrs: null,
+        } np
+            ? np.Name
+            : null;
+
+        if (plain is null)
+        {
+            var it = Fresh("__it");
+            var binds = new List<Statement>();
+            Bind(at.Pattern, Ident(it, at), at.Pattern.Attrs, binds, outerDone: false,
+                 who: AstPrinter.Describe(at.Pattern));
+            statements.InsertRange(0, binds);
+            return new LambdaExpr(
+                   new Parameter(it, Ident("object", at), at.Pattern),
+                   new BlockExpr(statements) { Line = at.Line, Column = at.Column })
+               { Line = at.Line, Column = at.Column };
+        }
+
+        return new LambdaExpr(
+               new Parameter(plain, Ident("object", at)),
+               new BlockExpr(statements) { Line = at.Line, Column = at.Column })
            { Line = at.Line, Column = at.Column };
+    }
 
     // 一个名字怎么落地:定义(`:=`)还是赋值(`=`)。解构赋值里那几格走后者。
     // 一个**位置**怎么落地:下标走 `Set`,成员走槽赋值。`:=` 底下没有这条路。

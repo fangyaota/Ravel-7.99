@@ -171,7 +171,8 @@ public enum CompKind
 
 public abstract record CompClause : AstNode;
 
-public record CompFor(string Name, Expression Source) : CompClause;
+// 循环变量位就是**参数位**:名字、解构、`: 类型`、`|> 守卫`、字面量全收(见 Lowering.Lam)。
+public record CompFor(Pattern Pattern, Expression Source) : CompClause;
 
 // `if` 只对**紧挨着它前面那个 `for`** 生效(见 Lowering.CompSeq 的注释)
 public record CompIf(Expression Cond) : CompClause;

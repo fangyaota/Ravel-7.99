@@ -80,3 +80,28 @@ i * 2 + 1 for i in xs      # 值是 i * 2 + 1，不是 i * (2 + 1) 之类
 - 没有 `for … in … do` 语句形式（那是另一条糖，`Foreach` 已经够用）。
 - 没做"推导式里 `break`"（语义上说不清）。
 - 不检查源是否可枚举，直接交给 `Map` 报错 —— 报错文案够清楚，且少一次运行期探针。
+
+## 8. 补丁：`for` 后面那格改成**模式**（与参数位同一套）
+
+第一版只收名字（`Consume(TokenType.Identifier, "`for` 后面要跟循环变量名")` + `CompFor(string Name, …)`），与 Ravel「凡绑名字的位置都收模式」不一致：`[[k v] for [k v] in …]`、`[x for (x: int) in …]` 都报错。改成：
+
+| 文件 | 改法 |
+|------|------|
+| `Syntax/Ast.cs` | `CompFor(Pattern Pattern, Expression Source)` |
+| `Syntax/Parser.Comprehensions.cs` | `var pat = ParsePattern();`（不特判，`in` 靠 `EndsThisPart()` 的 `Identifier` 项收尾） |
+| `Syntax/Lowering.cs` | `Lam` 分岔：光名字（`Sub/Member/Type/Guard/When/Attrs` 全空）直接用参数名；真模式合成 `__it`，把 `Bind(pattern, __it)` 的语句 `InsertRange(0, …)` 塞进体首 |
+| `Runtime/AstPrinter.cs` | 印 `Describe(f.Pattern)` |
+
+**不收紧**（用户明令）：名字、解构、`: 类型`、`|> 守卫（函数）`、字面量全收，语义就是参数位语义 —— 不匹配是**拒收**，循环里没有下一支可交，于是变成报错，不是跳过：
+
+```ravel
+[[k v] for [k v] in [[1 2] [3 4]]]   # [[1 2] [3 4]]
+{k -> v for [k v] in [["a" 1]]}      # {a: 1}
+[x for (x: int) in [1 2]]            # [1 2]
+[x for (x > 0) in [-1 2]]            # 报「'x' 这一格的条件没过」
+[1 for 1 in [1 1 2]]                 # 报「这一格要的是 1，得到 2」
+pos := (v) => { v > 0; }
+[x for x |> pos in [1 2]]            # [1 2]（`|>` 是喂函数，不是条件）
+```
+
+用例并进 `tests/lang/18_lambdas.rav` 的 `m53`（3 条，终值 5,102B）；`docs/tutorial/07-collections.md` 7.4.2 加一段。
