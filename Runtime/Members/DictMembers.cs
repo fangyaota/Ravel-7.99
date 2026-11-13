@@ -44,6 +44,19 @@ internal sealed class DictMembers : SequenceMembers
     private static RuntimeValue RemoveKey(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.Remove(BuiltinClasses.KeyArg(arg, "dict.Remove 的键")));
 
+    // `d.Contains (Pair k v)` —— 表里有没有"这一对"。
+    // 从前是 `IEnumerable` 默认的那条(拿整条序列比元素),dict 上恒为 false,等于没有;
+    // 现在单列一条,参数就要一个 `Pair`(要查值就用 `ContainsValue`)。
+    [ClassMethod("Contains")]
+    private static RuntimeValue ContainsPair(RuntimeValue self, RuntimeValue arg)
+    {
+        if (arg is not PairVal pair)
+            throw new RuntimeException($"dict.Contains 要一个 Pair（键 -> 值），得到 {arg.Type}", ErrorKind.Argument);
+        var d = (DictVal)self;
+        return new BoolVal(d.Entries.TryGetValue(pair.Key, out var v)
+                           && BuiltinClasses.StrictSame(v, pair.Value));
+    }
+
     [ClassMethod("ContainsValue")]
     private static RuntimeValue HasValue(RuntimeValue self, RuntimeValue arg)
         => new BoolVal(((DictVal)self).Entries.ContainsValue(arg));

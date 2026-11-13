@@ -1,23 +1,26 @@
 ravel "m24"
-pairs := [["a" 1] ["b" 2]]
+pairs := [(Pair "a" 1) (Pair "b" 2)]
 d := pairs.ToDict ()
 print d
 print (d.Entries ())
 print ((d.Entries ()).ToDict ())
 print ((d.Entries ()).At 0)
 print ((d.Entries ()).Count ())
+print (d.Contains (Pair "a" 1))
+print (d.Contains (Pair "a" 2))
+print (d.Contains (pair "a" 1))
 
-print ([["x" 1] ["y" 2] ["x" 3]].ToDict ())
+print ([(Pair "x" 1) (Pair "y" 2) (Pair "x" 3)] |> .ToDict ())
 
 e := [].ToDict ()
 print (typeof e)
 print (e.Count ())
 
 sus := ["amy" "bob"]
-print (sus |> .Map ((n: object) => { [n (n.ToUpper ())]; }) |> .ToList () |> .ToDict ())
+print (sus |> .Map ((n: object) => { Pair n (n.ToUpper ()); }) |> .ToList () |> .ToDict ())
 
-try { [["a"]].ToDict (); } (e: Exception) => { print e.Message; }
-try { [["a" 1 "b"]].ToDict (); } (e: Exception) => { print e.Message; }
+try { [[ "a" ]].ToDict (); } (e: Exception) => { print e.Message; }
+try { d.Contains 1; } (e: Exception) => { print e.Message; }
 ravel ""
 ravel "m25"
 l := [10 20 30 40 50]
@@ -153,7 +156,7 @@ ravel "conv"
 s := (i * 2 for i in [1 2 3])
 print s[]
 print s{}
-t := ([i i] for i in [1 2])
+t := ((Pair i i) for i in [1 2])
 print t{->}
 print [3 4 5].Count().ToString()
 print "ab".Length()
@@ -164,12 +167,15 @@ ravel ""
 # {a: 1 b: 2}
 # a -> 1
 # 2
+# true
+# false
+# true
 # {x: 3 y: 2}
 # Dict
 # 0
 # {amy: AMY bob: BOB}
-# ToDict 要的是 [键 值] 两格的项,这一项有 1 格
-# ToDict 要的是 [键 值] 两格的项,这一项有 3 格
+# ToDict 要的是 Pair（键 -> 值），得到 List
+# dict.Contains 要一个 Pair（键 -> 值），得到 Integer
 # 10
 # 50
 # [20 30 40]

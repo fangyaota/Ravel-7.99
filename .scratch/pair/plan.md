@@ -49,3 +49,15 @@
 - **dict 枚举后来换成了 `Pair`**（m13673「换」）：`d.ToList ()` / `d.Foreach` / `d.Entries ()` / `d.Map` 现在都拿到 `Pair`；`ToDict` 的关卡是 `p : IList` + 两格，所以 `[k v]` list 与 `Pair` 都收。
   换的话 `ToDict`（要求每项 `: IList`）也要认 pair，属另一件事，等用户点头。
 - 没有字面量语法（`(1 "a")` 那种），构造只有 `pair k v` 一条路。
+
+## 9. ToDict 只收 Pair + dict.Contains (Pair) + 小写别名
+
+- `lib/iterator.rav` 的 `ToDict` 不再看"两格"(`p : IList` + `Count == 2`),直接要 `p : Pair`;
+  一条 `[键 值]` list 现在报「ToDict 要的是 Pair（键 -> 值），得到 List」。
+- `Syntax/Lowering.cs` 的 `Comp` 里,字典推导式的叶子从 `ListLiteral([k, v])` 改成
+  `Call(Call(Member(Ident("System"), "Pair"), k), v)` —— 不依赖 `predefined.rav` 的别名。
+- `Runtime/Members/DictMembers.cs` 加 `[ClassMethod("Contains")]`:参数必须是一个 `Pair`,
+  语义是"这一对在不在"(键在 + 值按 `StrictSame` 相等),不是"序列里有没有这个元素"。
+- `lib/predefined.rav` 加 `readonly pair := Pair`(小写别名,同一个类值,`pair 1 2` 可用)。
+  `tests/lang/03_functions.rav` 里那个顶层局部 `pair` 改名 `mkpair`(别名占了它)。
+- 跑绿:lang 20 / class 17 / module 15 / diag 9 / net 7 / task 3 / lib 39;ast 187 文件 0 失败。

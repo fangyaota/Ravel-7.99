@@ -11,6 +11,7 @@ readonly list := System.List
 readonly set := System.Set
 readonly dict := System.Dict
 readonly Pair := System.Pair
+readonly pair := Pair
 readonly object := System.Object
 readonly Ravel := System.Ravel
 readonly class := System.Type

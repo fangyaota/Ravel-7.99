@@ -66,7 +66,7 @@ d.ContainsKey "a"          # true
 | `Distinct ()` `Reverse ()` `Concat ys` | 去重 / 倒过来 / 接上另一串 |
 | `Sum ()` `Min ()` `Max ()` | 求和 / 最小 / 最大 |
 | `Join sep` | 拼成字符串 |
-| `ToList ()` `ToSet ()` `ToDict ()` | 换容器（`ToDict` 要的是两格的项，见 7.4.1）|
+| `ToList ()` `ToSet ()` `ToDict ()` | 换容器（`ToDict` 要的是 `Pair`，见 7.4.1）|
 | `Each f` | 每个跑一遍（结果丢掉）|
 | `Map f` | 变换（C# 的 `Select`）|
 | `Where p` | 过滤（`p` 得交回 bool）|
@@ -85,16 +85,16 @@ d.ContainsKey "a"          # true
 
 **set 还有**集合代数：`Union` / `Intersect` / `Except` / `IsSubsetOf`。
 
-**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `ContainsKey k` / `ContainsValue v` / `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
+**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `ContainsKey k` / `ContainsValue v` / `Contains (Pair k v)`（这一对在不在）/ `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
 
 这三种容器还都收 `+` / `-` 两个运算符：list 是**拼接** / **去掉右边出现过的元素**，set 是**并集** / **差集**（就是上面那两个方法），dict 是**合并**（右边的键盖左边的）/ **按右边的键删**。一律交回新的容器、原容器不动（见 3.6.1）。
 
 ### 7.4.1 序列 ↔ 字典
 
-`[[键 值] …]` 这样的序列能直接摊成字典；反向是 `Entries ()`：
+`Pair` 的序列能直接摊成字典；反向是 `Entries ()`：
 
 ```ravel
-pairs := [["a" 1] ["b" 2]]
+pairs := [(Pair "a" 1) (Pair "b" 2)]
 d := pairs.ToDict ()          # {a: 1 b: 2}
 print (d.Entries ())          # [a -> 1 b -> 2]
 print ((d.Entries ()).ToDict ())   # 原样回来
@@ -113,14 +113,14 @@ print (d.Map ((p) => { (p.Value ()) * 10; }))   # [10 20]
 
 三条规矩：
 
-- **项必须是两格**（`[键 值]` 这样的 list，或者 `Pair`）。一格、三格、压根不是序列，都当场报错 —— 静默跳过会把写错的形状藏起来。
+- **项必须是 `Pair`**。一条 `[键 值]` 的 list 现在不收：它 `==` 按身份比，拿它当「一对」容易和真容器混；当场报「ToDict 要的是 Pair（键 -> 值），得到 List」。
 - **键重复时后面的盖前面的**（和 `d.Set` 一个规矩），位置留在第一次出现的地方。
 - **紧跟着空括号调用再挂成员，要括一下**：写 `(d.Entries ()).ToDict ()`，`d.Entries ().ToDict ()` 不带括号时 `.ToDict` 会贴到那个 `()` 上（这是后缀收法的既有毛病，遇到就加括号）。
 
 从别的序列造，就先 `Map` 出一对对再摊：
 
 ```ravel
-["amy" "bob"] |> .Map ((n: object) => { [n (n.ToUpper ())]; }) |> .ToList () |> .ToDict ()
+["amy" "bob"] |> .Map ((n: object) => { Pair n (n.ToUpper ()); }) |> .ToList () |> .ToDict ()
 # {amy: AMY bob: BOB}
 ```
 
@@ -204,8 +204,8 @@ d := (i * 2 for i in [1 2 3])                   # Generator，要 .ToList () 才
 s := (i * 2 for i in [1 2 3])
 print s[]      # 等价于 s.ToList ()
 print s{}      # 等价于 s.ToSet ()
-t := ([i i] for i in [1 2])
-print t{->}    # 等价于 t.ToDict ()（元素得是两格：[k v] 或 Pair）
+t := ((Pair i i) for i in [1 2])
+print t{->}    # 等价于 t.ToDict ()（元素得是 Pair）
 ```
 
 执行以上程序会输出如下结果：

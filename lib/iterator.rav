@@ -126,14 +126,10 @@ readonly IEnumerable ::= interface IMonad {
     internal ToDict := () => {
         out := {->}
         instance.Foreach (p: object) => {
-            !(p : IList) {
-                throw (Exception ("ToDict 要的是 [键 值] 两格的项,得到 " + (string (typeof p))))
+            !(p : Pair) {
+                throw (Exception ("ToDict 要的是 Pair（键 -> 值），得到 " + (string (typeof p))))
             } { 0; }
-            n := p.Count ()
-            !(n == 2) {
-                throw (Exception ("ToDict 要的是 [键 值] 两格的项,这一项有 " + (string n) + " 格"))
-            } { 0; }
-            out[p.At 0] = (p.At 1);
+            out[p.Key ()] = (p.Value ());
         }
         out
     }

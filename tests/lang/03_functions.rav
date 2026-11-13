@@ -168,8 +168,8 @@ print (show "abc")
 
 plus := (a b) => { a + b; }
 print (plus 1 2)
-pair := (a b: int) => { [a b]; }
-print (pair "s" 2)
+mkpair := (a b: int) => { [a b]; }
+print (mkpair "s" 2)
 
 doubled := (n: int) => { n * 2; }
 print (doubled 4)
@@ -261,9 +261,7 @@ print f(5)
 g := (a) => { (b) => { a * b; }; }
 print g(3)(4)
 ravel ""
-
 # --- expected ---
-
 # 42
 # 120
 # 120
