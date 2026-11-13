@@ -85,15 +85,7 @@ public partial class Parser
     private Expression ParseCompPart() => ParseCompHead();
 
     // 包裹语法里那个"值":它后面的 `for` 归外层(`[x for …]` 的子句不属于 `x`)。
-    // 所以这期间关掉 `ParseExpression` 末尾的裸推导式后缀 —— 否则 `[i for i in xs]`
-    // 会先被值这条式子吞成一个 Generator 推导式,外层再找子句就只剩 `]`。
-    private int _compSuffixOff;
-
-    private Expression ParseCompHead()
-    {
-        _compSuffixOff++;
-        try { return ParseExpression(Postfix.Full); }
-        finally { _compSuffixOff--; }
-    }
+    // 所以这里用 CompHead —— 解出一个操作数就停,不接裸推导式后缀。
+    private Expression ParseCompHead() => ParseExpression(Postfix.CompHead);
 
 }

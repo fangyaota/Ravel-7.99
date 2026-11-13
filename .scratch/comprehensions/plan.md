@@ -25,7 +25,7 @@ i * 2 + 1 for i in xs      # 值是 i * 2 + 1，不是 i * (2 + 1) 之类
 `for` / `if` 不是关键字（词法器只发标识符），解析器按上下文词匹配。为此有三处配合：
 
 - `TryPostfixArg` 里把 `for` / `if` 当成"不能吃当实参"的边界 —— 否则 `x for i in xs` 会被读成 `x` 拿 `for` 当实参。
-- 包裹语法的第一个值用 `ParseCompHead()` 解（带 `_compSuffixOff` 计数，该期间关掉后缀推导式）—— 否则 `[i for i in xs]` 里的 `i` 会先把后面整串吞成 Generator 推导式，外层再找子句时只剩 `]`。
+- 包裹语法的第一个值用 `ParseCompHead()` 解 —— 它走 `Postfix.CompHead`（`Comp = false`），解出一个操作数就停，`for` 留给外层；否则 `[i for i in xs]` 里的 `i` 会先把后面整串吞成 Generator 推导式，外层再找子句时只剩 `]`。要不要裸推导式由 `Postfix.Comp` 这个**参数**决定（`Full`/`PipeOnly` 开、`Bare`/`CompHead` 关），不是解析器上的开关 —— 入口二十多个，字段会静默继承。
 - `ForAhead()` 从当前位置扫到本条收尾，depth 0 见到 `for` 才算。
 
 ## 3. 脱糖
@@ -56,7 +56,8 @@ i * 2 + 1 for i in xs      # 值是 i * 2 + 1，不是 i * (2 + 1) 之类
 | 文件 | 改了什么 |
 |------|----------|
 | `Syntax/Ast.cs` | `CompKind`、`CompClause`/`CompFor`/`CompIf`、`Comprehension` |
-| `Syntax/Parser.Comprehensions.cs`（新） | `ForAhead`、`ParseCompHead`、`ParseComprehension`、`_compSuffixOff` |
+| `Syntax/Postfix.cs` | 加 `Comp` 一格：`Full`/`PipeOnly` 开，`Bare` 关，新增 `CompHead` |
+| `Syntax/Parser.Comprehensions.cs`（新） | `ForAhead`、`ParseCompHead`（= `ParseExpression(Postfix.CompHead)`）、`ParseComprehension` |
 | `Syntax/Parser.Expressions.cs` | `ParseExpression` 末尾的裸形式后缀 |
 | `Syntax/Parser.Postfix.cs` | `TryPostfixArg` 认 `for`/`if` 为边界 |
 | `Syntax/Parser.Atoms.cs` | `[` / `ParseSet` / `ParseDict` 三处 `ForAhead()` 分支 |
@@ -72,7 +73,7 @@ i * 2 + 1 for i in xs      # 值是 i * 2 + 1，不是 i * (2 + 1) 之类
 - 包裹分支解析完不 `Consume` 收尾符，`]` 会被当成下一轮输入。
 - 用 heredoc 拼 C# 转义会把 `\"` 弄坏，编译报 `CS1026`；改源码走 edit/write。
 - 测试组容量：`tests/lang` 正好 20 个文件（组上限 20），不能新建文件，只能并进 `18_lambdas.rav`（删了 11 行低价值断言腾位置，终值 4,952B ≤ 5,120）。
-- 第一版把"值"那一段的裸后缀关掉之后，**括号里也一起关了**，于是 `[i for i in (j for j in xs)]` 报「表达式后需要 ')'」。括号是显式边界，`ParseGroupedParen` 里把 `_compSuffixOff` 清零再恢复，这条就通；用例 `print ([i for i in (j * 2 for j in [1 2])])` 钉住它。
+- 第一版用一个 `_compSuffixOff` 计数器关裸后缀，结果**括号里也一起关了**：`[i for i in (j for j in xs)]` 报「表达式后需要 ')'」（`ParseGroupedParen` 同样是 `ParseExpression` 的入口，静默继承到「关」）。补丁是清零再恢复；换成 `Postfix.Comp` 参数之后补丁整个删掉 —— 括号走 `Full`（开），包裹语法的值走 `CompHead`（关），谁要谁不要写在每个调用点上。用例 `print ([i for i in (j * 2 for j in [1 2])])` 钉住它。
 
 ## 7. 没做
 

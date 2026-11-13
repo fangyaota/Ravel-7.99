@@ -14,8 +14,8 @@ public partial class Parser
         using var _expr = ExprDepth.Begin(this);
         var e = ParsePipe(policy);
         // 裸推导式(`x for i in xs` 那种不带容器的形式):后缀,所以整条式子之后才接。
-        // 包裹语法(`[…]` / `{…}` / `{k -> v}`)在 Parser.Comprehensions 那边自己判。
-        return _compSuffixOff == 0 && IsWord("for")
+        // 要不要由 policy.Comp 决定(包裹语法的值用 CompHead,见 Parser.Comprehensions)。
+        return policy.Comp && IsWord("for")
             ? ParseComprehension(e, null, CompKind.Generator)
             : e;
     }

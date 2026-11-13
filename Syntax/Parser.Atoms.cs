@@ -376,13 +376,8 @@ public partial class Parser
     // 分组:括号只界定范围,里面还是表达式
     private Expression ParseGroupedParen()
     {
-        // 括号是显式边界:推导式"值"那一段关掉裸后缀(见 ParseCompHead),
-        // 但括号里重新打开 —— `[i for i in (j for j in xs)]` 得写得动。
-        var savedSuffix = _compSuffixOff;
-        _compSuffixOff = 0;
-        Expression inner;
-        try { inner = ParseExpression(); }
-        finally { _compSuffixOff = savedSuffix; }
+        // 括号是显式边界:里面能带裸推导式(`[i for i in (j for j in xs)]`)。
+        var inner = ParseExpression();
         Consume(TokenType.RightParen, "表达式后需要 ')'");
         // 占位符在括号内就地消糖:`(_ + 1) 41` 的 41 才落在外
         return HasHoles(inner) ? DesugarHoles(inner) : inner;
