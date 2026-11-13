@@ -1,23 +1,23 @@
 ravel "m24"
-pairs := [(Pair "a" 1) (Pair "b" 2)]
+pairs := [(pair "a" 1) (pair "b" 2)]
 d := pairs.ToDict ()
 print d
 print (d.Entries ())
 print ((d.Entries ()).ToDict ())
 print ((d.Entries ()).At 0)
 print ((d.Entries ()).Count ())
-print (d.Contains (Pair "a" 1))
-print (d.Contains (Pair "a" 2))
+print (d.Contains (pair "a" 1))
+print (d.Contains (pair "a" 2))
 print (d.Contains (pair "a" 1))
 
-print ([(Pair "x" 1) (Pair "y" 2) (Pair "x" 3)] |> .ToDict ())
+print ([(pair "x" 1) (pair "y" 2) (pair "x" 3)] |> .ToDict ())
 
 e := [].ToDict ()
 print (typeof e)
 print (e.Count ())
 
 sus := ["amy" "bob"]
-print (sus |> .Map ((n: object) => { Pair n (n.ToUpper ()); }) |> .ToList () |> .ToDict ())
+print (sus |> .Map ((n: object) => { pair n (n.ToUpper ()); }) |> .ToList () |> .ToDict ())
 
 try { [[ "a" ]].ToDict (); } (e: Exception) => { print e.Message; }
 try { d.Contains 1; } (e: Exception) => { print e.Message; }
@@ -156,7 +156,7 @@ ravel "conv"
 s := (i * 2 for i in [1 2 3])
 print s[]
 print s{}
-t := ((Pair i i) for i in [1 2])
+t := ((pair i i) for i in [1 2])
 print t{->}
 print [3 4 5].Count().ToString()
 print "ab".Length()
@@ -174,7 +174,7 @@ ravel ""
 # Dict
 # 0
 # {amy: AMY bob: BOB}
-# ToDict 要的是 Pair（键 -> 值），得到 List
+# ToDict 要的是一个 pair（键 -> 值），得到 List
 # dict.Contains 要一个 Pair（键 -> 值），得到 Integer
 # 10
 # 50

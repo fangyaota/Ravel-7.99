@@ -55,12 +55,12 @@ d.ContainsKey "a"          # true
 
 ## 7.4 序列方法（三种容器共用）
 
-这些方法只跟**元素顺序**有关，所以 list / set / dict 都有同一份（字典的元素是 `Pair`，见下）。名字照 C# 的集合 / Linq API 起。
+这些方法只跟**元素顺序**有关，所以 list / set / dict 都有同一份（字典的元素是 `pair`，见下）。名字照 C# 的集合 / Linq API 起。
 
 | 方法 | 说明 |
 |------|------|
 | `Count ()` `IsEmpty ()` `Any ()` | 个数 / 空不空 / 有没有 |
-| `Contains v` | 元素里有它（原子值按值比、容器按身份比）；**dict 上没有单独实现**，只有从 `IEnumerable` 默认来的那条，比的是整个 `Pair` |
+| `Contains v` | 元素里有它（原子值按值比、容器按身份比）；**dict 上没有单独实现**，只有从 `IEnumerable` 默认来的那条，比的是整个 `pair` |
 | `First ()` `Last ()` | 头一个 / 末一个（空容器**报错**）|
 | `Take n` `Skip n` | 前 n 个 / 跳过前 n 个 |
 | `Distinct ()` `Reverse ()` `Concat ys` | 去重 / 倒过来 / 接上另一串 |
@@ -85,22 +85,22 @@ d.ContainsKey "a"          # true
 
 **set 还有**集合代数：`Union` / `Intersect` / `Except` / `IsSubsetOf`。
 
-**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `ContainsKey k` / `ContainsValue v` / `Contains (Pair k v)`（这一对在不在）/ `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
+**dict 还有**：`Get k`（没有就报错）/ `GetOr k fallback` / `Set k v` / `ContainsKey k` / `ContainsValue v` / `Contains (pair k v)`（这一对在不在）/ `Remove k` / `Keys ()` / `Values ()` / `Entries ()`。
 
 这三种容器还都收 `+` / `-` 两个运算符：list 是**拼接** / **去掉右边出现过的元素**，set 是**并集** / **差集**（就是上面那两个方法），dict 是**合并**（右边的键盖左边的）/ **按右边的键删**。一律交回新的容器、原容器不动（见 3.6.1）。
 
 ### 7.4.1 序列 ↔ 字典
 
-`Pair` 的序列能直接摊成字典；反向是 `Entries ()`：
+`pair` 的序列能直接摊成字典；反向是 `Entries ()`：
 
 ```ravel
-pairs := [(Pair "a" 1) (Pair "b" 2)]
+pairs := [(pair "a" 1) (pair "b" 2)]
 d := pairs.ToDict ()          # {a: 1 b: 2}
 print (d.Entries ())          # [a -> 1 b -> 2]
 print ((d.Entries ()).ToDict ())   # 原样回来
 ```
 
-字典自己当序列时，元素是 **`Pair`**（一对"键 -> 值"，见 7.4.4）：`ToList ()` / `Foreach` / `Map` / `for x in d` 全都拿到它，
+字典自己当序列时，元素是 **`pair`**（一对"键 -> 值"，见 7.4.4）：`ToList ()` / `Foreach` / `Map` / `for x in d` 全都拿到它，
 所以 `(d.ToList ()).ToDict ()` 原样回来；只要键或只要值时，用 `Keys ()` / `Values ()`。
 
 ```ravel
@@ -113,14 +113,14 @@ print (d.Map ((p) => { (p.Value ()) * 10; }))   # [10 20]
 
 三条规矩：
 
-- **项必须是 `Pair`**。一条 `[键 值]` 的 list 现在不收：它 `==` 按身份比，拿它当「一对」容易和真容器混；当场报「ToDict 要的是 Pair（键 -> 值），得到 List」。
+- **项必须是 `pair`**。一条 `[键 值]` 的 list 现在不收：它 `==` 按身份比，拿它当「一对」容易和真容器混；当场报「ToDict 要的是一个 pair（键 -> 值），得到 List」。
 - **键重复时后面的盖前面的**（和 `d.Set` 一个规矩），位置留在第一次出现的地方。
 - **紧跟着空括号调用再挂成员，要括一下**：写 `(d.Entries ()).ToDict ()`，`d.Entries ().ToDict ()` 不带括号时 `.ToDict` 会贴到那个 `()` 上（这是后缀收法的既有毛病，遇到就加括号）。
 
 从别的序列造，就先 `Map` 出一对对再摊：
 
 ```ravel
-["amy" "bob"] |> .Map ((n: object) => { Pair n (n.ToUpper ()); }) |> .ToList () |> .ToDict ()
+["amy" "bob"] |> .Map ((n: object) => { pair n (n.ToUpper ()); }) |> .ToList () |> .ToDict ()
 # {amy: AMY bob: BOB}
 ```
 
@@ -204,8 +204,8 @@ d := (i * 2 for i in [1 2 3])                   # Generator，要 .ToList () 才
 s := (i * 2 for i in [1 2 3])
 print s[]      # 等价于 s.ToList ()
 print s{}      # 等价于 s.ToSet ()
-t := ((Pair i i) for i in [1 2])
-print t{->}    # 等价于 t.ToDict ()（元素得是 Pair）
+t := ((pair i i) for i in [1 2])
+print t{->}    # 等价于 t.ToDict ()（元素得是 pair）
 ```
 
 执行以上程序会输出如下结果：
@@ -224,10 +224,10 @@ print t{->}    # 等价于 t.ToDict ()（元素得是 Pair）
 
 ## 7.4.4 一对（`pair`）
 
-`Pair k v` 造出一对**值类型**的"键 / 值"：
+`pair k v` 造出一对**值类型**的"键 / 值"：
 
 ```ravel
-p := Pair 1 "a"
+p := pair 1 "a"
 print p            # 1 -> a
 print (p.Key ())   # 1
 print (p.Value ()) # a
@@ -250,7 +250,7 @@ a
 一对也是"一串两格"，所以序列方法照旧：`Foreach` / `Map` / `Fold` / `ToList` 都能用，`[k v] := p` 也能解出来。
 
 ```ravel
-p := Pair "a" 1
+p := pair "a" 1
 p.Foreach ((x) => { print x; })
 [k v] := p
 print k
@@ -266,22 +266,24 @@ a
 1
 ```
 
-它同时实现 `IList`，所以"每一项得是 `[键 值]` 两格"的口子直接吃它：
+它同时实现 `IList`：
 
 ```ravel
-print ([(Pair "a" 1) (Pair "b" 2)] |> .ToDict ())   # {a: 1 b: 2}
+print ([(pair "a" 1) (pair "b" 2)] |> .ToDict ())   # {a: 1 b: 2}
 ```
 
-注意 `Pair` 写在容器里要套括号（`[...]` / `{...}` 里的元素是按空格排的，`Pair 1 2` 在容器里会被读成三格）。
+注意 `pair` 写在容器里要套括号（`[...]` / `{...}` 里的元素是按空格排的，`pair 1 2` 在容器里会被读成三格）。
 
-与 `list` 的区别只有一处：**`Pair` 比内容**。同一对内容造两次就是相等的，所以能当字典的键、集合的元素：
+`typeof` 打出来是 `Pair`、类型判定写 `p : pair`（别名与类值是一回事）。
+
+与 `list` 的区别只有一处：**`pair` 比内容**。同一对内容造两次就是相等的，所以能当字典的键、集合的元素：
 
 ```ravel
-print ((Pair 1 "a") == (Pair 1 "a"))   # true
+print ((pair 1 "a") == (pair 1 "a"))   # true
 d := {->}
-d[Pair "k" 1] = 7
-print (d[Pair "k" 1])                  # 7 —— 按内容找到的
-print ({{(Pair 1 2) (Pair 1 2)}}.Count ()) # 1 —— 去重也按内容
+d[pair "k" 1] = 7
+print (d[pair "k" 1])                  # 7 —— 按内容找到的
+print ({{(pair 1 2) (pair 1 2)}}.Count ()) # 1 —— 去重也按内容
 ```
 
 `list` / `set` / `dict` 仍然按身份比（见 7.6），所以拿它们当键时只有"同一个实例"才算同一个键。

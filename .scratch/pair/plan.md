@@ -61,3 +61,12 @@
 - `lib/predefined.rav` 加 `readonly pair := Pair`(小写别名,同一个类值,`pair 1 2` 可用)。
   `tests/lang/03_functions.rav` 里那个顶层局部 `pair` 改名 `mkpair`(别名占了它)。
 - 跑绿:lang 20 / class 17 / module 15 / diag 9 / net 7 / task 3 / lib 39;ast 187 文件 0 失败。
+
+## 10. 只留小写 `pair`,大写 `Pair` 别名删掉
+
+- `lib/predefined.rav` 现在只有 `readonly pair := System.Pair`;`Pair` 这个名字在 Ravel 里不再存在
+  (`typeof (pair 1 2)` 仍打 `Pair`,那是类自己的名字)。
+- `lib/iterator.rav` 的四处 `impl (… Pair …)` 与 `ToDict` 的类型关卡改写成 `System.Pair` ——
+  不依赖别名,也避免 `predefined` 与 `iterator` 的加载顺序问题。
+- 用例/文档里写 `pair …`、类型判定写 `p : pair`。
+- `tests/lang/17_protocol.rav` 里那个自建 `Pair ::= class { … }` 是测试用的局部类,与内建无关,保留。

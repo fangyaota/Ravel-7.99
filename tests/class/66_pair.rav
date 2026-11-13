@@ -1,6 +1,6 @@
 # pair:值类型的一对
 ravel "66_pair"
-p := Pair 1 "a"
+p := pair 1 "a"
 print p
 print (p.Key ())
 print (p.Value ())
@@ -8,19 +8,19 @@ print (p.At 0)
 print (p.At 1)
 print (p.Count ())
 print (p.ToList ())
-print (p : Pair)
+print (p : pair)
 print (p : IValue)
-print ((Pair 1 "a") == (Pair 1 "a"))
-print ((Pair 1 "a") === (Pair 1 "a"))
-print ((Pair 1 "a") == (Pair 1.0 "a"))
-print ((Pair 1 "a") != (Pair 2 "a"))
+print ((pair 1 "a") == (pair 1 "a"))
+print ((pair 1 "a") === (pair 1 "a"))
+print ((pair 1 "a") == (pair 1.0 "a"))
+print ((pair 1 "a") != (pair 2 "a"))
 d := {->}
-d[Pair "k" 1] = 7
-print (d[Pair "k" 1])
-print (d.ContainsKey (Pair "k" 1))
-print ({{(Pair 1 2) (Pair 1 2)}}.Count ())
+d[pair "k" 1] = 7
+print (d[pair "k" 1])
+print (d.ContainsKey (pair "k" 1))
+print ({{(pair 1 2) (pair 1 2)}}.Count ())
 print (p : IList)
-print ([(Pair "a" 1) (Pair "b" 2)] |> .ToDict ())
+print ([(pair "a" 1) (pair "b" 2)] |> .ToDict ())
 p.Foreach ((x) => { print x; })
 [k v] := p
 print k
