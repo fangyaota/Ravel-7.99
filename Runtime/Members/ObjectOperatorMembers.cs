@@ -20,6 +20,16 @@ internal static class ObjectOperatorMembers
     private static RuntimeValue NotEqual(RuntimeValue a, RuntimeValue b)
         => new BoolVal(!BuiltinClasses.SameValue(a, b, "!="));
 
+    // `===` / `!==` —— 同一性:类型不同即 false,值语义比值,对象比引用(见 `StrictSame`)。
+    // **普通的运算符**:与 `==` / `!=` 同住这张表,所以类可以自己写 `=== := …` 覆盖它。
+    [ClassOp("===")]
+    private static RuntimeValue Identical(RuntimeValue a, RuntimeValue b)
+        => new BoolVal(BuiltinClasses.StrictSame(a, b));
+
+    [ClassOp("!==")]
+    private static RuntimeValue NotIdentical(RuntimeValue a, RuntimeValue b)
+        => new BoolVal(!BuiltinClasses.StrictSame(a, b));
+
     [ClassOp("<:")]
     private static RuntimeValue SubtypeOf(RuntimeValue a, RuntimeValue b)
     {

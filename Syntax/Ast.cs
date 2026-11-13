@@ -5,7 +5,7 @@ using Ravel.Runtime;
 public static class OperatorSymbols
 {
     public static readonly HashSet<string> All =
-        ["+", "-", "*", "/", "%", "**", "==", "!=", "<", ">", "<=", ">=", "&", "|", "^",
+        ["+", "-", "*", "/", "%", "**", "==", "!=", "===", "!==", "<", ">", "<=", ">=", "&", "|", "^",
          "<<", ">>", "<<<", ">>>", "is", "isnot", "<:", ":>"];
 
     public static bool IsSymbol(string name) => All.Contains(name);

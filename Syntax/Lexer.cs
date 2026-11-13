@@ -262,6 +262,7 @@ public class Lexer(string source, string? file = null)
         ("=>", TokenType.Arrow),
         ("===", TokenType.EqualEqualEqual),   // 得排在 `==` 前面,否则读成 `==` + `=`
         ("==", TokenType.EqualEqual),
+        ("!==", TokenType.NotEqualEqual),     // 同理,排在 `!=` 前面
         ("!=", TokenType.NotEqual),
         // 三个尖的排在两个尖的前面(`<<<` 别被读成 `<<` + `<`)
         ("<<<", TokenType.RotateLeft),

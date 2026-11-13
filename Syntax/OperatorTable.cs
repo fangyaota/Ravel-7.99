@@ -30,6 +30,7 @@ public static class Operators
         Add("==", 10, TokenType.EqualEqual);
         // `===` 与 `==` 同档(能串):比的是**同一性**——值类型按值、对象按引用,不做跨族数值归一
         Add("===", 10, TokenType.EqualEqualEqual);
+        Add("!==", 10, TokenType.NotEqualEqual);
         Add("!=", 10, TokenType.NotEqual);
         Add("<", 10, TokenType.Less);
         Add(">", 10, TokenType.Greater);
@@ -68,7 +69,7 @@ public static class Operators
         => BySymbol.TryGetValue(symbol, out var op) ? op.PrintPrec : 0;
 
     public static bool IsCompare(string symbol)
-        => symbol is "<" or ">" or "<=" or ">=" or "==" or "!=" or "===" or ":" or "<:" or ":>";
+        => symbol is "<" or ">" or "<=" or ">=" or "==" or "!=" or "===" or "!==" or ":" or "<:" or ":>";
 
     public static bool IsInfixToken(TokenType t) => ByToken.ContainsKey(t);
 

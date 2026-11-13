@@ -40,6 +40,7 @@ public enum TokenType
     EqualEqual,    // ==
     EqualEqualEqual, // === 引用相等(内建,不给重载)
     NotEqual,      // !=
+    NotEqualEqual, // !== === 的否定(内建,不给重载)
     Less,          // <
     Greater,       // >
     LessEqual,     // <=
