@@ -69,4 +69,32 @@ internal sealed class DictMembers : SequenceMembers
         ((DictVal)self).Entries.Clear();
         return VoidVal.Instance;
     }
+
+    // ── 运算符:两张表的合并 / 按键删 ──
+    // `d + e` 合并,右边的键盖左边的(e 得是 dict —— 两个键值面才有得合);
+    // `d - e` 按右边的键删,右边是 dict 就取它的**键**,别的容器就把元素当键看。
+    // 两个都交回**新的 dict**,原 dict 不动。
+
+    [ClassOp("+")]
+    private static RuntimeValue MergeOp(RuntimeValue a, RuntimeValue b)
+    {
+        if (b is not DictVal other)
+            throw new RuntimeException($"dict 的 '+' 右边得是 dict（合并两张表），得到 {b.Type}", ErrorKind.Type);
+
+        var result = new DictVal(((DictVal)a).Entries);
+        foreach (var (k, v) in other.Entries) result.Entries[k] = v;
+        return result;
+    }
+
+    [ClassOp("-")]
+    private static RuntimeValue DropKeysOp(RuntimeValue a, RuntimeValue b)
+    {
+        IEnumerable<RuntimeValue> keys = b is DictVal d
+            ? d.Entries.Keys
+            : BuiltinClasses.ElementsOf(b, "dict 的 '-'");
+
+        var result = new DictVal(((DictVal)a).Entries);
+        foreach (var k in keys) result.Entries.Remove(k);
+        return result;
+    }
 }

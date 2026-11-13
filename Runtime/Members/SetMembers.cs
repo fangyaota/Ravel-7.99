@@ -49,6 +49,16 @@ internal sealed class SetMembers : SequenceMembers
         return new SetVal([.. ((SetVal)self).Elements.Where(x => !other.Contains(x))]);
     }
 
+    // ── 运算符:和上面两个方法同一个口径 ──
+    // `s + t` 就是 `s.Union t`,`s - t` 就是 `s.Except t`:交回**新的 set**,原集合不动;
+    // 右边同样可以是任何取得出元素的东西(list / set / dict / 插件容器)。
+
+    [ClassOp("+")]
+    private static RuntimeValue UnionOp(RuntimeValue a, RuntimeValue b) => Union(a, b);
+
+    [ClassOp("-")]
+    private static RuntimeValue ExceptOp(RuntimeValue a, RuntimeValue b) => Except(a, b);
+
     [ClassMethod("IsSubsetOf")]
     private static RuntimeValue IsSubsetOf(RuntimeValue self, RuntimeValue arg)
     {

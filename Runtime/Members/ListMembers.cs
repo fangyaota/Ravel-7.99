@@ -106,4 +106,19 @@ internal sealed class ListMembers : SequenceMembers
 
     [ClassMethod("Sort")]
     private static RuntimeValue Sort(RuntimeValue self) => BuiltinClasses.SortByKey(((ListVal)self).Elements, x => x);
+
+    // ── 运算符:与 set 的 `Union` / `Except` 同一套意思,只是 list 有顺序、也留重复 ──
+    // `xs + ys` 拼起来(`Concat` 的运算符写法);`xs - ys` 去掉 ys 里出现过的元素。
+    // 两个都交回**新的 list**,原 list 不动。
+
+    [ClassOp("+")]
+    private static RuntimeValue ConcatOp(RuntimeValue a, RuntimeValue b)
+        => new ListVal([.. ((ListVal)a).Elements, .. BuiltinClasses.ElementsOf(b, "list 的 '+'")]);
+
+    [ClassOp("-")]
+    private static RuntimeValue ExceptOp(RuntimeValue a, RuntimeValue b)
+    {
+        var drop = BuiltinClasses.ElementsOf(b, "list 的 '-'").ToHashSet(SameComparer.Instance);
+        return new ListVal([.. ((ListVal)a).Elements.Where(x => !drop.Contains(x))]);
+    }
 }

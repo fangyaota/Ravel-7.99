@@ -1,4 +1,4 @@
-# 运算符/模块类型
+﻿# 运算符/模块类型
 using "math.rav"
 
 ravel "64_main0"
@@ -146,6 +146,26 @@ i := Iffy ()
 print (i === i)
 print (i !== i)
 ravel ""
+ravel "64_container_ops"
+print ([1 2] + [3])
+print ([1 2 2] - [2])
+xs := [1 2]
+print (xs + [3])
+print xs
+print ({1 2} + {2 3})
+print ({1 2} - {2})
+print ({1 2} + [3])
+print ({1 2} + {7 -> "a"})
+d1 := {1 -> "a" 2 -> "b"}
+print (d1 + {2 -> "B" 3 -> "c"})
+print (d1 - {2})
+print d1
+print ("ab" + "cd")
+print (1 + 2)
+try { print ({1 2} + 5); } (e: Exception) => { print ("1: " + string e); }
+try { print ({1 -> "a"} + [1]); } (e: Exception) => { print ("2: " + string e); }
+ravel ""
+
 # --- expected ---
 # 15
 # 30
@@ -203,3 +223,18 @@ ravel ""
 # false
 # mine
 # false
+# [1 2 3]
+# [1]
+# [1 2 3]
+# [1 2]
+# {1 2 3}
+# {1}
+# {1 2 3}
+# {1 2 a}
+# {1: a 2: B 3: c}
+# {1: a}
+# {1: a 2: b}
+# abcd
+# 3
+# 1: Union 需要一个容器（list / set / dict / 栈 队列 堆…），得到 Integer
+# 2: dict 的 '+' 右边得是 dict（合并两张表），得到 List
