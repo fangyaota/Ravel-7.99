@@ -163,6 +163,7 @@ public sealed class Lowering
             => IndexWrite(ix, b.Op, b.Right),
         BinaryExpr b => b with { Left = Lower(b.Left), Right = Lower(b.Right) },
         ChainCompare cc => Chain(cc),
+        ConditionalExpr cd => Conditional(cd),
         CallExpr c => c with { Function = Lower(c.Function), Argument = Lower(c.Argument) },
         MemberAccess m => m with { Object = Lower(m.Object) },
         // 读:`xs[i]` 是 `xs.At i`;右边写的是**区间字面量**就是 `xs.Slice 1..3`)
@@ -919,6 +920,15 @@ public sealed class Lowering
 
     private static CallExpr Call(Expression f, Expression arg)
         => new(f, arg) { Line = f.Line, Column = f.Column };
+
+    // `a if c else b` → `c { a } { b }`,也就是"一个 Bool 带两个裸块"。
+    // 那条路求值器里早就有了(Runtime/Interpreter.Call.cs 的 `BoolVal` / `PartialBool` 两臂):
+    // 选中那支是**裸块**,不推层、就在捕获作用域里跑 —— 所以分支里的 `:=` 落在外面,
+    // 与手写的 `cond { A } { B }` 一模一样。糖只是把两个分支压成表达式。
+    private Expression Conditional(ConditionalExpr c)
+        => Call(
+            Call(Lower(c.Condition), AsBlock(Lower(c.WhenTrue), c)),
+            AsBlock(Lower(c.WhenFalse), c));
 
     // `f"共 {n} 件"` → `"" + "共 " + string(n) + " 件"`。**整门语言只有这一处**
     // 认识 f-string:上面那个 switch 把节点换成一棵 `+` 树,之后全是老路

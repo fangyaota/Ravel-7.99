@@ -83,7 +83,11 @@ public partial class Parser
 
     // 子句里的表达式(序列 / 条件)。收尾停在 `for`、`if` 上 ——
     // 但**允许**并列实参,所以 `xs.Where ((x) => { … })` 这种源写得动。
-    private Expression ParseCompPart() => ParseCompHead();
+    //
+    //  `Ternary = false` 是给三元留的边界:一个子句后面紧跟的 `if` 是**下一个子句**,
+    //  不是"上一个值的三元开头"。`[x for i in xs if a if b]` 因此是两个滤波器;
+    //  真想在三元里过滤,加括号 —— `if (a if b else c)` 里是 Full,三元又开着。
+    private Expression ParseCompPart() => ParseExpression(Postfix.CompHead with { Ternary = false });
 
     // 包裹语法里那个"值":它后面的 `for` 归外层(`[x for …]` 的子句不属于 `x`)。
     // 所以这里用 CompHead —— 解出一个操作数就停,不接裸推导式后缀。

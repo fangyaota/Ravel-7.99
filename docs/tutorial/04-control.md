@@ -37,6 +37,41 @@ yes
 同一次条件分派量下来 **111 步 vs 直接写 75 步（贵 48%）**。代价是"条件得是个 bool"
 少了一道**专门的**检查 —— `while` 里那句 `cond : bool = c ()` 还在，报得准。）
 
+### 4.1.1 只挑一个值：`a if c else b`
+
+要的不是"挑一支跑"，而是**从两个值里挑一个**时，写三块太吵：
+
+```ravel
+x := 5
+print (x if (x > 0) else 0)              # 5
+print ((0 - x) if (x > 0) else x)        # -5
+print (100 if (5 > 3) else 200)          # 100
+```
+
+它不是 `? :` —— `:` 早就是类型判定了。词形照 Python，语义照**块**：`a if c else b`
+与手动写 `c { a; } { b; }` 是同一个形状（一个 `bool` 带两个块），脱糖在
+`Lowering.Conditional`，求值走的就是 4.1 那条路。所以分支里 `:=` 落在外层作用域、
+分支本身是"裸块"不推层，跟手写块一模一样。
+
+钉住的三条：
+
+- **比 `:=` 紧、比 `||`/`??` 松**：`k := n * 2 if (n > 1) else 0` 是"先挑值再定义"；
+  `a || b if c else d` 是 `(a || b) if c else d`；`a if c else b + 1` 是 `a if c else (b + 1)`。
+- **右结合**：`a if c1 else b if c2 else d` = `a if c1 else (b if c2 else d)`，
+  所以链式挑值可以一路写下去，不用套括号。
+- **整条写一行**（或整条套上括号）：块按行分语句，`x if (x > 0)` 换行 `else 0` 会断。
+
+推理式里两个位置口径不同 —— **值**可以是三元，**滤波器**不行：
+
+```ravel
+print ([x if (x > 1) else 0 for x in [1 2 3]])   # [0 2 3]
+print ([x for x in [1 2 3] if (x > 1) if (x < 3)])   # [2]，两个滤波器
+print ([x for x in [1 2 3] if ((x if (x > 1) else 0) > 1)])   # [2 3]，滤波器里要套括号
+```
+
+因为 `if` 子句后面紧跟的 `if` 是**下一个滤波器**，不是三元开头；`[x if (x > 1) for x in …]`
+会直接报「`if` 后面要跟 `else`」—— 想过滤就写 `if` 子句。
+
 ## 4.2 while
 
 ```ravel

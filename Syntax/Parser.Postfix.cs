@@ -103,6 +103,7 @@ public partial class Parser
     {
         if (!policy.Args || !StartsPrimary() || IsInfixWordOperator(Peek())
             || IsCompBoundary()                                 // `for`/`if` 是推导式的边界,不是实参
+            || IsWord("else")                                   // 三元的 `else` 同理:不是实参
             || (!policy.Block && Check(TokenType.LeftBrace))) return null;
 
         if (loop is null) loop = OpenPendingLoop(expr);

@@ -146,6 +146,11 @@ public record BinaryExpr(Expression Left, string Op, Expression Right) : Express
 
 // `a < b < c` —— 链式比较:中间的每个操作数都**只求一次**,比较按 `&&` 串起来
 public record ChainCompare(List<Expression> Operands, List<string> Ops) : Expression;
+
+// `a if c else b` —— 词形三元。没有 `? :` 那种写法,因为 `:` 早就是类型判定了。
+// 糖本身留着不改树,脱糖见 `Lowering.Conditional`:与手写的 `c { a } { b }` 同一个形状
+// (一个 Bool 带两个**裸块**),所以分支里 `:=` 落在外层作用域 —— 和手写块一模一样。
+public record ConditionalExpr(Expression Condition, Expression WhenTrue, Expression WhenFalse) : Expression;
 public record UnaryExpr(string Op, Expression Operand) : Expression;
 public record LambdaExpr(Parameter Param, BlockExpr Body) : Expression
 {

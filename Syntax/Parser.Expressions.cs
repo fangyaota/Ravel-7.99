@@ -37,7 +37,7 @@ public partial class Parser
 
     private Expression ParseAssignment(Postfix policy)
     {
-        var left = ParseNullCoalesce(policy);
+        var left = ParseTernary(policy);
 
         if (Match(TokenType.CoalesceEqual))
         {
@@ -60,6 +60,29 @@ public partial class Parser
         }
 
         return left;
+    }
+
+    //  `a if c else b` —— 词形三元。位置夹在 `:=` 与 `??` 之间:比赋值紧(于是
+    //  `x := a if c else b` 是"先挑值再定义"),比 `||`/`??` 松(于是 `a ?? b if c else d`
+    //  是 `(a ?? b) if c else d`)。右结合:`a if c1 else b if c2 else d`
+    //  = `a if c1 else (b if c2 else d)`。
+    //
+    //  两个分支都用 CompHead 解析:分支后面那个 `for` 归外层,否则
+    //  `[x if p else y for i in xs]` 会变成"else 分支是个 Generator"。
+    //  (推导式的 `if` 子句自己关掉三元,见 Parser.Comprehensions.ParseCompFilter。)
+    private Expression ParseTernary(Postfix policy)
+    {
+        var value = ParseNullCoalesce(policy);
+        if (!policy.Ternary || !IsWord("if")) return value;
+
+        BumpExprDepth();
+        _pos++;
+        var cond = ParseTernary(Postfix.CompHead);
+        ConsumeWord("else", "`if` 后面要跟 `else` —— 三元写成 `a if 条件 else b`;"
+                          + "只想挑一支跑,就写 `cond { } { }`");
+        BumpExprDepth();
+        var otherwise = ParseTernary(Postfix.CompHead);
+        return new ConditionalExpr(cond, value, otherwise) { Line = value.Line, Column = value.Column };
     }
 
     private Expression ParseNullCoalesce(Postfix policy)

@@ -168,6 +168,10 @@ internal static class AstPrinter
         IndexExpr ix => Atom(ix.Object, indent) + "[" + Expr(ix.Index, indent) + "]",
         BinaryExpr b => Binary(b, indent),
         ChainCompare c => Chain(c, indent),
+        // 三元原样印回糖。优先级 1(比 `||` 那档还松),所以:
+        // 条件与真支各要 2 起(同级要套括号),假支 1 就够(右结合:`a if c else b if d else e` 是同一棵树)。
+        ConditionalExpr cd => Paren(cd.WhenTrue, 2, indent) + " if " + Paren(cd.Condition, 2, indent)
+                              + " else " + Paren(cd.WhenFalse, 1, indent),
         // 一元运算符的操作数**至少要跟它一样紧**(18 = `**` 那一档)才不用套括号。
         // 这里从前写的是 `Atom`,而 `Atom` **认调用** —— 于是 `!(x.IsEmpty ())` 印成
         // `!x.IsEmpty ()`,读回去 `!` 把那串全吃了(实测:`!a.IsEmpty () || !b.IsEmpty ()`
@@ -247,6 +251,8 @@ internal static class AstPrinter
         ChainCompare => PrintPrec("<"),
         // 推导式是整条式子的后缀,比最低档运算符还松(1 < `||` 那档的 2)
         Comprehension => 1,
+        // 三元也是后缀、也松到 1(和推导式同档;两者不会同时接在同一处:`for` 与 `else` 分得开)
+        ConditionalExpr => 1,
         // 一元比 `**` 松、比其余运算紧 —— 所以 `(-2) ** 2` 那个左操作数得套括号
         // (不套读回去是 `-(2 ** 2)`,另一个数),而 `a + -b` 不用。
         UnaryExpr => Operators.UnaryPrec,

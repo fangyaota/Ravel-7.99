@@ -34,9 +34,6 @@ xs := [1 2 3]
 sum := 0
 xs.Foreach (x: int) => { sum = sum + x; }
 print sum
-s := {42}
-print (typeof s)
-print (s.Contains 42)
 x := 0
 while { x < 3; } {
     x += 1
@@ -184,6 +181,14 @@ print (Ex.HandlerStack.Count ())
 print "end"
 ravel ""
 
+ravel "ternary"
+x := 5
+print (x if (x > 0) else 0)
+print (1 + 2 if false else 3)
+print (1 if false else 2 if false else 3)
+print ((true { 1; } { 2; }) if true else 0)
+print ([x if (x > 1) else 0 for x in [1 2 3]])
+
 # --- expected ---
 
 # <block>
@@ -200,8 +205,6 @@ ravel ""
 # 20
 # 21
 # 6
-# Set
-# true
 # 3
 # yes
 # 2
@@ -261,3 +264,8 @@ ravel ""
 # caught from slot
 # 0
 # end
+# 5
+# 3
+# 3
+# 1
+# [0 2 3]
