@@ -151,10 +151,7 @@ public partial class Parser
         var at = Peek();
         TakeDirective();
         SkipNewlines();
-        return new ExpressionStatement(new LiteralExpr(VoidVal.Instance) { Line = at.Line, Column = at.Column })
-        {
-            Line = at.Line, Column = at.Column, Synthetic = true,
-        };
+        return new DirectiveStatement("#" + at.Lexeme) { Line = at.Line, Column = at.Column };
     }
 
     // ':<' 只在 do 块里有意义

@@ -44,7 +44,8 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         => ParseSource(source, fileName, DeclaresMoreControlFlow(source));
 
     public static Program ParseSource(string source, string? fileName, bool moreControlFlow)
-        => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow).Parse();
+        => new Parser(new Lexer(source, fileName).Tokenize(), fileName, moreControlFlow)
+            .Parse(DeclaresNoLower(source));
 
     // 不脱糖的入口：给打印往返自验用
     public static Program ParseSourceUnlowered(string source, string? fileName, bool moreControlFlow)
@@ -79,6 +80,27 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
     // `#program --warn`：只给这个文件开编译期警告
     public static bool DeclaresWarn(string source) => Declares(source, "--warn");
 
+    // 转储出来的是**脱糖后**的程序：文件头写 `#program --no-lower=true`,回读时别再脱一遍。
+    public static bool DeclaresNoLower(string source)
+    {
+        foreach (var raw in source.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line[0] != '#') return false;
+
+            if (!line.StartsWith("#program", StringComparison.Ordinal)) continue;
+            var rest = line["#program".Length..].Trim();
+            if (rest.StartsWith("--no-lower=", StringComparison.Ordinal))
+                return rest["--no-lower=".Length..].Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+            if (rest.StartsWith("--no-lower", StringComparison.Ordinal)
+                && (rest.Length == "--no-lower".Length || char.IsWhiteSpace(rest["--no-lower".Length])))
+                return true;
+        }
+
+        return false;
+    }
+
     private static bool Declares(string source, string name)
     {
         foreach (var raw in source.Split('\n'))
@@ -109,7 +131,9 @@ public partial class Parser(List<Token> tokens, string? source = null, bool more
         return Lowering.Apply(new Parser(toks, file).ParseExpression(), file);
     }
 
-    public Program Parse() => Lowering.Apply(ParseTree());
+    // `noLower`: 源码已经是脱糖后的（`ravel ast -s` 产出的 `.src.rav` 文件头带
+    // `#program --no-lower=true`），再脱一遍会把 `__df…` 那些临时名当用户代码处理。
+    public Program Parse(bool noLower = false) => noLower ? ParseTree() : Lowering.Apply(ParseTree());
 
     public Program ParseTree()
     {

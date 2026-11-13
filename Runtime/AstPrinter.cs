@@ -115,10 +115,13 @@ internal static class AstPrinter
         SlotAssign sa => "by " + Expr(sa.Path, indent) + (sa.Define ? " := " : " = ") + Expr(sa.Value, indent),
         ExpressionStatement es => Expr(es.Expr, indent),
 
+        // 开关语句原样印回去 —— 它就是源码里的那一行,印成 `()` 会把开关丢了
+        DirectiveStatement dir => dir.Text,
+
         // 下面这三种**活不过 `Lowering`**(见 `Syntax/Lowering.cs` 抬头),正常到不了这儿。
         // 留着只是"万一" —— 真到了得**响**,不能印个占位符糊过去(见 `Unknown`)。
         BindStatement bd => bd.Name + " :< " + Expr(bd.Monad, indent),
-        Destructure d => Attrs(d.Attrs) + Pattern(d.Pattern, indent) + " = " + Expr(d.Value, indent),
+        Destructure d => Attrs(d.Attrs) + Pattern(d.Pattern, indent) + (d.Assign ? " = " : " := ") + Expr(d.Value, indent),
         _ => throw Unknown(s),
     };
 
@@ -164,6 +167,10 @@ internal static class AstPrinter
         // 手写的式子对照。结合性/括号直接借 `Binary` 那条路,保证和手写的二元式印得一样。
         CallExpr { Function: MemberAccess m, Argument: var ra } when OperatorSymbols.IsSymbol(m.Member) => Binary(
             new BinaryExpr(m.Object, m.Member, ra), indent),
+        // 拿"算出来的条件"当函数调用(`cond {a} {b}` 脱糖成 `cond ({a}) ({b})`)时,
+        // 中缀那条路印出来是 `v > 0 ({…})`,读回去 `>` 会把实参吃掉 —— 套一层括号。
+        CallExpr fc when fc.Function is CallExpr { Function: MemberAccess m } && OperatorSymbols.IsSymbol(m.Member)
+            => "(" + Expr(fc.Function, indent) + ") " + Arg(fc.Argument, indent),
         CallExpr c => Atom(c.Function, indent) + " " + Arg(c.Argument, indent),
         IndexExpr ix => Atom(ix.Object, indent) + "[" + Expr(ix.Index, indent) + "]",
         BinaryExpr b => Binary(b, indent),
@@ -182,11 +189,24 @@ internal static class AstPrinter
         LambdaExpr lam => "(" + Param(lam.Param, indent) + ") => " + BlockInner(lam.Body, indent),
         BlockExpr b => BlockInner(b, indent),
         SlotExpr sl => "by " + Expr(sl.Path, indent),
-        // 内置类的预设类体里是 C# 造好的值,没有源码可还原
-        LiteralExpr => "<builtin>",
+        // C# 造好的值(空块/开关留下的那句 `()`,预设类体里的那些回调)—— 没有源码可还原。
+        // 但**不能印个占位符**:源码转储 `ravel ast -s` 是要能读、能回读的,占位符既不是
+        // Ravel 也不是原文(`#more-control-flow true` 被印成 `<builtin>` 就是这么来的)。
+        LiteralExpr le => Literal(le.Value),
         // 同上,`do` 块也活不过 `Lowering`(折成一串 `.Bind`)—— 留着是"万一"。
         DoExpr d => "do " + BlockInner(new BlockExpr(d.Statements), indent),
         _ => throw Unknown(e),
+    };
+
+    // 值能写成 Ravel 就照写;写不出来的(引擎里 C# 造的回调)给"一个空函数" —— 至少是合法源码。
+    private static string Literal(RuntimeValue v) => v switch
+    {
+        VoidVal => "()",
+        BoolVal b => b.Value ? "true" : "false",
+        StringVal s => StringLiteralText(s.Value),
+        CharVal c => "'" + EscapeChar(c.Value) + "'",
+        FunctionVal => "default function",
+        _ => "()",
     };
 
     private static int PrintPrec(string symbol) => Operators.PrintPrec(symbol);

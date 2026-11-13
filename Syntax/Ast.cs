@@ -50,6 +50,10 @@ public record ExpressionStatement(Expression Expr) : Statement
     public bool Synthetic { get; init; }
 }
 
+// 开关语句(`#ignore-types true` / `#more-control-flow true`)——不产出代码,
+// 但**得原样印回去**:源码转储里那一行就是它(`Text` 带着 `#`),印成 `()` 会把开关丢了。
+public record DirectiveStatement(string Text) : Statement;
+
 public record BindStatement(string Name, Expression Monad) : Statement;
 
 public record DoExpr(List<Statement> Statements) : Expression;
@@ -131,7 +135,7 @@ public record FStringExpr(List<FStringPart> Parts) : Expression;
 
 // 一段:要么是字面量(`Interp` 为空),要么是 `{…}` 里那个表达式。字面量的 `Text`
 // 已经是**解码后**的文本(转义、`{{` 都在词法器里落定)。
-public record FStringPart(string Text, Expression? Interp);
+public record FStringPart(string Text, Expression? Interp) : AstNode;
 
 public record IdentifierExpr(string Name) : Expression;
 public record CallExpr(Expression Function, Expression Argument) : Expression

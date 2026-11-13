@@ -86,4 +86,5 @@
 |------|------|
 | `#ignore-types true` / `false` | 关掉类型检查：变量定义、参数、模式类型格都不再校验（见 2.8）|
 | `#more-control-flow true` / `false` | 打开 `return` / `break` / `continue`、`while` 当表达式、循环体标签（见 4.5）|
+| `#program --no-lower=true` | 文件第一行：这份源码已经去过糖，别再脱（`ravel ast -s` 的产物自带，见 2.8）|
 | `#program --warn` | 只给这个文件开"少给一块"的编译期警告；必须写在文件头（见 12）|

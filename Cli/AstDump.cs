@@ -69,20 +69,19 @@ internal static class AstDump
                 if (wantSource)
                 {
                     var printed = AstPrinter.Program(program, verbatim: true);
-                    text = Comment(title) + "\n" + printed + "\n";
+                    // 印出来的是**脱糖后**的代码:文件头声明别再脱一遍,否则 `__df…` 会被
+                    // 当用户代码再处理一遍(这文件得能原样跑,它现在是"引擎眼里的样子")。
+                    text = Comment(title) + "\n" + NoLowerHeader + "\n" + printed + "\n";
                     try
                     {
-                        var raw = Parser.ParseSourceUnlowered(src, file, flow);
-                        var rawText = AstPrinter.Program(raw, verbatim: true);
-                        if (rawText.Contains("<builtin>"))
+                        if (HasEngineMadeLiteral(program))
                         {
-                            // 内置值没有源码,跳过这一份
                             skipped++;
                         }
                         else
                         {
-                            var back = Parser.ParseSourceUnlowered(rawText, file, flow);
-                            var was = Canonical(raw);
+                            var back = Parser.ParseSource(NoLowerHeader + "\n" + printed, file, flow);
+                            var was = Canonical(program);
                             var now = Canonical(back);
                             if (was != now)
                             {
@@ -154,6 +153,8 @@ internal static class AstDump
 
     private static string Clip(string s) => s.Length <= 60 ? s : s[..60] + "…";
 
+    private const string NoLowerHeader = "#program --no-lower=true";
+
     private static string Comment(string text)
         => string.Join("\n", text.Split('\n').Select(line => "# " + line));
 
@@ -168,6 +169,32 @@ internal static class AstDump
 
     private static void Render(StringBuilder sb, object node, int depth, bool positions, bool meta)
     {
+        // 合成的 `()`(空块留下的那句)印出来是 VoidLiteral,回读也是它 —— 自验按同一个节点算
+        if (node is LiteralExpr { Value: VoidVal } synthesized)
+        {
+            Render(sb, new VoidLiteral { Line = synthesized.Line, Column = synthesized.Column },
+                depth, positions, meta);
+            return;
+        }
+
+        // 洞的名字是解析时现编的(`_` / `_0` / `_3`):自验按同一个名字算
+        if (node is IdentifierExpr { Name: var holeRef } && holeRef.StartsWith("_", StringComparison.Ordinal))
+        {
+            Indent(sb, depth).Append("IdentifierExpr").Append('\n');
+            Indent(sb, depth + 1).Append("Name: ").Append(Scalar("_")).Append('\n');
+            return;
+        }
+
+        // `f := _ * 2` 是洞的糖:印成 `_ * 2` 读回来又是一层 `(_0) => { _ * 2; }`,
+        // 自验按"洞的本体"算,不然每个用洞的地方都报对不上。
+        if (node is LambdaExpr { Param: Parameter { Name: var holeName, Pattern: null },
+                Body: BlockExpr { Statements: [ExpressionStatement { Expr: var holeBody }] } }
+            && holeName.StartsWith("_", StringComparison.Ordinal))
+        {
+            Render(sb, holeBody, depth, positions, meta);
+            return;
+        }
+
         // 印成 a + b 的成员调用,自验按二元式算
         if (node is CallExpr { Function: MemberAccess mem, Argument: var arg }
             && OperatorSymbols.IsSymbol(mem.Member))
@@ -199,6 +226,10 @@ internal static class AstDump
             // 那份要的是"一个字段都不少"
             if (!meta && prop.Name is "Source" or "Sugar" or "Pattern" or "BareUnitArg"
                 or "Parenthesized") continue;   // 只影响链式摊平
+            // `Synthetic` 是脱糖留下的记号(注入的注解检查),印出来就是普通语句
+            if (!meta && prop.Name is "Synthetic") continue;
+            // `IgnoreType` 同理:它记的是"解析到这里时开关是什么",印出来只剩指令行
+            if (!meta && prop.Name is "IgnoreType") continue;
             var value = prop.GetValue(node);
             if (value is null) continue;
 
@@ -250,6 +281,28 @@ internal static class AstDump
     private static readonly Dictionary<Type, PropertyInfo[]> Cache = [];
 
     private static readonly HashSet<string> Derived = ["Suffix", "IsOperator", "Curried", "HasAttrs"];
+
+    // 预设类体里那几条 LiteralExpr 是 C# 造的回调(没有源码可还原);用户文件里只有 VoidVal
+    private static bool HasEngineMadeLiteral(object node)
+    {
+        if (node is LiteralExpr le) return le.Value is not VoidVal;
+
+        foreach (var prop in Properties(node.GetType()))
+        {
+            var value = prop.GetValue(node);
+            switch (value)
+            {
+                case AstNode child when HasEngineMadeLiteral(child):
+                    return true;
+                case System.Collections.IEnumerable list when value is not string:
+                    foreach (var item in list)
+                        if (item is AstNode itemNode && HasEngineMadeLiteral(itemNode)) return true;
+                    break;
+            }
+        }
+
+        return false;
+    }
 
     private static PropertyInfo[] Properties(Type type)
     {

@@ -106,6 +106,9 @@ public sealed class Lowering
 
         ExpressionStatement es => es with { Expr = Lower(es.Expr) },
 
+        // 开关语句(`#ignore-types true`)不产出代码,原样留着 —— 源码转储要印回那一行
+        DirectiveStatement => s,
+
         // 只有解析器里手写的 `do` 深度护栏能放行;`ParseDo` 折完就没它了(mk 见 Ast.cs 的注解)
         BindStatement b => b with { Monad = Lower(b.Monad) },
 
