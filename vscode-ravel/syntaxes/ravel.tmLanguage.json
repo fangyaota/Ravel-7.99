@@ -7,10 +7,20 @@
         { "include": "#numbers" },
         { "include": "#modifiers" },
         { "include": "#constants" },
+        { "include": "#control" },
         { "include": "#operators" },
         { "include": "#support" }
     ],
     "repository": {
+        "control": {
+            "patterns": [
+                {
+                    "comment": "控制词:for / in / while / if / Foreach 都是**上下文词**(语言里没有关键字,`if` 是条件后跟两个块、`for` 只出现在推导式里),单给一种颜色好扫。`Foreach` 也算 —— 它写在 `xs.Foreach (…)` 的点后面,走的是成员那条规则,这里先给它截下来。`callcc` 是内置函数、`while` / `throw` 也一样 —— 它们只在这条规则里出现,底下的 support.function 不再重复列。`return` / `break` / `continue` 只在 `#more-control-flow true` 时才是词:着色不看开关(静态上色),所以开关关着、把它们当普通名字用时会多上一色,这是有意的取舍 —— 读代码时这几个词值得显眼。",
+                    "match": "\\b(if|else|for|in|while|Foreach|callcc|return|break|continue|throw)\\b",
+                    "name": "keyword.control.ravel"
+                }
+            ]
+        },
         "strings": {
             "patterns": [
                 {
@@ -64,7 +74,7 @@
         "modifiers": {
             "patterns": [
                 {
-                    "match": "\\b(readonly|public|private|protected|outdated|unreadable|by|core|thistype|block)\\b",
+                    "match": "\\b(readonly|public|private|protected|internal|outdated|unreadable|by|core|local)\\b",
                     "name": "storage.modifier.ravel"
                 }
             ]
@@ -78,7 +88,7 @@
             "patterns": [
                 {
                     "comment": "多字符优先(`??=` 在 `??` 前、`..` 在 `.` 前 —— 和词法器里那张表的顺序一致)",
-                    "match": "::=|::|:=|=>|->|:<|:>|<:|<<<|>>>|<<|>>|<\\||\\|>|==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=|\\?\\?=|\\?\\?|\\?\\.|\\.\\.",
+                    "match": "::=|::|:=|=>|->|:<|:>|<:|<<<|>>>|<<|>>|<\\||\\|>|===|!==|==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=|\\?\\?=|\\?\\?|\\?\\.|\\.\\.",
                     "name": "keyword.operator.ravel"
                 },
                 { "match": "[-+*/%&|^!<>=]", "name": "keyword.operator.ravel" },
@@ -89,17 +99,22 @@
             "patterns": [
                 {
                     "comment": "类型:小写别名(`predefined.rav` 那一批)+ `System.` 侧的权威名 + 引擎报错那一族",
-                    "match": "\\b(any|bool|bigfraction|bigint|char|class|dict|real|fraction|function|int|interface|list|object|set|string|type|void|Any|BaseInterface|BigFraction|BigInteger|Bool|Char|Continuation|Dict|Every|Exception|Real|Fraction|Function|Integer|Interface|Json|List|Object|Range|Set|String|Type|ValueType|Void|TypeError|NameError|AttributeError|IndexError|KeyError|ZeroDivisionError|AssertionError|AccessError|ArgumentError|ValueError|IoError|RegexError)\\b",
+                    "match": "\\b(bool|bigfraction|bigint|char|class|dict|real|fraction|function|int|interface|list|object|pair|set|string|type|void|BaseInterface|BigFraction|BigInteger|Bool|Char|Continuation|Dict|Exception|Real|Fraction|Function|Integer|Interface|Json|List|Object|Pair|Property|Range|Scope|Set|String|Type|Void|TypeError|NameError|AttributeError|IndexError|KeyError|ZeroDivisionError|AssertionError|AccessError|ArgumentError|ValueError|IoError|RegexError)\\b",
+                    "name": "support.type.ravel"
+                },
+                {
+                    "comment": "接口:库里 `I` 开头那些(IMonad / IEnumerable / IList / IKey / IDict …)与 IValue —— 它们当类型用。",
+                    "match": "\\b(I[A-Z][A-Za-z0-9_]*)\\b",
                     "name": "support.type.ravel"
                 },
                 {
                     "comment": "语言级函数/别名(都是 `predefined.rav` 里那些全局名)",
-                    "match": "\\b(print|while|do|Cached|Some|None|callcc|typeof|assert|eval|with|ravel|using|use|impl|try|throw|exit|input|unsafe|currentScope|property|dataclass)\\b",
+                    "match": "\\b(print|do|Cached|Some|None|typeof|assert|eval|with|ravel|using|use|impl|try|exit|input|unsafe|seal|currentScope|property|dataclass)\\b",
                     "name": "support.function.ravel"
                 },
                 {
                     "comment": "标准库模块(`using \"xxx.rav\"` 之后是个全局名)",
-                    "match": "\\b(Math|Random|Regex|Time|Seqs|Keys|Sorting|Test|Types|Io|IoMonad|Ex|Expected|Match|Generator|DataClass)\\b",
+                    "match": "\\b(Math|Random|Regex|Time|Seqs|Keys|Sorting|Test|Types|Io|IoMonad|Ex|Expected|Match|Generator|DataClass|Args|Cmd|Env)\\b",
                     "name": "support.class.ravel"
                 },
                 {

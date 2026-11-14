@@ -23,6 +23,13 @@ const STARTERS = [
     { label: 'impl (接口 类型 { … })', insertText: 'impl (${1:IName} ${2:Type} {${0}})', detail: '给一个类型实现接口' },
     { label: '两个块(if 那种写法)', insertText: '${1:条件} {${2}} {${0}}', detail: '`if` 不是关键字:条件后面跟两个块' },
     { label: 'try { … } (e: Exception) => { … }', insertText: 'try {${1}} (${2:e}: Exception) => {${0}}', detail: '接住错误' },
+    { label: '[x for 模式 in 源]', insertText: '[${1:x} for ${2:item} in ${3:items}]', detail: '推导式:[] 列表、{} 集合、{k -> v …} 字典' },
+    { label: 'a if 条件 else b', insertText: '${1:a} if ${2:条件} else ${3:b}', detail: '三元:只挑一个值(整条写一行)' },
+    { label: 'a -> b', insertText: '${1:a} -> ${2:b}', detail: '造一对(pair),给字典当键正好' },
+    { label: 's[] / s{} / s{->}', insertText: '${1:s}[]{0}', detail: '转容器(紧贴、中间不留空格):列表 / 集合 / 字典' },
+    { label: '#more-control-flow true', insertText: '#more-control-flow ${1:true}', detail: '开关 return / break / continue(默认开)' },
+    { label: '#ignore-types true', insertText: '#ignore-types ${1:true}', detail: '之后的类型注解只当注释' },
+    { label: '#program --no-lower=true', insertText: '#program --no-lower=true', detail: '这文件已经是去糖结果,别再脱一遍' },
 ];
 
 /**
