@@ -7,13 +7,16 @@
 // 找文件、读文件那些留着 `extension.js` 去干 —— 和 `folding.js` 一个分法。
 //
 // **为什么这件事在这门语言上特别好做**:标准库全在 `lib/*.rav`,而且**是可读的
-// Ravel 源码**;绑名字的位置又只有几种固定的写法(见 `indexDefinitions`)。不用
+// Ravel 源码**;绑名字的位置又只有几种固定的写法(见 `indexPositions`)。不用
 // 类型推断、不用符号表、不用语言服务器,按文本认就够了。换成库是编译产物的语言,
 // 这一步得先有一个 LSP。
 //
 // **"变量"包括哪些**:`x := …`、`x ::= …`、`x : T = …`、`x = …`(类体里是"换掉继承
 // 来的那条")、lambda 的参数、推导式 `for` 后面那格、解构 `[a b] := …`。这几处都是
 // **绑名字的位置**;漏掉任何一处,读代码时就有一半的变量跳不动。
+//
+// **成员字段**另走一条路:`self.x` / `this.x` 去**外面那层类体**里找 `x`;
+// `p.x` 先看 `p` 是用谁造出来的(`p := Point …`),再去 `Point` 的类体里找。
 
 /** 名字用 `\p{L}\p{N}_` —— Ravel 的标识符可以是中文(`名字 := 1` 是合法的) */
 const IDENT = /[\p{L}\p{N}_]/u;
@@ -22,6 +25,13 @@ const IDENT = /[\p{L}\p{N}_]/u;
 const MODIFIERS = 'readonly|public|private|protected|internal|outdated|unreadable|by|core|local';
 const NAME = '[\\p{L}_][\\p{L}\\p{N}_]*';
 const NAME_RE = new RegExp(NAME, 'gu');
+const CLASS_DEF = new RegExp(
+    `^[ \\t]*(?:(?:${MODIFIERS})[ \\t]+)*(${NAME})[ \\t]*::=[ \\t]*(?:class|dataclass|interface)(?:[ \\t]+${NAME})?[ \\t]*\\{`,
+    'gmu',
+);
+
+/** 一个对象指自己时用的那几个名字(`self` 是成员表里那个,`this` / `instance` 是别名) */
+const SELF_NAMES = new Set(['self', 'this', 'instance']);
 
 /** 模块名:`ravel "Seqs"` 那一句。没有(或者写的是 `""`)就是没有 */
 function moduleNameOf(source) {
@@ -136,7 +146,7 @@ function bindNames(segment, base, out, kind) {
 }
 
 /**
- * 扫一遍源码,把所有**绑名字**的位置按出现先后交回来。
+ * 扫一遍源码,把**所有绑名字的位置**交回来,带原始偏移。
  *
  * 认的位置:
  *     [修饰符…] 名字 := / ::= …      普通定义、类成员、类/接口/数据类型
@@ -149,7 +159,7 @@ function bindNames(segment, base, out, kind) {
  * `=` 那条单独标一个 kind:`order` 会把 `:=` 一族排在前面;文本上分不清类体还是
  * 普通赋值(要知道在不在类体里,那得有嵌套信息),所以宁可两条都收。
  */
-function indexDefinitions(source) {
+function indexPositions(source) {
     const text = mask(source);
     const found = [];
     const add = (name, index, kind) => {
@@ -205,12 +215,14 @@ function indexDefinitions(source) {
         const old = byPos.get(key);
         if (!old || (old.kind === 'assign' && f.kind !== 'assign')) byPos.set(key, f);
     }
-    const hits = [...byPos.values()].sort((a, b) => a.index - b.index);
+    return [...byPos.values()].sort((a, b) => a.index - b.index);
+}
 
-    // 偏移换算成行列
+/** 偏移换算成行列的工厂(一份源码建一次,反复问同一个文件时省事) */
+function lineIndexer(source) {
     const lineStarts = [0];
     for (let i = 0; i < source.length; i++) if (source[i] === '\n') lineStarts.push(i + 1);
-    const lineOfIndex = (index) => {
+    return (index) => {
         let lo = 0;
         let hi = lineStarts.length - 1;
         while (lo < hi) {
@@ -220,8 +232,118 @@ function indexDefinitions(source) {
         }
         return { line: lo, character: index - lineStarts[lo] };
     };
-    return hits.map((h) => {
-        const { line, character } = lineOfIndex(h.index);
+}
+
+/** 行号换算回偏移(成员查找用) */
+function offsetOfLine(source, line) {
+    let at = 0;
+    for (let i = 0; i < line; i++) {
+        const nl = source.indexOf('\n', at);
+        if (nl < 0) return source.length;
+        at = nl + 1;
+    }
+    return at;
+}
+
+/**
+ * 类 / 接口 / 数据类型的体,按 `{}` 配平切出来。
+ *
+ * `start` 是 `{` 后面那一格,`end` 是 `}` 的位置 —— 两个都拿来判"某个偏移在不在
+ * 这个体里"。
+ */
+function classBlocks(source) {
+    const text = mask(source);
+    const out = [];
+    for (const m of text.matchAll(CLASS_DEF)) {
+        const brace = m.index + m[0].length - 1;   // 正则末尾那个 `{`
+        let depth = 0;
+        let end = text.length;
+        for (let i = brace; i < text.length; i++) {
+            if (text[i] === '{') depth++;
+            else if (text[i] === '}') {
+                depth--;
+                if (depth === 0) {
+                    end = i;
+                    break;
+                }
+            }
+        }
+        out.push({ name: m[1], line: text.slice(0, m.index).split('\n').length - 1, start: brace + 1, end });
+    }
+    return out;
+}
+
+/** 光标这一行落在哪个类体里(取**最内层**那个,嵌套类也对) */
+function enclosingClass(source, line) {
+    const at = offsetOfLine(source, line) + 1;
+    const hits = classBlocks(source).filter((b) => b.start <= at && at <= b.end);
+    if (hits.length === 0) return null;
+    return hits.sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+}
+
+/**
+ * `p.x` 里那个 `p` 是哪一类东西造的。
+ *
+ * 做法:在 `p := …` 那一行的右边找**第一个出现在某个类定义名字里的词** ——
+ * `p := Point ()` 就给 `Point`,`p := Point.Default ()` 也给 `Point`。
+ * 找不到就算了(不猜)。
+ */
+function classOfQualifier(source, qualifier, preferLine) {
+    if (SELF_NAMES.has(qualifier)) return enclosingClass(source, preferLine);
+
+    const blocks = classBlocks(source);
+    const hits = definitionsNamed(source, qualifier);
+    const here = hits.filter((d) => d.line <= preferLine);
+    const pickDef = here.length > 0 ? here[here.length - 1] : hits[0];
+    if (!pickDef) return null;
+
+    const line = lineOf(source, pickDef.line);
+    for (const m of line.matchAll(NAME_RE)) {
+        if (m[0] === qualifier) continue;
+        const block = blocks.find((b) => b.name === m[0]);
+        if (block) return block;
+    }
+    return null;
+}
+
+/**
+ * 成员在**别的文件**里声明的那种 —— 接口。
+ *
+ * `instance.Foreach` 写在 `IMonad` 的方法里,而 `Foreach` 是 `IEnumerable` 这条
+ * 接口自己声明的(`lib/iterator.rav:143`)。这类成员靠"外面那层类体"找不到,得去
+ * 所有**接口体**里找:接口成员是契约,实现可能离得很远。
+ *
+ * 只认接口体,不去普通类里瞎撞 —— 类体里的同名成员多半是别的东西。
+ */
+function interfaceMembers(docs, currentKey, word) {
+    const ordered = docs.filter((d) => d.key === currentKey).concat(docs.filter((d) => d.key !== currentKey));
+    for (const d of ordered) {
+        const toLine = lineIndexer(d.source);
+        for (const b of classBlocks(d.source)) {
+            if (!lineOf(d.source, b.line).includes('interface')) continue;
+            const inside = positionsNamed(d.source, word).filter((h) => h.index > b.start && h.index < b.end);
+            if (inside.length === 0) continue;
+            return inside.slice(0, 4).map((h) => {
+                const pos = toLine(h.index);
+                return { key: d.key, line: pos.line, character: pos.character };
+            });
+        }
+    }
+    return [];
+}
+
+/** 某个偏移附近、名叫 `name` 的定义(成员查找用) */
+function positionsNamed(source, name) {
+    return indexPositions(source).filter((h) => h.name === name);
+}
+
+/**
+ * 扫一遍源码,把所有绑名字的位置按出现先后交回来(行列形式)。
+ */
+function indexDefinitions(source) {
+    const toLine = lineIndexer(source);
+    return indexPositions(source).map((h) => {
+        const { line, character } = toLine(h.index);
         return { name: h.name, line, character, kind: h.kind };
     });
 }
@@ -287,8 +409,10 @@ function order(hits, preferLine) {
  *
  * 顺序:
  *   1. `Seqs.Map` 这种带模块名的:**只在那个模块里找**,不去别的文件瞎撞;
- *   2. 裸名字:**当前文件优先**(光标之前最近的在前,再是后面的);
- *   3. 本文件没有,再挨个模块文件找一遍(每个文件取一处)。
+ *   2. `p.x` / `self.x` 这种**成员**:先认出 `p` 是哪个类造的(或 `self` 外面那层类),
+ *      再去那个类体里找 `x`;认不出类名就不猜;
+ *   3. 裸名字:**当前文件优先**(光标之前最近的在前,再是后面的);
+ *   4. 本文件没有,再挨个模块文件找一遍(每个文件取一处)。
  *
  * 交回 `[{ key, line, character }]`,找不到交回空数组。调用方通常只取第一个,
  * 但"同名好几处"时把剩下的也交出去,VS Code 会摆成候选列表让人挑。
@@ -296,16 +420,37 @@ function order(hits, preferLine) {
 function findDefinitions(ref, docs, currentKey, preferLine, limit = 8) {
     if (!ref || !ref.word) return [];
 
+    const here = docs.find((d) => d.key === currentKey);
+
     if (ref.qualifier) {
+        // 模块名:`Seqs.Map`
         const mod = docs.find((d) => moduleNameOf(d.source) === ref.qualifier);
-        if (!mod) return [];
-        return order(definitionsNamed(mod.source, ref.word), preferLine)
-            .slice(0, limit)
-            .map((h) => ({ key: mod.key, line: h.line, character: h.character }));
+        if (mod) {
+            const hits = order(definitionsNamed(mod.source, ref.word), preferLine).slice(0, limit);
+            return hits.map((h) => ({ key: mod.key, line: h.line, character: h.character }));
+        }
+
+        // 成员:`p.x` / `self.x`
+        if (here) {
+            const block = classOfQualifier(here.source, ref.qualifier, preferLine);
+            if (block) {
+                const inside = positionsNamed(here.source, ref.word)
+                    .filter((h) => h.index > block.start && h.index < block.end);
+                if (inside.length === 0) return interfaceMembers(docs, currentKey, ref.word);
+                if (inside.length > 0) {
+                    const toLine = lineIndexer(here.source);
+                    const hits = order(inside.map((h) => {
+                        const pos = toLine(h.index);
+                        return { name: h.name, line: pos.line, character: pos.character, kind: h.kind };
+                    }), preferLine).slice(0, limit);
+                    return hits.map((h) => ({ key: here.key, line: h.line, character: h.character }));
+                }
+            }
+        }
+        return [];
     }
 
     const out = [];
-    const here = docs.find((d) => d.key === currentKey);
     if (here) {
         for (const h of order(definitionsNamed(here.source, ref.word), preferLine)) {
             if (out.length >= limit) break;
@@ -338,5 +483,6 @@ module.exports = {
     wordAt,
     findDefinition,
     findDefinitions,
+    classBlocks,
     lineOf,
 };

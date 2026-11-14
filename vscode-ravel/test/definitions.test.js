@@ -3,7 +3,7 @@
 // 跳转定义那半的用例(纯函数,不依赖 vscode):
 //     node vscode-ravel/test/definitions.test.js
 
-const { indexDefinitions, moduleNameOf, wordAt, findDefinition, findDefinitions } = require('../definitions');
+const { indexDefinitions, moduleNameOf, wordAt, findDefinition, findDefinitions, classBlocks } = require('../definitions');
 
 let failed = 0;
 let passed = 0;
@@ -177,6 +177,67 @@ const many = [
 const hs = findDefinitions({ word: 'v' }, [{ key: 'm.rav', source: many }], 'm.rav', 3);
 check('多候选:光标之前最近那处排第一', hs[0], { key: 'm.rav', line: 2, character: 4 });
 check('多候选:剩下的也交出去', hs.map((h) => h.line), [2, 0]);
+
+
+// ── 成员字段:类体里的那几格 ──
+const cls = [
+    'Point ::= dataclass {',
+    '    x: int = 0',
+    '    y: int = 0',
+    '    len := () => { x; }',
+    '    by tag := _',
+    '    show := () => {',
+    '        print (self.x)',
+    '        print (this.y)',
+    '        print (self.len)',
+    '    }',
+    '}',
+    'p := Point ()',
+    'q := Point ()',
+    'print (p.x)',
+    'print (self.x)',
+].join('\n');
+
+const clsDocs = [{ key: 'cur.rav', source: cls }];
+
+check('类体按 {} 配平切出来', classBlocks(cls).map((b) => [b.name, b.line]), [['Point', 0]]);
+
+check('p.x:顺着 p 的定义找到类,再找成员 x',
+    findDefinition({ word: 'x', qualifier: 'p' }, clsDocs, 'cur.rav', 13),
+    { key: 'cur.rav', line: 1, character: 4 });
+
+check('p.y:同一类里的另一个字段',
+    findDefinition({ word: 'y', qualifier: 'p' }, clsDocs, 'cur.rav', 13),
+    { key: 'cur.rav', line: 2, character: 4 });
+
+check('q.len:方法也是成员',
+    findDefinition({ word: 'len', qualifier: 'q' }, clsDocs, 'cur.rav', 13),
+    { key: 'cur.rav', line: 3, character: 4 });
+
+check('q.tag:槽(by)也是成员',
+    findDefinition({ word: 'tag', qualifier: 'q' }, clsDocs, 'cur.rav', 13),
+    { key: 'cur.rav', line: 4, character: 7 });
+
+check('self.x:去外面那层类体里找',
+    findDefinition({ word: 'x', qualifier: 'self' }, clsDocs, 'cur.rav', 6),
+    { key: 'cur.rav', line: 1, character: 4 });
+
+check('this.y:别名一样认',
+    findDefinition({ word: 'y', qualifier: 'this' }, clsDocs, 'cur.rav', 7),
+    { key: 'cur.rav', line: 2, character: 4 });
+
+check('self.len:方法也认',
+    findDefinition({ word: 'len', qualifier: 'self' }, clsDocs, 'cur.rav', 8),
+    { key: 'cur.rav', line: 3, character: 4 });
+
+check('认不出类名就不猜',
+    findDefinition({ word: 'x', qualifier: 'nope' }, clsDocs, 'cur.rav', 13), null);
+
+check('类里没有这个成员就是没有',
+    findDefinition({ word: 'zz', qualifier: 'p' }, clsDocs, 'cur.rav', 13), null);
+
+check('self 在类体外什么也不给',
+    findDefinition({ word: 'x', qualifier: 'self' }, clsDocs, 'cur.rav', 14), null);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
