@@ -40,7 +40,7 @@ internal static class FunctionMembers
     [ClassMethod("SetScope")]
     private static RuntimeValue SetScope(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not ScopeVal sv) throw new RuntimeException(Messages.T("runtime.function.set_scope_needs_scope"), ErrorKind.Argument);
+        if (arg is not ScopeVal sv) throw new RuntimeException(Messages.T("runtime.function.set_scope_needs_scope", arg.Type), ErrorKind.Argument);
         AsFunction(self, "SetScope").CaptureScope = sv.Inner;
         return VoidVal.Instance;
     }
@@ -48,14 +48,14 @@ internal static class FunctionMembers
     [ClassMethod("Prepend")]
     private static RuntimeValue Prepend(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not FunctionVal p) throw new RuntimeException(Messages.T("runtime.function.prepend_needs_function"), ErrorKind.Argument);
+        if (arg is not FunctionVal p) throw new RuntimeException(Messages.T("runtime.function.prepend_needs_function", arg.Type), ErrorKind.Argument);
         return AsFunction(self, "Prepend").Prepend(p);
     }
 
     [ClassMethod("Append")]
     private static RuntimeValue Append(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not FunctionVal p) throw new RuntimeException(Messages.T("runtime.function.append_needs_function"), ErrorKind.Argument);
+        if (arg is not FunctionVal p) throw new RuntimeException(Messages.T("runtime.function.append_needs_function", arg.Type), ErrorKind.Argument);
         return AsFunction(self, "Append").Append(p);
     }
 }

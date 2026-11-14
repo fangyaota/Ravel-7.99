@@ -302,6 +302,6 @@ print "end"
 # 1
 # Real
 # 3: Clamp 的第二个实参要是个区间（如 `Math.Clamp x [0..1]`），得到 Integer
-# 4: Range 的两端需要数值，得到 String 与 Integer
-# 5: s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 Integer
+# 4: 区间端点要求数值，得到 a
+# 5: Slice 要求区间实参，得到 Integer
 # end

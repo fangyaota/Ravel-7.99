@@ -92,7 +92,7 @@ internal static partial class BuiltinClasses
         for (var i = 0; i < list.Elements.Count; i++)
         {
             if (list.Elements[i] is not ObjectVal { Type: var meta } o || !meta.IsAssignableTo(Interface))
-                throw new RuntimeException(Messages.T("runtime.class.requirement_not_interface", i + 1, list.Elements[i].Type), ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.class.requirement_not_interface",i + 1), ErrorKind.Type);
             reqs.Add(o);
         }
 
@@ -171,7 +171,7 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Use(Interpreter interp, RuntimeValue v, Scope into, string caller)
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
-            throw new RuntimeException(Messages.T("runtime.class.expected_implementation", caller, v.Type.DisplayName), ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.class.expected_implementation", v.Type), ErrorKind.Type);
         // `use` 是**作用域级**的(登记进 `into` = 调用点当前作用域),`impl` 登记进全局 ——
         // 只有前者会让"当前作用域链"影响答案,于是只有它要关掉缓存
         if (!ReferenceEquals(into, interp.GlobalScope)) interp.SawScopedUse = true;

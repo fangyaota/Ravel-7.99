@@ -23,9 +23,9 @@ internal sealed class PairMembers : SequenceMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                Messages.T("runtime.pair.at_needs_index", arg), ErrorKind.Argument);
+                Messages.T("runtime.shared.at_needs_index", arg), ErrorKind.Argument);
         if (arg is not IntVal i)
-            throw new RuntimeException(Messages.T("runtime.pair.at_needs_int", arg.Type), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.shared.at_needs_int", arg.Type), ErrorKind.Argument);
 
         var p = (PairVal)self;
         return i.Value switch

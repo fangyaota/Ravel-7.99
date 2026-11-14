@@ -107,7 +107,7 @@ try {
 
 try {
     Reflect.Call (Reflect.Type "System.Console") "WriteLine" [(x: int) => { x; }]
-} (e: Exception) => { print (e.Message.Contains "原生闭包"); }
+} (e: Exception) => { print (e.Message.Contains "无法调用 Ravel 函数"); }
 print "done"
 ravel ""
 ravel "m23"
@@ -134,7 +134,6 @@ print ('+' == '+')
 ravel ""
 
 # --- expected ---
-
 # Continuation
 # <续延 default>
 # 先给个值
@@ -155,7 +154,7 @@ ravel ""
 # true
 # true
 # false
-# 1: 这枚续延是 default（还没到手的那一枚），调不了 —— 能跳的续延只有 callcc 交出来的那种
+# 1: 无法调用空的续延
 # 2: 这一格要的是 Continuation，得到 Integer
 # 3: 这一格要的是 Continuation，得到 Function
 # Continuation

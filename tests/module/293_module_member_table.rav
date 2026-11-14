@@ -37,7 +37,7 @@ print (typeof N)
 # --- expected ---
 # 1
 # []
-# 拦住了: 'References' 是 Ravel 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）
+# 拦住了: 'References' 为 Ravel 的成员，不允许遮蔽
 # []
 # 函数体里遮蔽: 1
 # []

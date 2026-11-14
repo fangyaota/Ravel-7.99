@@ -262,7 +262,7 @@ public sealed class Lowering
 
             default:
                 // 解析器挡过一道了,按理到不了这儿;真到了说明它那条件松了
-                throw Error(b, Messages.T("parse.compile.bad_coalesce_target"));
+                throw Error(b, Messages.T("parse.parser.need_lvalue"));
         }
     }
 
@@ -678,7 +678,8 @@ public sealed class Lowering
             }
         }
 
-        throw Error(at, Messages.T("parse.pattern.unhandled_pattern"));
+        // 到不了:上面每一支都覆盖了,新增模式忘了接这里就会掉出来。
+        throw new InvalidOperationException("引擎内部:Lowering 里有个模式没接分支 —— " + p.GetType().Name);
     }
 
     private static UnaryExpr Not(Expression operand, AstNode at)
@@ -836,7 +837,7 @@ public sealed class Lowering
             // 成员那格:`p.x = v` 本来就是一条赋值表达式,照原样发出去。
             MemberAccess ma => ExprStmt(
                 new BinaryExpr(Lower(ma), "=", value) { Line = at.Line, Column = at.Column }, at),
-            _ => throw Error(at, Messages.T("parse.pattern.expected_bind_target")),
+            _ => throw Error(at, Messages.T("parse.parser.need_lvalue")),
         };
     }
 
@@ -844,7 +845,7 @@ public sealed class Lowering
     {
         if (!_assignMode) return Define(name, null, value, attrs, at);
         if (attrs is [.., var bad])
-            throw Error(at, Messages.T("parse.pattern.modifier_in_destructuring", bad));
+            throw Error(at, Messages.T("parse.pattern.modifier_in_destructuring"));
         return new Assignment(name, value) { Line = at.Line, Column = at.Column };
     }
 

@@ -105,5 +105,5 @@ System.DeletePath ".io-test"
 # conf.json
 # 1: 这是个根节点，没有爹可摘：json
 # 2: JSON 的节点没有追写这回事：name
-# 3: Json.At: 索引 9 超出范围（长度 2）
+# 3: Json.At 索引 9 超出范围
 # 4: JSON 的节点 'name' 不是目录（string），没有孩子可取

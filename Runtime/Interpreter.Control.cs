@@ -290,7 +290,7 @@ public partial class Interpreter
                 return;
             }
 
-            throw new RuntimeException(Messages.T("runtime.seq.expected_function_argument", label, arg.Type), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.seq.expected_function_argument",label), ErrorKind.Argument);
         }
 
         var done = cf.Count;                     // 已经调过几次
@@ -498,7 +498,7 @@ public partial class Interpreter
             else if (BuiltinClasses.TraitSlot(this, self, op) is { } hit)
                 prop = BuiltinClasses.Activate(this, hit);
             else
-                throw new RuntimeException(Messages.T("runtime.class.unknown_operator", op), ErrorKind.Attribute);
+                throw new RuntimeException(Messages.T("runtime.value.unknown_operator", op), ErrorKind.Attribute);
 
             CallInto(cf, PropertyGetter(prop, op), VoidVal.Instance);   // 读槽 → 运算符函数
             return;

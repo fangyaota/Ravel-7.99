@@ -47,13 +47,13 @@ internal static partial class BuiltinClasses
         if (v is IntVal i)
         {
             if (i.Value < 0)
-                throw new RuntimeException(Messages.T("runtime.operator.shift_count_negative", op, i.Value), ErrorKind.Value);
+                throw new RuntimeException(Messages.T("runtime.operator.shift_count_negative", i.Value), ErrorKind.Value);
             return i.Value;
         }
 
         if (v is BigIntVal g && g.Value >= 0 && g.Value <= int.MaxValue) return (int)g.Value;
 
-        throw new RuntimeException(Messages.T("runtime.operator.shift_count_not_non_negative_int", op, v.Type), ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.operator.shift_count_not_non_negative_int", v.Type), ErrorKind.Type);
     }
 
     internal static int ShiftUp(int x, int k)

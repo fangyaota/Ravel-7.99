@@ -1,8 +1,0 @@
-值类型的成员表改成它自己那张:Integer 先走
-
-VirtualScope 是「一个值一张表」:名字是静态清单,每一格的值第一次读到时才造。
-Integer 的十九个运算符、ToString、init 都搬进 IntegerScope,不再写进 Integer
-那层给实例用的表;init 直接用类体里那份 caster,不按值新建。
-
-Fields () 仍按清单列举,清单之后接类那层的机制名(: <: :> Copy …),顺序与
-LookupField 的兜底一致。全量 150/0。

@@ -18,7 +18,7 @@ internal static class ScopeMembers
     private static RuntimeValue Define(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not StringVal name)
-            throw new RuntimeException(Messages.T("runtime.scope.define_needs_string"), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.scope.define_needs_string", arg.Type), ErrorKind.Argument);
         var scope = ((ScopeVal)self).Inner;
         return FunctionVal.From(value =>
         {
@@ -31,7 +31,7 @@ internal static class ScopeMembers
     private static RuntimeValue Lookup(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not StringVal name)
-            throw new RuntimeException(Messages.T("runtime.scope.lookup_needs_string"), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.scope.lookup_needs_string", arg.Type), ErrorKind.Argument);
         return Wrap(((ScopeVal)self).Inner.Lookup(name.Value));
     }
 
@@ -39,7 +39,7 @@ internal static class ScopeMembers
     private static RuntimeValue Remove(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not StringVal name)
-            throw new RuntimeException(Messages.T("runtime.scope.remove_needs_string"), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.scope.remove_needs_string", arg.Type), ErrorKind.Argument);
         ((ScopeVal)self).Inner.RemoveHere(name.Value);
         return VoidVal.Instance;
     }

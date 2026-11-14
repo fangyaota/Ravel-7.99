@@ -23,8 +23,9 @@ public static class CommentStripper
             if (i < was.Count && i < now.Count && Same(was[i], now[i])) continue;
             var left = i < was.Count ? was[i].ToString() : "<没了>";
             var right = i < now.Count ? now[i].ToString() : "<多出来>";
+            // 引擎内部:剥注释只动注释和空行,别的一律不该变。
             throw new InvalidOperationException(
-                Messages.T("parse.strip.token_mismatch", i, left, right));
+                $"引擎内部:剥注释之后第 {i + 1} 个 token 变了 —— 原文 {left},剥完 {right}");
         }
 
         return stripped;

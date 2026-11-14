@@ -174,7 +174,7 @@ ravel ""
 # mine 7
 # mine 8
 # mine 9
-# 1: 类型 'Integer' 没有方法 'Foreach'
+# 1: 类型 'Integer' 未包含方法 'Foreach'
 # 2: 参数 'c' 需要 String，得到 Char
 # true
 # true
@@ -219,7 +219,7 @@ ravel ""
 # a
 # c
 # [z x y]
-# 1: 比不了 Rec 与 Rec
-# 2: 比不了 Integer 与 String
+# 1: 无法比较 Rec 与 Rec
+# 2: 无法比较 Integer 与 String
 # 3: 空表没得挑：Max / Min 至少要一个元素
 # end

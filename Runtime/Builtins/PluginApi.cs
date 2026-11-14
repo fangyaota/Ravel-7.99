@@ -99,7 +99,7 @@ public static class PluginKit
     public static double Num(RuntimeValue v, string what)
         => BuiltinClasses.TryAsDouble(v, out var d)
             ? d
-            : throw Fail(Messages.T("runtime.interop.expected_number", what, v.Type), ErrorKind.Type);
+            : throw Fail(Messages.T("runtime.interop.expected_number",what), ErrorKind.Type);
 
     public static byte[] Bytes(RuntimeValue v, string what) => SysKit.BytesOf(v, what);
 
@@ -112,7 +112,7 @@ public static class PluginKit
     {
         IntVal i => i.Value,
         BigIntVal b when b.Value >= long.MinValue && b.Value <= long.MaxValue => (long)b.Value,
-        _ => throw Fail(Messages.T("runtime.interop.expected_integer", what, v.Type), ErrorKind.Type),
+        _ => throw Fail(Messages.T("runtime.interop.expected_integer",what), ErrorKind.Type),
     };
 
     // ── 数组 ──
@@ -272,7 +272,7 @@ internal static class PluginLoader
             {
                 if (impl != "IValue")
                     throw new InvalidOperationException(
-                        Messages.T("runtime.interop.unsupported_implements", cls.Name, impl));
+                        Messages.T("runtime.interop.unsupported_implements"));
                 klass.IsValueLike = true;
             }
 

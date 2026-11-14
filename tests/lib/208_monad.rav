@@ -1,4 +1,4 @@
-﻿# Option:要么包着一个值(Some v),要么什么都没有(None)。
+# Option:要么包着一个值(Some v),要么什么都没有(None)。
 # 链式操作用 Map / Bind / Where,它们对 None 一律原样放过 —— 中间有一环没值,
 # 后面全不用算。`Value ()` 在 None 上当场报错,不拿 () 糊弄。
 #
@@ -280,10 +280,10 @@ ravel ""
 # 12
 # 6
 # <function show (x: int) => { (Some x).Bind ((y: object) => { Some (y + 1); }); }>
-# 1: ':<' 只能写在 do { … } 里
-# 2: do 块的最后一条语句要是个值（不能以 ':<' 收尾）
-# 3: do 块里得有语句
-# 4: 类型 'Integer' 没有方法 'Bind'
+# 1: 意外的 ':<'，仅允许出现在 do 表达式内
+# 2: do 代码块末尾不允许出现 ':<'
+# 3: 意外的空 do 代码块
+# 4: 类型 'Integer' 未包含方法 'Bind'
 # 0
 # tick
 # 1

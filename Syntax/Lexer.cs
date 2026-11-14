@@ -472,7 +472,7 @@ public class Lexer(string source, string? file = null)
         // 从前是静默接受:`print "abc` 会把换行和后面的代码一起吞进去、打印出 abc,
         // 少打一个引号的人看不出自己错了。
         if (_pos >= source.Length)
-            throw new SyntaxException(Messages.T("parse.lexer.unterminated_string"), new SourceSpot(file, line, col));
+            throw new SyntaxException(Messages.T("parse.lexer.unterminated_string", "\""), new SourceSpot(file, line, col));
 
         Advance(); // skip closing "
         FlushLiteral();                                  // 收尾那段字面量(没有插值时不做事)
@@ -641,7 +641,7 @@ public class Lexer(string source, string? file = null)
             _col++;
             var esc = source[_pos];
             if (esc is not ('n' or 't' or 'r' or '\\' or '\'' or '"' or '0'))
-                throw new SyntaxException(Messages.T("parse.lexer.unknown_char_escape", esc),
+                throw new SyntaxException(Messages.T("parse.lexer.unknown_char_escape",esc),
                     new SourceSpot(file, line, col));
             value = esc switch
             {

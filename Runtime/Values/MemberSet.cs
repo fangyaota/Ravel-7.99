@@ -57,7 +57,7 @@ internal sealed class MemberSet : IMemberSet
                 if (f.GetCustomAttribute<ClassValueAttribute>() is not { } value) continue;
                 if (f.GetValue(null) is not RuntimeValue built)
                     throw new InvalidOperationException(
-                        Messages.T("runtime.interop.class_value_needs_runtime_value", value.Name, t.Name, f.Name));
+                        Messages.T("runtime.interop.class_value_needs_runtime_value"));
                 if (!set._own.TryAdd(value.Name, new Spec(null, built, MemberKind.Value, false))) continue;
                 set._order.Add(value.Name);
             }

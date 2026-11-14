@@ -1,4 +1,4 @@
-﻿# `Time`:一个时刻 = 毫秒数(bigint)+ 一袋零件。`TimeFrom` 从文本读,`Now ()` 拿现在。
+# `Time`:一个时刻 = 毫秒数(bigint)+ 一袋零件。`TimeFrom` 从文本读,`Now ()` 拿现在。
 # 格式串按 .NET 那套(`yyyy-MM-dd HH:mm:ss`);时区本地。比大小比**毫秒数**,
 # `IComparable` 登记过,所以 `Sorting` 直接吃它。
 # (只打稳定量:`Now ()` 只问类型和"比 2020 年晚",不打具体值。)
@@ -81,6 +81,6 @@ print "end"
 # 0
 # Time
 # true
-# 1: ParseTime: 读不动 —— '不是时间' 对不上格式 'yyyy-MM-dd'
-# 2: 拼时间失败: Year, Month, and Day parameters describe an un-representable DateTime.
+# 1: ParseTime 无法解析 '不是时间'
+# 2: 拼时间 失败：Year, Month, and Day parameters describe an un-representable DateTime.
 # end

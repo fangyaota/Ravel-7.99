@@ -55,7 +55,7 @@ public partial class Interpreter
             // 开关语句在解析那一趟就生效了,跑到这儿什么都不用做
             case DirectiveStatement: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
             // 走到这里说明 AST 里有个节点类型没接上状态机——报出节点类型才查得下去
-            default: throw new RuntimeException(Messages.T("runtime.eval.unknown_node_type", nf.Node.GetType().Name));
+            default: throw new InvalidOperationException("引擎内部:节点类型没接状态机 —— " + nf.Node.GetType().Name);
         }
     }
 
@@ -128,7 +128,7 @@ public partial class Interpreter
             return;
         }
 
-        if (nf.Result(1) is not FunctionVal fn) throw new RuntimeException(Messages.T("runtime.seq.pipe_lhs_not_function"), ErrorKind.Type);
+        if (nf.Result(1) is not FunctionVal fn) throw new RuntimeException(Messages.T("runtime.seq.pipe_lhs_not_function", nf.Result(1).Type), ErrorKind.Type);
         CallInto(nf.Parent!, fn, nf.Result(0));
     }
 
@@ -154,7 +154,7 @@ public partial class Interpreter
         var o = nf.Result(0);
         if (un.Op == "!")
         {
-            if (o is not BoolVal bn) throw new RuntimeException(Messages.T("runtime.eval.not_operand_not_bool"), ErrorKind.Type);
+            if (o is not BoolVal bn) throw new RuntimeException(Messages.T("runtime.eval.not_operand_not_bool", o.Type), ErrorKind.Type);
             Return(nf, new BoolVal(!bn.Value));
         }
         else if (un.Op == "-")

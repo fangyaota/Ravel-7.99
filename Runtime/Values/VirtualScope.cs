@@ -81,7 +81,7 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
     public override void Assign(string name, RuntimeValue value)
     {
         if (!Writable)
-            throw new RuntimeException(Messages.T("runtime.scope.value_members_read_only", name), ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.scope.value_members_read_only"), ErrorKind.Access);
 
         var slot = LookupField(name);
         if (slot is null)

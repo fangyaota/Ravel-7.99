@@ -47,16 +47,16 @@ ravel ""
 try { eval ("x := " + (("!").Repeat 600) + "true"); } (e: Exception) => { print ("220_deep_chain: " + string e); }
 
 # --- expected ---
-# 176_old_init_syntax: 构造器不再用 init 修饰符，直接写 `init = () => { ... }`
-# 1: list.At 的索引 9 越界 (列表长度 3)
-# 2: list.Remove 的索引 5 越界 (列表长度 2)
+# 176_old_init_syntax: 修饰符 'init' 已移除
+# 1: list.At：索引 9 超出范围，长度为 3
+# 2: list.Remove：索引 5 超出范围，长度为 2
 # 3: 运算符 '*' 不支持 String 操作数
-# 4: list.Insert 的索引 9 越界 (列表长度 3)
+# 4: list.Insert：索引 9 超出范围，长度为 3
 # [1 2 3 99]
-# 204_unterminated_string: 字符串没有收尾的 '"'
-# 1: 'override' 修饰符已删除（它只被记下来，没有任何地方读它）
-# 2: 'new' 修饰符已删除（它只被记下来，没有任何地方读它）
-# 3: 'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）
+# 204_unterminated_string: 字符串未闭合，缺少结束符 '"'
+# 1: 修饰符 'override' 已移除
+# 2: 修饰符 'new' 已移除
+# 3: 修饰符 'forInstance' 已移除
 # 7
 # 9
-# 220_deep_chain: 表达式嵌套太深（超过 400 层运算符/调用链）
+# 220_deep_chain: 表达式嵌套深度超出上限

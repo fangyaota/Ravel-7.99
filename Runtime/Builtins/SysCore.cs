@@ -10,7 +10,7 @@ internal static class SysCore
     {
         // `property ()` 就是那一对什么都不做的 getter/setter(`by a: int = _` 脱糖落在这里)。
         if (g is VoidVal) return BuiltinClasses.DefaultProperty();
-        if (g is not FunctionVal gf) throw new RuntimeException(Messages.T("runtime.builtin.property_requires_getter"), ErrorKind.Argument);
+        if (g is not FunctionVal gf) throw new RuntimeException(Messages.T("runtime.builtin.property_requires_getter", g.Type), ErrorKind.Argument);
         return FunctionVal.From(s => s is FunctionVal sf
             ? new PropertyVal(gf, sf)
             : throw new RuntimeException("property 需要 setter 函数", ErrorKind.Argument));
@@ -20,7 +20,7 @@ internal static class SysCore
     public static RuntimeValue Assert(RuntimeValue cond, RuntimeValue msg)
     {
         if (cond is not BoolVal b)
-            throw new RuntimeException(Messages.T("runtime.builtin.assert_requires_bool"), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.builtin.assert_requires_bool", cond.Type), ErrorKind.Argument);
         if (!b.Value)
             throw new RuntimeException(msg is StringVal s ? s.Value : "assertion failed: " + Show(cond), ErrorKind.Assert);
         return VoidVal.Instance;

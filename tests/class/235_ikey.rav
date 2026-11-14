@@ -1,4 +1,4 @@
-﻿# IKey 接口
+# IKey 接口
 using "math.rav"
 
 ravel "235_ikey"
@@ -136,7 +136,7 @@ ravel ""
 # true
 # list
 # false
-# 3: 键不存在: 999
+# 3: 给定的键不在字典中：999
 # {a: 1}
 # {1: 2}
 # {1 2}
@@ -193,4 +193,4 @@ ravel ""
 # {1: a 2: b}
 # true
 # none
-# 1: 类型 'Dict' 没有方法 'SysSet'
+# 1: 类型 'Dict' 未包含方法 'SysSet'

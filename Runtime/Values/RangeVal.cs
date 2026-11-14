@@ -13,7 +13,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     public (BigInteger First, bool Up) Head()
     {
         if (IsWhole())
-            throw new RuntimeException(Messages.T("runtime.range.whole_has_no_first", this), ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.range.whole_has_no_first"), ErrorKind.Value);
         if (!Ascending(out var up)) return (1, true);              // NaN:空
         // 定得下来的那一头才是第一站:`[Inf..1]` 从 1 起(往上),`[-Inf..1]` 也从 1 起(往下)
         return Infinite(Start, out _)
@@ -56,7 +56,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
 
     public RuntimeValue LastElement()
     {
-        if (!IsBounded()) throw new RuntimeException(Messages.T("runtime.range.unbounded_has_no_last", this), ErrorKind.Value);
+        if (!IsBounded()) throw new RuntimeException(Messages.T("runtime.range.unbounded_has_no_last"), ErrorKind.Value);
         return Element(Walk().Last);
     }
 
@@ -164,7 +164,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 }
 
                 if (double.IsInfinity(f.Value))
-                    throw new RuntimeException(Messages.T("runtime.range.infinite_endpoint_not_boundable", f.Value), ErrorKind.Value);
+                    throw new RuntimeException(Messages.T("runtime.range.infinite_endpoint_not_boundable"), ErrorKind.Value);
 
                 bound = new BigInteger(goingUp ? Math.Ceiling(f.Value) : Math.Floor(f.Value));
                 return true;
@@ -175,7 +175,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 bound = Div(bf.Num, bf.Den, goingUp);
                 return true;
             default:
-                throw new RuntimeException(Messages.T("runtime.range.endpoint_needs_number", v.Type), ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.range.endpoint_needs_number", v), ErrorKind.Type);
         }
     }
 

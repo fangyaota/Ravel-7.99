@@ -162,7 +162,7 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (System.Numerics.BigInteger.TryParse(s.Value, out var n)) return new BigIntVal(n);
-            throw new RuntimeException(Messages.T("runtime.class.string_to_bigint_invalid"), ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.string_to_bigint_invalid", s.Value), ErrorKind.Value);
         }
 
         if (val is RealVal f)
@@ -188,7 +188,7 @@ internal static partial class BuiltinClasses
             var p = s.Value.Split('/');
             if (p.Length == 2 && int.TryParse(p[0], out var n) && int.TryParse(p[1], out var d) && d != 0)
                 return new FractionVal(n, d);
-            throw new RuntimeException(Messages.T("runtime.class.fraction_string_invalid"), ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.fraction_string_invalid", s.Value), ErrorKind.Value);
         }
 
         throw new RuntimeException(Messages.T("runtime.class.cast_to_fraction_invalid", val.Type), ErrorKind.Type);
@@ -261,7 +261,8 @@ internal static partial class BuiltinClasses
             if (target == Continuation) return ContinuationVal.Default;
         }
 
-        throw new RuntimeException(Messages.T("runtime.class.cast_between_types_invalid", val.Type, target.DisplayName), ErrorKind.Type);
+        // 到不了:DefaultValue 的调用点先按类型分流过,四种都有零值。
+        throw new InvalidOperationException("引擎内部:类型 " + target.DisplayName + " 没有零值,却走到了这里");
     }
 
     // `default T` 的全部内容:每个"有零值"的类型造一个空的。

@@ -35,7 +35,7 @@ internal static partial class BuiltinClasses
 
 
     internal static PropertyVal DefaultProperty()
-        => new(FunctionVal.From(_ => EmptyFunction()), FunctionVal.From(_ => VoidVal.Instance));
+        => new(EmptyFunction(), FunctionVal.From(_ => VoidVal.Instance));
 
     internal static FunctionVal EmptyFunction() => FunctionVal.From(_ => VoidVal.Instance);
 

@@ -17,7 +17,7 @@ internal sealed class ListMembers : SequenceMembers
         var lst = (ListVal)s;
         var n = lst.Elements.Count;
         if (i.Value < 0 || i.Value > (allowEnd ? n : n - 1))
-            throw new RuntimeException(Messages.T("runtime.list.index_out_of_range", what, i.Value, n), ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.shared.index_out_of_range", what, i.Value, n), ErrorKind.Index);
         return lst;
     }
 
@@ -35,7 +35,7 @@ internal sealed class ListMembers : SequenceMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                Messages.T("runtime.list.at_needs_index", arg),
+                Messages.T("runtime.shared.at_needs_index", arg),
                 ErrorKind.Argument);
 
         var lst = Indexed(self, arg, "list.At");
@@ -46,7 +46,7 @@ internal sealed class ListMembers : SequenceMembers
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not RangeVal rng)
-            throw new RuntimeException(Messages.T("runtime.list.slice_needs_range", arg.Type), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.shared.slice_needs_range", arg.Type), ErrorKind.Argument);
 
         var lst = (ListVal)self;
         var (from, to, reverse) = StringMembers.SliceBounds(rng, lst.Elements.Count, "list.Slice", clamp: true);

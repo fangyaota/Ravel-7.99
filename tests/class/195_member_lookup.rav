@@ -88,20 +88,20 @@ ravel ""
 # true
 # 2
 # 7
-# (5).parent: 类型 'Integer' 没有方法 'parent'
-# (5).block: 类型 'Integer' 没有方法 'block'
+# (5).parent: 类型 'Integer' 未包含方法 'parent'
+# (5).block: 类型 'Integer' 未包含方法 'block'
 # 12
 # 7
 # 9
 # true
 # true
 # false
-# 实例不能调: 值 C {} 不是函数，不能调用
-# 无类体的类: 类型 Void 不能作为构造器调用
-# 实例读 call: 类型 'C' 没有方法 'call'
-# int 读 call: 类型 'Integer' 没有方法 'call'
+# 实例不能调: C {} 并非可调用的值
+# 无类体的类: Void 无法作为构造器使用
+# 实例读 call: 类型 'C' 未包含方法 'call'
+# int 读 call: 类型 'Integer' 未包含方法 'call'
 # 42
-# 自定义 call 也不行: 值 Adder {} 不是函数，不能调用
+# 自定义 call 也不行: Adder {} 并非可调用的值
 # C
 # <scope>
 # Renamed

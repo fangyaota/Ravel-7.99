@@ -60,7 +60,7 @@ print (root.Exists ())         # false
 # --- expected ---
 # A
 # A
-# `using "amb"` 有歧义:`amb.rav` `amb.dll` 都对得上 —— 把后缀写全再试
+# using 存在歧义：`amb.rav` `amb.dll` 均匹配
 # 1
 # 7
 # false

@@ -182,7 +182,7 @@ dup.Dispose ()
 print (z2.c)
 ravel ""
 # --- expected ---
-# 1: 类型 'myClass' 没有方法 'a'
+# 1: 类型 'myClass' 未包含方法 'a'
 # 2: 这一格要的是 myTrait，得到 myClass
 # 0
 # 7
@@ -201,7 +201,7 @@ ravel ""
 # 99
 # 7
 # 5: 参数 'v' 需要 Integer，得到 String
-# 6: 类型 'myClass' 没有方法 'a'
+# 6: 类型 'myClass' 未包含方法 'a'
 # false
 # 7: 这一格要的是 myTrait，得到 myClass
 # 7
@@ -214,11 +214,11 @@ ravel ""
 # 2
 # 42
 # 1: `instance` 只在实现体的槽里有效：此刻没有正在被服务的实例（它指的是「这一次调用在服务谁」，离开那次调用就没有了）
-# 2: 类型 'F' 没有方法 'instance'
+# 2: 类型 'F' 未包含方法 'instance'
 # 3: 无法给只读变量 'instance' 赋值
 # 42
 # 99
-# 4: 接口 Bad 里声明了名为 'instance' 的槽 —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个
+# 4: 接口不允许使用保留的槽名 'instance'
 # 8
 # 5: `instance` 只在实现体的槽里有效：此刻没有正在被服务的实例（它指的是「这一次调用在服务谁」，离开那次调用就没有了）
 # 7

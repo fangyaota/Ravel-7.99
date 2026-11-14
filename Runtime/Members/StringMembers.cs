@@ -25,12 +25,12 @@ internal static class StringMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                Messages.T("runtime.string.at_needs_index", arg),
+                Messages.T("runtime.shared.at_needs_index", arg),
                 ErrorKind.Argument);
         var v = ((StringVal)self).Value;
         var i = BuiltinClasses.IntArg(arg, "s.At");
         if (i < 0 || i >= v.Length)
-            throw new RuntimeException(Messages.T("runtime.string.index_out_of_range", i, v.Length), ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.shared.index_out_of_range", "s.At", i, v.Length), ErrorKind.Index);
         return new CharVal(v[i]);
     }
 
@@ -80,7 +80,7 @@ internal static class StringMembers
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not RangeVal rng)
-            throw new RuntimeException(Messages.T("runtime.string.slice_needs_range", arg.Type), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.shared.slice_needs_range", arg.Type), ErrorKind.Argument);
 
         var v = ((StringVal)self).Value;
         var (from, to, reverse) = SliceBounds(rng, v.Length, "s.Slice");
@@ -146,7 +146,7 @@ internal static class StringMembers
         }
         else if (RangeVal.Infinite(rng.Start, out _) && RangeVal.Infinite(rng.End, out _))
         {
-            throw new RuntimeException(Messages.T("runtime.string.slice_both_unbounded", what, rng), ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.string.slice_both_unbounded"), ErrorKind.Index);
         }
         else if (RangeVal.Infinite(rng.End, out _))
         {

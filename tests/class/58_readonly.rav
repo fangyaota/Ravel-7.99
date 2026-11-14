@@ -126,21 +126,21 @@ ravel ""
 # 59_readonly_error: 无法给只读变量 'x' 赋值
 # 赋值: 无法给只读变量 'print' 赋值
 # 常量: 无法给只读变量 'true' 赋值
-# 重新定义: 无法重新定义只读变量 'Square'
-# 模块 API: 无法重新定义只读变量 'Throw'
+# 重新定义: 只读变量 'Square' 不允许重新定义
+# 模块 API: 只读变量 'Throw' 不允许重新定义
 # [1]
 # []
 # 9
 # true
 # done
-# 200_readonly_redefine: 'true' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）
+# 200_readonly_redefine: 'true' 已被定义
 # 42
 # 99
 # 69_access_private_err: 变量 'secret' 是私有的
 # 10
 # 10
 # 71_access_protected_err: 变量 'val' 是受保护的
-# 72_access_unreadable: 变量 'x' 不可读取
+# 72_access_unreadable: 变量 'x' 无法读取
 # 77
 # 1
 # 1
@@ -148,7 +148,7 @@ ravel ""
 # 3
 # 4
 # 42
-# 173_core_bare_ident_err: 字段 'secret' 是核心字段，需要 unsafe
+# 173_core_bare_ident_err: 字段 'secret' 要求 unsafe 上下文
 # 42
-# blocked: 字段 'secret' 是核心字段，需要 unsafe
-# blocked: 字段 'secret' 是核心字段，需要 unsafe
+# blocked: 字段 'secret' 要求 unsafe 上下文
+# blocked: 字段 'secret' 要求 unsafe 上下文

@@ -1,7 +1,0 @@
-C ::= class {
-    v: int = 3
-    + := (x: int) => { v + x; }
-}
-c := C ()
-print (c.Fields ())
-print (c + 4)

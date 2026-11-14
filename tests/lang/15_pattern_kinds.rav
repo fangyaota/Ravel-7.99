@@ -135,7 +135,6 @@ print (try { i + 1; } (e: Exception) => { "+: " + e.Message; })
 ravel ""
 
 # --- expected ---
-
 # 2
 # 3
 # 4
@@ -172,15 +171,15 @@ ravel ""
 # 拿到 9
 # 别的
 # 对象成员 → 1 2
-# 混写: 对象成员（`{x y}`）和字典项（`{键 -> 模式}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写
+# 混写: 意外的模式混用
 # apple
 # ?
 # unknown
 # 改过了
 # 改过了
 # 无法给只读变量 'fixed' 赋值
-# target: 类型 'Apple' 没有方法 'target'
-# generation: 类型 'Apple' 没有方法 'generation'
+# target: 类型 'Apple' 未包含方法 'target'
+# generation: 类型 'Apple' 未包含方法 'generation'
 # hi
-# 作用域外: 类型 'Box' 没有方法 'say'
-# +: 类型 Item 不支持运算符 '+'
+# 作用域外: 类型 'Box' 未包含方法 'say'
+# +: 运算符 '+' 无法应用于类型 Item

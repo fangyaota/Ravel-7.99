@@ -110,7 +110,7 @@ internal abstract class SequenceMembers
     [ClassMethod("Join")]
     private static RuntimeValue Join(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not StringVal sep) throw new RuntimeException(Messages.T("runtime.sequence.join_needs_string"), ErrorKind.Argument);
+        if (arg is not StringVal sep) throw new RuntimeException(Messages.T("runtime.sequence.join_needs_string", arg.Type), ErrorKind.Argument);
         return new StringVal(string.Join(sep.Value, Items(self).Select(x => x.ToString())));
     }
 

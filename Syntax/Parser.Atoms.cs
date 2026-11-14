@@ -179,7 +179,7 @@ public partial class Parser
 
     private Expression Nested(Func<Expression> parse)
     {
-        if (_depth >= MaxDepth) throw ParseError(Messages.T("parse.parser.expression_nesting_too_deep", MaxDepth));
+        if (_depth >= MaxDepth) throw ParseError(Messages.T("parse.parser.expression_nesting_too_deep"));
 
         _depth++;
         try
@@ -339,11 +339,10 @@ public partial class Parser
         }
 
         // 按 token 顺序取名字:`|>` 已折成调用,按树取会取错
+        // 到不了:进这一支时参数名那个 Identifier 已经吃掉,条件里最左边必有名字。
         var nm = FirstIdentName(saveAt, _pos)
-            ?? throw ParseError(Messages.T("parse.parser.guard_missing_parameter_name"));
+            ?? throw new InvalidOperationException("引擎内部:守卫那一格找不到可绑的名字");
         DeclareParam(@params, new Parameter(nm, ObjectType(at)));
-        if (!Check(TokenType.RightParen))
-            throw ParseError(Messages.T("parse.parser.guard_not_last_parameter"));
         return guard;
     }
 
@@ -628,7 +627,8 @@ public partial class Parser
         Consume(TokenType.RightBrace, "代码块末尾需要 '}'");
 
         if (list.Count == 0)
-            throw ParseError(Messages.T("parse.parser.empty_block"));
+            // 到不了:空体在方法开头就被 `{;}` 那条收走了,`{ }` 连块都不算。
+            throw new InvalidOperationException("引擎内部:块里一条语句都没有");
 
         return list;
     }

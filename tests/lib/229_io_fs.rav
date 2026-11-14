@@ -1,4 +1,4 @@
-﻿# 文件系统：磁盘实现（lib/io.rav）。真写磁盘 —— 写在仓库里的 .io-test/ 下，结尾删干净。
+# 文件系统：磁盘实现（lib/io.rav）。真写磁盘 —— 写在仓库里的 .io-test/ 下，结尾删干净。
 
 # 两条自律：**路径手写 `/`**（平台无关；`Io.Join` / `Child` 拼出来的在 Windows 上是 `\`，
 # 所以只对它们做行为断言、不打印）；**只打稳定量**（名字、内容、大小、Exists、报错消息），
@@ -397,12 +397,12 @@ ravel ""
 # .txt
 # b
 # b.txt
-# 1: 读文件: 找不到文件 —— .io-test/nope.txt
-# 2: 读文件: 这是个目录，不是文件 —— .io-test/sub
-# 3: 写文件: 目录不存在 —— .io-test/nodir
-# 4: 删除失败: 找不到要删的东西 —— .io-test/gone.txt
-# 5: 删除失败: 目录不是空的（不递归删）—— .io-test/sub
-# 6: 切目录失败: 找不到目录 —— .io-test/nodir
+# 1: 未找到文件：.io-test/nope.txt
+# 2: .io-test/sub 为目录，并非文件
+# 3: 未找到父目录：.io-test/nodir
+# 4: 删除失败：未找到目标：.io-test/gone.txt
+# 5: 删除失败：目录非空：.io-test/sub
+# 6: 切换工作目录失败：未找到该目录：.io-test/nodir
 # true
 # true
 # false

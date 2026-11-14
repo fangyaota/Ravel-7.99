@@ -201,8 +201,8 @@ print ((try { eval "Arg ::= singleton {\n    init = (x: int) => { v = x; this; }
 # true
 # false
 # 1: flags: 位运算两边得是同一个 flags 的值或整数（那边是 String）
-# 2: 类型 e 不支持运算符 '|'
-# 3: 类型 'e' 没有方法 'Has'
+# 2: 运算符 '|' 无法应用于类型 e
+# 3: 类型 'e' 未包含方法 'Has'
 # true
 # true
 # true

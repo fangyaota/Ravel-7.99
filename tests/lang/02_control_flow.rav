@@ -190,7 +190,6 @@ print ((true { 1; } { 2; }) if true else 0)
 print ([x if (x > 1) else 0 for x in [1 2 3]])
 
 # --- expected ---
-
 # <block>
 # 0
 # 1
@@ -213,9 +212,9 @@ print ([x if (x > 1) else 0 for x in [1 2 3]])
 # 2
 # 10
 # 20
-# 1: 值 1 不是函数，不能调用
+# 1: 1 并非可调用的值
 # 2: 这一格要的是 Bool，得到 Integer
-# 3: 类型 'Integer' 没有方法 'Foreach'
+# 3: 类型 'Integer' 未包含方法 'Foreach'
 # after
 # 1: with 的第 2 个参数需要代码块，得到 Integer
 # 2: with 的第 2 个参数需要代码块，得到 Dict

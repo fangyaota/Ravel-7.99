@@ -1,4 +1,4 @@
-﻿# 运算符/模块类型
+# 运算符/模块类型
 using "math.rav"
 
 ravel "64_main0"
@@ -201,8 +201,8 @@ ravel ""
 # false
 # 36
 # 58
-# 1: 模块 'System' 没有方法 'Class'
-# 2: 模块 'Math' 没有方法 'Nope'
+# 1: 模块 'System' 未包含方法 'Class'
+# 2: 模块 'Math' 未包含方法 'Nope'
 # 3: '<:' 的左边得是个类型，得到模块 'Math'
 # 4: '<:' 的左边得是个类型，得到 Integer 的实例
 # Ravel
@@ -221,7 +221,7 @@ ravel ""
 # false
 # true
 # false
-# '===' 是继承来的成员 —— `:=` 遮不掉它（它不给覆盖，`=` 也不收）
+# '===' 为继承得到的成员，不允许遮蔽
 # false
 # false
 # [1 2 3]
@@ -238,4 +238,4 @@ ravel ""
 # abcd
 # 3
 # 1: Union 需要一个容器（list / set / dict / 栈 队列 堆…），得到 Integer
-# 2: dict 的 '+' 右边得是 dict（合并两张表），得到 List
+# 2: 运算符 '+' 的右侧要求一个 dict，得到 List

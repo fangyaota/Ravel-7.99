@@ -201,7 +201,7 @@ public partial class Parser
     {
         if (!Check(TokenType.Identifier) || Peek().Lexeme != "operator") return;
         if (_pos + 1 >= tokens.Count || !IsOperatorToken(tokens[_pos + 1].Type)) return;
-        throw ParseError(Messages.T("parse.parser.retired_operator_definition"));
+        throw ParseError(Messages.T("parse.parser.retired_modifier", "运算符定义"));
     }
 
     private void RejectRetiredInitSyntax()
@@ -210,7 +210,7 @@ public partial class Parser
         if (_pos + 1 >= tokens.Count || tokens[_pos + 1].Type != TokenType.Identifier) return;
         if (_pos + 2 >= tokens.Count) return;
         if (tokens[_pos + 2].Type is not (TokenType.ColonEqual or TokenType.ColonColonEqual)) return;
-        throw ParseError(Messages.T("parse.parser.retired_init_modifier"));
+        throw ParseError(Messages.T("parse.parser.retired_modifier", "init"));
     }
 
     private void RejectRetiredModifier()
@@ -222,7 +222,7 @@ public partial class Parser
             case "override" or "new":
                 throw ParseError(Messages.T("parse.parser.retired_modifier", Peek().Lexeme));
             case "forInstance":
-                throw ParseError(Messages.T("parse.parser.retired_for_instance_modifier"));
+                throw ParseError(Messages.T("parse.parser.retired_modifier", "forInstance"));
         }
     }
 
@@ -262,7 +262,7 @@ public partial class Parser
         // `readonly x := 1` 或 `readonly := 1`
         if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))
             return ParseDefinition(attrs);
-        throw ParseError(Messages.T("parse.parser.expected_assign_after_modifier"));
+        throw ParseError(Messages.T("parse.pattern.modifier_in_destructuring"));
     }
 
     private Statement? TryParseControlFlowStatement()
@@ -327,7 +327,7 @@ public partial class Parser
         _pendingBrkUsed = outerUsed;
         if (!used)
             throw new SyntaxException(
-                Messages.T("parse.parser.unused_label", lbl.Lexeme, lbl.Lexeme, lbl.Lexeme),
+                Messages.T("parse.parser.unused_label",lbl.Lexeme),
                 new SourceSpot(source, lbl.Line, lbl.Column));
         return WrapLabelStmt(inner, "__brk_" + lbl.Lexeme, lbl);
     }
@@ -376,7 +376,7 @@ public partial class Parser
     private Statement ParseConstraintDefinition(BinaryExpr constraint, int startTok)
     {
         var nm = FirstIdentName(startTok, _pos)
-            ?? throw ParseError(Messages.T("parse.parser.constraint_missing_name"));
+            ?? throw ParseError(Messages.T("parse.parser.need_lvalue"));
         var pat = new NamePattern(nm)
             { Guard = constraint.Left, Line = constraint.Left.Line, Column = constraint.Left.Column };
         return new Destructure([], pat, constraint.Right)
@@ -389,7 +389,7 @@ public partial class Parser
         if (expr is BinaryExpr { Op: "=" or ":=" or "+=" or "-=" or "*=" or "**=" or "/=" or "%=" } bad
             && bad.Left is not (IdentifierExpr or MemberAccess or IndexExpr))
             throw new SyntaxException(
-                Messages.T("parse.parser.invalid_assignment_target", bad.Op),
+                Messages.T("parse.parser.need_lvalue"),
                 new SourceSpot(source, bad.Line, bad.Column));
     }
 
@@ -400,7 +400,7 @@ public partial class Parser
 
         if (target is not (IdentifierExpr or MemberAccess))
             throw new SyntaxException(
-                Messages.T("parse.parser.invalid_inc_dec_target", op.Lexeme, op.Lexeme, op.Lexeme),
+                Messages.T("parse.parser.invalid_inc_dec_target",op.Lexeme),
                 new SourceSpot(source, op.Line, op.Column));
 
         var inc = new UnaryExpr(op.Lexeme, target) { Line = target.Line, Column = target.Column };
@@ -492,9 +492,9 @@ public partial class Parser
             assign = !typed;
         }
         else
-        {
-            throw ParseError(Messages.T("parse.parser.destructure_expected_assign"));
-        }
+            // 到不了:进 ParseDestructure 之前,LooksLikePatternDestructure 的前瞻已经要求
+            // 括号后面是 ':=' / '=' / ': 类型 =' 三者之一。
+            throw new InvalidOperationException("引擎内部:解构后面既不是 '=' 也不是 ':='");
 
         _holeCount = 0;
         var value = ParseExpression();
@@ -502,7 +502,7 @@ public partial class Parser
         if (HasHoles(value)) value = DesugarHoles(value);
 
         if (assign && attrs.Count > 0)
-            throw new SyntaxException(Messages.T("parse.pattern.modifier_in_destructuring", attrs[0]),
+            throw new SyntaxException(Messages.T("parse.pattern.modifier_in_destructuring"),
                 new SourceSpot(source, at.Line, at.Column));
 
         return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column, Assign = assign };
@@ -700,7 +700,7 @@ public partial class Parser
         // 右边取成员不算声明，挂修饰符会静默丢掉
         if (n.Sub is not NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } sel
             || sel.Attrs is not null)
-            throw ParseError(Messages.T("parse.pattern.rename_target_expected_member_name"));
+            throw ParseError(Messages.T("parse.pattern.expected_member_name"));
         return n with { Member = sel.Name, Sub = null };
     }
 
@@ -709,7 +709,7 @@ public partial class Parser
         var n = Consume(TokenType.Identifier, "'..' 后面要跟个名字（`..rest` —— 名字自己起）");
         // '..' 后要真名字，'_' 是占位记号
         if (n.Lexeme == "_")
-            throw ParseError(Messages.T("parse.pattern.rest_requires_name"));
+            throw ParseError(Messages.T("parse.parser.need_lvalue"));
         return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
     }
 
@@ -752,7 +752,7 @@ public partial class Parser
         var place = ParseClimb(Postfix.Bare, 0);
         if (place is IndexExpr or MemberAccess)
             return new PlacePattern(place) { Line = at.Line, Column = at.Column };
-        throw ParseError(Messages.T("parse.pattern.expected_bind_target"));
+        throw ParseError(Messages.T("parse.parser.need_lvalue"));
     }
 
     // 带条件的一格：取条件里最左的名字
@@ -761,8 +761,9 @@ public partial class Parser
         _pos = saveAt;
         var from = _pos;
         var guard = ParseClimb(Postfix.Bare, 0);
+        // 到不了:这一格是从"已经吃下一个标识符"的地方进来的,条件里最左边一定有名字可绑。
         if (FirstIdentName(from, _pos) is not { } nm)
-            throw ParseError(Messages.T("parse.pattern.guarded_pattern_missing_name"));
+            throw new InvalidOperationException("引擎内部:守卫那一格找不到可绑的名字");
         return new NamePattern(nm) { Guard = guard, Line = at.Line, Column = at.Column };
     }
 
@@ -852,7 +853,8 @@ public partial class Parser
         // 修饰符本身当名字（`readonly := …`）
         if (attrs is { Count: > 0 })
             return (attrs[0], Previous().Line, Previous().Column);
-        throw ParseError(Messages.T("parse.parser.expected_variable_name"));
+        // 到不了:attrs 为空时上面第二句就返回了,进这里时必有一格能当名字。
+        throw new InvalidOperationException("引擎内部:定义处既没有标识符、也没有可以当名字的修饰符");
     }
 
     private (Expression? Type, bool AutoName) ParseDefinitionSign()
@@ -871,7 +873,8 @@ public partial class Parser
             RequireAfterTypeAnnotation();
             return (type, false);
         }
-        throw ParseError(Messages.T("parse.parser.expected_definition_operator"));
+        // 到不了:调用点先按 IsDefinitionOp 四个符号验过,四支必有一支命中。
+        throw new InvalidOperationException("引擎内部:定义符既不是 '::=' '::' ':=' ':' 也不是类型注解");
     }
 
     private void RequireAfterTypeAnnotation()

@@ -44,7 +44,7 @@ print (show (() == ()))
 #   24 | print (try { xs.Count () > 1; } (e: Exception) => { e.Message; })
 #      |                       ^
 # 拿到 true
-# 类型 Void 不支持运算符 '>'
+# 运算符 '>' 无法应用于类型 Void
 # true
 # 拿到 true
 # 3

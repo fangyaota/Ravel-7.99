@@ -143,7 +143,7 @@ ravel ""
 # true
 # true
 # true
-# 1: `masterTrait` 要求 C 已经实现了 supTrait（先给它 impl/use 一条）
+# 1: C 要求先实现 supTrait
 # 10
 # true
 # true
@@ -153,9 +153,9 @@ ravel ""
 # 3: 参数 'v' 需要 Integer，得到 String
 # 5
 # 4: `interface` 后面要跟一个代码块（`interface { … }`）、一个接口（一个要求，`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`），得到 Integer
-# 5: 接口的体得是个代码块（`interface … { … }`），得到 List
+# 5: 接口体要求一个代码块，得到 List
 # 6: `interface` 后面只能跟接口（一个要求：`interface 某接口 { … }`）或一张要求表（`interface [A B] { … }`）—— C 是个类；要给某个类实现接口就写成 `某个接口 那个类 { … }`
-# 7: 要求表里得全是接口，第 2 个是 Integer
+# 7: 要求表中的第 2 项并非接口
 # true
 # true
 # 10
@@ -163,7 +163,7 @@ ravel ""
 # 10
 # 3
 # 10
-# ()
-# 2: 类型 Out 不支持运算符 '+'
+# 1: () 并非可调用的值
+# 2: 运算符 '+' 无法应用于类型 Out
 # 100
-# 3: 类型 S 不支持运算符 '+'
+# 3: 运算符 '+' 无法应用于类型 S

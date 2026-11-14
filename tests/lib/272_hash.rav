@@ -68,4 +68,4 @@ try { Hash.Md5 {"a"-> 1}; } (e: Exception) => { print ("2: " + string e); }
 # 32
 # false
 # 1: 不认识的算法 'sha3'（有 sha256 / sha512 / sha1 / md5）
-# 2: HashBytes 的数据需要一个字节表（list），得到 Dict
+# 2: HashBytes 的数据 要求字节列表

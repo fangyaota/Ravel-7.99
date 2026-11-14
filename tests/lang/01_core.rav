@@ -143,7 +143,6 @@ print (h 1.5)
 print (h false)
 
 # --- expected ---
-
 # 1
 # 42
 # 20
@@ -196,8 +195,8 @@ print (h false)
 # 10
 # 0.5
 # 99999999999
-# needs_semicolon: lambda 体需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号
-# no_class_type: 模块 'System' 没有方法 'Class'
+# needs_semicolon: lambda 体 要求一个代码块
+# no_class_type: 模块 'System' 未包含方法 'Class'
 # 3
 # 1
 # 4

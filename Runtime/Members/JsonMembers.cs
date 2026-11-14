@@ -46,7 +46,7 @@ internal static class JsonMembers
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not RangeVal rng)
-            throw new RuntimeException(Messages.T("runtime.json.slice_needs_range", arg.Type), ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.shared.slice_needs_range", arg.Type), ErrorKind.Argument);
 
         var arr = ((JsonVal)self).Token as JArray
             ?? throw new RuntimeException($"Json.Slice: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
@@ -61,14 +61,14 @@ internal static class JsonMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                Messages.T("runtime.json.at_needs_index", arg),
+                Messages.T("runtime.shared.at_needs_index", arg),
                 ErrorKind.Argument);
 
         var i = BuiltinClasses.IntArg(arg, "Json.At");
         var arr = ((JsonVal)self).Token as JArray
             ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
         if (i < 0 || i >= arr.Count)
-            throw new RuntimeException(Messages.T("runtime.json.at_index_out_of_range", i, arr.Count), ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.json.at_index_out_of_range",i), ErrorKind.Index);
         return new JsonVal(arr[i]);
     }
 

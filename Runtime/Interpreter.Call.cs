@@ -140,11 +140,11 @@ public partial class Interpreter
                 break;
             case BoolVal bv:
                 // true/false 是函数(lisp 式):收两个块,返回选中那个块的结果
-                if (arg is not BlockVal thenBlock) throw new RuntimeException(Messages.T("runtime.call.wrong_block_count"), ErrorKind.Argument);
+                if (arg is not BlockVal thenBlock) throw new RuntimeException(Messages.T("runtime.call.wrong_block_count", arg.Type), ErrorKind.Argument);
                 _top = sink.WithResult(new PartialBool(bv.Value, thenBlock));
                 break;
             case PartialBool pb:
-                if (arg is not BlockVal elseBlock) throw new RuntimeException(Messages.T("runtime.call.wrong_block_count"), ErrorKind.Argument);
+                if (arg is not BlockVal elseBlock) throw new RuntimeException(Messages.T("runtime.call.wrong_block_count", arg.Type), ErrorKind.Argument);
                 var chosen = pb.Value ? pb.Then : elseBlock;
                 // 同上:`cond { A } { B }` 选中那支是**裸块**,不推层
                 _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope };

@@ -73,7 +73,7 @@ internal static partial class BuiltinClasses
         {
             var token = JToken.ReadFrom(reader);
             if (reader.Read())                           // 一个 JSON 文档只该有一个值
-                throw new RuntimeException(Messages.T("runtime.json.trailing_content", reader.LineNumber, reader.LinePosition), ErrorKind.Value);
+                throw new RuntimeException(Messages.T("runtime.json.trailing_content"), ErrorKind.Value);
             return new JsonVal(token);
         }
         catch (JsonReaderException ex)
@@ -81,7 +81,7 @@ internal static partial class BuiltinClasses
             // ⚠️ 它不在 `Fs` 的 catch 白名单里 —— 不自己接住的话会当成"解释器内部错误"
             // 把程序打掉 Ravel 的 try 接不住(见 Ravel.Extensions/MathNative.cs 那段注释)
             throw new RuntimeException(
-                Messages.T("runtime.json.parse_error", ex.LineNumber + 1, ex.LinePosition + 1, ex.Message), ErrorKind.Value);
+                Messages.T("runtime.json.parse_error",ex.LineNumber + 1,ex.LinePosition + 1), ErrorKind.Value);
         }
     }
 
@@ -131,7 +131,7 @@ internal static partial class BuiltinClasses
     {
         var n = ((JArray)((JsonVal)s).Token).Count;
         if (i < 0 || i >= n)
-            throw new RuntimeException(Messages.T("runtime.value.index_out_of_range", what, i, n), ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.shared.index_out_of_range", what, i, n), ErrorKind.Index);
         return i;
     }
 

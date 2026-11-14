@@ -43,7 +43,7 @@ public partial class Parser
         {
             var op = Previous();
             if (left is not (IdentifierExpr or MemberAccess))
-                throw ParseError(Messages.T("parse.compile.bad_coalesce_target"));
+                throw ParseError(Messages.T("parse.parser.need_lvalue"));
             BumpExprDepth();
             var right = ParseAssignment(policy);
             return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
@@ -181,7 +181,7 @@ public partial class Parser
             Operators.TryWord(t.Lexeme, out var infoOfWord);
             // 后面没操作数就是写错了
             if (!StartsPrimaryAt(1) && !IsOperatorToken(TypeAt(1)))
-                throw ParseError(Messages.T("parse.parser.infix_missing_operand", t.Lexeme, t.Lexeme, t.Lexeme));
+                throw ParseError(Messages.T("parse.parser.infix_missing_operand",t.Lexeme));
             (lbp, rbp) = (infoOfWord.Lbp, infoOfWord.Rbp);
             return true;
         }
@@ -267,6 +267,6 @@ public partial class Parser
     private void BumpExprDepth()
     {
         if (++_exprDepth > MaxExprDepth)
-            throw ParseError(Messages.T("parse.parser.operator_chain_too_deep", MaxExprDepth));
+            throw ParseError(Messages.T("parse.parser.expression_nesting_too_deep"));
     }
 }

@@ -266,8 +266,7 @@ public partial class Parser
         Expression index;
         if (opener.Type == TokenType.LeftParen)
         {
-            index = TryParseRange(false)
-                ?? throw ParseError(Messages.T("parse.parser.index_requires_range"));
+            index = TryParseRange(false) ?? ParseIndexExpression();
         }
         else
         {

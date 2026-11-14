@@ -16,7 +16,8 @@ internal static class GoldenTestRunner
 
     private static LoopbackServer? _server;
 
-    public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false, bool moreControlFlow = false)
+    public static bool RunAll(bool warn = false, string[]? pick = null, bool fast = false, bool moreControlFlow = false,
+                              bool update = false)
     {
         var testDir = FindTestDir();
         if (testDir == null)
@@ -57,7 +58,7 @@ internal static class GoldenTestRunner
             return false;
         }
 
-        int passed = 0, failed = 0, todo = 0, skipped = 0;
+        int passed = 0, failed = 0, todo = 0, skipped = 0, updated = 0;
         foreach (var file in chosen)
         {
             var test = Parse(File.ReadAllText(file));
@@ -84,6 +85,16 @@ internal static class GoldenTestRunner
                 continue;
             }
 
+            // `--update`:把这一条的期望区按实跑输出重写。只有"对不上"的才动,
+            // 已经对上的文件一个字节也不碰;重写之后这条算更新,不算失败。
+            if (update && !test.IsTodo)
+            {
+                UpdateExpectations(file, output);
+                Console.WriteLine("UPDATED");
+                updated++;
+                continue;
+            }
+
             if (test.IsTodo)
             {
                 Console.WriteLine("TODO");
@@ -102,9 +113,26 @@ internal static class GoldenTestRunner
         _server = null;
 
         // 跳过的要说一声 —— `--fast` 下的"全绿"不等于全量绿
-        var tail = skipped > 0 ? $"(跳过 {skipped} 条 # slow)" : "";
+        var tail = (skipped > 0 ? $"(跳过 {skipped} 条 # slow)" : "")
+                   + (updated > 0 ? $"(更新 {updated} 条期望)" : "");
         Console.WriteLine($"\n  {passed} passed, {failed} failed, {todo} todo {tail}");
         return failed == 0;
+    }
+
+    // 只重写期望区:分隔行之前的源码一个字节不动。期望区里非空行一律加 `# ` 前缀
+    // (那条文件还得能直接跑),空行留空 —— 和 `Parse` 的读法对齐。
+    private static void UpdateExpectations(string file, string output)
+    {
+        var lines = File.ReadAllText(file).Replace("\r\n", "\n").Split('\n').ToList();
+        var sep = lines.FindIndex(l => l.TrimStart() == ExpectedSeparator);
+        if (sep < 0) return;
+
+        var kept = lines.Take(sep + 1).ToList();
+        var body = output.TrimEnd('\n');
+        if (body.Length > 0)
+            kept.AddRange(body.Split('\n').Select(l => l.Length == 0 ? "" : "# " + l));
+        kept.Add("");
+        File.WriteAllText(file, string.Join("\n", kept));
     }
 
     private static bool Matches(string file, string testDir, string[]? pick)

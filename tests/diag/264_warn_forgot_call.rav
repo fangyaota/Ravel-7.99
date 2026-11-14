@@ -83,21 +83,21 @@ partials := (arg: int) => {
 print (typeof (partials 1))
 # --- expected ---
 # before
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function>
+# 警告: 函数 <function> 未被调用
 #   --> tests/diag/264_warn_forgot_call.rav:32:5
 #   32 |     true { print "这一段静默不跑"; }
 #      |     ^
 # after
 # g
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function () => { print "before"; true ({ print "这一段静默不跑"; }); print "after"; 0;…
+# 警告: 函数 <function () => { print "before"; true ({ print "这一段静默不跑"; }); print "after"; 0;… 未被调用
 #   --> tests/diag/264_warn_forgot_call.rav:41:5
 #   41 |     f
 #      |     ^
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function>
+# 警告: 函数 <function> 未被调用
 #   --> tests/diag/264_warn_forgot_call.rav:50:9
 #   50 |         true { print "循环里也不跑"; }
 #      |         ^
-# 警告: 这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 <function Point (y: int) => { this; } applied x=1>
+# 警告: 函数 <function Point (y: int) => { this; } applied x=1> 未被调用
 #   --> tests/diag/264_warn_forgot_call.rav:59:1
 #   59 | Point 1
 #      | ^

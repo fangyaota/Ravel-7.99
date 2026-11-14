@@ -30,7 +30,7 @@ internal static class SysKit
     public static string EnvName(RuntimeValue v, string what)
     {
         var name = Interpreter.As<StringVal>(v, $"{what} 的名字").Value;
-        if (name.Length == 0) throw new RuntimeException(Messages.T("runtime.io.env_name_empty", what), ErrorKind.Value);
+        if (name.Length == 0) throw new RuntimeException(Messages.T("runtime.io.env_name_empty"), ErrorKind.Value);
         return name;
     }
 
@@ -55,7 +55,7 @@ internal static class SysKit
         catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
         {
             throw new RuntimeException(
-                Messages.T("runtime.io.native_exception", what, ex.GetType().Name, ex.Message), ErrorKind.Value);
+                Messages.T("runtime.io.native_exception",what,ex.GetType().Name), ErrorKind.Value);
         }
     }
 
@@ -80,7 +80,7 @@ internal static class SysKit
         catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
         {
             throw new RuntimeException(
-                Messages.T("runtime.io.native_exception", what, ex.GetType().Name, ex.Message), ErrorKind.Value);
+                Messages.T("runtime.io.native_exception",what,ex.GetType().Name), ErrorKind.Value);
         }
     }
 
@@ -99,13 +99,13 @@ internal static class SysKit
     public static byte[] BytesOf(RuntimeValue v, string what)
     {
         if (v is not ListVal l)
-            throw new RuntimeException(Messages.T("runtime.io.not_byte_list", what, v.Type), ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.io.not_byte_list",what), ErrorKind.Type);
 
         var bytes = new byte[l.Elements.Count];
         for (var i = 0; i < bytes.Length; i++)
         {
             if (l.Elements[i] is not IntVal n || n.Value is < 0 or > 255)
-                throw new RuntimeException(Messages.T("runtime.io.byte_out_of_range", what, i, l.Elements[i]), ErrorKind.Value);
+                throw new RuntimeException(Messages.T("runtime.io.byte_out_of_range",what,i), ErrorKind.Value);
             bytes[i] = (byte)n.Value;
         }
 

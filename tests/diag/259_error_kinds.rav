@@ -54,25 +54,25 @@ print (probe () => { throw (TypeError "手工抛的"); })     # 手工抛的也�
 # --- expected ---
 # TypeError / 运算符 '+' 不支持 String 操作数
 # NameError / 未定义的变量 'nope'
-# AttributeError / 类型 'Integer' 没有方法 '没有这个方法'
-# IndexError / list.At 的索引 9 越界 (列表长度 2)
-# KeyError / 键不存在: b
+# AttributeError / 类型 'Integer' 未包含方法 '没有这个方法'
+# IndexError / list.At：索引 9 超出范围，长度为 2
+# KeyError / 给定的键不在字典中：b
 # ZeroDivisionError / 运算符 '/' 的除数为零
 # AssertionError / 断言没通过
-# ArgumentError / prepend 需要一个函数参数
-# ValueError / 无法将字符串 'abc' 转换为 int（超出 int 范围或不是数字）
-# IoError / 读文件: 找不到文件 —— 没有这个/文件.txt
+# ArgumentError / prepend 要求函数实参，得到 Integer
+# ValueError / 字符串 'abc' 无法转换为 int
+# IoError / 未找到文件：没有这个/文件.txt
 # RegexError / 正则式写错了 —— Invalid pattern '(' at offset 1. Not enough )'s.
 # AccessError / 无法给只读变量 'r' 赋值
 # ValueError / char: 字符串得正好一个字符，得到 2 个
-# ValueError / s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）
+# ValueError / 分隔符不允许为空
 # TypeError / Key: Object 没有默认的键（只有按值比的那些有：数 / 串 / 字符 / 布尔 / `()`）。要拿它当键，就在类里写一条 Key，交回一个值类型的键
 # ZeroDivisionError / 分数的分母不能为零
-# IndexError / s.At: 索引 9 超出范围（长度 3）
+# IndexError / s.At：索引 9 超出范围，长度为 3
 # KeyError / Json.Get: 没有这个键 'k'（对象里有 0 个键）
 # 类型错: 运算符 '+' 不支持 String 操作数
 # 别的: 未定义的变量 'nope'
-# IndexError / First: 元素不够（一共 0 个）
+# IndexError / First：序列为空
 # ValueError / Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）
 # TypeError / 运算符 '+' 不支持 String 操作数
 # true

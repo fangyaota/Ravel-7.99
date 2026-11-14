@@ -68,6 +68,6 @@ try { Encoding.UrlDecode "%2"; } (e: Exception) => { print ("3: " + string e); }
 # 6
 # 2
 # &lt;a&amp;b&gt; &quot;x&quot; &#39;y&#39;
-# 1: s.IndexOf: 找不到 !
+# 1: IndexOf 未找到 !
 # 2: Encoding.Unhex: 不是合法的十六进制（'abc'）
 # 3: Encoding.UrlDecode: '%' 后面要跟两位十六进制（'%2'）

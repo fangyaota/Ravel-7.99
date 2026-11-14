@@ -24,5 +24,5 @@ try { eval "# 语法错误也走 ErrorReport:位置 + 源码行 + 插入符(没�
 # 157_builtin_arg_type: 函数名需要 string，得到 Integer
 # 158_divide_by_zero: 运算符 '/' 的除数为零
 # 162_compare_type_error: 运算符 '<' 不支持 String 操作数
-# 171_nesting_depth: 表达式嵌套太深（超过 200 层）
-# 174_syntax_error_report: 未预期的字符 '`'
+# 171_nesting_depth: 表达式嵌套深度超出上限
+# 174_syntax_error_report: 意外的字符 '`'

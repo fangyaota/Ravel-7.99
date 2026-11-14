@@ -195,6 +195,10 @@ internal sealed class TestSettings : CliSettings
     [CommandOption("-f|--fast")]
     [Description("跳过带 # slow 的用例")]
     public bool Fast { get; init; }
+
+    [CommandOption("-u|--update")]
+    [Description("把对不上的期望区按实跑输出重写(改文案时用)")]
+    public bool Update { get; init; }
 }
 
 internal sealed class StripSettings : CliSettings
@@ -215,7 +219,7 @@ internal sealed class RunCommand : Command<RunSettings>
 internal sealed class TestCommand : Command<TestSettings>
 {
     public override int Execute(CommandContext context, TestSettings settings, CancellationToken cancellation)
-        => GoldenTestRunner.RunAll(settings.Warn, settings.Picks, settings.Fast, settings.MoreControlFlow) ? 0 : 1;
+        => GoldenTestRunner.RunAll(settings.Warn, settings.Picks, settings.Fast, settings.MoreControlFlow, settings.Update) ? 0 : 1;
 }
 
 internal sealed class StripCommand : Command<StripSettings>

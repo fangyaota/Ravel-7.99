@@ -264,11 +264,11 @@ ravel ""
 # [b c]
 # 1: Where 的函数要交回 bool，得到 Integer
 # 2: Find: 没有满足条件的元素
-# 3: Any 需要一个函数参数，得到 Integer
-# 4: First: 元素不够（一共 0 个）
-# 5: Min: 空集合没有Min
-# 6: 比不了 String 与 Integer
-# 7: 比不了 Integer 与 String
+# 3: Any 要求函数实参
+# 4: First：序列为空
+# 5: Min：空序列无法取 Min
+# 6: 无法比较 String 与 Integer
+# 7: 无法比较 Integer 与 String
 # 8: Concat 需要一个容器（list / set / dict / 栈 队列 堆…），得到 Integer
 # []
 # 7

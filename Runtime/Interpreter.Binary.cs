@@ -131,7 +131,7 @@ public partial class Interpreter
         // 元素是"区间里的整数",所以端点带小数照样能枚举(见 RangeVal)
         if (!BuiltinClasses.TryAsDouble(lo, out _) || !BuiltinClasses.TryAsDouble(hi, out _))
             throw new RuntimeException(
-                Messages.T("runtime.eval.range_endpoint_not_numeric", lo.Type, hi.Type), ErrorKind.Type);
+                Messages.T("runtime.range.endpoint_needs_number", !BuiltinClasses.TryAsDouble(lo, out _) ? lo : hi), ErrorKind.Type);
 
         Return(nf, new RangeVal(lo, hi, rng.StartClosed, rng.EndClosed));
     }
@@ -146,7 +146,7 @@ public partial class Interpreter
         // `=` 左边不是变量也不是字段(字面量、调用结果…) —— 赋值没地方落。
         // 从前这里是 `Return(nf, right)`:交出右值、什么都不写,静默得最彻底的一个。
         if (bin.Op == "=")
-            throw new RuntimeException(Messages.T("runtime.eval.assignment_target_invalid"));
+            throw new RuntimeException(Messages.T("runtime.eval.assignment_target_invalid", left.Type));
 
         if (bin.Op is "+=" or "-=" or "*=" or "**=" or "/=" or "%=")
         {
@@ -183,7 +183,7 @@ public partial class Interpreter
     private void StepCompoundAssignVar(NodeFrame nf, BinaryExpr bin, RuntimeValue left, RuntimeValue right)
     {
         if (bin.Left is not IdentifierExpr target)
-            throw new RuntimeException(Messages.T("runtime.eval.compound_assignment_target_invalid"));
+            throw new RuntimeException(Messages.T("runtime.eval.compound_assignment_target_invalid", left.Type));
         var (fn, builtin) = BindOperator(left, BaseOp(bin.Op));
         if (fn is not BuiltinMethodVal bm)
         {
@@ -275,7 +275,7 @@ public partial class Interpreter
         if (field.HasAttr(Attr.Core) && !IsUnsafe)
             throw new RuntimeException(Messages.T("runtime.member.core_field_requires_unsafe", member), ErrorKind.Access);
         if (field.HasAttr(Attr.Internal))
-            throw new RuntimeException(Messages.T("runtime.member.internal_field_not_writable", member, member), ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.member.internal_field_not_writable", member), ErrorKind.Access);
         if (!CheckFieldAccess(field, obj))
             throw new RuntimeException(Messages.T("runtime.member.field_not_accessible", member, (field.HasAttr(Attr.Private) ? "私有的" : "受保护的")), ErrorKind.Access);
     }
@@ -301,7 +301,7 @@ public partial class Interpreter
             // 判据是"有没有**自己**的成员表",不是"是不是 ObjectVal":
             // 原子值借的是类那层的表,往里写等于改掉整个类型,所以按只读挡回去。
             if (!obj.HasOwnMembers)
-                throw new RuntimeException(Messages.T("runtime.member.value_type_has_no_members", obj.Type), ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.member.value_type_has_no_members", obj.Type, ma.Member), ErrorKind.Type);
             var ov = (ObjectVal)obj;
             // `:=` 是定义:字段不存在也放行(到 count==2 时新建)。已存在的字段照样受 core/访问控制约束,
             // 否则 `:=` 就成了绕过封装的万能钥匙。

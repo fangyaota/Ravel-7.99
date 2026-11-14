@@ -1,4 +1,4 @@
-﻿# 内置 `Json` 类(Newtonsoft.Json):**先看再转**。
+# 内置 `Json` 类(Newtonsoft.Json):**先看再转**。
 #
 #   `Json v`            原生值(dict / list / 值类型 / ())→ Json
 #   `Json.FromString s` 字符串 → Json(唯一的解析入口)
@@ -154,10 +154,10 @@ print "end"
 # "2020-01-01"
 # String
 # {"k":true}
-# 1: Json.FromString: 第 2 行第 5 列读不动 —— Invalid JavaScript property identifier character: }. Path '', line 1, position 4.
-# 2: Json.FromString: 第 2 行第 3 列读不动 —— Additional text encountered after finished reading JSON content: 2. Path '', line 1, position 2.
+# 1: Json 第 2 行第 5 列无法解析
+# 2: Json 第 2 行第 3 列无法解析
 # 3: Json.Get: 没有这个键 'zz'（对象里有 1 个键）
-# 4: Json.At: 索引 5 超出范围（长度 1）
+# 4: Json.At 索引 5 超出范围
 # 5: Json: Own 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # 6: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
 # {"a":1,"b":[1,2,3],"c":"新加的"}
@@ -169,12 +169,12 @@ print "end"
 # 8: Json.Add: 这是 Object，不是数组
 # 9: Json.SetAt: 这是 Object，不是数组
 # 10: Json.Remove: 这是 Array，不是对象
-# 11: Json.SetAt: 索引 9 超出范围（长度 3）
+# 11: Json.SetAt：索引 9 超出范围，长度为 3
 # 12: Json: Fraction 在 JSON 里没有对应（先自己转成 dict / list / 数 / 字符串 / 布尔 / ()）
-# 7: 类型 'Type' 没有方法 'Kind'
+# 7: 类型 'Type' 未包含方法 'Kind'
 # number
 # 99
-# 8: 类型 'Json' 没有方法 'tag'
+# 8: 类型 'Json' 未包含方法 'tag'
 # {"a":[1,2.5,null],"b":{"c":true},"s":"你好"}
 # [1 2.5 ()]
 # true
