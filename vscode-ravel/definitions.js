@@ -332,6 +332,22 @@ function interfaceMembers(docs, currentKey, word) {
     return [];
 }
 
+/**
+ * 成员在源码里查不到时交回去的那一格。
+ *
+ * 引擎/插件里的成员(`Length`、`Dispose`、`Map` 这些)在 `.rav` 里**没有那一行** ——
+ * 它们挂在 C# 的成员表上。以前这里交回空数组,编辑器就"什么都不显示",看着像坏了;
+ * 现在交回一个记着 `<builtin>` 的格子,扩展把它翻成一份虚拟文档或一段悬停。
+ *
+ * 只对**成员**这么做(`p.x` / `self.x`)。裸名字查不到就是查不到 —— 那多半是拼错
+ * 了,标成"内置"反而误导。
+ */
+const BUILTIN_KEY = '<builtin>';
+
+function builtinHit(ref) {
+    return { key: BUILTIN_KEY, line: 0, character: 0, builtin: true, name: ref && ref.word ? ref.word : '' };
+}
+
 /** 某个偏移附近、名叫 `name` 的定义(成员查找用) */
 function positionsNamed(source, name) {
     return indexPositions(source).filter((h) => h.name === name);
@@ -433,10 +449,15 @@ function findDefinitions(ref, docs, currentKey, preferLine, limit = 8) {
         // 成员:`p.x` / `self.x`
         if (here) {
             const block = classOfQualifier(here.source, ref.qualifier, preferLine);
+            // `self` / `this` 在类体外没有意义 —— 那时不是"内置成员",是写错了
+            if (!block) return SELF_NAMES.has(ref.qualifier) ? [] : [builtinHit(ref)];
             if (block) {
                 const inside = positionsNamed(here.source, ref.word)
                     .filter((h) => h.index > block.start && h.index < block.end);
-                if (inside.length === 0) return interfaceMembers(docs, currentKey, ref.word);
+                if (inside.length === 0) {
+                    const fromIface = interfaceMembers(docs, currentKey, ref.word);
+                    return fromIface.length > 0 ? fromIface : [builtinHit(ref)];
+                }
                 if (inside.length > 0) {
                     const toLine = lineIndexer(here.source);
                     const hits = order(inside.map((h) => {
@@ -477,6 +498,7 @@ function lineOf(source, line) {
 }
 
 module.exports = {
+    BUILTIN_KEY,
     indexDefinitions,
     definitionsNamed,
     moduleNameOf,

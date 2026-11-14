@@ -294,10 +294,9 @@ const definitionProvider = {
         const ref = wordAt(document.getText(), document.offsetAt(position));
         const hits = ref ? findDefinitions(ref, docs, document.uri.toString(), position.line) : [];
         const list = hits.length > 0 ? hits : [hit];
-        return list.map((h) => new vscode.Location(
-            vscode.Uri.parse(h.key),
-            new vscode.Position(h.line, h.character),
-        ));
+        return list.map((h) => (h.builtin
+            ? new vscode.Location(builtinUri(h.name || (ref && ref.word) || 'member'), new vscode.Position(0, 0))
+            : new vscode.Location(vscode.Uri.parse(h.key), new vscode.Position(h.line, h.character))));
     },
 };
 
@@ -312,6 +311,14 @@ const hoverProvider = {
         const found = await locate(document, position);
         if (!found) return undefined;
         const { hit, docs } = found;
+        if (hit.builtin) {
+            const ref = wordAt(document.getText(), document.offsetAt(position));
+            const name = hit.name || (ref && ref.word) || '';
+            const md = new vscode.MarkdownString();
+            md.appendCodeblock('<builtin> ' + name, 'ravel');
+            md.appendMarkdown('\n\n引擎内置成员 —— 源码里没有定义行,跳过去看到的是一份说明。');
+            return new vscode.Hover(md);
+        }
         const doc = docs.find((d) => d.key === hit.key);
         if (!doc) return undefined;
         const md = new vscode.MarkdownString();
@@ -326,6 +333,29 @@ const hoverProvider = {
 
         md.appendMarkdown('\n\n' + shortKey(hit.key) + ':' + (hit.line + 1));
         return new vscode.Hover(md);
+    },
+};
+
+/**
+ * `<builtin>` 那格的 URI:一份**虚拟文档**(scheme 是 `ravel-builtin`),点开只有两行说明。
+ *
+ * 为什么不用"跳不了就什么都不给":什么都没发生时,用的人分不清"这个成员不存在"和
+ * "插件没认出它"。给一份写得明明白白的虚拟文档,至少不用去猜。
+ */
+function builtinUri(name) {
+    return vscode.Uri.parse('ravel-builtin:/').with({ query: String(name || '') });
+}
+
+const builtinContentProvider = {
+    provideTextDocumentContent(uri) {
+        const name = decodeURIComponent(uri.query || '') || 'member';
+        return [
+            '<builtin> ' + name,
+            '',
+            '这是一个引擎内置成员 —— 它挂在 C# 的成员表上,`.rav` 源码里没有定义行。',
+            '想知道它认哪些实参,看 docs/tutorial/ 下对应的一节;或者直接在 REPL 里试。',
+            '',
+        ].join(String.fromCharCode(10));
     },
 };
 
@@ -494,7 +524,8 @@ function activate(context) {
         vscode.commands.registerCommand('ravel.showDesugared', showDesugared),
         vscode.languages.registerFoldingRangeProvider({ language: 'ravel' }, foldingProvider),
         vscode.languages.registerDefinitionProvider({ language: 'ravel' }, definitionProvider),
-        vscode.languages.registerHoverProvider({ language: 'ravel' }, hoverProvider),
+        vscode.workspace.registerTextDocumentContentProvider('ravel-builtin', builtinContentProvider),
+    vscode.languages.registerHoverProvider({ language: 'ravel' }, hoverProvider),
         vscode.languages.registerCompletionItemProvider({ language: 'ravel' }, completionProvider, '.', '"'),
         vscode.languages.registerSignatureHelpProvider({ language: 'ravel' }, signatureProvider, '('),
         vscode.languages.registerDocumentSymbolProvider({ language: 'ravel' }, symbolProvider),

@@ -230,11 +230,17 @@ check('self.len:方法也认',
     findDefinition({ word: 'len', qualifier: 'self' }, clsDocs, 'cur.rav', 8),
     { key: 'cur.rav', line: 3, character: 4 });
 
-check('认不出类名就不猜',
-    findDefinition({ word: 'x', qualifier: 'nope' }, clsDocs, 'cur.rav', 13), null);
+check('认不出类名:交回 <builtin>',
+    findDefinition({ word: 'x', qualifier: 'nope' }, clsDocs, 'cur.rav', 13),
+    { key: '<builtin>', line: 0, character: 0, builtin: true, name: 'x' });
 
-check('类里没有这个成员就是没有',
-    findDefinition({ word: 'zz', qualifier: 'p' }, clsDocs, 'cur.rav', 13), null);
+check('类里没有这个成员:也交回 <builtin>',
+    findDefinition({ word: 'zz', qualifier: 'p' }, clsDocs, 'cur.rav', 13),
+    { key: '<builtin>', line: 0, character: 0, builtin: true, name: 'zz' });
+
+check('内置成员(Length 这种)标成 <builtin>',
+    findDefinitions({ word: 'Length', qualifier: 'p' }, clsDocs, 'cur.rav', 13),
+    [{ key: '<builtin>', line: 0, character: 0, builtin: true, name: 'Length' }]);
 
 check('self 在类体外什么也不给',
     findDefinition({ word: 'x', qualifier: 'self' }, clsDocs, 'cur.rav', 14), null);
