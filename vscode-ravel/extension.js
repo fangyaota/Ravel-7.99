@@ -316,7 +316,8 @@ const hoverProvider = {
             const name = hit.name || (ref && ref.word) || '';
             const md = new vscode.MarkdownString();
             md.appendCodeblock('<builtin> ' + name, 'ravel');
-            md.appendMarkdown('\n\n引擎内置成员 —— 源码里没有定义行,跳过去看到的是一份说明。');
+            md.appendMarkdown('\n\n**Summary** — Member provided by the Ravel runtime.');
+            md.appendMarkdown('\n\n**Remarks** — No definition exists in Ravel source; the signature comes from the engine member table (C# side).');
             return new vscode.Hover(md);
         }
         const doc = docs.find((d) => d.key === hit.key);
@@ -352,8 +353,13 @@ const builtinContentProvider = {
         return [
             '<builtin> ' + name,
             '',
-            '这是一个引擎内置成员 —— 它挂在 C# 的成员表上,`.rav` 源码里没有定义行。',
-            '想知道它认哪些实参,看 docs/tutorial/ 下对应的一节;或者直接在 REPL 里试。',
+            'Summary',
+            '    Member provided by the Ravel runtime.',
+            '',
+            'Remarks',
+            '    No definition exists in Ravel source.',
+            '    The signature comes from the engine member table (C# side).',
+            '    See docs/tutorial for the corresponding section.',
             '',
         ].join(String.fromCharCode(10));
     },
