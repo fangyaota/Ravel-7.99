@@ -23,10 +23,12 @@ readonly Option ::= class {
     IsSome := () => { Has; }
     IsNone := () => { !Has; }
 
-    Value := () => {
+    by Value := property () => {
         Has { Inner; } { throw (ValueError "Option.Value: 这个 Option 里没有值（用 IsSome 先问，或改用 ValueOr）"); }
+    } (v) => {
+        throw (ValueError "Option.Value是只读的");
     }
-
+    
     ValueOr := (d: object) => { Has { Inner; } { d; } }
 
     OrElse := (other: Option) => { Has { this; } { other; } }
