@@ -34,7 +34,7 @@ internal static partial class BuiltinClasses
         }
         catch (InvalidOperationException)
         {
-            throw new RuntimeException("排序时比不了:元素之间类型不一致", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.class.sort_incomparable_types"), ErrorKind.Type);
         }
     }
 
@@ -55,6 +55,6 @@ internal static partial class BuiltinClasses
                 // 落到下面统一报"比不了 X 与 Y"(运算符自己的那句话只说了一半)
             }
 
-        throw new RuntimeException($"比不了 {a.Type} 与 {b.Type}", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.operator.incomparable_types", a.Type, b.Type), ErrorKind.Type);
     }
 }

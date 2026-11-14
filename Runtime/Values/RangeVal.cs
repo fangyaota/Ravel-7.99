@@ -13,7 +13,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     public (BigInteger First, bool Up) Head()
     {
         if (IsWhole())
-            throw new RuntimeException($"全区间没有第一站（{this} —— 谁都在里头，但没有起手那一头）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.range.whole_has_no_first", this), ErrorKind.Value);
         if (!Ascending(out var up)) return (1, true);              // NaN:空
         // 定得下来的那一头才是第一站:`[Inf..1]` 从 1 起(往上),`[-Inf..1]` 也从 1 起(往下)
         return Infinite(Start, out _)
@@ -56,7 +56,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
 
     public RuntimeValue LastElement()
     {
-        if (!IsBounded()) throw new RuntimeException($"无限长的区间没有最后一个（{this}）", ErrorKind.Value);
+        if (!IsBounded()) throw new RuntimeException(Messages.T("runtime.range.unbounded_has_no_last", this), ErrorKind.Value);
         return Element(Walk().Last);
     }
 
@@ -142,7 +142,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
     private static BigInteger Bound(RuntimeValue v, bool closed, bool goingUp)
     {
         if (!Whole(v, closed, goingUp, out var b))
-            throw new RuntimeException($"区间的端点不能是 {v} —— 它给不出界", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.range.endpoint_not_boundable", v), ErrorKind.Value);
         return b;
     }
 
@@ -164,7 +164,7 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 }
 
                 if (double.IsInfinity(f.Value))
-                    throw new RuntimeException($"区间的端点不能是 {f.Value} —— 无穷长的区间给不出界", ErrorKind.Value);
+                    throw new RuntimeException(Messages.T("runtime.range.infinite_endpoint_not_boundable", f.Value), ErrorKind.Value);
 
                 bound = new BigInteger(goingUp ? Math.Ceiling(f.Value) : Math.Floor(f.Value));
                 return true;
@@ -175,13 +175,13 @@ public record RangeVal(RuntimeValue Start, RuntimeValue End, bool StartClosed, b
                 bound = Div(bf.Num, bf.Den, goingUp);
                 return true;
             default:
-                throw new RuntimeException($"区间的端点需要数值，得到 {v.Type}", ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.range.endpoint_needs_number", v.Type), ErrorKind.Type);
         }
     }
 
     private static BigInteger Div(BigInteger num, BigInteger den, bool goingUp)
     {
-        if (den.IsZero) throw new RuntimeException("区间的端点是分数，分母不能为零", ErrorKind.ZeroDivision);
+        if (den.IsZero) throw new RuntimeException(Messages.T("runtime.range.fraction_zero_denominator"), ErrorKind.ZeroDivision);
 
         var q = BigInteger.DivRem(num, den, out var r);
         if (r.IsZero) return q;                             // 本来就整

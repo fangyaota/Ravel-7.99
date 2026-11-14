@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 using Ravel.Runtime.Values;
 
@@ -12,7 +12,7 @@ internal sealed class DictMembers : SequenceMembers
     {
         var d = (DictVal)self;
         if (d.Entries.TryGetValue(arg, out var v)) return v;
-        throw new RuntimeException($"键不存在: {arg}", ErrorKind.Key);
+        throw new RuntimeException(Messages.T("runtime.dict.key_not_found", arg), ErrorKind.Key);
     }
 
     [ClassMethod("Set")]
@@ -51,7 +51,7 @@ internal sealed class DictMembers : SequenceMembers
     private static RuntimeValue ContainsPair(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not PairVal pair)
-            throw new RuntimeException($"dict.Contains 要一个 Pair（键 -> 值），得到 {arg.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.dict.not_a_pair", arg.Type), ErrorKind.Argument);
         var d = (DictVal)self;
         return new BoolVal(d.Entries.TryGetValue(pair.Key, out var v)
                            && BuiltinClasses.StrictSame(v, pair.Value));
@@ -87,7 +87,7 @@ internal sealed class DictMembers : SequenceMembers
     private static RuntimeValue MergeOp(RuntimeValue a, RuntimeValue b)
     {
         if (b is not DictVal other)
-            throw new RuntimeException($"dict 的 '+' 右边得是 dict（合并两张表），得到 {b.Type}", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.dict.merge_needs_dict", b.Type), ErrorKind.Type);
 
         var result = new DictVal(((DictVal)a).Entries);
         foreach (var (k, v) in other.Entries) result.Entries[k] = v;

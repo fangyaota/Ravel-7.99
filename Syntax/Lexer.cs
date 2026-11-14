@@ -182,16 +182,16 @@ public class Lexer(string source, string? file = null)
             // `$` 落到这儿 = 写到**字符串外面**来了。它的地盘只剩插值那一处,
             // 所以直说清楚,顺带把"想封右边该写什么"一并告诉他 —— 比"未预期的字符"有用。
             if (c == '$')
-                throw new SyntaxException("'$' 只用在字符串里的插值 `${…}`（要把右边封成一个实参,用 '<|'）",
+                throw new SyntaxException(Messages.T("parse.lexer.dollar_only_in_string"),
                     new SourceSpot(file, _line, _col));
 
             // 单个 `?` 落到这儿说明后面没跟 `.` / `?`。这套语言没有三目,
             // 直说它只在三条里出现,比"未预期的字符"有用。
             if (c == '?')
-                throw new SyntaxException("'?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）",
+                throw new SyntaxException(Messages.T("parse.lexer.question_only_in_chain"),
                     new SourceSpot(file, _line, _col));
 
-            throw new SyntaxException($"未预期的字符 '{c}'", new SourceSpot(file, _line, _col));
+            throw new SyntaxException(Messages.T("parse.lexer.unexpected_char", c), new SourceSpot(file, _line, _col));
         }
 
         // **行首是二元运算符 → 那个换行不算数**(上一句自己接下去)。
@@ -472,7 +472,7 @@ public class Lexer(string source, string? file = null)
         // 从前是静默接受:`print "abc` 会把换行和后面的代码一起吞进去、打印出 abc,
         // 少打一个引号的人看不出自己错了。
         if (_pos >= source.Length)
-            throw new SyntaxException("字符串没有收尾的 '\"'", new SourceSpot(file, line, col));
+            throw new SyntaxException(Messages.T("parse.lexer.unterminated_string"), new SourceSpot(file, line, col));
 
         Advance(); // skip closing "
         FlushLiteral();                                  // 收尾那段字面量(没有插值时不做事)
@@ -521,7 +521,7 @@ public class Lexer(string source, string? file = null)
 
         // 走到源码末尾还没见着收尾 —— 和普通字符串那条"没有收尾的 \""一个口径:报错,别硬吞
         if (close < 0)
-            throw new SyntaxException("原始字符串没有收尾的 '\"\"\"'", new SourceSpot(file, line, col));
+            throw new SyntaxException(Messages.T("parse.lexer.unterminated_raw_string"), new SourceSpot(file, line, col));
 
         // ③ 收尾引号**那一行**、它前面的那段空白 = 缩进量。
         //    前面还有别的东西(单行写法)就不算独占一行,也就是没有缩进可剥。
@@ -566,7 +566,7 @@ public class Lexer(string source, string? file = null)
             {
                 if (rows[i].StartsWith(indent)) rows[i] = rows[i][indent.Length..];
                 else if (rows[i].Trim().Length != 0)
-                    throw new SyntaxException("原始字符串里这一行的缩进比收尾的 '\"\"\"' 浅",
+                    throw new SyntaxException(Messages.T("parse.lexer.raw_string_indent_too_shallow"),
                         new SourceSpot(file, line, col));
             }
         }
@@ -621,7 +621,7 @@ public class Lexer(string source, string? file = null)
             _pos++;
         }
 
-        throw new SyntaxException("插值没有收尾的 '}'", new SourceSpot(file, strLine, strCol));
+        throw new SyntaxException(Messages.T("parse.lexer.unterminated_interpolation"), new SourceSpot(file, strLine, strCol));
     }
 
     private Token ReadChar()
@@ -630,9 +630,9 @@ public class Lexer(string source, string? file = null)
         Advance(); // skip '
 
         if (_pos >= source.Length || source[_pos] == '\n')
-            throw new SyntaxException("字符没有收尾的 \"'\"", new SourceSpot(file, line, col));
+            throw new SyntaxException(Messages.T("parse.lexer.unterminated_char"), new SourceSpot(file, line, col));
         if (source[_pos] == '\'')
-            throw new SyntaxException("字符不能是空的（空字符串写 \"\"）", new SourceSpot(file, line, col));
+            throw new SyntaxException(Messages.T("parse.lexer.empty_char"), new SourceSpot(file, line, col));
 
         char value;
         if (source[_pos] == '\\' && _pos + 1 < source.Length)
@@ -641,7 +641,7 @@ public class Lexer(string source, string? file = null)
             _col++;
             var esc = source[_pos];
             if (esc is not ('n' or 't' or 'r' or '\\' or '\'' or '"' or '0'))
-                throw new SyntaxException($"不认识的字符转义 '\\{esc}'（要反斜杠本身请写 '\\\\'）",
+                throw new SyntaxException(Messages.T("parse.lexer.unknown_char_escape", esc),
                     new SourceSpot(file, line, col));
             value = esc switch
             {
@@ -661,7 +661,7 @@ public class Lexer(string source, string? file = null)
 
         Advance();
         if (_pos >= source.Length || source[_pos] != '\'')
-            throw new SyntaxException("字符字面量只能有一个字符（两个以上请用字符串）",
+            throw new SyntaxException(Messages.T("parse.lexer.char_literal_too_long"),
                 new SourceSpot(file, line, col));
         Advance(); // skip closing '
         return new Token(TokenType.Char, value.ToString(), line, col, _pos - start);

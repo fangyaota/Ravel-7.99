@@ -50,7 +50,7 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
                 || BuiltinClasses.TraitSlot(interp, o, op) != null))
             return new BoundTraitOp(o, op);
 
-        throw new RuntimeException($"类型 {Value.Type} 不支持运算符 '{op}'", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.operator.unsupported", Value.Type, op), ErrorKind.Type);
     }
 
     public BoxedValue GetMember(string name)
@@ -103,7 +103,7 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
                 return new BoxedValue(BuiltinClasses.BindPlain(plain), interp);
             }
 
-            throw new RuntimeException($"{Value.KindName} 没有方法 '{name}'", ErrorKind.Attribute);
+            throw new RuntimeException(Messages.T("runtime.member.unknown_method", Value.KindName, name), ErrorKind.Attribute);
         }
 
         // 门禁只对对象做:借来的类成员表里放的是内置方法,没有 core/private 可言
@@ -120,9 +120,9 @@ public readonly struct BoxedValue(RuntimeValue value, Interpreter interp)
 
     internal static void GateRead(Variable v, string name, Interpreter interp)
     {
-        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException($"变量 '{name}' 不可读取", ErrorKind.Access);
+        if (v.HasAttr(Attr.Unreadable)) throw new RuntimeException(Messages.T("runtime.scope.variable_unreadable", name), ErrorKind.Access);
         if (v.HasAttr(Attr.Core) && !interp.IsUnsafe)
-            throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe", ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.member.core_field_requires_unsafe", name), ErrorKind.Access);
         if (v.HasAttr(Attr.Outdated)) Console.Error.WriteLine($"[outdated] '{name}' is deprecated");
     }
 

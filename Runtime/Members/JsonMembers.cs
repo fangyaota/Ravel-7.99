@@ -1,4 +1,4 @@
-﻿namespace Ravel.Runtime;
+namespace Ravel.Runtime;
 
 using System.Linq;
 using Newtonsoft.Json.Linq;
@@ -46,7 +46,7 @@ internal static class JsonMembers
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not RangeVal rng)
-            throw new RuntimeException($"Json.Slice 收一个区间（`j[1..3]`），得到 {arg.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.json.slice_needs_range", arg.Type), ErrorKind.Argument);
 
         var arr = ((JsonVal)self).Token as JArray
             ?? throw new RuntimeException($"Json.Slice: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
@@ -61,14 +61,14 @@ internal static class JsonMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                $"Json.At 收一个下标（切一段用 Json.Slice —— `j[1..3]` 就走它），得到区间 {arg}",
+                Messages.T("runtime.json.at_needs_index", arg),
                 ErrorKind.Argument);
 
         var i = BuiltinClasses.IntArg(arg, "Json.At");
         var arr = ((JsonVal)self).Token as JArray
             ?? throw new RuntimeException($"Json.At: 这是 {((JsonVal)self).Token.Type}，不是数组", ErrorKind.Type);
         if (i < 0 || i >= arr.Count)
-            throw new RuntimeException($"Json.At: 索引 {i} 超出范围（长度 {arr.Count}）", ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.json.at_index_out_of_range", i, arr.Count), ErrorKind.Index);
         return new JsonVal(arr[i]);
     }
 

@@ -222,13 +222,12 @@ public partial class Interpreter
             // 自己或任一祖先密封了都挡。走在**要求表**前面:那是前置条件,这是硬门。
             if (BuiltinClasses.SealedUp(trait))
                 throw new RuntimeException(
-                    $"`{trait.DisplayName}` 被 seal 了 —— 不能再被实现", ErrorKind.Access);
+                    Messages.T("runtime.class.sealed", trait.DisplayName), ErrorKind.Access);
 
             if (trait.Requires is { Count: > 0 } reqs)
                 foreach (var rt in reqs)
                     if (!BuiltinClasses.HasTrait(this, target, rt))
-                        throw new RuntimeException($"`{trait.DisplayName}` 要求 {target.DisplayName} "
-                            + $"已经实现了 {rt.DisplayName}（先给它 impl/use 一条）", ErrorKind.Type);
+                        throw new RuntimeException(Messages.T("runtime.class.impl_required", trait.DisplayName, target.DisplayName, rt.DisplayName), ErrorKind.Type);
 
             // 接口那几层类体已经跑过了(实例化那趟跑的,跑的就是这个对象的 scope)——
             // 这里只追加**实现块**。
@@ -291,7 +290,7 @@ public partial class Interpreter
                 return;
             }
 
-            throw new RuntimeException($"{label} 需要一个函数参数，得到 {arg.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.seq.expected_function_argument", label, arg.Type), ErrorKind.Argument);
         }
 
         var done = cf.Count;                     // 已经调过几次
@@ -499,7 +498,7 @@ public partial class Interpreter
             else if (BuiltinClasses.TraitSlot(this, self, op) is { } hit)
                 prop = BuiltinClasses.Activate(this, hit);
             else
-                throw new RuntimeException($"对象没有运算符 '{op}'", ErrorKind.Attribute);
+                throw new RuntimeException(Messages.T("runtime.class.unknown_operator", op), ErrorKind.Attribute);
 
             CallInto(cf, PropertyGetter(prop, op), VoidVal.Instance);   // 读槽 → 运算符函数
             return;

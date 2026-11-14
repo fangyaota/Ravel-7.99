@@ -158,7 +158,7 @@ public partial class Parser
     private Statement? TryParseBindStatement()
     {
         if (!IsBindStart()) return null;
-        if (_doDepth == 0) throw ParseError("':<' 只能写在 do { … } 里");
+        if (_doDepth == 0) throw ParseError(Messages.T("parse.parser.return_bind_outside_do"));
 
         var name = Consume(TokenType.Identifier, "需要变量名");
         Consume(TokenType.BindArrow, "需要 ':<'");
@@ -201,7 +201,7 @@ public partial class Parser
     {
         if (!Check(TokenType.Identifier) || Peek().Lexeme != "operator") return;
         if (_pos + 1 >= tokens.Count || !IsOperatorToken(tokens[_pos + 1].Type)) return;
-        throw ParseError("运算符定义已改成直接用符号：`+ := f`（定义）或 `+ = f`（覆盖）");
+        throw ParseError(Messages.T("parse.parser.retired_operator_definition"));
     }
 
     private void RejectRetiredInitSyntax()
@@ -210,7 +210,7 @@ public partial class Parser
         if (_pos + 1 >= tokens.Count || tokens[_pos + 1].Type != TokenType.Identifier) return;
         if (_pos + 2 >= tokens.Count) return;
         if (tokens[_pos + 2].Type is not (TokenType.ColonEqual or TokenType.ColonColonEqual)) return;
-        throw ParseError("构造器不再用 init 修饰符，直接写 `init = () => { ... }`");
+        throw ParseError(Messages.T("parse.parser.retired_init_modifier"));
     }
 
     private void RejectRetiredModifier()
@@ -220,9 +220,9 @@ public partial class Parser
         switch (Peek().Lexeme)
         {
             case "override" or "new":
-                throw ParseError($"'{Peek().Lexeme}' 修饰符已删除（它只被记下来，没有任何地方读它）");
+                throw ParseError(Messages.T("parse.parser.retired_modifier", Peek().Lexeme));
             case "forInstance":
-                throw ParseError("'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）");
+                throw ParseError(Messages.T("parse.parser.retired_for_instance_modifier"));
         }
     }
 
@@ -257,12 +257,12 @@ public partial class Parser
 
         // 取槽是表达式，语句开头没地方落脚
         if (attrs.Contains(Attr.By) && Check(TokenType.Identifier) && CheckNext(TokenType.Dot))
-            throw ParseError("语句开头只有换/建槽的写法（`by a.x = …` / `by a.x := …`）；取槽的 `by a.x` 是个表达式，得放在能用值的地方（比如 `p := by a.x`）");
+            throw ParseError(Messages.T("parse.parser.slot_read_not_statement"));
 
         // `readonly x := 1` 或 `readonly := 1`
         if ((Check(TokenType.Identifier) && IsDefinitionOp(NextType())) || IsDefinitionOp(Peek().Type))
             return ParseDefinition(attrs);
-        throw ParseError("修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）");
+        throw ParseError(Messages.T("parse.parser.expected_assign_after_modifier"));
     }
 
     private Statement? TryParseControlFlowStatement()
@@ -280,7 +280,7 @@ public partial class Parser
         if (!Check(TokenType.Identifier) || Peek().Lexeme != "return") return null;
         if (LooksLikeUseOfTheName()) return null;
         if (_returnUsed.Count == 0)
-            throw ParseError("'return' 得写在函数体里 —— 顶层没有可返回的那个函数");
+            throw ParseError(Messages.T("parse.parser.return_outside_function"));
 
         var kw = Peek();
         _pos++;
@@ -327,7 +327,7 @@ public partial class Parser
         _pendingBrkUsed = outerUsed;
         if (!used)
             throw new SyntaxException(
-                $"标签 '{lbl.Lexeme}' 没人用（写 `break {lbl.Lexeme}` 或 `continue {lbl.Lexeme}` 才指得上它）",
+                Messages.T("parse.parser.unused_label", lbl.Lexeme, lbl.Lexeme, lbl.Lexeme),
                 new SourceSpot(source, lbl.Line, lbl.Column));
         return WrapLabelStmt(inner, "__brk_" + lbl.Lexeme, lbl);
     }
@@ -376,7 +376,7 @@ public partial class Parser
     private Statement ParseConstraintDefinition(BinaryExpr constraint, int startTok)
     {
         var nm = FirstIdentName(startTok, _pos)
-            ?? throw ParseError("'=' 左边不是左值 —— 那它得是条**条件**，而条件里要有个名字");
+            ?? throw ParseError(Messages.T("parse.parser.constraint_missing_name"));
         var pat = new NamePattern(nm)
             { Guard = constraint.Left, Line = constraint.Left.Line, Column = constraint.Left.Column };
         return new Destructure([], pat, constraint.Right)
@@ -389,7 +389,7 @@ public partial class Parser
         if (expr is BinaryExpr { Op: "=" or ":=" or "+=" or "-=" or "*=" or "**=" or "/=" or "%=" } bad
             && bad.Left is not (IdentifierExpr or MemberAccess or IndexExpr))
             throw new SyntaxException(
-                $"'{bad.Op}' 的左边得是变量、成员或下标",
+                Messages.T("parse.parser.invalid_assignment_target", bad.Op),
                 new SourceSpot(source, bad.Line, bad.Column));
     }
 
@@ -400,8 +400,7 @@ public partial class Parser
 
         if (target is not (IdentifierExpr or MemberAccess))
             throw new SyntaxException(
-                $"'{op.Lexeme}' 只能跟在变量或字段后面，而且得自己单独成句"
-                + $"（`x{op.Lexeme}` / `a.b{op.Lexeme}`）—— 它是 `x += 1` 的简写，不交回值",
+                Messages.T("parse.parser.invalid_inc_dec_target", op.Lexeme, op.Lexeme, op.Lexeme),
                 new SourceSpot(source, op.Line, op.Column));
 
         var inc = new UnaryExpr(op.Lexeme, target) { Line = target.Line, Column = target.Column };
@@ -494,7 +493,7 @@ public partial class Parser
         }
         else
         {
-            throw ParseError("解构需要 ':=' 或 '='（`[x y] := e` 是定义、`[x y] = e` 是赋值；`[x y] : T = e` 是带注解的定义）");
+            throw ParseError(Messages.T("parse.parser.destructure_expected_assign"));
         }
 
         _holeCount = 0;
@@ -503,7 +502,7 @@ public partial class Parser
         if (HasHoles(value)) value = DesugarHoles(value);
 
         if (assign && attrs.Count > 0)
-            throw new SyntaxException($"解构赋值里不能加修饰符 '{attrs[0]}' —— 修饰符只属于定义（要定义就写 ':='）",
+            throw new SyntaxException(Messages.T("parse.pattern.modifier_in_destructuring", attrs[0]),
                 new SourceSpot(source, at.Line, at.Column));
 
         return new Destructure(attrs, pattern, value) { Line = at.Line, Column = at.Column, Assign = assign };
@@ -572,9 +571,7 @@ public partial class Parser
     private void RejectBareSub(Pattern p)
     {
         if (p is NamePattern { Sub: NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } })
-            throw ParseError("`=` 右边得是**拆法**（`[a ..rest]` / `{x y}` / `{\"k\" -> v}` 那种，"
-                           + "或者一个字面量）—— 光一个名字没有意义；要**改名**那是对象模式的写法"
-                           + "（`{新名 := 成员名}`，带类型就 `{新名 : 类型 = 成员名}`）");
+            throw ParseError(Messages.T("parse.parser.expected_destructure_pattern"));
     }
 
     private Expression ParseDictKey()
@@ -664,20 +661,20 @@ public partial class Parser
             if (LooksLikeDictEntry())
             {
                 if (names.Count > 0)
-                    throw ParseError("对象成员（`{x y}`）和字典项（`{键 -> 模式}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写");
+                    throw ParseError(Messages.T("parse.pattern.object_members_then_dict_entries"));
                 entries.Add(ParseDictEntry(at));
             }
             else
             {
                 if (entries.Count > 0)
-                    throw ParseError("字典项（`{键 -> 模式}`）和对象成员（`{x y}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写");
+                    throw ParseError(Messages.T("parse.pattern.dict_entries_then_object_members"));
                 names.Add(ParseMemberEntry());
             }
             SkipNewlines();
         }
         Consume(TokenType.RightBrace, "模式末尾需要 '}'");
         if (entries.Count > 0) return new DictPattern(entries) { Line = at.Line, Column = at.Column };
-        if (names.Count == 0) throw ParseError("模式里得写点什么（`{x y}` 或 `{键 -> 模式}`）");
+        if (names.Count == 0) throw ParseError(Messages.T("parse.pattern.empty_brace_pattern"));
         return new MemberPattern(names) { Line = at.Line, Column = at.Column };
     }
 
@@ -693,10 +690,9 @@ public partial class Parser
     private NamePattern ParseMemberEntry()
     {
         if (Check(TokenType.Identifier) && Peek().Lexeme == "_")
-            throw ParseError("对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行");
+            throw ParseError(Messages.T("parse.pattern.no_underscore_member"));
         if (ParsePattern() is not NamePattern n)
-            throw ParseError("对象模式里每一项是一个成员名（`{x y}`，能带类型 `{n: int}`），"
-                           + "要么整项写成字典项（`{键 -> 模式}`）");
+            throw ParseError(Messages.T("parse.pattern.expected_member_name"));
 
         if (n.Sub is null) return n;
 
@@ -704,8 +700,7 @@ public partial class Parser
         // 右边取成员不算声明，挂修饰符会静默丢掉
         if (n.Sub is not NamePattern { Sub: null, Member: null, Type: null, Guard: null, When: null } sel
             || sel.Attrs is not null)
-            throw ParseError("对象模式里 `=` 后面写**成员名**（`{新名 = 成员名}`）—— "
-                           + "要拆那一项的值,把整项写成列表/字典那边那种模式");
+            throw ParseError(Messages.T("parse.pattern.rename_target_expected_member_name"));
         return n with { Member = sel.Name, Sub = null };
     }
 
@@ -714,7 +709,7 @@ public partial class Parser
         var n = Consume(TokenType.Identifier, "'..' 后面要跟个名字（`..rest` —— 名字自己起）");
         // '..' 后要真名字，'_' 是占位记号
         if (n.Lexeme == "_")
-            throw ParseError("'..' 后面要一个真名字 —— `_` 是丢弃/占位的记号，当不了名字");
+            throw ParseError(Messages.T("parse.pattern.rest_requires_name"));
         return new RestPattern(n.Lexeme) { Line = at.Line, Column = at.Column };
     }
 
@@ -741,7 +736,7 @@ public partial class Parser
         {
             // '_' 什么也不绑，挂不了东西
             if (Check(TokenType.Colon) || Check(TokenType.PipeInto) || !EndsThisPart())
-                throw ParseError("`_` 不绑东西，挂不了 `: 类型` 也挂不了 `|> 条件` —— 想验那一格就给它一个名字");
+                throw ParseError(Messages.T("parse.pattern.wildcard_cannot_be_annotated"));
             return new SkipPattern { Line = at.Line, Column = at.Column };
         }
 
@@ -757,7 +752,7 @@ public partial class Parser
         var place = ParseClimb(Postfix.Bare, 0);
         if (place is IndexExpr or MemberAccess)
             return new PlacePattern(place) { Line = at.Line, Column = at.Column };
-        throw ParseError("这一格要么是名字、字面量，要么是一个位置（`l[2]` / `a.b`）");
+        throw ParseError(Messages.T("parse.pattern.expected_bind_target"));
     }
 
     // 带条件的一格：取条件里最左的名字
@@ -767,7 +762,7 @@ public partial class Parser
         var from = _pos;
         var guard = ParseClimb(Postfix.Bare, 0);
         if (FirstIdentName(from, _pos) is not { } nm)
-            throw ParseError("这一格的条件里得有个名字 —— 它**最左边**那个标识符就是");
+            throw ParseError(Messages.T("parse.pattern.guarded_pattern_missing_name"));
         return new NamePattern(nm) { Guard = guard, Line = at.Line, Column = at.Column };
     }
 
@@ -775,7 +770,7 @@ public partial class Parser
     {
         for (var i = 0; i < parts.Count - 1; i++)
             if (parts[i] is RestPattern)
-                throw new SyntaxException("'..名字' 只能写在模式的最后一项 —— 它把后面都吃了",
+                throw new SyntaxException(Messages.T("parse.pattern.rest_not_last"),
                     new SourceSpot(source, parts[i].Line, parts[i].Column));
     }
 
@@ -788,7 +783,7 @@ public partial class Parser
             return Previous().Lexeme;
         }
 
-        throw ParseError("'.' 后需要成员名");
+        throw ParseError(Messages.T("parse.parser.expected_member_name_after_dot"));
     }
 
     // `:` / `===` / `!==` / `->` 这些**钉住的**成员,写法上和别的运算符一样(交给 `:=` / `=`
@@ -831,7 +826,7 @@ public partial class Parser
         var (name, line, col) = ParseDefinedName(attrs);
 
         if (ReservedWords.Contains(name))
-            throw ParseError($"'{name}' 是保留字");
+            throw ParseError(Messages.T("parse.parser.reserved_word", name));
 
         var (typeAnnotation, autoName) = ParseDefinitionSign();
         var value = ParseDefinitionValue(attrs, typeAnnotation);
@@ -857,7 +852,7 @@ public partial class Parser
         // 修饰符本身当名字（`readonly := …`）
         if (attrs is { Count: > 0 })
             return (attrs[0], Previous().Line, Previous().Column);
-        throw ParseError("需要变量名");
+        throw ParseError(Messages.T("parse.parser.expected_variable_name"));
     }
 
     private (Expression? Type, bool AutoName) ParseDefinitionSign()
@@ -876,13 +871,13 @@ public partial class Parser
             RequireAfterTypeAnnotation();
             return (type, false);
         }
-        throw ParseError("变量定义需要 ':='、'::='、': type =' 或 ':: type ='");
+        throw ParseError(Messages.T("parse.parser.expected_definition_operator"));
     }
 
     private void RequireAfterTypeAnnotation()
     {
         if (!Match(TokenType.ColonEqual) && !Match(TokenType.Equal))
-            throw ParseError("类型注解后需要 '=' 或 ':='");
+            throw ParseError(Messages.T("parse.parser.expected_assign_after_type_annotation"));
     }
 
     private Expression ParseDefinitionValue(List<string>? attrs, Expression? typeAnnotation)

@@ -92,7 +92,7 @@ internal static partial class BuiltinClasses
         for (var i = 0; i < list.Elements.Count; i++)
         {
             if (list.Elements[i] is not ObjectVal { Type: var meta } o || !meta.IsAssignableTo(Interface))
-                throw new RuntimeException($"要求表里得全是接口，第 {i + 1} 个是 {list.Elements[i].Type}", ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.class.requirement_not_interface", i + 1, list.Elements[i].Type), ErrorKind.Type);
             reqs.Add(o);
         }
 
@@ -102,7 +102,7 @@ internal static partial class BuiltinClasses
     private static RuntimeValue BuildInterface(Scope scope, List<ObjectVal> requires, RuntimeValue body)
     {
         if (body is not BlockVal blk)
-            throw new RuntimeException($"接口的体得是个代码块（`interface … {{ … }}`），得到 {body.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.class.interface_body_not_block", body.Type), ErrorKind.Argument);
 
         var trait = Install(scope, BaseInterface, blk);
 
@@ -136,8 +136,7 @@ internal static partial class BuiltinClasses
     private static void InstallInstance(Interpreter interp, ObjectVal impl)
     {
         if (impl.Scope.LookupField(InstanceMember) != null)
-            throw new RuntimeException($"接口 {impl.Type.DisplayName} 里声明了名为 '{InstanceMember}' 的槽"
-                + " —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.class.interface_reserved_slot_name", impl.Type.DisplayName, InstanceMember), ErrorKind.Argument);
 
         var id = ImplId(impl);
         var getter = new NativeClosure(InstanceMember, Object, (scope, _) =>
@@ -172,7 +171,7 @@ internal static partial class BuiltinClasses
     internal static RuntimeValue Use(Interpreter interp, RuntimeValue v, Scope into, string caller)
     {
         if (v is not ObjectVal impl || impl.Scope.LookupField(TargetMember)?.Value is not ObjectVal)
-            throw new RuntimeException($"{caller} 要的是「接口 类 实现」造出来的实现，得到 {v.Type.DisplayName}", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.class.expected_implementation", caller, v.Type.DisplayName), ErrorKind.Type);
         // `use` 是**作用域级**的(登记进 `into` = 调用点当前作用域),`impl` 登记进全局 ——
         // 只有前者会让"当前作用域链"影响答案,于是只有它要关掉缓存
         if (!ReferenceEquals(into, interp.GlobalScope)) interp.SawScopedUse = true;

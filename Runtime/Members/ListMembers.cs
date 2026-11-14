@@ -13,11 +13,11 @@ internal sealed class ListMembers : SequenceMembers
 
     private static ListVal Indexed(RuntimeValue s, RuntimeValue a, string what, bool allowEnd = false)
     {
-        if (a is not IntVal i) throw new RuntimeException($"{what} 需要 int 参数", ErrorKind.Argument);
+        if (a is not IntVal i) throw new RuntimeException(Messages.T("runtime.list.index_needs_int", what), ErrorKind.Argument);
         var lst = (ListVal)s;
         var n = lst.Elements.Count;
         if (i.Value < 0 || i.Value > (allowEnd ? n : n - 1))
-            throw new RuntimeException($"{what} 的索引 {i.Value} 越界 (列表长度 {n})", ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.list.index_out_of_range", what, i.Value, n), ErrorKind.Index);
         return lst;
     }
 
@@ -35,7 +35,7 @@ internal sealed class ListMembers : SequenceMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                $"list.At 收一个下标（切一段用 list.Slice —— `xs[1..3]` 就走它），得到区间 {arg}",
+                Messages.T("runtime.list.at_needs_index", arg),
                 ErrorKind.Argument);
 
         var lst = Indexed(self, arg, "list.At");
@@ -46,7 +46,7 @@ internal sealed class ListMembers : SequenceMembers
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not RangeVal rng)
-            throw new RuntimeException($"list.Slice 收一个区间（`xs[1..3]`），得到 {arg.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.list.slice_needs_range", arg.Type), ErrorKind.Argument);
 
         var lst = (ListVal)self;
         var (from, to, reverse) = StringMembers.SliceBounds(rng, lst.Elements.Count, "list.Slice", clamp: true);

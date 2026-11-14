@@ -91,10 +91,10 @@ internal static partial class BuiltinClasses
 
     private static IntVal FromDouble(double v)
     {
-        if (double.IsNaN(v)) throw new RuntimeException("NaN 不能转换为 int", ErrorKind.Value);
+        if (double.IsNaN(v)) throw new RuntimeException(Messages.T("runtime.class.nan_to_int_invalid"), ErrorKind.Value);
         if (v < int.MinValue || v > int.MaxValue)
             // 插值用 RealVal 而不是裸 double:后者的无穷是"∞",值的形式该是 ASCII
-            throw new RuntimeException($"数值 {new RealVal(v)} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.int_value_out_of_range", new RealVal(v)), ErrorKind.Value);
         return IntVal.Of((int)v);
     }
 
@@ -106,7 +106,7 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (int.TryParse(s.Value, out var n)) return IntVal.Of(n);
-            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 int（超出 int 范围或不是数字）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.string_to_int_invalid", s.Value), ErrorKind.Value);
         }
 
         if (val is BoolVal b) return IntVal.Of(b.Value ? 1 : 0);
@@ -115,7 +115,7 @@ internal static partial class BuiltinClasses
         // 分数先在 BigInteger 里除，免得 int 除法自己先溢出（MinValue / -1）
         if (val is FractionVal fr) return FromBig((System.Numerics.BigInteger)fr.Num / fr.Den);
         if (val is BigFractionVal bfr) return FromBig(bfr.Num / bfr.Den);
-        throw new RuntimeException($"无法将 {val.Type} 转换为 int", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.cast_to_int_invalid", val.Type), ErrorKind.Type);
     }
 
     internal static RuntimeValue CastToFloat(RuntimeValue val)
@@ -128,10 +128,10 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (double.TryParse(s.Value, out var n)) return new RealVal(n);
-            throw new RuntimeException($"无法将字符串 '{s.Value}' 转换为 real", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.string_to_real_invalid", s.Value), ErrorKind.Value);
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 real", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.cast_to_real_invalid", val.Type), ErrorKind.Type);
     }
 
     // bool/string 不写成 `ConvertDirect(...)`,那是**互相递归**(ConvertDirect 正是按类型
@@ -162,7 +162,7 @@ internal static partial class BuiltinClasses
         if (val is StringVal s)
         {
             if (System.Numerics.BigInteger.TryParse(s.Value, out var n)) return new BigIntVal(n);
-            throw new RuntimeException("无法将字符串转换为 bigint", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.string_to_bigint_invalid"), ErrorKind.Value);
         }
 
         if (val is RealVal f)
@@ -171,7 +171,7 @@ internal static partial class BuiltinClasses
             return double.IsNaN(f.Value) || double.IsInfinity(f.Value)
                 ? throw new RuntimeException($"数值 {f} 不能转换为 bigint（NaN 和无穷没有对应的整数）", ErrorKind.Value)
                 : new BigIntVal((System.Numerics.BigInteger)f.Value);
-        throw new RuntimeException($"无法将 {val.Type} 转换为 bigint", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.cast_to_bigint_invalid", val.Type), ErrorKind.Type);
     }
 
     internal static RuntimeValue CastToFraction(RuntimeValue val)
@@ -188,10 +188,10 @@ internal static partial class BuiltinClasses
             var p = s.Value.Split('/');
             if (p.Length == 2 && int.TryParse(p[0], out var n) && int.TryParse(p[1], out var d) && d != 0)
                 return new FractionVal(n, d);
-            throw new RuntimeException("无效的分数字符串", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.class.fraction_string_invalid"), ErrorKind.Value);
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 fraction", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.cast_to_fraction_invalid", val.Type), ErrorKind.Type);
     }
 
     internal static RuntimeValue CastToBigFraction(RuntimeValue val)
@@ -204,7 +204,7 @@ internal static partial class BuiltinClasses
                 : new BigFractionVal(GetBi(val), GetBi(d)));
         if (val is FractionVal fr) return new BigFractionVal(fr.Num, fr.Den);
         if (val is BigFractionVal bf) return bf;
-        throw new RuntimeException($"无法将 {val.Type} 转换为 bigfraction", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.cast_to_bigfraction_invalid", val.Type), ErrorKind.Type);
     }
 
     private static BlockVal ExceptionBody()
@@ -261,7 +261,7 @@ internal static partial class BuiltinClasses
             if (target == Continuation) return ContinuationVal.Default;
         }
 
-        throw new RuntimeException($"无法将 {val.Type} 转换为 {target.DisplayName}", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.cast_between_types_invalid", val.Type, target.DisplayName), ErrorKind.Type);
     }
 
     // `default T` 的全部内容:每个"有零值"的类型造一个空的。
@@ -282,7 +282,7 @@ internal static partial class BuiltinClasses
         if (type == Dict) return new DictVal([]);
         if (type == Function) return EmptyFunction();
         if (type == Continuation) return ContinuationVal.Default;
-        throw new RuntimeException($"类型 {type.DisplayName} 没有默认值", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.class.no_default_value", type.DisplayName), ErrorKind.Type);
     }
 
 }

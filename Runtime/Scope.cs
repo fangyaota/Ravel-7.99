@@ -39,7 +39,7 @@ public class Scope(Scope? parent = null)
         if (_vars is { } had && had.TryGetValue(name, out var existing)
             && !(site != null && ReferenceEquals(existing.Site, site)))
             throw new RuntimeException(
-                $"'{name}' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）");
+                Messages.T("runtime.scope.already_defined", name));
 
         // **这一层是某个值的成员表**(模块):**类型链上**已有的名字也归这条规矩 ——
         // 那不是"新开一个变量",是把继承来的成员蒙掉:
@@ -54,7 +54,7 @@ public class Scope(Scope? parent = null)
         if (TableOf is { } owner && _vars?.ContainsKey(name) != true
             && owner.MemberScope.LookupField(name) is not null)
             throw new RuntimeException(
-                $"'{name}' 是 {owner.Type} 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）");
+                Messages.T("runtime.scope.shadows_module_member", name, owner.Type));
 
         // **继承来的"钉住的"成员也不许遮**(`:` / `===` / `!==` / `->`,见 `Attr.NoShadow`)。
         // 只查**成员链**(`LookupField` 走类型/实例那套),不查词法外层 —— 上面那条注释说的
@@ -65,7 +65,7 @@ public class Scope(Scope? parent = null)
             var pinnedSlot = LookupField(name);
             if (pinnedSlot is not null && pinnedSlot.HasAttr(Attr.NoShadow))
                 throw new RuntimeException(
-                    $"'{name}' 是继承来的成员 —— `:=` 遮不掉它（它不给覆盖，`=` 也不收）", ErrorKind.Access);
+                    Messages.T("runtime.scope.shadows_inherited_member", name), ErrorKind.Access);
         }
         var v = new Variable(name, initialValue) { Site = site };
         (_vars ??= [])[name] = v;
@@ -80,7 +80,7 @@ public class Scope(Scope? parent = null)
         //     true := 1       → 从前静默成功,而且 readonly 就此消失
         // 只查**本层**:在外层作用域里 `x := 1` 是新开一个局部变量(遮蔽),不是重新定义。
         if (_vars is { } had && had.TryGetValue(name, out var old) && old.HasAttr(Attr.Readonly))
-            throw new RuntimeException($"无法重新定义只读变量 '{name}'", ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.scope.readonly_redefine", name), ErrorKind.Access);
         var v = new Variable(name, initialValue);
         (_vars ??= [])[name] = v;
         return v;
@@ -115,7 +115,7 @@ public class Scope(Scope? parent = null)
             return;
         }
 
-        throw new RuntimeException($"无法给未定义变量 '{name}' 赋值", ErrorKind.Name);
+        throw new RuntimeException(Messages.T("runtime.scope.assignment_to_undefined", name), ErrorKind.Name);
     }
 
     public Scope Push() => new(this);

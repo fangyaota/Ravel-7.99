@@ -12,7 +12,7 @@ internal static partial class BuiltinClasses
     internal static JToken ToJson(RuntimeValue v, int depth = 0)
     {
         if (depth > MaxJsonDepth)
-            throw new RuntimeException($"Json: 嵌套超过 {MaxJsonDepth} 层（是不是有容器包含自己？）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.json.nesting_too_deep", MaxJsonDepth), ErrorKind.Value);
 
         return v switch
         {
@@ -73,7 +73,7 @@ internal static partial class BuiltinClasses
         {
             var token = JToken.ReadFrom(reader);
             if (reader.Read())                           // 一个 JSON 文档只该有一个值
-                throw new RuntimeException($"Json.FromString: 第一个值后面还有东西（位置 {reader.LineNumber}:{reader.LinePosition}）", ErrorKind.Value);
+                throw new RuntimeException(Messages.T("runtime.json.trailing_content", reader.LineNumber, reader.LinePosition), ErrorKind.Value);
             return new JsonVal(token);
         }
         catch (JsonReaderException ex)
@@ -81,7 +81,7 @@ internal static partial class BuiltinClasses
             // ⚠️ 它不在 `Fs` 的 catch 白名单里 —— 不自己接住的话会当成"解释器内部错误"
             // 把程序打掉 Ravel 的 try 接不住(见 Ravel.Extensions/MathNative.cs 那段注释)
             throw new RuntimeException(
-                $"Json.FromString: 第 {ex.LineNumber + 1} 行第 {ex.LinePosition + 1} 列读不动 —— {ex.Message}", ErrorKind.Value);
+                Messages.T("runtime.json.parse_error", ex.LineNumber + 1, ex.LinePosition + 1, ex.Message), ErrorKind.Value);
         }
     }
 
@@ -131,7 +131,7 @@ internal static partial class BuiltinClasses
     {
         var n = ((JArray)((JsonVal)s).Token).Count;
         if (i < 0 || i >= n)
-            throw new RuntimeException($"{what}: 索引 {i} 超出范围（长度 {n}）", ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.value.index_out_of_range", what, i, n), ErrorKind.Index);
         return i;
     }
 

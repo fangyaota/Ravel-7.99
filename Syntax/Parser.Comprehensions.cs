@@ -1,4 +1,5 @@
 namespace Ravel;
+using Ravel.Runtime;
 
 //  推导式 —— `[x for i in xs if p]` / `(x for …)` / `{x for …}` / `{k -> v for …}` / 裸 `x for …`
 //
@@ -76,7 +77,7 @@ public partial class Parser
         }
 
         if (clauses.Count == 0 || clauses[0] is not CompFor)
-            throw ParseError("推导式得先写子句:`for 模式 in 序列`");
+            throw ParseError(Messages.T("parse.parser.comprehension_missing_for_clause"));
 
         return new Comprehension(value, dictValue, clauses, kind) { Line = at.Line, Column = at.Column };
     }

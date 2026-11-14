@@ -58,8 +58,7 @@ public partial class Interpreter
         if (hits.Count == 1) return hits[0].Full;
 
         throw new RuntimeException(
-            $"`using \"{path}\"` 有歧义:{string.Join(" ", hits.Select(h => "`" + h.Written + "`"))} 都对得上"
-            + " —— 把后缀写全再试", ErrorKind.Io);
+            Messages.T("runtime.module.ambiguous_import", path, string.Join(" ", hits.Select(h => "`" + h.Written + "`"))), ErrorKind.Io);
     }
 
     private BlockExpr? LoadModuleAst(string path)

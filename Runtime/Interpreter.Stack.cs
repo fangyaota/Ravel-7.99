@@ -290,7 +290,7 @@ public partial class Interpreter
         if (!_warnedForgotCall.Add((spot.File, spot.Line, spot.Column))) return;
 
         Console.Error.WriteLine(ErrorReport.Warning(
-            $"这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 {Brief(fn)}", spot));
+            Messages.T("runtime.call.function_not_invoked", Brief(fn)), spot));
     }
 
     private static string Brief(FunctionVal fn)

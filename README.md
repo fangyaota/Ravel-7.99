@@ -118,6 +118,7 @@ dotnet out/ravel.dll path/file.rav a b   # 脚本名之后那些进 System.Args 
 dotnet out/ravel.dll                     # REPL(不带参数)
 
 dotnet out/ravel.dll --warn file.rav     # 开「是不是忘了调用?」的提醒(stderr)
+dotnet out/ravel.dll --lang en file.rav   # 报错文案换一门语言(没有那条就回退中文)
 dotnet out/ravel.dll --warn test lang    # 那一摞过一遍那个筛子(不影响比对结果)
 
 # 用例里有个长循环压着 callcc,显式给 256MB 堆上限它才跑得稳(CI/VS Code 任务里都带着)
@@ -126,6 +127,19 @@ DOTNET_GCHeapHardLimit=0x10000000 dotnet out/ravel.dll test lang
 
 **退出码**:测试有 FAIL、脚本报错、解释器自己有 bug —— 三种都是 1;`exit ""` 是
 "什么都不说就结束" → 0。
+
+## 文案与语言(i18n)
+
+引擎里所有报错文案都在 `i18n/zh.toml`(中性语言就是中文),代码里只留键:
+
+- 键形如 `<域>.<子域>.<条目>` —— `parse.lexer.unexpected_char`、`runtime.call.not_a_function`、
+  `runtime.scope.undefined_variable`。**没有数字序号**:一条新文案就起一个读得懂的名字。
+- 一条一行 `键 = "文案"`;`{0}` `{1}` 是占位符(对应代码里传进去的实参),`
+` 是换行,`#` 到行尾是注释。
+- 加一门语言:在 `i18n/` 下放 `en.toml`,照抄相同的键、换成译文;没翻的键**自动回退中文**。
+  切换用 `--lang en`,或者环境变量 `RAVEL_LANG=en`。
+- `i18n/` 随发布拷到 `out/i18n/`,同时嵌进程序集:只拷走 `ravel.dll` 一个文件也跑得起来(内置中文)。
+- `lib/*.rav` 的报错不在这里 —— 标准库自己写的文案,改库就改库。
 
 ## VS Code
 
@@ -168,6 +182,7 @@ tests/              golden 用例(.rav + 文件末尾的 `# --- expected ---`),�
                     每组不超过 20 个文件、单个文件不超过 5KB;lib/ 的 39 条老用例原样保留,按编号分段跑(如 `ravel test lib/24`)
 examples/           例子(不进测试,给你看着玩)
 docs/               tutorial.md(教程索引)+ tutorial/(一章一个文件)+ adr/(架构决策)
+i18n/              报错文案(TOML:`键 = "文案"`)—— `--lang` / `RAVEL_LANG` 切语言,缺的回退中文
 vscode-ravel/       VS Code 扩展
 CONTEXT.md          **架构上下文** —— 想改引擎先读它
 ```

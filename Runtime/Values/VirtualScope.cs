@@ -81,11 +81,11 @@ public class VirtualScope(RuntimeValue owner, bool writable = false) : Scope
     public override void Assign(string name, RuntimeValue value)
     {
         if (!Writable)
-            throw new RuntimeException($"值类型的成员表是只读的：不能改写 '{name}'", ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.scope.value_members_read_only", name), ErrorKind.Access);
 
         var slot = LookupField(name);
         if (slot is null)
-            throw new RuntimeException($"无法给未定义变量 '{name}' 赋值", ErrorKind.Name);
+            throw new RuntimeException(Messages.T("runtime.scope.assignment_to_undefined", name), ErrorKind.Name);
 
         slot.Assign(value);
     }

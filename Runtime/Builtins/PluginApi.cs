@@ -99,7 +99,7 @@ public static class PluginKit
     public static double Num(RuntimeValue v, string what)
         => BuiltinClasses.TryAsDouble(v, out var d)
             ? d
-            : throw Fail($"{what} 需要数值参数，得到 {v.Type}", ErrorKind.Type);
+            : throw Fail(Messages.T("runtime.interop.expected_number", what, v.Type), ErrorKind.Type);
 
     public static byte[] Bytes(RuntimeValue v, string what) => SysKit.BytesOf(v, what);
 
@@ -112,7 +112,7 @@ public static class PluginKit
     {
         IntVal i => i.Value,
         BigIntVal b when b.Value >= long.MinValue && b.Value <= long.MaxValue => (long)b.Value,
-        _ => throw Fail($"{what} 需要整数参数，得到 {v.Type}", ErrorKind.Type),
+        _ => throw Fail(Messages.T("runtime.interop.expected_integer", what, v.Type), ErrorKind.Type),
     };
 
     // ── 数组 ──
@@ -272,8 +272,7 @@ internal static class PluginLoader
             {
                 if (impl != "IValue")
                     throw new InvalidOperationException(
-                        $"类 {cls.Name} 写了 Implements = \"{impl}\" —— 这一格现在只认 \"IValue\""
-                        + "(其它的接口请用 Ravel 侧的 `impl (某接口 类 { … })`)");
+                        Messages.T("runtime.interop.unsupported_implements", cls.Name, impl));
                 klass.IsValueLike = true;
             }
 

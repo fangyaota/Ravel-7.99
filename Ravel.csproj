@@ -221,4 +221,28 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- 内置文案:`i18n/*.toml` 既**嵌进程序集**(中性语言中文那份当兜底),
+       也**拷到 out/i18n/**(放在外面才能现场加语言、现场改文案)。 -->
+  <ItemGroup>
+    <EmbeddedResource Include="i18n/*.toml" LogicalName="Ravel.i18n.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Target Name="CopyI18n" AfterTargets="Build" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <I18nFile Include="i18n/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(I18nFile)"
+          DestinationFiles="@(I18nFile->'$(OutDir)i18n/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyI18nToPublish" AfterTargets="Publish" Condition="'$(IsPluginBuild)' != 'true'">
+    <ItemGroup>
+      <I18nFileP Include="i18n/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(I18nFileP)"
+          DestinationFiles="@(I18nFileP->'$(PublishDir)i18n/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

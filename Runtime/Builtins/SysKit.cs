@@ -10,9 +10,9 @@ internal static class SysKit
     public static void NeedFile(string p, string what)
     {
         if (Directory.Exists(p))
-            throw new RuntimeException($"{what}: 这是个目录，不是文件 —— {p}", ErrorKind.Io);
+            throw new RuntimeException(Messages.T("runtime.io.path_is_directory", what, p), ErrorKind.Io);
         if (!File.Exists(p))
-            throw new RuntimeException($"{what}: 找不到文件 —— {p}", ErrorKind.Io);
+            throw new RuntimeException(Messages.T("runtime.io.file_not_found", what, p), ErrorKind.Io);
     }
 
     public static void NeedParentDir(string p, string what)
@@ -24,13 +24,13 @@ internal static class SysKit
         if (cut <= 0) return;
         var dir = p[..cut];
         if (!Directory.Exists(dir))
-            throw new RuntimeException($"{what}: 目录不存在 —— {dir}", ErrorKind.Io);
+            throw new RuntimeException(Messages.T("runtime.io.parent_dir_not_found", what, dir), ErrorKind.Io);
     }
 
     public static string EnvName(RuntimeValue v, string what)
     {
         var name = Interpreter.As<StringVal>(v, $"{what} 的名字").Value;
-        if (name.Length == 0) throw new RuntimeException($"{what}: 变量名不能是空的", ErrorKind.Value);
+        if (name.Length == 0) throw new RuntimeException(Messages.T("runtime.io.env_name_empty", what), ErrorKind.Value);
         return name;
     }
 
@@ -42,7 +42,7 @@ internal static class SysKit
         }
         catch (Exception ex) when (IsFsFault(ex))
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
+            throw new RuntimeException(Messages.T("runtime.io.operation_failed", what, ex.Message), ErrorKind.Io);
         }
         // **别的 .NET 异常也得兜** —— 引擎那条"别让 C# 异常漏到顶层"的规矩。
         // 从前只翻上面那六族,于是被调方抛个 `FormatException` 之类的会**绕过 Ravel 的
@@ -55,7 +55,7 @@ internal static class SysKit
         catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
         {
             throw new RuntimeException(
-                $"{what}的时候 .NET 抛了 {ex.GetType().Name}: {ex.Message}", ErrorKind.Value);
+                Messages.T("runtime.io.native_exception", what, ex.GetType().Name, ex.Message), ErrorKind.Value);
         }
     }
 
@@ -67,7 +67,7 @@ internal static class SysKit
         }
         catch (Exception ex) when (IsFsFault(ex))
         {
-            throw new RuntimeException($"{what}失败: {ex.Message}", ErrorKind.Io);
+            throw new RuntimeException(Messages.T("runtime.io.operation_failed", what, ex.Message), ErrorKind.Io);
         }
         // **别的 .NET 异常也得兜** —— 引擎那条"别让 C# 异常漏到顶层"的规矩。
         // 从前只翻上面那六族,于是被调方抛个 `FormatException` 之类的会**绕过 Ravel 的
@@ -80,7 +80,7 @@ internal static class SysKit
         catch (Exception ex) when (ex is not RuntimeException and not ExitException and not SyntaxException)
         {
             throw new RuntimeException(
-                $"{what}的时候 .NET 抛了 {ex.GetType().Name}: {ex.Message}", ErrorKind.Value);
+                Messages.T("runtime.io.native_exception", what, ex.GetType().Name, ex.Message), ErrorKind.Value);
         }
     }
 
@@ -99,13 +99,13 @@ internal static class SysKit
     public static byte[] BytesOf(RuntimeValue v, string what)
     {
         if (v is not ListVal l)
-            throw new RuntimeException($"{what}需要一个字节表（list），得到 {v.Type}", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.io.not_byte_list", what, v.Type), ErrorKind.Type);
 
         var bytes = new byte[l.Elements.Count];
         for (var i = 0; i < bytes.Length; i++)
         {
             if (l.Elements[i] is not IntVal n || n.Value is < 0 or > 255)
-                throw new RuntimeException($"{what}的第 {i} 个不是字节（要在 0..255 里，得到 {l.Elements[i]}）", ErrorKind.Value);
+                throw new RuntimeException(Messages.T("runtime.io.byte_out_of_range", what, i, l.Elements[i]), ErrorKind.Value);
             bytes[i] = (byte)n.Value;
         }
 

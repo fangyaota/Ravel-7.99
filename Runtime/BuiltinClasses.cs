@@ -388,13 +388,11 @@ internal static partial class BuiltinClasses
         {
             if (t.ClassBody is { } cb && IsShared(pieces, cb))
                 throw new RuntimeException(
-                    "同一个代码块被挂在类的**两层**上了（比如 `M := { … }` 之后 `class M` 又 `class 父 M`）"
-                    + " —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次", ErrorKind.Value);
+                    Messages.T("runtime.class.code_block_attached_twice"), ErrorKind.Value);
             foreach (var extra in t.BodyExtras)
                 if (IsShared(pieces, extra))
                     throw new RuntimeException(
-                        "同一个代码块被挂在类的**两层**上了（`body.Append` 拼上去的那一块也是这个规矩）"
-                        + " —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次", ErrorKind.Value);
+                        Messages.T("runtime.class.code_block_attached_twice_append"), ErrorKind.Value);
             if (ReferenceEquals(t.Parent, t)) break;
         }
         // 正在被装成的这个对象**一般是 ClassVal**:这段在实例化 `type` 或它的子类时跑,
@@ -404,7 +402,7 @@ internal static partial class BuiltinClasses
         // 硬转就是 C# 的 InvalidCastException(不是 RuntimeException,`try` 接不住,一路打穿到顶层),
         // 所以改成说人话的 Ravel 错误。
         if (scope.Lookup(ObjectVal.ThisMember).Value is not ClassVal self)
-            throw new RuntimeException("这个类型不能再套一个代码块来建类（它是个接口：接口是用 `interface { … }` 造的）", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.class.type_is_interface"), ErrorKind.Type);
         // `parent` / `block` **只读**:它们是"这个类是什么"的定义,改它等于把类换一个
         // (`C.parent = int` 之后 `C ()` 就去跑 Integer 的构造器了)。装类是**一次**的事
         // —— 想换个父类就再造一个类,别改这一个。
@@ -446,7 +444,7 @@ internal static partial class BuiltinClasses
                     pieces.Add(sb);
                     break;
                 default:
-                    throw new RuntimeException("class 需要代码块参数", ErrorKind.Argument);
+                    throw new RuntimeException(Messages.T("runtime.class.code_block_required"), ErrorKind.Argument);
             }
         }
     }

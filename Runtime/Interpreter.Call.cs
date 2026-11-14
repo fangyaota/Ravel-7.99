@@ -132,8 +132,7 @@ public partial class Interpreter
                 // `default` 那枚(还没到手)没有捕获点可跳,当场报错 —— 让它"什么都不做"
                 // 会静默地把控制权留在原地,而调用方还以为跳走了(见 ContinuationVal.Default)。
                 if (k.Captured is null)
-                    throw new RuntimeException("这枚续延是 default（还没到手的那一枚），调不了 —— "
-                                             + "能跳的续延只有 callcc 交出来的那种", ErrorKind.Value);
+                    throw new RuntimeException(Messages.T("runtime.call.default_continuation_not_callable"), ErrorKind.Value);
                 // 引擎自己那份控制状态(模块加载栈)盖回捕获那一刻 —— 见 `ContinuationVal.Loading`。
                 // **放在跳之前**:和库里原来那两句的顺序一样(先还原、再 `k x`)。
                 RestoreLoadingIfNeeded(k.Loading);
@@ -141,11 +140,11 @@ public partial class Interpreter
                 break;
             case BoolVal bv:
                 // true/false 是函数(lisp 式):收两个块,返回选中那个块的结果
-                if (arg is not BlockVal thenBlock) throw new RuntimeException("true/false 需要两个代码块", ErrorKind.Argument);
+                if (arg is not BlockVal thenBlock) throw new RuntimeException(Messages.T("runtime.call.wrong_block_count"), ErrorKind.Argument);
                 _top = sink.WithResult(new PartialBool(bv.Value, thenBlock));
                 break;
             case PartialBool pb:
-                if (arg is not BlockVal elseBlock) throw new RuntimeException("true/false 需要两个代码块", ErrorKind.Argument);
+                if (arg is not BlockVal elseBlock) throw new RuntimeException(Messages.T("runtime.call.wrong_block_count"), ErrorKind.Argument);
                 var chosen = pb.Value ? pb.Then : elseBlock;
                 // 同上:`cond { A } { B }` 选中那支是**裸块**,不推层
                 _top = new BlockExecFrame(chosen.Block) { Parent = sink, Scope = chosen.CaptureScope };
@@ -159,14 +158,14 @@ public partial class Interpreter
                 break;
             // 非函数的值(原子值、普通对象、容器、模块…)：不能调
             default:
-                throw new RuntimeException($"值 {fn} 不是函数，不能调用", ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.call.not_a_function", fn), ErrorKind.Type);
         }
     }
 
     private void CallClassInto(Frame sink, ClassVal t, RuntimeValue arg)
     {
         if (t.ClassBody == null)
-            throw new RuntimeException($"类型 {t.DisplayName} 不能作为构造器调用", ErrorKind.Type);   // 是类,但没类体(Every/Any/Void/Ravel/Scope/Property…)
+            throw new RuntimeException(Messages.T("runtime.call.not_a_constructor", t.DisplayName), ErrorKind.Type);   // 是类,但没类体(Every/Any/Void/Ravel/Scope/Property…)
         _top = new ControlFrame(ControlKind.ClassInit, RList<RuntimeValue>.Empty.Add(t).Add(arg), VoidVal.Instance)
         {
             Parent = sink,

@@ -25,9 +25,8 @@ internal static class NetBridge
         // （那是帧栈的活）" —— 反过来（.NET 委托 → Ravel 函数）才行。这是那道硬边界
         // 唯一会露面的地方，所以把话说全。
         FunctionVal => throw PluginKit.Fail(
-            "把 Ravel 函数交给 .NET 做不到 —— 原生闭包调不了 Ravel 函数（那是帧栈的活）。"
-            + "要回调就在 .NET 那侧给一个委托", ErrorKind.Type),
-        _ => throw PluginKit.Fail($"这个值转不成 .NET 的值：{v.Type}", ErrorKind.Type),
+            Messages.T("runtime.interop.ravel_function_not_callable"), ErrorKind.Type),
+        _ => throw PluginKit.Fail(Messages.T("runtime.interop.value_not_convertible", v.Type), ErrorKind.Type),
     };
 
     public static RuntimeValue FromNet(object? o) => new DotNetVal(o);
@@ -117,13 +116,12 @@ internal static class NetBridge
             try { return Convert.ChangeType(v, target); }
             catch (Exception ex)
             {
-                throw PluginKit.Fail($"{what}：{Show(v)} 转不成 {target.Name}（{ex.Message}）", ErrorKind.Type);
+                throw PluginKit.Fail(Messages.T("runtime.interop.conversion_failed", what, Show(v), target.Name, ex.Message), ErrorKind.Type);
             }
         }
 
         throw PluginKit.Fail(
-            $"{what}：{Show(v)}（{v.GetType().Name}）转不成 {target.Name} —— 这一型还没有转法。"
-            + "插件可以在 C# 层 `PluginKit.RegisterConverter` 加一条", ErrorKind.Type);
+            Messages.T("runtime.interop.no_registered_converter", what, Show(v), v.GetType().Name, target.Name), ErrorKind.Type);
     }
 
     private static ListVal ListFromNet(IEnumerable seq)

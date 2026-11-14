@@ -1,4 +1,5 @@
 namespace Ravel;
+using Ravel.Runtime;
 
 public partial class Parser
 {
@@ -92,7 +93,7 @@ public partial class Parser
     private Expression ParsePipeIntoCall(Expression left, Postfix policy)
     {
         if (!StartsPrimary() && !IsOperatorToken(Peek().Type))
-            throw ParseError("'|>' 后面得跟点什么（`a |> .f ()` 是挂成员，`a |> g` 是把 a 喂给 g）");
+            throw ParseError(Messages.T("parse.parser.pipe_missing_target"));
 
         var fn = ParsePipeIntoClause(policy);
 
@@ -266,7 +267,7 @@ public partial class Parser
         if (opener.Type == TokenType.LeftParen)
         {
             index = TryParseRange(false)
-                ?? throw ParseError("'(' 开头的索引得是区间（`xs(0..3)`）");
+                ?? throw ParseError(Messages.T("parse.parser.index_requires_range"));
         }
         else
         {

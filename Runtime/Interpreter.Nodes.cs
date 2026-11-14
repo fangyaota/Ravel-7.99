@@ -55,7 +55,7 @@ public partial class Interpreter
             // 开关语句在解析那一趟就生效了,跑到这儿什么都不用做
             case DirectiveStatement: if (nf.Count == 0) Return(nf, VoidVal.Instance); break;
             // 走到这里说明 AST 里有个节点类型没接上状态机——报出节点类型才查得下去
-            default: throw new RuntimeException($"无法求值的节点类型: {nf.Node.GetType().Name}");
+            default: throw new RuntimeException(Messages.T("runtime.eval.unknown_node_type", nf.Node.GetType().Name));
         }
     }
 
@@ -63,7 +63,7 @@ public partial class Interpreter
     {
         if (nf.Count > 0) return;
         var v = nf.Scope.LookupVar(id.Name);
-        if (v == null) throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
+        if (v == null) throw new RuntimeException(Messages.T("runtime.scope.undefined_variable", id.Name), ErrorKind.Name);
         BoxedValue.GateRead(v, id.Name, this);   // 和成员访问共用一套门禁,别各抄一份
         if (v.HasAttr(Attr.By))
         {
@@ -128,7 +128,7 @@ public partial class Interpreter
             return;
         }
 
-        if (nf.Result(1) is not FunctionVal fn) throw new RuntimeException("<| 左边必须是函数", ErrorKind.Type);
+        if (nf.Result(1) is not FunctionVal fn) throw new RuntimeException(Messages.T("runtime.seq.pipe_lhs_not_function"), ErrorKind.Type);
         CallInto(nf.Parent!, fn, nf.Result(0));
     }
 
@@ -154,7 +154,7 @@ public partial class Interpreter
         var o = nf.Result(0);
         if (un.Op == "!")
         {
-            if (o is not BoolVal bn) throw new RuntimeException("! 需要 bool 操作数", ErrorKind.Type);
+            if (o is not BoolVal bn) throw new RuntimeException(Messages.T("runtime.eval.not_operand_not_bool"), ErrorKind.Type);
             Return(nf, new BoolVal(!bn.Value));
         }
         else if (un.Op == "-")
@@ -287,7 +287,7 @@ public partial class Interpreter
 
         var target = nf.Result(0);
         if (target is not ObjectVal obj)
-            throw new RuntimeException($"`by` 只能取对象身上的属性，得到 {target.Type}", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.eval.by_read_requires_object", target.Type), ErrorKind.Type);
         // 取槽本身(`by x.a`)也认接口实现那条:作用域里没有生效的实现时才是「没有字段」。
         // 这一支**不绑接收者**(只取 `.Slot`)—— `by` 取出来的就是实现 scope 里那条 property,
         // 之后再 `Get ()` / `Set v` 时已经没有"这次服务谁"可言,`instance` 会**明确报错**。
@@ -303,7 +303,7 @@ public partial class Interpreter
     private static void CheckSlot(Variable v, string name)
     {
         if (!v.HasAttr(Attr.By))
-            throw new RuntimeException($"'{name}' 不是 by 属性（`by` 取/换的是槽里的 property）", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.eval.by_target_not_property", name), ErrorKind.Type);
     }
 
     private void StepSlotAssign(NodeFrame nf, SlotAssign sa)
@@ -326,7 +326,7 @@ public partial class Interpreter
             if (sa.Define && v != null && !nf.Scope.Contains(id.Name)) v = null;
             if (v == null)
             {
-                if (!sa.Define) throw new RuntimeException($"未定义的变量 '{id.Name}'", ErrorKind.Name);
+                if (!sa.Define) throw new RuntimeException(Messages.T("runtime.scope.undefined_variable", id.Name), ErrorKind.Name);
                 v = nf.Scope.DefineOrReplace(id.Name, val);
                 v.SetAttr(Attr.By);
                 Return(nf, val);
@@ -334,7 +334,7 @@ public partial class Interpreter
             }
 
             if (v.HasAttr(Attr.Core) && !IsUnsafe)
-                throw new RuntimeException($"字段 '{id.Name}' 是核心字段，需要 unsafe", ErrorKind.Access);
+                throw new RuntimeException(Messages.T("runtime.member.core_field_requires_unsafe", id.Name), ErrorKind.Access);
             CheckSlot(v, id.Name);
             v.ReplaceSlot(val);
             Return(nf, val);
@@ -357,7 +357,7 @@ public partial class Interpreter
 
         var target = nf.Result(0);
         if (target is not ObjectVal obj)
-            throw new RuntimeException($"`by` 只能换对象身上的属性，得到 {target.Type}", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.eval.by_assign_requires_object", target.Type), ErrorKind.Type);
         var val2 = nf.Result(1);
         if (sa.Define)
         {
@@ -392,7 +392,7 @@ public partial class Interpreter
             return;
         }
 
-        if (field == null) throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
+        if (field == null) throw new RuntimeException(Messages.T("runtime.member.unknown_field", ma.Member), ErrorKind.Attribute);
         CheckMemberAccess(field, obj, ma.Member);
         CheckSlot(field, ma.Member);
         field.ReplaceSlot(val2);
@@ -412,7 +412,7 @@ public partial class Interpreter
         if (field != null)
         {
             if (field.HasAttr(Attr.Core) && !IsUnsafe)
-                throw new RuntimeException($"字段 '{name}' 是核心字段，需要 unsafe", ErrorKind.Access);
+                throw new RuntimeException(Messages.T("runtime.member.core_field_requires_unsafe", name), ErrorKind.Access);
             WriteVariable(nf, field, val);
             return;
         }

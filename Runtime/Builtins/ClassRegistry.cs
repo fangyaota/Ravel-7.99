@@ -43,10 +43,10 @@ internal static class ClassRegistry
         var takesSelf = ps.Length > 0 && ps[0].ParameterType == typeof(Interpreter);
         var arity = ps.Length - (takesSelf ? 1 : 0);
         if (arity is < 1 or > 3 || ps.Skip(takesSelf ? 1 : 0).Any(p => p.ParameterType != typeof(RuntimeValue)))
-            throw new InvalidOperationException($"函数 {m.Name} 的签名不对:要收 1~3 个 RuntimeValue（开头可以是 Interpreter）");
+            throw new InvalidOperationException(Messages.T("runtime.class.native_function_bad_signature", m.Name));
 
         if (takesSelf && self is null)
-            throw new InvalidOperationException($"函数 {m.Name} 要一个 Interpreter,但这一趟没有");
+            throw new InvalidOperationException(Messages.T("runtime.class.interpreter_required", m.Name));
 
         if (takesSelf)
         {
@@ -92,7 +92,7 @@ internal static class ClassRegistry
         var takesInterp = ps.Length > 0 && ps[0].ParameterType == typeof(Interpreter);
         if (takesInterp) ps = ps[1..];
         if (ps.Length == 0 || ps[0].ParameterType != typeof(RuntimeValue) || ps.Length > 3)
-            throw new InvalidOperationException($"类方法 {cls.DisplayName}.{name} 的签名不对:要收 (self, 0~2 个实参)");
+            throw new InvalidOperationException(Messages.T("runtime.class.method_bad_signature", cls.DisplayName, name));
 
         // **要解释器的成员**:签名第一个参数写 `Interpreter`,体里就能问 `HasTrait`、`SawScopedUse`
         // 这些只有解释器才知道的事(`:` 判"值是不是某个接口"就靠它)。

@@ -10,7 +10,7 @@ internal static class SysTask
     {
         var list = As<ListVal>(a, "WaitAny 的句柄表");
         if (list.Elements.Count == 0)
-            throw new RuntimeException("WaitAny 要一组句柄(空表没什么可等的)", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.task.wait_any_empty_handles"), ErrorKind.Argument);
 
         var jobs = new Task<RuntimeValue>[list.Elements.Count];
         for (var i = 0; i < jobs.Length; i++)
@@ -25,7 +25,7 @@ internal static class SysTask
     {
         var h = As<WaitableVal>(a, "HandleValue 的句柄");
         if (!h.Job.IsCompleted)
-            throw new RuntimeException("这个句柄还没完成 —— 取结果之前得先等它(WaitAny)", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.task.handle_not_ready"), ErrorKind.Value);
 
         return h.Job.Status switch
         {

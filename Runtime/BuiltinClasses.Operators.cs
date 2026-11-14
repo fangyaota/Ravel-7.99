@@ -47,13 +47,13 @@ internal static partial class BuiltinClasses
         if (v is IntVal i)
         {
             if (i.Value < 0)
-                throw new RuntimeException($"运算符 '{op}' 的移位数不能是负数（{i.Value}）—— 想往另一头移就换 `<<<` / `>>>`", ErrorKind.Value);
+                throw new RuntimeException(Messages.T("runtime.operator.shift_count_negative", op, i.Value), ErrorKind.Value);
             return i.Value;
         }
 
         if (v is BigIntVal g && g.Value >= 0 && g.Value <= int.MaxValue) return (int)g.Value;
 
-        throw new RuntimeException($"运算符 '{op}' 的移位数需要一个非负的 int，得到 {v.Type}", ErrorKind.Type);
+        throw new RuntimeException(Messages.T("runtime.operator.shift_count_not_non_negative_int", op, v.Type), ErrorKind.Type);
     }
 
     internal static int ShiftUp(int x, int k)
@@ -212,7 +212,7 @@ internal static partial class BuiltinClasses
     internal static void FitsFraction(bool tooBig)
     {
         if (tooBig)
-            throw new RuntimeException("分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.operator.fraction_result_out_of_int_range"), ErrorKind.Value);
     }
 
     internal static RuntimeValue MakeFraction(long num, long den)
@@ -246,11 +246,11 @@ internal static partial class BuiltinClasses
     internal static IntVal NarrowIntPow(int x, int e)
     {
         if (e > 31 && (x >= 2 || x <= -2))
-            throw new RuntimeException($"{x} ** {e} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.operator.pow_result_out_of_int_range", x, e), ErrorKind.Value);
 
         var r = System.Numerics.BigInteger.Pow(x, e);
         if (r < int.MinValue || r > int.MaxValue)
-            throw new RuntimeException($"{x} ** {e} 超出 int 范围（int 是 32 位，大数用 bigint）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.operator.pow_result_out_of_int_range", x, e), ErrorKind.Value);
         return IntVal.Of((int)r);
     }
 
@@ -276,12 +276,12 @@ internal static partial class BuiltinClasses
         if (PowCount(b) is not { } k)
             return new RealVal(Math.Pow((double)x.Num / x.Den, AsDouble(b, "**")));
         if (k < 0 && x.Num == 0)
-            throw new RuntimeException("运算符 '**' 的除数为零（0 的负数次幂）", ErrorKind.ZeroDivision);
+            throw new RuntimeException(Messages.T("runtime.operator.pow_zero_negative_exponent"), ErrorKind.ZeroDivision);
         // 装不下就报(和别的分数运算一个口径)。**先拦一道**:`|分子|` 或 `|分母|` 过了 2,
         // 指数一过 31 必定超出 int32,直接报 —— 免得真去算那个天文数字。
         if ((k > 31 || k < -31) && (Math.Abs((long)x.Num) >= 2 || Math.Abs((long)x.Den) >= 2))
             throw new RuntimeException(
-                "运算符 '**' 的结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）", ErrorKind.Value);
+                Messages.T("runtime.operator.pow_fraction_out_of_int_range"), ErrorKind.Value);
 
         return k >= 0
             ? MakeFraction(System.Numerics.BigInteger.Pow(x.Num, k), System.Numerics.BigInteger.Pow(x.Den, k))
@@ -293,7 +293,7 @@ internal static partial class BuiltinClasses
         if (PowCount(b) is not { } k)
             return new RealVal(Math.Pow((double)x.Num / (double)x.Den, AsDouble(b, "**")));
         if (k < 0 && x.Num.IsZero)
-            throw new RuntimeException("运算符 '**' 的除数为零（0 的负数次幂）", ErrorKind.ZeroDivision);
+            throw new RuntimeException(Messages.T("runtime.operator.pow_zero_negative_exponent"), ErrorKind.ZeroDivision);
 
         return k >= 0
             ? new BigFractionVal(System.Numerics.BigInteger.Pow(x.Num, k), System.Numerics.BigInteger.Pow(x.Den, k))

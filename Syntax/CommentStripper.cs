@@ -1,6 +1,7 @@
 namespace Ravel;
 
 using System.Text;
+using Ravel.Runtime;
 
 public static class CommentStripper
 {
@@ -23,7 +24,7 @@ public static class CommentStripper
             var left = i < was.Count ? was[i].ToString() : "<没了>";
             var right = i < now.Count ? now[i].ToString() : "<多出来>";
             throw new InvalidOperationException(
-                $"剥完之后第 {i} 个 token 对不上 —— 原文 {left} / 剥后 {right}");
+                Messages.T("parse.strip.token_mismatch", i, left, right));
         }
 
         return stripped;

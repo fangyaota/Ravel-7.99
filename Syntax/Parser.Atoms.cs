@@ -24,8 +24,7 @@ public partial class Parser
 
         // @ 现在只是标签前缀,不再封口
         if (Check(TokenType.At))
-            throw ParseError("'@' 是**标签**的前缀，写在语句开头（`@outer while { … }`，要开 `--more-control-flow`）；"
-                           + "从前那个封口的运算符已经改成 '|>' 了");
+            throw ParseError(Messages.T("parse.parser.label_prefix_misplaced"));
 
         // 运算符节 `+.2`:左操作数留空,脱糖成 lambda
         if (IsSectionStart())
@@ -118,7 +117,7 @@ public partial class Parser
         if (Match(TokenType.LeftBrace))
             return Nested(ParseBrace);
 
-        throw ParseError($"需要表达式，但得到{Describe(Peek())}");
+        throw ParseError(Messages.T("parse.parser.expected_expression", Describe(Peek())));
     }
 
     private Expression ParseDo()
@@ -144,8 +143,8 @@ public partial class Parser
         }
 
         Consume(TokenType.RightBrace, "do 块末尾需要 '}'");
-        if (stmts.Count == 0) throw ParseError("do 块里得有语句");
-        if (stmts[^1] is BindStatement) throw ParseError("do 块的最后一条语句要是个值（不能以 ':<' 收尾）");
+        if (stmts.Count == 0) throw ParseError(Messages.T("parse.parser.empty_do_block"));
+        if (stmts[^1] is BindStatement) throw ParseError(Messages.T("parse.parser.do_block_last_not_value"));
 
         return new DoExpr(stmts) { Line = at.Line, Column = at.Column };
     }
@@ -180,7 +179,7 @@ public partial class Parser
 
     private Expression Nested(Func<Expression> parse)
     {
-        if (_depth >= MaxDepth) throw ParseError($"表达式嵌套太深（超过 {MaxDepth} 层）");
+        if (_depth >= MaxDepth) throw ParseError(Messages.T("parse.parser.expression_nesting_too_deep", MaxDepth));
 
         _depth++;
         try
@@ -312,9 +311,7 @@ public partial class Parser
     private void DeclareParam(List<Parameter> @params, Parameter p)
     {
         if (@params.Any(q => q.Name == p.Name))
-            throw ParseError($"参数名 '{p.Name}' 写了两遍 —— 每个参数一个名字"
-                           + "（要**盯类型**就把整个参数括起来写 `|>` 那条："
-                           + "`((v: int) |> IsPrime)`）");
+            throw ParseError(Messages.T("parse.parser.duplicate_parameter_name", p.Name));
         @params.Add(p);
     }
 
@@ -323,8 +320,7 @@ public partial class Parser
     {
         // 守卫不声明东西,修饰符没处落
         if (attrs is not null)
-            throw ParseError($"守卫上不能写修饰符 '{attrs[0]}' —— 守卫是给已经声明过的"
-                           + "那个参数加条件,它自己什么都不声明");
+            throw ParseError(Messages.T("parse.parser.guard_modifier_not_allowed", attrs[0]));
 
         _pos = saveAt;
         // 守卫里的 `_` 是参数名,不是占位符
@@ -344,13 +340,10 @@ public partial class Parser
 
         // 按 token 顺序取名字:`|>` 已折成调用,按树取会取错
         var nm = FirstIdentName(saveAt, _pos)
-            ?? throw ParseError("守卫里得有个参数名 —— 它最左边那个标识符就是");
+            ?? throw ParseError(Messages.T("parse.parser.guard_missing_parameter_name"));
         DeclareParam(@params, new Parameter(nm, ObjectType(at)));
         if (!Check(TokenType.RightParen))
-            throw ParseError("守卫要写在参数表的**最后一项** —— 它是一条表达式,"
-                           + "后面再跟东西会被当成它的实参（`(x < 0 y: int)` 里那个 `y: int` 就是）。"
-                           + "要**盯类型**就把整个参数括起来写 `|>` 那条："
-                           + "`((v: int) |> IsPrime)` —— 类型在那一格上,名字只写一遍");
+            throw ParseError(Messages.T("parse.parser.guard_not_last_parameter"));
         return guard;
     }
 
@@ -483,8 +476,7 @@ public partial class Parser
         var name = Peek();
         // `_ => 体`:通配参数,收什么都行;体里的 `_` 仍当洞
         if (_pos > 0 && tokens[_pos - 1].Type == TokenType.Colon)
-            throw ParseError("不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。"
-                           + "要带类型就加括号：`(x: int) => …`");
+            throw ParseError(Messages.T("parse.parser.bare_lambda_annotation"));
         _pos++;
         Consume(TokenType.Arrow, "lambda 参数后需要 '=>'");
         var body = ParseUserLambdaBody("lambda 体", Previous());
@@ -533,8 +525,7 @@ public partial class Parser
         Consume(TokenType.LeftBrace, $"{context}需要 '{{' 开头");
         // 只问"像不像块":有 '->' 也算块
         if (!AnyNewlineBeforeClose(TokenType.RightBrace))
-            throw ParseError($"{context}需要代码块（单行要用 ';' 收尾，多行要换行）"
-                           + "——只想交回一个值就直接写 `(x) => 表达式`，不用花括号");
+            throw ParseError(Messages.T("parse.parser.expected_block", context));
         var stmts = ParseBlockStatements();
         return new BlockExpr(stmts) { Line = line, Column = col, Source = source };
     }
@@ -598,10 +589,10 @@ public partial class Parser
             list.Add(ParseExpression(Postfix.Bare));
             if (Match(closing)) return list;
             if (Check(TokenType.Comma))
-                throw ParseError("不允许 ',' —— 请用空格代替逗号");
+                throw ParseError(Messages.T("parse.parser.comma_not_allowed"));
             if (Match(TokenType.Newline)) continue;
             if (IsAtEnd())
-                throw ParseError($"列表末尾需要 '{closingName}'");
+                throw ParseError(Messages.T("parse.parser.expected_list_terminator", closingName));
         }
     }
 
@@ -637,7 +628,7 @@ public partial class Parser
         Consume(TokenType.RightBrace, "代码块末尾需要 '}'");
 
         if (list.Count == 0)
-            throw ParseError("不允许空的 '{ }'");
+            throw ParseError(Messages.T("parse.parser.empty_block"));
 
         return list;
     }

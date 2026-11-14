@@ -63,7 +63,7 @@ internal static class RangeMembers
     private static RuntimeValue First(RuntimeValue self)
     {
         var r = (RangeVal)self;
-        if (r.IsEmpty()) throw new RuntimeException("First: 元素不够（一共 0 个）", ErrorKind.Index);
+        if (r.IsEmpty()) throw new RuntimeException(Messages.T("runtime.range.first_on_empty"), ErrorKind.Index);
         return r.FirstElement();
     }
 
@@ -71,7 +71,7 @@ internal static class RangeMembers
     private static RuntimeValue Last(RuntimeValue self)
     {
         var r = (RangeVal)self;
-        if (r.IsEmpty()) throw new RuntimeException("Last: 元素不够（一共 0 个）", ErrorKind.Index);
+        if (r.IsEmpty()) throw new RuntimeException(Messages.T("runtime.range.last_on_empty"), ErrorKind.Index);
         return r.LastElement();
     }
 }

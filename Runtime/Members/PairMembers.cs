@@ -23,9 +23,9 @@ internal sealed class PairMembers : SequenceMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                $"pair.At 收一个下标（0 是键、1 是值），得到区间 {arg}", ErrorKind.Argument);
+                Messages.T("runtime.pair.at_needs_index", arg), ErrorKind.Argument);
         if (arg is not IntVal i)
-            throw new RuntimeException($"pair.At 需要 int 参数，得到 {arg.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.pair.at_needs_int", arg.Type), ErrorKind.Argument);
 
         var p = (PairVal)self;
         return i.Value switch

@@ -66,7 +66,7 @@ internal static class SysCmd
         if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || uri.IsFile)
         {
             if (!File.Exists(target) && !Directory.Exists(target))
-                throw new RuntimeException($"打不开 '{target}':没有这个东西", ErrorKind.Io);
+                throw new RuntimeException(Messages.T("runtime.io.open_path_not_found", target), ErrorKind.Io);
         }
 
         try
@@ -80,7 +80,7 @@ internal static class SysCmd
                                       or InvalidOperationException
                                       or FileNotFoundException)
         {
-            throw new RuntimeException($"打不开 '{target}':{ex.Message}", ErrorKind.Io);
+            throw new RuntimeException(Messages.T("runtime.io.open_failed", target, ex.Message), ErrorKind.Io);
         }
 
         return VoidVal.Instance;

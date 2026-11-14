@@ -43,7 +43,7 @@ public partial class Parser
         {
             var op = Previous();
             if (left is not (IdentifierExpr or MemberAccess))
-                throw ParseError("'??=' 的左边得是变量或成员（就像 '=' 那样）");
+                throw ParseError(Messages.T("parse.compile.bad_coalesce_target"));
             BumpExprDepth();
             var right = ParseAssignment(policy);
             return new BinaryExpr(left, op.Lexeme, right) { Line = left.Line, Column = left.Column };
@@ -181,8 +181,7 @@ public partial class Parser
             Operators.TryWord(t.Lexeme, out var infoOfWord);
             // 后面没操作数就是写错了
             if (!StartsPrimaryAt(1) && !IsOperatorToken(TypeAt(1)))
-                throw ParseError($"'{t.Lexeme}' 是中缀运算符，后面得跟个操作数"
-                               + $"（想传一个叫 `{t.Lexeme}` 的值就加括号：`({t.Lexeme})`）");
+                throw ParseError(Messages.T("parse.parser.infix_missing_operand", t.Lexeme, t.Lexeme, t.Lexeme));
             (lbp, rbp) = (infoOfWord.Lbp, infoOfWord.Rbp);
             return true;
         }
@@ -268,6 +267,6 @@ public partial class Parser
     private void BumpExprDepth()
     {
         if (++_exprDepth > MaxExprDepth)
-            throw ParseError($"表达式嵌套太深（超过 {MaxExprDepth} 层运算符/调用链）");
+            throw ParseError(Messages.T("parse.parser.operator_chain_too_deep", MaxExprDepth));
     }
 }

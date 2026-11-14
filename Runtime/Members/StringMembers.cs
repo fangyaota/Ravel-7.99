@@ -25,12 +25,12 @@ internal static class StringMembers
     {
         if (arg is RangeVal)
             throw new RuntimeException(
-                $"s.At 收一个下标（切一段用 s.Slice —— `s[1..3]` 就走它），得到区间 {arg}",
+                Messages.T("runtime.string.at_needs_index", arg),
                 ErrorKind.Argument);
         var v = ((StringVal)self).Value;
         var i = BuiltinClasses.IntArg(arg, "s.At");
         if (i < 0 || i >= v.Length)
-            throw new RuntimeException($"s.At: 索引 {i} 超出范围（长度 {v.Length}）", ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.string.index_out_of_range", i, v.Length), ErrorKind.Index);
         return new CharVal(v[i]);
     }
 
@@ -57,7 +57,7 @@ internal static class StringMembers
     {
         var v = ((StringVal)self).Value;
         var i = v.IndexOf(BuiltinClasses.TextArg(arg, "s.IndexOf"), StringComparison.Ordinal);
-        if (i < 0) throw new RuntimeException($"s.IndexOf: 找不到 {BuiltinClasses.TextArg(arg, "s.IndexOf")}", ErrorKind.Value);
+        if (i < 0) throw new RuntimeException(Messages.T("runtime.string.index_of_not_found", BuiltinClasses.TextArg(arg, "s.IndexOf")), ErrorKind.Value);
         return IntVal.Of(i);
     }
 
@@ -70,7 +70,7 @@ internal static class StringMembers
     {
         var v = ((StringVal)self).Value;
         var i = v.LastIndexOf(BuiltinClasses.TextArg(arg, "s.LastIndexOf"), StringComparison.Ordinal);
-        if (i < 0) throw new RuntimeException($"s.LastIndexOf: 找不到 {BuiltinClasses.TextArg(arg, "s.LastIndexOf")}", ErrorKind.Value);
+        if (i < 0) throw new RuntimeException(Messages.T("runtime.string.last_index_of_not_found", BuiltinClasses.TextArg(arg, "s.LastIndexOf")), ErrorKind.Value);
         return IntVal.Of(i);
     }
 
@@ -80,7 +80,7 @@ internal static class StringMembers
     private static RuntimeValue Slice(RuntimeValue self, RuntimeValue arg)
     {
         if (arg is not RangeVal rng)
-            throw new RuntimeException($"s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {arg.Type}", ErrorKind.Argument);
+            throw new RuntimeException(Messages.T("runtime.string.slice_needs_range", arg.Type), ErrorKind.Argument);
 
         var v = ((StringVal)self).Value;
         var (from, to, reverse) = SliceBounds(rng, v.Length, "s.Slice");
@@ -128,7 +128,7 @@ internal static class StringMembers
     {
         var sep = BuiltinClasses.TextArg(arg, "s.Split");
         if (sep.Length == 0)
-            throw new RuntimeException("s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.string.split_empty_separator"), ErrorKind.Value);
         return new ListVal([.. ((StringVal)self).Value
             .Split(sep, StringSplitOptions.None)
             .Select(p => (RuntimeValue)new StringVal(p))]);
@@ -146,7 +146,7 @@ internal static class StringMembers
         }
         else if (RangeVal.Infinite(rng.Start, out _) && RangeVal.Infinite(rng.End, out _))
         {
-            throw new RuntimeException($"{what}: {rng} 两头都没给,切不出这一段", ErrorKind.Index);
+            throw new RuntimeException(Messages.T("runtime.string.slice_both_unbounded", what, rng), ErrorKind.Index);
         }
         else if (RangeVal.Infinite(rng.End, out _))
         {
@@ -170,7 +170,7 @@ internal static class StringMembers
         if (lo < 0 || hi + 1 > length)
         {
             if (!clamp)
-                throw new RuntimeException($"{what}: {rng} 越界（长度 {length}）", ErrorKind.Index);
+                throw new RuntimeException(Messages.T("runtime.string.slice_out_of_range", what, rng, length), ErrorKind.Index);
 
             // 切一段**不报错**:越过哪头就收到哪头(`xs.Slice [9..9]` 是空的一段)。
             lo = System.Numerics.BigInteger.Max(lo, 0);

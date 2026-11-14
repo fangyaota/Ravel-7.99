@@ -127,12 +127,12 @@ internal static class SysFiles
         if (Directory.Exists(p))
         {
             if (Directory.EnumerateFileSystemEntries(p).Any())
-                throw new RuntimeException($"删除失败: 目录不是空的（不递归删）—— {p}", ErrorKind.Io);
+                throw new RuntimeException(Messages.T("runtime.io.delete_dir_not_empty", p), ErrorKind.Io);
             Directory.Delete(p);
             return VoidVal.Instance;
         }
 
-        if (!File.Exists(p)) throw new RuntimeException($"删除失败: 找不到要删的东西 —— {p}", ErrorKind.Io);
+        if (!File.Exists(p)) throw new RuntimeException(Messages.T("runtime.io.delete_not_found", p), ErrorKind.Io);
         File.Delete(p);
         return VoidVal.Instance;
     });
@@ -148,7 +148,7 @@ internal static class SysFiles
     public static RuntimeValue ListDir(RuntimeValue a) => Fs("列目录", () =>
     {
         var p = PathOf(a, "ListDir");
-        if (!Directory.Exists(p)) throw new RuntimeException($"列目录失败: 找不到目录 —— {p}", ErrorKind.Io);
+        if (!Directory.Exists(p)) throw new RuntimeException(Messages.T("runtime.io.list_dir_not_found", p), ErrorKind.Io);
 
         var entries = new Dictionary<RuntimeValue, RuntimeValue>();
         foreach (var d in Directory.EnumerateDirectories(p)) entries[new StringVal(Path.GetFileName(d))] = new BoolVal(true);
@@ -180,7 +180,7 @@ internal static class SysFiles
         var src = PathOf(a, "CopyPath");
         var dst = PathOf(b, "CopyPath");
         NeedFile(src, "复制");
-        if (Directory.Exists(dst)) throw new RuntimeException($"复制失败: 目标是目录 —— {dst}", ErrorKind.Io);
+        if (Directory.Exists(dst)) throw new RuntimeException(Messages.T("runtime.io.copy_target_is_directory", dst), ErrorKind.Io);
         NeedParentDir(dst, "复制");
         File.Copy(src, dst, overwrite: true);
         return VoidVal.Instance;
@@ -205,7 +205,7 @@ internal static class SysFiles
     public static RuntimeValue ChDir(RuntimeValue a) => Fs("切目录", () =>
     {
         var p = PathOf(a, "ChDir");
-        if (!Directory.Exists(p)) throw new RuntimeException($"切目录失败: 找不到目录 —— {p}", ErrorKind.Io);
+        if (!Directory.Exists(p)) throw new RuntimeException(Messages.T("runtime.io.chdir_dir_not_found", p), ErrorKind.Io);
         Directory.SetCurrentDirectory(p);
         return VoidVal.Instance;
     });

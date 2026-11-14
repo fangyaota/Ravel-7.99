@@ -57,7 +57,7 @@ internal sealed class MemberSet : IMemberSet
                 if (f.GetCustomAttribute<ClassValueAttribute>() is not { } value) continue;
                 if (f.GetValue(null) is not RuntimeValue built)
                     throw new InvalidOperationException(
-                        $"`[ClassValue(\"{value.Name}\")]` 得打在 RuntimeValue 字段上：{t.Name}.{f.Name}");
+                        Messages.T("runtime.interop.class_value_needs_runtime_value", value.Name, t.Name, f.Name));
                 if (!set._own.TryAdd(value.Name, new Spec(null, built, MemberKind.Value, false))) continue;
                 set._order.Add(value.Name);
             }
@@ -110,9 +110,7 @@ internal sealed class MemberSet : IMemberSet
             // (`a <> b` 解析就错),留到运行期就成了个够不着的成员
             if (!OperatorSymbols.IsSymbol(op.Op))
                 throw new InvalidOperationException(
-                    $"运算符 '{op.Op}' 不认 —— 得是 Ravel 那批里的一个"
-                    + "（`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=` `&` `|` `^` "
-                    + "`<<` `>>` `<<<` `>>>` / `is` `isnot` / `<:` `:>`）");
+                    Messages.T("runtime.value.unknown_operator", op.Op));
             return (op.Op, MemberKind.Operator, op.ReadOnly);
         }
 

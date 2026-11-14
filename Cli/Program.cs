@@ -13,10 +13,13 @@ internal static class Program
     private static string[] _scriptArgs = [];
 
     private static readonly string[] HeadSwitches =
-        ["-h", "--help", "-v", "--version", "-w", "--warn", "--more-control-flow"];
+        ["-h", "--help", "-v", "--version", "-w", "--warn", "--more-control-flow", "--lang"];
 
     private static int Main(string[] args)
     {
+        Messages.FromEnvironment();            // RAVEL_LANG
+        args = TakeLang(args);                 // --lang <代号> / --lang=<代号>
+
         if (CheckHead(args) != 0) return 1;
 
         var (head, tail) = Split(args);
@@ -49,13 +52,26 @@ internal static class Program
         return app.Run(head);
     }
 
+    // `--lang <代号>`:`i18n/<代号>.toml` 在可执行文件旁就切过去,找不到就留着中文。
+    private static string[] TakeLang(string[] args)
+    {
+        var rest = new List<string>();
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--lang" && i + 1 < args.Length) { Messages.Use(args[++i]); continue; }
+            if (args[i].StartsWith("--lang=", StringComparison.Ordinal)) { Messages.Use(args[i][7..]); continue; }
+            rest.Add(args[i]);
+        }
+        return [.. rest];
+    }
+
     private static int CheckHead(string[] args)
     {
         for (var i = 0; i < args.Length && args[i].StartsWith('-'); i++)
         {
             if (Array.IndexOf(HeadSwitches, args[i]) >= 0) continue;
             Console.WriteLine($"不认识的开关 '{args[i]}'。");
-            Console.WriteLine("用法: ravel [--warn] [--more-control-flow] [脚本.rav [参数…]]");
+            Console.WriteLine("用法: ravel [--warn] [--more-control-flow] [--lang <代号>] [脚本.rav [参数…]]");
             Console.WriteLine("      ravel test <词…> [--fast]   (一次最多 20 个文件)");
             Console.WriteLine("      ravel strip <文件或目录…>");
             Console.WriteLine("      ravel ast <文件或目录…>");

@@ -21,9 +21,9 @@ internal static class SysRegistry
             if (m.GetCustomAttribute<SysAttribute>() is not { } attr) continue;
 
             if (!Check(m, out var why))
-                throw new InvalidOperationException($"内置 '{attr.Name}'（{type.Name}.{m.Name}）{why}");
+                throw new InvalidOperationException(Messages.T("runtime.interop.builtin_bad_signature", attr.Name, type.Name, m.Name, why));
             if (found.Any(f => f.Item1 == attr.Name))
-                throw new InvalidOperationException($"内置 '{attr.Name}' 登记了两次（{type.Name}.{m.Name}）");
+                throw new InvalidOperationException(Messages.T("runtime.interop.builtin_registered_twice", attr.Name, type.Name, m.Name));
 
             found.Add((attr.Name, m));
         }

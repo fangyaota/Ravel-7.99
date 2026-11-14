@@ -24,7 +24,7 @@ public partial class Interpreter
 
         // 定义不在这里:变量的 `:=` 是**语句**(见 ParseDefinition),写成表达式就是说错了
         if (bin is { Left: IdentifierExpr } && bin.Op == ":=")
-            throw new RuntimeException("变量的定义（':='）是语句，不能当表达式用（赋值才是：'='）");
+            throw new RuntimeException(Messages.T("runtime.eval.definition_used_as_expression"));
 
         // 成员复合赋值 a.x += v —— 要留住对象,不能走下面「先求 a.x 的值」那条路
         if ((bin.Op is "+=" or "-=" or "*=" or "/=" or "%=") && bin.Left is MemberAccess mac)
@@ -94,7 +94,7 @@ public partial class Interpreter
             return (new BoundTraitOp(o, op), false);      // 槽运算符:两级,交给 TraitOp 帧
 
         if (fn == null)
-            throw new RuntimeException($"类型 {left.Type} 不支持运算符 '{op}'", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.operator.unsupported", left.Type, op), ErrorKind.Type);
 
         // **这儿不绑接收者**:内置那台(`1 + 2`)可以直接 `Impl(left, right)` 算掉,
         // 绑一次就得多分配一个闭包 —— 二元运算是解释器里最热的一格,不白花。
@@ -131,7 +131,7 @@ public partial class Interpreter
         // 元素是"区间里的整数",所以端点带小数照样能枚举(见 RangeVal)
         if (!BuiltinClasses.TryAsDouble(lo, out _) || !BuiltinClasses.TryAsDouble(hi, out _))
             throw new RuntimeException(
-                $"Range 的两端需要数值，得到 {lo.Type} 与 {hi.Type}", ErrorKind.Type);
+                Messages.T("runtime.eval.range_endpoint_not_numeric", lo.Type, hi.Type), ErrorKind.Type);
 
         Return(nf, new RangeVal(lo, hi, rng.StartClosed, rng.EndClosed));
     }
@@ -146,7 +146,7 @@ public partial class Interpreter
         // `=` 左边不是变量也不是字段(字面量、调用结果…) —— 赋值没地方落。
         // 从前这里是 `Return(nf, right)`:交出右值、什么都不写,静默得最彻底的一个。
         if (bin.Op == "=")
-            throw new RuntimeException("赋值的左边得是个变量名或字段，不能是别的表达式");
+            throw new RuntimeException(Messages.T("runtime.eval.assignment_target_invalid"));
 
         if (bin.Op is "+=" or "-=" or "*=" or "**=" or "/=" or "%=")
         {
@@ -183,7 +183,7 @@ public partial class Interpreter
     private void StepCompoundAssignVar(NodeFrame nf, BinaryExpr bin, RuntimeValue left, RuntimeValue right)
     {
         if (bin.Left is not IdentifierExpr target)
-            throw new RuntimeException("复合赋值目标必须是变量");
+            throw new RuntimeException(Messages.T("runtime.eval.compound_assignment_target_invalid"));
         var (fn, builtin) = BindOperator(left, BaseOp(bin.Op));
         if (fn is not BuiltinMethodVal bm)
         {
@@ -203,7 +203,7 @@ public partial class Interpreter
         if (nf.Count == 1) { PushChild(nf, bin.Right); return; }
 
         if (!nf.Result(0).HasOwnMembers)
-            throw new RuntimeException($"复合赋值的字段目标需要有自己的成员，{nf.Result(0).Type} 没有", ErrorKind.Type);
+            throw new RuntimeException(Messages.T("runtime.eval.compound_assignment_no_own_members", nf.Result(0).Type), ErrorKind.Type);
         var ov = (ObjectVal)nf.Result(0);
 
         var own = ov.Scope.LookupField(ma.Member) ?? BuiltinClasses.ClassBySlot(ov, ma.Member);
@@ -273,11 +273,11 @@ public partial class Interpreter
     private void CheckMemberAccess(Variable field, ObjectVal obj, string member)
     {
         if (field.HasAttr(Attr.Core) && !IsUnsafe)
-            throw new RuntimeException($"字段 '{member}' 是核心字段，需要 unsafe", ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.member.core_field_requires_unsafe", member), ErrorKind.Access);
         if (field.HasAttr(Attr.Internal))
-            throw new RuntimeException($"字段 '{member}' 是 internal，不能这样写（只能在它自己的代码里直接写 '{member} = …'）", ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.member.internal_field_not_writable", member, member), ErrorKind.Access);
         if (!CheckFieldAccess(field, obj))
-            throw new RuntimeException($"字段 '{member}' 是{(field.HasAttr(Attr.Private) ? "私有的" : "受保护的")}", ErrorKind.Access);
+            throw new RuntimeException(Messages.T("runtime.member.field_not_accessible", member, (field.HasAttr(Attr.Private) ? "私有的" : "受保护的")), ErrorKind.Access);
     }
 
     private void StepMemberAssign(NodeFrame nf, BinaryExpr bin, MemberAccess ma)
@@ -301,7 +301,7 @@ public partial class Interpreter
             // 判据是"有没有**自己**的成员表",不是"是不是 ObjectVal":
             // 原子值借的是类那层的表,往里写等于改掉整个类型,所以按只读挡回去。
             if (!obj.HasOwnMembers)
-                throw new RuntimeException($"无法给 {obj.Type} 的值设置字段（值类型没有自己的成员）", ErrorKind.Type);
+                throw new RuntimeException(Messages.T("runtime.member.value_type_has_no_members", obj.Type), ErrorKind.Type);
             var ov = (ObjectVal)obj;
             // `:=` 是定义:字段不存在也放行(到 count==2 时新建)。已存在的字段照样受 core/访问控制约束,
             // 否则 `:=` 就成了绕过封装的万能钥匙。
@@ -311,7 +311,7 @@ public partial class Interpreter
             var field = ownF ?? (ownF == null ? BuiltinClasses.TraitSlot(this, ov, ma.Member, allowPlain: true)?.Slot : null);
             if (field == null)
             {
-                if (!isDefine) throw new RuntimeException($"对象没有字段 '{ma.Member}'", ErrorKind.Attribute);
+                if (!isDefine) throw new RuntimeException(Messages.T("runtime.member.unknown_field", ma.Member), ErrorKind.Attribute);
             }
             else
             {

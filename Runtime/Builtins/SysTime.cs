@@ -63,7 +63,7 @@ internal static class SysTime
         // 漏出去就是"解释器内部错误"、Ravel 的 try 接不住(和 Json 那边同款说明)
         if (!DateTime.TryParseExact(text, fmt, CultureInfo.InvariantCulture,
                                     DateTimeStyles.None, out var t))
-            throw new RuntimeException($"ParseTime: 读不动 —— '{text}' 对不上格式 '{fmt}'", ErrorKind.Value);
+            throw new RuntimeException(Messages.T("runtime.time.parse_format_mismatch", text, fmt), ErrorKind.Value);
         return new BigIntVal(new DateTimeOffset(t).ToUnixTimeMilliseconds());
     });
 

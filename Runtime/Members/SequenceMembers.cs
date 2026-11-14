@@ -110,7 +110,7 @@ internal abstract class SequenceMembers
     [ClassMethod("Join")]
     private static RuntimeValue Join(RuntimeValue self, RuntimeValue arg)
     {
-        if (arg is not StringVal sep) throw new RuntimeException("Join 需要 string 分隔符", ErrorKind.Argument);
+        if (arg is not StringVal sep) throw new RuntimeException(Messages.T("runtime.sequence.join_needs_string"), ErrorKind.Argument);
         return new StringVal(string.Join(sep.Value, Items(self).Select(x => x.ToString())));
     }
 
@@ -138,21 +138,21 @@ internal abstract class SequenceMembers
     private static RuntimeValue FirstOf(IEnumerable<RuntimeValue> xs, string what)
     {
         foreach (var x in xs) return x;
-        throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
+        throw new RuntimeException(Messages.T("runtime.sequence.empty_collection", what), ErrorKind.Index);
     }
 
     private static RuntimeValue LastOf(IEnumerable<RuntimeValue> xs, string what)
     {
         if (xs is IReadOnlyList<RuntimeValue> list)          // List —— 直取末一个,O(1)
         {
-            if (list.Count == 0) throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
+            if (list.Count == 0) throw new RuntimeException(Messages.T("runtime.sequence.empty_collection", what), ErrorKind.Index);
             return list[^1];
         }
 
         var found = false;
         RuntimeValue last = VoidVal.Instance;
         foreach (var x in xs) { last = x; found = true; }
-        if (!found) throw new RuntimeException($"{what}: 元素不够（一共 0 个）", ErrorKind.Index);
+        if (!found) throw new RuntimeException(Messages.T("runtime.sequence.empty_collection", what), ErrorKind.Index);
         return last;
     }
 
@@ -164,7 +164,7 @@ internal abstract class SequenceMembers
     private static RuntimeValue Extreme(IEnumerable<RuntimeValue> xs, string what, bool keepLess)
     {
         using var e = xs.GetEnumerator();
-        if (!e.MoveNext()) throw new RuntimeException($"{what}: 空集合没有{what}", ErrorKind.Value);
+        if (!e.MoveNext()) throw new RuntimeException(Messages.T("runtime.sequence.extreme_on_empty", what, what), ErrorKind.Value);
         var best = e.Current;
         while (e.MoveNext())
         {

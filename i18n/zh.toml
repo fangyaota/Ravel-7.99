@@ -1,0 +1,263 @@
+# 内置报错的文案 —— 中文原文(中性语言)。
+# 一行一条:`键 = "文案"`;`{0}` `{1}` 是占位符;`\n` 是换行;`#` 到行尾是注释。
+# 别的语言放同目录 `en.toml`,`RAVEL_LANG=en` 或 `--lang en` 切过去,缺的条目回退这里。
+
+[parse.compile]
+bad_coalesce_target = "'??=' 的左边得是变量或成员（就像 '=' 那样）"
+
+[parse.lexer]
+char_literal_too_long = "字符字面量只能有一个字符（两个以上请用字符串）"
+dollar_only_in_string = "'$' 只用在字符串里的插值 `${…}`（要把右边封成一个实参,用 '<|'）"
+empty_char = "字符不能是空的（空字符串写 \"\"）"
+question_only_in_chain = "'?' 只用在 '?.' / '??' / '??=' 里（没有三目运算符）"
+raw_string_indent_too_shallow = "原始字符串里这一行的缩进比收尾的 '\"\"\"' 浅"
+unexpected_char = "未预期的字符 '{0}'"
+unknown_char_escape = "不认识的字符转义 '\\{0}'（要反斜杠本身请写 '\\\\'）"
+unterminated_char = "字符没有收尾的 \"'\""
+unterminated_interpolation = "插值没有收尾的 '}'"
+unterminated_raw_string = "原始字符串没有收尾的 '\"\"\"'"
+unterminated_string = "字符串没有收尾的 '\"'"
+
+[parse.parser]
+bare_lambda_annotation = "不加括号的 lambda 不能带注解 —— `x: int => …` 里那个 `x: int` 读成了类型判断。要带类型就加括号：`(x: int) => …`"
+comma_not_allowed = "不允许 ',' —— 请用空格代替逗号"
+comprehension_missing_for_clause = "推导式得先写子句:`for 模式 in 序列`"
+constraint_missing_name = "'=' 左边不是左值 —— 那它得是条**条件**，而条件里要有个名字"
+destructure_expected_assign = "解构需要 ':=' 或 '='（`[x y] := e` 是定义、`[x y] = e` 是赋值；`[x y] : T = e` 是带注解的定义）"
+do_block_last_not_value = "do 块的最后一条语句要是个值（不能以 ':<' 收尾）"
+duplicate_parameter_name = "参数名 '{0}' 写了两遍 —— 每个参数一个名字（要**盯类型**就把整个参数括起来写 `|>` 那条：`((v: int) |> IsPrime)`）"
+empty_block = "不允许空的 '{ }'"
+empty_do_block = "do 块里得有语句"
+expected_assign_after_modifier = "修饰符后需要 ':='（`by a = …` 那种换槽的写法只在 by 后面有）"
+expected_assign_after_type_annotation = "类型注解后需要 '=' 或 ':='"
+expected_block = "{0}需要代码块（单行要用 ';' 收尾，多行要换行）——只想交回一个值就直接写 `(x) => 表达式`，不用花括号"
+expected_definition_operator = "变量定义需要 ':='、'::='、': type =' 或 ':: type ='"
+expected_destructure_pattern = "`=` 右边得是**拆法**（`[a ..rest]` / `{x y}` / `{\"k\" -> v}` 那种，或者一个字面量）—— 光一个名字没有意义；要**改名**那是对象模式的写法（`{新名 := 成员名}`，带类型就 `{新名 : 类型 = 成员名}`）"
+expected_expression = "需要表达式，但得到{0}"
+expected_list_terminator = "列表末尾需要 '{0}'"
+expected_member_name_after_dot = "'.' 后需要成员名"
+expected_variable_name = "需要变量名"
+expression_nesting_too_deep = "表达式嵌套太深（超过 {0} 层）"
+guard_missing_parameter_name = "守卫里得有个参数名 —— 它最左边那个标识符就是"
+guard_modifier_not_allowed = "守卫上不能写修饰符 '{0}' —— 守卫是给已经声明过的那个参数加条件,它自己什么都不声明"
+guard_not_last_parameter = "守卫要写在参数表的**最后一项** —— 它是一条表达式,后面再跟东西会被当成它的实参（`(x < 0 y: int)` 里那个 `y: int` 就是）。要**盯类型**就把整个参数括起来写 `|>` 那条：`((v: int) |> IsPrime)` —— 类型在那一格上,名字只写一遍"
+index_requires_range = "'(' 开头的索引得是区间（`xs(0..3)`）"
+infix_missing_operand = "'{0}' 是中缀运算符，后面得跟个操作数（想传一个叫 `{1}` 的值就加括号：`({2})`）"
+invalid_assignment_target = "'{0}' 的左边得是变量、成员或下标"
+invalid_inc_dec_target = "'{0}' 只能跟在变量或字段后面，而且得自己单独成句（`x{1}` / `a.b{2}`）—— 它是 `x += 1` 的简写，不交回值"
+label_prefix_misplaced = "'@' 是**标签**的前缀，写在语句开头（`@outer while { … }`，要开 `--more-control-flow`）；从前那个封口的运算符已经改成 '|>' 了"
+operator_chain_too_deep = "表达式嵌套太深（超过 {0} 层运算符/调用链）"
+pipe_missing_target = "'|>' 后面得跟点什么（`a |> .f ()` 是挂成员，`a |> g` 是把 a 喂给 g）"
+reserved_word = "'{0}' 是保留字"
+retired_for_instance_modifier = "'forInstance' 修饰符已删除（类有「自己的」和「给实例的」两张表，住哪张表就是声明）"
+retired_init_modifier = "构造器不再用 init 修饰符，直接写 `init = () => { ... }`"
+retired_modifier = "'{0}' 修饰符已删除（它只被记下来，没有任何地方读它）"
+retired_operator_definition = "运算符定义已改成直接用符号：`+ := f`（定义）或 `+ = f`（覆盖）"
+return_bind_outside_do = "':<' 只能写在 do { … } 里"
+return_outside_function = "'return' 得写在函数体里 —— 顶层没有可返回的那个函数"
+slot_read_not_statement = "语句开头只有换/建槽的写法（`by a.x = …` / `by a.x := …`）；取槽的 `by a.x` 是个表达式，得放在能用值的地方（比如 `p := by a.x`）"
+unused_label = "标签 '{0}' 没人用（写 `break {1}` 或 `continue {2}` 才指得上它）"
+
+[parse.pattern]
+dict_entries_then_object_members = "字典项（`{键 -> 模式}`）和对象成员（`{x y}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写"
+empty_brace_pattern = "模式里得写点什么（`{x y}` 或 `{键 -> 模式}`）"
+expected_bind_target = "这一格要么是名字、字面量，要么是一个位置（`l[2]` / `a.b`）"
+expected_member_name = "对象模式里每一项是一个成员名（`{x y}`，能带类型 `{n: int}`），要么整项写成字典项（`{键 -> 模式}`）"
+guarded_pattern_missing_name = "这一格的条件里得有个名字 —— 它**最左边**那个标识符就是"
+modifier_in_destructuring = "解构赋值里不能加修饰符 '{0}' —— 修饰符只属于定义（要定义就写 ':='）"
+no_underscore_member = "对象模式里没有 '_' 这一格 —— 不想要的成员别写出来就行"
+object_members_then_dict_entries = "对象成员（`{x y}`）和字典项（`{键 -> 模式}`）别混在一个 `{…}` 里 —— 底下是两套取法，分开写"
+place_requires_assignment = "这一格是个位置（`l[2]` / `a.b`）—— 定义只给名字，写回要用 '='"
+rename_target_expected_member_name = "对象模式里 `=` 后面写**成员名**（`{新名 = 成员名}`）—— 要拆那一项的值,把整项写成列表/字典那边那种模式"
+rest_not_last = "'..名字' 只能写在模式的最后一项 —— 它把后面都吃了"
+rest_requires_name = "'..' 后面要一个真名字 —— `_` 是丢弃/占位的记号，当不了名字"
+unhandled_pattern = "Lowering 没认这个模式"
+wildcard_cannot_be_annotated = "`_` 不绑东西，挂不了 `: 类型` 也挂不了 `|> 条件` —— 想验那一格就给它一个名字"
+
+[parse.strip]
+token_mismatch = "剥完之后第 {0} 个 token 对不上 —— 原文 {1} / 剥后 {2}"
+
+[runtime.builtin]
+assert_requires_bool = "assert 需要 bool 参数"
+property_requires_getter = "property 需要 getter 函数"
+
+[runtime.call]
+default_continuation_not_callable = "这枚续延是 default（还没到手的那一枚），调不了 —— 能跳的续延只有 callcc 交出来的那种"
+function_not_invoked = "这一句的值是个函数，却没被调用 —— 是否遗忘了调用？ 它是 {0}"
+not_a_constructor = "类型 {0} 不能作为构造器调用"
+not_a_function = "值 {0} 不是函数，不能调用"
+wrong_block_count = "true/false 需要两个代码块"
+
+[runtime.class]
+cast_between_types_invalid = "无法将 {0} 转换为 {1}"
+cast_to_bigfraction_invalid = "无法将 {0} 转换为 bigfraction"
+cast_to_bigint_invalid = "无法将 {0} 转换为 bigint"
+cast_to_fraction_invalid = "无法将 {0} 转换为 fraction"
+cast_to_int_invalid = "无法将 {0} 转换为 int"
+cast_to_real_invalid = "无法将 {0} 转换为 real"
+code_block_attached_twice = "同一个代码块被挂在类的**两层**上了（比如 `M := { … }` 之后 `class M` 又 `class 父 M`） —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次"
+code_block_attached_twice_append = "同一个代码块被挂在类的**两层**上了（`body.Append` 拼上去的那一块也是这个规矩） —— 实例化时它会跑两遍,里面的定义第二次会静默盖掉第一次"
+code_block_required = "class 需要代码块参数"
+expected_implementation = "{0} 要的是「接口 类 实现」造出来的实现，得到 {1}"
+fraction_string_invalid = "无效的分数字符串"
+impl_required = "`{0}` 要求 {1} 已经实现了 {2}（先给它 impl/use 一条）"
+int_value_out_of_range = "数值 {0} 超出 int 范围（int 是 32 位，大数用 bigint）"
+interface_body_not_block = "接口的体得是个代码块（`interface … {{ … }}`），得到 {0}"
+interface_reserved_slot_name = "接口 {0} 里声明了名为 '{1}' 的槽 —— 那是引擎自己的名字（它指的是「这一次在服务谁」），换一个"
+interpreter_required = "函数 {0} 要一个 Interpreter,但这一趟没有"
+method_bad_signature = "类方法 {0}.{1} 的签名不对:要收 (self, 0~2 个实参)"
+nan_to_int_invalid = "NaN 不能转换为 int"
+native_function_bad_signature = "函数 {0} 的签名不对:要收 1~3 个 RuntimeValue（开头可以是 Interpreter）"
+no_default_value = "类型 {0} 没有默认值"
+requirement_not_interface = "要求表里得全是接口，第 {0} 个是 {1}"
+sealed = "`{0}` 被 seal 了 —— 不能再被实现"
+sort_incomparable_types = "排序时比不了:元素之间类型不一致"
+string_to_bigint_invalid = "无法将字符串转换为 bigint"
+string_to_int_invalid = "无法将字符串 '{0}' 转换为 int（超出 int 范围或不是数字）"
+string_to_real_invalid = "无法将字符串 '{0}' 转换为 real"
+type_is_interface = "这个类型不能再套一个代码块来建类（它是个接口：接口是用 `interface { … }` 造的）"
+unknown_operator = "对象没有运算符 '{0}'"
+
+[runtime.dict]
+key_not_found = "键不存在: {0}"
+merge_needs_dict = "dict 的 '+' 右边得是 dict（合并两张表），得到 {0}"
+not_a_pair = "dict.Contains 要一个 Pair（键 -> 值），得到 {0}"
+
+[runtime.eval]
+assignment_target_invalid = "赋值的左边得是个变量名或字段，不能是别的表达式"
+by_assign_requires_object = "`by` 只能换对象身上的属性，得到 {0}"
+by_read_requires_object = "`by` 只能取对象身上的属性，得到 {0}"
+by_target_not_property = "'{0}' 不是 by 属性（`by` 取/换的是槽里的 property）"
+compound_assignment_no_own_members = "复合赋值的字段目标需要有自己的成员，{0} 没有"
+compound_assignment_target_invalid = "复合赋值目标必须是变量"
+definition_used_as_expression = "变量的定义（':='）是语句，不能当表达式用（赋值才是：'='）"
+not_operand_not_bool = "! 需要 bool 操作数"
+range_endpoint_not_numeric = "Range 的两端需要数值，得到 {0} 与 {1}"
+unknown_node_type = "无法求值的节点类型: {0}"
+
+[runtime.function]
+append_needs_function = "append 需要一个函数参数"
+prepend_needs_function = "prepend 需要一个函数参数"
+set_scope_needs_scope = "setScope 需要 Scope 参数"
+
+[runtime.interop]
+builtin_bad_signature = "内置 '{0}'（{1}.{2}）{3}"
+builtin_registered_twice = "内置 '{0}' 登记了两次（{1}.{2}）"
+class_value_needs_runtime_value = "`[ClassValue(\"{0}\")]` 得打在 RuntimeValue 字段上：{1}.{2}"
+conversion_failed = "{0}：{1} 转不成 {2}（{3}）"
+expected_integer = "{0} 需要整数参数，得到 {1}"
+expected_number = "{0} 需要数值参数，得到 {1}"
+no_registered_converter = "{0}：{1}（{2}）转不成 {3} —— 这一型还没有转法。插件可以在 C# 层 `PluginKit.RegisterConverter` 加一条"
+ravel_function_not_callable = "把 Ravel 函数交给 .NET 做不到 —— 原生闭包调不了 Ravel 函数（那是帧栈的活）。要回调就在 .NET 那侧给一个委托"
+unsupported_implements = "类 {0} 写了 Implements = \"{1}\" —— 这一格现在只认 \"IValue\"(其它的接口请用 Ravel 侧的 `impl (某接口 类 { … })`)"
+value_not_convertible = "这个值转不成 .NET 的值：{0}"
+
+[runtime.io]
+byte_out_of_range = "{0}的第 {1} 个不是字节（要在 0..255 里，得到 {2}）"
+chdir_dir_not_found = "切目录失败: 找不到目录 —— {0}"
+copy_target_is_directory = "复制失败: 目标是目录 —— {0}"
+delete_dir_not_empty = "删除失败: 目录不是空的（不递归删）—— {0}"
+delete_not_found = "删除失败: 找不到要删的东西 —— {0}"
+env_name_empty = "{0}: 变量名不能是空的"
+env_var_missing = "环境变量 '{0}' 没有（想给个默认值用 System.EnvOr）"
+file_not_found = "{0}: 找不到文件 —— {1}"
+list_dir_not_found = "列目录失败: 找不到目录 —— {0}"
+native_exception = "{0}的时候 .NET 抛了 {1}: {2}"
+not_byte_list = "{0}需要一个字节表（list），得到 {1}"
+open_failed = "打不开 '{0}':{1}"
+open_path_not_found = "打不开 '{0}':没有这个东西"
+operation_failed = "{0}失败: {1}"
+parent_dir_not_found = "{0}: 目录不存在 —— {1}"
+path_is_directory = "{0}: 这是个目录，不是文件 —— {1}"
+
+[runtime.json]
+at_index_out_of_range = "Json.At: 索引 {0} 超出范围（长度 {1}）"
+at_needs_index = "Json.At 收一个下标（切一段用 Json.Slice —— `j[1..3]` 就走它），得到区间 {0}"
+nesting_too_deep = "Json: 嵌套超过 {0} 层（是不是有容器包含自己？）"
+parse_error = "Json.FromString: 第 {0} 行第 {1} 列读不动 —— {2}"
+slice_needs_range = "Json.Slice 收一个区间（`j[1..3]`），得到 {0}"
+trailing_content = "Json.FromString: 第一个值后面还有东西（位置 {0}:{1}）"
+
+[runtime.list]
+at_needs_index = "list.At 收一个下标（切一段用 list.Slice —— `xs[1..3]` 就走它），得到区间 {0}"
+index_needs_int = "{0} 需要 int 参数"
+index_out_of_range = "{0} 的索引 {1} 越界 (列表长度 {2})"
+slice_needs_range = "list.Slice 收一个区间（`xs[1..3]`），得到 {0}"
+
+[runtime.member]
+core_field_requires_unsafe = "字段 '{0}' 是核心字段，需要 unsafe"
+field_not_accessible = "字段 '{0}' 是{1}"
+internal_field_not_writable = "字段 '{0}' 是 internal，不能这样写（只能在它自己的代码里直接写 '{1} = …'）"
+unknown_field = "对象没有字段 '{0}'"
+unknown_method = "{0} 没有方法 '{1}'"
+value_type_has_no_members = "无法给 {0} 的值设置字段（值类型没有自己的成员）"
+
+[runtime.module]
+ambiguous_import = "`using \"{0}\"` 有歧义:{1} 都对得上 —— 把后缀写全再试"
+
+[runtime.operator]
+fraction_result_out_of_int_range = "分数运算结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）"
+incomparable_types = "比不了 {0} 与 {1}"
+pow_fraction_out_of_int_range = "运算符 '**' 的结果超出 int 范围（fraction 的分子分母是 32 位，改用 bigfraction）"
+pow_result_out_of_int_range = "{0} ** {1} 超出 int 范围（int 是 32 位，大数用 bigint）"
+pow_zero_negative_exponent = "运算符 '**' 的除数为零（0 的负数次幂）"
+shift_count_negative = "运算符 '{0}' 的移位数不能是负数（{1}）—— 想往另一头移就换 `<<<` / `>>>`"
+shift_count_not_non_negative_int = "运算符 '{0}' 的移位数需要一个非负的 int，得到 {1}"
+unsupported = "类型 {0} 不支持运算符 '{1}'"
+
+[runtime.pair]
+at_needs_index = "pair.At 收一个下标（0 是键、1 是值），得到区间 {0}"
+at_needs_int = "pair.At 需要 int 参数，得到 {0}"
+
+[runtime.range]
+endpoint_needs_number = "区间的端点需要数值，得到 {0}"
+endpoint_not_boundable = "区间的端点不能是 {0} —— 它给不出界"
+first_on_empty = "First: 元素不够（一共 0 个）"
+fraction_zero_denominator = "区间的端点是分数，分母不能为零"
+infinite_endpoint_not_boundable = "区间的端点不能是 {0} —— 无穷长的区间给不出界"
+last_on_empty = "Last: 元素不够（一共 0 个）"
+unbounded_has_no_last = "无限长的区间没有最后一个（{0}）"
+whole_has_no_first = "全区间没有第一站（{0} —— 谁都在里头，但没有起手那一头）"
+
+[runtime.scope]
+already_defined = "'{0}' 在这个作用域里已经定义过 —— `:=` 是定义不是覆盖（要改值/覆盖继承来的成员，用 `=`）"
+assignment_to_undefined = "无法给未定义变量 '{0}' 赋值"
+define_needs_string = "scope.Define 需要字符串名称"
+lookup_needs_string = "scope.Lookup 需要字符串参数"
+readonly_redefine = "无法重新定义只读变量 '{0}'"
+remove_needs_string = "scope.Remove 需要字符串名称"
+shadows_inherited_member = "'{0}' 是继承来的成员 —— `:=` 遮不掉它（它不给覆盖，`=` 也不收）"
+shadows_module_member = "'{0}' 是 {1} 的成员 —— 顶层作用域就是模块的成员表，`:=` 蒙不掉它（要覆盖用 `=`）"
+undefined_variable = "未定义的变量 '{0}'"
+value_members_read_only = "值类型的成员表是只读的：不能改写 '{0}'"
+variable_unreadable = "变量 '{0}' 不可读取"
+
+[runtime.seq]
+expected_function_argument = "{0} 需要一个函数参数，得到 {1}"
+pipe_lhs_not_function = "<| 左边必须是函数"
+
+[runtime.sequence]
+empty_collection = "{0}: 元素不够（一共 0 个）"
+extreme_on_empty = "{0}: 空集合没有{1}"
+join_needs_string = "Join 需要 string 分隔符"
+
+[runtime.string]
+at_needs_index = "s.At 收一个下标（切一段用 s.Slice —— `s[1..3]` 就走它），得到区间 {0}"
+index_of_not_found = "s.IndexOf: 找不到 {0}"
+index_out_of_range = "s.At: 索引 {0} 超出范围（长度 {1}）"
+last_index_of_not_found = "s.LastIndexOf: 找不到 {0}"
+slice_both_unbounded = "{0}: {1} 两头都没给,切不出这一段"
+slice_needs_range = "s.Slice 收一个区间（如 `s.Slice [1..3)`），得到 {0}"
+slice_out_of_range = "{0}: {1} 越界（长度 {2}）"
+split_empty_separator = "s.Split: 分隔符不能是空串（想逐个字符就用 s.Chars ()）"
+
+[runtime.task]
+handle_not_ready = "这个句柄还没完成 —— 取结果之前得先等它(WaitAny)"
+wait_any_empty_handles = "WaitAny 要一组句柄(空表没什么可等的)"
+
+[runtime.time]
+parse_format_mismatch = "ParseTime: 读不动 —— '{0}' 对不上格式 '{1}'"
+
+[runtime.value]
+index_out_of_range = "{0}: 索引 {1} 超出范围（长度 {2}）"
+unknown_operator = "运算符 '{0}' 不认 —— 得是 Ravel 那批里的一个（`+` `-` `*` `/` `%` `**` `==` `!=` `<` `>` `<=` `>=` `&` `|` `^` `<<` `>>` `<<<` `>>>` / `is` `isnot` / `<:` `:>`）"

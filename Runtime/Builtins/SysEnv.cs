@@ -14,7 +14,7 @@ internal static class SysEnv
     {
         var name = EnvName(a, "Env");
         var v = Environment.GetEnvironmentVariable(name);
-        if (v == null) throw new RuntimeException($"环境变量 '{name}' 没有（想给个默认值用 System.EnvOr）", ErrorKind.Key);
+        if (v == null) throw new RuntimeException(Messages.T("runtime.io.env_var_missing", name), ErrorKind.Key);
         return new StringVal(v);
     });
 

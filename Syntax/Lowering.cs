@@ -262,7 +262,7 @@ public sealed class Lowering
 
             default:
                 // 解析器挡过一道了,按理到不了这儿;真到了说明它那条件松了
-                throw Error(b, "'??=' 的左边得是变量或成员（就像 '=' 那样）");
+                throw Error(b, Messages.T("parse.compile.bad_coalesce_target"));
         }
     }
 
@@ -678,7 +678,7 @@ public sealed class Lowering
             }
         }
 
-        throw Error(at, "Lowering 没认这个模式");
+        throw Error(at, Messages.T("parse.pattern.unhandled_pattern"));
     }
 
     private static UnaryExpr Not(Expression operand, AstNode at)
@@ -828,7 +828,7 @@ public sealed class Lowering
     private Statement BindPlace(Expression place, Expression value, AstNode at)
     {
         if (!_assignMode)
-            throw Error(at, "这一格是个位置（`l[2]` / `a.b`）—— 定义只给名字，写回要用 '='");
+            throw Error(at, Messages.T("parse.pattern.place_requires_assignment"));
 
         return place switch
         {
@@ -836,7 +836,7 @@ public sealed class Lowering
             // 成员那格:`p.x = v` 本来就是一条赋值表达式,照原样发出去。
             MemberAccess ma => ExprStmt(
                 new BinaryExpr(Lower(ma), "=", value) { Line = at.Line, Column = at.Column }, at),
-            _ => throw Error(at, "这一格要么是名字、字面量，要么是一个位置（`l[2]` / `a.b`）"),
+            _ => throw Error(at, Messages.T("parse.pattern.expected_bind_target")),
         };
     }
 
@@ -844,7 +844,7 @@ public sealed class Lowering
     {
         if (!_assignMode) return Define(name, null, value, attrs, at);
         if (attrs is [.., var bad])
-            throw Error(at, $"解构赋值里不能加修饰符 '{bad}' —— 修饰符只属于定义（要定义就写 ':='）");
+            throw Error(at, Messages.T("parse.pattern.modifier_in_destructuring", bad));
         return new Assignment(name, value) { Line = at.Line, Column = at.Column };
     }
 
