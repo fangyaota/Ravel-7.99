@@ -359,7 +359,7 @@ const builtinContentProvider = {
             '备注',
             '    Ravel 源码中不存在定义行。',
             '    签名取自引擎的成员表(C# 侧)。',
-            '    相关用法见 docs/tutorial 中对应的一节。',
+            '    相关用法见 docs/tutorial。',
             '',
         ].join(String.fromCharCode(10));
     },
