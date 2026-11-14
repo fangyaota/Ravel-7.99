@@ -3,7 +3,7 @@
 // 跳转定义那半的用例(纯函数,不依赖 vscode):
 //     node vscode-ravel/test/definitions.test.js
 
-const { indexDefinitions, moduleNameOf, wordAt, findDefinition } = require('../definitions');
+const { indexDefinitions, moduleNameOf, wordAt, findDefinition, findDefinitions } = require('../definitions');
 
 let failed = 0;
 let passed = 0;
@@ -40,6 +40,7 @@ const src = [
 
 check('扫出来的定义', indexDefinitions(src), [
     { name: 'Seqs', line: 1, character: 9, kind: 'def' },
+    { name: 'xs', line: 1, character: 18, kind: 'param' },
     { name: 'inner', line: 2, character: 4, kind: 'def' },
     { name: 'Point', line: 5, character: 0, kind: 'def' },
     { name: 'x', line: 6, character: 4, kind: 'def' },
@@ -102,8 +103,8 @@ const real = [
     '}',
 ].join('\n');
 
-check('库里那几种形状都认得', indexDefinitions(real).map((d) => d.name),
-    ['Seq', 'Editor', 'Pages', 'Lines', 'init', 'while', 'again']);
+check('库里那几种形状都认得(含参数)', indexDefinitions(real).map((d) => d.name),
+    ['Seq', 'xs', 'Editor', 'Pages', 'Lines', 'init', 'while', 'c', 'body', 'again', 'x']);
 
 // `init = …` 是**赋值**那一类(`=` 在这里是"换掉继承来的那条"),得认出来,只是排在 `:=` 后面
 check('init = 那条标成 assign',
@@ -113,12 +114,69 @@ check('init = 那条标成 assign',
 check('== 不被当成赋值',
     indexDefinitions('x == 5\n').map((d) => d.name), []);
 
-check('=> 不被当成赋值',
-    indexDefinitions('(x: int) => { x; }\n').map((d) => d.name), []);
+check('=> 后面不是赋值,前面的括号里是参数',
+    indexDefinitions('(x: int) => { x; }\n').map((d) => d.name), ['x']);
 
 check('同一个名字 := 优先于 =',
     findDefinition({ word: 'v' }, [{ key: 'a.rav', source: 'v := 1\nv = 2\nv = 3\n' }], 'a.rav', 2),
     { key: 'a.rav', line: 0, character: 0 });
+
+// ── 这几处也是"变量":参数、推导式的循环变量、解构 ──
+check('多参数 + 带类型的那格不算名字',
+    indexDefinitions('f := (a b: int c) => { a; }').map((d) => d.name),
+    ['f', 'a', 'b', 'c']);
+
+check('模式参数:解构出来的都是名字',
+    indexDefinitions('[[k v] for [k v] in [[1 2] [3 4]]]').map((d) => d.name),
+    ['k', 'v']);
+
+check('推导式:for 后面那格是定义',
+    indexDefinitions('xs := [x * 2 for x in [1 2 3] if (x > 1)]').map((d) => d.name),
+    ['xs', 'x']);
+
+check('推导式:字典那两格',
+    indexDefinitions('d := {k -> v for [k v] in [[1 2]]}').map((d) => d.name),
+    ['d', 'k', 'v']);
+
+check('解构赋值:每一格都是定义',
+    indexDefinitions('[a b] := Pair 1 2').map((d) => d.name),
+    ['a', 'b']);
+
+check('解构 + 带注解',
+    indexDefinitions('[a: int b] := Pair 1 2').map((d) => d.name),
+    ['a', 'b']);
+
+check('一行两句都要认',
+    indexDefinitions('a := 1; b := 2').map((d) => d.name),
+    ['a', 'b']);
+
+check('字符串里的 := 不算',
+    indexDefinitions('s := "x := 1"').map((d) => d.name),
+    ['s']);
+
+check('三引号里的 := 也不算',
+    indexDefinitions('t := """\ny := 2\n"""\n').map((d) => d.name),
+    ['t']);
+
+check('注释里的 for … in 不算',
+    indexDefinitions('# [x for x in xs]').map((d) => d.name),
+    []);
+
+check('守卫位里的名字是参数',
+    indexDefinitions('g := (n > 0) => { n; }').map((d) => d.name),
+    ['g', 'n']);
+
+// ── 同名好几处:全交出去,最近的排第一 ──
+const many = [
+    'v := 0',
+    'f := () => {',
+    '    v := 1',
+    '    v;',
+    '}',
+].join('\n');
+const hs = findDefinitions({ word: 'v' }, [{ key: 'm.rav', source: many }], 'm.rav', 3);
+check('多候选:光标之前最近那处排第一', hs[0], { key: 'm.rav', line: 2, character: 4 });
+check('多候选:剩下的也交出去', hs.map((h) => h.line), [2, 0]);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

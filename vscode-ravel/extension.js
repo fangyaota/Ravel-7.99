@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { foldingRanges } = require('./folding');
-const { wordAt, findDefinition, lineOf, indexDefinitions } = require('./definitions');
+const { wordAt, findDefinition, findDefinitions, lineOf, indexDefinitions } = require('./definitions');
 const hints = require('./hints');
 
 /** @type {vscode.OutputChannel | undefined} */
@@ -287,8 +287,17 @@ const definitionProvider = {
     async provideDefinition(document, position) {
         const found = await locate(document, position);
         if (!found) return undefined;
-        const { hit } = found;
-        return new vscode.Location(vscode.Uri.parse(hit.key), new vscode.Position(hit.line, hit.character));
+        const { hit, docs } = found;
+
+        // 同名有好几处时**全交出去**:VS Code 会摆成候选列表(F12 之后那个 peek),
+        // 比自己在那儿挑一个、猜错了再回来省事。第一个是 locate 挑好的那处。
+        const ref = wordAt(document.getText(), document.offsetAt(position));
+        const hits = ref ? findDefinitions(ref, docs, document.uri.toString(), position.line) : [];
+        const list = hits.length > 0 ? hits : [hit];
+        return list.map((h) => new vscode.Location(
+            vscode.Uri.parse(h.key),
+            new vscode.Position(h.line, h.character),
+        ));
     },
 };
 
