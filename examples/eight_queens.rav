@@ -1,0 +1,35 @@
+# 八皇后:每行选一列,行与行之间用 `require` 剪枝。
+# 选、剪、回溯三件事全由 `amb` 负责 —— 这里没有手写循环,也没有手写撤销。
+
+n := 8
+cols := ([1..n]).ToList ()
+
+safe := (c: int chosen: list) => {
+    check := (rest: list gap: int) => {
+        rest.IsEmpty () { true; } {
+            q := rest.First ()
+            (q == c) { false; } {
+                (((q - c) == gap) || ((c - q) == gap)) { false; } {
+                    check ((rest.Skip 1).ToList ()) (gap + 1)
+                }
+            }
+        }
+    }
+    check chosen 1
+}
+
+place := (left: int chosen: list) => {
+    (left == 0) {
+        chosen
+    } {
+        c := amb cols
+        require (safe c chosen)
+        place (left - 1) ([c].Concat chosen)
+    }
+}
+
+first := one (() => { place n []; })
+print ("一个解: " + (string first))
+
+every := all (() => { place n []; })
+print ("解的个数: " + (string (every.Count ())))

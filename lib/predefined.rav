@@ -84,6 +84,7 @@ using "keys.rav"
 using "seqs.rav"
 using "exceptions.rav"
 using "expected.rav"
+using "amb.rav"
 
 readonly callcc := (f: function) => {
     System.CallCC (k: function) => {

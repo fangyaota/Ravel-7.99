@@ -55,6 +55,7 @@
 | `break` / `continue` | 跳出循环 / 跳过这一轮（默认可用；关掉要 `#more-control-flow false`。给标签能跳好几层，见 4.5）|
 | `return v` | 函数里提前交回（默认可用；关掉要 `#more-control-flow false`。上下文关键字，出的是最近一层**用户写的**函数，见 4.5）|
 | `callcc fn` | 续延（拿到的类型是 `Continuation`，见 4.5）|
+| `one (块)` / `all (块)` | 用 `amb` 做回溯搜索，收第一个解 / 全部解；`require` 剪枝，见 4.5 |
 | `with obj { }` | 进到 obj 的成员表里跑一段（**不拷**、**不推层**；要副本用 `Copy ()`，见 8.8）|
 | `o.MemberScope ()` | 这个对象的**成员表**（一个 `Scope`）—— 按动态名字读写成员时用它 |
 | `assert cond msg` | 断言（**两个实参一次写完、别跨行**，见 12 章那条）|

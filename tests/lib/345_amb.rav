@@ -1,0 +1,48 @@
+# amb:非确定性选择 + 回溯。`one` 收第一个解,`all` 收全部解,`require` 剪枝。
+
+print (one (() => { amb [1 2 3]; }))
+
+print "---"
+
+print (one (() => {
+    a := amb ["x" "y"]
+    b := amb [10 20]
+    [a b]
+}))
+
+print "---"
+
+xs := all (() => {
+    i := amb [1 2 3 4]
+    j := amb [1 2 3 4]
+    require (i < j)
+    [i j]
+})
+print (xs.Count ())
+print xs
+
+print "---"
+
+print (all (() => { i := amb [1 2]; require (i > 5); i; }))
+
+print "---"
+
+print (try { one (() => { amb []; }); } (e: Exception) => { string e; })
+
+print "---"
+
+print (one (() => { amb [1 2 3]; }))
+
+# --- expected ---
+# 1
+# ---
+# [x 10]
+# ---
+# 6
+# [[1 2] [1 3] [1 4] [2 3] [2 4] [3 4]]
+# ---
+# []
+# ---
+# 没有解
+# ---
+# 1

@@ -1,0 +1,57 @@
+# amb:非确定性选择。失败就跳回最近的一个选择点,换下一个候选重来。
+#
+# 用法只有两个入口:
+#   one (() => { x := amb [1 2 3]; require (x > 1); x; })   收第一个解
+#   all (() => { ... })                                      收全部解
+#
+# 全部状态只有一格:`ambNext` 是"回到最近选择点、试下一个候选"的那枚续延。
+# 没有候选可试时它抛 `IndexError`,所以"无解"与"用完"是同一件事。
+# 两个入口都保证退出时把 `ambNext` 还原,于是嵌套调用各管各的。
+
+ambNext := () => { throw (IndexError ("没有可回溯的选择点了")); }
+
+amb := (choices: list) => {
+    callcc ((k: object) => {
+        outer := ambNext
+        attempt := (rest: list) => {
+            rest.IsEmpty () {
+                ambNext = outer
+                outer ()
+            } {
+                head := rest.First ()
+                tail := (rest.Skip 1).ToList ()
+                ambNext = () => { attempt tail; }
+                k head
+            }
+        }
+        attempt choices
+    })
+}
+
+fail := () => { ambNext (); }
+
+require := (ok: bool) => {
+    ok { (); } { ambNext (); }
+}
+
+all := (f: function) => {
+    outer := ambNext
+    result := callcc ((done: object) => {
+        out := []
+        ambNext = () => { done out; }
+        out.Add (f ());
+        fail ()
+        ()
+    })
+    ambNext = outer
+    result
+}
+
+one := (f: function) => {
+    xs := all f
+    xs.IsEmpty () {
+        throw (IndexError ("没有解"));
+    } {
+        xs.First ()
+    }
+}
