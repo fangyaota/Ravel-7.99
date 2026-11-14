@@ -1,0 +1,6 @@
+# 行尾固定:仓库里一律存 LF,检出时按下面的规则落地。
+# 为什么要有这个文件:Windows 上 core.autocrlf=true 会把 .sh 也写成 CRLF,
+# bash 读到 `set -euo pipefail\r` 会报 `set: pipefail: invalid option name`
+# —— 看着像构建脚本坏了,其实是行尾。
+* text=auto eol=lf
+*.bat text eol=crlf
